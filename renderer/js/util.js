@@ -178,9 +178,7 @@ export function formatSlotLabel(ms) {
   return `${h}:${String(m).padStart(2, '0')}${ampm}`;
 }
 
-// Walk one source's (looping) file list forward from segStart, returning
-// { file, start, end } entries clipped to segEnd — entries crossing segEnd
-
+// Fisher-Yates, in place.
 export function shuffleArray(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

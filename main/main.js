@@ -17,17 +17,13 @@ if (!gotSingleInstanceLock) {
 const path = require('path');
 const fs = require('fs');
 
-// Portable install: all per-user data (channels.json, backups, plugins,
-// window state, and any plugin's own data folder) lives in a `userData/`
-// folder next to the app itself rather than Electron's OS-profile default
-// (%APPDATA%/retro-cable-box on Windows) — the whole box, config included,
-// stays inside one folder you can copy/move/back up as a unit. The actual
-// one-time migration logic lives in main-config.js (migrateUserDataIfNeeded)
-// alongside the rest of this app's userData-path handling, but it has to be
-// CALLED from right here, first — before any other require() below has a
-// chance to capture app.getPath('userData') at module-load time. Requiring
-// main-config.js is itself safe to do this early: none of its own top-level
-// code touches app.getPath('userData') (see its own header comment).
+// Portable install: see main-config.js's own header comment for the full
+// rationale. The one-time migration logic itself lives there
+// (migrateUserDataIfNeeded), but it has to be CALLED from right here, first —
+// before any other require() below has a chance to capture
+// app.getPath('userData') at module-load time. Requiring main-config.js is
+// itself safe to do this early: none of its own top-level code touches
+// app.getPath('userData') (see its own header comment).
 require('./main-config').migrateUserDataIfNeeded();
 
 // "Server mode" — a --headless (or --server) launch never creates or shows
@@ -183,7 +179,7 @@ app.whenReady().then(async () => {
   }, approvedCapabilities);
   pluginMainLoadErrors = loadResult.loadErrors;
   pluginsNeedingApproval = loadResult.needsApproval;
-  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval), ipcMain);
+  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval), ipcMain, loadResult.allPlugins);
   setFfmpegPath(pluginServices.ffmpegPath || null);
 
   if (HEADLESS) {
@@ -212,6 +208,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// ---------- App / window / network ----------
 ipcMain.handle('app:getVersion', async () => {
   return app.getVersion();
 });
@@ -264,6 +261,7 @@ ipcMain.handle('window:setAspectLock', async (event, { aspect } = {}) => {
   return true;
 });
 
+// ---------- File/folder picker dialogs ----------
 ipcMain.handle('dialog:selectFolder', async () => {
   const result = await dialog.showOpenDialog(getMainWindow(), {
     properties: ['openDirectory'],
@@ -317,7 +315,8 @@ ipcMain.handle('dialog:selectCss', async () => {
   return result.filePaths[0];
 });
 
-// Plugins — see main-plugins.js for the discovery/loading model, the
+// ---------- Plugins (management) ----------
+// See main-plugins.js for the discovery/loading model, the
 // declared-capabilities check (buildCheckedCtx) a plugin's fs/spawn/http/
 // ipcMain access is run through, and the trust-model note (this is a
 // same-process check, not a hard sandbox — see that file's header comment
@@ -420,6 +419,7 @@ ipcMain.handle('plugins:setEnabled', async (event, id, enabled) => {
   return config.plugins.disabled;
 });
 
+// ---------- Filesystem ----------
 ipcMain.handle('fs:scanFolder', async (event, folderPath) => {
   return scanFolderForVideos(folderPath);
 });
@@ -429,9 +429,16 @@ ipcMain.handle('fs:scanFolder', async (event, folderPath) => {
 // resolve (moved/renamed/deleted media), distinct from FIX PLAYBACK's much
 // heavier per-file decode probe which only ever runs one channel at a time.
 ipcMain.handle('fs:checkPathsExist', async (event, paths) => {
-  return (paths || []).map((p) => { try { return fs.existsSync(p); } catch (e) { return false; } });
+  // Async + concurrent rather than a serial existsSync loop — a library
+  // with dozens-to-hundreds of files would otherwise block this whole
+  // process (window, every LAN request, every other IPC call) for the
+  // scan's entire duration, one blocking syscall at a time.
+  return Promise.all((paths || []).map(async (p) => {
+    try { await fs.promises.access(p); return true; } catch (e) { return false; }
+  }));
 });
 
+// ---------- Config backups ----------
 ipcMain.handle('backups:list', async () => {
   return listBackups();
 });
@@ -458,6 +465,7 @@ ipcMain.handle('backups:createNow', async () => {
   return backupCurrentConfig(true);
 });
 
+// ---------- Config load/save/export/import ----------
 ipcMain.handle('config:load', async () => {
   return loadConfig();
 });
@@ -493,29 +501,23 @@ ipcMain.handle('config:import', async () => {
   return parsed;
 });
 
-// Media goes through the app:// media host rather than file://, since the
-// renderer's origin is no longer file:// and Chromium won't load file://
-// subresources from it.
-// The HELP tab's PRINTABLE MANUAL button (setup-settings.js) builds the
-// whole self-contained HTML string in the renderer from the same guide
-// content shown on screen, then hands it here to be written out and opened
-// — a sandboxed renderer has no filesystem access of its own, and
-// window.open() from the renderer is denied by default (no
-// setWindowOpenHandler is registered), so the OS's own browser is the
-// simplest reliable way to get a real, printable window with working
-// Ctrl+P, independent of this app's own BrowserWindow.
+// ---------- Manual, paths, media ----------
+// The HELP tab's PRINTABLE MANUAL button (setup-settings.js) hands over a
+// self-contained HTML string to write out and open — a sandboxed renderer
+// can't write files or window.open() itself, so the OS's own browser is the
+// simplest way to get a real, printable window with working Ctrl+P.
 ipcMain.handle('manual:openPrintable', async (event, html) => {
-  // A per-call unique suffix (pid+timestamp, same convention channels.json's
-  // own temp-write-then-rename uses) rather than a fixed filename — two
-  // rapid clicks would otherwise both write to and shell.openPath() the
-  // same path, racing a still-open browser window's read against the
-  // second click's write.
+  // Unique filename (pid+timestamp) so two rapid clicks don't race a
+  // still-open browser window's read against a second click's write.
   const filePath = path.join(app.getPath('temp'), `retro-cable-box-manual-${process.pid}-${Date.now()}.html`);
   fs.writeFileSync(filePath, html, 'utf-8');
   await shell.openPath(filePath);
   return filePath;
 });
 
+// Media goes through the app:// media host rather than file://, since the
+// renderer's origin is no longer file:// and Chromium won't load file://
+// subresources from it.
 ipcMain.handle('path:toFileUrl', async (event, filePath) => {
   return `app://media/?p=${encodeURIComponent(filePath)}`;
 });

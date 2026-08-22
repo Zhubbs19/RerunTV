@@ -108,12 +108,19 @@ function recoverPendingSwap(srcPath) {
   }
 }
 
-function scanFolderForVideos(folderPath) {
+// Async (fs.promises.readdir), not the fs.readdirSync this used to be — a
+// real media library can be nested many folders deep with thousands of
+// files, and a fully synchronous walk blocks this whole process (window,
+// every LAN request, every other IPC call) for the entire scan. Each
+// `await` below hands control back to the event loop between directories,
+// so other work can interleave instead of the app appearing frozen for
+// however long the scan takes.
+async function scanFolderForVideos(folderPath) {
   const results = [];
-  function walk(dir) {
+  async function walk(dir) {
     let entries;
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = await fs.promises.readdir(dir, { withFileTypes: true });
     } catch (e) {
       return;
     }
@@ -123,13 +130,14 @@ function scanFolderForVideos(folderPath) {
         // Skip backup folders created by the codec-fix swap — the original
         // files parked there would otherwise show up as duplicate entries.
         if (entry.name === '_originals_backup') continue;
-        walk(fullPath);
+        // eslint-disable-next-line no-await-in-loop
+        await walk(fullPath);
       } else if (VIDEO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
         results.push(fullPath);
       }
     }
   }
-  walk(folderPath);
+  await walk(folderPath);
   results.sort();
   return results;
 }

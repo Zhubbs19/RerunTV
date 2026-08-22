@@ -136,8 +136,16 @@ function intervalSlot(anchorMs, atMs, intervalMs) {
 // The content file "airing" at atMs, as a global ordinal (not just its index
 // within one loop of the folder) plus its exact absolute start/end — derived
 // entirely from computeSourcePosition's own output, no new position math.
-export function boundarySlot(source, atMs) {
-  const pos = computeSourcePosition(source, atMs, { ignoreContentLost: true });
+// knownPos lets a caller that already computed computeSourcePosition(source,
+// atMs, { ignoreContentLost: true }) — the exact call this function would
+// otherwise make internally — pass it straight through instead of paying
+// for the same linear file-list scan again. resolveBreakAt below is the
+// main beneficiary: it's on the hottest path in the app (every tune, every
+// break-boundary timer tick, every time-machine shuttle-drag frame) and
+// calls boundarySlot() up to twice per invocation, always for the same
+// (source, atMs) its own posNow already covers.
+export function boundarySlot(source, atMs, knownPos) {
+  const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
   if (!pos) return null;
   const elapsedRaw = (atMs - source.anchor) / 1000;
   const cyclesElapsed = Math.floor(elapsedRaw / pos.total);
@@ -206,7 +214,16 @@ function firstNonEmpty(...lists) {
 // sense as pickDeterministic: same (pool, seedKey, slotIndex) always
 // produces the same pod. Returns null when the pool has nothing playable at
 // all for this channel/block (mirrors windowFor's null-when-empty).
-function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podMax, fileTags, optInTags, optCommTags, optOutTags, targetTiming) {
+// The last 4 conceptually-related values (an explicit bump-in/commercial/
+// bump-out tag override, plus which contentTiming this pod targets) are
+// bundled into one `opts` object rather than 4 more positional params —
+// every call site either supplies all of them together (a flow step's own
+// per-step overrides) or none at all (the ordinary interval/everyNMinutes/
+// breakpoints timing modes never override any of them), so they were
+// always conceptually one unit, not 4 independent choices a caller picks
+// separately.
+function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podMax, fileTags, opts) {
+  const { inTags: optInTags, commTags: optCommTags, outTags: optOutTags, targetTiming } = opts || {};
   const lo = Math.max(1, podMin || 1);
   const hi = Math.max(lo, podMax || lo);
   const sizeRand = mulberry32(hashString(`${seedKey}:podsize:${slotIndex}`))();
@@ -312,7 +329,7 @@ export function resolveBreakAt(ch, atMs) {
   const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
 
   const activeCommercials = resolveActiveCommercials(ch, atMs, fileTags);
-  const cc = activeCommercials.commercials;
+  const cc = activeCommercials.commercials; // this channel's effective commercials config (block/preset override already resolved) — short name, used constantly below
   if (cc && cc.enabled !== false) {
     const timing = cc.timing || 'interval';
     // Keyed on the preset id when a preset governs (so ad selection travels
@@ -338,7 +355,7 @@ export function resolveBreakAt(ch, atMs) {
       // elapsed break time back via S.contentLostMs regardless of *why*
       // content stopped, so "resume the show where it left off" works
       // identically whether the break happened between files or mid-file.
-      const bs = boundarySlot(source, atMs);
+      const bs = boundarySlot(source, atMs, posNow);
       if (bs) {
         const intervalMs = Math.max(1, cc.intervalMinutes || (S.config.commercials && S.config.commercials.intervalMinutes) || 10) * 60000;
         const slotIndexInFile = Math.floor((atMs - bs.fileStartMs) / intervalMs);
@@ -350,7 +367,7 @@ export function resolveBreakAt(ch, atMs) {
         }
       }
     } else if (timing === 'flow') {
-      const bs = boundarySlot(source, atMs);
+      const bs = boundarySlot(source, atMs, posNow);
       if (bs) {
         // For multi-segment flows, the cycle length is how many episodes constitute
         // one full "block" of the flow. Inter-episode steps (postSteps/interSteps)
@@ -388,10 +405,12 @@ export function resolveBreakAt(ch, atMs) {
                 step.podMin || cc.podMin || 1,
                 step.podMax || cc.podMax || 1,
                 fileTags,
-                firstNonEmpty(step.bumpInTags, cc.bumpInTags),
-                firstNonEmpty(step.commercialTags, cc.commercialTags),
-                firstNonEmpty(step.bumpOutTags, cc.bumpOutTags),
-                segMeta.label
+                {
+                  inTags: firstNonEmpty(step.bumpInTags, cc.bumpInTags),
+                  commTags: firstNonEmpty(step.commercialTags, cc.commercialTags),
+                  outTags: firstNonEmpty(step.bumpOutTags, cc.bumpOutTags),
+                  targetTiming: segMeta.label,
+                }
               );
               if (pod) {
                 const seg = segmentAt(pod, atMs);
@@ -434,7 +453,7 @@ export function resolveBreakAt(ch, atMs) {
             const inTags = firstNonEmpty(podStep.bumpInTags, cc.bumpInTags);
             const commTags = firstNonEmpty(podStep.commercialTags, cc.commercialTags);
             const outTags = firstNonEmpty(podStep.bumpOutTags, cc.bumpOutTags);
-            const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, inTags, commTags, outTags);
+            const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, { inTags, commTags, outTags });
             const seg = segmentAt(pod, atMs);
             if (seg) return { type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
           }
@@ -449,7 +468,7 @@ export function resolveBreakAt(ch, atMs) {
       // rather than wall-clock timing that ignores it. Each breakpoint gets
       // its own pod, keyed by its index so a pod's contents stay stable
       // regardless of how many other breakpoints exist.
-      const bs = boundarySlot(source, atMs);
+      const bs = boundarySlot(source, atMs, posNow);
       if (bs) {
         const fileDurMs = bs.fileEndMs - bs.fileStartMs;
         const pts = (cc.breakpoints || []).filter((p) => p > 0 && p < 100).sort((a, b) => a - b);
@@ -462,7 +481,7 @@ export function resolveBreakAt(ch, atMs) {
           const inTags = firstNonEmpty(podStep.bumpInTags, cc.bumpInTags);
           const commTags = firstNonEmpty(podStep.commercialTags, cc.commercialTags);
           const outTags = firstNonEmpty(podStep.bumpOutTags, cc.bumpOutTags);
-          const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, inTags, commTags, outTags);
+          const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, { inTags, commTags, outTags });
           const seg = segmentAt(pod, atMs);
           if (seg) return { type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
         }
@@ -483,14 +502,14 @@ export function resolveBreakAt(ch, atMs) {
       // fileStartMs = atMs - offset*1000 is always <= atMs by construction,
       // so it correctly anchors "how long ago did the most recent boundary
       // pass" regardless of how far re-querying has drifted past it.
-      const bs = boundarySlot(source, atMs);
+      const bs = boundarySlot(source, atMs, posNow);
       if (bs) {
         const segments = [];
         if (timing === 'post' || timing === 'both') segments.push({ slotIndex: bs.ordinal * 2, label: 'post' });
         if (timing === 'pre' || timing === 'both') segments.push({ slotIndex: bs.ordinal * 2 + 1, label: 'pre' });
         let cursor = bs.fileStartMs;
         for (const segMeta of segments) {
-          const pod = buildPod(pool, ch, block, seedKey, segMeta.slotIndex, cursor, cc.podMin, cc.podMax, fileTags, null, null, null, segMeta.label);
+          const pod = buildPod(pool, ch, block, seedKey, segMeta.slotIndex, cursor, cc.podMin, cc.podMax, fileTags, { targetTiming: segMeta.label });
           if (!pod) continue;
           const seg = segmentAt(pod, atMs);
           if (seg) return { type: seg.type, label: segMeta.label, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
@@ -500,7 +519,7 @@ export function resolveBreakAt(ch, atMs) {
     }
   }
 
-  const sid = S.config.stationId;
+  const sid = S.config.stationId; // box-wide station-id bumper config ("sid" as in "station ID")
   if (sid && sid.enabled !== false) {
     const intervalMs = Math.max(1, sid.intervalMinutes || 15) * 60000;
     const { slotStart } = intervalSlot(source.anchor, atMs, intervalMs);
@@ -516,7 +535,7 @@ export function resolveBreakAt(ch, atMs) {
     }
   }
 
-  const tv = S.config.trivia;
+  const tv = S.config.trivia; // box-wide trivia-break config ("tv" as in "trivia")
   if (tv && tv.enabled) {
     const intervalMs = Math.max(1, tv.intervalMinutes || 20) * 60000;
     const { slotIndex, slotStart } = intervalSlot(source.anchor, atMs, intervalMs);
@@ -533,7 +552,7 @@ export function resolveBreakAt(ch, atMs) {
   // atMs computed it, so the window could only ever be hit by exact
   // floating-point equality — confirmed via a live test that this made
   // upNext never actually fire through real polling before this fix).
-  const bs2 = boundarySlot(source, atMs);
+  const bs2 = boundarySlot(source, atMs, posNow);
   if (bs2) {
     const seedKey = `upNext:${ch.number}:${block ? block.id : 'default'}`;
     const win = windowFor(pool, 'upNext', ch, block, seedKey, bs2.ordinal, bs2.fileStartMs, 0, fileTags);

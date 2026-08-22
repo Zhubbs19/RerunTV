@@ -279,7 +279,20 @@ export function resolveActiveSource(ch, atMs) {
 // further out isn't wrong, it just won't self-correct proactively until the
 // next tune/retune brings it into this window.
 const BOUNDARY_SCAN_HOURS = 24 * 35;
-export function nextSourceBoundary(ch, fromMs) {
+
+// capMs (optional): a caller that only cares whether a boundary falls
+// before some known instant — getChannelSchedule below is the main one,
+// which immediately clamps this function's return value to its own
+// windowEnd via Math.min() either way — can pass that instant here so the
+// scan itself stops there too, instead of always walking up to the full
+// 35-day/840-hour range only to have most of that precision thrown away by
+// the caller's own clamp a moment later. Returning Infinity for "nothing
+// found before capMs" produces the exact same Math.min(boundary, windowEnd)
+// result a full scan would have, since a true boundary beyond windowEnd
+// clamps to windowEnd either way — this is a pure performance change, the
+// visible result for that caller is identical. Omit capMs for the original
+// "give me the real next boundary" behavior (e.g. arming a retune timer).
+export function nextSourceBoundary(ch, fromMs, capMs) {
   if (!ch.blocks || ch.blocks.length === 0) return Infinity;
   const from = resolveActiveSource(ch, fromMs);
   const b = from.block;
@@ -305,6 +318,7 @@ export function nextSourceBoundary(ch, fromMs) {
   d.setMinutes(0, 0, 0);
   for (let i = 1; i <= BOUNDARY_SCAN_HOURS; i++) {
     const hourStart = d.getTime() + i * 3600000;
+    if (capMs != null && hourStart > capMs) return Infinity;
     if (resolveActiveSource(ch, hourStart).key !== from.key) return hourStart;
   }
   return Infinity;
@@ -578,7 +592,7 @@ export function getChannelSchedule(ch, windowStart, windowEnd) {
   let segStart = windowStart;
   let safety = 0;
   while (segStart < windowEnd && safety < 30) {
-    const boundary = nextSourceBoundary(ch, segStart);
+    const boundary = nextSourceBoundary(ch, segStart, windowEnd);
     const segEnd = Math.min(boundary, windowEnd);
     const source = resolveActiveSource(ch, segStart);
     entries.push(...walkSourceSchedule(source, segStart, segEnd));

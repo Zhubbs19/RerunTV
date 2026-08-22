@@ -220,9 +220,6 @@ export function cancelNewsSpeech() {
 }
 
 export function playPurchaseConfirmSound() {
-  const ctx = getAudioCtx();
-  const now = ctx.currentTime;
-
   // Cash register cha-ching + success chime
   playNoiseBurst({ duration: 40, gain: 0.15, filterFreq: 3000 });
   setTimeout(() => playTone({ freq: 1200, duration: 80, type: 'triangle', gain: 0.15 }), 50);
@@ -230,8 +227,6 @@ export function playPurchaseConfirmSound() {
 }
 
 export function playPinUnlockSound() {
-  const ctx = getAudioCtx();
-  const now = ctx.currentTime;
   playTone({ freq: 880, duration: 100, type: 'sine', gain: 0.15 });
   setTimeout(() => playTone({ freq: 1760, duration: 250, type: 'sine', gain: 0.18 }), 100);
 }

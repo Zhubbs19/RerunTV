@@ -33,19 +33,19 @@ function createRpc(post, subscribe, options = {}) {
   const listeners = new Map(); // method -> (payload) => void
 
   const settlePending = (id, fn) => {
-    const p = pending.get(id);
-    if (!p) return;
+    const entry = pending.get(id);
+    if (!entry) return;
     pending.delete(id);
-    clearTimeout(p.timer);
-    fn(p);
+    clearTimeout(entry.timer);
+    fn(entry);
   };
 
   subscribe((msg) => {
     if (!msg || typeof msg !== 'object') return;
     if (msg.kind === 'res') {
-      settlePending(msg.id, (p) => {
-        if (msg.ok) p.resolve(msg.result);
-        else p.reject(new Error(msg.error || 'RPC call failed'));
+      settlePending(msg.id, (entry) => {
+        if (msg.ok) entry.resolve(msg.result);
+        else entry.reject(new Error(msg.error || 'RPC call failed'));
       });
       return;
     }
@@ -102,7 +102,7 @@ function createRpc(post, subscribe, options = {}) {
       if (disposed) return;
       disposed = true;
       const err = new Error(reason || 'RPC channel closed');
-      pending.forEach((p) => { clearTimeout(p.timer); p.reject(err); });
+      pending.forEach((entry) => { clearTimeout(entry.timer); entry.reject(err); });
       pending.clear();
     },
   };

@@ -238,10 +238,10 @@ function orderByDependencies(plugins) {
   let progress = true;
   while (remaining.length && progress) {
     progress = false;
-    remaining = remaining.filter((p) => {
-      if (p.dependsOn.every((depId) => placed.has(depId))) {
-        ordered.push(p);
-        placed.add(p.id);
+    remaining = remaining.filter((plugin) => {
+      if (plugin.dependsOn.every((depId) => placed.has(depId))) {
+        ordered.push(plugin);
+        placed.add(plugin.id);
         progress = true;
         return false;
       }
@@ -330,37 +330,43 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
 async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const disabled = new Set(disabledIds || []);
   const approved = approvedSignatures || {};
-  const plugins = orderByDependencies(discoverPlugins().filter((p) => !p.error && p.main && !disabled.has(p.id)));
+  // Read once and reused for both this function's own filtered list and
+  // the full list handed back to the caller — registerFallbackHandlers()
+  // (main.js) used to independently call discoverPlugins() again right
+  // after this returns, meaning every boot re-read + re-parsed every
+  // plugin's manifest.json a second time for no reason.
+  const allPlugins = discoverPlugins();
+  const plugins = orderByDependencies(allPlugins.filter((plugin) => !plugin.error && plugin.main && !disabled.has(plugin.id)));
   const loadErrors = {};
   const needsApproval = [];
   const baseCtx = { ipcMain, app, shell, desktopCapturer, ...extraCtx };
   const appRootDir = path.join(__dirname, '..');
-  for (const p of plugins) {
-    const signature = capabilitiesSignature(p.capabilities);
-    const hasAnyCapability = p.capabilities.ipc.length || p.capabilities.spawn.length || p.capabilities.net.length;
-    if (hasAnyCapability && approved[p.id] !== signature) {
-      needsApproval.push(p.id);
+  for (const plugin of plugins) {
+    const signature = capabilitiesSignature(plugin.capabilities);
+    const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length || plugin.capabilities.net.length;
+    if (hasAnyCapability && approved[plugin.id] !== signature) {
+      needsApproval.push(plugin.id);
       continue; // eslint-disable-line no-continue
     }
-    const pluginDir = path.join(getPluginsDir(), p.dir);
-    if (p.isolated) {
+    const pluginDir = path.join(getPluginsDir(), plugin.dir);
+    if (plugin.isolated) {
       // eslint-disable-next-line no-await-in-loop
-      const result = await activateIsolatedPlugin(p, pluginDir, baseCtx, extraCtx.services, appRootDir);
-      if (!result.ok) loadErrors[p.id] = result.error;
+      const result = await activateIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir);
+      if (!result.ok) loadErrors[plugin.id] = result.error;
       continue; // eslint-disable-line no-continue
     }
-    const mainPath = path.join(pluginDir, p.main);
+    const mainPath = path.join(pluginDir, plugin.main);
     try {
       // eslint-disable-next-line import/no-dynamic-require, global-require
       const mod = require(mainPath);
       if (mod && typeof mod.activate === 'function') {
-        mod.activate(buildCheckedCtx(baseCtx, p, pluginDir));
+        mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
       }
     } catch (e) {
-      loadErrors[p.id] = e.message;
+      loadErrors[plugin.id] = e.message;
     }
   }
-  return { loadErrors, needsApproval };
+  return { loadErrors, needsApproval, allPlugins };
 }
 
 // Installs a plugin from a .zip a user picked (PLUGINS tab "INSTALL FROM
@@ -372,6 +378,27 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
 // named after manifest.json's own `id`, not the zip's filename or internal
 // folder name, so re-zipping the same plugin under a different name doesn't
 // create a duplicate install.
+// Finds manifest.json either at the archive root or exactly one level deep
+// inside a single top-level folder — returns the entry-name prefix to strip
+// off every extracted path ('' for root, 'dir/' for one level deep), or null
+// if neither shape matches (multiple top-level folders, no manifest at all —
+// too ambiguous to auto-detect).
+function findManifestPrefix(entries) {
+  const rootManifest = entries.find((e) => !e.isDirectory && e.entryName === 'manifest.json');
+  if (rootManifest) return '';
+  const topDirs = new Set();
+  entries.forEach((e) => {
+    const firstSlash = e.entryName.indexOf('/');
+    if (firstSlash > 0) topDirs.add(e.entryName.slice(0, firstSlash));
+  });
+  if (topDirs.size === 1) {
+    const dir = [...topDirs][0];
+    const nested = entries.find((e) => !e.isDirectory && e.entryName === `${dir}/manifest.json`);
+    if (nested) return `${dir}/`;
+  }
+  return null;
+}
+
 function installPluginFromZip(zipPath, opts) {
   opts = opts || {};
   let zip;
@@ -382,25 +409,7 @@ function installPluginFromZip(zipPath, opts) {
   }
   const entries = zip.getEntries();
 
-  // Find manifest.json either at the archive root or exactly one level deep
-  // inside a single top-level folder — reject anything else (multiple
-  // top-level folders, no manifest at all) as too ambiguous to auto-detect.
-  let sourcePrefix = null;
-  const rootManifest = entries.find((e) => !e.isDirectory && e.entryName === 'manifest.json');
-  if (rootManifest) {
-    sourcePrefix = '';
-  } else {
-    const topDirs = new Set();
-    entries.forEach((e) => {
-      const firstSlash = e.entryName.indexOf('/');
-      if (firstSlash > 0) topDirs.add(e.entryName.slice(0, firstSlash));
-    });
-    if (topDirs.size === 1) {
-      const dir = [...topDirs][0];
-      const nested = entries.find((e) => !e.isDirectory && e.entryName === `${dir}/manifest.json`);
-      if (nested) sourcePrefix = `${dir}/`;
-    }
-  }
+  const sourcePrefix = findManifestPrefix(entries);
   if (sourcePrefix === null) {
     return { success: false, error: "Couldn't find manifest.json in that zip (checked the root and one folder deep)." };
   }
@@ -455,16 +464,16 @@ function installPluginFromZip(zipPath, opts) {
 // too since this is a destructive filesystem operation that shouldn't trust
 // the caller alone.
 function uninstallPlugin(id) {
-  const p = discoverPlugins().find((x) => x.id === id && !x.error);
-  if (!p) return { success: false, error: `Plugin "${id}" not found.` };
-  if (p.bundled) return { success: false, error: `"${p.name}" ships with the app and can't be fully uninstalled — disable it instead.` };
-  const pluginDir = path.join(getPluginsDir(), p.dir);
+  const plugin = discoverPlugins().find((x) => x.id === id && !x.error);
+  if (!plugin) return { success: false, error: `Plugin "${id}" not found.` };
+  if (plugin.bundled) return { success: false, error: `"${plugin.name}" ships with the app and can't be fully uninstalled — disable it instead.` };
+  const pluginDir = path.join(getPluginsDir(), plugin.dir);
   try {
     fs.rmSync(pluginDir, { recursive: true, force: true });
   } catch (e) {
     return { success: false, error: `Couldn't remove the plugin folder (${e.message}).` };
   }
-  return { success: true, id, name: p.name };
+  return { success: true, id, name: plugin.name };
 }
 
 // A plugin whose main.js is NOT active (disabled, missing, or its own
@@ -490,13 +499,17 @@ function uninstallPlugin(id) {
 // `inactiveIds` covers both disabled plugins and ones pending a capabilities
 // approval prompt (loadMainPlugins()'s `needsApproval`, see main.js) — both
 // need the same safe fallback while they're not actually running.
-function registerFallbackHandlers(inactiveIds, ipcMain) {
+// `plugins` is optional — pass loadMainPlugins()'s own returned `allPlugins`
+// (it already did the discoverPlugins() scan this boot) to skip a redundant
+// re-scan/re-parse of every manifest.json; omit it to have this do its own
+// discoverPlugins() call, e.g. if this is ever invoked standalone.
+function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   const inactive = new Set(inactiveIds || []);
-  discoverPlugins().forEach((p) => {
-    if (p.error || !p.main) return;
-    if (!inactive.has(p.id)) return; // active plugins register their own real handlers via activate()
+  (plugins || discoverPlugins()).forEach((plugin) => {
+    if (plugin.error || !plugin.main) return;
+    if (!inactive.has(plugin.id)) return; // active plugins register their own real handlers via activate()
     try {
-      const mod = require(path.join(getPluginsDir(), p.dir, p.main));
+      const mod = require(path.join(getPluginsDir(), plugin.dir, plugin.main));
       if (mod && typeof mod.registerFallback === 'function') mod.registerFallback(ipcMain);
     } catch (e) {
       // Broken plugin main.js — main-plugins.js's own loadMainPlugins() (for

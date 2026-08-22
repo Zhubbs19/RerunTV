@@ -275,6 +275,22 @@ function breakKeyFor(resolved) {
   return `${resolved.type}:${resolved.windowStart}`;
 }
 
+// completedBreakKeys is reset to null on any time-machine jump (see
+// shuttlePlay in timemachine.js) — it only ever accumulates during
+// uninterrupted live playback, but on a box left running for weeks that's
+// still one new entry per completed break window, forever. Set iteration
+// order is insertion order, and breaks complete in chronological order
+// during live play, so trimming from the front reliably drops the oldest
+// entries first without needing to parse a timestamp back out of each key.
+const COMPLETED_BREAK_KEYS_MAX = 500;
+function markBreakCompleted(key) {
+  S.completedBreakKeys = S.completedBreakKeys || new Set();
+  S.completedBreakKeys.add(key);
+  if (S.completedBreakKeys.size > COMPLETED_BREAK_KEYS_MAX) {
+    S.completedBreakKeys.delete(S.completedBreakKeys.values().next().value);
+  }
+}
+
 // Clears the three fields that track "is a break currently on screen, and
 // what kind" — the shared core of a reset every power-off, channel-tune,
 // and shuttle-start needs to do before deciding what (if anything) plays
@@ -572,10 +588,7 @@ function startBreak(ch, resolved, key) {
         player.removeEventListener('ended', resume);
         player.removeEventListener('error', resume);
         S.awaitingBumperEnd = false;
-        if (key) {
-          S.completedBreakKeys = S.completedBreakKeys || new Set();
-          S.completedBreakKeys.add(key);
-        }
+        if (key) markBreakCompleted(key);
         endBreak(ch);
       };
       S.endedHandler = resume;
@@ -585,10 +598,7 @@ function startBreak(ch, resolved, key) {
     } catch (err) {
       console.error('[COMMERCIAL BUMPER RESOLVE ERROR]', err);
       S.awaitingBumperEnd = false;
-      if (key) {
-        S.completedBreakKeys = S.completedBreakKeys || new Set();
-        S.completedBreakKeys.add(key);
-      }
+      if (key) markBreakCompleted(key);
       endBreak(ch);
     }
   })();
@@ -596,10 +606,7 @@ function startBreak(ch, resolved, key) {
 
 function endBreak(ch) {
   const shouldResume = S.activeBreakInterruptsContent;
-  if (S.activeBreakKey) {
-    S.completedBreakKeys = S.completedBreakKeys || new Set();
-    S.completedBreakKeys.add(S.activeBreakKey);
-  }
+  if (S.activeBreakKey) markBreakCompleted(S.activeBreakKey);
   resetActiveBreakState();
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;

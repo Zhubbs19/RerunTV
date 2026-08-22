@@ -169,9 +169,16 @@ export function renderChannelList() {
     renderBulkActionsBar();
     return;
   }
+  // Precomputed once per render rather than inside the per-row loop below —
+  // fullList.indexOf(ch) and a fresh sortedChannels() call per row were both
+  // O(n) (the latter O(n log n)), making the whole render O(n^2) on channel
+  // count; a large channel list made this render loop visibly slower than
+  // it needs to be.
+  const fullIndexOf = new Map(fullList.map((c, i) => [c, i]));
+  const allChannelsForCopyFrom = sortedChannels();
   list
     .forEach((ch) => {
-      const fullIdx = fullList.indexOf(ch);
+      const fullIdx = fullIndexOf.get(ch);
       const row = document.createElement('div');
       row.className = 'channel-row';
       row.dataset.channelNumber = String(ch.number);
@@ -367,7 +374,7 @@ export function renderChannelList() {
       copyFromOpt0.value = '';
       copyFromOpt0.textContent = 'COPY SETTINGS FROM…';
       copyFromSelect.appendChild(copyFromOpt0);
-      sortedChannels().forEach((other) => {
+      allChannelsForCopyFrom.forEach((other) => {
         if (other.number === ch.number) return;
         const opt = document.createElement('option');
         opt.value = String(other.number);
@@ -908,7 +915,14 @@ librarySearchToggleBtn.addEventListener('click', () => {
     librarySearchInputEl.focus();
   }
 });
-librarySearchInputEl.addEventListener('input', () => renderLibrarySearchResults(librarySearchInputEl.value));
+// Debounced — this re-scans every channel's whole file list on every
+// keystroke (see renderLibrarySearchResults above), which starts to visibly
+// lag typing once a library grows into the hundreds/thousands of files.
+let librarySearchDebounceTimer = null;
+librarySearchInputEl.addEventListener('input', () => {
+  clearTimeout(librarySearchDebounceTimer);
+  librarySearchDebounceTimer = setTimeout(() => renderLibrarySearchResults(librarySearchInputEl.value), 150);
+});
 
 bulkSelectAllBtn.addEventListener('click', () => {
   const visible = filteredSetupChannels(sortedForSetup());

@@ -59,7 +59,11 @@ function migrateUserDataIfNeeded() {
   const appDir = app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..');
   const localUserDataDir = path.join(appDir, 'userData');
   const samePath = path.resolve(defaultUserDataDir) === path.resolve(localUserDataDir);
-  if (!samePath && !fs.existsSync(localUserDataDir) && fs.existsSync(defaultUserDataDir)) {
+  // One-time migration is due: the two locations genuinely differ, nothing's
+  // been copied to the local folder yet, and there's old OS-profile data to
+  // bring over in the first place.
+  const needsOneTimeMigration = !samePath && !fs.existsSync(localUserDataDir) && fs.existsSync(defaultUserDataDir);
+  if (needsOneTimeMigration) {
     try {
       fs.mkdirSync(localUserDataDir, { recursive: true });
       const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(defaultUserDataDir));
@@ -76,7 +80,10 @@ function migrateUserDataIfNeeded() {
       try { fs.rmSync(localUserDataDir, { recursive: true, force: true }); } catch (e2) { /* leave the partial copy for inspection if even cleanup fails */ }
     }
   }
-  if (fs.existsSync(localUserDataDir) || !fs.existsSync(defaultUserDataDir)) {
+  // Use the local folder if it now has (or already had) data, or if there's
+  // no old OS-profile data to fall back to anyway (a fresh install).
+  const shouldUseLocalDir = fs.existsSync(localUserDataDir) || !fs.existsSync(defaultUserDataDir);
+  if (shouldUseLocalDir) {
     if (!fs.existsSync(localUserDataDir)) fs.mkdirSync(localUserDataDir, { recursive: true });
     app.setPath('userData', localUserDataDir);
   }
@@ -84,6 +91,48 @@ function migrateUserDataIfNeeded() {
 
 function getConfigPath() {
   return path.join(app.getPath('userData'), 'channels.json');
+}
+
+// ---------- channels.json read cache ----------
+// loadConfig() is called far more often than channels.json actually
+// changes — every LAN viewer's ~10s config poll, every party-channel/
+// universal-remote request that touches config, on top of the renderer's
+// own config:load — and each call used to mean a fresh synchronous
+// readFileSync + JSON.parse of the whole file, done on the Electron main
+// process's single thread, blocking every other pending IPC/LAN request
+// for however long that took. Caches the raw file text (not the parsed
+// object — loadConfig() still does a fresh JSON.parse per call off the
+// cached string, so every caller still gets its own independently-
+// mutable object, same as before this cache existed; several call sites
+// mutate the returned object in place before calling saveConfig() with
+// it, and sharing one parsed object across callers would corrupt that).
+// Invalidated explicitly by writeConfigFile() below (the only place in
+// this module that writes channels.json) and defensively by an mtime
+// check on every read, in case something outside this process's own
+// writes ever touches the file (a user hand-editing it while the app is
+// running, restoring from an external tool, etc.).
+let cachedConfigRaw = null;
+let cachedConfigMtimeMs = null;
+
+function readConfigFileCached() {
+  const configPath = getConfigPath();
+  const stat = fs.statSync(configPath); // throws ENOENT if missing, same as a direct readFileSync would
+  if (cachedConfigRaw === null || stat.mtimeMs !== cachedConfigMtimeMs) {
+    cachedConfigRaw = fs.readFileSync(configPath, 'utf-8');
+    cachedConfigMtimeMs = stat.mtimeMs;
+  }
+  return cachedConfigRaw;
+}
+
+// Every write to channels.json in this module goes through here so the
+// read cache above can never observe stale content after a save/restore.
+function writeConfigFile(raw) {
+  const configPath = getConfigPath();
+  const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
+  fs.writeFileSync(tempPath, raw, 'utf-8');
+  fs.renameSync(tempPath, configPath);
+  cachedConfigRaw = null;
+  cachedConfigMtimeMs = null;
 }
 
 // ---------- Rotating config backups ----------
@@ -217,10 +266,7 @@ function restoreBackup(file) {
   const raw = fs.readFileSync(backupPath, 'utf-8'); // throws if missing
   const parsed = JSON.parse(raw); // throws if somehow corrupt — caller sees the rejection, nothing is overwritten
   backupCurrentConfig(true); // the state being replaced is itself worth keeping, forced past the rate limit
-  const configPath = getConfigPath();
-  const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tempPath, raw, 'utf-8');
-  fs.renameSync(tempPath, configPath);
+  writeConfigFile(raw);
   return parsed;
 }
 
@@ -262,7 +308,7 @@ function loadConfig() {
   }
   let raw;
   try {
-    raw = fs.readFileSync(configPath, 'utf-8');
+    raw = readConfigFileCached();
   } catch (e) {
     // No config file yet — a genuinely fresh install, not data loss.
     // _isFirstRun is a one-time signal for the renderer's onboarding screen
@@ -294,17 +340,14 @@ function loadConfig() {
   }
 }
 
-// Written via temp-file-then-rename rather than a direct write — a crash or
-// power loss mid-write to the real path would otherwise leave channels.json
-// truncated/corrupt with no way back. The temp file lives next to the real
-// one so the rename stays on the same volume (cross-volume renames aren't
-// atomic).
+// Written via temp-file-then-rename (writeConfigFile above) rather than a
+// direct write — a crash or power loss mid-write to the real path would
+// otherwise leave channels.json truncated/corrupt with no way back. The
+// temp file lives next to the real one so the rename stays on the same
+// volume (cross-volume renames aren't atomic).
 function saveConfig(config) {
   backupCurrentConfig(); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
-  const configPath = getConfigPath();
-  const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tempPath, JSON.stringify(config, null, 2), 'utf-8');
-  fs.renameSync(tempPath, configPath);
+  writeConfigFile(JSON.stringify(config, null, 2));
   return true;
 }
 

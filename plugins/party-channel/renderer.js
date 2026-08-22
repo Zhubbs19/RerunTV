@@ -348,6 +348,12 @@ function pushToTickerFeed(text) {
 }
 
 // ---------- Content queue ----------
+// Unlike S.partyCheckins/S.partyTickerFeed above, this one has no natural
+// display-time cap of its own to lean on — each item shows for
+// imageDurationSec/videoMaxDurationSec (8-60s), so a lively party posting
+// faster than that could otherwise grow this without bound. Capped the
+// same "keep the most recent, drop the oldest" way as its siblings.
+const PARTY_QUEUE_MAX = 40;
 function pushPartyQueueState() {
   const S = window.S;
   window.api.sendPartyQueueState({
@@ -364,7 +370,13 @@ function pushPartyQueueState() {
 function enqueuePartyItem(item) {
   const S = window.S;
   if (item.kind === 'announce') S.partyQueue.unshift(item);
-  else S.partyQueue.push(item);
+  else {
+    S.partyQueue.push(item);
+    // Trim from the front (oldest-waiting), not the end via .length= — the
+    // newest item just got pushed onto the end, so shrinking .length would
+    // drop that instead of the stale backlog.
+    if (S.partyQueue.length > PARTY_QUEUE_MAX) S.partyQueue.splice(0, S.partyQueue.length - PARTY_QUEUE_MAX);
+  }
   pushPartyQueueState();
   if (item.kind === 'announce') pushToTickerFeed('📢 ' + item.text);
   else if (item.caption) pushToTickerFeed((item.kind === 'video' ? '🎬 ' : '📷 ') + item.caption);

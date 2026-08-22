@@ -66,6 +66,53 @@ function buildExecArgv(manifest, appRootDir, dataDir) {
   return args;
 }
 
+// ---- handlers for requests/events the CHILD initiates ----
+// Split out of activateIsolatedPlugin() below — this whole block wires up
+// what happens when the forked process calls back into the host (an IPC
+// registration, a service publish, a party route claim, ...); none of it
+// touches that function's own per-activation state (settle/resolve, the
+// handshake), so it was just adding to how far you had to scroll to find
+// where activation itself actually starts and ends.
+function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices) {
+  childRpc.on('ipc:handle-register', ({ channel }) => {
+    ipcMain.handle(channel, async (event, ...args) => childRpc.request('ipc:call', { channel, args }));
+  });
+  childRpc.on('ipc:on-register', ({ channel }) => {
+    ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
+  });
+  childRpc.handle('desktopCapturer:getSources', async ({ opts }) => {
+    const sources = await desktopCapturer.getSources(opts);
+    return sources.map((s) => ({ id: s.id, name: s.name, thumbnailDataUrl: s.thumbnail.toDataURL() }));
+  });
+  childRpc.handle('shell:openExternal', async ({ url }) => { shell.openExternal(url); return true; });
+  childRpc.on('app:on-before-quit-register', () => { beforeQuitChildren.add(childRpc); });
+  childRpc.on('sendToMainWindow', ({ channel, data }) => {
+    const mainWindow = baseCtx.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+  });
+  childRpc.handle('fetchJsonCached', async ({
+    key, url, opts, ttlMs,
+  }) => baseCtx.fetchJsonCached(key, url, opts, ttlMs));
+  childRpc.handle('loadConfig', async () => baseCtx.loadConfig());
+  childRpc.on('trackConnection', ({ serverName, ip, userAgent }) => recordConnection(serverName, ip, userAgent));
+  childRpc.on('services:publish', ({ key, value }) => { pluginServices[key] = value; });
+  childRpc.on('services:registerProvider', ({ key }) => { serviceProviders.set(key, childRpc); });
+  childRpc.handle('services:call', async ({ key, args }) => {
+    if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
+    const provider = serviceProviders.get(key);
+    if (!provider) throw new Error(`No plugin has published a "${key}" service.`);
+    return provider.request('services:invoke', { key, args });
+  });
+  childRpc.on('party:registerRoute', ({ method, pathname }) => {
+    partyRouteRegistry.set(`${method} ${pathname}`, childRpc);
+  });
+  childRpc.handle('party:dispatchRoute', async (reqDescriptor) => {
+    const owner = partyRouteRegistry.get(`${reqDescriptor.method} ${reqDescriptor.pathname}`);
+    if (!owner) return null; // no plugin claimed this route — caller falls through to static-file serving
+    return owner.request('party:invokeRoute', reqDescriptor);
+  });
+}
+
 // Runs one isolated plugin's main.js in its own forked process and waits for
 // it to finish activate() (or fail) before returning — same "one plugin's
 // failure doesn't take the rest down" contract loadMainPlugins() already
@@ -125,44 +172,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
       settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
     });
 
-    // ---- handlers for requests/events the CHILD initiates ----
-    childRpc.on('ipc:handle-register', ({ channel }) => {
-      ipcMain.handle(channel, async (event, ...args) => childRpc.request('ipc:call', { channel, args }));
-    });
-    childRpc.on('ipc:on-register', ({ channel }) => {
-      ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
-    });
-    childRpc.handle('desktopCapturer:getSources', async ({ opts }) => {
-      const sources = await desktopCapturer.getSources(opts);
-      return sources.map((s) => ({ id: s.id, name: s.name, thumbnailDataUrl: s.thumbnail.toDataURL() }));
-    });
-    childRpc.handle('shell:openExternal', async ({ url }) => { shell.openExternal(url); return true; });
-    childRpc.on('app:on-before-quit-register', () => { beforeQuitChildren.add(childRpc); });
-    childRpc.on('sendToMainWindow', ({ channel, data }) => {
-      const mainWindow = baseCtx.getMainWindow();
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
-    });
-    childRpc.handle('fetchJsonCached', async ({
-      key, url, opts, ttlMs,
-    }) => baseCtx.fetchJsonCached(key, url, opts, ttlMs));
-    childRpc.handle('loadConfig', async () => baseCtx.loadConfig());
-    childRpc.on('trackConnection', ({ serverName, ip, userAgent }) => recordConnection(serverName, ip, userAgent));
-    childRpc.on('services:publish', ({ key, value }) => { pluginServices[key] = value; });
-    childRpc.on('services:registerProvider', ({ key }) => { serviceProviders.set(key, childRpc); });
-    childRpc.handle('services:call', async ({ key, args }) => {
-      if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
-      const provider = serviceProviders.get(key);
-      if (!provider) throw new Error(`No plugin has published a "${key}" service.`);
-      return provider.request('services:invoke', { key, args });
-    });
-    childRpc.on('party:registerRoute', ({ method, pathname }) => {
-      partyRouteRegistry.set(`${method} ${pathname}`, childRpc);
-    });
-    childRpc.handle('party:dispatchRoute', async (reqDescriptor) => {
-      const owner = partyRouteRegistry.get(`${reqDescriptor.method} ${reqDescriptor.pathname}`);
-      if (!owner) return null; // no plugin claimed this route — caller falls through to static-file serving
-      return owner.request('party:invokeRoute', reqDescriptor);
-    });
+    registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices);
 
     // ---- handshake ----
     childRpc.on('runtime-ready', () => {

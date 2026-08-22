@@ -8,13 +8,9 @@
 // (plugin-isolation-runtime.js) as well as the host.
 const path = require('path');
 
-// True if `resolved` (an already path.resolve()'d/path.normalize()'d path)
-// is `base` itself or somewhere inside it. Every call site independently
-// re-derived this exact check by hand before it lived here — comparing
-// string prefixes rather than, say, walking `resolved`'s directories, so
-// `base` and `resolved` must both already be normalized/resolved by the
-// caller (this does no normalization of its own) for the comparison to be
-// meaningful.
+// True if `resolved` is `base` itself or somewhere inside it. A string-prefix
+// check, not a directory walk — caller must pass already path.resolve()'d/
+// normalize()'d paths, since this does no normalization of its own.
 function isPathContained(base, resolved) {
   return resolved === base || resolved.startsWith(base + path.sep);
 }

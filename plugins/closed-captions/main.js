@@ -53,6 +53,26 @@ function cacheKeyFor(filePath, track) {
   return crypto.createHash('sha1').update(`${filePath}::${JSON.stringify(track)}`).digest('hex');
 }
 
+// In-memory cache of the embedded-subtitle-stream scan, per file path, for
+// this process's lifetime — captions:scanForFile fires on every
+// content-playing event, including every loop of a looping channel, and
+// without this a full `ffmpeg -i <file>` subprocess gets spawned and its
+// stderr banner re-parsed for the same file every single time it comes
+// back around in the rotation, even though the answer for a given file
+// can't change without the file itself changing. Same "trust the path, no
+// mtime check" convention captions:extractTrack's own disk cache below
+// already uses — a file swapped in place at the same path (e.g. a codec
+// FIX PLAYBACK transcode) won't be re-scanned until the app restarts.
+const embeddedTracksCache = new Map();
+
+async function embeddedTracksFor(filePath, ffmpegPath, spawn) {
+  if (embeddedTracksCache.has(filePath)) return embeddedTracksCache.get(filePath);
+  const result = await runFfmpeg(ffmpegPath, ['-hide_banner', '-i', filePath], spawn);
+  const tracks = parseSubtitleStreams(result.output);
+  embeddedTracksCache.set(filePath, tracks);
+  return tracks;
+}
+
 function activate(ctx) {
   const { ipcMain, fs, spawn } = ctx;
 
@@ -68,8 +88,7 @@ function activate(ctx) {
 
     const ffmpegPath = ctx.services.ffmpegPath;
     if (ffmpegPath && fs.existsSync(ffmpegPath)) {
-      const result = await runFfmpeg(ffmpegPath, ['-hide_banner', '-i', filePath], spawn);
-      tracks.push(...parseSubtitleStreams(result.output));
+      tracks.push(...(await embeddedTracksFor(filePath, ffmpegPath, spawn)));
     }
 
     return { tracks };

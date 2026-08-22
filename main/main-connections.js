@@ -27,9 +27,9 @@ function trackConnection(serverName, req) {
 function getConnectedDevices() {
   const now = Date.now();
   const out = [];
-  for (const [key, v] of connectedDevices) {
-    if (now - v.lastSeenMs > CONNECTION_STALE_MS) { connectedDevices.delete(key); continue; }
-    out.push(v);
+  for (const [key, device] of connectedDevices) {
+    if (now - device.lastSeenMs > CONNECTION_STALE_MS) { connectedDevices.delete(key); continue; }
+    out.push(device);
   }
   return out.sort((a, b) => b.lastSeenMs - a.lastSeenMs);
 }
