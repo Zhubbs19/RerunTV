@@ -1,0 +1,1173 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<!-- Same document is served two ways: over Electron's own app:// scheme
+     (contextIsolation:true/nodeIntegration:false, no file:// anywhere), and
+     as-is to LAN browsers over plain http:// (the LAN viewer feature — see
+     browser-api-shim.js). 'self' resolves correctly either way. app: covers
+     every app://<host>/... origin this build uses (bundle/media/plugins) in
+     one entry rather than listing each hostname. style-src needs
+     'unsafe-inline' for the many inline style="" attributes across this
+     codebase (a full move to CSS classes is out of scope here); script-src
+     deliberately does NOT get it — there are no inline <script> blocks or
+     inline event-handler attributes anywhere in this app, so that stays
+     tight. object-src/base-uri/form-action are locked to 'none' since
+     nothing here uses <object>/<embed>, a <base> tag, or an HTML <form>. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app:; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
+     own window isn't a mobile browser and ignores this. Without it, a phone
+     browser renders the page at a virtual desktop-width viewport and scales
+     it down, which breaks both portrait AND landscape layout (nothing
+     reflows at its real size); viewport-fit=cover opts into env(safe-area-
+     inset-*) so overlays like the touch control bar can avoid notches. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>RerunTV</title>
+<link rel="stylesheet" href="css/tokens.css" />
+<link rel="stylesheet" href="css/setup.css" />
+<link rel="stylesheet" href="css/tv.css" />
+<link rel="stylesheet" href="css/overlays.css" />
+<link rel="stylesheet" href="css/guide.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- One-time notice when applyConfigDefaults (app.js) migrates the
+         loaded config on boot — visible regardless of which screen loads
+         first (setup vs TV), unlike the TV-screen-only crtToggleFlash used
+         elsewhere. Dismissed by its own timeout or a click. -->
+    <div id="migration-toast" class="migration-toast hidden">
+      <span id="migration-toast-text"></span>
+      <button id="migration-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
+    </div>
+
+    <!-- App-wide display mode (DISPLAY > APP DISPLAY MODE, display-mode.js) —
+         simulates the fixed aspect/resolution a real box's own display would
+         have had, independent of the video-only ASPECT RATIO setting. Wraps
+         both screens (not migration-toast, real UI chrome) so setup and TV
+         both letterbox/pillarbox and pixelate identically. Sized/scaled by
+         applyDisplayMode(), called on boot and whenever the setting changes. -->
+    <div id="display-frame">
+
+    <!-- SETUP SCREEN — hidden by default, same as #tv-screen below;
+         app.js's init() decides which one to reveal after loading config,
+         and showSetupScreen()/showTvScreen() already assume this starts
+         hidden (they explicitly remove the class to show it). Without this,
+         the setup screen paints visible for the brief window before init()'s
+         awaited config load resolves, even on a boot that ends up on the TV
+         screen. -->
+    <div id="setup-screen" class="screen hidden">
+      <div class="setup-panel">
+        <div class="setup-header">
+          <div class="setup-eyebrow">SYSTEM CONFIG // REV 1.0</div>
+          <h1 class="setup-title">CHANNEL SETUP</h1>
+          <p class="setup-sub">Point each channel at your media library, then shape how it broadcasts — dayparts and holiday takeovers, commercials and station IDs, and the picture/audio settings for the whole box.</p>
+        </div>
+        <div class="setup-tabs" id="setup-tabs">
+          <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
+          <button class="setup-tab-btn" data-tab="display">DISPLAY</button>
+          <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
+          <button class="setup-tab-btn" data-tab="audio">AUDIO &amp; SYSTEM</button>
+          <button class="setup-tab-btn" data-tab="perf">PERFORMANCE</button>
+          <button class="setup-tab-btn" data-tab="plugins">PLUGINS</button>
+          <button class="setup-tab-btn" data-tab="help">HELP</button>
+        </div>
+        <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
+        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH ALL SETTINGS (DISPLAY / PROGRAMMING / AUDIO &amp; SYSTEM)…">
+        <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
+
+        <div class="setup-tab-panel" data-tab-panel="channels">
+          <div class="channel-filter-row">
+            <input type="text" id="channel-filter" class="titles-search" placeholder="FILTER CHANNELS…">
+            <button id="library-search-toggle-btn" class="btn">🔎 SEARCH LIBRARY</button>
+            <button id="now-next-toggle-btn" class="btn">📺 NOW/NEXT</button>
+            <button id="bulk-select-toggle-btn" class="btn">SELECT CHANNELS</button>
+          </div>
+
+          <div id="library-search-panel" class="library-search-panel hidden">
+            <input type="text" id="library-search-input" class="titles-search" placeholder="SEARCH EVERY CHANNEL'S FILES BY TITLE OR FILENAME…">
+            <div id="library-search-results" class="library-search-results"></div>
+          </div>
+
+          <div id="now-next-panel" class="now-next-panel hidden">
+            <div class="now-next-header">
+              <span>CH</span><span>CHANNEL</span><span>NOW</span><span>NEXT</span>
+            </div>
+            <div id="now-next-rows" class="now-next-rows"></div>
+          </div>
+
+          <div id="bulk-actions-bar" class="bulk-actions-bar hidden">
+            <span id="bulk-selected-count" class="bulk-selected-count">0 SELECTED</span>
+            <button id="bulk-select-all-btn" class="btn">SELECT ALL</button>
+            <span class="bulk-action-group">
+              FAVORITE
+              <button id="bulk-favorite-on-btn" class="btn">ON</button>
+              <button id="bulk-favorite-off-btn" class="btn">OFF</button>
+            </span>
+            <span class="bulk-action-group">
+              SHUFFLE
+              <button id="bulk-shuffle-on-btn" class="btn">ON</button>
+              <button id="bulk-shuffle-off-btn" class="btn">OFF</button>
+            </span>
+            <span class="bulk-action-group">
+              RATING
+              <select id="bulk-rating-select">
+                <option value="">NONE</option>
+                <option value="TV-Y">TV-Y</option>
+                <option value="TV-Y7">TV-Y7</option>
+                <option value="TV-G">TV-G</option>
+                <option value="TV-PG">TV-PG</option>
+                <option value="TV-14">TV-14</option>
+                <option value="TV-MA">TV-MA</option>
+              </select>
+              <button id="bulk-rating-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              VOLUME
+              <input type="range" id="bulk-volume-slider" min="0" max="100" value="100">
+              <button id="bulk-volume-apply-btn" class="btn">APPLY</button>
+              <button id="bulk-volume-inherit-btn" class="btn">INHERIT</button>
+            </span>
+            <button id="bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
+          </div>
+          <div id="channel-list"></div>
+          <div class="channel-list-footer">
+            <button id="add-channel-btn" class="btn">+ ADD CHANNEL</button>
+            <button id="rescan-all-btn" class="btn">RESCAN ALL FOLDERS</button>
+            <button id="health-check-btn" class="btn">CHECK CHANNELS</button>
+          </div>
+          <div id="scan-progress" class="scan-progress hidden"></div>
+          <div id="health-check-results" class="health-check-results hidden"></div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="display">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="picture">PICTURE</button>
+          <button class="setup-subtab-btn" data-subtab="interface">INTERFACE</button>
+        </div>
+
+        <div class="setup-subtab-panel" data-subtab-panel="picture">
+        <div class="settings-grid">
+
+        <div class="panel">
+          <div class="panel-toggle">CRT EFFECT INTENSITY</div>
+          <div id="crt-preview" class="crt-preview">
+            <div class="crt-preview-picture"></div>
+            <div class="crt-scanlines"></div>
+            <div class="crt-vignette"></div>
+            <div class="crt-curvature-vignette"></div>
+            <div class="crt-flicker"></div>
+            <div class="crt-grain"></div>
+          </div>
+          <div class="panel-body crt-sliders">
+            <label class="crt-slider">SCANLINES <input type="range" id="crt-scanlines-slider" min="0" max="100" value="100"></label>
+            <label class="crt-slider">VIGNETTE <input type="range" id="crt-vignette-slider" min="0" max="100" value="100"></label>
+            <label class="crt-slider">GRAIN <input type="range" id="crt-grain-slider" min="0" max="100" value="100"></label>
+            <label class="crt-slider">FLICKER <input type="range" id="crt-flicker-slider" min="0" max="100" value="50"></label>
+            <label class="crt-slider">CURVATURE <input type="range" id="crt-curvature-slider" min="0" max="100" value="0"></label>
+            <label class="crt-slider" title="Ghosts the channel logo bug onto the screen after it's sat in one spot a while, like a real CRT slowly burning in a static image">LOGO BURN-IN <input type="range" id="crt-burnin-slider" min="0" max="100" value="0"></label>
+          </div>
+          <div class="panel-body">
+            <label class="shuffle-toggle" title="On: the scanline/vignette/grain/flicker texture above also covers the guide and this settings screen, like a real tube's phosphor covers everything shown on the glass, not just the video. Off (default): today's behavior, texture only over the video.">
+              <input type="checkbox" id="crt-overlay-wholescreen-enabled">OVERLAY WHOLE SCREEN (NOT JUST VIDEO)
+            </label>
+            <label class="shuffle-toggle" title="Plays the same powering-on CRT animation used by the manual power button when the app first boots to the TV screen, instead of appearing instantly.">
+              <input type="checkbox" id="boot-power-anim-enabled" checked>BOOT POWER-ON ANIMATION
+            </label>
+            <label class="shuffle-toggle" title="Fades the program guide in/out instead of it appearing/disappearing instantly. Off by default: an earlier version of this caused a video-stutter regression, so it's opt-in — try it and turn it back off if you notice any hitching.">
+              <input type="checkbox" id="guide-open-close-anim-enabled">GUIDE OPEN/CLOSE ANIMATION
+            </label>
+            <label class="crt-slider" title="How long the guide open/close fade takes. Only applies while the toggle above is on.">GUIDE ANIM SPEED <input type="range" id="guide-anim-speed-slider" min="80" max="400" step="20" value="180"></label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">PICTURE MODE &amp; ASPECT</div>
+          <div class="panel-body">
+            <div class="panel-interval">
+              PICTURE MODE
+              <select id="picture-mode-select">
+                <option value="standard">STANDARD</option>
+                <option value="vivid">VIVID</option>
+                <option value="cinema">CINEMA</option>
+              </select>
+            </div>
+            <div class="panel-interval">
+              ASPECT RATIO
+              <select id="aspect-mode-select">
+                <option value="contain">STANDARD (SAFE)</option>
+                <option value="stretch">STRETCH (DISTORT TO FILL)</option>
+                <option value="fill">FILL (CROP, NO DISTORTION)</option>
+              </select>
+            </div>
+            <label class="shuffle-toggle" title="Keeps STANDARD's safe letterbox/pillarbox math, but shows plain black bars instead of the active theme pack's decorative border, and silences its ambient hiss/hum/tone too — for when you're watching a lot of widescreen movies and don't want the theme immersion getting in the way.">
+              <input type="checkbox" id="movie-mode-enabled">MOVIE MODE (PLAIN BARS, NO BORDER OR AMBIENT HUM)
+            </label>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle" title="Simulates the box's own fixed display — a real old cable box only ever drove a fixed aspect at a fixed, often low, resolution, and everything on screen (menus included) rendered at that resolution, not just the video. Separate from PICTURE MODE &amp; ASPECT above, which only affects how video content fits inside the player.">APP DISPLAY MODE</div>
+          <div class="panel-body">
+            <div class="panel-interval">
+              ASPECT
+              <select id="display-mode-aspect-select" title="Applies to every channel by default. AUTO picks a shape from the currently-playing file's real aspect ratio, else a guess from its ERA tag, else 16:9. A channel's own ASPECT setting (its OPTIONS panel, including its own AUTO choice) overrides this for that channel only.">
+                <option value="16:9">16:9 (WIDESCREEN)</option>
+                <option value="4:3">4:3 (CLASSIC)</option>
+                <option value="auto">AUTO (BY CHANNEL / FILE / ERA)</option>
+              </select>
+            </div>
+            <div class="panel-interval">
+              WINDOW MODE
+              <select id="display-mode-window-select">
+                <option value="letterbox">LETTERBOX (BARS IN CURRENT WINDOW)</option>
+                <option value="lockWindow">LOCK WINDOW TO ASPECT</option>
+              </select>
+            </div>
+            <div class="panel-interval">
+              RESOLUTION
+              <select id="display-mode-resolution-select" title="Applies to every channel by default. AUTO picks a tier from the currently-playing file's real resolution, else a guess from its ERA tag, else NATIVE. A channel's own RESOLUTION setting (its OPTIONS panel, including its own AUTO choice) overrides this for that channel only.">
+                <option value="native">NATIVE (SHARP)</option>
+                <option value="sd480">SD 480-LINE (CHUNKY)</option>
+                <option value="sd240">SD 240-LINE (VERY CHUNKY)</option>
+                <option value="auto">AUTO (BY CHANNEL / FILE / ERA)</option>
+              </select>
+            </div>
+            <div class="panel-interval">
+              AUTO PRIORITY
+              <select id="display-mode-auto-priority-select" title="Only matters when AUTO is picking between a file's real video size and its ERA tag and both are available. FILE RESOLUTION FIRST (default) trusts the file's real, decoded size over a free-text tag. ERA TAG FIRST instead trusts the tag — useful if you've deliberately tagged a modern remaster with an old ERA to get its period look regardless of its actual encode.">
+                <option value="metadata">FILE RESOLUTION FIRST (DEFAULT)</option>
+                <option value="era">ERA TAG FIRST</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="static-enabled" checked>
+            STATIC BETWEEN CHANNELS
+          </label>
+          <div class="panel-body crt-sliders">
+            <label class="crt-slider">INTENSITY <input type="range" id="static-intensity-slider" min="0" max="100" value="100"></label>
+            <label class="crt-slider">TUNING TIME <input type="range" id="static-duration-slider" min="0" max="1000" step="50" value="150"> <span id="static-duration-val" style="color:var(--cyan); font-weight:bold;">150ms</span></label>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="interface">
+        <div class="settings-grid">
+
+        <div class="panel">
+          <div class="panel-toggle">CLOCK &amp; GUIDE</div>
+          <div class="panel-body">
+            <label class="shuffle-toggle"><input type="checkbox" id="clock24-enabled">24-HOUR CLOCK</label>
+            <label class="shuffle-toggle"><input type="checkbox" id="hintbar-enabled" checked>SHOW HINT BAR (H TO TOGGLE)</label>
+            <div class="panel-interval">
+              GUIDE SLOTS
+              <select id="guide-slots-select">
+                <option value="2">2 (1 HR)</option>
+                <option value="3" selected>3 (1.5 HR)</option>
+                <option value="4">4 (2 HR)</option>
+              </select>
+            </div>
+            <div class="panel-interval">
+              GUIDE THEME
+              <!-- Options are built at runtime from installed "pack" plugins
+                   (renderThemeSelectOptions, setup-settings.js) rather than
+                   hardcoded here — digital-2000s is the one theme always
+                   available even with zero pack plugins installed (it's
+                   just core's own base palette, see themePackEntries,
+                   plugins.js), so it's the only static fallback option. -->
+              <select id="theme-select">
+                <option value="digital-2000s">DIGITAL CABLE (MID 2000s BLUE)</option>
+              </select>
+          </div>
+        </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">HINT BAR ITEMS</div>
+          <span class="panel-status">Choose which shortcuts show in the on-screen hint bar — turning one off here doesn't disable the key itself, just hides it from the bar. The full list always stays in HELP &gt; SHORTCUTS regardless of what's checked here.</span>
+          <div id="hintbar-items-list" class="hintbar-items-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">CHANNEL LOGO (LOGO BUG)</div>
+          <span class="panel-status">Drag to position, drag the corner tab to resize. Add a resolution breakpoint to use a different position/size for lower-resolution content.</span>
+          <div id="logobug-editor"></div>
+        </div>
+
+        </div>
+        </div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="programming">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="flows">SHOW &amp; AD FLOWS</button>
+          <button class="setup-subtab-btn" data-subtab="pool">BUMPER &amp; AD POOL</button>
+          <button class="setup-subtab-btn" data-subtab="presets">CADENCE &amp; PRESETS</button>
+          <button class="setup-subtab-btn" data-subtab="onscreen">ON-SCREEN EXTRAS</button>
+          <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
+          <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAG TAXONOMY</button>
+        </div>
+
+        <!-- SHOW & AD FLOWS (INTERACTIVE VISUAL FLOW BUILDER) -->
+        <div class="setup-subtab-panel" data-subtab-panel="flows">
+        <div class="settings-grid">
+
+        <div class="panel span-full flow-builder-panel">
+          <div class="flow-builder-header">
+            <div>
+              <label class="panel-toggle" style="cursor:default">INTERACTIVE SHOW &amp; AD FLOW BUILDER</label>
+              <span class="panel-status">Design custom interactive broadcast flows (bumpers, show segments, network idents, ad pods, bump-outs) using tags — e.g. a 30-min cartoon episode with a "Coming Up Next" intro, mid-roll network bump-in, 3-4 retro ads, bump-out, and station ID.</span>
+            </div>
+            <div class="flow-selector-bar">
+              <span id="flow-count-badge" class="flow-count-badge"></span>
+              <select id="flow-template-select" class="block-hour-select flow-select"></select>
+              <button id="flow-create-btn" class="btn">+ NEW FLOW</button>
+              <button id="flow-delete-btn" class="btn remove-btn">DELETE</button>
+            </div>
+          </div>
+
+          <div id="flow-config-header" class="flow-config-header">
+            <div class="flow-meta-row">
+              <div class="flow-meta-field flow-name-field">
+                <span class="flow-label">FLOW NAME</span>
+                <input type="text" id="flow-name-input" class="title-row-input" placeholder="e.g. 30-Min Dual Episode Cartoon Flow">
+              </div>
+              <div class="flow-meta-field flow-channels-field">
+                <span class="flow-label">TARGET CHANNELS</span>
+                <div id="flow-target-channels-container"></div>
+              </div>
+              <div class="flow-meta-field flow-tags-field">
+                <span class="flow-label">APPLIES TO CONTENT TAGGED</span>
+                <div id="flow-target-tags-container"></div>
+              </div>
+              <div class="flow-meta-field flow-enabled-field">
+                <span class="flow-label">STATUS</span>
+                <label class="shuffle-toggle">
+                  <input type="checkbox" id="flow-enabled-checkbox" checked>
+                  ENABLE FLOW
+                </label>
+              </div>
+            </div>
+            <div id="flow-status-banner" class="flow-status-banner"></div>
+          </div>
+
+          <div class="flow-timeline-header">
+            <span class="flow-timeline-title">INTERACTIVE VISUAL SEQUENCE CANVAS</span>
+            <div class="flow-timeline-actions">
+              <button id="flow-add-bumper-btn" class="btn flow-add-btn">+ BUMPER</button>
+              <button id="flow-add-segment-btn" class="btn flow-add-btn">+ SHOW SEGMENT</button>
+              <button id="flow-add-pod-btn" class="btn flow-add-btn">+ AD POD</button>
+              <button id="flow-add-stationid-btn" class="btn flow-add-btn">+ STATION ID</button>
+              <button id="flow-sim-btn" class="btn flow-sim-trigger-btn">► RUN FLOW SIMULATION</button>
+            </div>
+          </div>
+
+          <div id="flow-timeline-canvas" class="flow-timeline-canvas"></div>
+
+          <!-- Live Flow Simulator Drawer -->
+          <div id="flow-simulator-drawer" class="flow-simulator-drawer hidden">
+            <div class="flow-sim-header">
+              <span class="flow-sim-title">REAL-TIME FLOW RESOLUTION SIMULATOR</span>
+              <button id="flow-sim-close-btn" class="btn remove-btn">CLOSE SIMULATOR</button>
+            </div>
+            <div id="flow-sim-progress" class="flow-sim-progress"></div>
+            <div id="flow-sim-output" class="flow-sim-output"></div>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <!-- BUMPER & AD POOL -->
+        <div class="setup-subtab-panel hidden" data-subtab-panel="pool">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">BUMPER &amp; AD POOL</label>
+          <span class="panel-status">A shared pool of bumpers, station IDs, promos, and trivia facts — tagged by type and channel/block/content tags. Used by your Show Flows, Ad Presets, and Channel Ad Cadences to resolve media during playback.</span>
+          <div class="block-row interstitials-filter-row">
+            <input type="text" id="interstitials-search" class="titles-search" placeholder="SEARCH FILENAME / TEXT…">
+            <select id="interstitials-filter-type" class="block-hour-select">
+              <option value="any">ALL TYPES</option>
+            </select>
+            <select id="interstitials-filter-channel" class="block-hour-select">
+              <option value="all">ALL CHANNELS</option>
+              <option value="any">UNASSIGNED (ANY CHANNEL)</option>
+            </select>
+            <button id="interstitials-expand-all-btn" class="btn">EXPAND ALL</button>
+            <button id="interstitials-collapse-all-btn" class="btn">COLLAPSE ALL</button>
+            <button id="interstitials-bulk-toggle-btn" class="btn">SELECT ENTRIES</button>
+          </div>
+          <div id="interstitials-bulk-bar" class="bulk-actions-bar hidden">
+            <span id="interstitials-bulk-count" class="bulk-selected-count">0 SELECTED</span>
+            <button id="interstitials-bulk-select-all-btn" class="btn">SELECT ALL VISIBLE</button>
+            <span class="bulk-action-group">
+              CHANNEL
+              <select id="interstitials-bulk-channel-select">
+                <option value="any">ANY CHANNEL</option>
+              </select>
+              <button id="interstitials-bulk-channel-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              ADD TAG
+              <input type="text" id="interstitials-bulk-tag-input" class="title-row-input" placeholder="e.g. halloween">
+              <button id="interstitials-bulk-tag-apply-btn" class="btn">APPLY</button>
+            </span>
+            <button id="interstitials-bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
+          </div>
+          <div id="interstitials-list" class="titles-list"></div>
+          <div class="block-row">
+            <button id="interstitials-add-folder-btn" class="btn">+ ADD FROM FOLDER</button>
+            <button id="interstitials-add-entry-btn" class="btn">+ ADD ENTRY</button>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <!-- CADENCE & PRESETS (CONSOLIDATED AD SETTINGS) -->
+        <div class="setup-subtab-panel hidden" data-subtab-panel="presets">
+        <div class="settings-grid">
+
+        <div class="panel">
+          <div class="panel-toggle">GLOBAL DEFAULT AD CADENCE</div>
+          <div class="panel-body">
+            <div class="panel-interval">
+              DEFAULT AD INTERVAL: EVERY <input type="number" id="commercials-interval" min="1" value="10"> MIN (CAN BE OVERRIDDEN BY FLOWS / CHANNELS)
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="stationid-enabled" checked>
+            STATION ID CADENCE
+          </label>
+          <div class="panel-body">
+            <div class="panel-interval">EVERY <input type="number" id="stationid-interval" min="1" value="15"> MIN</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="trivia-enabled">
+            TRIVIA CADENCE
+          </label>
+          <div class="panel-body">
+            <div class="panel-interval">EVERY <input type="number" id="trivia-interval" min="1" value="20"> MIN</div>
+          </div>
+        </div>
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">SHOW &amp; AD PRESETS</label>
+          <span class="panel-status">Named break layouts (interval/breakpoints/pod sizes) tagged to specific show content tags. Flow templates take precedence over basic presets when active.</span>
+          <div class="block-row interstitials-filter-row">
+            <input type="text" id="presets-search" class="titles-search" placeholder="SEARCH PRESET NAME / TAG…">
+            <button id="presets-expand-all-btn" class="btn">EXPAND ALL</button>
+            <button id="presets-collapse-all-btn" class="btn">COLLAPSE ALL</button>
+          </div>
+          <div id="presets-list" class="titles-list"></div>
+          <div class="block-row">
+            <button id="presets-add-btn" class="btn">+ ADD PRESET</button>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="onscreen">
+        <div class="settings-grid">
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="upnext-enabled" checked>
+            UP NEXT BANNER
+          </label>
+          <div class="panel-body">
+            <span class="panel-status">Shows "UP NEXT: [title]" for ~8s starting ~45s before the current show ends.</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="details-enabled" checked>
+            DETAILS PAGE
+          </label>
+          <div class="panel-body">
+            <span class="panel-status">Press I to see the current show's title, description, and tags while watching live — or, with the guide open, for whichever show is highlighted instead. Add a description per-file from a channel's EDIT &gt; TITLES tab.</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="timemachine-enabled">
+            TIME MACHINE (VCR SHUTTLE)
+          </label>
+          <div class="panel-body">
+            <span class="panel-status">Press T while watching to shuttle through the schedule (&larr;&rarr;, tap again for faster). In the guide, ENTER jumps to the selected show. Once shuttling, [ / ] jump straight to the previous/next commercial break.</span>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <!-- AUTO-CURATE -->
+        <div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">AUTO-CURATE</label>
+          <span class="panel-status">Generate or refresh a channel's programming, ad-preset tagging, and bumpers from a saved profile matched against your tagged content (see each file's FACETS in a channel's EDIT &gt; TITLES tab). Nothing is written until you press APPLY on a preview.</span>
+          <div id="autocurate-root"></div>
+        </div>
+
+        </div>
+        </div>
+
+        <!-- TAG TAXONOMY -->
+        <div class="setup-subtab-panel hidden" data-subtab-panel="tagtaxonomy">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">TAG TAXONOMY</label>
+          <span class="panel-status">Maintain a curated genre/era/mood vocabulary for autocomplete, and clean up tag drift (e.g. "scifi" vs "sci-fi") across every file, bumper, ad preset, and curation profile at once.</span>
+          <div id="tagtaxonomy-root"></div>
+        </div>
+
+        </div>
+        </div>
+
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="audio">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="system">SYSTEM</button>
+          <button class="setup-subtab-btn" data-subtab="virtual">VIRTUAL CHANNELS</button>
+          <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
+        </div>
+
+        <div class="setup-subtab-panel" data-subtab-panel="system">
+        <div class="settings-grid">
+
+        <div class="panel">
+          <div class="panel-toggle">VOLUME</div>
+          <div class="panel-body crt-sliders">
+            <label class="crt-slider">SHOW/MOVIE CONTENT VOLUME <input type="range" id="content-volume-slider" min="0" max="100" value="100"></label>
+            <label class="crt-slider">COMMERCIAL/BUMPER VOLUME <input type="range" id="ad-volume-slider" min="0" max="100" value="100"></label>
+          </div>
+          <span class="panel-status">Both are a percentage of the master volume (the +/- keys), applied depending on whether a commercial/bumper break is currently on screen. Lower the commercial slider if ads run louder than your shows, or raise the content slider if shows run quiet. Per-channel volume overrides live on each channel's row in the CHANNELS tab.</span>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">WATCH ON OTHER DEVICES</div>
+          <div class="panel-body">
+            <span id="viewer-url-status" class="panel-status">Checking for a network connection…</span>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">CONNECTED DEVICES</div>
+          <div class="panel-body">
+            <div id="connected-devices-list" class="titles-list"></div>
+          </div>
+          <span class="panel-status">Devices currently polling the remote, viewer, or party servers on your network. A device drops off this list ~30 seconds after it stops checking in (tab closed, phone locked, etc.) — this isn't a persistent connection count, just recent activity.</span>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="standby-enabled">
+            AUTO STANDBY
+          </label>
+          <div class="panel-body">
+            <div class="panel-interval">
+              AFTER <input type="number" id="standby-interval" min="1" value="15"> MIN IDLE
+            </div>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="virtual">
+        <div class="virtual-channels-toolbar">
+          <input type="text" id="virtual-filter-input" class="titles-search" placeholder="FILTER VIRTUAL CHANNELS…">
+          <button type="button" id="virtual-expand-all-btn" class="btn">EXPAND ALL</button>
+          <button type="button" id="virtual-collapse-all-btn" class="btn">COLLAPSE ALL</button>
+        </div>
+        <div class="settings-grid">
+
+
+
+
+        <div class="panel span-full">
+          <label class="panel-toggle">
+            <input type="checkbox" id="pin-lock-enabled">
+            PARENTAL CONTROL LOCK (90s BLUE SCREEN)
+          </label>
+          <span class="panel-status">Requires a 4-digit PIN (default 1234) before tuning into any channel or rating you've marked as restricted.</span>
+          <div class="panel-interval">
+            4-DIGIT PIN CODE:
+            <input type="text" id="pin-code-input" maxlength="4" value="1234" style="width:80px; text-align:center; font-weight:bold;">
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="backups">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">CONFIG BACKUPS</label>
+          <span class="panel-status">Automatic snapshots of channels.json — one at the start of each session, plus at most one every 15 minutes while actively editing. Restoring replaces everything currently loaded (a snapshot of the current state is taken first, so a restore is itself undoable).</span>
+          <div class="block-row">
+            <button id="backups-refresh-btn" class="btn">REFRESH</button>
+            <button id="backups-snapshot-now-btn" class="btn">+ SNAPSHOT NOW…</button>
+          </div>
+          <div id="backups-list" class="titles-list"></div>
+        </div>
+
+        </div>
+        </div>
+        </div>
+
+        <!-- PERFORMANCE MONITOR TAB PANEL -->
+        <div class="setup-tab-panel hidden" data-tab-panel="perf">
+          <div class="settings-grid">
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🩺 BOX STATUS</label>
+              <span class="panel-status">One glance across the things that used to be three separate places to check: library size, last backup, and known issues.</span>
+              <div class="box-status-grid">
+                <div class="box-status-item">
+                  <div class="box-status-value" id="box-status-channels">—</div>
+                  <div class="box-status-label">CHANNELS</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="box-status-files">—</div>
+                  <div class="box-status-label">MEDIA FILES</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="box-status-backup">—</div>
+                  <div class="box-status-label">LAST BACKUP</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="box-status-issues">—</div>
+                  <div class="box-status-label">KNOWN ISSUES</div>
+                </div>
+              </div>
+              <button id="box-status-check-btn" class="btn">RUN HEALTH CHECK…</button>
+            </div>
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">⚡ REAL-TIME SYSTEM &amp; RENDER MONITOR</label>
+              <span class="panel-status">Live hardware metrics, video player performance, memory telemetry, and channel broadcast stats.</span>
+              <div class="perf-metrics-row">
+                <div class="perf-card">
+                  <div class="perf-value" id="perf-fps-val">60 FPS</div>
+                  <div class="perf-label">FRAMES PER SEC</div>
+                  <div class="perf-bar-track"><div class="perf-bar-fill" id="perf-fps-bar" style="width: 100%;"></div></div>
+                </div>
+                <div class="perf-card">
+                  <div class="perf-value" id="perf-mem-val">42 MB</div>
+                  <div class="perf-label">JS HEAP MEMORY</div>
+                  <div class="perf-bar-track"><div class="perf-bar-fill perf-bar-mem" id="perf-mem-bar" style="width: 25%;"></div></div>
+                </div>
+                <div class="perf-card">
+                  <div class="perf-value" id="perf-res-val">1920 x 1080</div>
+                  <div class="perf-label">VIDEO RESOLUTION</div>
+                  <div class="perf-badge" id="perf-status-badge">● OPTIMAL PERFORMANCE</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">📊 BROADCAST &amp; MEDIA TELEMETRY</label>
+              <div class="perf-telemetry-grid">
+                <div class="perf-telemetry-item">
+                  <span>CURRENTLY TUNED:</span>
+                  <strong id="perf-active-ch">CH 05 — The Office Channel</strong>
+                </div>
+                <div class="perf-telemetry-item">
+                  <span>PLAYER STATE:</span>
+                  <strong id="perf-player-state">PLAYING (00:04:12)</strong>
+                </div>
+                <div class="perf-telemetry-item">
+                  <span>TOTAL MEDIA FILES:</span>
+                  <strong id="perf-total-files">1,624 FILES LOADED</strong>
+                </div>
+                <div class="perf-telemetry-item">
+                  <span>SYSTEM JOKE CHANNELS:</span>
+                  <strong id="perf-virtual-count">11 ACTIVE SYSTEM CHANNELS</strong>
+                </div>
+                <div class="perf-telemetry-item">
+                  <span>CRT CANVAS SHADER:</span>
+                  <strong id="perf-crt-status">HARDWARE ACCELERATED 2D</strong>
+                </div>
+                <div class="perf-telemetry-item">
+                  <span>BACKGROUND TIMERS:</span>
+                  <strong id="perf-timer-status">ACTIVE (1000ms TICK)</strong>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- PLUGINS TAB PANEL -->
+        <div class="setup-tab-panel hidden" data-tab-panel="plugins">
+          <div class="settings-grid">
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🔌 CUSTOM CSS</label>
+              <span class="panel-status">Load your own stylesheet on top of everything — applies live, no restart needed. Loaded last, so anything in it wins.</span>
+              <div class="custom-css-row">
+                <span id="custom-css-path" class="custom-css-path">NO CUSTOM CSS LOADED</span>
+                <button id="custom-css-choose-btn" class="btn">CHOOSE FILE…</button>
+                <button id="custom-css-remove-btn" class="btn remove-btn hidden">REMOVE</button>
+              </div>
+            </div>
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🧩 INSTALLED PLUGINS</label>
+              <span class="panel-status">
+                Drop a plugin folder (with a manifest.json) into the plugins folder, then RESCAN — or use INSTALL FROM ZIP. Many plugins
+                run fully isolated in their own process, restricted by the operating system to exactly what they declared and approved
+                below; a few simpler ones still share the app's own process instead. Either way, only install plugins you trust the
+                source of. Enabling/disabling and newly added plugins take effect on next restart — a bundled plugin removed in a later
+                app update cleans up its own leftover install automatically, no action needed from you.
+              </span>
+              <div class="plugins-toolbar">
+                <input type="text" id="plugins-filter-input" class="titles-search" placeholder="FILTER PLUGINS…">
+                <button id="plugins-install-zip-btn" class="btn">INSTALL FROM ZIP…</button>
+                <button id="plugins-open-folder-btn" class="btn">OPEN PLUGINS FOLDER</button>
+                <button id="plugins-rescan-btn" class="btn">RESCAN</button>
+              </div>
+              <div id="plugins-category-tabs" class="plugins-category-tabs"></div>
+              <div class="plugins-summary-row">
+                <div id="plugins-summary" class="plugins-summary"></div>
+                <span id="plugins-save-status" class="plugins-save-status"></span>
+                <button id="plugins-save-btn" class="btn btn-primary hidden">SAVE CHANGES</button>
+              </div>
+              <div id="plugins-list" class="plugins-list"></div>
+              <div id="plugins-empty" class="plugins-empty hidden">NO PLUGINS INSTALLED YET.</div>
+              <div id="plugins-filter-empty" class="plugins-empty hidden">NO PLUGINS MATCH YOUR FILTER.</div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="help">
+          <div class="settings-grid">
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">📖 FEATURE GUIDE</label>
+              <span class="panel-status">How each part of the box works, grouped by tab. Click a topic to expand it — search below filters both the topic titles and their text.</span>
+              <div class="help-guide-toolbar">
+                <input type="text" id="help-guide-search" class="titles-search" placeholder="SEARCH THE GUIDE…">
+                <button id="help-print-manual-btn" class="btn" title="Opens a print-ready owner's-manual version of this guide in your browser">&#128424; PRINTABLE MANUAL</button>
+              </div>
+              <div id="help-guide-list" class="help-guide-list"></div>
+            </div>
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">⌨ KEYBOARD SHORTCUTS</label>
+              <span class="panel-status">Every shortcut below also works from the universal remote's browser page. The full hint bar (bottom of the TV screen, H to hide) is the same list.</span>
+              <div id="help-shortcuts-grid" class="help-shortcuts-grid"></div>
+            </div>
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW <span id="help-version" class="help-version"></span></label>
+              <span class="panel-status">Recently shipped, newest first — a running log of what changed under the hood.</span>
+              <div id="help-changelog-list" class="help-changelog-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-footer">
+          <div class="backup-restore" title="Export saves everything currently loaded — all channels and settings — to a JSON file you can keep as a backup or move to another machine. Import replaces everything currently loaded with a previously exported file.">
+            <button id="config-export-btn" class="btn">EXPORT CONFIG…</button>
+            <button id="config-import-btn" class="btn">IMPORT CONFIG…</button>
+            <button id="config-restore-auto-btn" class="btn">🔄 RESTORE CHANNELS FROM DISK</button>
+          </div>
+          <span class="undo-redo-group">
+            <button id="setup-undo-btn" class="btn" title="Undo (Ctrl+Z)" disabled>&#8630; UNDO</button>
+            <button id="setup-redo-btn" class="btn" title="Redo (Ctrl+Shift+Z)" disabled>&#8631; REDO</button>
+          </span>
+          <button id="setup-command-palette-btn" class="btn" title="Command palette (Ctrl+K)">&#8981; COMMANDS</button>
+          <span id="setup-save-state" class="setup-save-state" data-state="saved">SAVED</span>
+          <button id="done-btn" class="btn btn-primary">START WATCHING &#9654;</button>
+        </div>
+      </div>
+
+      <div id="preview-modal" class="preview-modal hidden">
+        <div class="preview-modal-box">
+          <div class="preview-modal-title">PREVIEW CHANNEL</div>
+          <div id="preview-modal-channel-label" class="preview-modal-channel"></div>
+          <label class="preview-modal-field">
+            PREVIEW AS OF
+            <input type="datetime-local" id="preview-modal-datetime">
+          </label>
+          <label class="preview-modal-field">
+            JUMP TO BLOCK
+            <select id="preview-modal-block">
+              <option value="">— pick a block —</option>
+            </select>
+          </label>
+          <div class="preview-modal-quick" id="preview-modal-quick">
+            <button type="button" class="btn btn-small" data-jump="show-start">SHOW START</button>
+            <button type="button" class="btn btn-small" data-jump="show-end">SHOW END</button>
+            <button type="button" class="btn btn-small" data-jump="next-break">NEXT BREAK &#9654;</button>
+            <button type="button" class="btn btn-small" data-jump="top-of-hour">TOP OF NEXT HR</button>
+            <button type="button" class="btn btn-small" data-jump="plus-1h">+1 HR</button>
+            <button type="button" class="btn btn-small" data-jump="plus-1d">+1 DAY</button>
+            <button type="button" class="btn btn-small" data-jump="random">RANDOM</button>
+          </div>
+          <div class="preview-modal-actions">
+            <button id="preview-modal-now-btn" class="btn">NOW</button>
+            <button id="preview-modal-cancel-btn" class="btn">CANCEL</button>
+            <button id="preview-modal-go-btn" class="btn btn-primary">PREVIEW &#9654;</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="command-palette" class="command-palette hidden" role="dialog" aria-label="Command palette">
+        <div class="command-palette-box">
+          <input type="text" id="command-palette-input" class="command-palette-input" placeholder="Type a command…" autocomplete="off">
+          <div id="command-palette-results" class="command-palette-results" role="listbox"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TV SCREEN -->
+    <div id="tv-screen" class="screen hidden">
+      <div class="crt">
+        <video id="player" muted></video>
+
+        <!-- Retro TV bezel/border — behind the CRT texture layers (a real
+             bezel is outside the tube glass, unaffected by scanlines/
+             vignette/curvature), shown only when the active theme pack has
+             a border image and the current content isn't 16:9 (see
+             applyTvBezel, power.js). #player is resized down to its real
+             object-fit:contain rect whenever a border is showing, revealing
+             this full-bleed div around it — tv.css gives .crt `isolation:
+             isolate` so this negative z-index stays scoped locally (behind
+             #player only) instead of escaping to some ancestor's stacking
+             context and disrupting every other z-indexed overlay in this
+             subtree. #player itself keeps its original implicit
+             z-index:auto — don't give it an explicit value, every sibling
+             below (logo bug, channel entry, no-signal, etc.) depends on
+             that for its own stacking relative to the video. -->
+        <div id="tv-bezel" class="tv-bezel hidden"></div>
+
+        <div class="crt-scanlines"></div>
+        <div class="crt-vignette"></div>
+        <div class="crt-curvature-vignette"></div>
+        <div class="crt-flicker"></div>
+        <div class="crt-grain"></div>
+        <div class="vhs-tracking"></div>
+        <div class="vhs-chroma"></div>
+        <div class="vhs-timestamp" id="vhs-timestamp">&#9654; REC 00:00:00</div>
+        <canvas id="static-canvas"></canvas>
+        <!-- Color-bar test pattern for an unconfigured channel number —
+             draw logic is plugin-owned, core just owns show/hide of this
+             canvas — S.config.testPattern.enabled -->
+        <canvas id="test-pattern-canvas" class="hidden"></canvas>
+        <div id="crt-toggle-flash" class="crt-toggle-flash"></div>
+        <!-- Novelty-command responses from the party page's guest jukebox
+             (roast/rate/vibe/coinflip/blame/rickroll — see party.js), shown
+             regardless of which channel is tuned, same as visual party
+             effects (confetti/flash/applause). -->
+        <div id="fun-toast" class="fun-toast"></div>
+
+        <div id="no-signal" class="no-signal hidden">
+          <div class="no-signal-main" id="no-signal-main">NO SIGNAL</div>
+          <div class="no-signal-sub" id="no-signal-channel"></div>
+        </div>
+
+        <!-- Channel logo bug (network watermark) -->
+        <div id="logo-bug" class="logo-bug hidden"></div>
+
+        <!-- CRT burn-in ghost — a faint permanent afterimage of the logo bug
+             once it's sat in one spot long enough (see applyLogoBugGhost,
+             playback.js). Its own element (not a filter on #logo-bug itself)
+             so the ghost keeps showing even while the real logo bug is
+             hidden (breaks, virtual channels) — that's the actual phenomenon
+             being imitated. Never receives clicks/hover. -->
+        <div id="logo-bug-ghost" class="logo-bug logo-bug-ghost hidden"></div>
+
+        <!-- TV content-rating bug, flashed briefly at the start of a program -->
+        <div id="rating-bug" class="rating-bug"></div>
+
+        <!-- Volume level indicator -->
+        <div id="volume-indicator" class="volume-indicator">
+          <div class="volume-label" id="volume-label">VOLUME</div>
+          <div class="volume-bar"><div class="volume-bar-fill" id="volume-bar-fill"></div></div>
+        </div>
+
+        <!-- Direct channel-number entry -->
+        <div id="channel-entry" class="channel-entry hidden"></div>
+
+        <!-- Setup-screen "PREVIEW" mode banner — see openPreviewModal, setup-channels.js -->
+        <div id="preview-banner" class="preview-banner hidden"></div>
+
+        <!-- Time machine: VCR-style shuttle OSD + tape distortion -->
+        <div id="tape-fx" class="tape-fx hidden"></div>
+        <div id="timeshift-badge" class="timeshift-badge hidden"></div>
+        <div id="vcr-osd" class="vcr-osd hidden">
+          <div class="vcr-osd-row">
+            <span class="vcr-mode" id="vcr-mode">PLAY</span>
+            <span class="vcr-speed" id="vcr-speed"></span>
+          </div>
+          <div class="vcr-time" id="vcr-time">--:--</div>
+          <div class="vcr-prog" id="vcr-prog"></div>
+          <div class="vcr-hint">&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; T PLAY/CLOSE &nbsp; L LIVE &nbsp; ESC CLOSE</div>
+        </div>
+
+        <!-- Pre-end "up next" promo banner -->
+        <div id="upnext-bar" class="upnext-bar">
+          <span class="upnext-label">UP NEXT</span>
+          <span class="upnext-title" id="upnext-title"></span>
+        </div>
+
+        <!-- Templated text over a looping background clip — a dynamic
+             interstitials-pool entry (see startBreak, playback.js) -->
+        <div id="dynamic-bumper-text" class="dynamic-bumper-text hidden"></div>
+
+        <!-- Periodic station identification bumper -->
+        <div id="station-id-bar" class="station-id-bar">
+          <span class="station-id-label">YOU'RE WATCHING</span>
+          <span class="station-id-name" id="station-id-name"></span>
+        </div>
+
+        <!-- Now-playing guide banner -->
+        <div id="guide-overlay" class="guide-overlay hidden">
+          <div class="guide-number" id="guide-number">--</div>
+          <div class="guide-meta">
+            <div class="guide-name-row">
+              <div class="guide-logo hidden" id="guide-logo"></div>
+              <div class="guide-name" id="guide-name">NO SIGNAL</div>
+            </div>
+            <div class="guide-now" id="guide-now"></div>
+            <div class="guide-bar"><div class="guide-bar-fill" id="guide-bar-fill"></div></div>
+          </div>
+          <div class="guide-mute hidden" id="guide-mute">MUTED</div>
+        </div>
+
+        <!-- Full time-grid program guide -->
+        <div id="guide-grid" class="guide-grid hidden">
+          <div class="guide-topbar">
+            <div class="guide-info-panel">
+              <div class="guide-info-number" id="gi-number">--</div>
+              <div class="guide-info-body">
+                <div class="guide-info-channel" id="gi-channel">CHANNEL GUIDE</div>
+                <div class="guide-info-title" id="gi-title">&mdash;</div>
+                <div class="guide-info-time" id="gi-time"></div>
+              </div>
+            </div>
+            <div class="guide-search-row">
+              <input type="text" id="guide-search" class="guide-search" placeholder="/ FILTER CHANNELS…">
+              <div class="guide-daterange" id="guide-daterange"></div>
+            </div>
+          </div>
+          <div class="guide-timeheader" id="guide-timeheader"></div>
+          <div class="guide-rows" id="guide-rows">
+            <div class="guide-gridlines" id="guide-gridlines"></div>
+            <div class="guide-now-line hidden" id="guide-now-line"></div>
+          </div>
+          <div class="guide-hint">
+            <span>&uarr;&darr; CHANNEL</span>
+            <span>&larr;&rarr; TIME</span>
+            <span>/ FILTER</span>
+            <span>ENTER TUNE</span>
+            <span>D DOCK / FULL PAGE</span>
+            <span>G / ESC CLOSE</span>
+          </div>
+        </div>
+
+        <!-- CH 1-2 are reserved for full-ownership plugin channels,
+             rendered into #plugin-channel-container below like every other
+             plugin channel, not a dedicated element of their own here. -->
+
+        <!-- Virtual CH 5: interactive party/bulletin channel — guest photos/
+             videos/announcements posted from the LAN party page (party/).
+             A video item plays through the shared #player element (see
+             party.js), not a media element of its own — .party-video-mode
+             (added while one's active) makes the background transparent so
+             #player shows through underneath just the caption overlay. -->
+        <div id="party-channel" class="party-channel hidden">
+          <div id="party-idle" class="party-idle">
+            <div class="party-idle-title">JOIN THE PARTY</div>
+            <img id="party-qr" class="party-qr" alt="Scan to join the party page">
+            <div class="party-idle-url" id="party-idle-url"></div>
+            <div class="party-idle-hint">Post photos &amp; videos to the bulletin, send an announcement, or hit the soundboard — from your own phone, no app needed.</div>
+            <div id="party-countdown" class="party-countdown hidden">
+              <div class="party-countdown-label" id="party-countdown-label"></div>
+              <div class="party-countdown-clock" id="party-countdown-clock"></div>
+            </div>
+            <div id="party-vote-board" class="party-vote-board hidden">
+              <div class="party-vote-title">VOTE FOR WHAT'S NEXT</div>
+              <div id="party-vote-list" class="party-vote-list"></div>
+            </div>
+            <div id="party-checkin-wall" class="party-checkin-wall hidden">
+              <div class="party-checkin-title">WHO'S HERE</div>
+              <div id="party-checkin-list" class="party-checkin-list"></div>
+            </div>
+          </div>
+          <div id="party-active" class="party-active hidden">
+            <img id="party-image" class="party-media hidden" alt="">
+            <div id="party-announce-card" class="party-announce-card hidden">
+              <div class="party-announce-icon">&#128227;</div>
+              <div class="party-announce-text" id="party-announce-text"></div>
+            </div>
+            <div id="party-caption" class="party-caption hidden"></div>
+            <div id="party-trivia-card" class="party-trivia-card hidden">
+              <div class="party-trivia-question" id="party-trivia-question"></div>
+              <div class="party-trivia-options" id="party-trivia-options"></div>
+              <div class="party-trivia-status" id="party-trivia-status"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Virtual CH 97: Synthwave & Vaporwave Radio Channel -->
+        <!-- Virtual CH 99: 90s Teletext & Arcade Channel -->
+        <!-- Plugin channels — a plugin's registerChannelType(id, {render}) draws
+             into this one shared container (see plugins.js/virtual.js); which
+             plugin owns it at any moment is tracked in virtual.js, not the DOM. -->
+        <div id="plugin-channel-container" class="plugin-channel-container hidden"></div>
+
+        <!-- 90s Blue-Screen Parental Lock PIN Modal -->
+        <div id="pin-lock-modal" class="preview-modal hidden">
+          <div class="preview-modal-box pin-modal-box">
+            <div class="pin-header">RESTRICTED ACCESS</div>
+            <div class="pin-title">PARENTAL CONTROL LOCK</div>
+            <div class="pin-notice" id="pin-notice">ENTER 4-DIGIT CABLE PASSCODE TO UNLOCK</div>
+            <div class="pin-dots" id="pin-dots">_ _ _ _</div>
+            <div class="pin-keypad" id="pin-keypad">
+              <button type="button" class="pin-key" data-digit="1">1</button>
+              <button type="button" class="pin-key" data-digit="2">2</button>
+              <button type="button" class="pin-key" data-digit="3">3</button>
+              <button type="button" class="pin-key" data-digit="4">4</button>
+              <button type="button" class="pin-key" data-digit="5">5</button>
+              <button type="button" class="pin-key" data-digit="6">6</button>
+              <button type="button" class="pin-key" data-digit="7">7</button>
+              <button type="button" class="pin-key" data-digit="8">8</button>
+              <button type="button" class="pin-key" data-digit="9">9</button>
+              <button type="button" class="pin-key pin-key-wide" data-digit="clear">CLEAR</button>
+              <button type="button" class="pin-key" data-digit="0">0</button>
+              <button type="button" class="pin-key pin-key-cancel" id="pin-cancel-btn">CANCEL</button>
+            </div>
+            <div class="pin-hint">USE KEYBOARD 0-9, ON-SCREEN KEYPAD, OR REMOTE</div>
+          </div>
+        </div>
+
+        <!-- Party visual effects — guest-triggered from the party page's
+             EFFECTS tab, works over whatever's tuned (not just PARTY_CH),
+             same tier as the EAS slate below. See effects.js. -->
+        <div id="effect-overlay" class="effect-overlay hidden">
+          <div id="effect-flash" class="effect-flash hidden"></div>
+          <div id="effect-confetti" class="effect-confetti hidden"></div>
+          <div id="effect-applause" class="effect-applause hidden">
+            <div class="effect-applause-emoji">&#128079;</div>
+            <div class="effect-applause-text">APPLAUSE</div>
+          </div>
+        </div>
+
+        <!-- "Did you know?" trivia interstitial -->
+        <div id="trivia-card" class="trivia-card hidden">
+          <div class="trivia-header">DID YOU KNOW?</div>
+          <div class="trivia-body" id="trivia-text"></div>
+        </div>
+
+        <!-- Program details card, toggled with I — the live-playing show, or
+             whichever show is highlighted in the guide if it's open. -->
+        <div id="details-overlay" class="details-overlay hidden">
+          <div class="details-panel">
+            <img id="details-poster" class="details-poster hidden">
+            <div class="details-title" id="details-title"></div>
+            <div class="details-meta" id="details-meta"></div>
+            <div class="details-description" id="details-description"></div>
+            <div class="details-tags" id="details-tags"></div>
+            <div class="details-hint">PRESS I OR ESC TO CLOSE</div>
+          </div>
+        </div>
+
+        <!-- TV menu — a real, focusable action grid (tv-menu.js builds the
+             buttons), toggled with ?. Replaces what used to be a passive
+             keyboard-shortcut legend: on a remote with no letter keys
+             (Android TV, most smart-TV remotes), a list of "press C for
+             CRT effect" is exactly as unusable as the old hint bar text —
+             every action here is a real button you can navigate to and
+             press instead. -->
+        <div id="shortcuts-overlay" class="shortcuts-overlay hidden">
+          <div class="shortcuts-panel">
+            <div class="shortcuts-header">TV MENU</div>
+            <div id="tv-menu-grid" class="tv-menu-grid"></div>
+            <div class="shortcuts-hint">ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE</div>
+          </div>
+        </div>
+
+        <!-- Synthetic power on/off effect — a generated collapsing/warming
+             line, not a captured video frame, consistent with the rest of
+             the CRT look being purely CSS-generated. -->
+        <div id="crt-power-fx" class="crt-power-fx"><div class="crt-power-fx-line"></div></div>
+      </div>
+
+      <div id="hint-bar" class="hint-bar">
+        <span data-hint-key="channel">&uarr;&darr; CHANGE CHANNEL</span>
+        <span data-hint-key="favorites">SHIFT+&uarr;&darr; FAVORITES</span>
+        <span data-hint-key="direct-entry">0-9 DIRECT ENTRY</span>
+        <span data-hint-key="last">BKSP LAST</span>
+        <span data-hint-key="guide">G GUIDE</span>
+        <span data-hint-key="setup">S SETUP</span>
+        <span data-hint-key="mute">M MUTE</span>
+        <span data-hint-key="volume">+/&minus; VOLUME</span>
+        <span data-hint-key="crt">C CRT EFFECT</span>
+        <span data-hint-key="picture-mode">V PICTURE MODE</span>
+        <span data-hint-key="aspect">A ASPECT RATIO</span>
+        <span data-hint-key="sleep">Z SLEEP TIMER</span>
+        <span data-hint-key="fullscreen">F FULLSCREEN</span>
+        <span data-hint-key="power">P POWER</span>
+        <span data-hint-key="time-machine">T TIME MACHINE / PLAY</span>
+        <span data-hint-key="news-alert" data-plugin-hint="true">B NEWS ALERT</span>
+        <span data-hint-key="closed-captions" data-plugin-hint="true">K CAPTIONS</span>
+        <span data-hint-key="hide-hints">H HIDE HINTS</span>
+      </div>
+
+      <!-- LAN-viewer-only cross-link to the party guest page (party.js's
+           GET /viewer-url endpoint is the mirror of this). Hidden unless
+           window.__isViewer is true and config.party.enabled — see
+           initViewerPartyLink, app.js. -->
+      <a href="#" id="viewer-party-link" class="viewer-party-link hidden" target="_blank" rel="noopener">🎉 JOIN THE PARTY</a>
+    </div>
+
+    <!-- Whole-screen CRT texture (DISPLAY > CRT EFFECT INTENSITY >
+         "overlay whole screen" toggle, applyCrtState, power.js) — a real
+         tube's phosphor/scanline character isn't a property of the video
+         signal, it's a property of the GLASS, so it should show over the
+         guide and setup screen too, not just #tv-screen's own #player. A
+         second copy of the same effect layers/classes (not a move of the
+         originals) since #setup-screen and #tv-screen are separate
+         subtrees with no shared ancestor below #display-frame to layer a
+         single copy over both from. Hidden by default (opt-in setting);
+         pointer-events:none throughout so it never blocks clicks. -->
+    <div id="screen-crt-overlay" class="screen-crt-overlay hidden">
+      <div class="crt-scanlines"></div>
+      <div class="crt-vignette"></div>
+      <div class="crt-curvature-vignette"></div>
+      <div class="crt-flicker"></div>
+      <div class="crt-grain"></div>
+    </div>
+
+    </div><!-- /#display-frame -->
+
+  <!-- Classic script, must run before the module script below — see
+       browser-api-shim.js's header comment for why. No-ops entirely inside
+       Electron (preload.js already defined window.api by this point). -->
+  <script src="js/browser-api-shim.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "id": "ffmpeg-transcode",
+  "name": "FFmpeg Transcode",
+  "version": "1.0.0",
+  "description": "Publishes the bundled ffmpeg binary's path for other features to spawn: core video-codec compatibility transcode, party channel thumbnail capture, and any plugin that pipes live audio through it. Bundled with the app and enabled by default — disabling it turns those features off (a clear warning shows in each) rather than breaking the app. Isolated as its own plugin because the bundled ffmpeg binary is GPL-3.0-or-later licensed, distinct from this app's own MIT license.",
+  "category": "system",
+  "main": "main.js",
+  "isolated": true
+}

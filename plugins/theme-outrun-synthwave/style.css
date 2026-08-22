@@ -1,0 +1,76 @@
+/* Outrun Synthwave — sincere retro-futurism: near-black-purple ground,
+   magenta as the dominant accent, cyan secondary, a soft neon glow instead
+   of a hard edge (that's the pre-existing "cyberpunk-synth" pack's
+   territory — this one is darker and warmer toward magenta/black).
+   See renderer.js for the registration call. */
+html[data-theme="outrun-synthwave"] {
+  --ink: #170826;
+  --ink-deep: #0d0221;
+  --cell: #1a0a2e;
+  --cell-alt: #241040;
+  --gold: #ff2ec4;
+  --gold-ink: #1a0316;
+  --cyan: #2ee6ff;
+  --paper: #f2e9ff;
+  --paper-dim: #b79fd6;
+  --line: #3a2a52;
+  --danger: #ff4466;
+
+  --gold-rgb: 255, 46, 196;
+  --danger-rgb: 255, 68, 102;
+  --cyan-rgb: 46, 230, 255;
+
+  /* The genre's own neon-tube script — used only at brand/logo scale, per
+     --font-ui staying a readable grotesque for everything else. */
+  --font-display: 'Monoton', 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #170826 0%, #0d0221 100%);
+  --gradient-panel: linear-gradient(180deg, #1a0a2e 0%, #150723 100%);
+  --gradient-cell: linear-gradient(180deg, #241040 0%, #1a0a2e 100%);
+  --gradient-btn: linear-gradient(135deg, #ff2ec4 0%, #8b5cf6 100%);
+  --gradient-gold: linear-gradient(135deg, #ff6fdb 0%, #ff2ec4 55%, #c91ea0 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(46, 230, 255, 0.18) 0%, rgba(46, 230, 255, 0) 50%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 46, 196, 0.12) 0%, rgba(255, 46, 196, 0) 55%);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Colored glow instead of a plain drop shadow — the genre's signature. */
+  --shadow-hard: 0 0 10px rgba(255, 46, 196, 0.5);
+  --shadow-hard-sm: 0 0 6px rgba(46, 230, 255, 0.45);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* A slower, more dramatic neon power surge instead of a plain CRT sweep —
+   the line pulses as it builds, echoing an arcade cabinet's tube warming
+   up under a glow tube. */
+html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-outrun-synthwave;
+}
+html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-outrun-synthwave;
+}
+@keyframes crt-fx-off-line-outrun-synthwave {
+  0% { transform: scaleY(40); opacity: 0; }
+  15% { transform: scaleY(1); opacity: 1; }
+  45% { opacity: 0.6; }
+  60% { opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-outrun-synthwave {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  10% { opacity: 0.4; }
+  25% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  45% { opacity: 0.35; }
+  60% { opacity: 1; }
+  100% { transform: scaleY(50) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

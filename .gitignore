@@ -1,0 +1,15 @@
+node_modules/
+dist/
+userData/
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.bak
+android-remote-client/**/.gradle/
+android-remote-client/**/build/
+android-remote-client/**/local.properties
+android-tv-client/**/.gradle/
+android-tv-client/**/build/
+android-tv-client/**/local.properties
+*.iml

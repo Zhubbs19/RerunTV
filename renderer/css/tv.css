@@ -1,0 +1,281 @@
+/* TV screen: CRT layers, no-signal, volume, channel entry */
+
+/* ---------- TV SCREEN ---------- */
+
+#tv-screen {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #000000 !important;
+}
+
+.crt {
+  position: relative;
+  flex: 1;
+  background: #000000 !important;
+  overflow: hidden;
+  /* Rounded corners are most of the "curved tube" illusion — .crt clips
+     #player to them via overflow:hidden, so #player itself doesn't need its
+     own border-radius. See applyCrtState (power.js) for the slider ->
+     --crt-curvature wiring; 0 (default/off) means no rounding at all. */
+  border-radius: calc(var(--crt-curvature, 0) * 34px);
+  /* Forces .crt to establish its own real stacking context (position:relative
+     alone, with no z-index, does NOT — descendant z-index then resolves
+     against whatever ancestor DOES establish one, escaping .crt entirely).
+     Needed so .tv-bezel's negative z-index (below) stays scoped locally,
+     sitting behind #player without disturbing every other z-indexed overlay
+     in this subtree (scanlines, logo bug, channel entry, etc.), which all
+     rely on #player keeping its original implicit z-index:auto. */
+  isolation: isolate;
+}
+
+#player {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  filter: brightness(var(--pic-brightness, 1)) contrast(var(--pic-contrast, 1)) saturate(var(--pic-saturate, 1));
+  opacity: 1;
+  transition: opacity 220ms linear;
+  /* Recessed-screen depth cue where content meets a bezel/border (only
+     visible then — at the normal full-bleed inset:0 size, .crt's own
+     overflow:hidden clips it away entirely, so this is a no-op the rest of
+     the time). */
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+
+/* Fade-to-black used around break bumper cuts (entering/leaving a
+   commercial/upNext/channelId-video break) so the swap reads as a
+   transition instead of an abrupt frame cut. */
+#player.screen-fade-out {
+  opacity: 0;
+  transition: opacity 180ms linear;
+}
+
+/* Aspect ratio toggle: 'stretch' badly distorts a mismatched-aspect signal
+   to fill the tube edge-to-edge, the retro cable-box counterpart to
+   'contain' (default, safe pillarbox/letterbox). 'fill' is the real-TV
+   "zoom"/crop mode next to it — scales up to cover edge-to-edge with no
+   distortion, cropping whatever overflows instead of distorting or
+   letterboxing it. See cycleAspectMode/applyAspectMode in power.js. */
+.crt.aspect-stretch #player {
+  object-fit: fill;
+}
+.crt.aspect-fill #player {
+  object-fit: cover;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #player { transition: none; }
+}
+
+/* Retro TV bezel/border (applyTvBezel, power.js) — a sibling of #player,
+   not a mask/cutout: #player itself gets resized down to its real
+   object-fit:contain rect (computeContainedRect) whenever a border is
+   showing, revealing this full-bleed div around it. Hidden (class
+   .hidden, shared with every other overlay's convention) the rest of the
+   time, in which case #player stays at its normal inset:0 full-bleed box. */
+.tv-bezel {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-size: cover;
+  background-position: center;
+}
+.crt.power-off .tv-bezel { display: none; }
+
+/* Fallback look for a theme pack that enables a border bucket but hasn't
+   shipped an image (or none is set yet) — a plain beveled console edge
+   drawn purely in CSS, no asset required. */
+.tv-bezel.default-frame {
+  background-image:
+    linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.55)),
+    radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.65) 100%);
+  box-shadow: inset 0 0 0 6px rgba(255, 255, 255, 0.06), inset 0 0 40px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- VHS picture quality (per-channel, applyVhsQuality/power.js) ---------- */
+
+.crt.vhs-quality #player {
+  filter: brightness(var(--pic-brightness, 1)) contrast(calc(var(--pic-contrast, 1) * 0.94)) saturate(calc(var(--pic-saturate, 1) * 1.25));
+}
+
+.vhs-tracking,
+.vhs-chroma {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: none;
+  z-index: 3;
+}
+
+.crt.vhs-quality .vhs-tracking,
+.crt.vhs-quality .vhs-chroma {
+  display: block;
+}
+
+.vhs-tracking {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.08) 0px,
+    rgba(255, 255, 255, 0.08) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+  animation: vhs-tracking-drift 6s linear infinite;
+  opacity: 0.5;
+}
+@keyframes vhs-tracking-drift {
+  0% { background-position-y: 0; }
+  100% { background-position-y: 600px; }
+}
+
+.vhs-chroma::before,
+.vhs-chroma::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.12;
+}
+.vhs-chroma::before {
+  background: #ff2b4d;
+  transform: translateX(-1px);
+}
+.vhs-chroma::after {
+  background: #23d0ff;
+  transform: translateX(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vhs-tracking { animation: none; }
+}
+
+.vhs-timestamp {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 6;
+  display: none;
+  font-family: 'Courier New', monospace;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: #3dff6e;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(61, 255, 110, 0.5);
+}
+
+.crt.vhs-quality .vhs-timestamp {
+  display: block;
+}
+
+.crt-scanlines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.22) 3px,
+    rgba(0, 0, 0, 0.22) 3px
+  );
+  mix-blend-mode: multiply;
+  opacity: var(--crt-scanlines-opacity, 1);
+}
+
+.crt-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.65) 100%);
+  opacity: var(--crt-vignette-opacity, 1);
+}
+
+/* A second, tighter falloff layered on top of .crt-vignette — the rounded
+   corners alone read as "just a rounded rectangle" without darker edges to
+   sell a curved tube's light falloff. Independent opacity from the normal
+   vignette so cranking one doesn't force the other up. 0 (default/off)
+   matches curvature 0 via applyCrtState. */
+.crt-curvature-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.9) 100%);
+  opacity: var(--crt-curvature-vignette-opacity, 0);
+}
+
+.crt-flicker {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+  animation: flicker 7s infinite;
+}
+
+@keyframes flicker {
+  0%, 96%, 100% { opacity: 0; }
+  97% { opacity: var(--crt-flicker-peak1, 0.0125); }
+  97.5% { opacity: 0; }
+  98.2% { opacity: var(--crt-flicker-peak2, 0.02); }
+  98.4% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crt-flicker { animation: none; }
+}
+
+/* Standing signal-noise grain — distinct from the channel-change static
+   burst, always faintly present like a cheap analog tuner never quite
+   locking perfectly onto a digital signal. */
+.crt-grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: var(--crt-grain-opacity, 0.05);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+#static-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 8;
+}
+
+#test-pattern-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* When CRT effects are toggled off, hide the overlay layers but keep static
+   bursts on channel change — those are part of the surfing UI, not the CRT look. */
+.crt.crt-off .crt-scanlines,
+.crt.crt-off .crt-vignette,
+.crt.crt-off .crt-curvature-vignette,
+.crt.crt-off .crt-flicker,
+.crt.crt-off .crt-grain {
+  display: none;
+}
+/* Curvature is a CRT-decorative effect too (a flat panel isn't curved) — the
+   box-wide "CRT effects off" toggle flattens the corners back to square
+   along with hiding the other texture layers above, regardless of the
+   curvature slider's own value. */
+.crt.crt-off {
+  border-radius: 0;
+}

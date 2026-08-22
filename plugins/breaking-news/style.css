@@ -1,0 +1,271 @@
+/* Breaking News Alerts — moved out of core overlays.css so this plugin's
+   UI ships with the plugin itself. */
+.news-overlay {
+  position: absolute;
+  z-index: 10;
+  pointer-events: none;
+  font-family: var(--font-ui);
+  box-sizing: border-box;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.news-overlay.hidden {
+  display: none !important;
+}
+
+/* Positions */
+.news-overlay.pos-bottom {
+  bottom: 30px;
+  left: 30px;
+  right: 30px;
+}
+
+.news-overlay.pos-top {
+  top: 30px;
+  left: 30px;
+  right: 30px;
+}
+
+.news-overlay.pos-center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  max-width: 900px;
+}
+
+/* Style 1: Retro Lower-Third (90s Newsroom) */
+.news-style-retro-lower-third .news-container {
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #b91c1c 0%, #7f1d1d 100%);
+  border: 2px solid #fef08a;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.8), 0 0 15px rgba(220, 38, 38, 0.6);
+  overflow: hidden;
+  animation: news-slide-up 0.4s ease-out;
+}
+
+.news-style-retro-lower-third .news-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 16px;
+  border-bottom: 1px solid rgba(254, 240, 138, 0.3);
+}
+
+.news-style-retro-lower-third .news-badge {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  color: #fef08a;
+  background: #991b1b;
+  padding: 2px 8px;
+  border-radius: 2px;
+  letter-spacing: 1px;
+  animation: live-pulse 1.2s infinite alternate;
+}
+
+.news-style-retro-lower-third .news-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 2px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.news-style-retro-lower-third .news-body {
+  padding: 12px 18px;
+  background: rgba(15, 23, 42, 0.95);
+}
+
+.news-style-retro-lower-third .news-headline {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fef08a;
+  text-shadow: 1px 1px 0 #000;
+  line-height: 1.3;
+}
+
+/* Style 2: Special Report Slate (Full Screen) */
+.news-style-full-slate {
+  position: absolute !important;
+  inset: 0 !important;
+  transform: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: radial-gradient(circle at center, #1e1b4b 0%, #09090b 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12;
+}
+
+.news-style-full-slate .news-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 85%;
+  max-width: 850px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 3px solid #dc2626;
+  box-shadow: 0 0 30px rgba(220, 38, 38, 0.5), inset 0 0 20px rgba(0, 0, 0, 0.8);
+  padding: 24px;
+  border-radius: 8px;
+  animation: news-zoom-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.news-style-full-slate .news-header {
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.news-style-full-slate .news-badge {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: #ffffff;
+  background: #dc2626;
+  padding: 4px 16px;
+  border-radius: 4px;
+  letter-spacing: 2px;
+  animation: live-pulse 0.8s infinite alternate;
+}
+
+.news-style-full-slate .news-title {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: #fef08a;
+  letter-spacing: 3px;
+  text-shadow: 0 0 10px rgba(254, 240, 138, 0.5);
+}
+
+.news-style-full-slate .news-headline {
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.4;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+  background: rgba(30, 41, 59, 0.8);
+  padding: 18px 24px;
+  border-radius: 6px;
+  border-left: 4px solid #fef08a;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Style 3: Cable News Flash Ticker */
+.news-style-ticker-flash .news-container {
+  display: flex;
+  align-items: center;
+  background: #facc15;
+  color: #000000;
+  border-top: 3px solid #000000;
+  border-bottom: 3px solid #000000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+  padding: 8px 16px;
+  gap: 16px;
+  animation: news-slide-up 0.3s ease-out;
+}
+
+.news-style-ticker-flash .news-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.news-style-ticker-flash .news-badge {
+  font-family: var(--font-display);
+  background: #000000;
+  color: #facc15;
+  font-size: 14px;
+  padding: 4px 10px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.news-style-ticker-flash .news-title {
+  display: none;
+}
+
+.news-style-ticker-flash .news-headline {
+  font-size: 18px;
+  font-weight: 800;
+  color: #000000;
+  letter-spacing: 0.5px;
+}
+
+/* Style 4: Alien / Sci-Fi Bulletin */
+.news-style-alien-report .news-container {
+  display: flex;
+  flex-direction: column;
+  background: rgba(5, 46, 22, 0.95);
+  border: 2px solid #22c55e;
+  border-radius: 4px;
+  box-shadow: 0 0 25px rgba(34, 197, 94, 0.4);
+  padding: 16px 20px;
+  animation: news-glitch-in 0.3s ease-out;
+}
+
+.news-style-alien-report .news-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed #22c55e;
+  padding-bottom: 6px;
+}
+
+.news-style-alien-report .news-badge {
+  font-family: monospace;
+  font-size: 13px;
+  color: #052e16;
+  background: #22c55e;
+  padding: 2px 6px;
+  font-weight: bold;
+}
+
+.news-style-alien-report .news-title {
+  font-family: monospace;
+  font-size: 14px;
+  color: #4ade80;
+  letter-spacing: 2px;
+}
+
+.news-style-alien-report .news-headline {
+  font-family: monospace;
+  font-size: 20px;
+  font-weight: bold;
+  color: #86efac;
+  text-shadow: 0 0 8px rgba(34, 197, 94, 0.8);
+  line-height: 1.3;
+}
+
+/* Animations */
+@keyframes news-slide-up {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes news-zoom-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes news-glitch-in {
+  0% { transform: translateX(-10px); opacity: 0; }
+  30% { transform: translateX(10px); opacity: 0.8; }
+  60% { transform: translateX(-5px); opacity: 0.9; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes live-pulse {
+  from { opacity: 1; }
+  to { opacity: 0.5; }
+}

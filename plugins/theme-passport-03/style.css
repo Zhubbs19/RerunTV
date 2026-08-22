@@ -1,0 +1,72 @@
+/* Passport '03 — deep navy with amber-yellow selection: Pioneer's Passport
+   guide software running on PowerTV OS, deployed on Scientific Atlanta and
+   Motorola boxes through the early-2000s. A modest soft gradient/bevel is
+   in-period here (PowerTV's flat-color-fill graphics layer had a little more
+   headroom than Prevue's Amiga did) but still restrained. See renderer.js
+   for the registration call. */
+html[data-theme="passport-03"] {
+  --ink: #0a2559;
+  --ink-deep: #05132e;
+  --cell: #123a86;
+  --cell-alt: #173f8c;
+  --gold: #ffd23f;
+  --gold-ink: #1a1400;
+  --cyan: #4da3ff;
+  --paper: #eef3ff;
+  --paper-dim: #a9c0e8;
+  --line: #1c3f7a;
+  --danger: #ff5b52;
+
+  --gold-rgb: 255, 210, 63;
+  --danger-rgb: 255, 91, 82;
+  --cyan-rgb: 77, 163, 255;
+
+  --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #0a2559 0%, #123a86 45%, #05132e 100%);
+  --gradient-panel: linear-gradient(180deg, #123a86 0%, #0d2d6b 60%, #05132e 100%);
+  --gradient-cell: linear-gradient(180deg, #173f8c 0%, #0f2d6e 100%);
+  --gradient-btn: linear-gradient(180deg, #1c4494 0%, #123a86 55%, #0a2b6b 100%);
+  --gradient-gold: linear-gradient(180deg, #fde27a 0%, #ffd23f 50%, #e8b800 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0) 55%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 55%);
+
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 5px;
+
+  --shadow-hard: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* A newer, better-maintained tube than Prevue's era — one gentle overshoot
+   partway through instead of several stutters. */
+html[data-theme="passport-03"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-passport-03;
+}
+html[data-theme="passport-03"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-passport-03;
+}
+@keyframes crt-fx-off-line-passport-03 {
+  0% { transform: scaleY(60); opacity: 0; }
+  14% { transform: scaleY(1); opacity: 1; }
+  50% { transform: scaleY(1.08) scaleX(1); opacity: 1; }
+  60% { transform: scaleY(0.9) scaleX(1); opacity: 0.85; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-passport-03 {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  16% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  45% { transform: scaleY(1.1) scaleX(1); opacity: 1; }
+  55% { transform: scaleY(0.95) scaleX(1); opacity: 0.85; }
+  100% { transform: scaleY(45) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="passport-03"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="passport-03"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

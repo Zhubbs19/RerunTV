@@ -1,0 +1,9 @@
+{
+  "id": "theme-passport-03",
+  "name": "Passport '03",
+  "version": "1.0.0",
+  "description": "Theme pack: the generation most cable subscribers actually grew up with — Pioneer Passport on PowerTV, deep navy with amber-yellow selection and remote-color-button hints.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

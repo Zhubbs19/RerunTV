@@ -1,0 +1,9 @@
+{
+  "id": "theme-ops-dashboard",
+  "name": "Ops Dashboard (Broadcast Automation)",
+  "version": "1.0.0",
+  "description": "Theme pack: modern, but grounded in real broadcast-automation software (Wide Orbit, Ross) instead of generic app defaults — condensed headline type, on-air red reserved for live/critical state, cool blue for interaction.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

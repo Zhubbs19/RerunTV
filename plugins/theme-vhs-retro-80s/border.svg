@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#241144"/>
+      <stop offset="100%" stop-color="#0c051a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- Cassette-shell inspired: coral stripe + yellow corner tabs -->
+  <rect x="228" y="0" width="12" height="1080" fill="#ff3366"/>
+  <rect x="1680" y="0" width="12" height="1080" fill="#ff3366"/>
+  <g fill="#ffe600">
+    <rect x="40" y="40" width="70" height="14" rx="4"/>
+    <rect x="1810" y="40" width="70" height="14" rx="4"/>
+    <rect x="40" y="1026" width="70" height="14" rx="4"/>
+    <rect x="1810" y="1026" width="70" height="14" rx="4"/>
+  </g>
+  <rect x="0" y="0" width="1920" height="1080" fill="none" stroke="#33ffff" stroke-width="2" opacity="0.35"/>
+</svg>

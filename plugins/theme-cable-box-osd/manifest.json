@@ -1,0 +1,9 @@
+{
+  "id": "theme-cable-box-osd",
+  "name": "Cable Box OSD (Analog Teletext)",
+  "version": "1.0.0",
+  "description": "Theme pack: a literal early-90s analog cable box on-screen menu — blocky type, saturated primaries, chunky beveled 3D buttons instead of flat modern ones.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

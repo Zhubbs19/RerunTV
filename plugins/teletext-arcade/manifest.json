@@ -1,0 +1,9 @@
+{
+  "id": "teletext-arcade",
+  "name": "Teletext Arcade",
+  "version": "1.0.0",
+  "description": "Virtual CH 99 — a parody 90s Ceefax-style teletext service (news/sports/weather pages) plus a playable arrow-key Snake game on page 999.",
+  "category": "channel",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

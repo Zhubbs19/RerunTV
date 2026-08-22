@@ -1,0 +1,9 @@
+{
+  "id": "theme-midnight-oled",
+  "name": "Midnight Luxury (OLED Indigo & Glass)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: deepest obsidian, electric indigo and rose glassmorphism palette.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

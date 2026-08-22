@@ -1,0 +1,9 @@
+{
+  "id": "theme-frutiger-aero",
+  "name": "Frutiger Aero (Glossy 2000s Optimism)",
+  "version": "1.0.0",
+  "description": "Theme pack: the glossy, optimistic mid-2000s 'tech is wonderful' look — translucent glass surfaces, soft sky-blue/aqua gradients, rounded corners, metallic highlights.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

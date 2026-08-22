@@ -1,0 +1,21 @@
+{
+  "id": "closed-captions",
+  "name": "Closed Captions",
+  "version": "1.0.0",
+  "description": "Real closed captions via the browser's native <track> API — sourced from a sidecar .srt/.vtt file next to the video, or an embedded subtitle stream inside the container (extracted with the bundled ffmpeg). No caption data is invented; a file with neither source just plays without captions. Caption styling adapts to the active guide/OSD theme (see registerThemePack's captionStyle field).",
+  "category": "onscreen",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "isolated": true,
+  "dataDir": "closed-captions",
+  "dependsOn": ["ffmpeg-transcode"],
+  "capabilities": {
+    "ipc": [
+      { "channel": "captions:scanForFile", "why": "checks a file for a sidecar .srt/.vtt or embedded subtitle streams before playback" },
+      { "channel": "captions:extractTrack", "why": "extracts/converts a found caption source into a cached .vtt file for the <track> element to load" }
+    ],
+    "spawn": [
+      { "bin": "ffmpeg", "why": "lists embedded subtitle streams (ffmpeg -i) and extracts/converts them to WebVTT" }
+    ]
+  }
+}

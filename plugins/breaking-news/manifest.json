@@ -1,0 +1,9 @@
+{
+  "id": "breaking-news",
+  "name": "Breaking News Alerts",
+  "version": "1.0.0",
+  "description": "Random or on-demand \"breaking news\" overlays in four visual styles, with a custom headline bank and text-to-speech readout. Press B, or trigger one live from the party page.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

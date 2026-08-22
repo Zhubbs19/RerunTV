@@ -1,0 +1,9 @@
+{
+  "id": "theme-outrun-synthwave",
+  "name": "Outrun Synthwave (Sincere 80s Neon)",
+  "version": "1.0.0",
+  "description": "Theme pack: sincere 80s retro-futurism (not the ironic vaporwave collage) — magenta, cyan and violet neon glow on near-black, played straight.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

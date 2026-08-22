@@ -1,0 +1,68 @@
+name: Build installer
+
+# Fires whenever the deploy branch moves — a direct push, or master merging
+# into it. Always produces an alpha-tagged build: the version embedded in
+# the installer and the GitHub Release it's attached to both carry
+# "-alpha.<run number>" appended to package.json's version, so an alpha
+# build is never mistakable for a real numbered release.
+on:
+  push:
+    branches:
+      - deploy
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compute alpha version
+        id: version
+        shell: bash
+        run: |
+          base=$(node -p "require('./package.json').version")
+          alpha="${base}-alpha.${{ github.run_number }}"
+          echo "version=$alpha" >> "$GITHUB_OUTPUT"
+
+      - name: Build installer
+        env:
+          # No signing certificate exists in this runner — tell
+          # electron-builder not to search for one rather than risk a CI-
+          # specific auto-discovery error. Same unsigned-by-default result
+          # as any electron-builder run with no CSC_LINK configured.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        # --publish=never: electron-builder auto-detects CI and otherwise
+        # tries to publish a GitHub Release itself before this workflow's
+        # own "Create GitHub Release" step runs (and without GH_TOKEN set
+        # here, that implicit publish just fails the build outright).
+        run: npx electron-builder --win --publish=never --config.extraMetadata.version=${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          tag="v${{ steps.version.outputs.version }}"
+          product=$(node -p "require('./package.json').build.productName || require('./package.json').productName")
+          installer="dist/${product} Setup ${{ steps.version.outputs.version }}.exe"
+          notes="Automated alpha build from deploy branch, commit ${{ github.sha }}."$'\n\n'
+          notes+="**This installer is unsigned.** Windows SmartScreen and your browser will likely warn "
+          notes+="you before running it — that's expected for an unsigned, low-download-count executable, "
+          notes+="not a sign anything's wrong. In SmartScreen: \"More info\" → \"Run anyway\". In Chrome's "
+          notes+="download bar: the dropdown arrow → \"Keep\"."
+          gh release create "$tag" \
+            --repo "${{ github.repository }}" \
+            --title "$product $tag (alpha)" \
+            --prerelease \
+            --notes "$notes" \
+            "$installer"

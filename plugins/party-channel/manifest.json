@@ -1,0 +1,27 @@
+{
+  "id": "party-channel",
+  "name": "Party Channel",
+  "version": "1.0.0",
+  "description": "LAN guest page for PARTY_CH — photo/video bulletin, TTS announcements, soundboard, trivia, caption contest, vote-for-next, check-in, visual effects, and reactions. Exposes ctx.services.partyRoutes as an extension point other plugins can add guest-facing routes to on this same server.",
+  "category": "channel",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "dataDir": "party-uploads",
+  "dependsOn": ["ffmpeg-transcode"],
+  "isolated": true,
+  "capabilities": {
+    "ipc": [
+      { "channel": "party:queueState", "why": "receives the live post/announce queue length from the renderer, to answer guests' GET /queue" },
+      { "channel": "party:voteState", "why": "receives the live vote-for-next-channel tally from the renderer, to answer guests' GET /vote" },
+      { "channel": "party:triviaState", "why": "receives the live trivia round state from the renderer, to answer guests' GET /trivia" },
+      { "channel": "party:captureVideoFrame", "why": "captures a still frame from whatever's playing, for the caption contest" },
+      { "channel": "party:getJoinInfo", "why": "returns the join URL/QR code shown on the idle screen and in setup" }
+    ],
+    "spawn": [
+      { "bin": "ffmpeg", "why": "grabs a still frame from a video file for the caption contest" }
+    ],
+    "net": [
+      { "port": 8726, "why": "the LAN party page guests connect to from their own phone" }
+    ]
+  }
+}

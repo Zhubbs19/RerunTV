@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <rect width="1920" height="1080" fill="#050400"/>
+  <!-- Flat, hard-cut — no gloss or gradients, matching the theme's own CSS intent -->
+  <rect x="232" y="8" width="1456" height="1064" fill="none" stroke="#ffb000" stroke-width="3"/>
+  <rect x="0" y="0" width="1920" height="1080" fill="none" stroke="#3a2f14" stroke-width="16"/>
+</svg>

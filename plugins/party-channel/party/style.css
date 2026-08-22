@@ -1,0 +1,257 @@
+/* Standalone page, deliberately not part of the ES-module renderer bundle —
+   same self-contained approach and loosely the same palette as remote/
+   style.css, tuned brighter/more "party flyer" than the remote's plain
+   control-panel look since this is a guest-facing, fun-first page. */
+:root {
+  --ink: #1a0f3d;
+  --ink-deep: #100826;
+  --gold: #ffd23f;
+  --gold-ink: #2a1600;
+  --cyan: #6fe0f2;
+  --pink: #ff5fa2;
+  --paper: #ffffff;
+  --paper-dim: #d8cdf5;
+  --line: #5b3d99;
+  --danger: #ff6b5b;
+  --ok: #4ee08a;
+  --radius-sm: 6px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(180deg, #1a0f3d 0%, #2b1560 45%, #150a30 100%);
+  color: var(--paper);
+  font-family: 'Barlow', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+.header {
+  padding: 16px 16px 12px;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+}
+.title {
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--gold);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+.queue-status {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--paper-dim);
+  letter-spacing: 0.5px;
+}
+.watch-live-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--gold);
+  text-decoration: none;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+}
+.watch-live-link.hidden { display: none; }
+
+/* Horizontally scrollable, not equal-width flex — this page grew past the
+   handful of tabs a single-row equal-width layout can comfortably fit on a
+   phone (BULLETIN/ANNOUNCE/SOUNDBOARD/EFFECTS/VOTE/CHECK IN/CAPTION/TRIVIA). */
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 14px 0;
+  max-width: 480px;
+  margin: 0 auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tab-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 8px 8px 0 0;
+  color: var(--paper-dim);
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  padding: 10px 12px;
+}
+.tab-btn.active {
+  background: var(--ink-deep);
+  color: var(--gold);
+  border-bottom-color: var(--ink-deep);
+}
+
+.content {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 18px 16px 60px;
+}
+.panel.hidden { display: none; }
+.tab-btn.hidden { display: none; }
+
+.section-label {
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  margin-bottom: 6px;
+}
+.hint {
+  font-size: 13px;
+  color: var(--paper-dim);
+  line-height: 1.4;
+  margin: 0 0 16px;
+}
+
+form, .panel { display: flex; flex-direction: column; gap: 12px; }
+
+.file-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 22px 12px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--paper-dim);
+  cursor: pointer;
+}
+.file-picker input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.file-picker.has-file {
+  border-style: solid;
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+input[type="text"], textarea {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font-family: 'Barlow', system-ui, sans-serif;
+  font-size: 14px;
+  padding: 12px;
+  resize: vertical;
+}
+input[type="text"]::placeholder, textarea::placeholder { color: #7a6ba8; }
+
+.btn {
+  background: linear-gradient(180deg, #7a4fd6 0%, #5b3d99 55%, #452e75 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  padding: 14px 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 2px 2px 0 rgba(0, 0, 0, 0.4);
+  touch-action: manipulation;
+}
+.btn:active { transform: translate(1px, 1px); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.5); }
+.btn:disabled { opacity: 0.5; }
+
+.btn-primary {
+  background: linear-gradient(180deg, #ffe073 0%, var(--gold) 45%, #e0ac10 100%);
+  color: var(--gold-ink);
+  border-color: #b8860b;
+}
+
+.status-msg {
+  font-size: 13px;
+  font-weight: 600;
+  min-height: 18px;
+}
+.status-msg.ok { color: var(--ok); }
+.status-msg.err { color: var(--danger); }
+
+.caption-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 140px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.caption-image {
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.soundboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.sound-btn {
+  background: linear-gradient(180deg, #ff8ecb 0%, var(--pink) 55%, #d43e82 100%);
+  border: 1px solid #a02e63;
+  border-radius: 8px;
+  color: #2a0518;
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 18px 8px;
+  text-align: center;
+}
+.sound-btn:active { transform: translate(1px, 1px); }
+
+@media (min-width: 480px) {
+  .soundboard-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.jukebox-search-row {
+  display: flex;
+  gap: 8px;
+}
+.jukebox-search-row input { flex: 1; }
+
+.jukebox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  margin-top: 8px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.jukebox-row-meta { flex: 1; min-width: 0; }
+.jukebox-row-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jukebox-row-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper-dim);
+}
+.jukebox-row .btn { flex: 0 0 auto; padding: 8px 12px; font-size: 12px; }

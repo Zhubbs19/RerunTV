@@ -1,0 +1,16 @@
+{
+  "id": "tmdb-metadata",
+  "name": "TMDB Metadata",
+  "version": "1.0.0",
+  "description": "Looks up movie/TV metadata (poster, description, cast) from TheMovieDB for the TITLES tab's MATCH TMDB feature. Requires a free TMDB API key (see this plugin's own settings panel, PROGRAMMING tab).",
+  "category": "system",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "isolated": true,
+  "capabilities": {
+    "ipc": [
+      { "channel": "tmdb:search", "why": "looks up a title's metadata for the TITLES tab's MATCH TMDB button" },
+      { "channel": "tmdb:getCredits", "why": "fetches cast info for a matched title" }
+    ]
+  }
+}

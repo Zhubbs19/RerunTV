@@ -1,0 +1,9 @@
+{
+  "id": "screensaver",
+  "name": "Idle Screensaver",
+  "version": "1.0.0",
+  "description": "A bouncing brand mark (or an era-appropriate idle state — test card, stand-by slate, promo scroll, diagnostics readout — depending on the active theme) shown after a period of no interaction.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "theme-digital-satellite-2000s",
+  "name": "Digital Satellite (2001 Ice Blue)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: 2001 digital satellite receiver look — ice blue & white, crisp and geometric, a signal-lock-searching acquire animation instead of static, digital chirp SFX, a faint 9.2kHz carrier hum.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

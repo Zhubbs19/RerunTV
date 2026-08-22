@@ -1,0 +1,9 @@
+{
+  "id": "theme-neo-brutalist",
+  "name": "Neo-Brutalist (Raw Console)",
+  "version": "1.0.0",
+  "description": "Theme pack: the most direct answer to a generic-AI-app look — zero border radius, thick black borders, flat acid-yellow/hot-pink blocks, no gradients, raw hand-built type.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

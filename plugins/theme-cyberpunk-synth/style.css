@@ -1,0 +1,33 @@
+/* Migrated verbatim from core's tokens.css (theme-pack-plugins migration) —
+   see renderer.js for the registration call. Pure palette, no other
+   core-file rules referenced this theme. */
+html[data-theme="cyberpunk-synth"] {
+  --ink: #0d061a;
+  --ink-deep: #06020c;
+  --cell: #240a3e;
+  --cell-alt: #321054;
+  --gold: #ffbe0b;
+  --gold-ink: #1a0f00;
+  --cyan: #00f0ff;
+  --paper: #ffffff;
+  --paper-dim: #d1b4fe;
+  --line: #7000ff;
+  --danger: #ff007f;
+
+  --gold-rgb: 255, 190, 11;
+  --danger-rgb: 255, 0, 127;
+  --cyan-rgb: 0, 240, 255;
+
+  --gradient-page: linear-gradient(180deg, #0d061a 0%, #170a30 50%, #06020c 100%);
+  --gradient-panel: linear-gradient(180deg, #2a0a4a 0%, #1e0636 60%, #120322 100%);
+  --gradient-cell: linear-gradient(180deg, #370c61 0%, #240742 100%);
+  --gradient-btn: linear-gradient(180deg, #8a00e6 0%, #5d00a8 55%, #3d0070 100%);
+  --gradient-gold: linear-gradient(180deg, #ff007f 0%, #d6006b 45%, #b30059 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(0, 240, 255, 0.3) 0%, rgba(0, 240, 255, 0.05) 45%, rgba(0, 240, 255, 0) 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 0, 127, 0.2) 0%, rgba(255, 0, 127, 0) 55%);
+
+  --shadow-hard: 0 0 12px rgba(112, 0, 255, 0.4);
+  --shadow-hard-sm: 0 0 6px rgba(0, 240, 255, 0.4);
+  --bevel-raised: inset 0 1px 0 rgba(0, 240, 255, 0.4), inset 0 -1px 0 rgba(255, 0, 127, 0.4);
+  --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.8);
+}

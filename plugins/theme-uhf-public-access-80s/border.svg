@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="14" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="scan" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.05"/>
+      <stop offset="50%" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="#050014"/>
+  <rect width="1920" height="1080" fill="url(#scan)"/>
+  <!-- Neon window outline, "signal that can't quite hold" -->
+  <rect x="236" y="4" width="1448" height="1072" fill="none" stroke="#ff2bd6" stroke-width="4" filter="url(#glow)" opacity="0.75"/>
+  <rect x="248" y="16" width="1424" height="1048" fill="none" stroke="#00e5ff" stroke-width="2" filter="url(#glow)" opacity="0.55"/>
+  <!-- Scrappy corner tape marks -->
+  <g fill="#1c0a33" stroke="#7b2ff7" stroke-width="1.5" opacity="0.8">
+    <rect x="30" y="30" width="60" height="18" transform="rotate(-8 60 39)"/>
+    <rect x="1830" y="30" width="60" height="18" transform="rotate(6 1860 39)"/>
+    <rect x="30" y="1032" width="60" height="18" transform="rotate(5 60 1041)"/>
+    <rect x="1830" y="1032" width="60" height="18" transform="rotate(-7 1860 1041)"/>
+  </g>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="glossPanel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a3323"/>
+      <stop offset="12%" stop-color="#8a4a35"/>
+      <stop offset="50%" stop-color="#3a1f16"/>
+      <stop offset="100%" stop-color="#1c0f0a"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="18%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#glossPanel)"/>
+  <rect width="1920" height="1080" fill="url(#sheen)"/>
+  <!-- Glossy rounded inner bezel edge, network-ident confident polish -->
+  <rect x="228" y="10" width="1464" height="1060" rx="26" fill="none" stroke="#c0392b" stroke-width="10"/>
+  <rect x="228" y="10" width="1464" height="1060" rx="26" fill="none" stroke="#e9c46a" stroke-width="2" opacity="0.7"/>
+</svg>

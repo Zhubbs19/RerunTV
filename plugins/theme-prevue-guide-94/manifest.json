@@ -1,0 +1,9 @@
+{
+  "id": "theme-prevue-guide-94",
+  "name": "Prevue Guide '94",
+  "version": "1.0.0",
+  "description": "Theme pack: the actual first interactive guide most cable subscribers ever saw — royal blue and amber-yellow, flat panels, sharp corners, no gloss (real Prevue-era hardware had no headroom for it).",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

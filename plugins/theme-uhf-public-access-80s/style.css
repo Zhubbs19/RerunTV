@@ -1,0 +1,201 @@
+/* Migrated verbatim from core's tokens.css/guide.css (theme-pack-plugins
+   migration) — see renderer.js for the crtBias/staticStyle/SFX/
+   ambientTexture/border registration. */
+
+/* Late-Night UHF, 1988: hot magenta & cyan on near-black, grittier and
+   flatter than the existing 80s Neon Cyberpunk theme — less gloss, harder
+   shadows, a "signal that can't quite hold" feel rather than a clean synth
+   glow. Distinct from cyberpunk-synth/vhs-retro-80s by intent: this one is
+   scrappy public-access-at-2am, not a glossy arcade. */
+html[data-theme="uhf-public-access-80s"] {
+  --ink: #050014;
+  --ink-deep: #02000a;
+  --cell: #1c0a33;
+  --cell-alt: #240f42;
+  --gold: #ff2bd6;
+  --gold-ink: #1a0018;
+  --cyan: #00e5ff;
+  --paper: #e8e6ff;
+  --paper-dim: #8f7fc9;
+  --line: #7b2ff7;
+  --danger: #ff3355;
+
+  --gold-rgb: 255, 43, 214;
+  --danger-rgb: 255, 51, 85;
+  --cyan-rgb: 0, 229, 255;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #050014 0%, #0d0324 50%, #02000a 100%);
+  --gradient-panel: linear-gradient(180deg, #1c0a33 0%, #150726 60%, #0a0316 100%);
+  --gradient-cell: linear-gradient(180deg, #240f42 0%, #180a2c 100%);
+  --gradient-btn: linear-gradient(180deg, #5a1aa8 0%, #3d1178 55%, #260a4d 100%);
+  --gradient-gold: linear-gradient(180deg, #ff2bd6 0%, #d600ab 45%, #a80088 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(0, 229, 255, 0.1) 0%, rgba(0, 229, 255, 0.02) 45%, rgba(0, 229, 255, 0) 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 43, 214, 0.08) 0%, rgba(255, 43, 214, 0) 55%);
+
+  --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.75);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.75);
+  --bevel-raised: inset 0 1px 0 rgba(0, 229, 255, 0.2), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+  --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+
+/* The guide grid is the most visible surface in the app after the picture
+   itself — so this era gets a full structural re-skin instead of just
+   recoloring the shared gradient-cell look: a flat black Ceefax/teletext-
+   style terminal grid (monospace, hard edges, phosphor text-glow,
+   inverted-video selection). */
+html[data-theme="uhf-public-access-80s"] .guide-row-chan,
+html[data-theme="uhf-public-access-80s"] .guide-row-track {
+  background: #050014;
+  border-radius: 0;
+  box-shadow: none;
+}
+html[data-theme="uhf-public-access-80s"] .guide-row.active-row .guide-row-chan {
+  background: #0d0324;
+}
+html[data-theme="uhf-public-access-80s"] .grc-num,
+html[data-theme="uhf-public-access-80s"] .grc-name,
+html[data-theme="uhf-public-access-80s"] .guide-entry {
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
+  letter-spacing: 0.5px;
+}
+html[data-theme="uhf-public-access-80s"] .grc-num {
+  color: var(--cyan);
+  text-shadow: 0 0 6px rgba(var(--cyan-rgb), 0.7);
+}
+html[data-theme="uhf-public-access-80s"] .grc-name {
+  color: var(--paper-dim);
+}
+html[data-theme="uhf-public-access-80s"] .guide-entry {
+  background: #050014;
+  border-right: 1px solid #1c0a33;
+  color: #d6d0ff;
+  text-shadow: none;
+}
+html[data-theme="uhf-public-access-80s"] .guide-entry:nth-child(even) {
+  background: #0a0322;
+}
+html[data-theme="uhf-public-access-80s"] .guide-entry:hover {
+  background: #1c0a33;
+}
+html[data-theme="uhf-public-access-80s"] .guide-entry.past { opacity: 0.35; }
+/* Selected entry reads as inverted-video terminal cursor, not a glossy gold
+   pill — solid magenta fill, black text, no glow animation. */
+html[data-theme="uhf-public-access-80s"] .guide-entry.sel {
+  background: var(--gold);
+  color: #050014;
+  box-shadow: none;
+  animation: none;
+  text-shadow: none;
+}
+html[data-theme="uhf-public-access-80s"] .guide-gridlines {
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(0, 229, 255, 0.14) 0 1px,
+    rgba(0, 229, 255, 0) 1px var(--guide-slot-w, 33.3333%)
+  );
+}
+
+/* "A signal that can't quite hold" (see staticStyle: 'tear' in renderer.js)
+   — the power line jitters horizontally instead of settling cleanly, echoing
+   the bad-tracking tear bands used for channel changes. Same animation-
+   duration/timing-function/fill-mode as the base rule (overlays.css) — only
+   animation-name differs, so POWER_ON_ANIM_MS/POWER_OFF_ANIM_MS in state.js
+   need no theme awareness. */
+html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-uhf;
+}
+html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-uhf;
+}
+@keyframes crt-fx-off-line-uhf {
+  0% { transform: scaleY(80) translateX(0); opacity: 0; }
+  10% { transform: scaleY(1) translateX(-2%); opacity: 1; }
+  30% { transform: scaleY(1) translateX(3%); opacity: 0.4; }
+  45% { transform: scaleY(1) translateX(-1.5%); opacity: 1; }
+  70% { transform: scaleY(0.5) translateX(2%); opacity: 0.6; }
+  100% { transform: scaleY(0.05) scaleX(0.02) translateX(0); opacity: 0; }
+}
+@keyframes crt-fx-on-line-uhf {
+  0% { transform: scaleY(0.05) scaleX(0.02) translateX(0); opacity: 0; }
+  8% { transform: scaleY(1) scaleX(1) translateX(2%); opacity: 1; }
+  18% { transform: translateX(-3%); opacity: 0.2; }
+  28% { transform: translateX(1%); opacity: 1; }
+  40% { transform: translateX(-2%); opacity: 0.15; }
+  52% { transform: translateX(2.5%); opacity: 0.9; }
+  65% { transform: translateX(-1%); opacity: 0.3; }
+  78% { opacity: 1; }
+  100% { transform: scaleY(60) scaleX(1) translateX(0); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}
+
+/* Animation-polish pass additions: the same "signal that can't quite hold"
+   horizontal jitter as the power-fx override above (staticStyle: 'tear').
+   No override for .guide-entry.sel here — this era already turns that
+   animation off entirely (see the "inverted-video terminal cursor, no glow
+   animation" rule further up), which is itself the deliberate theme-
+   specific choice for that one; a jittery entrance would fight it. Same
+   durations/timing-functions/fill-modes as each base rule
+   (guide.css/overlays.css) — only animation-name differs. */
+html[data-theme="uhf-public-access-80s"] #tv-screen .channel-entry.digit-flash {
+  animation-name: channel-entry-flash-uhf;
+}
+@keyframes channel-entry-flash-uhf {
+  0% { transform: translateX(0); opacity: 0.5; }
+  20% { transform: translateX(-3px); opacity: 1; }
+  40% { transform: translateX(2px); opacity: 0.6; }
+  60% { transform: translateX(-1px); opacity: 1; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+html[data-theme="uhf-public-access-80s"] .guide-info-title.gi-update,
+html[data-theme="uhf-public-access-80s"] .guide-info-time.gi-update {
+  animation-name: guide-info-fade-uhf;
+}
+@keyframes guide-info-fade-uhf {
+  0% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 0.8; transform: translateY(-1px); }
+  40% { opacity: 0.3; transform: translateY(1px); }
+  70% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 1; }
+}
+html[data-theme="uhf-public-access-80s"] .guide-overlay {
+  animation-name: guide-overlay-in-uhf;
+}
+@keyframes guide-overlay-in-uhf {
+  0% { opacity: 0; transform: translateY(10px) translateX(0); }
+  30% { opacity: 1; transform: translateY(0) translateX(-3px); }
+  50% { transform: translateX(2px); }
+  70% { transform: translateX(-1px); }
+  100% { transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="uhf-public-access-80s"] #tv-screen .channel-entry.digit-flash,
+  html[data-theme="uhf-public-access-80s"] .guide-info-title.gi-update,
+  html[data-theme="uhf-public-access-80s"] .guide-info-time.gi-update,
+  html[data-theme="uhf-public-access-80s"] .guide-overlay {
+    animation: none;
+  }
+}
+
+/* Guide open/close (opt-in, see guide.css's .guide-anim-enabled block) —
+   same "signal that can't quite hold" horizontal jitter as the four
+   animations above: it leans in sideways as it settles instead of sliding
+   straight up. Duration still comes from --guide-anim-ms (the speed
+   slider) — only the offset/easing differ. */
+html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
+  --guide-anim-offset-x: -10px;
+  --guide-anim-offset-y: 6px;
+  transition-timing-function: cubic-bezier(0.68, -0.4, 0.27, 1.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
+    transition: none;
+  }
+}

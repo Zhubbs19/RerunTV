@@ -1,0 +1,3323 @@
+/* Setup screen: channel cards and box settings */
+
+/* ---------- SETUP SCREEN ---------- */
+
+#setup-screen {
+  background: var(--gradient-page);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 36px 24px;
+  overflow-y: auto;
+  color: var(--paper);
+}
+
+.setup-panel {
+  /* % not vw — must respect a shrunk #display-frame (display-mode.js), not
+     just the real OS window. */
+  width: min(96%, 1600px);
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 20px;
+  align-items: start;
+}
+/* Panels with content that grows tall (the bulletin-slide editor, the
+   backup/restore blurb + buttons) read better spanning the full row. */
+.settings-grid > .span-full { grid-column: 1 / -1; }
+
+.setup-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 30px 0 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--line);
+}
+
+.setup-search { width: 100%; margin-bottom: 20px; }
+#setup-search-empty { text-align: center; margin: -8px 0 16px; }
+
+.search-no-match { display: none; }
+
+.setup-tab-btn {
+  position: relative;
+  overflow: hidden;
+  background: var(--gradient-btn);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  color: var(--paper-dim);
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  padding: 10px 18px;
+  cursor: pointer;
+}
+.setup-tab-btn:hover { color: var(--gold); }
+.setup-tab-btn.active {
+  background: var(--gradient-gold);
+  border-color: #c98914;
+  color: var(--gold-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.setup-tab-panel { margin-bottom: 4px; }
+
+/* Brief reveal — generic, applied to any panel that just became visible
+   (top-level/sub-tab switches in setup-settings.js, a plugin's SETTINGS
+   panel in setup-plugins.js) — content itself doesn't move or reflow, just
+   a cheap opacity+transform fade so switching doesn't feel like a hard cut.
+   Deliberately NOT a sliding active-indicator under the tab row: both
+   .setup-tabs and .setup-subtabs wrap to multiple lines at narrow widths,
+   which would make a position-tracked indicator fragile. */
+.panel-reveal {
+  animation: setup-panel-reveal 140ms ease-out;
+}
+@keyframes setup-panel-reveal {
+  0% { opacity: 0; transform: translateY(3px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel-reveal { animation: none; }
+}
+
+/* Second-level tabs within a top-level setup tab (DISPLAY/PROGRAMMING/
+   AUDIO & SYSTEM) — smaller and flatter than the top-level .setup-tab-btn
+   bar so the hierarchy reads clearly, used to split a tab that had grown
+   too dense to scan in one scroll (e.g. PROGRAMMING's bumper pool vs. ad
+   presets vs. box-wide ad/station-id timing vs. unrelated on-screen
+   features). See the generic wiring in setup-settings.js. */
+.setup-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.setup-subtab-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--paper-dim);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.setup-subtab-btn:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: rgba(240, 180, 41, 0.08);
+  transform: translateY(-1px);
+}
+.setup-subtab-btn.active {
+  background: rgba(240, 180, 41, 0.18);
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 12px rgba(240, 180, 41, 0.3);
+}
+
+.setup-eyebrow {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--cyan);
+  font-size: 12px;
+  letter-spacing: 3px;
+  margin-bottom: 10px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.setup-title {
+  font-family: var(--font-display);
+  color: var(--gold);
+  font-size: 34px;
+  letter-spacing: 2px;
+  margin: 0 0 12px 0;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(240, 180, 41, 0.5);
+}
+
+.setup-sub {
+  color: var(--paper-dim);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 28px;
+  max-width: 560px;
+}
+
+#channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 18px;
+  margin-bottom: 24px;
+}
+
+.channel-list-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* Card layout: identity line, folder path, action buttons, then options —
+   each on its own row so the buttons stop competing with the name field. */
+.channel-row {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--gradient-panel);
+  box-shadow: var(--bevel-raised), var(--shadow-hard);
+  padding: 18px;
+  display: grid;
+  grid-template-columns: 44px 72px 1fr;
+  grid-template-areas:
+    "badge num  name"
+    "path  path path"
+    "now   now  now"
+    "acts  acts acts"
+    "opts  opts opts";
+  gap: 14px;
+  align-items: center;
+  cursor: grab;
+  transition: opacity 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.channel-row.dragging { opacity: 0.4; }
+.channel-row.drag-over { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.5); }
+@media (prefers-reduced-motion: reduce) {
+  .channel-row { transition: none; }
+}
+
+.channel-row > .channel-badge { grid-area: badge; }
+.channel-row > input[type="number"] { grid-area: num; }
+.channel-row > input[type="text"] { grid-area: name; }
+.channel-row > .folder-status { grid-area: path; }
+.channel-row > .channel-now { grid-area: now; }
+.channel-row > .channel-actions { grid-area: acts; }
+.channel-row > .channel-options-wrap { grid-area: opts; }
+
+.channel-select-checkbox { display: none; }
+#channel-list.select-mode .channel-row {
+  grid-template-columns: 22px 44px 72px 1fr;
+  grid-template-areas:
+    "chk badge num  name"
+    "chk path  path path"
+    "chk now   now  now"
+    "chk acts  acts acts"
+    "chk opts  opts opts";
+}
+#channel-list.select-mode .channel-select-checkbox {
+  display: block;
+  grid-area: chk;
+  align-self: start;
+  margin-top: 4px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.channel-row .channel-now {
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.channel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.channel-actions .btn { font-size: 12px; padding: 9px 14px; }
+.channel-actions .remove-btn { margin-left: auto; }
+.channel-actions .move-btn { padding: 8px 10px; }
+.channel-actions .move-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* Collapsed by default for a channel with nothing customized (see
+   hasCustomChannelOptions, setup-channels.js) — with 13+ near-identical
+   channel rows, always showing the full color/shuffle/favorite/VHS/rating/
+   volume line for every single one made the CHANNELS tab mostly whitespace
+   and rarely-touched controls. Click to expand; a channel that DOES have
+   something customized shows a compact summary right on the collapsed
+   header so nothing already set is hidden without a hint. */
+.channel-options-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  user-select: none;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+}
+.channel-options-header:hover { color: var(--cyan); }
+.channel-options-chevron {
+  display: inline-block;
+  width: 10px;
+  transition: transform 120ms linear;
+}
+.channel-options-header.collapsed .channel-options-chevron { transform: rotate(-90deg); }
+.channel-options-summary {
+  color: var(--cyan);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: none;
+}
+
+.channel-options {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding-top: 10px;
+}
+.option-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+}
+
+.channel-badge {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  background: var(--gradient-cell);
+}
+.channel-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.channel-badge.editable { cursor: pointer; }
+.channel-badge.editable:hover { border-color: var(--gold); box-shadow: var(--bevel-raised), 0 0 10px rgba(240, 180, 41, 0.4); }
+.channel-badge.small {
+  width: 28px;
+  height: 28px;
+  font-size: 11px;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.channel-row input[type="text"],
+.channel-row input[type="number"] {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  padding: 8px;
+  font-size: 14px;
+}
+
+.channel-row input[type="number"] { text-align: center; font-variant-numeric: tabular-nums; }
+
+.channel-row .folder-btn {
+  white-space: nowrap;
+}
+
+.channel-row .folder-status {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 7px 10px;
+  background: rgba(0, 0, 0, 0.22);
+  border-radius: var(--radius-sm);
+}
+
+/* Every checkbox label across the settings screen (not just inside a
+   channel row — DISPLAY/PROGRAMMING/AUDIO panel toggles, block/interstitial
+   editor checkboxes, etc. all use this same class) gets this same styled
+   look. Previously scoped to `.channel-row .shuffle-toggle` only, which left
+   every .shuffle-toggle outside a channel row rendering as an unstyled
+   native checkbox + inherited body text — the single biggest visual
+   inconsistency in the settings UI. */
+.hintbar-items-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.shuffle-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--cyan);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  /* Was nowrap — fine for the many short chip-style toggles (hintbar items,
+     PLUGINS rows), but a handful of labels are full sentences (MOVIE MODE's
+     "PLAIN BARS, NO BORDER OR AMBIENT HUM"), and nowrap doesn't shrink text
+     to fit — it just keeps extending the label past its own box with
+     nothing to stop it, invisibly bleeding past the panel's edge (worse
+     under a theme with a wider --font-ui, like neo-brutalist's monospace,
+     but present in every theme — found live). Plain wrapping is strictly
+     safer: short labels still render on one line since they fit, long ones
+     now wrap onto a second line inside their own panel instead of
+     disappearing past its border. */
+  cursor: pointer;
+}
+
+/* .shuffle-toggle also wraps a few non-checkbox fields (the interstitials
+   WEIGHT/LEAD DAYS number inputs) that shouldn't inherit a pointer cursor —
+   scope both rules to the actual toggle inputs only. */
+.shuffle-toggle input[type="checkbox"],
+.shuffle-toggle input[type="radio"] {
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+/* A small press-down bounce, :active-driven rather than a mount-triggered
+   `animation` — considered a full custom toggle-switch redesign too, but
+   every .shuffle-toggle checkbox across the app (dozens of them, see the
+   comment above this block) intentionally renders as a native,
+   accent-colored checkbox, not a switch; restyling that visual language is
+   a bigger design change than this pass is meant to make. An `animation`
+   here instead of `:active` would also replay on every list rebuild these
+   checkboxes live in (plugin list, channel options, …) including
+   search-filter re-renders — exactly the hot-path replay this pass avoids
+   elsewhere — since CSS animations autoplay on mount regardless of
+   checked-state history, while :active only fires on a live user press. */
+/* Covers both shapes this class shows up in: a wrapping <label
+   class="shuffle-toggle"> around the checkbox (most call sites), and the
+   PLUGINS-tab row checkbox, which puts the class directly on the <input>
+   itself (setup-plugins.js). */
+.shuffle-toggle input[type="checkbox"],
+input[type="checkbox"].shuffle-toggle {
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.shuffle-toggle input[type="checkbox"]:active,
+input[type="checkbox"].shuffle-toggle:active {
+  transform: scale(1.25);
+}
+@media (prefers-reduced-motion: reduce) {
+  .shuffle-toggle input[type="checkbox"], input[type="checkbox"].shuffle-toggle { transition: none; }
+}
+
+.slider-readout {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4em;
+  text-align: right;
+  display: inline-block;
+  will-change: transform;
+}
+/* Class-toggle pulse on drag (setup-util.js), not a transition — several
+   sliders sharing this readout also write a JS-set --crt-* custom property
+   elsewhere, which doesn't reliably retrigger CSS transitions in Chromium,
+   so every readout uses the same restart-safe technique for consistency. */
+.slider-readout.pulse {
+  animation: slider-readout-pulse 140ms ease-out;
+}
+@keyframes slider-readout-pulse {
+  0% { transform: scale(1.15); color: var(--paper); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slider-readout.pulse { animation: none; }
+}
+
+.channel-row .remove-btn {
+  color: var(--danger);
+  border-color: rgba(255, 107, 91, 0.4);
+}
+
+.channel-row .fix-btn {
+  color: var(--cyan);
+  border-color: rgba(111, 224, 242, 0.4);
+  white-space: nowrap;
+}
+.channel-row .fix-btn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.08); }
+
+.channel-row .titles-btn { white-space: nowrap; }
+.channel-row .edit-btn { border-color: var(--gold); color: var(--gold); }
+.channel-row .edit-btn:hover { background: rgba(240, 180, 41, 0.1); }
+.channel-row .edit-btn.edit-btn-open {
+  background: var(--gold);
+  color: var(--ink-deep);
+  box-shadow: var(--bevel-raised), 0 0 8px rgba(var(--gold-rgb), 0.5);
+}
+
+.edit-panel { padding: 0; gap: 0; }
+
+.edit-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0;
+}
+
+.edit-header-copyfrom {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-tab-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.edit-tab-btn { font-size: 11px; padding: 7px 12px; }
+.edit-tab-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(240, 180, 41, 0.12);
+}
+/* Not-yet-functional tabs (e.g. per-channel THEME) read visually distinct
+   from the 6 working ones instead of looking identically actionable. */
+.edit-tab-btn.edit-tab-soon {
+  opacity: 0.55;
+  font-style: italic;
+}
+.edit-tab-btn.edit-tab-soon.active {
+  border-color: var(--line);
+  color: inherit;
+  background: none;
+}
+
+.edit-tab-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.calendar-month-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  min-width: 140px;
+  text-align: center;
+}
+
+.calendar-grid-wrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 10px;
+  transition: opacity 150ms linear;
+}
+/* Every day this month resolves to DEFAULT — dim the grid rather than hide
+   it (day-preview/add-block-here are still useful) so a mostly-empty month
+   doesn't visually compete with one that actually has something scheduled. */
+.calendar-grid-wrap-quiet { opacity: 0.45; }
+.calendar-quiet-notice {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  text-align: center;
+  margin-bottom: 8px;
+}
+/* A small dot on PREV/NEXT when the adjacent month has something scheduled,
+   so jumping to real content doesn't mean scrolling blind through empty
+   months. */
+.calendar-nav-has-content { position: relative; }
+.calendar-nav-has-content::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 4px rgba(var(--gold-rgb), 0.8);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+.calendar-header-row { margin-bottom: 6px; gap: 5px; }
+.calendar-weekday {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+  text-align: center;
+  padding-bottom: 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.calendar-day {
+  min-height: 74px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.22);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+.calendar-day:hover:not(.calendar-day-blank) {
+  border-color: var(--cyan);
+  transform: translateY(-1px);
+}
+.calendar-day-blank { border: none; background: none; cursor: default; }
+.calendar-day-weekend { background: rgba(0, 0, 0, 0.38); }
+.calendar-day-today { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.calendar-day-conflict { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger) inset; }
+/* A block's trigger matches this day but it has no folder/content, so it's
+   invisible to playback/guide despite matching — striped instead of a flat
+   border so it reads distinctly from a priority conflict at a glance. */
+.calendar-day-empty-block {
+  background-image: repeating-linear-gradient(135deg, rgba(var(--danger-rgb), 0.18) 0 6px, transparent 6px 12px);
+}
+.calendar-day-selected {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 0 2px var(--cyan) inset, 0 0 10px rgba(var(--cyan-rgb), 0.4) !important;
+}
+.calendar-day-num {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--paper-dim);
+}
+.calendar-day-today .calendar-day-num { color: var(--gold); }
+.calendar-day-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-left: 2px solid transparent;
+  padding-left: 4px;
+}
+.calendar-day-label-conflict { color: var(--danger); }
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.calendar-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.4px;
+  color: var(--paper-dim);
+}
+.calendar-legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-block;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.calendar-detail {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: var(--bevel-inset);
+}
+.calendar-detail-header {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+.calendar-detail-channel + .calendar-detail-channel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.calendar-detail-ch-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  margin-bottom: 4px;
+}
+.calendar-detail-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--paper);
+  padding: 2px 0;
+}
+.calendar-detail-sub { color: var(--paper-dim); }
+.calendar-detail-conflict { color: var(--danger); }
+
+.calendar-inline-btn { font-size: 10px; padding: 5px 10px; margin-left: 4px; }
+
+.calendar-override-wrap { margin-top: 6px; }
+.calendar-override-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+}
+.calendar-override-row input[type="text"] { max-width: 140px; }
+
+@keyframes blockRowFlash {
+  0%, 100% { background: transparent; }
+  20%, 60% { background: rgba(var(--cyan-rgb), 0.22); }
+}
+.block-row-flash { animation: blockRowFlash 1.5s ease; border-radius: var(--radius-sm); }
+
+.titles-panel {
+  border: 1px solid var(--line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  background: var(--gradient-panel);
+  box-shadow: var(--shadow-hard);
+  padding: 12px;
+  margin: -10px 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.channel-filter-row .titles-search { flex: 1; }
+.channel-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.1); }
+
+.interstitials-filter-row { flex-wrap: wrap; }
+.interstitials-filter-row .titles-search { flex: 1; min-width: 160px; }
+
+/* ---------- Cross-channel library search ---------- */
+.library-search-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--cyan);
+  border-radius: var(--radius-md);
+  background: rgba(111, 224, 242, 0.06);
+}
+.library-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.library-search-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 12px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.library-search-row .lsr-chan {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--gold);
+  white-space: nowrap;
+}
+.library-search-row .lsr-title {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.library-search-row .btn { flex-shrink: 0; }
+.library-search-empty {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper-dim);
+  padding: 8px 2px;
+}
+
+/* ---------- Cross-channel NOW/NEXT dashboard ---------- */
+.now-next-panel {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  background: rgba(var(--gold-rgb), 0.06);
+}
+.now-next-header,
+.now-next-row {
+  display: grid;
+  grid-template-columns: 42px 1fr 1.4fr 1.4fr;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 10px;
+}
+.now-next-header {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--gold);
+  border-bottom: 1px solid var(--line);
+}
+.now-next-rows {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.now-next-row {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper);
+  flex-shrink: 0;
+}
+.now-next-row:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
+.now-next-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.now-next-row .nnr-chan { color: var(--gold); font-weight: 700; }
+.now-next-row .nnr-next { color: var(--paper-dim); }
+.interstitials-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.1); }
+
+.interstitial-bulk-checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  accent-color: var(--cyan);
+}
+
+.flow-count-badge {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+
+.interstitials-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  margin-top: 6px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0; /* same .titles-list flex-shrink issue as .interstitial-card */
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+}
+.interstitials-group-header:first-child { margin-top: 0; }
+.interstitials-group-header .interstitials-group-count { color: var(--paper-dim); font-weight: 600; }
+.interstitials-group-chevron { display: inline-block; width: 10px; transition: transform 120ms linear; }
+.interstitials-group-header.collapsed .interstitials-group-chevron { transform: rotate(-90deg); }
+.interstitials-group-preview-btn {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
+
+.bulk-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--cyan);
+  border-radius: var(--radius-md);
+  background: rgba(111, 224, 242, 0.06);
+}
+.bulk-selected-count {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  white-space: nowrap;
+}
+.bulk-action-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+}
+.bulk-action-group .btn { font-size: 11px; padding: 6px 10px; }
+.bulk-action-group select { font-size: 11px; }
+.bulk-action-group input[type="range"] { width: 80px; accent-color: var(--cyan); }
+
+.titles-search {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 8px 10px;
+}
+
+.titles-list {
+  /* Was a fixed 260px — too cramped once a pool/preset/channel list holds
+     more than a handful of entries. Scales with the viewport instead, capped
+     so it never eats the whole screen on a tall display. */
+  max-height: min(52vh, 560px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title-row-wrap {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 2px;
+  flex-shrink: 0; /* same .titles-list flex-shrink issue as .interstitial-card above */
+}
+.title-row-wrap:last-child { border-bottom: none; }
+
+.title-row {
+  display: grid;
+  /* minmax() floors on the flexible columns — without it, `1fr` alone lets
+     the title/tags inputs shrink toward 0 width (effectively unclickable)
+     once enough auto-sized siblings (checkbox, duration, description
+     toggle, TMDB cell) are competing for space on a narrower window. */
+  grid-template-columns: auto minmax(160px, 1.6fr) auto minmax(120px, 1fr) minmax(100px, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 4px 2px;
+}
+/* Rows can still exceed the panel's width at very narrow sizes even with
+   the floors above — scroll horizontally rather than crush any column
+   further, so every field always stays at a usable, clickable width. */
+.title-row-wrap { overflow-x: auto; }
+
+/* Generic cell for a plugin's own per-file row action (registerTitleRowAction,
+   plugins.js) — e.g. a metadata-lookup button. Core has no idea what, if
+   anything, a plugin puts inside; these classes are just the layout shell a
+   plugin's own renderer.js is free to use (or ignore and build its own). */
+.title-row-plugin-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.title-row-plugin-poster {
+  width: 28px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.title-row-plugin-poster.hidden { display: none; }
+
+.title-row-plugin-search-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+.title-row-plugin-search-results.hidden { display: none; }
+.title-row-plugin-search-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--paper);
+}
+.title-row-plugin-search-result:hover { border-color: var(--cyan); color: var(--cyan); }
+.title-row-plugin-search-result img { width: 20px; height: 30px; object-fit: cover; border-radius: 2px; }
+
+.titles-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+}
+/* The bulk-facets bar (setup-panels.js) reveals right under the always-
+   visible bulk bar above — without its own accent the two blend into one
+   undifferentiated block since they share every other style. */
+.titles-bulk-bar-facets {
+  margin-top: -2px; /* pulls in under the 8px margin-bottom above so the accent border reads as "attached to", not "another copy of" */
+  border-left: 3px solid var(--cyan);
+}
+.titles-bulk-count {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+/* Pushes the destructive action to its own end of the row, away from the
+   primary ADD action, so a misclick is less likely to land on it. */
+.titles-bulk-bar .remove-btn { margin-left: auto; }
+
+.title-row-desc-toggle {
+  font-size: 10px;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.title-row-description {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 12px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.title-row-description::placeholder { color: var(--paper-dim); opacity: 0.6; }
+
+.title-row-facets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.title-row-facets .title-row-input,
+.title-row-facets .tag-ac-wrap,
+.title-row-facets select {
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.daypart-slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.daypart-slot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+}
+.daypart-slot-row .title-row-input,
+.daypart-slot-row .tag-ac-wrap {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.daypart-slot-row select {
+  flex: 0 0 auto;
+}
+
+/* AUTO-CURATE — the editor/preview cards reuse .interstitial-card but,
+   unlike a pool/preset row, have no .interstitial-card-summary header to
+   carry padding, so without this their fields sit flush against the card
+   border. Also gives every direct child (each field-group grid, the
+   day-part toggle+list, the action row) consistent spacing via the flex
+   gap instead of ad hoc margins on each one. */
+.autocurate-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+}
+#autocurate-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.autocurate-section-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  text-transform: uppercase;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* TAG TAXONOMY (setup-tagtaxonomy.js) */
+.tagtaxonomy-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tagtaxonomy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.tagtaxonomy-chip-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.tagtaxonomy-chip-remove:hover { opacity: 1; }
+.tagtaxonomy-category-badge {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 8px;
+  letter-spacing: 0.4px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: transparent;
+  color: var(--paper-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tagtaxonomy-category-badge:hover { border-color: var(--cyan); color: var(--cyan); }
+.tagtaxonomy-category-badge.active {
+  background: rgba(var(--cyan-rgb), 0.18);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.title-row-file {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.title-row-duration {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.title-row-input {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 7px 10px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.titles-bulk-bar > .title-row-input,
+.titles-bulk-bar > .tag-ac-wrap {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+.title-row-input:focus {
+  border-color: var(--cyan);
+  box-shadow: var(--bevel-inset), 0 0 8px rgba(var(--cyan-rgb), 0.3);
+}
+.title-row-input::placeholder { color: var(--paper-dim); opacity: 0.6; }
+
+.titles-empty {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  padding: 10px 2px;
+}
+
+/* PREVIEW modal — see openPreviewModal, setup-channels.js */
+.preview-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+}
+.preview-modal-box {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px 24px;
+  /* clamp(), not a flat 320px floor — at a small simulated resolution
+     (display-mode.js) a flat floor can exceed the whole screen width with
+     no margin left over. Same ceiling as before at native/full-size
+     windows. */
+  min-width: min(320px, 90%);
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.preview-modal-field select {
+  /* background-color, not the shorthand — see .panel-interval select above. */
+  background-color: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+/* Quick-jump shortcuts (SHOW START/END, NEXT BREAK, +1 HR, etc.) — each one
+   just rewrites preview-modal-datetime's value, same as NOW already does,
+   so PREVIEW ▶ still commits whatever's showing there. Composable: clicking
+   +1 DAY then NEXT BREAK finds the next break *after* that later time, since
+   every quick button reads the field's current value rather than "now". */
+.preview-modal-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.btn-small {
+  font-size: 10px;
+  padding: 5px 8px;
+}
+.preview-modal-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+.preview-modal-channel {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper);
+}
+.preview-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+}
+.preview-modal-field input {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.preview-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ---------- CUSTOM CSS / PLUGINS (PLUGINS tab) ---------- */
+.custom-css-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.custom-css-path {
+  flex: 1;
+  min-width: 200px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 9px 12px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.custom-css-path.is-set { color: var(--gold); }
+
+.plugins-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.plugins-toolbar .titles-search { flex: 1 1 220px; min-width: 160px; }
+.plugins-category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.plugins-category-tabs .setup-subtab-btn { display: flex; align-items: center; gap: 6px; }
+.plugins-category-tabs .setup-subtab-btn-count {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--paper-dim);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+.plugins-category-tabs .setup-subtab-btn.active .setup-subtab-btn-count { color: var(--gold); }
+.plugins-summary-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.plugins-summary {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+}
+.plugins-save-status {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+}
+#plugins-save-btn { margin-left: auto; }
+/* Entrance when a pending change first appears (setup-plugins.js); reusable
+   generic class, not scoped to this one button. */
+.btn-appear {
+  animation: setup-btn-appear 160ms ease-out;
+}
+@keyframes setup-btn-appear {
+  0% { opacity: 0; transform: scale(0.9); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-appear { animation: none; }
+}
+.plugins-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+.plugin-entry.filtered-out { display: none; }
+.plugins-empty {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper-dim);
+  padding: 8px 2px;
+}
+.plugin-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--gradient-panel);
+}
+.plugin-row.has-error { border-color: var(--danger); }
+.plugin-row.pending-change { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset; }
+.plugin-row.is-disabled { opacity: 0.55; }
+.plugin-row.is-disabled .plugin-row-name { color: var(--paper-dim); }
+.plugin-row-info { flex: 1; min-width: 0; }
+.plugin-row-name {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--gold);
+}
+.plugin-row-name .plugin-row-version {
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+  margin-left: 8px;
+}
+.plugin-row-desc {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 11.5px;
+  color: var(--paper-dim);
+  margin-top: 2px;
+}
+.plugin-row-error {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 4px;
+}
+.plugin-row-kinds {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+}
+.plugin-row-kind {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+  border: 1px solid var(--cyan);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+}
+.plugin-row-deps {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 10.5px;
+  color: var(--paper-dim);
+  margin-top: 4px;
+  letter-spacing: 0.2px;
+}
+.plugin-row-dep-ok { color: var(--paper-dim); }
+.plugin-row-dep-missing { color: var(--danger); font-weight: 700; }
+
+/* Shown once a plugin's declared capabilities are approved (see
+   permissionState(), setup-plugins.js) in place of the REVIEW & APPROVE
+   PERMISSIONS button — a plain positive note plus REVOKE/UNINSTALL actions,
+   same "good" green already used for the health-check clean-summary state. */
+.plugin-row-approved {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--good, #5fd68a);
+  margin-top: 4px;
+}
+.plugin-row-perm-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.plugin-row-perm-actions .btn {
+  font-size: 10.5px;
+  padding: 4px 10px;
+}
+
+/* A plugin's own SETTINGS toggle + its expand-in-place panel (see
+   setup-plugins.js's renderPluginsList) — each plugin's config lives right
+   next to that plugin's own row instead of on a separate tab. */
+.plugin-entry { display: flex; flex-direction: column; gap: 0; }
+.plugin-settings-toggle-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.plugin-settings-panel {
+  margin-top: 8px;
+}
+.plugin-settings-panel.hidden { display: none; }
+
+.health-check-results {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: var(--font-ui);
+  font-size: 11px;
+}
+.health-check-summary { font-weight: 700; letter-spacing: 0.5px; color: var(--paper); margin-bottom: 6px; }
+.health-check-summary.is-clean { color: var(--good, #5fd68a); }
+.health-check-group-title { font-weight: 700; color: var(--danger); margin: 8px 0 3px; letter-spacing: 0.5px; }
+.health-check-item { color: var(--paper-dim); padding: 2px 0 2px 8px; line-height: 1.5; }
+
+/* Tag autocomplete dropdown — see attachTagAutocomplete, setup-util.js */
+.tag-ac-wrap { position: relative; display: block; min-width: 0; }
+.tag-ac-wrap input { width: 100%; }
+.tag-ac-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  margin-top: 2px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-raised), 0 4px 12px rgba(0, 0, 0, 0.5);
+  max-height: 160px;
+  overflow-y: auto;
+}
+.tag-ac-item {
+  padding: 6px 8px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--paper);
+  cursor: pointer;
+}
+.tag-ac-item:hover { background: rgba(240, 180, 41, 0.15); color: var(--gold); }
+
+.btn {
+  position: relative;
+  overflow: hidden;
+  background: var(--gradient-btn);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  color: var(--paper-dim);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  padding: 9px 16px;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn { transition: none; }
+}
+.btn::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 50% 0;
+  background: var(--gloss-strong);
+  pointer-events: none;
+}
+
+.btn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
+.btn:active { box-shadow: var(--bevel-inset); transform: translateY(1px); }
+
+.btn-primary {
+  border-color: #c98914;
+  background: var(--gradient-gold);
+  color: var(--gold-ink);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  font-weight: 600;
+}
+.btn-primary:hover { color: var(--gold-ink); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(240, 180, 41, 0.5); }
+
+.btn-danger {
+  border-color: var(--danger);
+  background: linear-gradient(180deg, rgba(var(--danger-rgb), 0.35), rgba(var(--danger-rgb), 0.18));
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  font-weight: 600;
+}
+.btn-danger:hover { color: #fff; border-color: var(--danger); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--danger-rgb), 0.5); }
+
+/* Themed confirm()/alert() replacements — see setup-dialogs.js. Reuses the
+   preview-modal's backdrop/box pattern; confirm-dialog-danger swaps the
+   accent to --danger for destructive confirms and error alerts. */
+.confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  animation: confirm-dialog-bg-in 140ms ease-out;
+}
+/* Closing class added by setup-dialogs.js's close(), which defers the
+   overlay.remove() long enough for this to play instead of cutting it off —
+   used constantly throughout the app (every confirm/alert), so this pair
+   compounds more than most items in this pass. */
+.confirm-dialog.closing {
+  animation: confirm-dialog-bg-out 120ms ease-in forwards;
+}
+@keyframes confirm-dialog-bg-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes confirm-dialog-bg-out { from { opacity: 1; } to { opacity: 0; } }
+.confirm-dialog-box {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px 24px;
+  /* min(), not a flat 320px floor — see .preview-modal-box above. */
+  min-width: min(320px, 90%);
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: confirm-dialog-box-in 140ms ease-out;
+}
+.confirm-dialog.closing .confirm-dialog-box {
+  animation: confirm-dialog-box-out 120ms ease-in forwards;
+}
+@keyframes confirm-dialog-box-in {
+  0% { opacity: 0; transform: scale(0.94) translateY(6px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes confirm-dialog-box-out {
+  0% { opacity: 1; transform: scale(1) translateY(0); }
+  100% { opacity: 0; transform: scale(0.96) translateY(4px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirm-dialog, .confirm-dialog.closing, .confirm-dialog-box, .confirm-dialog.closing .confirm-dialog-box {
+    animation: none;
+  }
+}
+.confirm-dialog-box.confirm-dialog-danger {
+  border-color: var(--danger);
+  box-shadow: var(--bevel-raised), 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(var(--danger-rgb), 0.35);
+}
+.confirm-dialog-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+}
+.confirm-dialog-danger .confirm-dialog-title { color: var(--danger); }
+.confirm-dialog-message {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--paper);
+  white-space: pre-line;
+  white-space: pre-line;
+}
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* First-run welcome screen (onboarding.js) — same confirm-dialog box, just
+   wider (to fit the bullet list without cramming) and with a plain "OK"-only
+   action row (no cancel/backdrop-dismiss — it's informational, not a
+   decision). */
+.onboarding-box { max-width: 560px; }
+.onboarding-list {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--paper);
+}
+.onboarding-list li::marker { color: var(--gold); }
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--gradient-panel);
+  box-shadow: var(--bevel-raised), var(--shadow-hard);
+  padding: 18px 22px;
+  margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  /* .settings-grid's columns are `1fr` tracks, but a CSS grid item's default
+     min-width is `auto`, not `0` — meaning content that demands more room
+     than the track (a long nowrap checkbox label, a <select> whose text is
+     wide in the active theme's font) grows the PANEL itself past its track
+     instead of being constrained by it, visibly bleeding into the next
+     column. min-width: 0 lets the panel actually shrink to its track's
+     width, so the select/label overflow handling below (max-width/ellipsis,
+     tokens.css; wrapping, .shuffle-toggle below) has a real box to work
+     against. Found live: neo-brutalist's wider monospace --font-ui pushed
+     the APP DISPLAY MODE panel's WINDOW MODE select past its own card
+     border into the next one, at the exact same declared font-size as
+     every other theme. */
+  min-width: 0;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.panel:hover {
+  border-color: rgba(111, 224, 242, 0.4);
+}
+
+.panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.panel-toggle input { accent-color: var(--gold); cursor: pointer; }
+
+.panel-body {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.panel-interval {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Same default-min-width-is-auto flex issue as .panel (see its own
+     comment) — without this, a select whose text is wide in the active
+     theme's font (or just a long option label) refuses to shrink below its
+     own intrinsic content width, which pushes right past this row's select
+     (tokens.css's max-width/ellipsis rule needs a real constrained box to
+     truncate against, not "auto"). */
+  min-width: 0;
+}
+/* Shared with .panel-interval select below so a "EVERY [n] MIN" number
+   field and an "ALERT STYLE [dropdown]" field sitting in the same row read
+   as one consistent control height, not two different-sized boxes. */
+.panel-interval input,
+.panel-interval select {
+  height: 30px;
+  box-sizing: border-box;
+  /* background-color, not the `background` shorthand — a shorthand here
+     would silently reset background-image/repeat/position too, clobbering
+     the shared select-arrow icon (tokens.css) into a repeating-tile
+     pattern instead of one clean chevron. */
+  background-color: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+}
+.panel-interval input {
+  width: 56px;
+  text-align: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel-interval select {
+  padding: 0 6px;
+  min-width: 0;
+}
+
+.panel-status {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+}
+
+/* Virtual Channels sub-tab: 17 full-width cards is the longest, least
+   navigable panel in the app (Area 51 through the parental-lock PIN, one
+   below another with no way to jump around). Collapsible cards + a local
+   filter shrink that to a scannable list of headers by default, same idea
+   as the EXPAND ALL/COLLAPSE ALL pattern used in Bumper & Ad Pool. Scoped
+   to [data-subtab-panel="virtual"] so it doesn't change how .panel behaves
+   anywhere else (DISPLAY, the per-channel option rows, etc). */
+.virtual-channels-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.virtual-channels-toolbar .titles-search { flex: 1 1 260px; min-width: 200px; }
+
+[data-subtab-panel="virtual"] .panel-toggle {
+  position: relative;
+  padding-right: 20px;
+}
+[data-subtab-panel="virtual"] .panel-toggle::after {
+  content: "\25BE";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--paper-dim);
+}
+[data-subtab-panel="virtual"] .panel.collapsed .panel-toggle::after { content: "\25B8"; }
+[data-subtab-panel="virtual"] .panel.collapsed > *:not(.panel-toggle) { display: none; }
+[data-subtab-panel="virtual"] .panel.collapsed { gap: 0; }
+[data-subtab-panel="virtual"] .panel.filtered-out { display: none; }
+
+/* PARTY CH 5 join panel — see setup-settings.js's renderPartyJoinInfo */
+.party-join-box {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 12px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.party-join-qr {
+  width: 84px;
+  height: 84px;
+  background: #fff;
+  padding: 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.party-join-url {
+  flex: 1;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--cyan);
+  word-break: break-all;
+}
+
+/* PARTY panel's GUEST ENGAGEMENT card groups 4 independent toggle features
+   (ticker feed/check-in/countdown/vote) in one card — a left-border indent
+   on each toggle's own block visually ties its follow-on fields (e.g.
+   countdown's target/label) back to the checkbox that owns them, instead of
+   every checkbox and field reading as one long undifferentiated list. */
+.party-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+/* .panel-interval input defaults to a 56px numeric-spinner width (see the
+   many SEC fields across this file) — too narrow for a datetime-local or a
+   free-text label, which clipped to unreadable ("mm/", "e.g. HAF") before
+   this override. */
+.party-wide-input {
+  width: 200px !important;
+  text-align: left !important;
+}
+
+.crt-sliders { flex-wrap: wrap; gap: 20px; }
+
+/* Live preview of the six sliders above — mirrors the exact overlay-layer
+   technique the real screen uses (tv.css: .crt-scanlines/.crt-vignette/
+   .crt-curvature-vignette/.crt-flicker/.crt-grain), just at card size, so
+   dragging a slider shows the effect instead of only a number. Driven by
+   the same custom properties applyCrtState() already sets on the real
+   #tv-screen CRT layer — see power.js. */
+.crt-preview {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  /* No transition on border-radius here (deliberately) — Chromium doesn't
+     reliably retrigger a transition on a property whose only change comes
+     from a substituted var() inside calc(); confirmed live via CDP: the
+     slider updated --crt-curvature correctly every time, but the radius
+     stayed frozen at its very first value with the transition in place,
+     and snapped to the right value the instant it was removed. Since this
+     is a live-drag preview, an instant update reads correctly anyway. */
+  border-radius: calc(var(--crt-curvature, 0) * 14px);
+  border: 1px solid var(--line);
+  box-shadow: var(--bevel-inset);
+  background: #000;
+}
+.crt-preview-picture {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(111, 224, 242, 0.35), transparent 55%),
+    linear-gradient(135deg, #16306b 0%, #0c1a3d 55%, #050a1c 100%);
+}
+.crt-slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+}
+.crt-slider input[type="range"] { width: 110px; accent-color: var(--gold); }
+.channel-volume-slider { width: 90px; accent-color: var(--cyan); }
+.channel-options .btn { font-size: 10px; padding: 5px 9px; }
+.channel-options .slider-readout,
+.bulk-action-group .slider-readout { color: var(--cyan); }
+
+.color-swatches { display: flex; gap: 5px; align-items: center; }
+.color-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+}
+.color-swatch.active { outline: 2px solid var(--paper); outline-offset: 1px; }
+
+.block-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* One block's editor as a labeled card (header / schedule / mode / content
+   sub-rows) instead of a single dense wrapped line — see buildSchedulePanel
+   in setup-schedule.js. The left border color matches the block's swatch,
+   which is the same hash-based color it gets in CALENDAR/TIMELINE, so a
+   block reads consistently across all three views. */
+.block-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.block-card-warning {
+  border-color: var(--danger);
+  background: rgba(var(--danger-rgb), 0.08);
+}
+.block-card-warning-text {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--danger);
+}
+.block-card-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.block-card-header {
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.block-card-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.block-card-name {
+  flex: 1;
+  min-width: 120px;
+}
+.block-card-remove {
+  margin-left: auto;
+}
+
+.block-add-menu {
+  position: relative;
+  display: inline-block;
+}
+.block-add-menu-list {
+  position: absolute;
+  z-index: 5;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-raised), 0 4px 14px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  gap: 2px;
+}
+.block-add-menu-item {
+  text-align: left;
+  white-space: nowrap;
+}
+
+/* Weekly "broadcast clock" — a 7x24 grid, one cell per weekday+hour, colored
+   by whichever block (or default folder) resolves there. See
+   buildTimelinePanel in setup-schedule.js. */
+.timeline-grid-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+}
+.timeline-grid {
+  display: grid;
+  grid-template-columns: 44px repeat(24, minmax(16px, 1fr));
+  gap: 2px;
+  min-width: 640px;
+}
+.timeline-corner { background: transparent; }
+.timeline-hour-label {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 9px;
+  color: var(--paper-dim);
+  text-align: center;
+}
+.timeline-day-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  display: flex;
+  align-items: center;
+}
+.timeline-cell {
+  height: 22px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.timeline-cell-clickable {
+  cursor: pointer;
+}
+.timeline-cell-clickable:hover {
+  outline: 1px solid var(--gold);
+  outline-offset: -1px;
+}
+.timeline-cell-empty-block {
+  background-image: repeating-linear-gradient(135deg, rgba(var(--danger-rgb), 0.35) 0 4px, transparent 4px 8px);
+}
+.block-hour-select {
+  /* background-color, not the shorthand — see .panel-interval select above. */
+  background-color: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  padding: 5px;
+}
+.block-dash { color: var(--paper-dim); font-family: var(--font-ui); }
+/* WEIGHT/LEAD DAYS/dynamic-entry SEC (setup-interstitials.js) and a block's
+   PRIORITY field (setup-schedule.js) — previously unstyled, falling back to
+   a plain white browser-default number box that stood out sharply against
+   the rest of the dark theme. */
+/* Free-text fields inside a block/day-override row (TITLE OVERRIDE, NOTE,
+   the block card's own LABEL) or the calendar's HH:MM unlock-time field —
+   previously unstyled (no class at all, or a class with no color/background
+   rule attached), rendering as a plain white browser-default text box
+   against the dark theme. */
+.block-text-input {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 6px 8px;
+}
+.block-text-input::placeholder { color: var(--paper-dim); opacity: 0.6; }
+.block-unlock-input { width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.block-priority-input {
+  width: 56px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  text-align: center;
+  padding: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.block-count {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+  letter-spacing: 0.5px;
+}
+
+.backup-label-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: rgba(var(--gold-rgb), 0.15);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* ---------- Labeled field grid (interstitials pool entries + ad presets) ----------
+   A real <label> above each control, on its own line at the field's full
+   width, instead of relying on placeholder text to convey what a narrow
+   input is for — placeholder text truncates/disappears once you type into
+   it, a label never does. See buildInterstitialRow/buildPresetRow,
+   setup-interstitials.js. */
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.field-grid.field-grid-wide { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0; /* lets a long value/placeholder ellipsize instead of forcing the grid wider */
+}
+.field-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.field > .block-hour-select,
+.field > .block-text-input,
+.field > .title-row-input,
+.field > .block-priority-input,
+.field > .tag-ac-wrap { width: 100%; }
+.field-span-full { grid-column: 1 / -1; }
+
+/* Drag-to-set-range breakpoints track (buildBreakpointTrack, setup-util.js)
+   — a 0-100% bar you click to add a break point and drag pins along to
+   reposition, alongside the plain comma-list text field it stays in sync
+   with. */
+.breakpoint-track {
+  position: relative;
+  width: 100%;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(
+    90deg, rgba(var(--gold-rgb), 0.08) 0, rgba(var(--gold-rgb), 0.08) 1px,
+    transparent 1px, transparent 10%
+  );
+  border: 1px solid rgba(var(--gold-rgb), 0.25);
+  cursor: copy;
+}
+.breakpoint-pin {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: var(--gold);
+  border-radius: 3px;
+  cursor: grab;
+  box-shadow: 0 0 6px rgba(var(--gold-rgb), 0.6);
+}
+.breakpoint-pin:active { cursor: grabbing; }
+
+/* Logo bug drag-and-drop placement editor (buildLogoBugProfileEditor,
+   setup-util.js) — a bounded 16:9 stand-in for the screen; the handle drags
+   to reposition (x/y%), the corner tab drags to resize. Same gold-pin visual
+   language as .breakpoint-pin above. */
+.logobug-editor-preview {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  background: repeating-linear-gradient(
+    90deg, rgba(var(--gold-rgb), 0.06) 0, rgba(var(--gold-rgb), 0.06) 1px, transparent 1px, transparent 10%
+  ), repeating-linear-gradient(
+    0deg, rgba(var(--gold-rgb), 0.06) 0, rgba(var(--gold-rgb), 0.06) 1px, transparent 1px, transparent 12.5%
+  ), #05070f;
+  border: 1px solid rgba(var(--gold-rgb), 0.25);
+  /* No overflow:hidden — the handle's own min-width/min-height floor (24px,
+     below) plus a corner position (x/y near 100%, the DEFAULT bottom-right
+     spot notably) can push part of it past this box's edge; clipping that
+     made the resize tab both invisible AND unclickable there (confirmed
+     live via elementFromPoint landing on this element instead of the tab
+     underneath it) rather than just visually overhanging a few px, which is
+     the far smaller cost. */
+}
+.logobug-editor-handle {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  background: var(--gold);
+  color: #1a1400;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  border-radius: 3px;
+  cursor: grab;
+  box-shadow: 0 0 6px rgba(var(--gold-rgb), 0.6);
+  user-select: none;
+}
+.logobug-editor-handle:active { cursor: grabbing; }
+.logobug-editor-resize {
+  position: absolute;
+  /* Inset (not overhanging past the handle's own edge) on purpose — a
+     handle placed near the preview's right/bottom edge (the DEFAULT
+     bottom-right position, notably) would otherwise push an overhanging tab
+     outside .logobug-editor-preview's own `overflow: hidden` box, clipping
+     it into a click target for nothing (confirmed live: elementFromPoint at
+     the tab's own visual center hit the settings panel behind it, not the
+     tab). Staying inside the handle's box keeps it reachable everywhere the
+     handle itself can be dragged to. */
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  cursor: nwse-resize;
+}
+.logobug-editor-profile-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.logobug-editor-profile-row.active { border-color: var(--gold); box-shadow: var(--bevel-raised), 0 0 0 1px rgba(var(--gold-rgb), 0.4); }
+
+/* One pool entry / ad preset as a collapsible card — a compact one-line
+   summary by default (type pill, title, channel/block, tag chips, weight),
+   expanding into the full labeled field grid only when clicked. With a
+   channel carrying dozens of ad entries, showing every field for every
+   entry at once was the actual "hard to manage a lot of ads" problem —
+   this makes the list scannable at a glance and edits still one click away. */
+.interstitial-card {
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.02);
+  margin-bottom: 6px;
+  overflow: hidden;
+  /* .titles-list (the parent) is a column flexbox with a fixed max-height —
+     without this, flex's default shrink-to-fit behavior squashes every card
+     down toward zero height once enough of them are present to exceed that
+     max-height, instead of leaving them at their natural size and letting
+     the parent's overflow-y:auto scroll. Confirmed live: a channel with 8
+     pool entries rendered every card as an unreadable ~2px sliver. */
+  flex-shrink: 0;
+}
+.interstitial-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.interstitial-card-summary:hover { background: rgba(255, 255, 255, 0.04); }
+.interstitial-card-chevron {
+  color: var(--paper-dim);
+  font-size: 10px;
+  flex-shrink: 0;
+  transition: transform 120ms ease;
+}
+.interstitial-card.open .interstitial-card-chevron { transform: rotate(90deg); }
+.interstitial-type-pill {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: var(--ink-deep);
+}
+.interstitial-card-title {
+  flex: 1;
+  min-width: 60px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.interstitial-card-meta {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 10px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.interstitial-card-tags {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+}
+.interstitial-tag-chip {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 9px;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(240, 180, 41, 0.15);
+  color: var(--gold);
+  white-space: nowrap;
+}
+.interstitial-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+/* Reveal-only fade — generic, reuses .panel-reveal's keyframe under a
+   shorter name since this one gets applied by JS to freshly-built elements
+   rather than toggled .hidden panels: an interstitials-pool/ad-preset card
+   body a click actually just opened (setup-interstitials.js, scoped via
+   justToggledEntryId/justToggledPresetId so a search-filter re-render
+   doesn't replay it on every already-open card), or a just-taken config
+   backup's list row (renderBackupsList, setup-settings.js, scoped via
+   justSnapshotted so a plain refresh/tab-switch re-list doesn't replay it
+   on every existing row). */
+.reveal {
+  animation: setup-panel-reveal 140ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal { animation: none; }
+}
+
+.block-days-row { display: flex; gap: 3px; }
+.block-day-btn {
+  width: 26px;
+  padding: 4px 0;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--paper-dim);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+.block-day-btn.active {
+  background: var(--gradient-gold);
+  border-color: var(--gold);
+  color: #1a1400;
+}
+/* The trigger-type toggle (TIME BLOCK / DATE RANGE) reuses .block-day-btn's
+   look but its labels are far longer than a 2-letter weekday abbreviation —
+   override the fixed width so the text doesn't wrap/overflow. */
+.block-type-btn {
+  width: auto;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.rating-select,
+.aspect-select,
+.resolution-select,
+.display-aspect-select {
+  /* background-color, not the shorthand — see .panel-interval select above. */
+  background-color: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  padding: 5px;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.folder-row-path {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-row-count {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.setup-footer {
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.backup-restore {
+  display: flex;
+  gap: 8px;
+}
+
+.setup-save-state {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+  opacity: 0.85;
+  transition: color 0.2s ease;
+}
+.setup-save-state[data-state="saving"] { color: var(--cyan); opacity: 1; }
+/* Brief settle pulse the moment SAVING… flips to SAVED (setSaveIndicator,
+   state.js) — the color transition above already softens the swap itself,
+   this just adds a small confirming "done" beat on top of it. */
+.setup-save-state.save-pulse {
+  animation: setup-save-pulse 260ms ease-out;
+}
+@keyframes setup-save-pulse {
+  0% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-save-state.save-pulse { animation: none; }
+}
+
+.undo-redo-group { display: flex; gap: 6px; }
+.undo-redo-group .btn { font-size: 11px; padding: 8px 12px; }
+.undo-redo-group .btn:disabled,
+#setup-command-palette-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  transform: none !important;
+  box-shadow: none;
+}
+
+/* Command palette — Ctrl+K, see setup-command-palette.js */
+.command-palette {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.6);
+}
+.command-palette-box {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), 0 12px 40px rgba(0, 0, 0, 0.6);
+  width: min(560px, 90vw);
+  max-height: 60vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.command-palette-input {
+  background: var(--ink-deep);
+  border: none;
+  border-bottom: 1px solid var(--line);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 14px 16px;
+}
+.command-palette-input:focus { outline: none; }
+.command-palette-results {
+  overflow-y: auto;
+  padding: 6px;
+}
+.command-palette-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  color: var(--paper);
+}
+.command-palette-item-label { font-weight: 600; font-size: 12.5px; }
+.command-palette-item-hint {
+  font-size: 10.5px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.command-palette-item.active,
+.command-palette-item:hover { background: rgba(240, 180, 41, 0.15); color: var(--gold); }
+.command-palette-item.active .command-palette-item-hint,
+.command-palette-item:hover .command-palette-item-hint { color: var(--gold); opacity: 0.7; }
+.command-palette-empty {
+  padding: 14px 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  color: var(--paper-dim);
+  text-align: center;
+}
+
+/* Keyboard-nav — roving-tabindex focus rings for tab bars and list rows
+   (see setup-keyboard.js). Only shown for actual keyboard focus, not a
+   mouse click landing on the same element, so clicking around the setup
+   screen doesn't sprout rings everywhere a :focus-visible browser default
+   wouldn't otherwise show one. */
+.setup-tab-btn:focus-visible,
+.setup-subtab-btn:focus-visible,
+.channel-row:focus-visible,
+.interstitial-card:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: -2px;
+}
+
+/* OS-level drag-and-drop from Explorer — a channel row or the interstitials
+   pool list lights up while a real filesystem drag hovers over it, distinct
+   from the internal .dragging/.drag-over reorder states above (those only
+   ever apply during an in-app row drag, never simultaneously with an OS
+   file drag). */
+.channel-row.os-drag-over,
+#interstitials-list.os-drag-over,
+#interstitials-add-entry-btn.os-drag-over {
+  outline: 2px dashed var(--gold);
+  outline-offset: -2px;
+  background: rgba(240, 180, 41, 0.08);
+}
+
+.setup-breadcrumb {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  margin: 10px 0 14px 2px;
+  min-height: 14px;
+}
+.setup-breadcrumb .crumb-sep { margin: 0 6px; opacity: 0.5; }
+.setup-breadcrumb .crumb-current { color: var(--gold); }
+
+.help-shortcuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+.help-shortcut-item {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.4px;
+  color: var(--paper-dim);
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+}
+
+.help-guide-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+.help-guide-toolbar .titles-search { flex: 1; margin-bottom: 0; }
+.help-guide-toolbar .btn { flex-shrink: 0; white-space: nowrap; }
+
+.help-guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.help-guide-group-header {
+  flex-shrink: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--paper-dim);
+  padding: 10px 2px 2px;
+  border-bottom: 1px solid var(--line);
+}
+.help-guide-group-header:first-child { padding-top: 0; }
+.help-guide-card {
+  /* flex-shrink: 0 is the actual fix — .help-guide-list (below) is itself
+     display:flex/flex-direction:column with a max-height + overflow-y:auto,
+     meant to scroll once there are more topics than fit. But because this
+     card has its own overflow:hidden, its flexbox "automatic minimum size"
+     resolves to 0 instead of its real content height — so the default
+     flex-shrink:1 crushes every collapsed card down toward that 0 floor to
+     force everything into max-height, rather than actually overflowing and
+     scrolling the way overflow-y:auto implies. Group headers above (plain
+     divs, no overflow:hidden of their own) don't have a shrinkable min-
+     height and were never affected, which is why only the cards themselves
+     ever visually collapsed.
+     display:flex/flex-direction:column here is no longer load-bearing for
+     that bug but is harmless and keeps header+body stacked explicitly. */
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.help-guide-card-header {
+  /* A div with role="button" (see renderHelpGuide, setup-settings.js), not
+     a real <button> — a real <button> with display:flex collapsed to ~8px
+     regardless of content on this Chromium build (its flex-computed height
+     never made it into the parent's auto-height), same reason every other
+     custom clickable header in this app (.interstitial-card-summary etc.)
+     is a div too. */
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink-deep);
+  border: none;
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  text-align: left;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.help-guide-card-header:hover { color: var(--gold); }
+.help-guide-chevron { color: var(--paper-dim); font-size: 10px; width: 10px; flex-shrink: 0; }
+.help-guide-card-body {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px 30px;
+}
+.help-guide-card.open .help-guide-card-body { display: flex; }
+.help-guide-card-body p {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--paper-dim);
+}
+/* The manual-voice callout label (STEP N:/NOTE:/TIP:/CAUTION:) bolded by
+   renderHelpGuide — matched to the printable manual's own callout coloring
+   (buildPrintableManualHtml) so the on-screen and printed versions read as
+   the same document, not two different styles for the same content. */
+.manual-callout { color: var(--gold); }
+
+.help-version {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--paper-dim);
+  margin-left: auto;
+}
+.help-changelog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.help-changelog-entry { flex-shrink: 0; }
+.help-changelog-date {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+.help-changelog-entry ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.help-changelog-entry li {
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--paper);
+}
+
+.scan-progress {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--cyan);
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* ---------- PERFORMANCE MONITOR STYLES ---------- */
+
+.perf-metrics-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+}
+
+.box-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.box-status-item {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  text-align: center;
+}
+.box-status-value {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+}
+.box-status-item.is-warn .box-status-value { color: var(--danger); }
+.box-status-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  margin-top: 3px;
+}
+
+.perf-card {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.perf-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--gold);
+  letter-spacing: 1px;
+  text-shadow: 0 0 10px rgba(250, 204, 21, 0.4);
+  margin-bottom: 4px;
+}
+
+.perf-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+  margin-bottom: 10px;
+}
+
+.perf-bar-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.perf-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.perf-bar-mem {
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+}
+
+.perf-badge {
+  display: inline-block;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin-top: 6px;
+}
+
+.perf-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.perf-telemetry-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+}
+
+.perf-telemetry-item span {
+  color: var(--paper-dim);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.perf-telemetry-item strong {
+  color: var(--paper);
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* ---------- INTERACTIVE SHOW & AD FLOW BUILDER ---------- */
+
+.flow-builder-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.flow-builder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.flow-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* DELETE is destructive and belongs to a different mental category than
+   picking/creating a flow — a plain uniform gap let it blend into the same
+   cluster as the selector/+NEW FLOW, reading as visually arbitrary rather
+   than intentionally grouped. Extra breathing room before it (here and in
+   the two spots below) signals "this one's different," not just "next
+   button in the row." */
+.flow-selector-bar .remove-btn {
+  margin-left: 6px;
+}
+
+.flow-select {
+  font-weight: 700;
+  /* background-color, not the shorthand — see .panel-interval select above. */
+  background-color: rgba(0, 0, 0, 0.4);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  padding: 6px 12px;
+  min-width: 280px;
+}
+
+.flow-config-header {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.flow-meta-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.flow-meta-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flow-channels-field {
+  flex: 1 1 240px;
+}
+
+.flow-channel-pills-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.flow-channel-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--surface-light, rgba(255,255,255,0.08));
+  border: 1px solid var(--line, rgba(255,255,255,0.15));
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cyan, #00f0ff);
+}
+
+.flow-channel-pill.all-chs {
+  color: var(--amber, #f43f5e);
+  border-color: rgba(244, 63, 94, 0.4);
+}
+
+.flow-channel-pill .pill-remove {
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.flow-channel-pill .pill-remove:hover {
+  opacity: 1;
+  color: #ff4444;
+}
+
+.flow-label {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+}
+
+.flow-status-banner {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+  background: rgba(0, 240, 255, 0.08);
+  border: 1px dashed rgba(0, 240, 255, 0.3);
+  padding: 8px 12px;
+  border-radius: 4px;
+}
+
+.flow-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.flow-timeline-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+
+.flow-timeline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.flow-add-btn {
+  background: rgba(0, 240, 255, 0.1);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  font-weight: 700;
+}
+.flow-add-btn:hover {
+  background: rgba(0, 240, 255, 0.25);
+  color: #ffffff;
+}
+
+/* Categorically different from the four ADD-STEP buttons before it (build
+   the sequence vs. run/preview it) — extra left margin on top of the row's
+   own gap keeps it from reading as just the fifth item in that cluster. */
+.flow-sim-trigger-btn {
+  margin-left: 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border-color: #34d399;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+.flow-sim-trigger-btn:hover {
+  box-shadow: 0 0 18px rgba(16, 185, 129, 0.7);
+}
+
+/* Timeline Canvas & Visual Node Chain */
+
+.flow-timeline-canvas {
+  display: flex;
+  /* flex-start, not stretch (the default) — a step card's height should come
+     from its own fields, not get force-matched to its tallest sibling (an
+     AD POD card easily has 2-3x the fields of a plain BUMPER/STATION ID
+     card). Combined with .flow-node-card no longer using
+     justify-content:space-between below, a short card now sizes to its own
+     content instead of getting stretched tall and then blown open with a
+     dead gap in the middle. */
+  align-items: flex-start;
+  gap: 14px;
+  overflow-x: auto;
+  padding: 16px 8px 24px;
+  min-height: 220px;
+  scroll-behavior: smooth;
+}
+
+.flow-node-card {
+  flex: 0 0 min(320px, 85vw);
+  background: var(--gradient-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.15s ease;
+  cursor: grab;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-node-card { transition: none; }
+}
+
+.flow-node-card:active {
+  cursor: grabbing;
+}
+
+.flow-node-card.dragging {
+  opacity: 0.45;
+  border-style: dashed !important;
+}
+
+.flow-node-card.drag-over {
+  border-color: var(--cyan) !important;
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.6) !important;
+  transform: scale(1.03);
+}
+
+.flow-node-card:hover {
+  transform: translateY(-2px);
+}
+
+/* Color Coding Node Card Types */
+
+.flow-node-card.type-bumper {
+  border-color: rgba(0, 240, 255, 0.6);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+}
+
+.flow-node-card.type-segment {
+  border-color: rgba(240, 180, 41, 0.6);
+  box-shadow: 0 0 15px rgba(240, 180, 41, 0.15);
+}
+
+.flow-node-card.type-pod {
+  border-color: rgba(217, 70, 239, 0.6);
+  box-shadow: 0 0 15px rgba(217, 70, 239, 0.15);
+}
+
+.flow-node-card.type-stationid {
+  border-color: rgba(34, 197, 94, 0.6);
+  box-shadow: 0 0 15px rgba(34, 197, 94, 0.15);
+}
+
+.flow-node-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* Without an explicit gap, a longer step title (e.g. "STEP 2 · SHOW
+     SEGMENT") that wraps to two lines had nothing keeping it clear of the
+     control buttons beside it — space-between only distributes leftover
+     row width, it doesn't guarantee a minimum gap once the badge itself
+     grows to fill most of the row. */
+  gap: 10px;
+}
+
+.flow-step-badge {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 1px;
+  /* A wrapped two-line title needs room between its own lines, not just
+     around the badge — the browser default (~1.2) reads as cramped at this
+     letter-spacing/uppercase combination. */
+  line-height: 1.5;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+  /* Lets the badge actually wrap within its share of the row instead of
+     the flex item's default min-width:auto forcing it to either overflow
+     or fight the control buttons for space. */
+  flex: 1;
+  min-width: 0;
+}
+
+.type-bumper .flow-step-badge { background: rgba(0, 240, 255, 0.2); color: var(--cyan); border: 1px solid var(--cyan); }
+.type-segment .flow-step-badge { background: rgba(240, 180, 41, 0.2); color: var(--gold); border: 1px solid var(--gold); }
+.type-pod .flow-step-badge { background: rgba(217, 70, 239, 0.2); color: #f0abfc; border: 1px solid #f0abfc; }
+.type-stationid .flow-step-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #4ade80; }
+
+.flow-node-controls {
+  display: flex;
+  gap: 8px;
+  /* Keeps its own natural width now that the badge next to it is flex:1 —
+     without this the three mini buttons would themselves start shrinking
+     to make room for a long wrapped title instead of the title wrapping. */
+  flex-shrink: 0;
+}
+
+.flow-btn-mini {
+  padding: 4px 8px;
+  font-size: 11px;
+  min-width: 28px;
+}
+/* Separates the destructive remove (✕) from the two reorder arrows next to
+   it — same uniform-gap-hides-the-distinction issue as the other button
+   rows on this panel, but here it's also a mis-click risk: ◄/►/✕ sitting
+   equally close together on a small mini-button row means a delete is only
+   one adjacent-click-slip away from a reorder. */
+.flow-node-controls .remove-btn {
+  margin-left: 4px;
+}
+
+.flow-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.flow-match-badge {
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.flow-match-badge.good { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
+.flow-match-badge.warn { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+
+.flow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--paper-dim);
+  font-size: 18px;
+  font-weight: 700;
+  user-select: none;
+  padding: 0 4px;
+}
+
+/* Simulator Drawer */
+
+.flow-simulator-drawer {
+  background: rgba(5, 10, 20, 0.95);
+  border: 1px solid var(--cyan);
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.3);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.flow-sim-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.flow-sim-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+
+.flow-sim-progress {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 0;
+}
+
+.flow-sim-step {
+  flex: 1;
+  min-width: 120px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  padding: 8px;
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.flow-sim-step.active {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+}
+
+.flow-sim-output {
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 12px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #34d399;
+  max-height: 180px;
+  overflow-y: auto;
+  line-height: 1.6;
+}

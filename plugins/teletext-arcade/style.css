@@ -1,0 +1,112 @@
+/* Teletext Arcade (CH 99) — moved out of core overlays.css so this
+   plugin's UI ships with the plugin itself. */
+.teletext-channel {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #000000;
+  color: #ffffff;
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 36px;
+  box-sizing: border-box;
+}
+
+.teletext-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 22px;
+  font-weight: bold;
+  background: #0000aa;
+  color: #ffff00;
+  padding: 8px 16px;
+  border-bottom: 2px solid #ffffff;
+}
+
+.teletext-nav {
+  display: flex;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.teletext-btn {
+  background: #111827;
+  color: #facc15;
+  border: 1px solid #facc15;
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.teletext-btn:hover {
+  background: #facc15;
+  color: #000000;
+}
+
+.teletext-body {
+  flex: 1;
+  background: #000000;
+  border: 2px solid #ffffff;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.teletext-heading {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+.teletext-heading.yellow { color: #ffff00; }
+.teletext-heading.red { color: #ff0000; }
+.teletext-heading.cyan { color: #00ffff; }
+
+.teletext-item {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #ffffff;
+}
+
+.teletext-footer {
+  margin-top: auto;
+  font-size: 13px;
+  color: #00ff00;
+  border-top: 1px dashed #ffffff;
+  padding-top: 10px;
+}
+
+.teletext-arcade-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.teletext-arcade-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #22c55e;
+  margin-bottom: 8px;
+}
+
+.teletext-arcade-score {
+  font-size: 14px;
+  color: #facc15;
+  margin-bottom: 12px;
+}
+
+#snake-canvas {
+  border: 2px solid #22c55e;
+  background: #000;
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+.teletext-arcade-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 8px;
+}

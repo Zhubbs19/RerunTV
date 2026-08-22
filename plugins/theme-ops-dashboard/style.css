@@ -1,0 +1,68 @@
+/* Ops Dashboard — a modern broadcast-automation console (Wide Orbit/Ross
+   references, not generic SaaS): slate ground, on-air red reserved for
+   live/critical state (mapped to --danger), cool blue for interaction
+   (mapped to --gold, the primary-accent slot). See renderer.js for the
+   registration call. */
+html[data-theme="ops-dashboard"] {
+  --ink: #1a1e27;
+  --ink-deep: #12151c;
+  --cell: #212633;
+  --cell-alt: #262c3b;
+  --gold: #5b8dee;
+  --gold-ink: #0d1017;
+  --cyan: #8891a4;
+  --paper: #eceef2;
+  --paper-dim: #8891a4;
+  --line: #333a4a;
+  --danger: #e8393b;
+
+  --gold-rgb: 91, 141, 238;
+  --danger-rgb: 232, 57, 59;
+  --cyan-rgb: 136, 145, 164;
+
+  --font-display: 'Barlow Condensed', 'Archivo Narrow', system-ui, sans-serif;
+  --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #1a1e27 0%, #14171f 100%);
+  --gradient-panel: linear-gradient(180deg, #212633 0%, #1c202b 100%);
+  --gradient-cell: linear-gradient(180deg, #262c3b 0%, #212633 100%);
+  --gradient-btn: linear-gradient(180deg, #5b8dee 0%, #4874cf 100%);
+  --gradient-gold: linear-gradient(180deg, #7aa4f2 0%, #5b8dee 60%, #4874cf 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 50%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 55%);
+
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --shadow-hard: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --shadow-hard-sm: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* A modern flat panel — a quick, near-instant fade rather than a CRT
+   collapse/sweep. */
+html[data-theme="ops-dashboard"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-ops-dashboard;
+}
+html[data-theme="ops-dashboard"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-ops-dashboard;
+}
+@keyframes crt-fx-off-line-ops-dashboard {
+  0% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  60% { transform: scaleY(1) scaleX(1); opacity: 0.5; }
+  100% { transform: scaleY(1) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-ops-dashboard {
+  0% { transform: scaleY(1) scaleX(0.02); opacity: 0; }
+  40% { transform: scaleY(1) scaleX(1); opacity: 0.6; }
+  100% { transform: scaleY(1) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="ops-dashboard"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="ops-dashboard"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

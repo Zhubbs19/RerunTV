@@ -1,0 +1,66 @@
+/* Cloud Guide '16 — flatter dark charcoal, blue interaction, green
+   recommendation accent: the modern cloud-rendered guide era (RDK
+   firmware, server-composited UI) that current cable boxes actually run.
+   See renderer.js for the registration call. */
+html[data-theme="cloud-guide-16"] {
+  --ink: #0f1524;
+  --ink-deep: #080b12;
+  --cell: #171c2b;
+  --cell-alt: #1c2236;
+  --gold: #2f6fed;
+  --gold-ink: #06090f;
+  --cyan: #48d17a;
+  --paper: #e7ebf5;
+  --paper-dim: #7c8aad;
+  --line: #242b3d;
+  --danger: #e0212c;
+
+  --gold-rgb: 47, 111, 237;
+  --danger-rgb: 224, 33, 44;
+  --cyan-rgb: 72, 209, 122;
+
+  --font-display: 'Barlow Condensed', 'Archivo Narrow', system-ui, sans-serif;
+  --font-ui: 'Barlow', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #0f1524 0%, #0a0e18 100%);
+  --gradient-panel: linear-gradient(180deg, #171c2b 0%, #131824 100%);
+  --gradient-cell: linear-gradient(180deg, #1c2236 0%, #171c2b 100%);
+  --gradient-btn: linear-gradient(180deg, #2f6fed 0%, #2559c4 100%);
+  --gradient-gold: linear-gradient(180deg, #5c8ff2 0%, #2f6fed 60%, #2559c4 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 55%);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --shadow-hard: 0 4px 14px rgba(0, 0, 0, 0.4);
+  --shadow-hard-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+/* A modern panel booting a cloud-composited UI — a clean, slightly slower
+   cross-fade rather than any CRT-style sweep or collapse. */
+html[data-theme="cloud-guide-16"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-cloud-guide-16;
+}
+html[data-theme="cloud-guide-16"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-cloud-guide-16;
+}
+@keyframes crt-fx-off-line-cloud-guide-16 {
+  0% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(1) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-cloud-guide-16 {
+  0% { transform: scaleY(1) scaleX(0.02); opacity: 0; }
+  50% { transform: scaleY(1) scaleX(1); opacity: 0.5; }
+  100% { transform: scaleY(1) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="cloud-guide-16"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="cloud-guide-16"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

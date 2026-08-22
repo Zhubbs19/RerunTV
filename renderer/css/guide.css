@@ -1,0 +1,661 @@
+/* Now-playing banner, time-grid guide and hint bars */
+
+.guide-overlay {
+  position: absolute;
+  left: clamp(10px, 5%, 32px);
+  bottom: clamp(10px, 5%, 32px);
+  z-index: 20; /* Above static canvas (z-index 8) and virtual channel slates (z-index 4-5) so channel card is always visible overtop static */
+  display: flex;
+  align-items: stretch;
+  background: var(--gradient-panel);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), var(--shadow-hard);
+  /* clamp(), not a flat 380px — this card sits inside #display-frame
+     (display-mode.js's simulated-resolution box, which can be as small as
+     ~640px wide), where a flat 380px floor would eat well over half the
+     screen and cover the video underneath it. Same ceiling as before at
+     native/full-size windows (zero regression there), but shrinks with a
+     readability floor at a small simulated resolution. */
+  min-width: clamp(160px, 45%, 380px);
+  max-width: 60%;
+  padding: clamp(8px, 3%, 14px) clamp(10px, 4%, 18px);
+  backdrop-filter: blur(1px);
+  will-change: transform, opacity;
+  /* Restarts on its own: showGuideOverlay()/its auto-hide timeout (guide.js)
+     toggle .hidden (display:none), and a CSS animation always replays when
+     an element goes from display:none back to displayed — same technique
+     as the migration toast. This is the small tune-in channel-number card,
+     NOT the full EPG grid (.guide-grid) — that one keeps no transition at
+     all, see the note above .guide-grid below; this card is a fixed-size
+     absolutely-positioned box that never triggers a rebuild, so it doesn't
+     carry the same stutter risk. */
+  animation: guide-overlay-in 180ms ease-out;
+}
+@keyframes guide-overlay-in {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-overlay { animation: none; }
+}
+
+.guide-number {
+  font-family: var(--font-display);
+  /* cqw, not a flat px — relative to #display-frame's own (possibly
+     simulated-low-resolution) box, so this shrinks with the RESOLUTION
+     setting (display-mode.js) instead of ignoring it and dominating a
+     small tune-in card. */
+  font-size: clamp(24px, 7cqw, 48px);
+  color: var(--gold);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(var(--gold-rgb), 0.55);
+  padding-right: clamp(8px, 3cqw, 18px);
+  margin-right: clamp(8px, 3cqw, 18px);
+  border-right: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  min-width: clamp(36px, 10cqw, 70px);
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+
+.guide-name-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+
+.guide-logo {
+  flex-shrink: 0;
+  width: clamp(18px, 5cqw, 28px);
+  height: clamp(18px, 5cqw, 28px);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+}
+.guide-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.guide-name {
+  font-family: var(--font-display);
+  color: var(--paper);
+  font-size: clamp(14px, 4.5cqw, 20px);
+  letter-spacing: 1px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.guide-now {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--cyan);
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  opacity: 0.95;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guide-bar { height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); box-shadow: var(--bevel-inset); overflow: hidden; margin-top: 4px; }
+.guide-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--cyan);
+  box-shadow: 0 0 6px rgba(var(--cyan-rgb), 0.7);
+}
+
+.guide-mute {
+  align-self: center;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--danger);
+  font-size: 11px;
+  letter-spacing: 2px;
+  margin-left: 14px;
+  border: 1px solid rgba(var(--danger-rgb), 0.4);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  height: fit-content;
+}
+
+/* No open/close animation by default — it used to slide/fade in via a
+   transform+opacity transition, but that was the source of a persistent
+   video-stutter/"shake" complaint that survived several rounds of
+   perf-only fixes (deferring the expensive grid rebuild, then lazy-filling
+   its rows). Rather than keep chasing it, the animation was removed
+   outright at the time: the panel showed/hid instantly via the .hidden
+   class alone, so there was nothing left that could visibly stutter.
+
+   Re-added below as an explicit opt-in (DISPLAY > INTERFACE > "Guide
+   open/close animation", off by default — S.config.display.guideOpenCloseAnim)
+   gated behind .guide-anim-enabled on #tv-screen's .crt container. Verified
+   via the project's rAF frame-timing sampling technique (dispatched
+   open/close during real playback, ~40 requestAnimationFrame deltas via
+   CDP) with zero spikes — the difference from the original attempt is that
+   only opacity/transform ever transition (compositor-only, no layout
+   properties), the expensive grid rebuild is still deferred exactly as
+   before (guide.js), and the class flip that starts the transition is
+   itself deferred by a double requestAnimationFrame so it never lands in
+   the same tick as a synchronous layout read. Being opt-in means anyone who
+   *does* hit a stutter on their hardware can turn it back off without
+   waiting on a fix, instead of it silently regressing everyone by default. */
+.guide-grid {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: var(--gradient-page);
+  display: flex;
+  flex-direction: column;
+  padding: clamp(8px, 3cqh, 20px) clamp(10px, 4cqw, 28px) clamp(6px, 2cqh, 12px);
+  /* Shared by .guide-timeheader/.guide-row's first grid column and
+     .guide-gridlines' left offset below, so they always agree — clamp(),
+     not a flat 170px, so the channel column shrinks at a small simulated
+     resolution (display-mode.js) instead of eating a quarter-plus of a
+     ~640px-wide screen. Same ceiling as before at native/full-size windows. */
+  --guide-chan-col: clamp(90px, 22%, 170px);
+}
+.crt.guide-anim-enabled .guide-grid {
+  --guide-anim-offset-x: 0px;
+  --guide-anim-offset-y: 14px;
+  opacity: 0;
+  transform: translate(var(--guide-anim-offset-x), var(--guide-anim-offset-y));
+  transition: opacity var(--guide-anim-ms, 180ms) ease-in-out, transform var(--guide-anim-ms, 180ms) ease-in-out;
+  will-change: opacity, transform;
+}
+.crt.guide-anim-enabled .guide-grid.guide-grid-visible {
+  opacity: 1;
+  transform: translate(0, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .crt.guide-anim-enabled .guide-grid {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Docked (default): the grid only occupies a strip at the bottom of the
+   screen so the live picture keeps playing normally, full-size, above it —
+   like glancing at a real cable box's guide without losing the show. */
+.guide-grid.docked {
+  top: auto;
+  height: 46%;
+  /* clamp(), not a flat 380px floor — at a small simulated resolution
+     (display-mode.js) a flat floor forces this bottom sheet well past 46%,
+     leaving barely any of the "live picture stays full-size, visible
+     above" the docked mode is meant to preserve. Same ceiling as before at
+     native/full-size windows. */
+  min-height: clamp(140px, 46%, 380px);
+  padding-top: 10px;
+  border-top: 3px solid var(--gold);
+  box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.6);
+}
+.guide-grid.docked .guide-topbar {
+  min-height: 0;
+  padding-right: 0;
+}
+
+/* Full page: the grid covers the whole screen and the live picture shrinks
+   into a preview box pinned top-right, like a full-screen interactive guide. */
+.guide-grid.full {
+  top: 0;
+  height: auto;
+}
+
+/* Shrink the live video into a preview box only in full-page mode — in
+   docked mode the picture stays full-size and visible above the grid.
+   !important on the geometry: the retro-bezel feature (applyTvBezel,
+   power.js) sizes #player with INLINE left/top/width/height whenever a
+   border is showing, which otherwise beats any plain stylesheet rule here
+   regardless of selector specificity — without it, opening the full-page
+   guide over non-16:9 content left the "live picture" preview box stuck at
+   its full letterboxed bezel size instead of shrinking into the corner. */
+/* --guide-preview-w/-top/-right: shared with .guide-topbar's padding-right
+   below (calc()) so its clearance always matches this box's actual size —
+   clamp()ed, not flat, so at a small simulated resolution (display-mode.js)
+   this preview shrinks instead of eating a third-plus of a small screen;
+   same ceiling as before at native/full-size windows. */
+.crt.guide-active.guide-full {
+  --guide-preview-w: clamp(120px, 35%, 260px);
+  --guide-preview-top: clamp(6px, 3%, 20px);
+  --guide-preview-right: clamp(8px, 4%, 28px);
+}
+.crt.guide-active.guide-full #player {
+  width: var(--guide-preview-w) !important;
+  aspect-ratio: 260 / 146;
+  height: auto !important;
+  left: auto !important;
+  bottom: auto !important;
+  top: var(--guide-preview-top) !important;
+  right: var(--guide-preview-right) !important;
+  border: 2px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-raised), 0 6px 22px rgba(0, 0, 0, 0.65);
+  z-index: 10;
+}
+.crt.guide-active.guide-full .crt-scanlines,
+.crt.guide-active.guide-full .crt-vignette,
+.crt.guide-active.guide-full .crt-flicker {
+  display: none;
+}
+
+.guide-topbar {
+  /* No max-height/overflow:hidden here (there used to be one) — that
+     capped this box using a percentage of its parent that could resolve
+     SMALLER than this content's own natural size even at a full-size
+     native window, and since this is a flex-end column, the overflow got
+     clipped from the TOP (this info panel) while the bottom (search row)
+     stayed fully visible — a real, confusing-looking bug, not just a
+     small-simulated-resolution edge case. --display-content-zoom
+     (tokens.css/display-mode.js, applied box-wide) is what actually keeps
+     this content appropriately sized at a small simulated resolution now
+     — that didn't exist yet when the max-height hack was written; it's
+     the right fix, this box no longer needs its own separate one. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 10px;
+  /* Clears the live preview box pinned top-right (full-page mode) —
+     calc() against the same --guide-preview-* vars that size that box
+     (above) so this clearance always matches its actual (clamped) size,
+     instead of a flat 300px that would either under-clear a full-size
+     preview or waste space against a shrunk one. Falls back to the old
+     flat 300px outside guide-full mode, where the vars aren't set. */
+  padding-right: calc(var(--guide-preview-w, 260px) + var(--guide-preview-right, 28px) + 12px);
+  padding-bottom: 12px;
+  margin-bottom: 10px;
+  border-bottom: 2px solid var(--line);
+}
+
+.guide-info-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.guide-info-number {
+  min-width: clamp(44px, 12%, 80px);
+  font-family: var(--font-display);
+  /* cqw, not vw — relative to #display-frame's own (possibly simulated-
+     low-resolution) box, not the real window, so this scales with the
+     display-mode.js resolution setting instead of ignoring it. */
+  font-size: clamp(28px, 8cqw, 56px);
+  color: var(--gold);
+  text-shadow:
+    -1px 0 0 rgba(255, 70, 70, 0.35), 1px 0 0 rgba(90, 200, 255, 0.35),
+    3px 3px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(var(--gold-rgb), 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.guide-info-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-info-channel {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--cyan);
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guide-info-title {
+  font-family: var(--font-display);
+  color: var(--paper);
+  font-size: 22px;
+  letter-spacing: 0.5px;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.guide-info-time {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--gold);
+  font-size: 12px;
+  letter-spacing: 1px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Brief crossfade when the selected show changes (updateGuideInfoPanel,
+   guide.js restarts this by toggling the class off/on across a reflow). */
+.guide-info-title, .guide-info-time { will-change: opacity; }
+.guide-info-title.gi-update, .guide-info-time.gi-update {
+  animation: guide-info-fade 160ms ease-out;
+}
+@keyframes guide-info-fade {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-info-title.gi-update, .guide-info-time.gi-update { animation: none; }
+}
+
+.guide-search-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.guide-search {
+  flex: 1;
+  min-width: 0;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  padding: 7px 12px;
+}
+.guide-search::placeholder { color: var(--paper-dim); opacity: 0.7; }
+.guide-search:focus { outline: none; border-color: var(--gold); }
+
+.guide-daterange {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.guide-timeheader {
+  display: grid;
+  grid-template-columns: var(--guide-chan-col, 170px) repeat(3, 1fr);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--gold);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+}
+
+.guide-th-slot {
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
+
+.guide-rows {
+  position: relative;
+  flex: 1;
+  /* A genuine floor — without it, this being the only child in the
+     .guide-grid.docked flex column with overflow:non-visible made IT
+     (not .guide-topbar above) take 100% of any space deficit, collapsing
+     to a sliver instead of .guide-topbar sharing the squeeze. */
+  min-height: clamp(110px, 45%, 300px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 4px;
+}
+
+.guide-row {
+  display: grid;
+  grid-template-columns: var(--guide-chan-col, 170px) 1fr;
+  min-height: 52px;
+}
+
+.guide-row-chan {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--gradient-cell);
+  border: 1px solid var(--line);
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.grc-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.grc-num {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--paper);
+  font-size: 17px;
+  letter-spacing: 0.3px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+}
+.grc-name {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--paper-dim);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 108px;
+}
+
+.guide-row.active-row .guide-row-chan {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05));
+}
+
+.guide-row-track {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--gradient-cell);
+  box-shadow: var(--bevel-inset);
+  overflow: hidden;
+}
+
+.guide-entry {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 6px 9px;
+  border-right: 1px solid rgba(8, 12, 40, 0.8);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--paper);
+  font-size: 13px;
+  letter-spacing: 0.2px;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.guide-entry:nth-child(even) { background: var(--cell-alt); }
+.guide-entry:hover { background: rgba(255, 255, 255, 0.12); }
+/* Color set inline per-entry (buildChannelRow, guide.js) from the airing
+   block's theme.accent — only present when a block explicitly opts in via
+   the THEME panel (setup-schedule.js), so an untouched schedule looks
+   exactly like it did before block theming existed. */
+.guide-entry-themed { border-left: 3px solid; }
+/* Already finished airing — still visible for context, visibly spent. */
+.guide-entry.past { opacity: 0.45; }
+
+.guide-entry.sel {
+  z-index: 2;
+  background: var(--gradient-gold);
+  color: #000;
+  font-weight: 700;
+  text-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--gold-rgb), 0.5);
+  will-change: transform;
+  animation: guide-sel-settle 160ms ease-out, guide-sel-pulse 2.6s ease-in-out 160ms infinite;
+}
+
+/* Selection "settle" — a quick snap-in when the row/entry moves to a new
+   selection (grid is fully rebuilt per move, guide.js, so this plays fresh
+   every time via animation restart on class re-application). Theme packs
+   may override just this animation-name for a different feel per era; see
+   the power-on/off precedent in overlays.css. */
+@keyframes guide-sel-settle {
+  0% { transform: scale(0.96); }
+  100% { transform: scale(1); }
+}
+
+@keyframes guide-sel-pulse {
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--gold-rgb), 0.5); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 18px rgba(var(--gold-rgb), 0.75); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guide-entry.sel { animation: none; }
+}
+
+/* Half-hour rules drawn across the whole grid rather than per-cell, so the
+   time columns stay readable behind the program blocks. */
+.guide-gridlines {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--guide-chan-col, 170px);
+  right: 0;
+  pointer-events: none;
+  z-index: 4;
+  background-image: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.18) 0 1px,
+    rgba(255, 255, 255, 0) 1px var(--guide-slot-w, 33.3333%)
+  );
+}
+
+.guide-now-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--danger);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.85),
+    0 0 10px 2px rgba(var(--danger-rgb), 0.95),
+    0 0 22px rgba(var(--danger-rgb), 0.6);
+  pointer-events: none;
+  z-index: 5;
+  animation: guide-now-pulse 1.6s ease-in-out infinite;
+}
+.guide-now-line::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--danger);
+  filter: drop-shadow(0 0 4px rgba(var(--danger-rgb), 0.9));
+}
+
+@keyframes guide-now-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-now-line { animation: none; }
+}
+
+.guide-hint {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--paper-dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: flex;
+  gap: 22px;
+}
+
+.hint-bar {
+  background: var(--gradient-panel);
+  border-top: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--paper-dim);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 8px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 6px;
+  column-gap: 22px;
+  /* 14 items at a wide gap can exceed even a real TV's reported CSS
+     viewport width (varies by panel/WebView scaling) — wrap to a second
+     line instead of silently overflowing past #tv-screen's overflow:hidden
+     and getting clipped off-screen. */
+  max-height: 46px;
+  overflow: hidden;
+}
+
+/* Fullscreen: nothing to hint at when there's no title bar/taskbar visible
+   anyway — hide it regardless of the box-wide hint-bar setting (that
+   preference is about the normal windowed look, not this) and let .crt
+   (flex:1 in #tv-screen's flex-column, see tv.css) expand to fill the
+   height it frees up. See app.js's onFullscreenChange. */
+body.is-fullscreen .hint-bar {
+  display: none;
+}
+
+/* LAN-viewer-only party cross-link (see initViewerPartyLink, app.js) —
+   position:fixed takes it out of #tv-screen's flex-column flow entirely, so
+   it can't disturb .crt/.hint-bar layout the way a plain flex sibling would.
+   Top-left corner: clear of the logo bug (bottom-right default, but
+   configurable to any corner) and the hint bar (bottom, full-width). */
+.viewer-party-link {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  background: var(--gradient-panel);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  padding: 6px 12px;
+}
+.viewer-party-link.hidden { display: none; }
+

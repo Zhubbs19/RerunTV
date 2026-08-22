@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="9" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="1920" height="1080" fill="#020d06"/>
+  <rect x="232" y="6" width="1456" height="1068" fill="none" stroke="#00ff66" stroke-width="2.5" filter="url(#glow)" opacity="0.8"/>
+  <!-- Terminal-style tick marks along the edge -->
+  <g stroke="#a3ff12" stroke-width="1" opacity="0.4">
+    <line x1="0" y1="100" x2="20" y2="100"/><line x1="0" y1="220" x2="20" y2="220"/>
+    <line x1="0" y1="340" x2="20" y2="340"/><line x1="0" y1="460" x2="20" y2="460"/>
+    <line x1="0" y1="580" x2="20" y2="580"/><line x1="0" y1="700" x2="20" y2="700"/>
+    <line x1="0" y1="820" x2="20" y2="820"/><line x1="0" y1="940" x2="20" y2="940"/>
+    <line x1="1920" y1="100" x2="1900" y2="100"/><line x1="1920" y1="220" x2="1900" y2="220"/>
+    <line x1="1920" y1="340" x2="1900" y2="340"/><line x1="1920" y1="460" x2="1900" y2="460"/>
+    <line x1="1920" y1="580" x2="1900" y2="580"/><line x1="1920" y1="700" x2="1900" y2="700"/>
+    <line x1="1920" y1="820" x2="1900" y2="820"/><line x1="1920" y1="940" x2="1900" y2="940"/>
+  </g>
+</svg>

@@ -1,0 +1,9 @@
+{
+  "id": "theme-cyberpunk-synth",
+  "name": "80s Neon Cyberpunk (Synthwave Pink/Cyan)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: electric magenta, neon cyan, hot violet and gold synthwave palette.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

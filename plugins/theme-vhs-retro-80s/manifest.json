@@ -1,0 +1,9 @@
+{
+  "id": "theme-vhs-retro-80s",
+  "name": "80s Radical VHS (Hot Coral & Purple)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: hot coral, electric yellow and deep violet arcade-cassette palette.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

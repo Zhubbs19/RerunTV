@@ -1,0 +1,9 @@
+{
+  "id": "theme-analog-90s",
+  "name": "Analog Barker (Early 90s Amber)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: early-90s analog character-generator look — black background, amber phosphor accent, hard-cut flat panels.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

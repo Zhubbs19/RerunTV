@@ -1,0 +1,71 @@
+/* Public Access Channel (CH 2) — moved out of core overlays.css so this
+   plugin's UI ships with the plugin itself. */
+
+.public-access {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-page);
+  padding: 60px;
+}
+
+.pubaccess-eyebrow {
+  position: absolute;
+  top: 28px;
+  left: 40px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: var(--cyan);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.pubaccess-clock {
+  position: absolute;
+  top: 28px;
+  right: 40px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
+.pubaccess-slide {
+  max-width: 70%;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: clamp(20px, 3.2vw, 34px);
+  line-height: 1.5;
+  color: var(--paper);
+  text-align: center;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+  white-space: pre-wrap;
+}
+
+/* Settings-panel bulletin-slide editor rows (registerSettingsPanel, see
+   renderer.js) — moved out of core setup.css alongside the on-screen CSS
+   above, same reasoning. */
+.pubaccess-slide-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+.pubaccess-slide-input {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--paper);
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 8px;
+  resize: vertical;
+}

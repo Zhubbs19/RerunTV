@@ -1,0 +1,76 @@
+/* Cable Box OSD — a literal analog on-screen menu: pitch black, saturated
+   primaries, chunky beveled "3D" buttons (light top/left, dark bottom/right)
+   instead of a smooth gradient. See renderer.js for the registration call. */
+html[data-theme="cable-box-osd"] {
+  --ink: #000000;
+  --ink-deep: #000000;
+  --cell: #0a0a0a;
+  --cell-alt: #111111;
+  --gold: #ffe33d;
+  --gold-ink: #1a1600;
+  --cyan: #35f4e6;
+  --paper: #f4f4f4;
+  --paper-dim: #b8b8b8;
+  --line: #4a4a4a;
+  --danger: #ff36d6;
+
+  --gold-rgb: 255, 227, 61;
+  --danger-rgb: 255, 54, 214;
+  --cyan-rgb: 53, 244, 230;
+
+  /* VT323 (a genuine teletext/character-generator pixel face) only on
+     large display-scale text — illegible as body copy at UI sizes, so
+     --font-ui stays the readable grotesque. */
+  --font-display: 'VT323', 'Archivo Narrow', system-ui, sans-serif;
+  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #000000 0%, #050505 100%);
+  --gradient-panel: linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+  --gradient-cell: linear-gradient(180deg, #0a0a0a 0%, #050505 100%);
+  --gradient-btn: linear-gradient(180deg, #2a2a2a 0%, #050505 100%);
+  --gradient-gold: linear-gradient(180deg, #ffe33d 0%, #e0c400 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 100%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  /* Chunky beveled "hardware button" — light edge top/left, dark bottom/right. */
+  --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.9);
+  --shadow-hard-sm: 2px 2px 0 rgba(0, 0, 0, 0.9);
+  --bevel-raised: inset 1px 1px 0 rgba(255, 255, 255, 0.5), inset -2px -2px 0 rgba(0, 0, 0, 0.6);
+  --bevel-inset: inset -1px -1px 0 rgba(255, 255, 255, 0.15), inset 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+
+/* A consumer set's own tube warming up under an analog overlay menu — a
+   little uneven, a visible "snap" partway through rather than one smooth
+   sweep. */
+html[data-theme="cable-box-osd"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-cable-box-osd;
+}
+html[data-theme="cable-box-osd"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-cable-box-osd;
+}
+@keyframes crt-fx-off-line-cable-box-osd {
+  0% { transform: scaleY(80); opacity: 0; }
+  10% { transform: scaleY(1); opacity: 1; }
+  40% { transform: scaleY(1) scaleX(1); opacity: 0.6; }
+  48% { opacity: 1; }
+  75% { transform: scaleY(0.5) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-cable-box-osd {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  12% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  30% { opacity: 0.4; }
+  38% { opacity: 1; }
+  65% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(60) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="cable-box-osd"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="cable-box-osd"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

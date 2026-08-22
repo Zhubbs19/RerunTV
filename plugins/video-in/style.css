@@ -1,0 +1,124 @@
+/* Video In / AUX (CH 0) — moved out of core overlays.css so this plugin's
+   UI ships with the plugin itself. */
+.video-in-channel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Deliberately a blue "no signal" field, distinct from the red/gold
+     no-signal variants used for actual playback failures — this is the
+     analog convention for an unconnected input, not an error state. */
+  background: radial-gradient(ellipse at center, #1a3a6e 0%, #0a1a3a 70%, #050d1f 100%);
+}
+
+.video-in-box {
+  text-align: center;
+}
+
+.video-in-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 3vw, 32px);
+  letter-spacing: 4px;
+  color: #cfe3ff;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+  margin-bottom: 28px;
+}
+
+.video-in-msg {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: clamp(22px, 3.5vw, 40px);
+  letter-spacing: 2px;
+  color: #ffffff;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.video-in-sub {
+  margin-top: 14px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 1.5px;
+  color: #7fa8e0;
+}
+
+.video-in-box .btn {
+  margin-top: 24px;
+}
+/* Live capture — the "no signal" chrome gets out of the way so the shared
+   <video> element (holding the captured stream) shows through, same
+   pattern as PARTY_CH's .party-video-mode. */
+.video-in-channel.aux-capturing {
+  background: none;
+}
+.video-in-channel.aux-capturing .video-in-box {
+  display: none;
+}
+
+.aux-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.aux-picker-box {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 20px 24px;
+  max-width: 640px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.aux-picker-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--gold);
+}
+.aux-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.aux-picker-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  cursor: pointer;
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-align: left;
+}
+.aux-picker-item:hover { border-color: var(--gold); }
+.aux-picker-empty {
+  grid-column: 1 / -1;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--paper-dim);
+}
+.aux-picker-item img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #000;
+}

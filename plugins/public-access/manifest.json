@@ -1,0 +1,9 @@
+{
+  "id": "public-access",
+  "name": "Public Access Channel",
+  "version": "1.0.0",
+  "description": "Virtual CH 2 — a community bulletin-board channel, rotating your own announcement slides. Has its own on/off toggle in this plugin's SETTINGS, independent of installing/enabling the plugin itself.",
+  "category": "channel",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

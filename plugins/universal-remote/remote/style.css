@@ -1,0 +1,131 @@
+/* Standalone page, deliberately not part of the ES-module renderer bundle —
+   inlined color values loosely matching renderer/css/tokens.css's default
+   (digital-2000s) palette rather than importing the shared token system, to
+   keep this fully self-contained (see the plan's note on why). */
+:root {
+  --ink: #131c58;
+  --ink-deep: #0a1040;
+  --gold: #f5d327;
+  --gold-ink: #141002;
+  --cyan: #6fe0f2;
+  --paper: #ffffff;
+  --paper-dim: #c9d2f2;
+  --line: #5163b8;
+  --danger: #ff6b5b;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: linear-gradient(180deg, #131c58 0%, #1a2570 45%, #0d1348 100%);
+  color: var(--paper);
+  font-family: 'Barlow', system-ui, sans-serif;
+  min-height: 100vh;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.header {
+  padding: 14px 16px 10px;
+  text-align: center;
+  border-bottom: 1px solid var(--line);
+}
+.title {
+  font-family: 'Archivo Black', system-ui, sans-serif;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+.now-watching {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--paper-dim);
+  letter-spacing: 0.5px;
+}
+
+.remote {
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 14px 14px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.row { display: flex; gap: 10px; }
+.top-row .btn { flex: 1; }
+
+.section-label {
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.btn {
+  background: linear-gradient(180deg, #40529f 0%, #2b3884 55%, #1f2a6c 100%);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--paper);
+  font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  padding: 14px 8px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.35), 2px 2px 0 rgba(0, 0, 0, 0.5);
+  touch-action: manipulation;
+}
+.btn:active {
+  transform: translate(1px, 1px);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.55);
+  background: linear-gradient(180deg, #2b3884 0%, #1f2a6c 100%);
+}
+.btn.small { padding: 9px 8px; font-size: 12px; }
+
+.btn-power {
+  background: linear-gradient(180deg, #ff8a7a 0%, var(--danger) 60%, #d94a3a 100%);
+  color: #2a0500;
+  border-color: #a83326;
+}
+
+.numpad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.numkey { font-size: 18px; padding: 16px 8px; }
+
+.dpad-section { display: flex; flex-direction: column; align-items: center; }
+.dpad {
+  display: grid;
+  grid-template-columns: 64px 64px 64px;
+  grid-template-rows: 64px 64px 64px;
+  gap: 6px;
+  justify-content: center;
+}
+.dpad-up { grid-column: 2; grid-row: 1; }
+.dpad-left { grid-column: 1; grid-row: 2; }
+.dpad-ok { grid-column: 2; grid-row: 2; background: linear-gradient(180deg, #fbe969 0%, var(--gold) 45%, #e3bc12 75%, #cba408 100%); color: var(--gold-ink); border-color: var(--gold); }
+.dpad-right { grid-column: 3; grid-row: 2; }
+.dpad-down { grid-column: 2; grid-row: 3; }
+.dpad .btn { font-size: 20px; padding: 0; }
+
+.fav-row { display: flex; gap: 10px; margin-top: 10px; width: 100%; max-width: 240px; }
+.fav-row .btn { flex: 1; }
+
+.grid-functions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 480px) {
+  .grid-functions { grid-template-columns: repeat(3, 1fr); }
+}

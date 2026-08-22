@@ -1,0 +1,191 @@
+.screensaver {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  background: rgba(6, 10, 32, 0.88);
+  overflow: hidden;
+}
+.screensaver-bounce {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 14px 22px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.6vw, 30px);
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+  animation: screensaver-bounce-move 17s linear infinite, screensaver-bounce-hue 17s linear infinite;
+}
+/* A rectangle path visiting all four corners — the classic "DVD logo"
+   bounce, done as a fixed CSS keyframe loop rather than a JS physics sim,
+   consistent with the rest of the app's pure-CSS-generated effects. */
+@keyframes screensaver-bounce-move {
+  0%   { top: 4%;  left: 4%; }
+  24%  { top: 4%;  left: 82%; }
+  25%  { top: 4%;  left: 82%; }
+  49%  { top: 78%; left: 82%; }
+  50%  { top: 78%; left: 82%; }
+  74%  { top: 78%; left: 4%; }
+  75%  { top: 78%; left: 4%; }
+  99%  { top: 4%;  left: 4%; }
+  100% { top: 4%;  left: 4%; }
+}
+@keyframes screensaver-bounce-hue {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screensaver-bounce { animation: none; top: 40%; left: 30%; }
+}
+.crt.power-off .screensaver { display: none; }
+
+/* Era-specific idle states (four theme eras, tokens.css) — the bouncing
+   logo is a fine default, but real idle screens looked very different
+   across decades: a color-bar test pattern with reference tone, a "please
+   stand by" slate, a network keeping its own promo scrolling even at idle,
+   or (for the satellite era) a diagnostics readout. Each variant is hidden
+   by default and only shown under its own html[data-theme] — see the
+   bottom of this block — with the default bounce hidden there in turn. */
+/* display is set ONLY here and by the theme-scoped rules at the bottom of
+   this block — never inside an individual .screensaver-X rule below, even
+   though each of those is itself a flex box. Those two rules are otherwise
+   the same specificity (one class each), so whichever comes later in the
+   file wins the tie regardless of theme — putting `display` in both places
+   made every variant permanently visible no matter which theme was active,
+   confirmed live via CDP (getComputedStyle showed two variants both
+   `display: flex` simultaneously under a theme that should show neither). */
+.screensaver-variant { display: none; }
+
+.screensaver-testcard {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+}
+.testcard-bars { flex: 1; display: flex; }
+.testcard-bars span { flex: 1; }
+.testcard-bars span:nth-child(1) { background: #c0c0c0; }
+.testcard-bars span:nth-child(2) { background: #c0c000; }
+.testcard-bars span:nth-child(3) { background: #00c0c0; }
+.testcard-bars span:nth-child(4) { background: #00c000; }
+.testcard-bars span:nth-child(5) { background: #c000c0; }
+.testcard-bars span:nth-child(6) { background: #c00000; }
+.testcard-bars span:nth-child(7) { background: #0000c0; }
+.testcard-label {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #e8dcae;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.screensaver-standby {
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+.standby-slate {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4vw, 44px);
+  letter-spacing: 3px;
+  color: var(--gold);
+  animation: standby-pulse 2.4s ease-in-out infinite;
+}
+@keyframes standby-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.screensaver-lineup {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--gradient-page);
+}
+.lineup-eyebrow {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: var(--gold);
+}
+.lineup-list {
+  position: relative;
+  width: min(70vw, 640px);
+  height: 40px;
+}
+.lineup-list span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: clamp(16px, 2.2vw, 24px);
+  color: var(--paper);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  animation: landing-promo-cycle 20s infinite;
+}
+.lineup-list span:nth-child(1) { animation-delay: 0s; }
+.lineup-list span:nth-child(2) { animation-delay: 5s; }
+.lineup-list span:nth-child(3) { animation-delay: 10s; }
+.lineup-list span:nth-child(4) { animation-delay: 15s; }
+
+.screensaver-diagnostics {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #010a16;
+}
+.diag-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #7fd4ff;
+  margin-bottom: 10px;
+}
+.diag-row {
+  display: flex;
+  gap: 24px;
+  width: 260px;
+  justify-content: space-between;
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  color: #b9e8ff;
+}
+.diag-locked { color: #6fff9e; }
+
+@media (prefers-reduced-motion: reduce) {
+  .lineup-list span { animation: none; opacity: 0; }
+  .lineup-list span:first-child { opacity: 1; }
+  .standby-slate { animation: none; opacity: 1; }
+}
+
+html[data-theme="wood-console-70s"] #screensaver .screensaver-bounce { display: none; }
+html[data-theme="wood-console-70s"] #screensaver .screensaver-testcard { display: flex; }
+
+html[data-theme="uhf-public-access-80s"] #screensaver .screensaver-bounce { display: none; }
+html[data-theme="uhf-public-access-80s"] #screensaver .screensaver-standby { display: flex; }
+
+html[data-theme="network-primetime-90s"] #screensaver .screensaver-bounce { display: none; }
+html[data-theme="network-primetime-90s"] #screensaver .screensaver-lineup { display: flex; }
+
+html[data-theme="digital-satellite-2000s"] #screensaver .screensaver-bounce { display: none; }
+html[data-theme="digital-satellite-2000s"] #screensaver .screensaver-diagnostics { display: flex; }

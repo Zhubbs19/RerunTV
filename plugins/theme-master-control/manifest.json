@@ -1,0 +1,9 @@
+{
+  "id": "theme-master-control",
+  "name": "Master Control (Amber Broadcast Console)",
+  "version": "1.0.0",
+  "description": "Theme pack: a real broadcast engineering rack — amber phosphor on graphite, hairline dividers, flat panels, everything labeled like equipment.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

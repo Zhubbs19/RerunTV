@@ -1,0 +1,37 @@
+/* Style for the starter plugin's channel. Delete this file (and "style"
+   from manifest.json) if you have no channel/UI CSS of your own — a
+   settings-only plugin doesn't need one. */
+.starter-plugin-channel {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #14101f;
+  color: #ffffff;
+  font-family: var(--font-ui);
+}
+
+.starter-plugin-greeting {
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4vw, 44px);
+  color: #c084fc;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6);
+}
+
+.starter-plugin-clock {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--paper-dim, #cbd5e1);
+}
+
+.starter-plugin-status {
+  max-width: 70%;
+  text-align: center;
+  font-size: 13px;
+  color: var(--paper-dim, #cbd5e1);
+}

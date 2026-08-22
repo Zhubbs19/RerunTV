@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>RerunTV — Party</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="title">🎉 RETRO CABLE BOX PARTY</div>
+    <div class="queue-status" id="queue-status">Loading…</div>
+    <a href="#" class="watch-live-link hidden" id="watch-live-link" target="_blank" rel="noopener">📺 WATCH LIVE</a>
+  </header>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="bulletin">BULLETIN</button>
+    <button class="tab-btn" data-tab="announce">ANNOUNCE</button>
+    <button class="tab-btn" data-tab="news">BREAKING NEWS</button>
+    <button class="tab-btn" data-tab="bingo">BINGO</button>
+    <button class="tab-btn" data-tab="soundboard">SOUNDBOARD</button>
+    <button class="tab-btn" data-tab="effects">EFFECTS</button>
+    <button class="tab-btn" data-tab="reactions">REACT</button>
+    <button class="tab-btn" data-tab="checkin">CHECK IN</button>
+    <button class="tab-btn" data-tab="vote">VOTE</button>
+    <button class="tab-btn" data-tab="caption">CAPTION</button>
+    <button class="tab-btn" data-tab="trivia">TRIVIA</button>
+  </div>
+
+  <main class="content">
+
+    <section class="panel" id="panel-bulletin">
+      <div class="section-label">POST TO THE BULLETIN</div>
+      <p class="hint">Share a photo or video — it'll show up on the party channel for everyone.</p>
+      <form id="bulletin-form">
+        <label class="file-picker" id="file-picker-label">
+          <input type="file" id="bulletin-file" accept="image/*,video/*" capture="environment">
+          <span id="file-picker-text">📷 CHOOSE OR TAKE A PHOTO/VIDEO</span>
+        </label>
+        <input type="text" id="bulletin-caption" maxlength="140" placeholder="Add a caption (optional)">
+        <button type="submit" class="btn btn-primary" id="bulletin-submit" disabled>POST IT</button>
+      </form>
+      <div class="status-msg" id="bulletin-status"></div>
+    </section>
+
+    <section class="panel hidden" id="panel-announce">
+      <div class="section-label">MAKE AN ANNOUNCEMENT</div>
+      <p class="hint">Read aloud on the TV and shown as a card — good for "pizza's here!" or "cake time!"</p>
+      <textarea id="announce-text" maxlength="280" rows="4" placeholder="Type your announcement…"></textarea>
+      <button type="button" class="btn btn-primary" id="announce-submit" disabled>📢 ANNOUNCE IT</button>
+      <div class="status-msg" id="announce-status"></div>
+    </section>
+
+    <section class="panel hidden" id="panel-news">
+      <div class="section-label">TRIGGER BREAKING NEWS</div>
+      <p class="hint">Flashes a retro Breaking News Alert across the TV screen for everyone to see.</p>
+      <textarea id="news-text" maxlength="280" rows="3" placeholder="Custom headline (leave blank for random news generator)…"></textarea>
+      <button type="button" class="btn btn-primary" id="news-submit">🚨 BROADCAST BREAKING NEWS</button>
+      <div class="status-msg" id="news-status"></div>
+    </section>
+
+    <section class="panel hidden" id="panel-bingo">
+      <div class="section-label">RETRO TV WATCH PARTY BINGO</div>
+      <p class="hint">Tap tiles when you spot them on the TV screen! Complete a row or column to shout BINGO to the TV.</p>
+      <div class="soundboard-grid bingo-grid" id="bingo-grid">
+        <button type="button" class="sound-btn bingo-tile" data-idx="0">⚡ EAS ALERT</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="1">🚨 BREAKING NEWS</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="2">📺 PREVUE MARQUEE</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="3">🌤️ WEATHER FORECAST</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="4">📟 TELETEXT</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="5">🍿 HBO MOVIE</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="6">💳 PPV SCRAMBLE</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="7">🛍️ HSN SHOPPING</button>
+        <button type="button" class="sound-btn bingo-tile" data-idx="8">🎮 GAME CHEAT CODE</button>
+      </div>
+      <button type="button" class="btn btn-primary" id="bingo-submit-btn" style="margin-top:16px;">🎉 SHOUT BINGO TO THE TV!</button>
+      <div class="status-msg" id="bingo-status"></div>
+    </section>
+
+    <section class="panel hidden" id="panel-soundboard">
+      <div class="section-label">SOUNDBOARD</div>
+      <p class="hint">Tap a sound to play it instantly on the TV.</p>
+      <div class="soundboard-grid" id="soundboard-grid">
+        <div class="status-msg">Loading…</div>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="panel-effects">
+      <div class="section-label">VISUAL EFFECTS</div>
+      <p class="hint">Trigger a full-screen effect on the TV, over whatever's playing.</p>
+      <div class="soundboard-grid">
+        <button type="button" class="sound-btn effect-btn" data-effect="confetti">🎊 CONFETTI</button>
+        <button type="button" class="sound-btn effect-btn" data-effect="flash">⚡ FLASH</button>
+        <button type="button" class="sound-btn effect-btn" data-effect="applause">👏 APPLAUSE</button>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="panel-reactions">
+      <div class="section-label">SEND A REACTION</div>
+      <p class="hint">Floats a big emoji over whatever's on screen right now — instant, no queue.</p>
+      <div class="soundboard-grid" id="reactions-grid">
+        <button type="button" class="sound-btn reaction-btn" data-emoji="😂">😂</button>
+        <button type="button" class="sound-btn reaction-btn" data-emoji="🎉">🎉</button>
+        <button type="button" class="sound-btn reaction-btn" data-emoji="❤️">❤️</button>
+        <button type="button" class="sound-btn reaction-btn" data-emoji="🔥">🔥</button>
+        <button type="button" class="sound-btn reaction-btn" data-emoji="👀">👀</button>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="panel-trivia">
+      <div class="section-label">TRIVIA</div>
+      <div id="trivia-body"><div class="status-msg">Checking for a live round…</div></div>
+    </section>
+
+    <section class="panel hidden" id="panel-caption">
+      <div class="section-label">CAPTION CONTEST</div>
+      <p class="hint">Caption this freeze-frame — every submission shows up on the party channel.</p>
+      <div id="caption-image-wrap" class="caption-image-wrap">
+        <img id="caption-image" class="caption-image hidden" alt="Current caption contest frame">
+        <div id="caption-image-empty" class="status-msg">No image yet — ask the host to capture one.</div>
+      </div>
+      <input type="text" id="caption-text" maxlength="140" placeholder="Your caption…">
+      <button type="button" class="btn btn-primary" id="caption-submit" disabled>SUBMIT CAPTION</button>
+      <div class="status-msg" id="caption-status"></div>
+    </section>
+
+    <section class="panel hidden" id="panel-vote">
+      <div class="section-label">VOTE FOR NEXT</div>
+      <p class="hint">Vote for what plays next — most votes wins once the window closes.</p>
+      <div class="soundboard-grid" id="vote-grid">
+        <div class="status-msg">Loading…</div>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="panel-checkin">
+      <div class="section-label">CHECK IN</div>
+      <p class="hint">Add your name to the "who's here" wall on the TV — plays a little chime.</p>
+      <input type="text" id="checkin-name" maxlength="24" placeholder="Your name">
+      <button type="button" class="btn btn-primary" id="checkin-submit" disabled>👋 CHECK IN</button>
+      <div class="status-msg" id="checkin-status"></div>
+    </section>
+
+  </main>
+
+  <script src="/party.js"></script>
+</body>
+</html>

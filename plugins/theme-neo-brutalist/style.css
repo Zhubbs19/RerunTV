@@ -1,0 +1,92 @@
+/* Neo-Brutalist — the most direct answer to "looks AI-generated": raw
+   paper-white ground (inverted from every other theme's dark base), thick
+   black hairlines, zero radius, flat acid-yellow/hot-pink blocks instead of
+   gradients. Disciplined, not chaotic — a real grid, consistent borders,
+   nothing overlapping; that distinction is what keeps this actually usable
+   rather than just loud. See renderer.js for the registration call. */
+html[data-theme="neo-brutalist"] {
+  --ink: #f5f3ea;
+  --ink-deep: #ffffff;
+  --cell: #e7e2d3;
+  --cell-alt: #ddd7c4;
+  /* Darker than the original #f4e400/#ff2f6e — this is the one theme (with
+     frutiger-aero) whose panels are light, not dark, so these accent colors
+     double as everyday label/dropdown TEXT sitting directly on
+     --ink-deep/--cell, not just block backgrounds under black gold-ink
+     text. Acid-yellow-on-white in particular was nearly invisible (~1.3:1)
+     — darkened here, within the same hue family, to clear WCAG AA (4.5:1)
+     everywhere these tokens are used as text, without touching every call
+     site. gradient-btn/gradient-gold (the actual acid-yellow block
+     backgrounds) are separate hardcoded values below, untouched. */
+  --gold: #8a7000;
+  --gold-ink: #0a0a0a;
+  --cyan: #d61f56;
+  --paper: #0a0a0a;
+  --paper-dim: #3a3a3a;
+  --line: #0a0a0a;
+  --danger: #d61f56;
+
+  --gold-rgb: 138, 112, 0;
+  --danger-rgb: 214, 31, 86;
+  --cyan-rgb: 214, 31, 86;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  /* Raw hand-built monospace instead of a grotesque — core to the
+     brutalist "looks hand-coded" identity. */
+  --font-ui: 'IBM Plex Mono', system-ui, monospace;
+
+  --gradient-page: linear-gradient(180deg, #f5f3ea 0%, #f5f3ea 100%);
+  --gradient-panel: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+  --gradient-cell: linear-gradient(180deg, #e7e2d3 0%, #e7e2d3 100%);
+  --gradient-btn: linear-gradient(180deg, #f4e400 0%, #f4e400 100%);
+  --gradient-gold: linear-gradient(180deg, #f4e400 0%, #f4e400 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  /* Hard offset black shadow, no blur — the brutalist signature. */
+  --shadow-hard: 3px 3px 0 #0a0a0a;
+  --shadow-hard-sm: 2px 2px 0 #0a0a0a;
+  --bevel-raised: inset 0 0 0 2px #0a0a0a;
+  --bevel-inset: inset 0 0 0 2px #0a0a0a;
+}
+
+/* tokens.css's shared select-arrow reset hardcodes a semi-transparent WHITE
+   stroke, reasoning every theme's --ink-deep (the usual select background)
+   is dark — true for every other theme, but this one's --ink-deep is pure
+   white, so that arrow would be invisible. Dark stroke instead, scoped to
+   this theme only. */
+html[data-theme="neo-brutalist"] select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='rgba(10,10,10,0.75)' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+/* No smooth sweep at all — a hard, stepped cut, same "raw, unpolished"
+   philosophy as the rest of the theme. transition-timing-function: steps()
+   instead of ease-in/out; same 380ms/550ms durations as the base rule. */
+html[data-theme="neo-brutalist"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-neo-brutalist;
+  animation-timing-function: steps(5, end);
+}
+html[data-theme="neo-brutalist"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-neo-brutalist;
+  animation-timing-function: steps(5, end);
+}
+@keyframes crt-fx-off-line-neo-brutalist {
+  0% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  80% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-neo-brutalist {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  20% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(1) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="neo-brutalist"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="neo-brutalist"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}

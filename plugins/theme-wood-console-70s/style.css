@@ -1,0 +1,165 @@
+/* Migrated verbatim from core's tokens.css/overlays.css/guide.css
+   (theme-pack-plugins migration) — see renderer.js for the crtBias/
+   staticStyle/SFX/ambientTexture/border registration. */
+
+/* Wood-Grain Console, 1978: pre-cable UHF era — forest green & harvest
+   gold/brass instead of navy-and-yellow digital chrome, flat panels (no
+   neon glow shadows), a chunkier condensed display face standing in for a
+   slab serif since no new webfont ships with this pass. */
+html[data-theme="wood-console-70s"] {
+  --ink: #0a1f14;
+  --ink-deep: #050f0a;
+  --cell: #1b4d2e;
+  --cell-alt: #24593a;
+  --gold: #b5893a;
+  --gold-ink: #1a0f00;
+  --cyan: #e8dcae;
+  --paper: #e8dcae;
+  --paper-dim: #a9926a;
+  --line: #4a3a1e;
+  --danger: #c65b3a;
+
+  --gold-rgb: 181, 137, 58;
+  --danger-rgb: 198, 91, 58;
+  --cyan-rgb: 232, 220, 174;
+
+  --font-display: 'Barlow Condensed', system-ui, sans-serif;
+  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #0a1f14 0%, #123321 50%, #050f0a 100%);
+  --gradient-panel: linear-gradient(180deg, #234a2f 0%, #1a3624 60%, #10241a 100%);
+  --gradient-cell: linear-gradient(180deg, #24593a 0%, #1b4529 100%);
+  --gradient-btn: linear-gradient(180deg, #6b4e22 0%, #4a3618 55%, #2e2210 100%);
+  --gradient-gold: linear-gradient(180deg, #c9a15a 0%, #b5893a 45%, #96721f 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(232, 220, 174, 0.08) 0%, rgba(232, 220, 174, 0.02) 45%, rgba(232, 220, 174, 0) 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(232, 220, 174, 0.05) 0%, rgba(232, 220, 174, 0) 55%);
+
+  --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  --bevel-raised: inset 0 1px 0 rgba(232, 220, 174, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+/* TV parental guidelines didn't exist before 1997 — this era shows no
+   rating bug at all rather than an anachronistic one, same as it would've
+   looked on a real 1978 set. The RATING field itself is untouched (still
+   set per-channel, still used by other themes/the parental-lock feature),
+   this only ever hides the on-screen bug. */
+html[data-theme="wood-console-70s"] .rating-bug { display: none !important; }
+
+/* Hard corners (no rounded chrome existed pre-digital), monospace channel
+   numbers standing in for a 7-segment display face. */
+html[data-theme="wood-console-70s"] .guide-row-chan,
+html[data-theme="wood-console-70s"] .guide-row-track {
+  border-radius: 0;
+}
+html[data-theme="wood-console-70s"] .grc-num {
+  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
+}
+
+/* Oldest tube in the lineup (1978) — a sluggish, uneven warm-up with more
+   dips than analog-90s's own override, plus a slower final settle instead of
+   a clean snap to full brightness. Same animation-duration/timing-function/
+   fill-mode as the base rule (overlays.css) — only animation-name differs,
+   so POWER_ON_ANIM_MS/POWER_OFF_ANIM_MS in state.js need no theme awareness. */
+html[data-theme="wood-console-70s"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-wood;
+}
+html[data-theme="wood-console-70s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-wood;
+}
+@keyframes crt-fx-off-line-wood {
+  0% { transform: scaleY(80); opacity: 0; }
+  10% { transform: scaleY(1); opacity: 0.7; }
+  20% { opacity: 1; }
+  35% { transform: scaleY(1) scaleX(1); opacity: 0.4; }
+  50% { opacity: 0.9; }
+  65% { transform: scaleY(0.6) scaleX(0.9); opacity: 0.5; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-wood {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  10% { transform: scaleY(0.4) scaleX(0.6); opacity: 0.5; }
+  20% { opacity: 0.15; }
+  30% { transform: scaleY(1) scaleX(1); opacity: 0.8; }
+  40% { opacity: 0.2; }
+  50% { opacity: 0.7; }
+  60% { opacity: 0.25; }
+  72% { opacity: 0.85; }
+  100% { transform: scaleY(60) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="wood-console-70s"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="wood-console-70s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}
+
+/* Animation-polish pass additions: same "sluggish, uneven warm-up with more
+   dips" language as the power-fx override above — the oldest tube in the
+   lineup, so each of the four small guide/entry animations takes longer to
+   commit to its resting state (a mid-timeline dip or two) instead of
+   snapping straight there. Same durations/timing-functions/fill-modes as
+   each base rule (guide.css/overlays.css) — only animation-name differs. */
+html[data-theme="wood-console-70s"] #tv-screen .guide-entry.sel {
+  animation-name: guide-sel-settle-wood, guide-sel-pulse;
+}
+@keyframes guide-sel-settle-wood {
+  0% { transform: scale(0.9); opacity: 0.4; }
+  50% { transform: scale(1.02); opacity: 0.7; }
+  75% { opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+html[data-theme="wood-console-70s"] #tv-screen .channel-entry.digit-flash {
+  animation-name: channel-entry-flash-wood;
+}
+@keyframes channel-entry-flash-wood {
+  0% { transform: scale(1.05); opacity: 0.3; }
+  40% { opacity: 0.8; }
+  60% { opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+html[data-theme="wood-console-70s"] .guide-info-title.gi-update,
+html[data-theme="wood-console-70s"] .guide-info-time.gi-update {
+  animation-name: guide-info-fade-wood;
+}
+@keyframes guide-info-fade-wood {
+  0% { opacity: 0; }
+  40% { opacity: 0.6; }
+  60% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+html[data-theme="wood-console-70s"] .guide-overlay {
+  animation-name: guide-overlay-in-wood;
+}
+@keyframes guide-overlay-in-wood {
+  0% { opacity: 0; transform: translateY(18px); }
+  60% { opacity: 0.8; transform: translateY(4px); }
+  80% { opacity: 0.5; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="wood-console-70s"] #tv-screen .guide-entry.sel,
+  html[data-theme="wood-console-70s"] #tv-screen .channel-entry.digit-flash,
+  html[data-theme="wood-console-70s"] .guide-info-title.gi-update,
+  html[data-theme="wood-console-70s"] .guide-info-time.gi-update,
+  html[data-theme="wood-console-70s"] .guide-overlay {
+    animation: none;
+  }
+}
+
+/* Guide open/close (opt-in, see guide.css's .guide-anim-enabled block) —
+   same "sluggish, uneven, oldest tube in the lineup" language as the four
+   animations above: a bigger slide distance and an overshoot-then-settle
+   curve instead of a crisp ease. Duration still comes from --guide-anim-ms
+   (the speed slider) — only the offset/easing differ. */
+html[data-theme="wood-console-70s"] .crt.guide-anim-enabled .guide-grid {
+  --guide-anim-offset-x: 0px;
+  --guide-anim-offset-y: 26px;
+  transition-timing-function: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="wood-console-70s"] .crt.guide-anim-enabled .guide-grid {
+    transition: none;
+  }
+}

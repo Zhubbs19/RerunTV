@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>RerunTV Remote</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="title">RETRO CABLE BOX</div>
+    <div class="now-watching" id="now-watching">CONNECTING…</div>
+  </header>
+
+  <div class="remote">
+
+    <div class="row top-row">
+      <button class="btn btn-power" data-key="p">POWER</button>
+      <button class="btn" data-key="m">MUTE</button>
+      <button class="btn" data-key="h">HINTS</button>
+    </div>
+
+    <div class="section">
+      <div class="section-label">CHANNEL</div>
+      <div class="numpad">
+        <button class="btn numkey" data-key="1">1</button>
+        <button class="btn numkey" data-key="2">2</button>
+        <button class="btn numkey" data-key="3">3</button>
+        <button class="btn numkey" data-key="4">4</button>
+        <button class="btn numkey" data-key="5">5</button>
+        <button class="btn numkey" data-key="6">6</button>
+        <button class="btn numkey" data-key="7">7</button>
+        <button class="btn numkey" data-key="8">8</button>
+        <button class="btn numkey" data-key="9">9</button>
+        <button class="btn" data-key="Backspace">LAST</button>
+        <button class="btn numkey" data-key="0">0</button>
+        <button class="btn" data-key="g">GUIDE</button>
+      </div>
+    </div>
+
+    <div class="section dpad-section">
+      <div class="section-label">NAVIGATE / SURF</div>
+      <div class="dpad">
+        <button class="btn dpad-up" data-key="ArrowUp">▲</button>
+        <button class="btn dpad-left" data-key="ArrowLeft">◀</button>
+        <button class="btn dpad-ok" data-key="Enter">OK</button>
+        <button class="btn dpad-right" data-key="ArrowRight">▶</button>
+        <button class="btn dpad-down" data-key="ArrowDown">▼</button>
+      </div>
+      <div class="fav-row">
+        <button class="btn small" data-key="ArrowUp" data-shift="1">FAV ▲</button>
+        <button class="btn small" data-key="ArrowDown" data-shift="1">FAV ▼</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">VOLUME</div>
+      <div class="row">
+        <button class="btn" data-key="-">VOL −</button>
+        <button class="btn" data-key="+">VOL +</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">FUNCTIONS</div>
+      <div class="grid-functions">
+        <button class="btn" data-key="s">SETUP</button>
+        <button class="btn" data-key="t">TIME MACHINE</button>
+        <button class="btn" data-key="l">LIVE</button>
+        <button class="btn" data-key="f">FULLSCREEN</button>
+        <button class="btn" data-key="c">CRT EFFECT</button>
+        <button class="btn" data-key="v">PICTURE MODE</button>
+        <button class="btn" data-key="a">ASPECT RATIO</button>
+        <button class="btn" data-key="z">SLEEP TIMER</button>
+        <button class="btn" data-key="e">ALERT TEST</button>
+        <button class="btn" data-key="b">NEWS ALERT</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="/remote.js"></script>
+</body>
+</html>

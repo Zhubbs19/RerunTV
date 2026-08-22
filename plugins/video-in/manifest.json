@@ -1,0 +1,16 @@
+{
+  "id": "video-in",
+  "name": "Video In (AUX)",
+  "version": "1.0.0",
+  "description": "Virtual CH 0 — lets a window/app running on this machine (KaraFun, PiKaraoke, anything) show up as a channel, the way a real cable box's AUX input shows whatever's plugged into it.",
+  "category": "channel",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "style": "style.css",
+  "isolated": true,
+  "capabilities": {
+    "ipc": [
+      { "channel": "desktop:listSources", "why": "lists windows/screens for you to pick which one shows up as CH 0" }
+    ]
+  }
+}

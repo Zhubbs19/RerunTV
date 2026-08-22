@@ -1,0 +1,9 @@
+{
+  "id": "theme-wood-console-70s",
+  "name": "Wood-Grain Console (1978 Forest & Brass)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: pre-cable 1978 wood-console TV — forest green & brass palette, mechanical relay sounds, rolling static, no rating bug (predates TV parental guidelines).",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

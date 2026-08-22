@@ -1,0 +1,9 @@
+{
+  "id": "theme-uhf-public-access-80s",
+  "name": "Late-Night UHF (1988 Magenta & Cyan)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: 1988 late-night public-access UHF — hot magenta & cyan, a full teletext-style guide re-skin, gritty FM-warble tuning noise, a curved/warped picture even before touching the curvature slider.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

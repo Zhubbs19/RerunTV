@@ -1,0 +1,161 @@
+/* Migrated verbatim from core's tokens.css/overlays.css (theme-pack-plugins
+   migration) — see plugins/theme-analog-90s/renderer.js for the registration
+   call. Palette block first, then the two small analog-specific overrides
+   (power-fx line animation, channel-entry readout plate) that used to live
+   inline inside core's overlays.css feature blocks. */
+
+/* Early-90s analog character-generator era: black background, single amber
+   phosphor accent, flat panels, hard-cut edges — no gradients or gloss.
+   Set on <html> by applyTheme() in themes.js so both the TV screen and the
+   setup/admin screen re-skin together (they share the same token vocabulary). */
+html[data-theme="analog-90s"] {
+  --ink: #050400;
+  --ink-deep: #000000;
+  --cell: #16130a;
+  --cell-alt: #201b0d;
+  --gold: #ffb000;
+  --gold-ink: #1a0f00;
+  --cyan: #4be37a;
+  --paper: #f5ead0;
+  --paper-dim: #a89a78;
+  --line: #3a2f14;
+  --danger: #ff3b30;
+
+  --gold-rgb: 255, 176, 0;
+  --danger-rgb: 255, 59, 48;
+  --cyan-rgb: 75, 227, 122;
+
+  --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #050400 0%, #0a0700 100%);
+  --gradient-panel: linear-gradient(180deg, #16130a 0%, #100d06 100%);
+  --gradient-cell: linear-gradient(180deg, #16130a 0%, #100d06 100%);
+  --gradient-btn: linear-gradient(180deg, #16130a 0%, #100d06 100%);
+  --gradient-gold: linear-gradient(180deg, #ffb000 0%, #ffb000 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+
+  --shadow-hard: 1px 1px 0 rgba(0, 0, 0, 0.7);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.7);
+  --bevel-raised: 0 0 0 transparent;
+  --bevel-inset: 0 0 0 transparent;
+}
+
+/* Analog era: an older, less coherent tube — the collapse/warm-up stutters
+   through extra uneven dips instead of the clean digital sweep the base
+   power-fx animation uses. Same animation-duration/timing-function/
+   fill-mode as the base rule (only animation-name is overridden here), so
+   POWER_ON_ANIM_MS/POWER_OFF_ANIM_MS in state.js need no theme awareness. */
+html[data-theme="analog-90s"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-analog;
+}
+html[data-theme="analog-90s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-analog;
+}
+@keyframes crt-fx-off-line-analog {
+  0% { transform: scaleY(80); opacity: 0; }
+  10% { transform: scaleY(1); opacity: 1; }
+  22% { opacity: 0.3; }
+  30% { opacity: 1; }
+  45% { transform: scaleY(1) scaleX(1); opacity: 0.5; }
+  58% { transform: scaleY(0.5) scaleX(0.8); opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-analog {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  8% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  18% { opacity: 0.2; }
+  26% { opacity: 1; }
+  34% { opacity: 0.15; }
+  42% { opacity: 0.9; }
+  50% { opacity: 0.3; }
+  60% { opacity: 1; }
+  100% { transform: scaleY(60) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="analog-90s"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="analog-90s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}
+
+/* Analog era: no chromatic-aberration fringe or glossy glow — a flat plate
+   behind blocky digits, like a real character-generator channel readout. */
+html[data-theme="analog-90s"] #tv-screen .channel-entry {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  padding: 4px 14px;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.65);
+}
+
+/* Animation-polish pass additions: this era has no gloss/scale gimmicks
+   (--bevel-raised/--gloss-strong are both flattened to nothing above), so
+   its four small guide/entry animations swap the base rules' smooth
+   scale/slide for a flat opacity flicker — reads as an old character
+   generator's hard, slightly unstable cut rather than a modern easing
+   curve. Same durations/timing-functions/fill-modes as each base rule
+   (guide.css/overlays.css) — only animation-name differs. */
+html[data-theme="analog-90s"] #tv-screen .guide-entry.sel {
+  animation-name: guide-sel-settle-analog, guide-sel-pulse;
+}
+@keyframes guide-sel-settle-analog {
+  0% { opacity: 0.35; }
+  35% { opacity: 1; }
+  55% { opacity: 0.4; }
+  100% { opacity: 1; }
+}
+html[data-theme="analog-90s"] #tv-screen .channel-entry.digit-flash {
+  animation-name: channel-entry-flash-analog;
+}
+@keyframes channel-entry-flash-analog {
+  0% { opacity: 0.25; }
+  30% { opacity: 1; }
+  50% { opacity: 0.35; }
+  100% { opacity: 1; }
+}
+html[data-theme="analog-90s"] .guide-info-title.gi-update,
+html[data-theme="analog-90s"] .guide-info-time.gi-update {
+  animation-name: guide-info-fade-analog;
+}
+@keyframes guide-info-fade-analog {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  45% { opacity: 0.25; }
+  70% { opacity: 1; }
+  100% { opacity: 1; }
+}
+html[data-theme="analog-90s"] .guide-overlay {
+  animation-name: guide-overlay-in-analog;
+}
+@keyframes guide-overlay-in-analog {
+  0% { opacity: 0; transform: scaleY(0.4) translateY(14px); }
+  55% { opacity: 1; transform: scaleY(1.06) translateY(-2px); }
+  100% { opacity: 1; transform: scaleY(1) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="analog-90s"] #tv-screen .guide-entry.sel,
+  html[data-theme="analog-90s"] #tv-screen .channel-entry.digit-flash,
+  html[data-theme="analog-90s"] .guide-info-title.gi-update,
+  html[data-theme="analog-90s"] .guide-info-time.gi-update,
+  html[data-theme="analog-90s"] .guide-overlay {
+    animation: none;
+  }
+}
+
+/* Guide open/close (opt-in, see guide.css's .guide-anim-enabled block) —
+   no slide, just the same flat hard-cut flicker language as the four
+   animations above: a stepped opacity cut instead of a smooth ease reads
+   like an old character generator switching sources, not a modern panel
+   sliding into place. Duration still comes from --guide-anim-ms (the
+   speed slider) — only the offset/easing differ. */
+html[data-theme="analog-90s"] .crt.guide-anim-enabled .guide-grid {
+  --guide-anim-offset-x: 0px;
+  --guide-anim-offset-y: 0px;
+  transition-timing-function: steps(4, end);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="analog-90s"] .crt.guide-anim-enabled .guide-grid {
+    transition: none;
+  }
+}

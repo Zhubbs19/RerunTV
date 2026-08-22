@@ -1,0 +1,9 @@
+{
+  "id": "theme-network-primetime-90s",
+  "name": "Network Prime Time (1996 Cream & Brick)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: 1996 glossy network broadcast look — cream & brick-red, larger corner radii box-wide, quiet low-opacity tuning blip instead of full static, clean musical chime SFX.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

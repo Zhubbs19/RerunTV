@@ -1,0 +1,156 @@
+/* Migrated verbatim from core's tokens.css/guide.css (theme-pack-plugins
+   migration) — see renderer.js for the crtBias/staticStyle/SFX/
+   ambientTexture/border registration. */
+
+/* Digital Satellite, 2001: ice blue & white, crisp and geometric — the
+   "clean" digital option next to the others' warm/analog accents, with
+   gloss dialed way down and tighter shadows in place of any glow. */
+html[data-theme="digital-satellite-2000s"] {
+  --ink: #001a33;
+  --ink-deep: #000d1a;
+  --cell: #003366;
+  --cell-alt: #00457f;
+  --gold: #00bfff;
+  --gold-ink: #001322;
+  --cyan: #7fd4ff;
+  --paper: #ffffff;
+  --paper-dim: #a8d4ec;
+  --line: #2e5a80;
+  --danger: #ff5566;
+
+  --gold-rgb: 0, 191, 255;
+  --danger-rgb: 255, 85, 102;
+  --cyan-rgb: 127, 212, 255;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+
+  --gradient-page: linear-gradient(180deg, #001a33 0%, #002347 50%, #000d1a 100%);
+  --gradient-panel: linear-gradient(180deg, #003a70 0%, #002c57 60%, #001830 100%);
+  --gradient-cell: linear-gradient(180deg, #00457f 0%, #003666 100%);
+  --gradient-btn: linear-gradient(180deg, #0098d1 0%, #0078a8 55%, #005a80 100%);
+  --gradient-gold: linear-gradient(180deg, #6fe0ff 0%, #00bfff 45%, #009fd6 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0) 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 55%);
+
+  --shadow-hard: 1px 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-hard-sm: 1px 1px 2px rgba(0, 0, 0, 0.4);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Flatter and crisper than every other theme's textured chrome — no inset
+   bevel shadow on the guide track, tighter letter-spacing. */
+html[data-theme="digital-satellite-2000s"] .guide-row-track {
+  box-shadow: none;
+}
+html[data-theme="digital-satellite-2000s"] .guide-entry {
+  letter-spacing: 0;
+}
+
+/* Digital appliance, not a warming tube (see staticStyle: 'acquire' in
+   renderer.js) — a fast, near-instant snap to full brightness with a couple
+   of crisp lock-on flickers instead of an organic analog fade/wobble. Same
+   animation-duration/timing-function/fill-mode as the base rule
+   (overlays.css) — only animation-name differs, so POWER_ON_ANIM_MS/
+   POWER_OFF_ANIM_MS in state.js need no theme awareness. */
+html[data-theme="digital-satellite-2000s"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-digital;
+}
+html[data-theme="digital-satellite-2000s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-digital;
+}
+@keyframes crt-fx-off-line-digital {
+  0% { transform: scaleY(80); opacity: 0; }
+  8% { transform: scaleY(1); opacity: 1; }
+  60% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  70% { opacity: 0.2; }
+  78% { opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-digital {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  6% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  16% { opacity: 0.3; }
+  22% { opacity: 1; }
+  30% { opacity: 0.2; }
+  36% { opacity: 1; }
+  90% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(60) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="digital-satellite-2000s"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="digital-satellite-2000s"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}
+
+/* Animation-polish pass additions: same "fast, near-instant snap with a
+   couple of crisp lock-on flickers" language as the power-fx override above
+   (staticStyle: 'acquire') — each of the four small guide/entry animations
+   reaches its resting state in the first fifth of its timeline instead of
+   easing through it, then settles with one or two quick flickers, echoing a
+   satellite receiver locking onto signal rather than an analog warm-up.
+   Same durations/timing-functions/fill-modes as each base rule
+   (guide.css/overlays.css) — only animation-name differs. */
+html[data-theme="digital-satellite-2000s"] #tv-screen .guide-entry.sel {
+  animation-name: guide-sel-settle-digital, guide-sel-pulse;
+}
+@keyframes guide-sel-settle-digital {
+  0% { opacity: 0; transform: scale(0.92); }
+  20% { opacity: 1; transform: scale(1); }
+  55% { opacity: 0.5; }
+  70% { opacity: 1; }
+  100% { opacity: 1; }
+}
+html[data-theme="digital-satellite-2000s"] #tv-screen .channel-entry.digit-flash {
+  animation-name: channel-entry-flash-digital;
+}
+@keyframes channel-entry-flash-digital {
+  0% { transform: scale(1.2); opacity: 0.6; }
+  15% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+html[data-theme="digital-satellite-2000s"] .guide-info-title.gi-update,
+html[data-theme="digital-satellite-2000s"] .guide-info-time.gi-update {
+  animation-name: guide-info-fade-digital;
+}
+@keyframes guide-info-fade-digital {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 1; }
+}
+html[data-theme="digital-satellite-2000s"] .guide-overlay {
+  animation-name: guide-overlay-in-digital;
+}
+@keyframes guide-overlay-in-digital {
+  0% { opacity: 0; transform: translateY(6px); }
+  25% { opacity: 1; transform: translateY(0); }
+  45% { opacity: 0.4; }
+  60% { opacity: 1; }
+  100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="digital-satellite-2000s"] #tv-screen .guide-entry.sel,
+  html[data-theme="digital-satellite-2000s"] #tv-screen .channel-entry.digit-flash,
+  html[data-theme="digital-satellite-2000s"] .guide-info-title.gi-update,
+  html[data-theme="digital-satellite-2000s"] .guide-info-time.gi-update,
+  html[data-theme="digital-satellite-2000s"] .guide-overlay {
+    animation: none;
+  }
+}
+
+/* Guide open/close (opt-in, see guide.css's .guide-anim-enabled block) —
+   same "acquire" lock-on language as the four animations above: a small,
+   fast, geometric snap rather than a soft slide. Duration still comes from
+   --guide-anim-ms (the speed slider) — only the offset/easing differ. */
+html[data-theme="digital-satellite-2000s"] .crt.guide-anim-enabled .guide-grid {
+  --guide-anim-offset-x: 0px;
+  --guide-anim-offset-y: 6px;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="digital-satellite-2000s"] .crt.guide-anim-enabled .guide-grid {
+    transition: none;
+  }
+}

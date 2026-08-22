@@ -1,0 +1,9 @@
+{
+  "id": "theme-emerald-matrix",
+  "name": "90s Cyber Terminal (Matrix Phosphor Green)",
+  "version": "1.0.0",
+  "description": "Theme + border pack: phosphor green, laser lime and dark obsidian cyber-terminal palette.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "noaa-weather",
+  "name": "NOAA Weather & EAS",
+  "version": "1.0.0",
+  "description": "Fetches active weather alerts and forecasts from api.weather.gov (NOAA/NWS) for the real EAS interrupt feature and the AUX weather channel. Free, keyless API.",
+  "category": "system",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "style": "style.css",
+  "isolated": true,
+  "capabilities": {
+    "ipc": [
+      { "channel": "noaa:getActiveAlerts", "why": "polls for a real active weather alert to trigger the EAS interrupt" },
+      { "channel": "noaa:getForecast", "why": "fetches the forecast shown on the AUX weather channel" }
+    ]
+  }
+}

@@ -1,0 +1,438 @@
+/* Fonts, design tokens and global resets */
+
+@font-face {
+  font-family: 'Archivo Black';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/archivo-black-900.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/barlow-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/barlow-semibold-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/barlow-condensed-semibold-600.woff2') format('woff2');
+}
+/* Era-correct grid face: the real guides used Univers (Prevue/TV Guide
+   Channel) and Trade Gothic Bold Condensed (DirecTV). Archivo Narrow is the
+   same grotesque tradition, free — variable file covers 500-700. */
+@font-face {
+  font-family: 'Archivo Narrow';
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url('../fonts/archivo-narrow-var.woff2') format('woff2');
+}
+
+/* Added for the Nine Signals theme packs (theme-master-control, -cable-box-
+   osd, -neo-brutalist, -outrun-synthwave, -frutiger-aero) — bundled locally
+   like every other font here, not loaded from Google Fonts at runtime, per
+   the app's offline-first rule. Declared in core so a theme pack's own
+   style.css only ever needs to reference the family name via
+   --font-display/--font-ui, the same way analog-90s already reuses
+   core-bundled Archivo Narrow/Barlow Condensed instead of shipping its own
+   font files. */
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/ibm-plex-mono-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/ibm-plex-mono-semibold-600.woff2') format('woff2');
+}
+/* Cable Box OSD's teletext/character-generator face — used only for large
+   display-scale text (channel numbers, headings) in that theme's own
+   style.css, never body copy, since a blocky pixel face this size reads
+   poorly at small sizes. */
+@font-face {
+  font-family: 'VT323';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/vt323-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Fjalla One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/fjalla-one-regular-400.woff2') format('woff2');
+}
+/* Outrun Synthwave's neon-tube display face — same "display-scale only"
+   caveat as VT323 above; illegible as body text. */
+@font-face {
+  font-family: 'Monoton';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/monoton-regular-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Comfortaa';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/comfortaa-semibold-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Comfortaa';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/comfortaa-bold-700.woff2') format('woff2');
+}
+
+:root {
+  /* Palette retuned to the actual i-Guide/TV Guide Interactive look:
+     bright royal-blue grid cells, pure white bold text, school-bus-yellow
+     selection — brighter and more saturated than a modern take would pick. */
+  --ink: #131c58;
+  --ink-deep: #0a1040;
+  --cell: #34479f;
+  --cell-alt: #3d52b4;
+  --gold: #f5d327;
+  --gold-ink: #141002;
+  --cyan: #6fe0f2;
+  --paper: #ffffff;
+  --paper-dim: #c9d2f2;
+  --line: #5163b8;
+  --danger: #ff6b5b;
+
+  /* RGB triplets for the same colors, used where a glow/tint needs its own
+     alpha via rgba(var(--x-rgb), a) — kept in sync with the hex tokens above
+     so era overrides only have to touch one or the other consistently. */
+  --gold-rgb: 245, 211, 39;
+  --danger-rgb: 255, 107, 91;
+  --cyan-rgb: 111, 224, 242;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  /* Mid-2000s digital-guide chrome: gradient fields, glossy raised buttons,
+     recessed inputs, hard-edged drop shadows layered under the phosphor glow. */
+  --gradient-page: linear-gradient(180deg, #131c58 0%, #1a2570 45%, #0d1348 100%);
+  --gradient-panel: linear-gradient(180deg, #3346a0 0%, #222e7c 60%, #182060 100%);
+  --gradient-cell: linear-gradient(180deg, #3d51b0 0%, #2e3f94 100%);
+  --gradient-btn: linear-gradient(180deg, #40529f 0%, #2b3884 55%, #1f2a6c 100%);
+  --gradient-gold: linear-gradient(180deg, #fbe969 0%, #f5d327 45%, #e3bc12 75%, #cba408 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 55%);
+
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 8px;
+
+  --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.5);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  /* Pure black, not --ink (#131c58) — both #setup-screen and #tv-screen
+     start out `hidden` until app.js's init() decides which to show (it
+     awaits a config load first), so this color is what actually paints for
+     that brief window on every boot. #tv-screen/.crt are pure black
+     (tv.css), so this matches the common case (a returning user with
+     channels lands on TV) exactly — a real navy flash there, previously.
+     The rarer landing-on-setup case still fades in cleanly: its own gradient
+     (--gradient-page) starts at that same #131c58, so black-to-dark-navy is
+     a barely-perceptible fade rather than a color-swap flash either way. */
+  background: #000;
+  overflow: hidden;
+  font-family: var(--font-body);
+  user-select: none;
+}
+
+#app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  /* Centers #display-frame (below) when it's smaller than #app — the
+     always-on letterbox/pillarbox behavior. migration-toast is position:
+     fixed so this doesn't affect its placement. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* App-wide display mode (display-mode.js) — always-on letterbox/pillarbox
+   frame at a fixed aspect ratio, centered inside #app. --display-frame-* vars
+   are set inline by applyDisplayMode(); default to today's exact behavior
+   (16:9, no simulated resolution, no transform) when unset. */
+#display-frame {
+  position: relative;
+  width: var(--display-frame-width, 100%);
+  height: var(--display-frame-height, 100%);
+  aspect-ratio: var(--display-frame-aspect, auto);
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  /* A query container, sized explicitly by display-mode.js (never by its
+     children) — lets guide.css/setup.css use cqw/cqh units so on-screen
+     UI (guide cards, grid columns, settings panels) scales to this box's
+     OWN size, not the real window's. That's what makes a simulated low
+     resolution (the RESOLUTION setting) actually reflow to stay usable
+     instead of just rendering desktop-sized chrome inside a tiny box. */
+  container-type: size;
+  container-name: display-frame;
+  transform: var(--display-frame-transform, none);
+  /* Center origin — #app flex-centers the small pre-scale box (see
+     display-mode.js), so scaling from its center keeps the visible result
+     centered too, with no extra translate math needed. */
+  transform-origin: center;
+  image-rendering: var(--display-frame-image-rendering, auto);
+}
+
+/* Whole-screen CRT texture (DISPLAY > CRT EFFECT INTENSITY, applyCrtState
+   power.js) — opt-in; hidden (class hidden) unless the setting is on. Sits
+   above BOTH #setup-screen and #tv-screen (siblings under #display-frame),
+   which is the whole point: a real tube's scanline/vignette/grain
+   character is a property of the glass, so it should show over the guide
+   and setup screen too, not just the video. isolation:isolate keeps its
+   own internal effect layers' implicit z-index stacking (same classes/
+   markup as .crt's copy, tv.css) self-contained instead of interacting
+   with #tv-screen's separate copy or anything else in the tree. */
+#screen-crt-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  isolation: isolate;
+}
+
+/* --display-content-zoom (display-mode.js): uniformly shrinks every
+   descendant's effective px sizing (fonts, padding, gaps, icons, popups —
+   everything, automatically) when a simulated low RESOLUTION is active, so
+   this fixed-px-tuned UI doesn't just get a smaller BOX while its contents
+   stay full-size and overlap/overflow. `zoom` (not transform) is what
+   makes this cascade to descendants; #display-frame's own outer transform
+   (tokens.css, above) is a separate, later step that's what actually makes
+   the final result look chunky/blocky once blown back up to fill the
+   screen. Native resolution sets this to 1 (explicit no-op). */
+.screen { position: absolute; inset: 0; width: 100%; height: 100%; zoom: var(--display-content-zoom, 1); }
+.hidden { display: none !important; }
+
+/* Global boot-time notice (config-migration toast) — sits above both
+   screens (#app-level, not scoped to #tv-screen like crt-toggle-flash),
+   since a migration can be the very first thing that happens on load,
+   before either screen has necessarily rendered its own chrome yet. */
+.migration-toast {
+  position: fixed;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(90vw, 640px);
+  background: var(--gradient-panel);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--bevel-raised), var(--shadow-hard);
+  padding: 10px 14px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--paper);
+  will-change: transform, opacity;
+  /* Restarts on its own: showMigrationToast()/dismiss (app.js) toggle
+     .hidden (display:none), and a CSS animation always replays when an
+     element goes from display:none back to displayed — no JS-side restart
+     needed, unlike the other reveal animations in this pass. */
+  animation: migration-toast-in 220ms ease-out;
+}
+@keyframes migration-toast-in {
+  0% { opacity: 0; transform: translate(-50%, -12px); }
+  100% { opacity: 1; transform: translate(-50%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .migration-toast { animation: none; }
+}
+.migration-toast-dismiss {
+  background: none;
+  border: none;
+  color: var(--paper-dim);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.migration-toast-dismiss:hover { color: var(--gold); }
+
+/* Themed scrollbars — every scrollable area in the app (the setup screen
+   itself, the channel/interstitials/titles lists, the weekly timeline grid,
+   the program guide) previously fell back to the OS's default scrollbar,
+   a flat gray bar that reads jarringly against this gradient/bevel chrome.
+   Chromium-only (::-webkit-scrollbar), which is fine — this app only ever
+   runs inside Electron's bundled Chromium, never a real cross-browser
+   context. scrollbar-width/scrollbar-color is the standards-track
+   equivalent, included for correctness even though Electron ignores it. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) var(--ink-deep);
+}
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+*::-webkit-scrollbar-track {
+  background: var(--ink-deep);
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: var(--radius-sm);
+  border: 2px solid var(--ink-deep);
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
+*::-webkit-scrollbar-corner {
+  background: var(--ink-deep);
+}
+
+/* Consistent, visible keyboard-focus ring across every interactive control
+   in the settings UI — previously only guide-search and a couple of
+   one-off elements had any :focus styling at all, so keyboard navigation
+   through the settings screen either fell back to the browser's default
+   blue ring (clashing with the theme) or, on some controls, showed no
+   focus indication whatsoever. :focus-visible (not :focus) so mouse/touch
+   clicks don't show a ring, matching how a real remote/keyboard-first
+   device should behave — only actual keyboard navigation does. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+input[type="range"]:focus-visible {
+  outline-offset: 4px;
+}
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline-offset: 1px;
+}
+
+/* Every themed <select> across the setup screen (.panel-interval select,
+   .block-hour-select, .rating-select, .flow-select, .preview-modal-field
+   select, etc.) sets its own background/border/color but none of them ever
+   reset the native appearance — so on Windows/Chromium the OS still draws
+   its own accent-colored chrome for the closed control and dropdown arrow,
+   which is what actually shows (not the theme's dark background), clashing
+   hard against the rest of the UI. One shared reset here means every select
+   picks up the fix automatically, including future ones, without having to
+   repeat `appearance: none` + a hand-drawn arrow in every single select rule
+   throughout setup.css. The arrow is inlined as a data-URI (not a font
+   glyph or ::after — a real <select>'s own ::after isn't stylable, and a
+   data-URI SVG can't pick up currentColor/CSS custom properties). A
+   semi-transparent white stroke rather than one of the theme tokens (--gold,
+   --cyan) is deliberate — every theme's ink-deep is dark, so plain white at
+   partial opacity reads clearly against all of them without baking in one
+   specific theme's accent color, which would clash on every other theme. */
+/* Standard native-appearance reset for buttons, same idea as the select
+   reset below — every real button in this app already looks right without
+   it (`.btn`/`.setup-tab-btn` etc. set their own background/border), so
+   this is defensive normalization for whatever's added next, not a fix for
+   anything currently broken. */
+button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='rgba(255,255,255,0.65)' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 26px !important;
+  box-sizing: border-box;
+  cursor: pointer;
+  /* A select's own intrinsic width grows to fit its longest option's text
+     — combined with the larger 15px font-size below, a select whose
+     longest option is a long label (e.g. "LETTERBOX (BARS IN CURRENT
+     WINDOW)") can now grow past its container, clipping its own arrow
+     off the edge of the panel. max-width:100% caps it at whatever space
+     its layout actually has; the ellipsis trio keeps overflowing text
+     truncating gracefully inside that width instead of forcing the box
+     wider than its container the way plain overflow:hidden alone would
+     (that still lets the box's OWN width grow, just clips what's drawn). */
+  max-width: 100%;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  /* Always 1, ignoring the inherited --display-content-zoom (display-
+     mode.js) at a simulated low RESOLUTION — a native <select>'s dropdown
+     POPUP is a separate OS/Chromium-composited layer that respects `zoom`
+     but (unlike the rest of this shrunk-then-transform-scaled UI) never
+     receives #display-frame's outer `transform: scale()`. Left un-reset,
+     the popup would render at content-zoom's tiny raw font-size with none
+     of the transform magnification that makes everything else legible
+     again, while the closed select box (which IS part of the transformed
+     DOM) looks normal — a control whose label you can read but whose own
+     dropdown list is nearly illegible. Resetting zoom here means both
+     render at native size — a real, deliberate exception to "everything
+     scales uniformly," since dropdown legibility matters more than
+     matching the shrunk chrome around it.
+
+     Deliberately NOT also forcing a flat font-size here (an earlier version
+     of this rule did — 15px !important, overriding every per-context
+     select's own 11-13px) — that made every select noticeably bigger than
+     its surrounding label text everywhere, including at native resolution
+     where zoom:1 above is a no-op and there was never any mismatch to fix
+     in the first place. Found live: closed select boxes read visibly
+     oversized next to same-row labels/buttons. Each select rule's own
+     declared font-size stands as-is; only the popup-vs-closed-box
+     legibility gap below still needs correcting. */
+  zoom: 1;
+}
+select:disabled { cursor: default; opacity: 0.6; }
+
+/* The closed select's OWN declared font-size (11-13px, whichever per-context
+   rule in setup.css applies — .rating-select, .panel-interval select, etc.)
+   still visually renders at that size * --display-frame-scale on screen,
+   since it sits inside #display-frame's transformed subtree (tokens.css,
+   #display-frame) — but its dropdown POPUP (built from these <option>s) is
+   the one part of this app that transform never reaches, so left alone the
+   popup would look --display-frame-scale times SMALLER than the box it just
+   dropped down from. 1em resolves to the OPTION's inherited font-size (the
+   select's own declared size, whatever that context happens to be — not a
+   single hardcoded number every select gets forced to), so this scales
+   relative to each select's actual on-screen closed size rather than
+   assuming they're all the same. 1 at native resolution (no transform
+   active), so this is a no-op there. */
+select option {
+  font-size: calc(1em * var(--display-frame-scale, 1)) !important;
+}

@@ -1,0 +1,62 @@
+/* Signal degradation — a persistent CRT-wide overlay (independent of
+   whatever's tuned) that turns real NOAA/NWS active-alert severity into a
+   visible "rain fade" cable-signal quality drop, appended into .crt the
+   same way breaking-news/ticker/eas-alerts already do (see renderer.js).
+   Sits above the VHS-quality layer (vhs-tracking/vhs-chroma, z-index 3) and
+   the CRT texture layers, below the guide/menus (z-index 20+). */
+.signal-degrade-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.signal-degrade-overlay.hidden { display: none; }
+
+.crt.power-off .signal-degrade-overlay { display: none; }
+
+.signal-degrade-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* The canvas's internal buffer is deliberately tiny (see renderer.js) —
+     pixelated upscaling keeps the blocky analog-snow look and is what
+     makes a *persistent* noise layer cheap enough to run continuously,
+     unlike the full-resolution burst used for channel-change static. */
+  image-rendering: pixelated;
+  opacity: var(--sd-opacity, 0);
+  mix-blend-mode: overlay;
+}
+
+/* Base per-level opacity, overridden per-instance via --sd-opacity
+   (renderer.js, so the user's own intensity slider can scale it) — these
+   class rules exist only as the fallback if that variable is ever unset. */
+.signal-degrade-overlay.level-1 .signal-degrade-canvas { --sd-opacity: 0.10; }
+.signal-degrade-overlay.level-2 .signal-degrade-canvas { --sd-opacity: 0.20; }
+.signal-degrade-overlay.level-3 .signal-degrade-canvas { --sd-opacity: 0.38; }
+.signal-degrade-overlay.level-4 .signal-degrade-canvas { --sd-opacity: 0.60; }
+
+/* Extreme-severity dropout — a brief full "lost the signal entirely" cut,
+   the retro-cable equivalent of real satellite/cable rain fade during the
+   worst part of a storm. Toggled on/off by scheduleDropout() in renderer.js. */
+.signal-degrade-overlay.signal-lost {
+  background: #050608;
+}
+.signal-degrade-overlay.signal-lost .signal-degrade-canvas { opacity: 0.85; }
+
+.signal-degrade-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: #ff5c5c;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 6px 16px;
+  border: 1px solid rgba(255, 92, 92, 0.6);
+}
+.signal-degrade-caption.hidden { display: none; }

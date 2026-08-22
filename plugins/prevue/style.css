@@ -1,0 +1,166 @@
+/* Preview Guide Channel (CH 1) — moved out of core overlays.css so this
+   plugin's UI ships with the plugin itself. */
+
+.landing-channel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  background: var(--gradient-page);
+}
+
+.landing-header {
+  flex: 0 0 38%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 40px;
+  border-bottom: 2px solid var(--line);
+  background: var(--gradient-panel);
+  box-shadow: var(--shadow-hard);
+}
+
+.landing-brand {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 4.5vw, 46px);
+  color: var(--gold);
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0 rgba(0, 0, 0, 0.6), 0 0 14px rgba(var(--gold-rgb), 0.5);
+}
+
+/* The real Prevue Channel's top third was never just a wordmark and a
+   clock — it always had a rotating local-ad/promo slot running there too.
+   Kept text-only/generated (no image assets, no network fetch) in line with
+   the rest of the app's virtual channels; each line takes its turn in the
+   middle of the header, cross-fading on a shared timer via animation-delay
+   so no JS is needed to drive it. */
+.landing-promo {
+  position: relative;
+  width: min(42vw, 420px);
+  height: 26px;
+  text-align: center;
+}
+.landing-promo span {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+  opacity: 0;
+  animation: landing-promo-cycle 20s infinite;
+}
+.landing-promo span:nth-child(1) { animation-delay: 0s; }
+.landing-promo span:nth-child(2) { animation-delay: 5s; }
+.landing-promo span:nth-child(3) { animation-delay: 10s; }
+.landing-promo span:nth-child(4) { animation-delay: 15s; }
+
+@keyframes landing-promo-cycle {
+  0%, 3% { opacity: 0; transform: translateY(5px); }
+  7%, 20% { opacity: 1; transform: translateY(0); }
+  24%, 100% { opacity: 0; transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-promo span { animation: none; opacity: 0; }
+  .landing-promo span:first-child { opacity: 1; }
+}
+
+.landing-clockbox { text-align: right; }
+.landing-clock {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 3.5vw, 38px);
+  color: var(--paper);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+.landing-date {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--cyan);
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+
+.landing-listings {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  padding: 0 40px;
+  /* The tune-in guide-overlay card (guide.css) floats at left:32/bottom:32
+     over whatever's on screen — including this channel's own scrolling
+     listing rows. Reserve space here so the last row or two never scrolls
+     underneath (and gets hidden behind) that card during the few seconds
+     it's shown after tuning to/back to this channel. Must be `margin`, not
+     `padding`: `.landing-scroll` (the actual scrolling content) is
+     absolutely positioned with no `bottom`/`height` of its own — its
+     natural height drives the marquee animation's -50% translate, so it's
+     never constrained by this element's padding box, only by where this
+     element's own (overflow: hidden) border box ends. A margin shrinks
+     that border box; padding doesn't. */
+  margin-bottom: 140px;
+}
+
+.landing-scroll {
+  position: absolute;
+  left: 40px;
+  right: 40px;
+  top: 0;
+  animation: landing-scroll-anim var(--landing-scroll-secs, 30s) linear infinite;
+}
+@keyframes landing-scroll-anim {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-scroll { animation: none; }
+}
+
+.landing-row {
+  display: grid;
+  grid-template-columns: 34px 130px 1fr 1fr;
+  gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(8, 12, 40, 0.6);
+  background: var(--gradient-cell);
+}
+.landing-row:nth-child(even) { background: var(--cell-alt); }
+
+.landing-row .lr-chan {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.landing-row .lr-now,
+.landing-row .lr-next {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--paper);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.landing-row .lr-next { color: var(--paper-dim); }
+.landing-row .lr-label {
+  color: var(--gold);
+  margin-right: 6px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}

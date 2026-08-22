@@ -1,0 +1,72 @@
+/* Master Control — a real broadcast engineering rack: graphite panels,
+   amber phosphor as the one accent, hairline dividers, no gloss/gradient
+   shine. See renderer.js for the registration call. */
+html[data-theme="master-control"] {
+  --ink: #14171a;
+  --ink-deep: #0a0c0e;
+  --cell: #191d21;
+  --cell-alt: #1e2226;
+  --gold: #e8a33d;
+  --gold-ink: #1a1006;
+  --cyan: #4caf7d;
+  --paper: #e8e3d9;
+  --paper-dim: #8b9096;
+  --line: #33383e;
+  --danger: #d97066;
+
+  --gold-rgb: 232, 163, 61;
+  --danger-rgb: 217, 112, 102;
+  --cyan-rgb: 76, 175, 125;
+
+  --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  /* A real rack panel's own labeling face — technical monospace instead of
+     the grotesque every other theme leans on. */
+  --font-ui: 'IBM Plex Mono', 'Archivo Narrow', system-ui, monospace;
+
+  /* Flat rack panels — no gradient sheen, just a hairline-bordered plate. */
+  --gradient-page: linear-gradient(180deg, #14171a 0%, #0f1114 100%);
+  --gradient-panel: linear-gradient(180deg, #191d21 0%, #16191c 100%);
+  --gradient-cell: linear-gradient(180deg, #191d21 0%, #16191c 100%);
+  --gradient-btn: linear-gradient(180deg, #1e2226 0%, #191d21 100%);
+  --gradient-gold: linear-gradient(180deg, #e8a33d 0%, #e8a33d 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+  --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
+
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+
+  --shadow-hard: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --bevel-inset: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* A reference monitor snaps to black/picture fast and cleanly — no
+   overshoot or stutter, just a quick confident sweep. Same
+   380ms/550ms + ease-in/ease-out durations as the base rule (only
+   animation-name differs here). */
+html[data-theme="master-control"] #tv-screen .crt.powering-off .crt-power-fx-line {
+  animation-name: crt-fx-off-line-master-control;
+}
+html[data-theme="master-control"] #tv-screen .crt.powering-on .crt-power-fx-line {
+  animation-name: crt-fx-on-line-master-control;
+}
+@keyframes crt-fx-off-line-master-control {
+  0% { transform: scaleY(20); opacity: 0; }
+  15% { transform: scaleY(1); opacity: 1; }
+  70% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+}
+@keyframes crt-fx-on-line-master-control {
+  0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
+  20% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  80% { transform: scaleY(1) scaleX(1); opacity: 1; }
+  100% { transform: scaleY(30) scaleX(1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme="master-control"] #tv-screen .crt.powering-off .crt-power-fx-line,
+  html[data-theme="master-control"] #tv-screen .crt.powering-on .crt-power-fx-line {
+    animation: none;
+  }
+}
