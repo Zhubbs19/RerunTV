@@ -4,24 +4,12 @@
 // Unlike most plugin channels, this one has its own independent on/off
 // toggle (the `enabled` hook below) — installing/enabling this plugin makes
 // CH 2 available to turn on, but doesn't show it on its own; see this
-// plugin's own SETTINGS panel.
+// plugin's own SETTINGS panel. Uses ctx.formatClock (window.RCBPlugins.ctx,
+// see plugins.js's installGlobalApi) rather than its own copy, same
+// can't-import-core-directly reason as prevue's identical clock display.
 // This plugin's own config namespace, seeded here (not by core) — see
 // [[retro_cable_box_plugin_system]].
 if (!window.RCBPlugins.ctx.S.config.publicAccess) window.RCBPlugins.ctx.S.config.publicAccess = { enabled: false, slides: [] };
-
-const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-function formatClock(d, cfg) {
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (cfg.display && cfg.display.clock24) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }
-  let hr = h % 12;
-  if (hr === 0) hr = 12;
-  return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
 
 let currentContainer = null;
 let clockTimer = null;
@@ -44,7 +32,7 @@ function showSlide(ctx) {
 function updateClock(ctx) {
   if (!currentContainer) return;
   const d = new Date(ctx.viewNow());
-  currentContainer.querySelector('[data-el="clock"]').textContent = formatClock(d, ctx.S.config);
+  currentContainer.querySelector('[data-el="clock"]').textContent = ctx.formatClock(d);
 }
 
 window.RCBPlugins.registerChannelType('public-access', {

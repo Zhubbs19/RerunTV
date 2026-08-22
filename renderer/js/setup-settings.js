@@ -586,7 +586,10 @@ function paraToHtml(para) {
   if (!calloutMatch) return `<p>${escapeHtml(para)}</p>`;
   const label = escapeHtml(calloutMatch[1]);
   const rest = escapeHtml(para.slice(calloutMatch[0].length));
-  const kind = /CAUTION/.test(label) ? 'caution' : /TIP/.test(label) ? 'tip' : /NOTE/.test(label) ? 'note' : 'step';
+  let kind = 'step';
+  if (/CAUTION/.test(label)) kind = 'caution';
+  else if (/TIP/.test(label)) kind = 'tip';
+  else if (/NOTE/.test(label)) kind = 'note';
   return `<p class="callout callout-${kind}"><strong>${label}</strong> ${rest}</p>`;
 }
 

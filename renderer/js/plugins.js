@@ -52,8 +52,8 @@ import { getAudioCtx, playNoiseBurst, playTone } from './audio.js';
 import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChannel, sortedChannels } from './channels.js';
 import { getChannelSchedule } from './schedule.js';
 import { alertDialog } from './setup-dialogs.js';
-import { S, saveConfigDebounced, viewNow } from './state.js';
-import { getDisplayTitle, formatSlotLabel } from './util.js';
+import { MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
+import { formatClock, formatSlotLabel, getDisplayTitle } from './util.js';
 import { player } from './dom.js';
 
 const channelTypeRegistry = new Map();
@@ -364,10 +364,14 @@ function installGlobalApi() {
     // knowing the config object's shape — same dedupe/shuffle/anchor and
     // pool-entry-default logic core's own setup-dragdrop.js/
     // setup-interstitials.js use for the identical job.
+    // formatClock/WEEKDAYS/MONTHS are here so a listing-style channel (e.g.
+    // prevue, public-access) doesn't need its own copy of this exact
+    // clock-formatting/day-name/month-name logic — same can't-import-core-
+    // directly reason as everything else on this object.
     ctx: {
       S, viewNow, player, playTone, playNoiseBurst, getAudioCtx,
       sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, saveConfigDebounced,
-      addFilesToChannel, addInterstitialPoolEntry,
+      addFilesToChannel, addInterstitialPoolEntry, formatClock, WEEKDAYS, MONTHS,
     },
     // Read-only escape hatch for plugins that need something not covered by
     // registerChannelType/registerSettingsPanel yet — kept intentionally

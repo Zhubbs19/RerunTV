@@ -2,25 +2,11 @@
 // as-is from the old core virtual.js (buildLandingRows/rebuildLandingScroll/
 // updateVirtualClocks/playVirtualAudio's CH1 branch). Needs
 // sortedChannels/buildChannelBadge/getChannelSchedule/getDisplayTitle/
-// formatSlotLabel from core — a plugin can't import core modules directly
-// (different app:// origin), so these are exposed on window.RCBPlugins.ctx
-// (see plugins.js's installGlobalApi) specifically to support this channel's
-// listing, which has to read the box's real channel lineup and live
-// schedule rather than reimplementing that engine.
-const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-function formatClock(d, cfg) {
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (cfg.display && cfg.display.clock24) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }
-  let hr = h % 12;
-  if (hr === 0) hr = 12;
-  return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
-
+// formatSlotLabel/formatClock/WEEKDAYS/MONTHS from core — a plugin can't
+// import core modules directly (different app:// origin), so these are
+// exposed on window.RCBPlugins.ctx (see plugins.js's installGlobalApi)
+// specifically to support this channel's listing, which has to read the box's
+// real channel lineup and live schedule rather than reimplementing that engine.
 let currentContainer = null;
 let clockTimer = null;
 let rebuildTimer = null;
@@ -74,8 +60,8 @@ function rebuildLandingScroll(ctx) {
 function updateClock(ctx) {
   if (!currentContainer) return;
   const d = new Date(ctx.viewNow());
-  currentContainer.querySelector('[data-el="clock"]').textContent = formatClock(d, ctx.S.config);
-  currentContainer.querySelector('[data-el="date"]').textContent = `${WEEKDAYS[d.getDay()]} · ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  currentContainer.querySelector('[data-el="clock"]').textContent = ctx.formatClock(d);
+  currentContainer.querySelector('[data-el="date"]').textContent = `${ctx.WEEKDAYS[d.getDay()]} · ${ctx.MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
 window.RCBPlugins.registerChannelType('prevue', {

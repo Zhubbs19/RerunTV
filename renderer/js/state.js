@@ -141,6 +141,7 @@ export const S = {
   aspectModeFlashTimer: null,
   sleepTimerFlashTimer: null,
   crtFlashTimer: null,
+  crtToggleFlashTimer: null, // returnToLive's own "LIVE" flash (timemachine.js) — distinct from crtFlashTimer above
   // True while the TV screen is showing a setup-screen PREVIEW (see
   // openPreviewModal, setup-channels.js) rather than real live viewing —
   // gates the preview banner and tells showSetupScreen (app.js) to reset

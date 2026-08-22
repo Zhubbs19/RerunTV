@@ -2,6 +2,13 @@ import { player } from './dom.js';
 import { getThemePack } from './plugins.js';
 import { S } from './state.js';
 
+// Also re-syncs S.sfxGain's level with the current mute/volume state on
+// every call, as a side effect — every one-shot SFX calls this right before
+// playing, so that's how a one-shot always reads the right level without a
+// separate mute/volume-change listener of its own. refreshSfxGainLevel()
+// below exists only because a *persistent* node (the tape-hiss loop) can't
+// rely on "the next unrelated SFX happens to trigger a refresh" and needs it
+// proactively instead.
 export function getAudioCtx() {
   if (!S.audioCtx) {
     S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();

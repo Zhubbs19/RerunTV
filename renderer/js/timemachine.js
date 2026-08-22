@@ -11,7 +11,7 @@ import {
 import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, viewNow } from './state.js';
-import { formatClock, formatOffset, getDisplayTitle } from './util.js';
+import { autoHideAfter, formatClock, formatOffset, getDisplayTitle } from './util.js';
 import { isVirtualChannel } from './virtual.js';
 
 const BREAK_OSD_LABELS = {
@@ -309,8 +309,7 @@ export async function returnToLive() {
   if (S.timeMachineOn) updateVcrOsd();
   crtToggleFlash.textContent = 'LIVE';
   crtToggleFlash.classList.add('show');
-  clearTimeout(returnToLive._t);
-  returnToLive._t = setTimeout(() => crtToggleFlash.classList.remove('show'), 1200);
+  S.crtToggleFlashTimer = autoHideAfter(S.crtToggleFlashTimer, 1200, () => crtToggleFlash.classList.remove('show'));
   pushRemoteState();
 }
 

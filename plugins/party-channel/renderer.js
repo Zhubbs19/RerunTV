@@ -62,15 +62,20 @@ if (S.partyCaptionImagePath === undefined) S.partyCaptionImagePath = null;
 if (S.partyTriviaRound === undefined) S.partyTriviaRound = null; // {question, options, correctIndex, votes: {index: count}, endsAtMs}
 if (S.countdownTimer === undefined) S.countdownTimer = null;
 
+// Channel root + idle screen (QR code / join URL prompt).
 const partyChannelEl = document.getElementById('party-channel');
 const partyIdleEl = document.getElementById('party-idle');
 const partyQrEl = document.getElementById('party-qr');
 const partyIdleUrlEl = document.getElementById('party-idle-url');
+
+// Active content card — whatever's currently up from S.partyQueue.
 const partyActiveEl = document.getElementById('party-active');
 const partyImageEl = document.getElementById('party-image');
 const partyAnnounceCardEl = document.getElementById('party-announce-card');
 const partyAnnounceTextEl = document.getElementById('party-announce-text');
 const partyCaptionEl = document.getElementById('party-caption');
+
+// Countdown / vote / check-in / trivia overlays on the idle screen.
 const partyCountdownEl = document.getElementById('party-countdown');
 const partyCountdownLabelEl = document.getElementById('party-countdown-label');
 const partyCountdownClockEl = document.getElementById('party-countdown-clock');
@@ -82,6 +87,9 @@ const partyTriviaCardEl = document.getElementById('party-trivia-card');
 const partyTriviaQuestionTextEl = document.getElementById('party-trivia-question');
 const partyTriviaOptionsEl = document.getElementById('party-trivia-options');
 const partyTriviaStatusEl = document.getElementById('party-trivia-status');
+
+// Guest-triggered visual effects (flash/confetti/applause) — overlay
+// whatever's tuned, so these live outside #party-channel entirely.
 const effectOverlayEl = document.getElementById('effect-overlay');
 const effectFlashEl = document.getElementById('effect-flash');
 const effectConfettiEl = document.getElementById('effect-confetti');
@@ -110,46 +118,47 @@ function hideEffectOverlayIfIdle() {
     effectOverlayEl.classList.add('hidden');
   }
 }
-function runFlash() {
-  clearTimeout(flashTimer);
-  effectFlashEl.classList.remove('hidden');
-  effectFlashEl.style.animation = 'none';
-  void effectFlashEl.offsetWidth; // force reflow so the animation restart takes
-  effectFlashEl.style.animation = '';
-  flashTimer = setTimeout(() => {
-    effectFlashEl.classList.add('hidden');
+// Shared by runFlash/runConfetti/runApplause below — all three follow the
+// same "clear any still-pending previous hide, show, run effect-specific
+// setup, auto-hide after durationMs" shape; only what setup() does, how
+// long it stays up, and any extra teardown on hide differ per effect.
+function runTimedEffect(el, prevTimer, durationMs, setup, onHide) {
+  clearTimeout(prevTimer);
+  el.classList.remove('hidden');
+  setup();
+  return setTimeout(() => {
+    el.classList.add('hidden');
+    if (onHide) onHide();
     hideEffectOverlayIfIdle();
-  }, 650);
+  }, durationMs);
+}
+function runFlash() {
+  flashTimer = runTimedEffect(effectFlashEl, flashTimer, 650, () => {
+    effectFlashEl.style.animation = 'none';
+    void effectFlashEl.offsetWidth; // force reflow so the animation restart takes
+    effectFlashEl.style.animation = '';
+  });
 }
 function runConfetti() {
-  clearTimeout(confettiTimer);
-  effectConfettiEl.classList.remove('hidden');
-  effectConfettiEl.innerHTML = '';
-  for (let i = 0; i < CONFETTI_PIECE_COUNT; i++) {
-    const piece = document.createElement('div');
-    piece.className = 'confetti-piece';
-    piece.style.left = `${Math.random() * 100}%`;
-    piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
-    piece.style.animationDuration = `${1.8 + Math.random() * 1.4}s`;
-    piece.style.animationDelay = `${Math.random() * 0.4}s`;
-    effectConfettiEl.appendChild(piece);
-  }
-  confettiTimer = setTimeout(() => {
-    effectConfettiEl.classList.add('hidden');
+  confettiTimer = runTimedEffect(effectConfettiEl, confettiTimer, 3200, () => {
     effectConfettiEl.innerHTML = '';
-    hideEffectOverlayIfIdle();
-  }, 3200);
+    for (let i = 0; i < CONFETTI_PIECE_COUNT; i++) {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = `${Math.random() * 100}%`;
+      piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      piece.style.animationDuration = `${1.8 + Math.random() * 1.4}s`;
+      piece.style.animationDelay = `${Math.random() * 0.4}s`;
+      effectConfettiEl.appendChild(piece);
+    }
+  }, () => { effectConfettiEl.innerHTML = ''; });
 }
 function runApplause() {
-  clearTimeout(applauseTimer);
-  effectApplauseEl.classList.remove('hidden');
-  effectApplauseEl.style.animation = 'none';
-  void effectApplauseEl.offsetWidth;
-  effectApplauseEl.style.animation = '';
-  applauseTimer = setTimeout(() => {
-    effectApplauseEl.classList.add('hidden');
-    hideEffectOverlayIfIdle();
-  }, 2300);
+  applauseTimer = runTimedEffect(effectApplauseEl, applauseTimer, 2300, () => {
+    effectApplauseEl.style.animation = 'none';
+    void effectApplauseEl.offsetWidth;
+    effectApplauseEl.style.animation = '';
+  });
 }
 function triggerVisualEffect(type) {
   showEffectOverlay();

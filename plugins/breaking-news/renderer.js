@@ -35,6 +35,16 @@ if (S.newsEndTimer === undefined) S.newsEndTimer = null;
 if (S.newsSafetyTimer === undefined) S.newsSafetyTimer = null;
 if (S.breakingNewsActive === undefined) S.breakingNewsActive = false;
 
+// Per-style badge/title copy shown while an alert is up (runBreakingNewsAlert
+// below) — 'retro-lower-third' is also the fallback for any unrecognized
+// style value.
+const STYLE_COPY = {
+  'alien-report': { badge: '⚠️ UNEXPLAINED TRANSMISSION', title: 'DECODED FREQUENCY SIGNAL' },
+  'full-slate': { badge: '● LIVE SPECIAL REPORT', title: 'RETRO CABLE NEWS NETWORK' },
+  'ticker-flash': { badge: 'NEWS FLASH', title: 'LIVE BULLETIN' },
+  'retro-lower-third': { badge: '● LIVE', title: 'BREAKING NEWS' },
+};
+
 const overlayEl = document.createElement('div');
 overlayEl.className = 'news-overlay news-style-retro-lower-third pos-bottom hidden';
 overlayEl.innerHTML = `
@@ -161,9 +171,11 @@ export function runBreakingNewsAlert(opts) {
   }
 
   const guideGrid = document.getElementById('guide-grid');
-  const blocked = !S.isPoweredOn || window.isVirtualChannel(S.currentNumber) ||
-    !window.getChannel(S.currentNumber) || !guideGrid.classList.contains('hidden') ||
-    S.activeBreakKey || S.easActive || S.breakingNewsActive;
+  const isOff = !S.isPoweredOn;
+  const onVirtualOrNoChannel = window.isVirtualChannel(S.currentNumber) || !window.getChannel(S.currentNumber);
+  const guideIsOpen = !guideGrid.classList.contains('hidden');
+  const anotherOverlayIsUp = !!S.activeBreakKey || S.easActive || S.breakingNewsActive;
+  const blocked = isOff || onVirtualOrNoChannel || guideIsOpen || anotherOverlayIsUp;
 
   if (blocked || (!opts.manual && (!S.config.breakingNews || !S.config.breakingNews.enabled))) {
     if (!opts.manual) scheduleNextNewsAlert();
@@ -193,19 +205,9 @@ export function runBreakingNewsAlert(opts) {
   overlayEl.classList.add(`news-style-${style}`);
   overlayEl.classList.add(`pos-${position}`);
 
-  if (style === 'alien-report') {
-    badgeEl.textContent = '⚠️ UNEXPLAINED TRANSMISSION';
-    titleEl.textContent = 'DECODED FREQUENCY SIGNAL';
-  } else if (style === 'full-slate') {
-    badgeEl.textContent = '● LIVE SPECIAL REPORT';
-    titleEl.textContent = 'RETRO CABLE NEWS NETWORK';
-  } else if (style === 'ticker-flash') {
-    badgeEl.textContent = 'NEWS FLASH';
-    titleEl.textContent = 'LIVE BULLETIN';
-  } else {
-    badgeEl.textContent = '● LIVE';
-    titleEl.textContent = 'BREAKING NEWS';
-  }
+  const copy = STYLE_COPY[style] || STYLE_COPY['retro-lower-third'];
+  badgeEl.textContent = copy.badge;
+  titleEl.textContent = copy.title;
 
   headlineEl.textContent = headlineText;
   overlayEl.classList.remove('hidden');

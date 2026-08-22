@@ -1,12 +1,4 @@
-window.addEventListener('error', (e) => {
-  console.error('[UNCAUGHT RENDERER ERROR]', e.message, e.filename, e.lineno, e.colno, e.error);
-});
-window.addEventListener('unhandledrejection', (e) => {
-  console.error('[UNHANDLED REJECTION]', e.reason);
-});
-
 import { S, viewNow, saveConfigDebounced, resetUndoBaseline, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
-window.S = S;
 import { randomInterstitialId } from './util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
@@ -18,6 +10,75 @@ import { showDetailsForCurrentChannel, hideDetailsOverlay } from './details.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { showOnboarding } from './onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
+import { foldLogoBugCorner, freshChannel, normalizeChannel, sortedChannels, getChannel } from './channels.js';
+import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
+import { resolveBreakAt, boundarySlot } from './interstitials.js';
+import {
+  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, cancelUpNextBar, showNoSignal,
+  applyLogoBugPlacement, checkBreakState, playChannelLive, resetActiveBreakState,
+} from './playback.js';
+import {
+  showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
+  handleGuideGridKey, renderGuideGrid,
+} from './guide.js';
+import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './virtual.js';
+import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './pin-lock.js';
+import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './audio.js';
+import {
+  enterTimeMachine, exitTimeMachine, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
+} from './timemachine.js';
+import {
+  applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
+  adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
+  resetIdleTimer, powerOn, powerOff,
+} from './power.js';
+import { applyDisplayMode } from './display-mode.js';
+import { applyTheme } from './themes.js';
+import { initTouchControls } from './touch-controls.js';
+import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
+import {
+  renderChannelList, renderCommercialsPanel, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
+} from './setup.js';
+
+window.addEventListener('error', (e) => {
+  console.error('[UNCAUGHT RENDERER ERROR]', e.message, e.filename, e.lineno, e.colno, e.error);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[UNHANDLED REJECTION]', e.reason);
+});
+
+window.S = S;
+window.resolveActiveCommercials = resolveActiveCommercials;
+window.resolveActiveSource = resolveActiveSource;
+window.computeSourcePosition = computeSourcePosition;
+window.resolveBreakAt = resolveBreakAt;
+window.boundarySlot = boundarySlot;
+window.checkBreakState = checkBreakState;
+window.cancelUpNextBar = cancelUpNextBar;
+window.playChannelLive = playChannelLive;
+// A few core functions plugin settings panels/renderer.js modules need to
+// call but can't import directly (different app:// origin, no CORS from
+// bundle to plugins — see [[retro_cable_box_plugin_system]] memory). Same
+// "expose on window" pattern as tuneToChannel/checkBreakState above.
+window.alertDialog = alertDialog;
+window.confirmDialog = confirmDialog;
+window.getChannel = getChannel;
+window.isVirtualChannel = isVirtualChannel;
+// getAudioCtx lazily creates+caches S.audioCtx/S.sfxGain on the shared S
+// object (window.S, above) — exposed so a plugin's own bespoke sound
+// effects can connect into the same AudioContext/mix bus as everything
+// else (volume/mute apply to it for free), instead of spinning up a
+// second, un-mixed AudioContext of their own.
+window.getAudioCtx = getAudioCtx;
+// playPurchaseConfirmSound builds on playTone/playNoiseBurst — core
+// primitives used 30+ times elsewhere in audio.js, too foundational to
+// duplicate into every plugin that wants a "cha-ching" purchase-confirm
+// sound — so the composite sound itself is exposed instead, for any plugin
+// with an order/purchase flow to use.
+window.playPurchaseConfirmSound = playPurchaseConfirmSound;
+// playNoiseBurst — another such foundational primitive (22+ other usages),
+// exposed for any plugin that wants a short noise-burst stinger of its own.
+window.playNoiseBurst = playNoiseBurst;
 
 // See the beforeMigration/applyConfigDefaults call below — shown once per
 // boot when the loaded config's shape actually changed, not on every load.
@@ -35,67 +96,6 @@ if (migrationToastDismissBtn) {
     migrationToastEl.classList.add('hidden');
   });
 }
-import { foldLogoBugCorner, freshChannel, normalizeChannel, sortedChannels, getChannel } from './channels.js';
-import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
-window.resolveActiveCommercials = resolveActiveCommercials;
-window.resolveActiveSource = resolveActiveSource;
-window.computeSourcePosition = computeSourcePosition;
-import { resolveBreakAt, boundarySlot } from './interstitials.js';
-window.resolveBreakAt = resolveBreakAt;
-window.boundarySlot = boundarySlot;
-
-import {
-  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, cancelUpNextBar, showNoSignal,
-  applyLogoBugPlacement, checkBreakState, playChannelLive, resetActiveBreakState,
-} from './playback.js';
-window.checkBreakState = checkBreakState;
-window.cancelUpNextBar = cancelUpNextBar;
-window.playChannelLive = playChannelLive;
-// A few core functions plugin settings panels/renderer.js modules need to
-// call but can't import directly (different app:// origin, no CORS from
-// bundle to plugins — see [[retro_cable_box_plugin_system]] memory). Same
-// "expose on window" pattern as tuneToChannel/checkBreakState above.
-window.alertDialog = alertDialog;
-window.confirmDialog = confirmDialog;
-window.getChannel = getChannel;
-import {
-  showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
-  handleGuideGridKey, renderGuideGrid,
-} from './guide.js';
-import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './virtual.js';
-window.isVirtualChannel = isVirtualChannel;
-import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './pin-lock.js';
-import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './audio.js';
-// getAudioCtx lazily creates+caches S.audioCtx/S.sfxGain on the shared S
-// object (window.S, above) — exposed so a plugin's own bespoke sound
-// effects can connect into the same AudioContext/mix bus as everything
-// else (volume/mute apply to it for free), instead of spinning up a
-// second, un-mixed AudioContext of their own.
-window.getAudioCtx = getAudioCtx;
-// playPurchaseConfirmSound builds on playTone/playNoiseBurst — core
-// primitives used 30+ times elsewhere in audio.js, too foundational to
-// duplicate into every plugin that wants a "cha-ching" purchase-confirm
-// sound — so the composite sound itself is exposed instead, for any plugin
-// with an order/purchase flow to use.
-window.playPurchaseConfirmSound = playPurchaseConfirmSound;
-// playNoiseBurst — another such foundational primitive (22+ other usages),
-// exposed for any plugin that wants a short noise-burst stinger of its own.
-window.playNoiseBurst = playNoiseBurst;
-import {
-  enterTimeMachine, exitTimeMachine, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
-} from './timemachine.js';
-import {
-  applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
-  adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
-  resetIdleTimer, powerOn, powerOff,
-} from './power.js';
-import { applyDisplayMode } from './display-mode.js';
-import { applyTheme } from './themes.js';
-import { initTouchControls } from './touch-controls.js';
-import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
-import {
-  renderChannelList, renderCommercialsPanel, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
-} from './setup.js';
 
 // ---------- Direct number entry ----------
 export function pushDigit(d) {

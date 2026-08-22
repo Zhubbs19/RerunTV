@@ -441,8 +441,10 @@ export function resolveActiveCommercials(ch, atMs, fileTags) {
       cycleEndSteps = postIdx < steps.length ? steps.slice(postIdx) : [];
     }
 
-    // Keep postSteps as an alias for interSteps for backward-compat with any
-    // callers that read it directly; hasPost gates the inter-episode path.
+    // Exposed on the returned object as `postSteps` — interstitials.js's flow
+    // builder reads that exact property name (its own "post" segment is the
+    // inter-episode path, gated by hasPost below) — `interSteps` above is
+    // just this function's own more descriptive local name for the same steps.
     const postSteps = interSteps;
 
     const adPodSteps = steps.filter((s) => s.type === 'adPod');

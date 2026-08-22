@@ -409,7 +409,11 @@ export async function renderPluginsList() {
           const span = document.createElement('span');
           span.className = ok ? 'plugin-row-dep-ok' : 'plugin-row-dep-missing';
           span.textContent = dep ? dep.name : depId;
-          if (!ok) span.title = !dep ? 'Not installed' : depDisabled ? 'Currently disabled' : 'Failed to load';
+          if (!ok) {
+            if (!dep) span.title = 'Not installed';
+            else if (depDisabled) span.title = 'Currently disabled';
+            else span.title = 'Failed to load';
+          }
           deps.appendChild(span);
         });
         info.appendChild(deps);

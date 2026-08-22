@@ -1,7 +1,11 @@
 import { showSetupScreen } from './app.js';
 import { sfxGuideToggle } from './audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, getChannel, guideSlots, sortedChannels } from './channels.js';
-import { crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid, guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay, guideRowsEl, guideSearchEl, guideTimeHeaderEl, player } from './dom.js';
+import {
+  crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid,
+  guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay,
+  guideRowsEl, guideSearchEl, guideTimeHeaderEl, player,
+} from './dom.js';
 import { showDetailsOverlay } from './details.js';
 import { tuneToChannel } from './playback.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';

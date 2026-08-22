@@ -18,7 +18,7 @@ import {
 import { S, saveConfigDebounced, viewNow } from './state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import {
-  autoHideAfter, formatClock, formatHourLabel, getDisplayTitle,
+  autoHideAfter, formatClock, formatHourLabel, getDisplayTitle, isEnabledByDefault,
 } from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 
@@ -503,7 +503,9 @@ function startBreak(ch, resolved, key) {
   if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
   if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
 
-  crtToggleFlash.textContent = label === 'post' ? 'END OF PROGRAM' : label === 'pre' ? 'UP NEXT' : (BREAK_LABELS[type] || 'COMMERCIAL BREAK');
+  if (label === 'post') crtToggleFlash.textContent = 'END OF PROGRAM';
+  else if (label === 'pre') crtToggleFlash.textContent = 'UP NEXT';
+  else crtToggleFlash.textContent = BREAK_LABELS[type] || 'COMMERCIAL BREAK';
   crtToggleFlash.classList.add('show');
 
   if (entry.dynamic) {
@@ -874,7 +876,7 @@ export async function tuneToChannel(number, opts) {
   hideVirtualChannels();
 
   const se = S.config.staticEffect;
-  if (!opts.silent && (!se || se.enabled !== false)) {
+  if (!opts.silent && isEnabledByDefault(se)) {
     const durationMs = se && se.durationMs != null ? se.durationMs : 150;
     if (durationMs > 0) {
       const activeBlock = ch && !isVirtualChannel(number) ? resolveActiveSource(ch, viewNow()).block : null;
@@ -906,7 +908,7 @@ export async function tuneToChannel(number, opts) {
     player.loop = false;
     updateLogoBug(null);
     const tp = S.config.testPattern;
-    if (!tp || tp.enabled !== false) {
+    if (isEnabledByDefault(tp)) {
       runCoreHooks('draw-test-pattern');
       testPatternCanvasEl.classList.remove('hidden');
     }

@@ -42,6 +42,8 @@ const NOAA_INTERRUPT_SEVERITIES = new Set(['Severe', 'Extreme']);
 // persistent "rain fade" cable-signal quality drop on top of whatever's
 // tuned — a full-screen overlay appended into .crt once here, same pattern
 // as breaking-news'/ticker's/eas-alerts' own persistent overlays.
+// Every identifier below prefixed `sd` (sdRoot, sdStart, sdCfg, the
+// data-el="sd-..." attributes, ...) is short for "signal degradation".
 const SD_SEVERITY_RANK = { Minor: 1, Moderate: 2, Severe: 3, Extreme: 4 };
 const SD_BASE_OPACITY = { 1: 0.10, 2: 0.20, 3: 0.38, 4: 0.60 };
 const SD_CANVAS_W = 160;
