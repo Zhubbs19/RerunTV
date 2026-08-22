@@ -13,6 +13,7 @@ import { renderChannelList } from './setup-channels.js';
 import { renderInterstitialsList } from './setup-interstitials.js';
 import { renderAutoCurateList } from './setup-autocurate.js';
 import { funToastEl, setupScreen } from './dom.js';
+import { autoHideAfter } from './util.js';
 
 const SCHEDULE_INTERVAL_MS = {
   daily: 24 * 60 * 60 * 1000,
@@ -31,8 +32,7 @@ function showCurationToast(text) {
   if (!funToastEl) return;
   funToastEl.textContent = text;
   funToastEl.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => funToastEl.classList.remove('show'), 6000);
+  toastTimer = autoHideAfter(toastTimer, 6000, () => funToastEl.classList.remove('show'));
 }
 
 export function isDue(profile, now) {
@@ -53,6 +53,11 @@ function setupVisible() {
 // nothing to add (setup-autocurate.js).
 export function runScheduledCuration() {
   const profiles = S.config.curationProfiles || [];
+  // Deliberately Date.now(), not viewNow() — a scheduled background
+  // regeneration should track real wall-clock elapsed time (has a day/week/
+  // month actually passed since lastRunAt?) regardless of whatever the
+  // time-machine's simulated clock is showing, unlike on-screen "what's
+  // airing right now" calculations.
   const now = Date.now();
   const appliedNames = [];
   profiles.forEach((profile) => {

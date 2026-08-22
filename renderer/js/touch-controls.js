@@ -9,6 +9,7 @@
 // dispatched, not imported directly, to avoid a circular import with app.js
 // (which imports initTouchControls from here).
 import { crtContainer, guideMuteEl, player, tvScreen } from './dom.js';
+import { autoHideAfter } from './util.js';
 
 function sendKey(key) {
   window.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
@@ -78,8 +79,7 @@ function showControlBar() {
   if (!controlBarEl) return;
   refreshMuteLabel();
   controlBarEl.classList.remove('hidden');
-  clearTimeout(barHideTimer);
-  barHideTimer = setTimeout(() => controlBarEl.classList.add('hidden'), BAR_AUTOHIDE_MS);
+  barHideTimer = autoHideAfter(barHideTimer, BAR_AUTOHIDE_MS, () => controlBarEl.classList.add('hidden'));
 }
 
 function toggleControlBar() {
@@ -109,6 +109,10 @@ export function initTouchControls() {
     const t = e.touches[0];
     startX = t.clientX;
     startY = t.clientY;
+    // Date.now(), not viewNow() — this measures real elapsed UI gesture
+    // time (how fast did the user's finger move?), unrelated to the
+    // simulated broadcast clock the rest of this app reads through
+    // viewNow().
     startT = Date.now();
   }, { passive: true });
 

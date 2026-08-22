@@ -21,7 +21,12 @@ import {
 import { S } from './state.js';
 
 // Read left-to-right, top-to-bottom — arrow-key navigation below treats the
-// button list as a grid with this many columns per row.
+// button list as a grid with this many columns per row. Not derived from
+// the actual layout (no measured column count at call time) — has to match
+// .tv-menu-grid's own `grid-template-columns: repeat(4, 1fr)` in
+// overlays.css by hand. If that CSS rule's column count ever changes, this
+// needs to change with it or Up/Down navigation silently desyncs from what's
+// actually on screen.
 const GRID_COLUMNS = 4;
 
 // Any registerInterrupt entry (plugins.js) contributes its own menu button

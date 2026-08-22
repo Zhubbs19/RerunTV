@@ -1,4 +1,14 @@
-// Every element the renderer touches, resolved once at load.
+// Every element the renderer touches, resolved once at load via
+// getElementById (null if the id isn't in the DOM at that point — this file
+// does no defensive checking of its own, callers do). Most of these are
+// core markup in renderer/index.html and are always present on a normal
+// boot; a smaller set only exist conditionally — gated by the active theme
+// pack's markup, only added by a specific installed plugin, or built up
+// dynamically elsewhere (e.g. a plugin's own settings-panel DOM) rather than
+// present in index.html at all. This file can't tell the two apart by
+// looking at them — a call site's own `if (el) ...` null-check is what
+// actually signals "this one's optional," and is load-bearing wherever it
+// appears, not defensive-programming boilerplate to trim.
 export const setupScreen = document.getElementById('setup-screen');
 export const tvScreen = document.getElementById('tv-screen');
 export const displayFrameEl = document.getElementById('display-frame');

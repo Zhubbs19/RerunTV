@@ -18,7 +18,7 @@ let latestRemoteState = { number: null, name: null };
 
 function activate(ctx) {
   const {
-    ipcMain, createServer, fs: pluginFs, sendToMainWindow, trackConnection, mimeFor, readJsonBody, loadConfig, remotePort,
+    ipcMain, createServer, sendToMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, remotePort,
   } = ctx;
   // Not a hard dependency (this plugin works fully without it) — just
   // published by the party-channel plugin onto ctx.services if that one's
@@ -131,23 +131,7 @@ function activate(ctx) {
       return;
     }
 
-    if (req.method === 'GET') {
-      const rel = url.pathname === '/' ? '/index.html' : url.pathname;
-      const resolved = path.normalize(path.join(REMOTE_DIR, rel));
-      // Same containment check as the app:// bundle handler — keep static
-      // requests from escaping the remote/ directory via ../.
-      if (resolved !== REMOTE_DIR && !resolved.startsWith(REMOTE_DIR + path.sep)) {
-        res.writeHead(403).end('Forbidden');
-        return;
-      }
-      pluginFs.readFile(resolved, (err, data) => {
-        if (err) { res.writeHead(404).end('Not found'); return; }
-        res.writeHead(200, { 'Content-Type': mimeFor(resolved) }).end(data);
-      });
-      return;
-    }
-
-    res.writeHead(405).end('Method not allowed');
+    serveStatic(REMOTE_DIR, url.pathname, req, res);
   });
 
   server.on('error', (err) => {

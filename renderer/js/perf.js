@@ -42,8 +42,11 @@ export function updatePerfMetrics() {
       memBarEl.style.width = `${pct}%`;
     }
   } else {
-    if (memValEl) memValEl.textContent = '38 MB';
-    if (memBarEl) memBarEl.style.width = '20%';
+    // performance.memory is a Chromium-only API — genuinely unavailable
+    // here, not just unmeasured yet, so this reads as N/A rather than a
+    // plausible-looking made-up number.
+    if (memValEl) memValEl.textContent = 'N/A';
+    if (memBarEl) memBarEl.style.width = '0%';
   }
 
   // Video Resolution
@@ -52,7 +55,9 @@ export function updatePerfMetrics() {
     if (player && player.videoWidth && player.videoHeight) {
       resValEl.textContent = `${player.videoWidth} x ${player.videoHeight}`;
     } else {
-      resValEl.textContent = '1920 x 1080 (HD)';
+      // Nothing's actually playing (or metadata hasn't loaded yet) — same
+      // "don't fabricate a number" reasoning as the memory fallback above.
+      resValEl.textContent = 'N/A';
     }
   }
 

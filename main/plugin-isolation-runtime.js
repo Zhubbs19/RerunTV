@@ -19,14 +19,13 @@
 // this hands a plugin's activate(ctx) — this file is the reference
 // implementation of that contract, not just an internal detail.
 const path = require('path');
-const fs = require('fs');
-const { spawn: nodeSpawn } = require('child_process');
-const http = require('http');
 const { createRpc } = require('./rpc-channel');
 const { mimeFor } = require('./main-mime');
-const { readJsonBody } = require('./main-http-util');
+const { readJsonBody, serveStaticFile } = require('./main-http-util');
 const { getLanAddresses, getViewerUrls } = require('./main-lan');
-const { isPathContained, stripExeSuffix } = require('./main-path-safety');
+const {
+  capabilityError, allowedSetsFor, createCheckedSpawn, createCheckedServer, createCheckedFs,
+} = require('./main-plugin-capabilities');
 // Pure Node npm packages, no Electron dependency — same reasoning as
 // getLanAddresses/getViewerUrls above: an isolated plugin's process can
 // require() these fresh right here rather than needing them proxied over
@@ -77,61 +76,18 @@ rpc.handle('party:invokeRoute', async (reqDescriptor) => {
   return route.handler(reqDescriptor);
 });
 
-function declareCapabilityError(pluginId, kind, value, field) {
-  return new Error(`Plugin "${pluginId}" tried to ${kind} "${value}" without declaring it in manifest.json's capabilities.${field} — add it there (with a "why") first.`);
-}
-
-// Mirrors buildCheckedCtx()'s fs/spawn/createServer wrappers in
-// main-plugins.js (the same-process path used by non-isolated plugins) almost
-// verbatim — the JS-level capability check is still worth doing here even
-// though --experimental-permission (main-plugin-isolation.js) also enforces
-// fs-read/fs-write/child-process at the OS level, because the permission
-// model's granularity stops at "can spawn a child process at all", not "can
-// spawn THIS specific binary" — the per-binary check still matters and can
-// only happen here.
+// The spawn/createServer/fs capability-checking below is shared with
+// buildCheckedCtx() in main-plugins.js (the same-process path used by
+// non-isolated plugins) via main-plugin-capabilities.js — see that file's
+// header comment. The JS-level check is still worth doing here even though
+// --experimental-permission (main-plugin-isolation.js's execArgv) also
+// enforces fs-read/fs-write/child-process at the OS level, because the
+// permission model's granularity stops at "can spawn a child process at
+// all," not "can spawn THIS specific binary" — the per-binary check still
+// matters and can only happen here.
 function buildCtx(manifest, pluginDir, init) {
-  const caps = manifest.capabilities || { ipc: [], spawn: [], net: [] };
-  const allowedIpc = new Set(caps.ipc.map((e) => e.channel));
-  const allowedSpawn = new Set(caps.spawn.map((e) => stripExeSuffix(String(e.bin))));
-  const allowedPorts = new Set(caps.net.map((e) => e.port));
+  const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
   const dataDir = init.dataDir || null;
-
-  function checkedSpawn(bin, args, opts) {
-    const base = stripExeSuffix(path.basename(bin));
-    if (!allowedSpawn.has(base)) throw declareCapabilityError(manifest.id, 'spawn', bin, 'spawn');
-    return nodeSpawn(bin, args, opts);
-  }
-
-  function checkedCreateServer(handler) {
-    const server = http.createServer(handler);
-    const realListen = server.listen.bind(server);
-    server.listen = (port, ...rest) => {
-      if (!allowedPorts.has(port)) throw declareCapabilityError(manifest.id, 'listen on port', port, 'net');
-      return realListen(port, ...rest);
-    };
-    return server;
-  }
-
-  function resolveDataPath(relPath) {
-    if (!dataDir) throw new Error(`Plugin "${manifest.id}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
-    const resolved = path.resolve(dataDir, relPath);
-    if (!isPathContained(dataDir, resolved)) {
-      throw new Error(`Plugin "${manifest.id}" tried to write outside its own data folder ("${relPath}").`);
-    }
-    return resolved;
-  }
-  const checkedFs = {
-    existsSync: (p) => fs.existsSync(p),
-    readFile: (p, ...rest) => fs.readFile(p, ...rest),
-    readFileSync: (p, ...rest) => fs.readFileSync(p, ...rest),
-    readdirSync: (p, ...rest) => fs.readdirSync(p, ...rest),
-    writeFile: (relPath, ...rest) => fs.writeFile(resolveDataPath(relPath), ...rest),
-    writeFileSync: (relPath, ...rest) => fs.writeFileSync(resolveDataPath(relPath), ...rest),
-    mkdirSync: (relPath, ...rest) => fs.mkdirSync(resolveDataPath(relPath), ...rest),
-    createWriteStream: (relPath, ...rest) => fs.createWriteStream(resolveDataPath(relPath), ...rest),
-    unlink: (relPath, ...rest) => fs.unlink(resolveDataPath(relPath), ...rest),
-    dataDir,
-  };
 
   // ctx.services stays a plain values-only store, seeded from whatever the
   // host had already published (from earlier-activated plugins, same-process
@@ -163,12 +119,12 @@ function buildCtx(manifest, pluginDir, init) {
     },
     ipcMain: {
       handle(channel, fn) {
-        if (!allowedIpc.has(channel)) throw declareCapabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
+        if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
         ipcHandleFns.set(channel, fn);
         rpc.emit('ipc:handle-register', { channel });
       },
       on(channel, fn) {
-        if (!allowedIpc.has(channel)) throw declareCapabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
+        if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
         ipcOnFns.set(channel, fn);
         rpc.emit('ipc:on-register', { channel });
       },
@@ -189,6 +145,7 @@ function buildCtx(manifest, pluginDir, init) {
     },
     mimeFor,
     readJsonBody,
+    serveStatic: serveStaticFile,
     getLanAddresses,
     getViewerUrls,
     QRCode,
@@ -206,9 +163,9 @@ function buildCtx(manifest, pluginDir, init) {
       rpc.emit('party:registerRoute', { method, pathname });
     },
     dispatchPartyRoute(reqDescriptor) { return rpc.request('party:dispatchRoute', reqDescriptor); },
-    spawn: checkedSpawn,
-    createServer: checkedCreateServer,
-    fs: checkedFs,
+    spawn: createCheckedSpawn(manifest.id, allowedSpawn),
+    createServer: createCheckedServer(manifest.id, allowedPorts),
+    fs: createCheckedFs(manifest.id, dataDir),
   };
 }
 

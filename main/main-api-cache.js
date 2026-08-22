@@ -9,14 +9,19 @@ const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
-const CACHE_PATH = path.join(app.getPath('userData'), 'api-cache.json');
+// A function, not a top-level constant — computed lazily on every call
+// rather than captured at require() time, since main.js's one-time
+// portable-userData migration (main-config.js's migrateUserDataIfNeeded())
+// can still repoint app.getPath('userData') after this module is first
+// required but before loadCache()/saveCache() actually run.
+function getCachePath() { return path.join(app.getPath('userData'), 'api-cache.json'); }
 const FETCH_TIMEOUT_MS = 8000;
 
 let cache = null;
 function loadCache() {
   if (cache) return cache;
   try {
-    cache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf-8'));
+    cache = JSON.parse(fs.readFileSync(getCachePath(), 'utf-8'));
   } catch (e) {
     cache = {};
   }
@@ -25,7 +30,7 @@ function loadCache() {
 
 function saveCache() {
   try {
-    fs.writeFileSync(CACHE_PATH, JSON.stringify(cache), 'utf-8');
+    fs.writeFileSync(getCachePath(), JSON.stringify(cache), 'utf-8');
   } catch (e) { /* best-effort — a failed cache write shouldn't break the caller */ }
 }
 

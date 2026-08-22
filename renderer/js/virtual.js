@@ -4,6 +4,7 @@ import {
 } from './dom.js';
 import { S } from './state.js';
 import { getPluginChannelType, pluginChannelTypeIds } from './plugins.js';
+import { autoHideAfter } from './util.js';
 
 // The plugin channel currently rendered into pluginChannelContainerEl (if
 // any) — tracked here rather than on the DOM, since a plugin's stop() hook
@@ -139,8 +140,7 @@ export function showVirtualGuideOverlay(number) {
 
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
-  clearTimeout(S.guideHideTimer);
-  S.guideHideTimer = setTimeout(() => guideOverlay.classList.add('hidden'), 4000);
+  S.guideHideTimer = autoHideAfter(S.guideHideTimer, 4000, () => guideOverlay.classList.add('hidden'));
 }
 
 export function showVirtualChannel(number) {

@@ -141,9 +141,16 @@ permission check — some things work identically, some need a different
   plugin you `dependsOn`, that's fine (dependency ordering guarantees the
   publisher finished activating, snapshot included, before you're forked).
   Don't rely on it for a value that changes after boot.
-- `ctx.pluginDir`, `ctx.mimeFor`, `ctx.readJsonBody`, `ctx.getLanAddresses`,
-  `ctx.getViewerUrls`, `ctx.busboy`, `ctx.QRCode`, `ctx.remotePort` — all
-  still there, unchanged. There's no `ctx.getPartyUrls`/`ctx.partyPort` —
+- `ctx.pluginDir`, `ctx.mimeFor`, `ctx.readJsonBody`, `ctx.serveStatic`,
+  `ctx.getLanAddresses`, `ctx.getViewerUrls`, `ctx.busboy`, `ctx.QRCode`,
+  `ctx.remotePort` — all still there, unchanged. `ctx.serveStatic(baseDir,
+  pathname, req, res)` serves one static file out of `baseDir` — method
+  check, path-containment check, and 403/404/405 all handled internally —
+  the usual last-route fallback for a plugin's own small browser-facing page:
+  put it as the final line of your request handler, after every other route
+  has already been checked and didn't match (see `plugins/party-channel/
+  main.js` or `plugins/universal-remote/main.js` for a worked example).
+  There's no `ctx.getPartyUrls`/`ctx.partyPort` —
   those were core-owned helpers for one specific plugin's port and got
   removed; a plugin with its own LAN-facing port declares that port as its
   own local constant and builds its own URL list from `ctx.getLanAddresses()`
@@ -235,7 +242,7 @@ module.exports = { activate };
   using anything on it — a plugin you depend on may be disabled or missing.
 - A handful of app-specific helpers plugins have found useful:
   `getMainWindow`, `getLanAddresses`, `fetchJsonCached`, `readJsonBody`,
-  `loadConfig`, `trackConnection`, `mimeFor`. These aren't a stable
+  `serveStatic`, `loadConfig`, `trackConnection`, `mimeFor`. These aren't a stable
   guaranteed API in the way the Electron modules above are — check an
   existing plugin under [`plugins/`](plugins/) that uses the one you need to
   confirm it's still passed through, since this list can grow but shouldn't

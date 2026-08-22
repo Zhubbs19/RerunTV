@@ -211,6 +211,21 @@ export function randomInterstitialId() {
   return randomId('int');
 }
 
+// Cancels `prevTimer` (harmless if it's null/already fired) and arms a fresh
+// setTimeout(fn, ms) in its place — returns the new timer id, which the
+// caller stores back wherever it keeps it (an S.xxxTimer field, or a local
+// closure variable). Shared shape behind the "auto-hide an overlay/banner
+// after N ms, restarting the clock on every re-trigger" idiom that recurs
+// across guide.js/virtual.js (guide overlay), playback.js (up-next banner,
+// rating bug), power.js (volume indicator), curation-scheduler.js (the fun
+// toast) and touch-controls.js (the LAN-viewer control bar) — fn is left
+// fully caller-supplied (usually a classList add/remove) rather than this
+// helper trying to guess which, so it fits all of them without a mode flag.
+export function autoHideAfter(prevTimer, ms, fn) {
+  clearTimeout(prevTimer);
+  return setTimeout(fn, ms);
+}
+
 export function hashString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;

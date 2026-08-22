@@ -112,7 +112,7 @@ const PARTY_PORT = 8726;
 
 function activate(ctx) {
   const {
-    ipcMain, spawn, createServer, fs: pluginFs, sendToMainWindow, trackConnection, mimeFor, readJsonBody,
+    ipcMain, spawn, createServer, fs: pluginFs, sendToMainWindow, trackConnection, mimeFor, readJsonBody, serveStatic,
     loadConfig, busboy, QRCode, getLanAddresses, getViewerUrls,
   } = ctx;
   const partyPort = PARTY_PORT;
@@ -218,8 +218,8 @@ function activate(ctx) {
     return new Promise((resolve) => {
       // Neither stdout nor stderr is read here — 'ignore' avoids opening
       // pipes nothing drains, which could otherwise fill and block ffmpeg
-      // indefinitely on unusually verbose output (see main.js's transcode
-      // spawn for the same reasoning).
+      // indefinitely on unusually verbose output (see main-media.js's
+      // transcodeVideo() spawn for the same reasoning).
       const ff = spawn(ffmpegPath, ['-y', '-ss', String(ss), '-i', filePath, '-frames:v', '1', '-q:v', '3', destPath], { stdio: 'ignore' });
       ff.on('error', () => resolve(null));
       ff.on('close', (code) => {
@@ -488,21 +488,7 @@ function activate(ctx) {
       return;
     }
 
-    if (req.method === 'GET') {
-      const rel = url.pathname === '/' ? '/index.html' : url.pathname;
-      const resolved = path.normalize(path.join(PARTY_DIR, rel));
-      if (resolved !== PARTY_DIR && !resolved.startsWith(PARTY_DIR + path.sep)) {
-        res.writeHead(403).end('Forbidden');
-        return;
-      }
-      pluginFs.readFile(resolved, (err, data) => {
-        if (err) { res.writeHead(404).end('Not found'); return; }
-        res.writeHead(200, { 'Content-Type': mimeFor(resolved) }).end(data);
-      });
-      return;
-    }
-
-    res.writeHead(405).end('Method not allowed');
+    serveStatic(PARTY_DIR, url.pathname, req, res);
   });
 
   server.on('error', (err) => {

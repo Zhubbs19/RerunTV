@@ -1050,7 +1050,9 @@
    both a mouse click and a D-pad's much coarser precision (52px min height
    comfortably clears any reasonable "fat finger"/aim-error margin). Focus
    state comes from the app-wide button:focus-visible rule (tokens.css) —
-   nothing bespoke needed here beyond making sure the buttons look pressable. */
+   nothing bespoke needed here beyond making sure the buttons look pressable.
+   The column count below is hand-duplicated as GRID_COLUMNS in tv-menu.js
+   for its arrow-key navigation math — keep both in sync. */
 .tv-menu-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

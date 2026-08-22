@@ -9,6 +9,7 @@ import { cancelUpNextBar, resetActiveBreakState, tuneToChannel } from './playbac
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from './plugins.js';
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, saveConfigDebounced, viewNow } from './state.js';
 import { stopShuttle } from './timemachine.js';
+import { autoHideAfter } from './util.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -109,8 +110,7 @@ export function toggleMute() {
 function flashMessage(text, timerKey) {
   crtToggleFlash.textContent = text;
   crtToggleFlash.classList.add('show');
-  clearTimeout(S[timerKey]);
-  S[timerKey] = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  S[timerKey] = autoHideAfter(S[timerKey], 1500, () => crtToggleFlash.classList.remove('show'));
 }
 
 function avoidLogoBugOverlap() {
@@ -139,8 +139,7 @@ export function adjustVolume(delta) {
   volumeBarFillEl.style.width = `${Math.round(S.config.volume * 100)}%`;
   avoidLogoBugOverlap();
   volumeIndicatorEl.classList.add('show');
-  clearTimeout(S.volumeHideTimer);
-  S.volumeHideTimer = setTimeout(() => volumeIndicatorEl.classList.remove('show'), 1500);
+  S.volumeHideTimer = autoHideAfter(S.volumeHideTimer, 1500, () => volumeIndicatorEl.classList.remove('show'));
   pushRemoteState();
 }
 

@@ -7,7 +7,9 @@ import { tuneToChannel } from './playback.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
 import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, viewNow } from './state.js';
 import { updateTimeShiftBadge } from './timemachine.js';
-import { escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle } from './util.js';
+import {
+  autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
+} from './util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from './virtual.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
@@ -44,8 +46,7 @@ export function showGuideOverlay(number, ch) {
   updateGuideLogo(ch);
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
-  clearTimeout(S.guideHideTimer);
-  S.guideHideTimer = setTimeout(() => guideOverlay.classList.add('hidden'), 4000);
+  S.guideHideTimer = autoHideAfter(S.guideHideTimer, 4000, () => guideOverlay.classList.add('hidden'));
 }
 
 export function updateGuideNowPlaying(ch) {

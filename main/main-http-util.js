@@ -1,10 +1,15 @@
-// Tiny generic helper shared by the remote/party HTTP servers (main.js) —
-// split out on its own since it has no dependency on anything else in this
-// app, unlike every other main-*.js module. Also handed to plugins as
-// ctx.readJsonBody, so every JSON POST route on every LAN-exposed,
-// unauthenticated plugin server (party-channel, universal-remote, ...)
-// routes through here.
-//
+// Generic helpers shared by the remote/party HTTP servers (main.js) and, via
+// ctx.readJsonBody/ctx.serveStatic, by every plugin's own LAN-facing server
+// (party-channel, universal-remote, ...). Pure Node, no dependency on
+// anything else in this app besides its two Electron-free siblings
+// (main-mime.js, main-path-safety.js) — same reasoning as those two: this
+// has to be require()-able unchanged from an isolated plugin's own forked
+// process (plugin-isolation-runtime.js), not just from the host.
+const path = require('path');
+const fs = require('fs');
+const { mimeFor } = require('./main-mime');
+const { isPathContained } = require('./main-path-safety');
+
 // MAX_JSON_BODY_BYTES caps how much of the body gets buffered before giving
 // up — these routes are all short text fields (names, chat-length messages,
 // remote commands), never bulk uploads (those go through busboy/multipart
@@ -43,4 +48,23 @@ function readJsonBody(req) {
   });
 }
 
-module.exports = { readJsonBody, MAX_JSON_BODY_BYTES };
+// Serves one static file out of `baseDir` for a plugin's own small
+// browser-facing UI (party-channel's party/ page, universal-remote's own
+// remote/ page) — the GET-and-fall-through-to-index.html tail every such
+// plugin server ends with, previously hand-copied per plugin (path-
+// containment check included). Handles the whole rest of the response
+// (method check, 403/404) so a call site is just
+// `serveStaticFile(MY_DIR, url.pathname, req, res); return;` once every
+// other route above it has already been checked and didn't match.
+function serveStaticFile(baseDir, pathname, req, res) {
+  if (req.method !== 'GET') { res.writeHead(405).end('Method not allowed'); return; }
+  const rel = pathname === '/' ? '/index.html' : pathname;
+  const resolved = path.normalize(path.join(baseDir, rel));
+  if (!isPathContained(baseDir, resolved)) { res.writeHead(403).end('Forbidden'); return; }
+  fs.readFile(resolved, (err, data) => {
+    if (err) { res.writeHead(404).end('Not found'); return; }
+    res.writeHead(200, { 'Content-Type': mimeFor(resolved) }).end(data);
+  });
+}
+
+module.exports = { readJsonBody, MAX_JSON_BODY_BYTES, serveStaticFile };

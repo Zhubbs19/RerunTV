@@ -24,7 +24,11 @@ const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { activateIsolatedPlugin } = require('./main-plugin-isolation');
-const { isPathContained, stripExeSuffix } = require('./main-path-safety');
+const { isPathContained } = require('./main-path-safety');
+const {
+  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
+  createCheckedSpawn, createCheckedServer, createCheckedFs,
+} = require('./main-plugin-capabilities');
 
 function getPluginsDir() {
   return path.join(app.getPath('userData'), 'plugins');
@@ -41,8 +45,8 @@ function ensurePluginsDir() {
 // third-party plugins a user drops into userData/plugins/ by hand. Copied
 // into userData/plugins/ once on first boot after they're introduced, same
 // one-way "never overwrite" semantics as the userData migration copy in
-// main.js — so a user who edits a bundled plugin's installed copy has that
-// respected on every later boot, not stomped by a re-seed.
+// main-config.js — so a user who edits a bundled plugin's installed copy
+// has that respected on every later boot, not stomped by a re-seed.
 // In a packaged build, plugins/ is unpacked from the asar (package.json's
 // asarUnpack — the seeding copy below uses fs.cpSync, which doesn't get
 // Electron's usual transparent asar-read redirection the way readFile/
@@ -133,41 +137,10 @@ function seedBundledPlugins() {
   saveSeededManifest(Array.from(seeded));
 }
 
-// Capabilities schema: manifest `"capabilities"` is an object with any of
-// `ipc`/`spawn`/`net` (each an array of `{ <value-key>: "...", why: "..." }`)
-// declaring exactly what a plugin's main.js needs to touch —
-//   ipc:   [{ channel: "my-plugin:start", why: "..." }]     — an ipcMain.handle/.on channel name
-//   spawn: [{ bin: "ffmpeg", why: "..." }]                  — a child-process executable, matched by basename
-//   net:   [{ port: 8723, why: "..." }]                     — a port this plugin's own HTTP server binds
-// A malformed entry (missing its value key or `why`) is dropped rather than
-// erroring the whole manifest — same "degrade gracefully" spirit as every
-// other optional manifest field. `dataDir` (see discoverPlugins() below) is
-// what scopes file writes; it isn't part of this object since it already
-// has its own top-level field.
-function normalizeCapabilities(raw) {
-  const caps = raw && typeof raw === 'object' ? raw : {};
-  function normalizeList(list, valueKey) {
-    if (!Array.isArray(list)) return [];
-    return list
-      .filter((e) => e && typeof e === 'object' && typeof e[valueKey] !== 'undefined' && typeof e.why === 'string' && e.why)
-      .map((e) => ({ [valueKey]: e[valueKey], why: e.why }));
-  }
-  return {
-    ipc: normalizeList(caps.ipc, 'channel'),
-    spawn: normalizeList(caps.spawn, 'bin'),
-    net: normalizeList(caps.net, 'port'),
-  };
-}
-
-// A stable string identifying exactly what a plugin's manifest currently
-// declares — compared against what the user has previously approved
-// (config.plugins.approvedCapabilities, see main.js) to decide whether a
-// fresh approval prompt is needed. Changes whenever the declared
-// capabilities actually change (a plugin update adding a new port/channel/
-// binary re-prompts), not on every boot.
-function capabilitiesSignature(capabilities) {
-  return JSON.stringify(capabilities || { ipc: [], spawn: [], net: [] });
-}
+// Capability normalization/signing (normalizeCapabilities, used below, and
+// capabilitiesSignature, used by main.js/loadMainPlugins()) now live in
+// main-plugin-capabilities.js alongside the rest of the capability-checking
+// logic — see that file's header comment for why it's a separate module.
 
 // Reads every <pluginsDir>/<folder>/manifest.json, returning {id, name,
 // version, description, style, renderer, main, dir, error} per entry — a
@@ -216,8 +189,9 @@ function discoverPlugins() {
         dependsOn: Array.isArray(manifest.dependsOn) ? manifest.dependsOn : [],
         // A root-level userData/ folder this plugin owns beyond its own
         // plugins/<id>/ folder (a download cache, guest uploads, …) — see
-        // pluginDeclaredDataDirs() in main.js, which reads this same field
-        // to carry the folder along during the portable-userData migration.
+        // pluginDeclaredDataDirs() in main-config.js, which reads this same
+        // field to carry the folder along during the portable-userData
+        // migration.
         dataDir: typeof manifest.dataDir === 'string' ? manifest.dataDir : null,
         // What this plugin's main.js declares it needs to touch — enforced
         // by buildCheckedCtx() below, and shown to the user as an approval
@@ -293,83 +267,39 @@ function orderByDependencies(plugins) {
 // what the approval prompt (setup-plugins.js) shows the user before a new
 // or changed capability set is allowed to activate at all.
 function buildCheckedCtx(baseCtx, manifest, pluginDir) {
-  const caps = manifest.capabilities || { ipc: [], spawn: [], net: [] };
-  const allowedIpc = new Set(caps.ipc.map((e) => e.channel));
-  const allowedSpawn = new Set(caps.spawn.map((e) => stripExeSuffix(String(e.bin))));
-  const allowedPorts = new Set(caps.net.map((e) => e.port));
+  const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
   const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
   if (dataDir) fs.mkdirSync(dataDir, { recursive: true });
 
-  function declareError(kind, value, field) {
-    return new Error(`Plugin "${manifest.id}" tried to ${kind} "${value}" without declaring it in manifest.json's capabilities.${field} — add it there (with a "why") first.`);
-  }
-
+  // The only piece NOT shared with plugin-isolation-runtime.js's buildCtx()
+  // (see main-plugin-capabilities.js's header comment) — this same-process
+  // path calls the real ipcMain directly, where an isolated plugin instead
+  // proxies IPC registration over RPC to the host.
   const checkedIpcMain = {
     handle: (channel, fn) => {
-      if (!allowedIpc.has(channel)) throw declareError('register IPC channel', channel, 'ipc');
+      if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
       return ipcMain.handle(channel, fn);
     },
     on: (channel, fn) => {
-      if (!allowedIpc.has(channel)) throw declareError('register IPC channel', channel, 'ipc');
+      if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
       return ipcMain.on(channel, fn);
     },
   };
 
-  function checkedSpawn(bin, args, opts) {
-    const base = stripExeSuffix(path.basename(bin));
-    if (!allowedSpawn.has(base)) throw declareError('spawn', bin, 'spawn');
-    // eslint-disable-next-line global-require
-    return require('child_process').spawn(bin, args, opts);
-  }
-
-  function checkedCreateServer(handler) {
-    // eslint-disable-next-line global-require
-    const server = require('http').createServer(handler);
-    const realListen = server.listen.bind(server);
-    server.listen = (port, ...rest) => {
-      if (!allowedPorts.has(port)) throw declareError('listen on port', port, 'net');
-      return realListen(port, ...rest);
-    };
-    return server;
-  }
-
-  function resolveDataPath(relPath) {
-    if (!dataDir) throw new Error(`Plugin "${manifest.id}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
-    const resolved = path.resolve(dataDir, relPath);
-    if (!isPathContained(dataDir, resolved)) {
-      throw new Error(`Plugin "${manifest.id}" tried to write outside its own data folder ("${relPath}").`);
-    }
-    return resolved;
-  }
-  // Reads are intentionally unrestricted (existsSync/readFile/readdirSync
-  // take whatever path is passed) — checking whether a user-configured
-  // executable exists (a plugin's own custom-binary-path setting) is a
-  // legitimate need with no folder to scope it to in advance. Writes are
-  // scoped to the plugin's own dataDir, rejecting any path that resolves
-  // outside it (including via `..`).
-  const checkedFs = {
-    existsSync: (p) => fs.existsSync(p),
-    readFile: (p, ...rest) => fs.readFile(p, ...rest),
-    readFileSync: (p, ...rest) => fs.readFileSync(p, ...rest),
-    readdirSync: (p, ...rest) => fs.readdirSync(p, ...rest),
-    writeFile: (relPath, ...rest) => fs.writeFile(resolveDataPath(relPath), ...rest),
-    writeFileSync: (relPath, ...rest) => fs.writeFileSync(resolveDataPath(relPath), ...rest),
-    mkdirSync: (relPath, ...rest) => fs.mkdirSync(resolveDataPath(relPath), ...rest),
-    createWriteStream: (relPath, ...rest) => fs.createWriteStream(resolveDataPath(relPath), ...rest),
-    unlink: (relPath, ...rest) => fs.unlink(resolveDataPath(relPath), ...rest),
-    dataDir,
-  };
-
   return {
     ...baseCtx, pluginDir,
-    ipcMain: checkedIpcMain, spawn: checkedSpawn, createServer: checkedCreateServer, fs: checkedFs,
+    ipcMain: checkedIpcMain,
+    spawn: createCheckedSpawn(manifest.id, allowedSpawn),
+    createServer: createCheckedServer(manifest.id, allowedPorts),
+    fs: createCheckedFs(manifest.id, dataDir),
   };
 }
 
 // Runs every discovered plugin's main.js (if present, not disabled, and
 // already approved for its current declared capabilities — see
-// capabilitiesSignature() above) via require(), calling its exported
-// activate(ctx) if the module provides one. A throw during require() or
+// capabilitiesSignature(), main-plugin-capabilities.js) via require(),
+// calling its exported activate(ctx) if the module provides one. A throw
+// during require() or
 // activate() is caught and attached to that plugin's entry (surfaced in
 // the PLUGINS setup panel) rather than crashing boot — one bad plugin
 // shouldn't take the whole app down.

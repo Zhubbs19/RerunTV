@@ -17,7 +17,9 @@ import {
 } from './schedule.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
-import { formatClock, formatHourLabel, getDisplayTitle } from './util.js';
+import {
+  autoHideAfter, formatClock, formatHourLabel, getDisplayTitle,
+} from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 
 // Same shape as computeLivePosition, but content playback lags real time by
@@ -1017,7 +1019,7 @@ export function scheduleUpNextBar(ch, pos) {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
     upNextTitleEl.textContent = getDisplayTitle(nextFile);
     upNextBarEl.classList.add('show');
-    S.upNextHideTimer = setTimeout(() => upNextBarEl.classList.remove('show'), 8000);
+    S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, 8000, () => upNextBarEl.classList.remove('show'));
   }, remainingMs - 45000);
 }
 
@@ -1175,8 +1177,7 @@ function applyLogoBugGhost(ch) {
 export function flashRatingBug(ch) {
   ratingBugEl.textContent = ch.rating;
   ratingBugEl.classList.add('show');
-  clearTimeout(S.ratingBugTimer);
-  S.ratingBugTimer = setTimeout(() => ratingBugEl.classList.remove('show'), 6000);
+  S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 6000, () => ratingBugEl.classList.remove('show'));
 }
 
 export function scheduleBlockBoundaryRetune(ch) {

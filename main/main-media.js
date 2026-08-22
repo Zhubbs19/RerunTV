@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // ffmpeg-static resolves to a path inside node_modules at dev time. Once this
 // app is packaged with electron-builder, node_modules is normally sealed into
@@ -133,7 +134,103 @@ function scanFolderForVideos(folderPath) {
   return results;
 }
 
+function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
+// Windows (unlike POSIX) refuses to rename a file that still has an open
+// handle from another process — a brief one can outlive the renderer
+// releasing player.src (media pipeline teardown isn't synchronous) or come
+// from AV/indexing scanning the freshly-written large file. A few short
+// retries absorbs that instead of failing the whole swap outright.
+const RENAME_RETRY_ATTEMPTS = 5;
+const RENAME_RETRY_BASE_MS = 300;
+async function renameWithRetry(from, to) {
+  for (let i = 1; i <= RENAME_RETRY_ATTEMPTS; i++) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (e) {
+      if (i === RENAME_RETRY_ATTEMPTS) throw e;
+      await sleep(RENAME_RETRY_BASE_MS * i);
+    }
+  }
+}
+
+// Transcodes srcPath to H.264 via the resolved ffmpeg (getFfmpegPath()
+// above) and swaps the result in at srcPath's own path, backing up the
+// original to _originals_backup/ — moved out of main.js's ipcMain handler
+// (which now just calls this and returns the result) so the actual
+// transcode/swap logic lives alongside the rest of this module's
+// media-path helpers instead of inline in app-wiring code.
+async function transcodeVideo(srcPath) {
+  recoverPendingSwap(srcPath);
+
+  const backupPath = backupPathFor(srcPath);
+  if (fs.existsSync(backupPath)) return { path: srcPath }; // already swapped previously
+
+  const ffmpegPath = getFfmpegPath();
+  if (!ffmpegPath) return { error: 'The FFmpeg Transcode plugin is disabled or missing (PLUGINS tab) — this file needs it to fix an incompatible codec.' };
+
+  fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+  const pendingPath = pendingTranscodePathFor(srcPath);
+
+  return new Promise((resolve) => {
+    const ff = spawn(ffmpegPath, [
+      '-y',
+      '-i', srcPath,
+      '-map', '0:v:0', '-map', '0:a:0?',
+      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
+      '-c:a', 'aac', '-b:a', '160k',
+      '-movflags', '+faststart',
+      pendingPath,
+      // ffmpeg writes its progress/log output to stderr, never stdout — but
+      // Node's default 'pipe' stdio still opens a stdout pipe regardless.
+      // Nothing here ever reads it, so if ffmpeg ever did write enough to
+      // fill that pipe's OS buffer, the process would block writing to it
+      // forever with no timeout on this side. 'ignore' avoids creating the
+      // pipe at all instead of leaving it to fill.
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+
+    let stderr = '';
+    ff.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    ff.on('error', (err) => {
+      resolve({ error: `couldn't launch bundled ffmpeg (${err.message})` });
+    });
+
+    ff.on('close', async (code) => {
+      if (code === 0 && fs.existsSync(pendingPath)) {
+        try {
+          // original -> backup, then transcoded -> takes over original's path.
+          // If the second rename fails after the first succeeds, the file at
+          // srcPath would otherwise vanish (moved to backup, nothing put back)
+          // — restore the original on any failure so a channel entry is never
+          // left pointing at a missing file, rather than only on the first
+          // rename's own failure.
+          await renameWithRetry(srcPath, backupPath);
+          try {
+            await renameWithRetry(pendingPath, srcPath);
+          } catch (e) {
+            try { fs.renameSync(backupPath, srcPath); } catch (e2) {}
+            throw e;
+          }
+          resolve({ path: srcPath });
+        } catch (e) {
+          // Never leave the multi-hundred-MB transcode output orphaned on a
+          // failed swap — this is exactly what accumulated as dead weight
+          // across the library before this retry/cleanup existed.
+          try { fs.unlinkSync(pendingPath); } catch (e2) {}
+          resolve({ error: `swap failed: ${e.message}` });
+        }
+      } else {
+        try { fs.unlinkSync(pendingPath); } catch (e) {}
+        resolve({ error: `ffmpeg exited with code ${code}: ${stderr.slice(-300)}` });
+      }
+    });
+  });
+}
+
 module.exports = {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath,
   VIDEO_EXTENSIONS, LAN_MEDIA_EXTENSIONS, backupPathFor, pendingTranscodePathFor, recoverPendingSwap, scanFolderForVideos,
+  transcodeVideo,
 };

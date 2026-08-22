@@ -168,6 +168,8 @@ main/
   main.js                    Entry point: window creation, lifecycle, app:// protocol
   main-protocol.js           app:// scheme handler (HTTP Range support for media/plugins)
   main-plugins.js            Plugin discovery, install/enable, capability approval
+  main-plugin-capabilities.js  Capability normalization + the checked spawn/http/fs
+                                primitives shared by both plugin trust modes below
   main-plugin-isolation.js   Spawns an isolated plugin's main.js as its own OS process
   main-media.js              Folder scanning, codec-compatibility transcode
   main-config.js             channels.json load/save, backups
@@ -178,7 +180,8 @@ main/
   main-api-cache.js          Disk cache for third-party API responses (TMDB, NOAA, ...)
   main-window-ref.js         Shared BrowserWindow reference
   main-window-state.js       Remembers window size/position between launches
-  main-http-util.js          Shared readJsonBody() for the remote/party/plugin HTTP servers
+  main-http-util.js          Shared readJsonBody()/serveStaticFile() for the remote/party/
+                              plugin HTTP servers
   main-mime.js               Extension -> Content-Type lookup, no Electron dependency
   main-path-safety.js        Shared path-containment/spawn-binary-name helpers
   rpc-channel.js             Request/response + event RPC used across the isolation boundary

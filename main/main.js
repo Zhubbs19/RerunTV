@@ -16,77 +16,19 @@ if (!gotSingleInstanceLock) {
 }
 const path = require('path');
 const fs = require('fs');
-const { spawn } = require('child_process');
 
 // Portable install: all per-user data (channels.json, backups, plugins,
-// window state, and any plugin's own data folder) lives in a `userData/` folder
-// next to the app itself rather than Electron's OS-profile default
+// window state, and any plugin's own data folder) lives in a `userData/`
+// folder next to the app itself rather than Electron's OS-profile default
 // (%APPDATA%/retro-cable-box on Windows) — the whole box, config included,
-// stays inside one folder you can copy/move/back up as a unit. Must run
-// before any other module's top-level `app.getPath('userData')` call (see
-// main-config.js's BACKUPS_DIR) — every require() below this point depends
-// on the path already being repointed.
-// One-time migration: if a previous OS-profile install already has real
-// data and the local folder doesn't exist yet, copy it over (not move —
-// the original is left in place untouched) so upgrading to this layout
-// never looks like data loss. Only this app's own files/folders are copied
-// — never Electron/Chromium's own profile internals (Cache/, GPUCache/,
-// Local State, Session Storage/, etc.), which are (a) irrelevant to migrate
-// (freshly regenerated at the new location regardless) and (b) sometimes
-// still locked by whatever process most recently touched them, which made
-// an earlier blind recursive-copy attempt here fail outright.
-const OWN_DATA_ENTRIES = [
-  'channels.json', 'window-state.json', 'api-cache.json',
-  'backups', 'plugins',
-];
-// A plugin can declare manifest `"dataDir": "some-folder-name"` for a
-// root-level userData folder it owns beyond its own plugins/<id>/ folder
-// (already covered by the 'plugins' entry above) — e.g. a party server's
-// guest-uploaded media, a music-channel plugin's download cache. Read via a
-// raw manifest scan (not main-plugins.js's discoverPlugins(), which isn't
-// safe to call before this migration has even decided where userData
-// lives) so core doesn't need to hardcode any specific plugin's data
-// folder name here.
-function pluginDeclaredDataDirs(userDataDir) {
-  const dirs = [];
-  try {
-    fs.readdirSync(path.join(userDataDir, 'plugins'), { withFileTypes: true }).forEach((entry) => {
-      if (!entry.isDirectory()) return;
-      try {
-        const manifest = JSON.parse(fs.readFileSync(path.join(userDataDir, 'plugins', entry.name, 'manifest.json'), 'utf-8'));
-        if (typeof manifest.dataDir === 'string' && manifest.dataDir) dirs.push(manifest.dataDir);
-      } catch (e) { /* unreadable/missing manifest — nothing to learn from it */ }
-    });
-  } catch (e) { /* no plugins folder at the old location at all */ }
-  return dirs;
-}
-{
-  const defaultUserDataDir = app.getPath('userData');
-  const appDir = app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..');
-  const localUserDataDir = path.join(appDir, 'userData');
-  const samePath = path.resolve(defaultUserDataDir) === path.resolve(localUserDataDir);
-  if (!samePath && !fs.existsSync(localUserDataDir) && fs.existsSync(defaultUserDataDir)) {
-    try {
-      fs.mkdirSync(localUserDataDir, { recursive: true });
-      const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(defaultUserDataDir));
-      // channels.json.bak-* / .corrupt-* sit alongside channels.json itself
-      // (main-config.js) — swept in too, same glob-by-prefix as everywhere
-      // else that handles those.
-      fs.readdirSync(defaultUserDataDir).forEach((name) => {
-        if (entriesToCopy.includes(name) || name.startsWith('channels.json.')) {
-          fs.cpSync(path.join(defaultUserDataDir, name), path.join(localUserDataDir, name), { recursive: true });
-        }
-      });
-    } catch (e) {
-      console.error('Could not migrate existing userData into the portable local folder — continuing with the OS-profile location instead:', e.message);
-      try { fs.rmSync(localUserDataDir, { recursive: true, force: true }); } catch (e2) { /* leave the partial copy for inspection if even cleanup fails */ }
-    }
-  }
-  if (fs.existsSync(localUserDataDir) || !fs.existsSync(defaultUserDataDir)) {
-    if (!fs.existsSync(localUserDataDir)) fs.mkdirSync(localUserDataDir, { recursive: true });
-    app.setPath('userData', localUserDataDir);
-  }
-}
+// stays inside one folder you can copy/move/back up as a unit. The actual
+// one-time migration logic lives in main-config.js (migrateUserDataIfNeeded)
+// alongside the rest of this app's userData-path handling, but it has to be
+// CALLED from right here, first — before any other require() below has a
+// chance to capture app.getPath('userData') at module-load time. Requiring
+// main-config.js is itself safe to do this early: none of its own top-level
+// code touches app.getPath('userData') (see its own header comment).
+require('./main-config').migrateUserDataIfNeeded();
 
 // "Server mode" — a --headless (or --server) launch never creates or shows
 // a BrowserWindow on this machine, but every LAN-facing server (viewer,
@@ -108,13 +50,15 @@ const HEADLESS = process.argv.includes('--headless') || process.argv.includes('-
 // itself is app lifecycle, window creation, and the ipcMain registrations
 // that tie all of the above to the renderer.
 const { registerAppSchemePrivileges, registerAppProtocol, mimeFor } = require('./main-protocol');
-const { FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, pendingTranscodePathFor, recoverPendingSwap, scanFolderForVideos } = require('./main-media');
+const {
+  FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, recoverPendingSwap, scanFolderForVideos, transcodeVideo,
+} = require('./main-media');
 const { loadConfig, saveConfig, listBackups, restoreBackup, deleteBackup, setBackupLabel, backupCurrentConfig } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
 const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT } = require('./main-lan');
 const { getConnectedDevices, trackConnection } = require('./main-connections');
 const { fetchJsonCached } = require('./main-api-cache');
-const { readJsonBody } = require('./main-http-util');
+const { readJsonBody, serveStaticFile } = require('./main-http-util');
 const { setMainWindow, getMainWindow } = require('./main-window-ref');
 const { startViewerServer } = require('./main-viewer-server');
 const { startDiscoveryServer } = require('./main-discovery-server');
@@ -232,6 +176,7 @@ app.whenReady().then(async () => {
   const approvedCapabilities = (bootConfig.plugins && bootConfig.plugins.approvedCapabilities) || {};
   const loadResult = await loadMainPlugins(disabledPluginIds, {
     fetchJsonCached, getMainWindow, getLanAddresses, readJsonBody,
+    serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
     getViewerUrls, remotePort: REMOTE_PORT,
     ffmpegStaticPath: FFMPEG_STATIC_PATH, services: pluginServices,
@@ -560,7 +505,12 @@ ipcMain.handle('config:import', async () => {
 // simplest reliable way to get a real, printable window with working
 // Ctrl+P, independent of this app's own BrowserWindow.
 ipcMain.handle('manual:openPrintable', async (event, html) => {
-  const filePath = path.join(app.getPath('temp'), 'retro-cable-box-manual.html');
+  // A per-call unique suffix (pid+timestamp, same convention channels.json's
+  // own temp-write-then-rename uses) rather than a fixed filename — two
+  // rapid clicks would otherwise both write to and shell.openPath() the
+  // same path, racing a still-open browser window's read against the
+  // second click's write.
+  const filePath = path.join(app.getPath('temp'), `retro-cable-box-manual-${process.pid}-${Date.now()}.html`);
   fs.writeFileSync(filePath, html, 'utf-8');
   await shell.openPath(filePath);
   return filePath;
@@ -594,90 +544,10 @@ ipcMain.handle('media:resolvePlayablePath', async (event, srcPath) => {
 // ipcRenderer.send() to a channel with zero listeners is a silent no-op,
 // not an error.
 
-function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-
-// Windows (unlike POSIX) refuses to rename a file that still has an open
-// handle from another process — a brief one can outlive the renderer
-// releasing player.src (media pipeline teardown isn't synchronous) or come
-// from AV/indexing scanning the freshly-written large file. A few short
-// retries absorbs that instead of failing the whole swap outright.
-async function renameWithRetry(from, to) {
-  const attempts = 5;
-  for (let i = 1; i <= attempts; i++) {
-    try {
-      fs.renameSync(from, to);
-      return;
-    } catch (e) {
-      if (i === attempts) throw e;
-      await sleep(300 * i);
-    }
-  }
-}
-
+// The actual transcode/swap logic (spawning ffmpeg, the backup-then-promote
+// rename dance, retrying a Windows rename that loses a race with a still-
+// closing file handle) lives in main-media.js's transcodeVideo() — this
+// handler is just the IPC surface for it.
 ipcMain.handle('media:transcode', async (event, srcPath) => {
-  recoverPendingSwap(srcPath);
-
-  const backupPath = backupPathFor(srcPath);
-  if (fs.existsSync(backupPath)) return { path: srcPath }; // already swapped previously
-
-  const ffmpegPath = getFfmpegPath();
-  if (!ffmpegPath) return { error: 'The FFmpeg Transcode plugin is disabled or missing (PLUGINS tab) — this file needs it to fix an incompatible codec.' };
-
-  fs.mkdirSync(path.dirname(backupPath), { recursive: true });
-  const pendingPath = pendingTranscodePathFor(srcPath);
-
-  return new Promise((resolve) => {
-    const ff = spawn(ffmpegPath, [
-      '-y',
-      '-i', srcPath,
-      '-map', '0:v:0', '-map', '0:a:0?',
-      '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20', '-pix_fmt', 'yuv420p',
-      '-c:a', 'aac', '-b:a', '160k',
-      '-movflags', '+faststart',
-      pendingPath,
-      // ffmpeg writes its progress/log output to stderr, never stdout — but
-      // Node's default 'pipe' stdio still opens a stdout pipe regardless.
-      // Nothing here ever reads it, so if ffmpeg ever did write enough to
-      // fill that pipe's OS buffer, the process would block writing to it
-      // forever with no timeout on this side. 'ignore' avoids creating the
-      // pipe at all instead of leaving it to fill.
-    ], { stdio: ['ignore', 'ignore', 'pipe'] });
-
-    let stderr = '';
-    ff.stderr.on('data', (d) => { stderr += d.toString(); });
-
-    ff.on('error', (err) => {
-      resolve({ error: `couldn't launch bundled ffmpeg (${err.message})` });
-    });
-
-    ff.on('close', async (code) => {
-      if (code === 0 && fs.existsSync(pendingPath)) {
-        try {
-          // original -> backup, then transcoded -> takes over original's path.
-          // If the second rename fails after the first succeeds, the file at
-          // srcPath would otherwise vanish (moved to backup, nothing put back)
-          // — restore the original on any failure so a channel entry is never
-          // left pointing at a missing file, rather than only on the first
-          // rename's own failure.
-          await renameWithRetry(srcPath, backupPath);
-          try {
-            await renameWithRetry(pendingPath, srcPath);
-          } catch (e) {
-            try { fs.renameSync(backupPath, srcPath); } catch (e2) {}
-            throw e;
-          }
-          resolve({ path: srcPath });
-        } catch (e) {
-          // Never leave the multi-hundred-MB transcode output orphaned on a
-          // failed swap — this is exactly what accumulated as dead weight
-          // across the library before this retry/cleanup existed.
-          try { fs.unlinkSync(pendingPath); } catch (e2) {}
-          resolve({ error: `swap failed: ${e.message}` });
-        }
-      } else {
-        try { fs.unlinkSync(pendingPath); } catch (e) {}
-        resolve({ error: `ffmpeg exited with code ${code}: ${stderr.slice(-300)}` });
-      }
-    });
-  });
+  return transcodeVideo(srcPath);
 });
