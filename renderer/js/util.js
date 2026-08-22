@@ -198,8 +198,17 @@ export function toDatetimeLocalValue(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
+// Short, unique-enough-for-this-app id: <prefix>-<time>-<random>. Not
+// collision-proof (no uniqueness check against existing ids), same as
+// every call site that hand-rolled this before it lived here — fine for
+// UI-scoped ids (blocks, profiles, daypart slots, interstitial pool
+// entries) that are never compared across app installs.
+export function randomId(prefix) {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function randomInterstitialId() {
-  return `int-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return randomId('int');
 }
 
 export function hashString(str) {

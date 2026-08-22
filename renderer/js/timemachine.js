@@ -5,7 +5,9 @@ import {
   triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
 } from './dom.js';
 import { nextBreakStart, prevBreakStart, resolveBreakAt } from './interstitials.js';
-import { cancelUpNextBar, checkBreakState, playChannelLive, scheduleBlockBoundaryRetune } from './playback.js';
+import {
+  cancelUpNextBar, checkBreakState, playChannelLive, resetActiveBreakState, scheduleBlockBoundaryRetune,
+} from './playback.js';
 import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, viewNow } from './state.js';
@@ -127,8 +129,13 @@ export async function updateShuttlePreview() {
 
   if (pos.file.path !== S.shuttlePreviewPath) {
     S.shuttlePreviewPath = pos.file.path;
-    const resolved = await window.api.resolvePlayablePath(pos.file.path);
-    const url = await window.api.toFileUrl(resolved.path);
+    let resolved, url;
+    try {
+      resolved = await window.api.resolvePlayablePath(pos.file.path);
+      url = await window.api.toFileUrl(resolved.path);
+    } catch (err) {
+      return; // file moved/missing while shuttling — nothing to preview
+    }
     if (!S.timeMachineOn || S.shuttlePreviewPath !== pos.file.path) return;
     player.src = url;
     if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
@@ -186,9 +193,7 @@ export function startShuttle(dir) {
   // S.contentLostMs while also firing a redundant, racing playChannelLive.
   // Clearing it here means resuming always re-evaluates fresh at wherever
   // the shuttle actually landed.
-  S.activeBreakKey = null;
-  S.activeBreakInterruptsContent = false;
-  S.activeBreakKind = null;
+  resetActiveBreakState();
   crtToggleFlash.classList.remove('show');
   hideShuttleBreakOverlays();
   player.pause();

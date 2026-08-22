@@ -635,7 +635,13 @@ ipcMain.handle('media:transcode', async (event, srcPath) => {
       '-c:a', 'aac', '-b:a', '160k',
       '-movflags', '+faststart',
       pendingPath,
-    ]);
+      // ffmpeg writes its progress/log output to stderr, never stdout — but
+      // Node's default 'pipe' stdio still opens a stdout pipe regardless.
+      // Nothing here ever reads it, so if ffmpeg ever did write enough to
+      // fill that pipe's OS buffer, the process would block writing to it
+      // forever with no timeout on this side. 'ignore' avoids creating the
+      // pipe at all instead of leaving it to fill.
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
     let stderr = '';
     ff.stderr.on('data', (d) => { stderr += d.toString(); });

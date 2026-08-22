@@ -35,10 +35,6 @@ const partyRouteRegistry = new Map(); // "METHOD pathname" -> childRpc
 const beforeQuitChildren = new Set(); // childRpc instances that asked for the before-quit event
 const runningChildren = new Set(); // { child, pluginId } — for teardown + diagnostics
 
-function stripExeSuffix(basename) {
-  return basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -4).toLowerCase() : basename.toLowerCase();
-}
-
 // Node's --experimental-permission model is coarser than Phase 1's per-value
 // JS checks (it can't scope "may spawn ffmpeg" vs "may spawn anything" — only
 // "may spawn at all"), but what it DOES give is real, OS-enforced: a plugin
@@ -108,15 +104,26 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
       resolve(result);
     };
 
-    child.on('exit', (code) => {
-      runningChildren.forEach((entry) => { if (entry.child === child) runningChildren.delete(entry); });
-      settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
-    });
-
     const childRpc = createRpc(
       (msg) => { try { child.postMessage(msg); } catch (e) { /* child likely already gone */ } },
       (cb) => child.on('message', (msg) => cb(msg)),
     );
+
+    child.on('exit', (code) => {
+      runningChildren.forEach((entry) => { if (entry.child === child) runningChildren.delete(entry); });
+      // This plugin's process is gone — purge every shared registry entry
+      // that still points at its childRpc, so a later services:call/
+      // party:dispatchRoute routed here fails fast instead of hanging (see
+      // childRpc.dispose() below) or, worse, silently resolving against a
+      // dead process. Any request currently in flight TO this child (e.g.
+      // another plugin awaiting a service call this one was providing) is
+      // rejected immediately rather than waiting out its own timeout.
+      serviceProviders.forEach((provider, key) => { if (provider === childRpc) serviceProviders.delete(key); });
+      partyRouteRegistry.forEach((owner, key) => { if (owner === childRpc) partyRouteRegistry.delete(key); });
+      beforeQuitChildren.delete(childRpc);
+      childRpc.dispose(`plugin "${manifest.id}" process exited (code ${code})`);
+      settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
+    });
 
     // ---- handlers for requests/events the CHILD initiates ----
     childRpc.on('ipc:handle-register', ({ channel }) => {

@@ -76,12 +76,32 @@ const UPLOAD_KIND_BY_MIME = {
 // process's own `req` object across the process boundary, so the whole body
 // has to be buffered up front and handed across as plain data instead — see
 // ctx.dispatchPartyRoute() below.
+//
+// Capped like ctx.readJsonBody — a dependent plugin's route is expected to
+// be a small text-shaped payload, not a bulk upload (those go through
+// busboy in this plugin's own /upload route), so an unbounded buffer here
+// would let any LAN guest exhaust host memory before a route handler ever
+// sees the body.
+const MAX_RAW_BODY_BYTES = 4 * 1024 * 1024;
+
 function readRawBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (c) => chunks.push(c));
-    req.on('end', () => resolve(Buffer.concat(chunks)));
-    req.on('error', reject);
+    let bytes = 0;
+    let done = false;
+    req.on('data', (c) => {
+      if (done) return;
+      bytes += c.length;
+      if (bytes > MAX_RAW_BODY_BYTES) {
+        done = true;
+        req.destroy();
+        reject(new Error('Request body too large'));
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => { if (!done) resolve(Buffer.concat(chunks)); });
+    req.on('error', (err) => { if (!done) { done = true; reject(err); } });
   });
 }
 
@@ -163,8 +183,8 @@ function activate(ctx) {
     req.pipe(bb);
   }
 
-  function partySoundFiles() {
-    const cfg = loadConfig();
+  async function partySoundFiles() {
+    const cfg = await loadConfig();
     const folder = cfg.party && cfg.party.soundboardFolder;
     if (!folder) return [];
     try {
@@ -196,7 +216,11 @@ function activate(ctx) {
     const destPath = path.join(partyUploadsDir(), `caption-${Date.now()}.jpg`);
     const ss = Math.max(0, timeSeconds || 0);
     return new Promise((resolve) => {
-      const ff = spawn(ffmpegPath, ['-y', '-ss', String(ss), '-i', filePath, '-frames:v', '1', '-q:v', '3', destPath]);
+      // Neither stdout nor stderr is read here — 'ignore' avoids opening
+      // pipes nothing drains, which could otherwise fill and block ffmpeg
+      // indefinitely on unusually verbose output (see main.js's transcode
+      // spawn for the same reasoning).
+      const ff = spawn(ffmpegPath, ['-y', '-ss', String(ss), '-i', filePath, '-frames:v', '1', '-q:v', '3', destPath], { stdio: 'ignore' });
       ff.on('error', () => resolve(null));
       ff.on('close', (code) => {
         if (code === 0 && pluginFs.existsSync(destPath)) {
@@ -274,7 +298,8 @@ function activate(ctx) {
     }
 
     if (req.method === 'GET' && url.pathname === '/soundboard') {
-      const sounds = partySoundFiles().map((filename) => ({ id: filename, label: path.parse(filename).name }));
+      const files = await partySoundFiles();
+      const sounds = files.map((filename) => ({ id: filename, label: path.parse(filename).name }));
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(sounds));
       return;
     }
@@ -286,7 +311,8 @@ function activate(ctx) {
         // Re-derive from the live folder listing rather than trusting the
         // id as a path directly — path.basename below also strips any
         // directory traversal a crafted id might carry.
-        const match = partySoundFiles().find((f) => f === path.basename(id));
+        const files = await partySoundFiles();
+        const match = files.find((f) => f === path.basename(id));
         if (!match) { res.writeHead(404).end('Not found'); return; }
         const cfg = await loadConfig();
         const fullPath = path.join(cfg.party.soundboardFolder, match);

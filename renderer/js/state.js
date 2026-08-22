@@ -138,6 +138,7 @@ export const S = {
   ratingBugTimer: null,
   hintBarFlashTimer: null,
   pictureModeFlashTimer: null,
+  aspectModeFlashTimer: null,
   sleepTimerFlashTimer: null,
   crtFlashTimer: null,
   // True while the TV screen is showing a setup-screen PREVIEW (see

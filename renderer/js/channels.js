@@ -1,7 +1,9 @@
 import { changeChannel } from './playback.js';
 import { renderChannelList } from './setup.js';
 import { BADGE_COLORS, S, saveConfigDebounced } from './state.js';
-import { randomInterstitialId, shuffleArray } from './util.js';
+import {
+  hashString, randomId, randomInterstitialId, shuffleArray,
+} from './util.js';
 import { virtualChannelNumbers } from './virtual.js';
 
 // Block-level ad override — only present when a daypart block explicitly
@@ -14,7 +16,7 @@ export function freshCommercialsConfig() {
 }
 
 function randomBlockId() {
-  return `blk-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return randomId('blk');
 }
 
 // ---------- Content facets (Tag System 2.0) ----------
@@ -54,7 +56,7 @@ export function mirrorFacetsIntoTags(file) {
 }
 
 function randomProfileId() {
-  return `curate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return randomId('curate');
 }
 
 // A saved auto-curation profile (PROGRAMMING > AUTO-CURATE) — a reusable
@@ -83,7 +85,7 @@ export function freshCurationProfile() {
 }
 
 function randomDayPartSlotId() {
-  return `slot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return randomId('slot');
 }
 
 // One row of a curation profile's optional dayPartTemplate — a themed hour
@@ -274,9 +276,7 @@ export function normalizeChannel(ch) {
 
 export function badgeColor(ch) {
   const key = String(ch.number) + (ch.name || '');
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-  return BADGE_COLORS[hash % BADGE_COLORS.length];
+  return BADGE_COLORS[hashString(key) % BADGE_COLORS.length];
 }
 
 // User-picked accent wins over the deterministic auto-assignment.

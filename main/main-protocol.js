@@ -3,6 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const { Readable } = require('stream');
 const { mimeFor, MIME_TYPES } = require('./main-mime');
+const { LAN_MEDIA_EXTENSIONS } = require('./main-media');
+const { isPathContained } = require('./main-path-safety');
 
 // The renderer is served over a custom app:// scheme rather than file://
 // because Chromium refuses to load ES modules from a file:// origin. That
@@ -94,33 +96,54 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
 // where this file itself lives on disk.
 function registerAppProtocol(appRootDir, pluginsDir) {
   protocol.handle('app', async (request) => {
-    const url = new URL(request.url);
-    const range = request.headers.get('range');
-
-    if (url.hostname === 'media') {
-      const target = url.searchParams.get('p');
-      if (!target) return new Response('Bad request', { status: 400 });
-      return serveFile(path.normalize(decodeURIComponent(target)), range);
+    try {
+      return await handleAppRequest(request, appRootDir, pluginsDir);
+    } catch (e) {
+      // An uncaught throw here (a malformed URL, an fs error slipping past
+      // serveFile's own catch, etc.) would otherwise reject the Promise
+      // protocol.handle is waiting on with no clean Response ever produced
+      // — respond with a plain 500 instead.
+      return new Response('Internal error', { status: 500 });
     }
+  });
+}
 
-    if (url.hostname === 'plugins') {
-      if (!pluginsDir) return new Response('Not found', { status: 404 });
-      const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-      const resolved = path.normalize(path.join(pluginsDir, rel));
-      if (resolved !== pluginsDir && !resolved.startsWith(pluginsDir + path.sep)) {
-        return new Response('Forbidden', { status: 403 });
-      }
-      return serveFile(resolved, range, true, true);
-    }
+async function handleAppRequest(request, appRootDir, pluginsDir) {
+  const url = new URL(request.url);
+  const range = request.headers.get('range');
 
-    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-    const resolved = path.normalize(path.join(appRootDir, rel));
-    // Keep bundle requests from escaping the app directory via ../
-    if (resolved !== appRootDir && !resolved.startsWith(appRootDir + path.sep)) {
+  if (url.hostname === 'media') {
+    const target = url.searchParams.get('p');
+    if (!target) return new Response('Bad request', { status: 400 });
+    const resolved = path.normalize(decodeURIComponent(target));
+    // Same extension allowlist as the LAN viewer's /media route (see
+    // main-viewer-server.js) — without it, any script running in the
+    // renderer origin (including a compromised/malicious plugin's
+    // renderer.js, loaded into this same window) could read an arbitrary
+    // file anywhere on disk by absolute path.
+    if (!LAN_MEDIA_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
       return new Response('Forbidden', { status: 403 });
     }
-    return serveFile(resolved, range, false, true);
-  });
+    return serveFile(resolved, range);
+  }
+
+  if (url.hostname === 'plugins') {
+    if (!pluginsDir) return new Response('Not found', { status: 404 });
+    const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+    const resolved = path.normalize(path.join(pluginsDir, rel));
+    if (!isPathContained(pluginsDir, resolved)) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return serveFile(resolved, range, true, true);
+  }
+
+  const rel = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+  const resolved = path.normalize(path.join(appRootDir, rel));
+  // Keep bundle requests from escaping the app directory via ../
+  if (!isPathContained(appRootDir, resolved)) {
+    return new Response('Forbidden', { status: 403 });
+  }
+  return serveFile(resolved, range, false, true);
 }
 
 // serveFile() returns a web-standard Response (built for protocol.handle's

@@ -273,6 +273,20 @@ function breakKeyFor(resolved) {
   return `${resolved.type}:${resolved.windowStart}`;
 }
 
+// Clears the three fields that track "is a break currently on screen, and
+// what kind" — the shared core of a reset every power-off, channel-tune,
+// and shuttle-start needs to do before deciding what (if anything) plays
+// next. endBreak/tuneToChannel below additionally clear a couple of
+// break-*timing*-specific fields (awaitingBumperEnd, breakOverrunSince) of
+// their own right after calling this — this only covers the subset every
+// caller, including the ones outside this file (power.js, timemachine.js,
+// app.js), needs identically.
+export function resetActiveBreakState() {
+  S.activeBreakKey = null;
+  S.activeBreakInterruptsContent = false;
+  S.activeBreakKind = null;
+}
+
 // One unified boundary timer drives every break type (commercial/channelId/
 // trivia/upNext) — replaces the old three independent setTimeout-interval
 // systems. Re-arms at exactly the next instant resolveBreakAt's result would
@@ -584,9 +598,7 @@ function endBreak(ch) {
     S.completedBreakKeys = S.completedBreakKeys || new Set();
     S.completedBreakKeys.add(S.activeBreakKey);
   }
-  S.activeBreakKey = null;
-  S.activeBreakInterruptsContent = false;
-  S.activeBreakKind = null;
+  resetActiveBreakState();
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
   stationIdBarEl.classList.remove('show');
@@ -815,9 +827,7 @@ export async function tuneToChannel(number, opts) {
   clearTimeout(S.broadcastHoursTimer);
   cancelUpNextBar();
   cancelAllInterrupts();
-  S.activeBreakKey = null;
-  S.activeBreakInterruptsContent = false;
-  S.activeBreakKind = null;
+  resetActiveBreakState();
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
   triviaCardEl.classList.add('hidden');

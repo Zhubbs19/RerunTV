@@ -226,7 +226,13 @@ function alignToWeekday(dateMs, weekday) {
 function resolveWeeklyOccurrenceSource(block, atMs) {
   const t = block.trigger;
   const weekday = t.days[0];
-  const anchorMs = block.anchor || Date.now();
+  // Falls back to atMs (not Date.now()) for a block missing its anchor —
+  // keeps this consistent with the viewNow() discipline (time-machine scrubs
+  // would otherwise resolve against real wall time) and, since atMs tracks
+  // the query instant itself, resolves deterministically to occurrence 0
+  // every call instead of drifting with whatever moment Date.now() happened
+  // to be evaluated at.
+  const anchorMs = block.anchor || atMs;
   const alignedAnchorDay = alignToWeekday(anchorMs, weekday);
   const occurrenceDay = occurrenceDayFor(atMs, t);
   const occurrenceIndex = Math.round((occurrenceDay - alignedAnchorDay) / (7 * DAY_MS));

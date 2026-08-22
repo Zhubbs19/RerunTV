@@ -5,7 +5,7 @@ import {
   screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
   vhsTimestampEl, volumeBarFillEl, volumeIndicatorEl,
 } from './dom.js';
-import { cancelUpNextBar, tuneToChannel } from './playback.js';
+import { cancelUpNextBar, resetActiveBreakState, tuneToChannel } from './playback.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from './plugins.js';
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, saveConfigDebounced, viewNow } from './state.js';
 import { stopShuttle } from './timemachine.js';
@@ -99,6 +99,20 @@ export function toggleMute() {
 // the volume indicator up only when they'd genuinely overlap — reset first
 // so a stale nudge from a previous (now-moved) logo bug position doesn't
 // throw off this measurement.
+// Shows a brief on-screen confirmation in crtToggleFlash (e.g. "CRT EFFECT:
+// ON") and auto-hides it after 1.5s — the same "set text, show, clear any
+// still-pending previous hide, arm a fresh one" sequence every one of this
+// module's toggle/cycle actions needs. `timerKey` is the S property this
+// particular caller's pending hide-timeout lives under (each caller needs
+// its own, so flashing one control doesn't cut off another's still-showing
+// message).
+function flashMessage(text, timerKey) {
+  crtToggleFlash.textContent = text;
+  crtToggleFlash.classList.add('show');
+  clearTimeout(S[timerKey]);
+  S[timerKey] = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+}
+
 function avoidLogoBugOverlap() {
   volumeIndicatorEl.style.bottom = '';
   if (logoBugEl.classList.contains('hidden')) return;
@@ -160,10 +174,7 @@ export function toggleHintBar() {
   S.config.display.hintBar = S.config.display.hintBar === false ? true : false;
   applyHintBarState();
   saveConfigDebounced(600, { skipUndo: true });
-  crtToggleFlash.textContent = `HINT BAR: ${S.config.display.hintBar === false ? 'OFF' : 'ON'}`;
-  crtToggleFlash.classList.add('show');
-  clearTimeout(S.hintBarFlashTimer);
-  S.hintBarFlashTimer = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  flashMessage(`HINT BAR: ${S.config.display.hintBar === false ? 'OFF' : 'ON'}`, 'hintBarFlashTimer');
 }
 
 // Per-theme picture "personality" — a passive multiplier layered on top of
@@ -256,10 +267,7 @@ export function cyclePictureMode() {
   applyPictureMode();
   saveConfigDebounced(600, { skipUndo: true });
   pushRemoteState();
-  crtToggleFlash.textContent = `PICTURE MODE: ${next.toUpperCase()}`;
-  crtToggleFlash.classList.add('show');
-  clearTimeout(S.pictureModeFlashTimer);
-  S.pictureModeFlashTimer = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  flashMessage(`PICTURE MODE: ${next.toUpperCase()}`, 'pictureModeFlashTimer');
 }
 
 // 'contain' (default, today's letterbox/pillarbox-safe behavior) vs
@@ -317,10 +325,7 @@ export function cycleAspectMode() {
   applyAspectMode();
   saveConfigDebounced(600, { skipUndo: true });
   pushRemoteState();
-  crtToggleFlash.textContent = `ASPECT: ${next.toUpperCase()}`;
-  crtToggleFlash.classList.add('show');
-  clearTimeout(S.pictureModeFlashTimer);
-  S.pictureModeFlashTimer = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  flashMessage(`ASPECT: ${next.toUpperCase()}`, 'aspectModeFlashTimer');
 }
 
 // Standard object-fit:contain math — the browser computes this internally
@@ -540,10 +545,7 @@ export function cycleSleepTimer() {
   if (next > 0) {
     S.sleepTimer = setTimeout(() => { if (S.isPoweredOn) powerOff(); }, next * 60000);
   }
-  crtToggleFlash.textContent = next > 0 ? `SLEEP TIMER: ${next} MIN` : 'SLEEP TIMER: OFF';
-  crtToggleFlash.classList.add('show');
-  clearTimeout(S.sleepTimerFlashTimer);
-  S.sleepTimerFlashTimer = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  flashMessage(next > 0 ? `SLEEP TIMER: ${next} MIN` : 'SLEEP TIMER: OFF', 'sleepTimerFlashTimer');
 }
 
 export function toggleCrt() {
@@ -551,10 +553,7 @@ export function toggleCrt() {
   applyCrtState();
   window.api.saveConfig(S.config);
   pushRemoteState();
-  crtToggleFlash.textContent = `CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`;
-  crtToggleFlash.classList.add('show');
-  clearTimeout(S.crtFlashTimer);
-  S.crtFlashTimer = setTimeout(() => crtToggleFlash.classList.remove('show'), 1500);
+  flashMessage(`CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`, 'crtFlashTimer');
 }
 
 export function powerOff() {
@@ -570,9 +569,7 @@ export function powerOff() {
   crtToggleFlash.classList.remove('show');
   cancelUpNextBar();
   cancelAllInterrupts();
-  S.activeBreakKey = null;
-  S.activeBreakInterruptsContent = false;
-  S.activeBreakKind = null;
+  resetActiveBreakState();
   stopShuttle();
   clearTimeout(S.idleTimer); S.idleTimer = null;
   clearTimeout(S.guideHideTimer); guideOverlay.classList.add('hidden');

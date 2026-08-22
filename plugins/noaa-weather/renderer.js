@@ -1,8 +1,8 @@
 // NOAA Weather & EAS plugin — settings panel (interrupt-for-real-alerts
 // toggle + lat/lon + status readout) AND the real-alert poll loop itself
 // (moved in from core eas.js — this plugin is the only thing that needs
-// it). A genuine Severe/Extreme alert triggers the eas-alerts plugin's
-// interrupt slate via getInterrupt('eas-alerts').run({real}) — plugin-to-
+// it). A genuine Severe/Extreme alert triggers the breaking-news plugin's
+// interrupt slate via getInterrupt('breaking-news').run({real}) — plugin-to-
 // plugin, not through core, since it's a real-alert override specific to
 // this pairing (see [[retro_cable_box_plugin_system]]); anything milder
 // just updates this panel's own status line.
@@ -194,7 +194,7 @@ async function pollNoaaAlerts() {
     const fresh = alerts.find((a) => NOAA_INTERRUPT_SEVERITIES.has(a.severity) && !S.noaaSeenAlertIds.has(a.id));
     if (fresh) {
       S.noaaSeenAlertIds.add(fresh.id);
-      window.RCBPlugins.getInterrupt('eas-alerts')?.run({ real: fresh });
+      window.RCBPlugins.getInterrupt('breaking-news')?.run({ real: fresh });
     }
   } catch (err) {
     setStatusText(`NOAA lookup failed: ${err.message}`);

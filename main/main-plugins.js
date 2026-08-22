@@ -24,6 +24,7 @@ const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
 const { activateIsolatedPlugin } = require('./main-plugin-isolation');
+const { isPathContained, stripExeSuffix } = require('./main-path-safety');
 
 function getPluginsDir() {
   return path.join(app.getPath('userData'), 'plugins');
@@ -291,13 +292,6 @@ function orderByDependencies(plugins) {
 // anything it didn't declare by accident, and the declaration itself is
 // what the approval prompt (setup-plugins.js) shows the user before a new
 // or changed capability set is allowed to activate at all.
-// Windows executables carry a .exe suffix a manifest author shouldn't have
-// to declare twice (once for dev, once for a packaged Windows build) — a
-// declared "ffmpeg" matches a spawned "ffmpeg.exe" and vice versa.
-function stripExeSuffix(basename) {
-  return basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -4).toLowerCase() : basename.toLowerCase();
-}
-
 function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   const caps = manifest.capabilities || { ipc: [], spawn: [], net: [] };
   const allowedIpc = new Set(caps.ipc.map((e) => e.channel));
@@ -342,7 +336,7 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   function resolveDataPath(relPath) {
     if (!dataDir) throw new Error(`Plugin "${manifest.id}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
     const resolved = path.resolve(dataDir, relPath);
-    if (resolved !== dataDir && !resolved.startsWith(dataDir + path.sep)) {
+    if (!isPathContained(dataDir, resolved)) {
       throw new Error(`Plugin "${manifest.id}" tried to write outside its own data folder ("${relPath}").`);
     }
     return resolved;
@@ -508,7 +502,7 @@ function installPluginFromZip(zipPath, opts) {
       // Same containment check used throughout this app's own extraction/
       // path-serving code — a malicious zip entry name containing ../ must
       // never be allowed to write outside destDir.
-      if (!outPath.startsWith(destDir + path.sep) && outPath !== destDir) {
+      if (!isPathContained(destDir, outPath)) {
         throw new Error(`Refusing to extract "${entry.entryName}" — path escapes the plugin folder.`);
       }
       fs.mkdirSync(path.dirname(outPath), { recursive: true });

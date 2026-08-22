@@ -18,6 +18,7 @@ const { serveFile, pipeWebResponse } = require('./main-protocol');
 const { trackConnection } = require('./main-connections');
 const { VIEWER_PORT } = require('./main-lan');
 const { LAN_MEDIA_EXTENSIONS } = require('./main-media');
+const { isPathContained } = require('./main-path-safety');
 const { version: APP_VERSION } = require('../package.json');
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
@@ -34,6 +35,19 @@ const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
 function startViewerServer(pluginServices) {
   const services = pluginServices || {};
   const server = http.createServer(async (req, res) => {
+    try {
+      await handleRequest(req, res);
+    } catch (e) {
+      // An unhandled throw here (a malformed URL/Range header, an fs error
+      // that slips past serveFile's own catch, etc.) would otherwise become
+      // an unhandled promise rejection with the LAN client left hanging on
+      // a response that never comes — respond with a clean 500 instead.
+      if (!res.headersSent) res.writeHead(500).end('Internal error');
+      else res.destroy();
+    }
+  });
+
+  async function handleRequest(req, res) {
     if (req.method !== 'GET') {
       res.writeHead(405).end('Method not allowed');
       return;
@@ -89,12 +103,12 @@ function startViewerServer(pluginServices) {
     // renderer/ via ../.
     const rel = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
     const resolved = path.normalize(path.join(RENDERER_DIR, rel));
-    if (resolved !== RENDERER_DIR && !resolved.startsWith(RENDERER_DIR + path.sep)) {
+    if (!isPathContained(RENDERER_DIR, resolved)) {
       res.writeHead(403).end('Forbidden');
       return;
     }
     await pipeWebResponse(await serveFile(resolved, range), res);
-  });
+  }
 
   server.on('error', (err) => {
     // Don't crash the app if the port's taken (e.g. a second instance) —

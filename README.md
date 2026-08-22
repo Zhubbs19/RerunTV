@@ -47,6 +47,17 @@ On first launch you'll land on the **Channel Setup** screen.
 
 Setup is saved to Electron's app-data folder. Press **S** any time to go back.
 
+### Headless / server mode
+
+```bash
+npm run server
+```
+
+Runs with no window on this machine — useful for running RerunTV on a headless box purely
+as a LAN streaming source. The LAN viewer, remote-control server, and auto-discovery all
+still run exactly as they do alongside a normal window; every other device on the network
+watches through those, same as always.
+
 ## Controls
 
 | Key | Action |
@@ -56,19 +67,28 @@ Setup is saved to Electron's app-data folder. Press **S** any time to go back.
 | `Enter` | Confirm number entry, or show the guide banner |
 | `G` | Open/close the full time-grid guide |
 | `/` | Filter channels (inside the guide) |
+| `I` | Show program details for the current channel |
 | `S` | Back to Channel Setup |
 | `M` | Mute / unmute |
+| `SHIFT` + `M` | Cycle SAP audio mode (stereo / mono / SAP) |
 | `+` `−` | Volume up / down |
 | `C` | Toggle CRT effects |
+| `V` | Cycle picture mode (standard / vivid / cinema) |
+| `A` | Cycle aspect mode (contain / stretch / fill) |
+| `Z` | Cycle the sleep timer (off / 30 / 60 / 90 / 120 min) |
 | `F` | Fullscreen |
 | `P` | Power off (any key wakes it) |
 | `T` | Time machine — VCR shuttle mode |
 | `L` | Return to live |
+| `[` `]` | Jump to the previous/next commercial break (time machine only) |
 | `B` | Trigger a breaking-news overlay on demand |
 | `K` | Toggle closed captions |
 | `SHIFT` + `↑`/`↓` | Jump between favorite channels |
 | `BKSP` | Return to the last channel |
 | `H` | Hide/show the hint bar |
+| `?` | Open the TV menu |
+| `CTRL` + `1`–`4` | Save the current channel to a quick-jump slot |
+| `ALT` + `1`–`4` | Recall a quick-jump slot |
 
 ### Time machine
 
@@ -109,7 +129,7 @@ the guide also scrolls backward into the past.
   ffmpeg; the original moves to `_originals_backup/`, never deleted
 - **Undo/redo, a command palette (Ctrl+K), full keyboard nav, and OS drag-and-drop** on
   the setup screen
-- **19 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
+- **18 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
   set to a modern streaming-guide look — each with its own palette, SFX, and (where it
   fits the era) a physical border/bezel image; grouped by era in the theme picker
 
@@ -137,6 +157,9 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 - **Universal Remote** — turns any phone on the same WiFi into a remote; also the API the
   Android companion app uses
 - **TMDB metadata matching** for the TITLES tab (needs a free API key)
+- **FFmpeg Transcode** — codec-compatibility fix-up (see "About RerunTV" above); resolves
+  a system-installed `ffmpeg` from PATH or a custom path you set under DISPLAY & SYSTEM →
+  FFMPEG
 
 ## Architecture
 
@@ -155,6 +178,13 @@ main/
   main-api-cache.js          Disk cache for third-party API responses (TMDB, NOAA, ...)
   main-window-ref.js         Shared BrowserWindow reference
   main-window-state.js       Remembers window size/position between launches
+  main-http-util.js          Shared readJsonBody() for the remote/party/plugin HTTP servers
+  main-mime.js               Extension -> Content-Type lookup, no Electron dependency
+  main-path-safety.js        Shared path-containment/spawn-binary-name helpers
+  rpc-channel.js             Request/response + event RPC used across the isolation boundary
+  plugin-isolation-runtime.js  The entire contents of an isolated plugin's own forked OS
+                                process — the counterpart to main-plugin-isolation.js, which
+                                only covers the host side of that boundary
   preload.js                 contextBridge — exposes window.api.* to the renderer
 plugins/
   <plugin-id>/manifest.json  id, category, capabilities, isolation
@@ -172,6 +202,10 @@ renderer/
     plugins.js                     Plugin registry + the registerX() extension points
     channels.js, schedule.js       Channel lookup + the live-schedule/dayparting math
     playback.js                    Tuning, playback, commercials, up-next, logo bug
+    interstitials.js               Deterministic commercial/interstitial-break resolver
+                                    (resolveBreakAt) — the engine playback.js/guide.js/
+                                    timemachine.js all read to decide what's airing when
+    virtual.js                     Renders/tears down the currently-tuned plugin channel
     guide.js                       Now-playing banner and the time-grid guide
     themes.js, display-mode.js     Theme switching; AUTO resolution/aspect simulation
     timemachine.js                 VCR shuttle
@@ -180,6 +214,15 @@ renderer/
     setup*.js (family)             Setup screen: channel list, schedule/calendar,
                                     settings, interstitials + flow builder, plugins tab,
                                     tag taxonomy, command palette, keyboard nav, drag-drop
+    tv-menu.js                     The D-pad-navigable action menu opened by `?`
+    touch-controls.js              LAN-viewer touch input translation
+    audio.js                       Shared AudioContext/SFX mix bus
+    browser-api-shim.js            Browser fallback for window.api on the LAN viewer
+    details.js                     Program-details overlay (`I` key)
+    onboarding.js                  First-run welcome screen
+    pin-lock.js                    PIN-lock parental control
+    perf.js                        FPS counter
+    util.js                        Title-cleanup/formatting/id-generation helpers
 ```
 
 Core stays plugin-agnostic — nothing in `main/` or `renderer/js/` (outside `plugins.js`

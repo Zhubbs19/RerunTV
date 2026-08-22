@@ -46,7 +46,7 @@ window.boundarySlot = boundarySlot;
 
 import {
   tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, cancelUpNextBar, showNoSignal,
-  applyLogoBugPlacement, checkBreakState, playChannelLive,
+  applyLogoBugPlacement, checkBreakState, playChannelLive, resetActiveBreakState,
 } from './playback.js';
 window.checkBreakState = checkBreakState;
 window.cancelUpNextBar = cancelUpNextBar;
@@ -446,9 +446,7 @@ export async function showSetupScreen() {
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
   cancelAllScheduledInterrupts();
-  S.activeBreakKey = null;
-  S.activeBreakInterruptsContent = false;
-  S.activeBreakKind = null;
+  resetActiveBreakState();
   triviaCardEl.classList.add('hidden');
   stationIdBarEl.classList.remove('show');
   crtToggleFlash.classList.remove('show');

@@ -173,7 +173,10 @@ export function runBreakingNewsAlert(opts) {
   const cfg = S.config.breakingNews || {};
   const headlines = (cfg.headlines && cfg.headlines.length) ? cfg.headlines : DEFAULT_HEADLINES;
 
-  let headlineText = opts.headline;
+  // opts.real is a genuine NOAA/NWS alert object (noaa-weather/renderer.js's
+  // real-alert poll, see getInterrupt('breaking-news').run({real}) there) —
+  // its own .headline is what should show, not a random canned one.
+  let headlineText = opts.headline || (opts.real && opts.real.headline);
   if (!headlineText) {
     const idx = Math.floor(Math.random() * headlines.length);
     headlineText = headlines[idx];

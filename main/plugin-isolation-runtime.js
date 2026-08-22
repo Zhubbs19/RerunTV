@@ -26,6 +26,7 @@ const { createRpc } = require('./rpc-channel');
 const { mimeFor } = require('./main-mime');
 const { readJsonBody } = require('./main-http-util');
 const { getLanAddresses, getViewerUrls } = require('./main-lan');
+const { isPathContained, stripExeSuffix } = require('./main-path-safety');
 // Pure Node npm packages, no Electron dependency — same reasoning as
 // getLanAddresses/getViewerUrls above: an isolated plugin's process can
 // require() these fresh right here rather than needing them proxied over
@@ -80,10 +81,6 @@ function declareCapabilityError(pluginId, kind, value, field) {
   return new Error(`Plugin "${pluginId}" tried to ${kind} "${value}" without declaring it in manifest.json's capabilities.${field} — add it there (with a "why") first.`);
 }
 
-function stripExeSuffix(basename) {
-  return basename.toLowerCase().endsWith('.exe') ? basename.slice(0, -4).toLowerCase() : basename.toLowerCase();
-}
-
 // Mirrors buildCheckedCtx()'s fs/spawn/createServer wrappers in
 // main-plugins.js (the same-process path used by non-isolated plugins) almost
 // verbatim — the JS-level capability check is still worth doing here even
@@ -118,7 +115,7 @@ function buildCtx(manifest, pluginDir, init) {
   function resolveDataPath(relPath) {
     if (!dataDir) throw new Error(`Plugin "${manifest.id}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
     const resolved = path.resolve(dataDir, relPath);
-    if (resolved !== dataDir && !resolved.startsWith(dataDir + path.sep)) {
+    if (!isPathContained(dataDir, resolved)) {
       throw new Error(`Plugin "${manifest.id}" tried to write outside its own data folder ("${relPath}").`);
     }
     return resolved;

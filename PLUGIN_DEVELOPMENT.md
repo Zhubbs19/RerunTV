@@ -65,7 +65,7 @@ make that call.
 | `name` | no | Human-readable, shown in the PLUGINS tab. Falls back to `id`. |
 | `version` | no | Free-form string, shown next to the name. Not currently used for update checks. |
 | `description` | no | One sentence, shown in the PLUGINS tab. |
-| `category` | no | One of `"channel"` (registers a real channel number), `"onscreen"` (an overlay/effect, not tuned to), or `"system"` (background service, remote control, integration — no on-screen presence of its own). Purely a grouping hint for the PLUGINS tab's category tabs — omit or use anything else and your plugin just lands in an "OTHER" tab, nothing breaks. |
+| `category` | no | One of `"channel"` (registers a real channel number), `"theme"` (a `registerThemePack` entry — see below), `"onscreen"` (an overlay/effect, not tuned to), or `"system"` (background service, remote control, integration — no on-screen presence of its own). Purely a grouping hint for the PLUGINS tab's category tabs — omit or use anything else and your plugin just lands in an "OTHER" tab, nothing breaks. |
 | `style` | no | Path to a CSS file, loaded globally (as a real `<link>`) whenever the plugin is enabled. Omit if you have no CSS of your own. |
 | `renderer` | no | Path to a JS file loaded as an ES module in the renderer process. This is where `registerChannelType`/`registerSettingsPanel` calls go. Omit for a main-process-only plugin (e.g. one that just adds an IPC handler another plugin depends on). |
 | `main` | no | Path to a JS file `require()`'d in the Electron main process. Must export `{ activate(ctx) }`. Omit if you have no main-process code. |
@@ -354,6 +354,45 @@ the config schema:
   `channelAffinity: 'any'`, a fresh id, …) — pass just the fields you're
   overriding, e.g. `{ file: { path, duration } }` or `{ text: 'Some fact' }`.
 
+### `registerThemePack(id, definition)`
+
+Bundles a CRT theme's look with the behavioral bits a handful of themes also
+carry beyond CSS — CRT bias defaults, a channel-change static style,
+channel/power SFX, ambient audio texture, and an optional border/bezel image
+for non-16:9 content. Every one of the 18 first-party theme plugins
+(`plugins/theme-*/`) uses this — see any of them for a full worked example,
+or `plugins/theme-wood-console-70s/renderer.js` for one that uses every
+optional field.
+
+```js
+window.RCBPlugins.registerThemePack('wood-console-70s', {
+  label: 'WOOD-GRAIN CONSOLE (1978 FOREST & BRASS)', // required
+  group: 'ERA (BY DECADE)',   // optional — <optgroup> in the theme <select>;
+                               // reuse 'ERA (BY DECADE)' / 'REAL CABLE-BOX UI' /
+                               // 'BROADCAST/STUDIO' / 'STYLIZED' where it fits
+  crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
+  staticStyle: 'roll',
+  channelChangeSfx() { /* build a click with window.RCBPlugins.ctx's playTone/playNoiseBurst */ },
+  powerSfx(isOn) { /* same, for power on/off */ },
+  ambientTexture: { /* read by the vintage-audio plugin, not core */ },
+  captionStyle: { /* read by the closed-captions plugin, not core */ },
+  borderImage: 'app://plugins/my-plugin/border.svg', // or `true` for the plain CSS fallback frame
+  safeAreaPct: { top: 0.04, right: 0.04, bottom: 0.04, left: 0.04 }, // only with borderImage
+});
+```
+
+`id` here is the *theme* id (`S.config.theme`'s value, e.g.
+`"wood-console-70s"`) — mirroring how the pack's own CSS keys off
+`html[data-theme="<id>"]` — not necessarily your plugin's manifest `id`
+(a plugin folder named `theme-wood-console-70s` registering theme id
+`wood-console-70s` is the normal convention). Every field but `label` is
+optional; a color-only theme (most of them) registers just `{ label }`
+(plus maybe `borderImage`), and every core lookup falls back to today's
+generic defaults when a field is absent — same as if no pack were
+registered for that theme at all. Manifest `category: "theme"` (see the
+manifest table above) is the convention every first-party theme plugin
+uses to land in the PLUGINS tab's own THEMES tab, though nothing enforces it.
+
 ### `registerSettingsPanel(id, definition)`
 
 Gives your plugin a SETTINGS toggle on its own row in the PLUGINS tab.
@@ -432,7 +471,7 @@ window.RCBPlugins.registerInterrupt('my-plugin', {
 
 Look up another plugin's registration with
 `window.RCBPlugins.getInterrupt('other-plugin-id')?.run(opts)` — see
-`plugins/noaa-weather/renderer.js`'s real-alert trigger into `eas-alerts`
+`plugins/noaa-weather/renderer.js`'s real-alert trigger into `breaking-news`
 for a worked example of one interrupt plugin calling into another.
 
 ### `registerTuneGate(id, definition)`
@@ -548,7 +587,7 @@ for this raw escape hatch for **plugin-to-plugin** calls that don't fit any
 of those shapes — a plugin author choosing to depend on another specific
 plugin's feature (declared via `dependsOn`) is a different, legitimate case
 from core assuming a plugin exists. See `plugins/noaa-weather/renderer.js`'s
-call into `getInterrupt('eas-alerts')` for a worked example of one plugin
+call into `getInterrupt('breaking-news')` for a worked example of one plugin
 reaching into another for something plugin-specific (a *real*-alert
 override) that the generic `run(opts)` contract alone doesn't carry.
 
