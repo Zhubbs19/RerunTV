@@ -305,3 +305,19 @@ window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(applyDisplayMode, 100);
 });
+
+// showTvScreen/showSetupScreen (app.js) call this instead of plain
+// applyDisplayMode() — a screen switch is just a `.hidden` class toggle
+// between siblings under #app, not a real window resize, so it fires no
+// `resize` event for the listener above to catch a stale read with. Found
+// live: on the very first Setup -> TV transition after onboarding, #app's
+// measured size can lag one frame behind the window's real (already-
+// maximized) geometry, baking a too-small letterbox target into the fixed-px
+// CSS vars with nothing to ever re-trigger a fix — until the next channel
+// tune, itself a coincidental fix via applyDisplayMode()'s other call sites,
+// not a dedicated one. Re-measuring one frame later catches that race
+// without needing to reproduce its exact trigger.
+export function applyDisplayModeSettled() {
+  applyDisplayMode();
+  requestAnimationFrame(applyDisplayMode);
+}

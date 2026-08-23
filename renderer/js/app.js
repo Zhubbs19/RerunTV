@@ -32,7 +32,7 @@ import {
   adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
   resetIdleTimer, powerOn, powerOff,
 } from './power.js';
-import { applyDisplayMode } from './display-mode.js';
+import { applyDisplayModeSettled } from './display-mode.js';
 import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
@@ -461,7 +461,7 @@ export async function showSetupScreen() {
   tvScreen.classList.add('hidden');
   setupScreen.classList.remove('hidden');
   applyTheme();
-  applyDisplayMode();
+  applyDisplayModeSettled();
   resetSetupTabs();
   S.setupFilterQuery = '';
   channelFilterEl.value = '';
@@ -496,7 +496,7 @@ export async function showTvScreen() {
   applyVolume();
   applyHintBarState();
   applyTheme();
-  applyDisplayMode();
+  applyDisplayModeSettled();
   applyLogoBugPlacement();
 
   // Power state never persists across a screen transition or app restart —
