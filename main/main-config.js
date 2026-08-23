@@ -54,10 +54,84 @@ function pluginDeclaredDataDirs(userDataDir) {
   return dirs;
 }
 
-function migrateUserDataIfNeeded() {
-  const defaultUserDataDir = app.getPath('userData');
+// Shared by the one-time OS-profile migration below AND the pre-update
+// backup/restore pair (backupUserDataForUpdate, restoreUserDataIfWiped) —
+// "what actually matters" in a userData dir is the same list either way:
+// this app's own files/folders, plus whatever a plugin's own manifest
+// declares, plus channels.json's rotating backups/corrupt-preserves (which
+// sit alongside it by name, not as one of the fixed entries above).
+function copyOwnDataEntries(fromDir, toDir) {
+  const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(fromDir));
+  fs.readdirSync(fromDir).forEach((name) => {
+    if (entriesToCopy.includes(name) || name.startsWith('channels.json.')) {
+      fs.cpSync(path.join(fromDir, name), path.join(toDir, name), { recursive: true });
+    }
+  });
+}
+
+function portableUserDataDir() {
   const appDir = app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..');
-  const localUserDataDir = path.join(appDir, 'userData');
+  return path.join(appDir, 'userData');
+}
+
+// A temp location OUTSIDE the app's own install directory — the whole point
+// is surviving an installer step that wipes/replaces that directory (see
+// backupUserDataForUpdate's own comment). Namespaced by install path (not
+// just a fixed name) so a portable install run from more than one location
+// on the same machine can't clobber each other's pending backup.
+function pendingUpdateBackupDir() {
+  const crypto = require('crypto');
+  const key = crypto.createHash('sha1').update(portableUserDataDir()).digest('hex').slice(0, 16);
+  return path.join(app.getPath('temp'), `rerun-tv-update-userdata-${key}`);
+}
+
+// Called by main-updater.js immediately before quitAndInstall() — the
+// portable userData folder lives INSIDE the app's own install directory
+// (see this module's header comment), and an NSIS update install is free to
+// wipe/replace that whole directory as part of laying down the new version.
+// Found live: a real update cycle lost the user's entire channel lineup this
+// way. Copies (not moves) the current data to a safe location outside the
+// install dir; restoreUserDataIfWiped() below reconciles it back on the next
+// boot, whichever way the install actually behaved.
+function backupUserDataForUpdate() {
+  try {
+    const localDir = portableUserDataDir();
+    if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
+    const backupDir = pendingUpdateBackupDir();
+    fs.rmSync(backupDir, { recursive: true, force: true }); // clear any stale backup from a previous update attempt
+    fs.mkdirSync(backupDir, { recursive: true });
+    copyOwnDataEntries(localDir, backupDir);
+  } catch (e) {
+    console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
+  }
+}
+
+// Called at the very start of migrateUserDataIfNeeded() below, before that
+// function decides where 'userData' should point — reconciles whatever
+// backupUserDataForUpdate() left behind against what the just-installed
+// update actually left in place.
+function restoreUserDataIfWiped() {
+  const backupDir = pendingUpdateBackupDir();
+  if (!fs.existsSync(backupDir)) return; // no update was in flight, or nothing needed backing up
+  try {
+    const localDir = portableUserDataDir();
+    const wiped = !fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'));
+    if (wiped) {
+      fs.mkdirSync(localDir, { recursive: true });
+      copyOwnDataEntries(backupDir, localDir);
+    }
+    // Either restored, or the install left the real data intact and this was
+    // only ever a safety net — the backup's one-shot either way.
+    fs.rmSync(backupDir, { recursive: true, force: true });
+  } catch (e) {
+    console.error('Could not restore userData from its pre-update backup — the backup is left in place for manual recovery:', e.message, backupDir);
+  }
+}
+
+function migrateUserDataIfNeeded() {
+  restoreUserDataIfWiped();
+  const defaultUserDataDir = app.getPath('userData');
+  const localUserDataDir = portableUserDataDir();
   const samePath = path.resolve(defaultUserDataDir) === path.resolve(localUserDataDir);
   // One-time migration is due: the two locations genuinely differ, nothing's
   // been copied to the local folder yet, and there's old OS-profile data to
@@ -66,15 +140,7 @@ function migrateUserDataIfNeeded() {
   if (needsOneTimeMigration) {
     try {
       fs.mkdirSync(localUserDataDir, { recursive: true });
-      const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(defaultUserDataDir));
-      // channels.json.bak-* / .corrupt-* sit alongside channels.json itself
-      // (see loadConfig/restoreBackup below) — swept in too, same
-      // glob-by-prefix as everywhere else that handles those.
-      fs.readdirSync(defaultUserDataDir).forEach((name) => {
-        if (entriesToCopy.includes(name) || name.startsWith('channels.json.')) {
-          fs.cpSync(path.join(defaultUserDataDir, name), path.join(localUserDataDir, name), { recursive: true });
-        }
-      });
+      copyOwnDataEntries(defaultUserDataDir, localUserDataDir);
     } catch (e) {
       console.error('Could not migrate existing userData into the portable local folder — continuing with the OS-profile location instead:', e.message);
       try { fs.rmSync(localUserDataDir, { recursive: true, force: true }); } catch (e2) { /* leave the partial copy for inspection if even cleanup fails */ }
@@ -352,6 +418,6 @@ function saveConfig(config) {
 }
 
 module.exports = {
-  migrateUserDataIfNeeded,
+  migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, restoreBackup, deleteBackup, setBackupLabel,
 };

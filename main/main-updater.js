@@ -1,5 +1,5 @@
 const { app, ipcMain } = require('electron');
-const { loadConfig } = require('./main-config');
+const { loadConfig, backupUserDataForUpdate } = require('./main-config');
 const { fetchJsonCached } = require('./main-api-cache');
 
 // Auto-update via electron-updater, fed by this repo's GitHub Releases (see
@@ -137,6 +137,11 @@ function initAutoUpdater(getMainWindow) {
   updater.on('update-downloaded', (info) => {
     const { showLaunchPopup } = updatesConfig();
     updater.autoInstallOnAppQuit = !showLaunchPopup;
+    // Backed up here, not only in the installNow handler below — when
+    // showLaunchPopup is off, autoInstallOnAppQuit installs on the next
+    // normal quit without ever going through that handler, so this is the
+    // only guaranteed point before the install can happen either way.
+    backupUserDataForUpdate();
     sendStatus(getMainWindow, { state: 'downloaded', version: info.version, showPopup: showLaunchPopup });
   });
   updater.on('error', (err) => {
@@ -161,7 +166,22 @@ function initAutoUpdater(getMainWindow) {
   });
 
   ipcMain.handle('updates:installNow', async () => {
-    updater.quitAndInstall();
+    // The portable userData folder lives inside this app's own install
+    // directory (main-config.js) — the NSIS installer quitAndInstall() is
+    // about to run can wipe/replace that whole directory as part of laying
+    // down the new version. Safety-copy it out first; main-config.js's
+    // restoreUserDataIfWiped() reconciles it back on the next boot.
+    backupUserDataForUpdate();
+    // isSilent=true: the NSIS wizard's own generic "Welcome to the RerunTV
+    // Setup Wizard" pages look identical to a fresh install with no update-
+    // specific wording of their own (customizing that would mean a NSIS
+    // script, not a runtime flag) — confusing to see mid-update, and
+    // indistinguishable from something else entirely trying to install
+    // itself. Skipping straight to a silent install and back into the app
+    // (isForceRunAfter=true) puts the "an update is happening" messaging
+    // entirely in our own already-trusted UI (the toast that led here)
+    // instead of a wizard the user never asked to interact with.
+    updater.quitAndInstall(true, true);
   });
 
   // Delayed rather than fired immediately at boot — same reasoning as the

@@ -15,7 +15,14 @@ function hideToast() {
 
 function showToast(version) {
   if (!updateToastEl) return;
-  updateToastTextEl.textContent = `RerunTV v${version} has been downloaded and is ready to install.`;
+  // Explicit about what clicking Install actually does — the NSIS installer
+  // itself now runs silently (main-updater.js's quitAndInstall(true, true)),
+  // so there's no wizard of its own to explain this; this toast is the only
+  // place the user learns it before the app closes out from under them.
+  updateToastTextEl.textContent =
+    `RerunTV v${version} has been downloaded and is ready to install. Clicking Install will close ` +
+    'RerunTV, apply the update in the background, and reopen automatically — no installer window ' +
+    'will appear, and it only takes a few seconds.';
   updateToastEl.classList.remove('hidden');
 }
 
