@@ -40,7 +40,7 @@
     "publish": {
       "provider": "github",
       "owner": "Zhubbs19",
-      "repo": "rerun-tv",
+      "repo": "RerunTV",
       "private": true
     },
     "win": {

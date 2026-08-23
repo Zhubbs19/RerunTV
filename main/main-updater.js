@@ -14,7 +14,7 @@ const { fetchJsonCached } = require('./main-api-cache');
 // needs a "zip" target alongside dmg for Squirrel.Mac; AppImage is
 // supported but untested here) — skip silently rather than error on those.
 //
-// This repo (Zhubbs19/rerun-tv) is private — GitHub 404s an unauthenticated
+// This repo (Zhubbs19/RerunTV) is private — GitHub 404s an unauthenticated
 // request to its API the same way it would for a repo that doesn't exist,
 // for both the release-notes fetch below and electron-updater's own check.
 // build.publish.private: true (package.json) tells electron-updater to use
@@ -74,7 +74,7 @@ function sendStatus(getMainWindow, payload) {
 }
 
 const GITHUB_OWNER = 'Zhubbs19';
-const GITHUB_REPO = 'rerun-tv';
+const GITHUB_REPO = 'RerunTV';
 // Release cadence here is measured in days, not minutes — no reason to hit
 // GitHub's (unauthenticated, 60/hour) API more than once an hour even
 // across several HELP-tab visits in one session. Shares fetchJsonCached's
