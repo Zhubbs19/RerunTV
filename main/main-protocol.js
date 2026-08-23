@@ -5,6 +5,18 @@ const { Readable } = require('stream');
 const { mimeFor, MIME_TYPES } = require('./main-mime');
 const { LAN_MEDIA_EXTENSIONS } = require('./main-media');
 const { isPathContained } = require('./main-path-safety');
+const { parseMediaRef, callMediaService, MEDIA_READRANGE_TIMEOUT_MS } = require('./main-media-dispatch');
+
+// Set once by main.js, right after the same `pluginServices` object handed
+// to loadMainPlugins()/startViewerServer() exists — serveFileViaPlugin below
+// needs it to resolve a media-source provider's readRange service, exactly
+// like every other callMediaService call site (main.js's fs:scanFolder/
+// media:probeDuration/fs:checkPathsExist handlers already do the same
+// dance with their own module-scope reference for the same reason: this
+// module's protocol.handle('app', ...) registration happens once, outside
+// any per-request scope that could otherwise thread the object through).
+let pluginServicesRef = {};
+function setMediaDispatchServices(services) { pluginServicesRef = services || {}; }
 
 // The renderer is served over a custom app:// scheme rather than file://
 // because Chromium refuses to load ES modules from a file:// origin. That
@@ -88,6 +100,87 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   });
 }
 
+// Streams one Range request's worth of a plugin-sourced media ref through
+// that provider's readRange service — the non-local counterpart to
+// serveFile above. Every real caller of this is a seeking <video> element,
+// which already requests successive bounded byte ranges rather than a whole
+// file in one shot (the same reason serveFile supports Range at all), so
+// treating each Range request as its own bounded request/response call
+// matches the real access pattern rather than compromising it — no
+// streaming primitive needs to cross the plugin-process RPC boundary, only
+// bounded chunks, exactly like readRange's own contract already promises.
+// CHUNK_CAP bounds a single round-trip's payload for the one request that
+// ISN'T naturally bounded by the caller: a <video> element's very first
+// request, before it has any reason to know to send a Range header at all,
+// sometimes asks for the whole file — this must not try to pull a
+// multi-gigabyte file through one postMessage call. 4MB is enough for
+// Chromium to read container metadata and start requesting real ranges.
+// Known cost, not fully solved here: every chunk crosses a structured-clone
+// boundary twice (plugin process -> host via postMessage, host -> Response
+// body) — for sustained high-bitrate streaming over a slow provider link,
+// this could bottleneck before the network itself does. Acceptable for a
+// first cut; the documented escape hatch (not implemented) is a plugin
+// running its own loopback HTTP proxy server (ctx.createServer) that this
+// module proxies straight to instead of calling a service, trading "every
+// provider author reimplements Range handling" for real, uncapped
+// streaming.
+async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
+  const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
+  const match = rangeHeader && /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  const start = match && match[1] ? parseInt(match[1], 10) : 0;
+  const CHUNK_CAP = 4 * 1024 * 1024;
+  const end = match && match[2] ? Math.min(parseInt(match[2], 10), start + CHUNK_CAP - 1) : start + CHUNK_CAP - 1;
+
+  let result;
+  try {
+    result = await callMediaService(pluginServicesRef, providerId, 'readRange', [ref, start, end], MEDIA_READRANGE_TIMEOUT_MS);
+  } catch (e) {
+    // Covers both "no such provider/it's not activated" (assertKnownProvider,
+    // main-media-dispatch.js) and a genuine provider-side failure (the RPC
+    // call itself rejects, e.g. the plugin's process died mid-request —
+    // childRpc.dispose() in main-plugin-isolation.js rejects any in-flight
+    // call immediately rather than hanging) — either way, a clean 502
+    // rather than an uncaught rejection reaching protocol.handle's own
+    // catch-all 500.
+    return new Response('Upstream error', { status: 502, headers: corsHeaders });
+  }
+  if (!result || result.status === 404 || !result.chunk) {
+    return new Response('Not found', { status: 404, headers: corsHeaders });
+  }
+  const chunk = Buffer.isBuffer(result.chunk) ? result.chunk : Buffer.from(result.chunk);
+  const headers = {
+    ...corsHeaders,
+    'Content-Type': result.contentType || 'video/mp4',
+    'Accept-Ranges': 'bytes',
+    'Content-Length': String(chunk.length),
+  };
+  if (result.totalSize != null) headers['Content-Range'] = `bytes ${start}-${start + chunk.length - 1}/${result.totalSize}`;
+  return new Response(chunk, { status: match ? 206 : 200, headers });
+}
+
+// Unified entry point for anything that used to hand a bare local path
+// straight to serveFile — app://media (handleAppRequest below) and the LAN
+// viewer's own /media route (main-viewer-server.js) both go through this
+// instead now, so a plugin-sourced channel streams correctly to either
+// consumer rather than only the main window. serveFile itself stays
+// local-file-only and is still called directly for bundle/plugins static
+// assets (app.js/CSS/plugin files), which are never anything but local.
+async function serveMediaRef(ref, rangeHeader, crossOrigin) {
+  const parsed = parseMediaRef(ref);
+  const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
+  // Same extension allowlist for both branches — without it, any script
+  // running in the renderer origin (including a compromised/malicious
+  // plugin's renderer.js, loaded into this same window) could use a
+  // provider's readRange to read back arbitrary opaque data by feeding it a
+  // ref with an unexpected extension.
+  const extCheckTarget = parsed.source === 'local' ? parsed.path : parsed.ref;
+  if (!LAN_MEDIA_EXTENSIONS.has(path.extname(extCheckTarget).toLowerCase())) {
+    return new Response('Forbidden', { status: 403, headers: corsHeaders });
+  }
+  if (parsed.source === 'local') return serveFile(path.normalize(parsed.path), rangeHeader, crossOrigin);
+  return serveFileViaPlugin(parsed.source, parsed.ref, rangeHeader, crossOrigin);
+}
+
 // app://bundle/...        -> files shipped with the app (sandboxed to appRootDir)
 // app://media/?p=<path>   -> a user-chosen media file anywhere on disk
 // app://plugins/...       -> plugin files (sandboxed to pluginsDir) — see main-plugins.js
@@ -115,16 +208,11 @@ async function handleAppRequest(request, appRootDir, pluginsDir) {
   if (url.hostname === 'media') {
     const target = url.searchParams.get('p');
     if (!target) return new Response('Bad request', { status: 400 });
-    const resolved = path.normalize(decodeURIComponent(target));
-    // Same extension allowlist as the LAN viewer's /media route (see
-    // main-viewer-server.js) — without it, any script running in the
-    // renderer origin (including a compromised/malicious plugin's
-    // renderer.js, loaded into this same window) could read an arbitrary
-    // file anywhere on disk by absolute path.
-    if (!LAN_MEDIA_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
-      return new Response('Forbidden', { status: 403 });
-    }
-    return serveFile(resolved, range);
+    // `target` is either a raw local path (unchanged, every existing
+    // config's files parse this way by construction) or a
+    // mediasource:<providerId>:<opaque-ref> string (see main-media-
+    // dispatch.js's parseMediaRef) — serveMediaRef dispatches accordingly.
+    return serveMediaRef(decodeURIComponent(target), range);
   }
 
   if (url.hostname === 'plugins') {
@@ -161,5 +249,5 @@ async function pipeWebResponse(response, res) {
 }
 
 module.exports = {
-  registerAppSchemePrivileges, registerAppProtocol, serveFile, pipeWebResponse, mimeFor, MIME_TYPES,
+  registerAppSchemePrivileges, registerAppProtocol, serveFile, serveMediaRef, setMediaDispatchServices, pipeWebResponse, mimeFor, MIME_TYPES,
 };

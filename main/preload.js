@@ -29,8 +29,16 @@ contextBridge.exposeInMainWorld('api', {
   selectVideo: () => ipcRenderer.invoke('dialog:selectVideo'),
   selectExecutable: () => ipcRenderer.invoke('dialog:selectExecutable'),
   selectCss: () => ipcRenderer.invoke('dialog:selectCss'),
-  scanFolder: (folderPath) => ipcRenderer.invoke('fs:scanFolder', folderPath),
-  checkPathsExist: (paths) => ipcRenderer.invoke('fs:checkPathsExist', paths),
+  // (source, ref) ordering matches resolvePlayablePath/transcode/
+  // probeDuration below — source always leads. Every call site passes both
+  // explicitly now (see main-media-dispatch.js for what a non-'local'
+  // source dispatches to); `source` still defaults to 'local' here only as
+  // a last-resort guard against a stray one-arg call, not as a supported
+  // calling convention.
+  scanFolder: (source, ref) => ipcRenderer.invoke('fs:scanFolder', source || 'local', ref),
+  // `entries` is [{source, ref}].
+  checkPathsExist: (entries) => ipcRenderer.invoke('fs:checkPathsExist', entries),
+  probeDuration: (source, ref) => ipcRenderer.invoke('media:probeDuration', source, ref),
   // Rotating config backups (see main.js) — listBackups for the setup
   // screen's BACKUPS panel, restoreBackup to roll the live config back to a
   // previous snapshot.
@@ -46,8 +54,8 @@ contextBridge.exposeInMainWorld('api', {
   importConfig: () => ipcRenderer.invoke('config:import'),
   toFileUrl: (filePath) => ipcRenderer.invoke('path:toFileUrl', filePath),
   basename: (filePath) => ipcRenderer.invoke('path:basename', filePath),
-  resolvePlayablePath: (filePath) => ipcRenderer.invoke('media:resolvePlayablePath', filePath),
-  transcode: (filePath) => ipcRenderer.invoke('media:transcode', filePath),
+  resolvePlayablePath: (source, filePath) => ipcRenderer.invoke('media:resolvePlayablePath', source, filePath),
+  transcode: (source, filePath) => ipcRenderer.invoke('media:transcode', source, filePath),
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.
@@ -126,4 +134,14 @@ contextBridge.exposeInMainWorld('api', {
   pluginsApproveCapabilities: (id, signature) => ipcRenderer.invoke('plugins:approveCapabilities', id, signature),
   pluginsRevokeCapabilities: (id) => ipcRenderer.invoke('plugins:revokeCapabilities', id),
   pluginsUninstall: (id) => ipcRenderer.invoke('plugins:uninstall', id),
+  // Media-source abstraction — see main-media-dispatch.js and
+  // PLUGIN_DEVELOPMENT.md's "Media sources" section. listMediaSourceProviders
+  // backs the CHANNELS tab's CHOOSE SOURCE picker; callMediaSourceHook is a
+  // generic passthrough to a provider's own optional UI-facing verbs (only
+  // `pickFolder` today) — reserved-key-on-ctx.callService, same mechanism
+  // as every other cross-plugin service call, just reachable from the
+  // renderer since only the renderer has a "show a folder picker" UI to
+  // trigger it from.
+  listMediaSourceProviders: () => ipcRenderer.invoke('plugins:listMediaSourceProviders'),
+  callMediaSourceHook: (providerId, verb, ...args) => ipcRenderer.invoke('mediaSource:callHook', providerId, verb, args),
 });

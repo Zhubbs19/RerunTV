@@ -34,6 +34,7 @@
     selectVideo: readOnlyNoop('selectVideo'),
     selectExecutable: readOnlyNoop('selectExecutable'),
     scanFolder: readOnlyNoop('scanFolder'),
+    probeDuration: readOnlyNoop('probeDuration'),
     saveConfig: readOnlyNoop('saveConfig'),
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
@@ -65,7 +66,7 @@
     // "already fixed" means a genuinely broken file on a viewer surfaces
     // the existing PLAYBACK ERROR/OFF THE AIR card (handleUnplayable,
     // playback.js) instead of attempting a fix here.
-    resolvePlayablePath: (filePath) => Promise.resolve({ path: filePath, alreadyFixed: true }),
+    resolvePlayablePath: (source, filePath) => Promise.resolve({ path: filePath, alreadyFixed: true }),
     transcode: () => Promise.reject(new Error('Transcoding only runs on the host device')),
 
     // ---- Fullscreen: the real browser API instead of an Electron window

@@ -13,7 +13,10 @@
 // (resolveActiveCommercials, schedule.js). So "curating ad density" just
 // means the curated files carry tags that overlap an existing preset's
 // contentTags — nothing else needs to be written for it to take effect.
-import { freshBlock, freshChannel, nextChannelNumber, sortedChannels, addInterstitialPoolEntry } from './channels.js';
+import {
+  addInterstitialPoolEntry, findFolderEntry, freshBlock, freshChannel, mergeFolderEntries,
+  nextChannelNumber, resolveScopeFolderIds, sortedChannels,
+} from './channels.js';
 import { S } from './state.js';
 import { hashString, mulberry32, randomInterstitialId } from './util.js';
 
@@ -67,15 +70,16 @@ function slotThemeSeeds(profile, slot) {
 }
 
 // Every file across every channel that falls within the profile's
-// contentPoolScope (folders 'all' or an explicit list; tags 'any' or an
-// explicit list a file must carry at least one of) — the raw candidate set
-// before theme scoring narrows it further.
+// contentPoolScope (folders 'all' or an explicit list of ch.folders[] entry
+// ids; tags 'any' or an explicit list a file must carry at least one of) —
+// the raw candidate set before theme scoring narrows it further.
 function poolScope(profile) {
   const { folders, tags } = profile.contentPoolScope;
+  const folderIds = Array.isArray(folders) && folders.length ? resolveScopeFolderIds(folders) : folders;
   const files = [];
   sortedChannels().forEach((ch) => {
     ch.files.forEach((f) => {
-      if (folders !== 'all' && Array.isArray(folders) && folders.length && !folders.includes(f.folder)) return;
+      if (folderIds !== 'all' && Array.isArray(folderIds) && folderIds.length && !folderIds.includes(f.folder)) return;
       if (Array.isArray(tags) && tags.length) {
         const fTags = tagSetOf(f);
         if (!tags.some((t) => fTags.has(String(t).toLowerCase()))) return;
@@ -107,8 +111,15 @@ export function buildProgrammingPlan(profile, seed, excludePaths) {
   // of a silent empty channel.
   const pool = (matched.length ? matched : scored).map((s) => s.f);
   const shuffled = seededShuffle(pool, hashString(`${profile.id}:${seed}:programming`));
-  const files = shuffled.slice(0, MAX_CURATED_FILES).map((f) => ({ path: f.path, duration: f.duration, folder: f.folder || null }));
-  const folders = Array.from(new Set(files.map((f) => f.folder).filter(Boolean)));
+  const files = shuffled.slice(0, MAX_CURATED_FILES)
+    .map((f) => ({ path: f.path, duration: f.duration, folder: f.folder || null, source: f.source || 'local' }));
+  // `folder` on a curated file is still just the id it had on its *original*
+  // channel — resolve each back to a real ch.folders[]-shaped entry (via
+  // findFolderEntry, which scans every channel) so the new/target channel's
+  // own ch.folders[] gets proper { id, source, ref, label } objects, not
+  // bare ids, matching the shape every other channel's folders[] uses.
+  const folderIds = Array.from(new Set(files.map((f) => f.folder).filter(Boolean)));
+  const folders = folderIds.map(findFolderEntry).filter(Boolean);
   return { folders, files, matchedCount: matched.length, totalScanned: candidates.length };
 }
 
@@ -131,7 +142,8 @@ function buildDayPartSlotPlan(profile, slot, seed, excludePaths) {
   const matched = scored.filter((s) => s.score > 0);
   const pool = (matched.length ? matched : scored).map((s) => s.f);
   const shuffled = seededShuffle(pool, hashString(`${profile.id}:${seed}:slot:${slot.id}`));
-  const files = shuffled.slice(0, MAX_FILES_PER_SLOT).map((f) => ({ path: f.path, duration: f.duration, folder: f.folder || null }));
+  const files = shuffled.slice(0, MAX_FILES_PER_SLOT)
+    .map((f) => ({ path: f.path, duration: f.duration, folder: f.folder || null, source: f.source || 'local' }));
   return { slot, files, matchedCount: matched.length, totalScanned: candidates.length };
 }
 
@@ -265,7 +277,7 @@ export function applyCurationProposal(proposal) {
     ch = S.config.channels.find((c) => c.number === proposal.channelNumber);
     if (!ch) return null;
     if (proposal.channelPatch.name) ch.name = proposal.channelPatch.name;
-    ch.folders = Array.from(new Set([...ch.folders, ...proposal.channelPatch.folders]));
+    ch.folders = mergeFolderEntries(ch.folders, proposal.channelPatch.folders);
     const existingPaths = new Set(ch.files.map((f) => f.path));
     proposal.channelPatch.files.forEach((f) => { if (!existingPaths.has(f.path)) ch.files.push(f); });
 

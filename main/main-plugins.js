@@ -23,7 +23,7 @@ const { app, ipcMain, shell, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const AdmZip = require('adm-zip');
-const { activateIsolatedPlugin } = require('./main-plugin-isolation');
+const { activateIsolatedPlugin, callAnyService } = require('./main-plugin-isolation');
 const { isPathContained } = require('./main-path-safety');
 const {
   normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
@@ -292,6 +292,14 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     spawn: createCheckedSpawn(manifest.id, allowedSpawn),
     createServer: createCheckedServer(manifest.id, allowedPorts),
     fs: createCheckedFs(manifest.id, dataDir),
+    // Symmetric with the isolated runtime's ctx.registerService/callService
+    // (plugin-isolation-runtime.js) — same shared baseCtx.services object
+    // and the same cross-process-aware resolution (callAnyService,
+    // main-plugin-isolation.js), so a plugin author (e.g. a media-source
+    // provider) writes identical activate(ctx) code whether or not its
+    // manifest sets "isolated": true.
+    registerService: (key, fn) => { baseCtx.services[key] = fn; },
+    callService: (key, ...args) => callAnyService(baseCtx.services, key, args),
   };
 }
 
@@ -339,34 +347,52 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const plugins = orderByDependencies(allPlugins.filter((plugin) => !plugin.error && plugin.main && !disabled.has(plugin.id)));
   const loadErrors = {};
   const needsApproval = [];
+  // providerId -> pluginId, for every mediaSource capability entry belonging
+  // to a plugin that actually activated (not skipped for approval, not
+  // errored) — main-media-dispatch.js's dispatch layer checks a
+  // `mediasource:<providerId>:...` ref's providerId against this before
+  // ever calling into it, so a malformed/spoofed ref in a hand-edited
+  // config can't probe for providers that were never actually declared and
+  // approved (defense in depth — see main-plugin-capabilities.js's
+  // mediaSource doc comment for the full rationale).
+  const activatedMediaSourceProviders = {};
   const baseCtx = { ipcMain, app, shell, desktopCapturer, ...extraCtx };
   const appRootDir = path.join(__dirname, '..');
   for (const plugin of plugins) {
     const signature = capabilitiesSignature(plugin.capabilities);
-    const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length || plugin.capabilities.net.length;
+    const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length
+      || plugin.capabilities.net.length || plugin.capabilities.mediaSource.length;
     if (hasAnyCapability && approved[plugin.id] !== signature) {
       needsApproval.push(plugin.id);
       continue; // eslint-disable-line no-continue
     }
     const pluginDir = path.join(getPluginsDir(), plugin.dir);
+    let activated = false;
     if (plugin.isolated) {
       // eslint-disable-next-line no-await-in-loop
       const result = await activateIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir);
       if (!result.ok) loadErrors[plugin.id] = result.error;
-      continue; // eslint-disable-line no-continue
-    }
-    const mainPath = path.join(pluginDir, plugin.main);
-    try {
-      // eslint-disable-next-line import/no-dynamic-require, global-require
-      const mod = require(mainPath);
-      if (mod && typeof mod.activate === 'function') {
-        mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
+      else activated = true;
+    } else {
+      const mainPath = path.join(pluginDir, plugin.main);
+      try {
+        // eslint-disable-next-line import/no-dynamic-require, global-require
+        const mod = require(mainPath);
+        if (mod && typeof mod.activate === 'function') {
+          mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
+        }
+        activated = true;
+      } catch (e) {
+        loadErrors[plugin.id] = e.message;
       }
-    } catch (e) {
-      loadErrors[plugin.id] = e.message;
+    }
+    if (activated) {
+      (plugin.capabilities.mediaSource || []).forEach((e) => { activatedMediaSourceProviders[e.providerId] = plugin.id; });
     }
   }
-  return { loadErrors, needsApproval, allPlugins };
+  return {
+    loadErrors, needsApproval, allPlugins, activatedMediaSourceProviders,
+  };
 }
 
 // Installs a plugin from a .zip a user picked (PLUGINS tab "INSTALL FROM

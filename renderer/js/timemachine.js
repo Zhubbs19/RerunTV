@@ -88,7 +88,7 @@ export async function updateShuttlePreview() {
     if (previewKey !== S.shuttlePreviewPath) {
       S.shuttlePreviewPath = previewKey;
       try {
-        const resolved = await window.api.resolvePlayablePath(brk.entry.file.path);
+        const resolved = await window.api.resolvePlayablePath('local', brk.entry.file.path);
         const url = await window.api.toFileUrl(resolved.path);
         if (!S.timeMachineOn || S.shuttlePreviewPath !== previewKey) return;
         player.src = url;
@@ -131,7 +131,7 @@ export async function updateShuttlePreview() {
     S.shuttlePreviewPath = pos.file.path;
     let resolved, url;
     try {
-      resolved = await window.api.resolvePlayablePath(pos.file.path);
+      resolved = await window.api.resolvePlayablePath(pos.file.source || 'local', pos.file.path);
       url = await window.api.toFileUrl(resolved.path);
     } catch (err) {
       return; // file moved/missing while shuttling — nothing to preview

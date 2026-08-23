@@ -451,3 +451,14 @@ export function probeDuration(filePath) {
     });
   });
 }
+
+// Source-aware sibling of probeDuration above — 'local' defers to the exact
+// existing <video>-element probe (byte-identical to every call site before
+// this existed), anything else asks that provider's own probe() service via
+// the main-process dispatch layer (media:probeDuration, main.js/
+// main-media-dispatch.js), since a plugin-sourced ref has no playback
+// dispatch path a <video> element could load in the first place.
+export async function probeDurationForEntry(source, ref) {
+  if (!source || source === 'local') return probeDuration(ref);
+  return window.api.probeDuration(source, ref);
+}

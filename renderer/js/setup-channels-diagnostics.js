@@ -7,7 +7,7 @@
 // remains in setup-channels.js beyond a handful of shared dom.js element
 // references (the NOW/NEXT and library-search toggle buttons are mutually
 // exclusive — each file's own listener closes the other's panel).
-import { sortedChannels } from './channels.js';
+import { parseMediaRef, sortedChannels } from './channels.js';
 import {
   boxStatusBackupEl, boxStatusChannelsEl, boxStatusCheckBtn, boxStatusFilesEl, boxStatusIssuesEl,
   healthCheckBtn, healthCheckResultsEl, librarySearchPanelEl, librarySearchToggleBtn,
@@ -175,7 +175,16 @@ export async function checkChannelHealth() {
   const uniquePaths = Array.from(new Set(pathEntries.map((e) => e.path).concat(poolFileEntries.map((e) => e.path))));
   const existsMap = {};
   try {
-    const results = await window.api.checkPathsExist(uniquePaths);
+    // checkPathsExist wants [{source, ref}] with `ref` being each provider's
+    // own raw, unprefixed ref (same convention every other media-source
+    // dispatch call uses) — parseMediaRef strips ch.files[].path's wrapped
+    // mediasource:<id>: form back to that; a plain local path round-trips
+    // unchanged (parseMediaRef treats anything without the prefix as
+    // source: 'local', ref: <the same string>). existsMap itself stays
+    // keyed by the original (possibly wrapped) path, since that's what
+    // pathEntries/poolFileEntries below still look it up by.
+    const entries = uniquePaths.map((p) => parseMediaRef(p));
+    const results = await window.api.checkPathsExist(entries);
     if (Array.isArray(results)) {
       uniquePaths.forEach((p, i) => { existsMap[p] = results[i]; });
     }

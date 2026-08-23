@@ -1086,12 +1086,12 @@ export function buildSchedulePanel(ch, panelEl) {
 
         scanProgressEl.classList.remove('hidden');
         scanProgressEl.textContent = 'SCANNING BLOCK FOLDER…';
-        const paths = await window.api.scanFolder(folder);
+        const paths = await window.api.scanFolder('local', folder);
         const files = [];
         for (let i = 0; i < paths.length; i++) {
           scanProgressEl.textContent = `PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`;
           const duration = await probeDuration(paths[i]);
-          files.push({ path: paths[i], duration });
+          files.push({ path: paths[i], duration, source: 'local' });
         }
         if (ch.shuffle) shuffleArray(files);
         block.files = files;

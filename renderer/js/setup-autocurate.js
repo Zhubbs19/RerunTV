@@ -23,10 +23,13 @@ let isNewProfile = false; // editingProfile hasn't been pushed to S.config.curat
 let previewProposal = null; // last curateChannel() result for editingProfile, or null
 let previewSeed = 0;
 
+// De-duped by id (a folder scanned into more than one channel — same
+// physical path, same content-derived id, see mediaRefId in channels.js —
+// only needs to appear once in the scope picker).
 function allKnownFolders() {
-  const set = new Set();
-  sortedChannels().forEach((ch) => (ch.folders || []).forEach((f) => set.add(f)));
-  return Array.from(set).sort();
+  const byId = new Map();
+  sortedChannels().forEach((ch) => (ch.folders || []).forEach((e) => { if (!byId.has(e.id)) byId.set(e.id, e); }));
+  return Array.from(byId.values()).sort((a, b) => (a.label || a.ref).localeCompare(b.label || b.ref));
 }
 
 // A comma-separated tag-style input wired to autocomplete, wrapping an
@@ -63,23 +66,25 @@ function buildFolderScopeEditor(profile) {
     wrap.appendChild(note);
     return wrap;
   }
-  allFolders.forEach((folder) => {
+  const allIds = allFolders.map((e) => e.id);
+  allFolders.forEach((entry) => {
     const label = document.createElement('label');
     label.className = 'shuffle-toggle';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     const scoped = Array.isArray(profile.contentPoolScope.folders);
-    cb.checked = !scoped || profile.contentPoolScope.folders.includes(folder);
+    cb.checked = !scoped || profile.contentPoolScope.folders.includes(entry.id);
     cb.addEventListener('change', () => {
       const current = Array.isArray(profile.contentPoolScope.folders)
-        ? profile.contentPoolScope.folders.slice() : allFolders.slice();
-      const idx = current.indexOf(folder);
-      if (cb.checked && idx === -1) current.push(folder);
+        ? profile.contentPoolScope.folders.slice() : allIds.slice();
+      const idx = current.indexOf(entry.id);
+      if (cb.checked && idx === -1) current.push(entry.id);
       if (!cb.checked && idx !== -1) current.splice(idx, 1);
-      profile.contentPoolScope.folders = current.length >= allFolders.length ? 'all' : current;
+      profile.contentPoolScope.folders = current.length >= allIds.length ? 'all' : current;
     });
     label.appendChild(cb);
-    label.appendChild(document.createTextNode(folder.split(/[\\/]/).pop() || folder));
+    const display = entry.label || entry.ref;
+    label.appendChild(document.createTextNode(display.split(/[\\/]/).pop() || display));
     wrap.appendChild(label);
   });
   return wrap;

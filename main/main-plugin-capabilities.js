@@ -21,27 +21,44 @@ const http = require('http');
 const { isPathContained, stripExeSuffix } = require('./main-path-safety');
 
 // Capabilities schema: manifest `"capabilities"` is an object with any of
-// `ipc`/`spawn`/`net` (each an array of `{ <value-key>: "...", why: "..." }`)
-// declaring exactly what a plugin's main.js needs to touch —
-//   ipc:   [{ channel: "my-plugin:start", why: "..." }]     — an ipcMain.handle/.on channel name
-//   spawn: [{ bin: "ffmpeg", why: "..." }]                  — a child-process executable, matched by basename
-//   net:   [{ port: 8723, why: "..." }]                     — a port this plugin's own HTTP server binds
+// `ipc`/`spawn`/`net`/`mediaSource` (each an array of `{ <value-key>: "...",
+// why: "..." }`) declaring exactly what a plugin's main.js needs to touch —
+//   ipc:         [{ channel: "my-plugin:start", why: "..." }]  — an ipcMain.handle/.on channel name
+//   spawn:       [{ bin: "ffmpeg", why: "..." }]                — a child-process executable, matched by basename
+//   net:         [{ port: 8723, why: "..." }]                   — a port this plugin's own HTTP server binds
+//   mediaSource: [{ providerId: "my-source", why: "..." }]        — registers as a channel media-content source
 // A malformed entry (missing its value key or `why`) is dropped rather than
 // erroring the whole manifest — same "degrade gracefully" spirit as every
 // other optional manifest field. `dataDir` is what scopes file writes; it
 // isn't part of this object since it already has its own top-level field.
+//
+// Unlike ipc/spawn/net, mediaSource is declarative metadata only — it
+// doesn't gate a runtime-checked wrapper the way createCheckedSpawn/
+// createCheckedServer do below. Its job is (a) surfacing in the capability
+// approval prompt so the user consciously accepts "this plugin can supply
+// channel media" (worth being explicit about since outbound network access
+// to fetch that media isn't gated by anything today — see
+// main-media-dispatch.js's header comment), (b) letting the setup UI
+// enumerate available providers without calling into any plugin, and (c)
+// letting main-media-dispatch.js reject a ref whose providerId was never
+// actually declared/approved. It rides the same capabilitiesSignature()
+// JSON blob as every other capability type below, so a plugin update that
+// adds/removes/renames a providerId re-triggers the approval prompt exactly
+// like adding an ipc channel or spawn binary does — no separate plumbing
+// needed for that.
 function normalizeCapabilities(raw) {
   const caps = raw && typeof raw === 'object' ? raw : {};
   function normalizeList(list, valueKey) {
     if (!Array.isArray(list)) return [];
     return list
       .filter((e) => e && typeof e === 'object' && typeof e[valueKey] !== 'undefined' && typeof e.why === 'string' && e.why)
-      .map((e) => ({ [valueKey]: e[valueKey], why: e.why }));
+      .map((e) => ({ [valueKey]: e[valueKey], why: e.why, ...(e.displayName ? { displayName: e.displayName } : {}) }));
   }
   return {
     ipc: normalizeList(caps.ipc, 'channel'),
     spawn: normalizeList(caps.spawn, 'bin'),
     net: normalizeList(caps.net, 'port'),
+    mediaSource: normalizeList(caps.mediaSource, 'providerId'),
   };
 }
 
@@ -52,7 +69,9 @@ function normalizeCapabilities(raw) {
 // capabilities actually change (a plugin update adding a new port/channel/
 // binary re-prompts), not on every boot.
 function capabilitiesSignature(capabilities) {
-  return JSON.stringify(capabilities || { ipc: [], spawn: [], net: [] });
+  return JSON.stringify(capabilities || {
+    ipc: [], spawn: [], net: [], mediaSource: [],
+  });
 }
 
 // Shared error shape for every "tried to touch something undeclared" throw

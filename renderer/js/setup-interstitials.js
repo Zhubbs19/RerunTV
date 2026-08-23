@@ -588,7 +588,7 @@ async function startBulkPreview(entries, btn) {
     const f = entry.file || entry.bgFile;
     if (btn) btn.textContent = `■ STOP PREVIEW (${i + 1}/${entries.length})`;
     try {
-      const resolved = await window.api.resolvePlayablePath(f.path);
+      const resolved = await window.api.resolvePlayablePath('local', f.path);
       const url = await window.api.toFileUrl(resolved.path);
       player.src = url;
       await player.play().catch(() => {});
@@ -791,7 +791,7 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
 
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING INTERSTITIALS FOLDER…';
-  const paths = await window.api.scanFolder(folder);
+  const paths = await window.api.scanFolder('local', folder);
   for (let i = 0; i < paths.length; i++) {
     scanProgressEl.textContent = `PROBING ${i + 1} / ${paths.length}…`;
     const duration = await probeDuration(paths[i]);

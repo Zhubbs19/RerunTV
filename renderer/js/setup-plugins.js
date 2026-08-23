@@ -67,13 +67,14 @@ function sortPluginsForDisplay(plugins) {
 }
 
 // Human-readable line per declared capability, for the approval prompt —
-// one line per manifest.json capabilities.ipc/spawn/net entry, each already
-// carrying its own author-supplied `why`.
+// one line per manifest.json capabilities.ipc/spawn/net/mediaSource entry,
+// each already carrying its own author-supplied `why`.
 function formatCapabilityLines(caps) {
   const lines = [];
   (caps.ipc || []).forEach((e) => lines.push(`Talk to the app internally as "${e.channel}" — ${e.why}`));
   (caps.spawn || []).forEach((e) => lines.push(`Run "${e.bin}" as a separate program — ${e.why}`));
   (caps.net || []).forEach((e) => lines.push(`Open network port ${e.port} — ${e.why}`));
+  (caps.mediaSource || []).forEach((e) => lines.push(`Supply channel media as a source named "${e.displayName || e.providerId}" — ${e.why}`));
   return lines;
 }
 
@@ -160,10 +161,10 @@ async function confirmUninstallPlugin(p) {
 
 // Whether a plugin's manifest declares anything requiring approval at all —
 // mirrors main-plugins.js's loadMainPlugins() hasAnyCapability check exactly
-// (same three arrays, same truthiness test) so this stays in lockstep with
+// (same four arrays, same truthiness test) so this stays in lockstep with
 // what actually gates activation there.
 function hasAnyCapability(caps) {
-  return !!(caps && (caps.ipc.length || caps.spawn.length || caps.net.length));
+  return !!(caps && (caps.ipc.length || caps.spawn.length || caps.net.length || caps.mediaSource.length));
 }
 
 // Recomputes approval state fresh from S.config on every render, rather than

@@ -92,6 +92,9 @@ process, or bind an HTTP server, declare it in `manifest.json`:
   ],
   "net": [
     { "port": 8730, "why": "serves this plugin's own local stream to the renderer" }
+  ],
+  "mediaSource": [
+    { "providerId": "my-source", "displayName": "My Source", "why": "streams channel content from somewhere other than local disk" }
   ]
 }
 ```
@@ -110,6 +113,64 @@ actually checking — don't bypass it with a raw `require()`, since that
 defeats the whole point for whoever's deciding whether to trust your
 plugin. See `plugins/party-channel/main.js` for a real, larger worked example.
 
+Unlike `ipc`/`spawn`/`net`, `mediaSource` isn't checked against a runtime
+wrapper — it's declarative: it's what shows in the approval prompt so a user
+consciously accepts "this plugin can supply channel media," and it's what
+lets the CHANNELS tab's source picker list your provider. Nothing enforces
+what your provider's implementation actually does over the network (see
+"Media sources" below) — the `why` you give here is the user's only real
+signal, so be specific about it (e.g. "fetches video from your configured
+WebDAV server," not just "provides media").
+
+### Media sources
+
+A plugin can supply channel content from somewhere other than local disk —
+cloud storage, a network share, anything reachable over HTTP — by declaring
+`capabilities.mediaSource` (above) and, in `activate(ctx)`, registering four
+services keyed `mediaSource:<your-providerId>:<verb>` via `ctx.registerService`
+(see "Cross-plugin services" below — same mechanism, just a reserved key
+format core's dispatch layer looks for):
+
+```js
+ctx.registerService('mediaSource:my-source:list', async (folderRef) => {
+  // folderRef: whatever your own "choose a folder" UI produced.
+  // Returns { refs: string[] } — your own natural, unprefixed refs; core
+  // wraps them with a mediasource:my-source: prefix before they ever reach
+  // config, so you never construct that prefix yourself.
+  return { refs: [...] };
+});
+ctx.registerService('mediaSource:my-source:probe', async (ref) => {
+  // Returns { duration } in seconds, or { error } if you genuinely can't
+  // tell (core falls back to a generous default rather than failing).
+  return { duration: 1234 };
+});
+ctx.registerService('mediaSource:my-source:readRange', async (ref, start, end) => {
+  // The streaming primitive — called repeatedly as the player seeks, same
+  // as an HTTP Range request. `end` is inclusive; null means "to EOF".
+  // Return a Buffer chunk, not a stream — this is a bounded request/response
+  // call, matching how a seeking <video> element already requests bounded
+  // ranges rather than a whole file in one shot.
+  return { status: 206, contentType: 'video/mp4', totalSize: 999999, chunk: buf };
+});
+ctx.registerService('mediaSource:my-source:checkAvailable', async (ref) => {
+  return true; // cheap existence check, used by the CHECK CHANNELS health scan
+});
+```
+
+All four must be registered — core does not fall back to local behavior for
+a verb you didn't implement, it surfaces the call failure instead. A fifth,
+optional, UI-facing verb — `mediaSource:my-source:pickFolder`, `() =>
+Promise<folderRef | null>` — lets you show your own "browse for a folder"
+UI when the user clicks CHOOSE SOURCE on a channel; without it, they get a
+plain text-input fallback.
+
+Two things unlike local files: a codec-fix (`FIX PLAYBACK`) never applies to
+your refs — there's no local file to rename-swap a transcoded copy into, so
+an unplayable file from your source just shows a clear error instead. And
+your provider is responsible for its own auth/token refresh (if any) —
+`probe`/`readRange`/`checkAvailable` are called fresh each time, so refresh
+transparently inside them rather than assuming a token stays valid.
+
 `ctx.fs` is similar but always available (no declaration needed): reads
 (`existsSync`/`readFile`/`readFileSync`/`readdirSync`) take any path — this
 is deliberately unrestricted, since checking whether a user-configured
@@ -119,6 +180,22 @@ advance. Writes (`writeFile`/`writeFileSync`/`mkdirSync`/`createWriteStream`/
 to it — `ctx.fs.dataDir` is the resolved absolute path, if you need it
 directly (e.g. to build a path yourself before handing it to something
 else, like `spawn`'s output path).
+
+### Cross-plugin services
+
+`ctx.registerService(key, fn)` publishes a function under a string key any
+plugin (same-process or isolated, yours or another's) can call with
+`ctx.callService(key, ...args)` — you never need to know where the provider
+actually lives; the call is proxied over RPC automatically if it's in a
+different process. This is how a media-source provider's `list`/`probe`/
+`readRange`/`checkAvailable` verbs are exposed (see "Media sources" above) —
+that's a reserved `mediaSource:<providerId>:<verb>` key convention on top of
+this same general mechanism, not a separate one. A **plain value** (a
+string, an array) instead of a function still just uses `ctx.services`
+directly — publish with `ctx.services.someKey = value`, read the same way;
+see the isolated-plugins section below for the one caveat that applies only
+to that case (a snapshot, not a live reference, across the process
+boundary).
 
 ### Isolated plugins
 
@@ -167,11 +244,6 @@ process boundary, so these replace the same-process equivalents:**
 - `ctx.sendToMainWindow(channel, data)` replaces
   `getMainWindow().webContents.send(channel, data)` — no null/isDestroyed
   check needed, it's already a safe no-op if the window is gone.
-- `ctx.registerService(key, fn)` / `ctx.callService(key, ...args)` replace
-  publishing/reading a **function-valued** `ctx.services` entry (a plain
-  value like a string still just uses `ctx.services` directly — see above).
-  `callService` works whether the provider is same-process or isolated; you
-  never need to know which.
 - `ctx.registerPartyRoute(method, pathname, handler)` /
   `ctx.dispatchPartyRoute(requestDescriptor)` replace the old
   `ctx.services.partyRoutes` array extension point on party-channel's server.

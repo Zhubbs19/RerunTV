@@ -66,7 +66,7 @@ export async function playChannelLive(ch, opts) {
 
   let resolved, url;
   try {
-    resolved = await window.api.resolvePlayablePath(file.path);
+    resolved = await window.api.resolvePlayablePath(file.source || 'local', file.path);
     if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} resolvePlayablePath +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
     url = await window.api.toFileUrl(resolved.path);
     if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} toFileUrl +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
@@ -116,6 +116,16 @@ export async function playChannelLive(ch, opts) {
       return;
     }
 
+    // A media-source-plugin-backed file has no local copy for the transcode
+    // rename-swap dance to operate on — resolvePlayablePath (main.js) marks
+    // this explicitly rather than leaving it to fail inside transcodeVideo.
+    // Skip straight to a clear, accurate error instead of flashing
+    // "TRANSCODING…" for a fix that was never going to be attempted.
+    if (resolved.transcodable === false) {
+      showNoSignal('PLAYBACK ERROR', `CH ${ch.number} — ${base.toUpperCase()}: FILE FROM A PLUGIN MEDIA SOURCE CAN'T BE AUTO-FIXED`, 'error');
+      return;
+    }
+
     showNoSignal('TRANSCODING…', `CH ${ch.number} — ${base.toUpperCase()} (ONE-TIME FIX, PLEASE WAIT)`, 'transcoding');
 
     // player.src still points at this exact file — Chromium's media pipeline
@@ -134,7 +144,7 @@ export async function playChannelLive(ch, opts) {
     // TRANSCODING… card on screen forever instead of surfacing an error.
     let result;
     try {
-      result = await window.api.transcode(file.path);
+      result = await window.api.transcode(file.source || 'local', file.path);
     } catch (err) {
       result = { error: (err && err.message) || 'transcode call failed' };
     }
@@ -512,7 +522,7 @@ function startBreak(ch, resolved, key) {
     (async () => {
       try {
         const filePath = (entry.bgFile && entry.bgFile.path) || '';
-        const resolved = await window.api.resolvePlayablePath(filePath);
+        const resolved = await window.api.resolvePlayablePath('local', filePath);
         const [, url] = await Promise.all([fadeOutPlayer(), window.api.toFileUrl(resolved.path)]);
         if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
         player.loop = true;
@@ -559,7 +569,7 @@ function startBreak(ch, resolved, key) {
   (async () => {
     try {
       const filePath = (entry.file && entry.file.path) || '';
-      const resolved = await window.api.resolvePlayablePath(filePath);
+      const resolved = await window.api.resolvePlayablePath('local', filePath);
       const [, url] = await Promise.all([fadeOutPlayer(), window.api.toFileUrl(resolved.path)]);
       if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
       player.src = url;

@@ -185,11 +185,92 @@ export function pickLogoBugProfile(profiles, videoWidth) {
   return sorted.find((p) => p.maxWidth == null || !videoWidth || videoWidth <= p.maxWidth) || sorted[sorted.length - 1];
 }
 
+// A folder/file's `source` names which media-source provider it came from —
+// 'local' for the filesystem (the only provider that exists today; plugin
+// providers arrive in a later phase of the media-source abstraction work).
+// The id is deliberately content-derived (source+ref), not random, so the
+// same physical folder always resolves to the same ch.folders[] entry id
+// everywhere it's referenced — normalizeChannel's migration below depends on
+// this being idempotent across every boot, and curation.js depends on it to
+// resolve a copied file's `folder` id back to a real entry on another
+// channel (findFolderEntry).
+export function mediaRefId(source, ref) {
+  return `src_${source}_${hashString(`${source}:${ref}`)}`;
+}
+
+// Renderer-side mirror of main-media-dispatch.js's parseMediaRef/
+// wrapMediaRef (main process) — small enough, and needed rarely enough
+// (unwrapping a freshly-scanned plugin ref back to its raw form before
+// probing — see rescanAllFolders, setup-channels.js), that duplicating the
+// pure logic here beats an IPC round-trip just to parse a string. Same
+// reasoning as setup-dragdrop.js's own small VIDEO_EXTENSIONS mirror of
+// main-media.js's. `ch.files[].path` for a plugin-sourced file is always
+// the WRAPPED form (mediasource:<source>:<ref>) — main.js's fs:scanFolder
+// handler applies wrapMediaRef once, at the point a ref first enters
+// config, so a provider's own list()/probe()/readRange() always work with
+// their own natural unprefixed refs and never need to know this scheme
+// exists.
+export function parseMediaRef(ref) {
+  const m = /^mediasource:([a-zA-Z0-9_-]+):([\s\S]*)$/.exec(ref);
+  if (!m) return { source: 'local', ref };
+  return { source: m[1], ref: m[2] };
+}
+
+export function wrapMediaRef(source, rawRef) {
+  return `mediasource:${source}:${rawRef}`;
+}
+
+// A saved curation profile's contentPoolScope.folders (setup-autocurate.js)
+// may still hold legacy raw path strings from before ch.folders[] entries
+// had ids — resolve each to its current entry id (matching by ref) so an
+// old profile's explicit folder subset keeps scoping correctly after the
+// shape change, without a separate one-time config migration pass. A value
+// that's already an id (or matches nothing at all — its folder was since
+// removed) passes through unchanged.
+export function resolveScopeFolderIds(scopeFolders) {
+  const allEntries = [];
+  S.config.channels.forEach((c) => (c.folders || []).forEach((e) => allEntries.push(e)));
+  return scopeFolders.map((v) => {
+    if (allEntries.some((e) => e.id === v)) return v;
+    const byRef = allEntries.find((e) => e.ref === v);
+    return byRef ? byRef.id : v;
+  });
+}
+
+// Resolves a ch.files[]/block.files[] entry's `folder` id back to its
+// owning ch.folders[] entry — scans every channel, not just one, because a
+// curated channel's files can carry a folder id that originated on a
+// different channel than the one they were copied into (curation.js copies
+// files by reference-equal id, not by re-scanning). Returns null if no
+// channel's folders[] still has it (e.g. the source folder was later
+// removed from its original channel).
+export function findFolderEntry(folderId) {
+  if (!folderId) return null;
+  for (const c of S.config.channels) {
+    const found = (c.folders || []).find((e) => e.id === folderId);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Merges a second list of ch.folders[] entries into an existing one,
+// de-duped by id (object identity/reference can't be relied on — the
+// incoming entries are usually freshly resolved copies, not the same
+// objects). Existing entries win on conflict (keeps any user-edited label).
+export function mergeFolderEntries(existing, incoming) {
+  const byId = new Map((existing || []).map((e) => [e.id, e]));
+  (incoming || []).forEach((e) => { if (!byId.has(e.id)) byId.set(e.id, e); });
+  return Array.from(byId.values());
+}
+
 // Migrates old single-folder configs (ch.folder + ch.files with no folder tag)
 // to the multi-folder shape (ch.folders[] + each file tagged with its source
-// folder). Also migrates the old ch.commercials/ch.commercialsEnabled to the
-// new ch.adsEnabled boolean — all break scheduling now lives in the
-// Programming tab's flows/presets, not on the channel object.
+// folder), then further migrates bare-path ch.folders[] entries (pre-dating
+// the media-source abstraction) into { id, source, ref, label } objects —
+// see mediaRefId above for why the id is content-derived rather than random.
+// Also migrates the old ch.commercials/ch.commercialsEnabled to the new
+// ch.adsEnabled boolean — all break scheduling now lives in the Programming
+// tab's flows/presets, not on the channel object.
 export function normalizeChannel(ch) {
   if (!ch.folders) {
     ch.folders = ch.folder ? [ch.folder] : [];
@@ -198,6 +279,18 @@ export function normalizeChannel(ch) {
     }
   }
   delete ch.folder;
+  if (ch.folders.length && typeof ch.folders[0] === 'string') {
+    const idFor = (p) => mediaRefId('local', p);
+    const migrated = ch.folders.map((p) => ({ id: idFor(p), source: 'local', ref: p, label: null }));
+    (ch.files || []).forEach((f) => {
+      if (f.source === undefined) f.source = 'local';
+      if (f.folder) f.folder = idFor(f.folder); // was the raw path; now the owning entry's id
+    });
+    ch.folders = migrated;
+  }
+  // Covers files added after ch.folders was already migrated (or was always
+  // empty) — drag-dropped/addFilesToChannel-pushed files with folder: null.
+  (ch.files || []).forEach((f) => { if (f.source === undefined) f.source = 'local'; });
   (ch.files || []).forEach(normalizeFileFacets);
   if (ch.name == null) ch.name = '';
   // Migrate old commercials config to the simple adsEnabled boolean.
@@ -246,6 +339,7 @@ export function normalizeChannel(ch) {
     if (!b.id) b.id = randomBlockId();
     if (b.name === undefined) b.name = '';
     if (b.theme === undefined) b.theme = null;
+    (b.files || []).forEach((f) => { if (f.source === undefined) f.source = 'local'; });
   });
 
   // dateOverrides used to be a separate MM-DD date-range array running
@@ -259,7 +353,7 @@ export function normalizeChannel(ch) {
         id: randomBlockId(), name: ov.label || '',
         trigger: { type: 'dateRange', startMonth: ov.startMonth, startDay: ov.startDay, endMonth: ov.endMonth, endDay: ov.endDay },
         priority: 10, mode: 'loop',
-        folder: ov.folder, files: ov.files || [], anchor: ov.anchor,
+        folder: ov.folder, files: (ov.files || []).map((f) => ({ ...f, source: f.source || 'local' })), anchor: ov.anchor,
         commercials: ov.commercials || null, dayOverrides: {}, finale: null,
       });
     });
@@ -352,8 +446,11 @@ export function getChannel(number) {
 // (so re-adding the same file is a silent no-op, not a duplicate playlist
 // entry), reshuffles if the channel is in shuffle mode, and anchors a
 // never-yet-played channel to "now" so it doesn't sit unanchored. `entries`
-// is [{path, duration, folder}] — folder is null for anything not tied to a
-// tracked ch.folders[] source (a one-off drag-drop, a plugin-added file).
+// is [{path, duration, folder, source}] — folder is null for anything not
+// tied to a tracked ch.folders[] source (a one-off drag-drop, a plugin-added
+// file); source defaults to 'local' since every caller today (drag-drop,
+// plugins via ctx.addFilesToChannel) only ever adds local-filesystem files —
+// a future media-source plugin passing its own refs would set source itself.
 // Shared by setup-dragdrop.js and exposed to plugins via ctx.addFilesToChannel
 // (plugins.js) so a plugin can add channel content without knowing the
 // channel object's shape.
@@ -366,7 +463,9 @@ export function addFilesToChannel(ch, entries) {
     added.push(e);
   });
   if (!added.length) return added;
-  added.forEach((e) => ch.files.push({ path: e.path, duration: e.duration, folder: e.folder || null }));
+  added.forEach((e) => ch.files.push({
+    path: e.path, duration: e.duration, folder: e.folder || null, source: e.source || 'local',
+  }));
   if (ch.shuffle) shuffleArray(ch.files);
   if (!ch.anchor) ch.anchor = Date.now();
   return added;

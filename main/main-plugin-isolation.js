@@ -66,6 +66,25 @@ function buildExecArgv(manifest, appRootDir, dataDir) {
   return args;
 }
 
+// Resolves and invokes a published/registered service by key, regardless of
+// whether it lives same-process (a plain function in `pluginServices`) or in
+// an isolated plugin's own process (proxied through its childRpc) — the
+// exact body of the `services:call` RPC handler below, lifted out so
+// main-media-dispatch.js (media-source provider dispatch) and
+// buildCheckedCtx()'s ctx.callService (main-plugins.js, the non-isolated
+// path) can both reuse this one resolution order instead of each
+// reimplementing it. `args` is an explicit array (not rest-params) so an
+// optional trailing `timeoutMsOverride` can't be mistaken for a call
+// argument; it's passed straight through to childRpc.request() for the
+// isolated-provider case — see rpc-channel.js's comment on why a
+// media-source call needs more headroom than this channel's default.
+function callAnyService(pluginServices, key, args, timeoutMsOverride) {
+  if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
+  const provider = serviceProviders.get(key);
+  if (!provider) return Promise.reject(new Error(`No plugin has published a "${key}" service.`));
+  return provider.request('services:invoke', { key, args: args || [] }, timeoutMsOverride);
+}
+
 // ---- handlers for requests/events the CHILD initiates ----
 // Split out of activateIsolatedPlugin() below — this whole block wires up
 // what happens when the forked process calls back into the host (an IPC
@@ -97,12 +116,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices) {
   childRpc.on('trackConnection', ({ serverName, ip, userAgent }) => recordConnection(serverName, ip, userAgent));
   childRpc.on('services:publish', ({ key, value }) => { pluginServices[key] = value; });
   childRpc.on('services:registerProvider', ({ key }) => { serviceProviders.set(key, childRpc); });
-  childRpc.handle('services:call', async ({ key, args }) => {
-    if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
-    const provider = serviceProviders.get(key);
-    if (!provider) throw new Error(`No plugin has published a "${key}" service.`);
-    return provider.request('services:invoke', { key, args });
-  });
+  childRpc.handle('services:call', async ({ key, args }) => callAnyService(pluginServices, key, args || []));
   childRpc.on('party:registerRoute', ({ method, pathname }) => {
     partyRouteRegistry.set(`${method} ${pathname}`, childRpc);
   });
@@ -204,4 +218,4 @@ function wireAppQuitPropagation() {
   });
 }
 
-module.exports = { activateIsolatedPlugin, wireAppQuitPropagation };
+module.exports = { activateIsolatedPlugin, wireAppQuitPropagation, callAnyService };

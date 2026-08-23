@@ -45,7 +45,7 @@ const HEADLESS = process.argv.includes('--headless') || process.argv.includes('-
 // entirely in that plugin's own main.js, not here. What's left in main.js
 // itself is app lifecycle, window creation, and the ipcMain registrations
 // that tie all of the above to the renderer.
-const { registerAppSchemePrivileges, registerAppProtocol, mimeFor } = require('./main-protocol');
+const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, mimeFor } = require('./main-protocol');
 const {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, recoverPendingSwap, scanFolderForVideos, transcodeVideo,
 } = require('./main-media');
@@ -60,6 +60,10 @@ const { startViewerServer } = require('./main-viewer-server');
 const { startDiscoveryServer } = require('./main-discovery-server');
 const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers } = require('./main-plugins');
 const { wireAppQuitPropagation } = require('./main-plugin-isolation');
+const {
+  wrapMediaRef, setApprovedMediaSourceProviders, callMediaService,
+  MEDIA_LIST_TIMEOUT_MS, MEDIA_PROBE_TIMEOUT_MS, MEDIA_CHECK_TIMEOUT_MS,
+} = require('./main-media-dispatch');
 const { initAutoUpdater } = require('./main-updater');
 // Handed to the party-channel/universal-remote plugins via ctx — both need
 // these npm packages (multipart upload parsing, QR code generation) but
@@ -146,6 +150,21 @@ let pluginMainLoadErrors = {};
 // to plugins:list the same way pluginMainLoadErrors is, so the PLUGINS tab
 // can show an APPROVE PERMISSIONS prompt instead of silently not-activating.
 let pluginsNeedingApproval = [];
+// providerId -> pluginId, for every media-source provider actually
+// activated this boot — see loadMainPlugins()'s doc comment
+// (main-plugins.js) and setApprovedMediaSourceProviders
+// (main-media-dispatch.js), which this same value also feeds. Read by
+// plugins:listMediaSourceProviders below so the CHANNELS tab's CHOOSE
+// SOURCE picker only ever offers a provider that's real and callable right
+// now, not just declared in some plugin's manifest.json.
+let activatedMediaSourceProviders = {};
+// Module-scope so the fs:scanFolder/media:probeDuration/fs:checkPathsExist/
+// media:resolvePlayablePath/media:transcode handlers below (registered at
+// module load, outside whenReady) can reach it for their non-local dispatch
+// branch (callMediaService, main-media-dispatch.js) — same object
+// loadMainPlugins() populates inside whenReady below, just referenced from
+// a wider scope than before this existed.
+let pluginServicesRef = {};
 
 app.whenReady().then(async () => {
   // `services` is a single shared object, mutated in place by whichever
@@ -156,6 +175,8 @@ app.whenReady().then(async () => {
   // boot has had time to populate it) so that server can be handed the same
   // reference rather than a snapshot.
   const pluginServices = {};
+  pluginServicesRef = pluginServices;
+  setMediaDispatchServices(pluginServices);
   startViewerServer(pluginServices);
   startDiscoveryServer();
   wireAppQuitPropagation();
@@ -182,6 +203,8 @@ app.whenReady().then(async () => {
   pluginsNeedingApproval = loadResult.needsApproval;
   registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval), ipcMain, loadResult.allPlugins);
   setFfmpegPath(pluginServices.ffmpegPath || null);
+  activatedMediaSourceProviders = loadResult.activatedMediaSourceProviders;
+  setApprovedMediaSourceProviders(loadResult.activatedMediaSourceProviders);
 
   if (HEADLESS) {
     // No window, no app:// protocol (only ever used to load the host's own
@@ -332,6 +355,40 @@ ipcMain.handle('plugins:list', async () => {
   ));
 });
 
+// A filtered projection of the same discoverPlugins() data plugins:list
+// already exposes — no new discovery mechanism, just narrowed to
+// {providerId, displayName, pluginId} for every mediaSource capability
+// entry belonging to a plugin that's actually activated right now
+// (activatedMediaSourceProviders, populated once at boot — see
+// loadMainPlugins()'s doc comment, main-plugins.js). A provider a plugin
+// merely *declares* but that's disabled/errored/awaiting approval doesn't
+// show up here — the CHANNELS tab's CHOOSE SOURCE picker (setup-
+// channels.js) should never offer something it can't actually call.
+// Generic passthrough to any of a media-source provider's own registered
+// service verbs — used today only for the optional, UI-facing `pickFolder`
+// (PLUGIN_DEVELOPMENT.md's "Media sources" section), reached from
+// setup-channels.js's CHOOSE SOURCE flow. Not restricted to `pickFolder`
+// specifically (a future provider-specific UI verb needs no new IPC
+// channel of its own), but still gated by callMediaService's own
+// assertKnownProvider check — same defense-in-depth as every other
+// media-source dispatch call, not a way to reach an arbitrary service key
+// outside the mediaSource: namespace.
+ipcMain.handle('mediaSource:callHook', async (event, providerId, verb, args) => {
+  return callMediaService(pluginServicesRef, providerId, verb, args || []);
+});
+
+ipcMain.handle('plugins:listMediaSourceProviders', async () => {
+  const providers = [];
+  discoverPlugins().forEach((p) => {
+    if (p.error || !p.capabilities || !p.capabilities.mediaSource) return;
+    p.capabilities.mediaSource.forEach((entry) => {
+      if (activatedMediaSourceProviders[entry.providerId] !== p.id) return;
+      providers.push({ providerId: entry.providerId, displayName: entry.displayName || entry.providerId, pluginId: p.id });
+    });
+  });
+  return providers;
+});
+
 // Persists the user's approval of exactly this plugin's *current* declared
 // capabilities (setup-plugins.js's approval prompt) — keyed by a signature
 // of the capabilities themselves (main-plugins.js's capabilitiesSignature),
@@ -421,22 +478,54 @@ ipcMain.handle('plugins:setEnabled', async (event, id, enabled) => {
   return config.plugins.disabled;
 });
 
-// ---------- Filesystem ----------
-ipcMain.handle('fs:scanFolder', async (event, folderPath) => {
-  return scanFolderForVideos(folderPath);
+// ---------- Filesystem / media sources ----------
+// Local stays the exact pre-existing implementation, unchanged. A non-local
+// source dispatches to that plugin's registered `list` service instead —
+// see main-media-dispatch.js's header comment for the full contract. The
+// plugin's own raw refs are wrapped with the mediasource:<id>: prefix here,
+// once, so a provider author never has to think about that bookkeeping.
+ipcMain.handle('fs:scanFolder', async (event, source, folderRef) => {
+  if (!source || source === 'local') return scanFolderForVideos(folderRef);
+  const result = await callMediaService(pluginServicesRef, source, 'list', [folderRef], MEDIA_LIST_TIMEOUT_MS);
+  if (!result || result.error) return [];
+  return (result.refs || []).map((r) => wrapMediaRef(source, r));
+});
+
+// New — a plugin-sourced ref can't be probed via the renderer's <video>-
+// element trick (setup-util.js's probeDuration), since there's no playback
+// dispatch path for it independent of this call in the first place. Local
+// returns null, which setup-util.js's probeDurationForEntry reads as "fall
+// back to the existing renderer-side <video> probe" — the local path is
+// untouched by this feature at all, not just unchanged in behavior.
+ipcMain.handle('media:probeDuration', async (event, source, ref) => {
+  if (!source || source === 'local') return null;
+  try {
+    const result = await callMediaService(pluginServicesRef, source, 'probe', [ref], MEDIA_PROBE_TIMEOUT_MS);
+    return (result && typeof result.duration === 'number') ? result.duration : 180;
+  } catch (e) { return 180; } // same fallback probeDuration already uses for a local decode timeout/error
 });
 
 // Cheap existence-only check (no decode, no ffprobe) — used by the setup
 // screen's CHECK CHANNELS health scan to flag files whose paths no longer
 // resolve (moved/renamed/deleted media), distinct from FIX PLAYBACK's much
 // heavier per-file decode probe which only ever runs one channel at a time.
-ipcMain.handle('fs:checkPathsExist', async (event, paths) => {
+// `entries` is [{source, ref}] — a non-local entry's "still there" check is
+// necessarily a network round-trip per provider's own checkAvailable, so a
+// provider being unreachable/disabled is treated the same as a missing
+// local file (an honest "not available" here) rather than surfacing as a
+// distinct error state the setup UI has no way to show anyway.
+ipcMain.handle('fs:checkPathsExist', async (event, entries) => {
   // Async + concurrent rather than a serial existsSync loop — a library
   // with dozens-to-hundreds of files would otherwise block this whole
   // process (window, every LAN request, every other IPC call) for the
   // scan's entire duration, one blocking syscall at a time.
-  return Promise.all((paths || []).map(async (p) => {
-    try { await fs.promises.access(p); return true; } catch (e) { return false; }
+  return Promise.all((entries || []).map(async (e) => {
+    const source = e && e.source;
+    const ref = e && typeof e === 'object' ? e.ref : e; // tolerate a bare path string too
+    if (!source || source === 'local') {
+      try { await fs.promises.access(ref); return true; } catch (err) { return false; }
+    }
+    try { return !!(await callMediaService(pluginServicesRef, source, 'checkAvailable', [ref], MEDIA_CHECK_TIMEOUT_MS)); } catch (err) { return false; }
   }));
 });
 
@@ -531,10 +620,15 @@ ipcMain.handle('path:basename', async (event, filePath) => {
 // Cheap check only — never spawns ffmpeg. srcPath is always the path to play;
 // alreadyFixed tells the caller whether it's already the swapped-in H.264
 // copy (a backup exists), so a further playback failure is a real error
-// rather than something a transcode could fix.
-ipcMain.handle('media:resolvePlayablePath', async (event, srcPath) => {
+// rather than something a transcode could fix. Explicit no-op for a
+// non-local source, per media-source-abstraction design: there's no local
+// file to rename-swap a transcoded copy into, so `transcodable: false` here
+// tells playback.js's handleUnplayable() not to attempt the FIX PLAYBACK
+// flow at all rather than trying and failing at it.
+ipcMain.handle('media:resolvePlayablePath', async (event, source, srcPath) => {
+  if (source && source !== 'local') return { path: srcPath, alreadyFixed: false, transcodable: false };
   recoverPendingSwap(srcPath);
-  return { path: srcPath, alreadyFixed: fs.existsSync(backupPathFor(srcPath)) };
+  return { path: srcPath, alreadyFixed: fs.existsSync(backupPathFor(srcPath)), transcodable: true };
 });
 
 // ---------- Plugin API fallbacks ----------
@@ -551,7 +645,14 @@ ipcMain.handle('media:resolvePlayablePath', async (event, srcPath) => {
 // The actual transcode/swap logic (spawning ffmpeg, the backup-then-promote
 // rename dance, retrying a Windows rename that loses a race with a still-
 // closing file handle) lives in main-media.js's transcodeVideo() — this
-// handler is just the IPC surface for it.
-ipcMain.handle('media:transcode', async (event, srcPath) => {
+// handler is just the IPC surface for it. A non-local source has no local
+// file for that rename dance to operate on at all — surfaced as a clear,
+// specific error rather than attempting local rename semantics against an
+// opaque plugin ref (which would just throw confusingly inside
+// transcodeVideo instead).
+ipcMain.handle('media:transcode', async (event, source, srcPath) => {
+  if (source && source !== 'local') {
+    return { error: "This file is served by a plugin media source and can't be codec-fixed in place — try re-encoding it at the source, or copying it locally first." };
+  }
   return transcodeVideo(srcPath);
 });

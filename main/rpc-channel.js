@@ -75,14 +75,21 @@ function createRpc(post, subscribe, options = {}) {
   return {
     // Sends a request to the other side and resolves/rejects with its reply,
     // or rejects on its own after timeoutMs if no reply ever arrives.
-    request(method, payload) {
+    // `timeoutMsOverride` lets one call opt into a longer wait than this
+    // channel's own default without changing it for every other call on the
+    // same channel — added for media-source provider calls (readRange/probe,
+    // main-media-dispatch.js), where a slow remote fetch can legitimately
+    // take longer than the 20s default headroom every other proxied call
+    // (ffmpeg path lookups, IPC proxying, etc.) is sized for.
+    request(method, payload, timeoutMsOverride) {
       if (disposed) return Promise.reject(new Error('RPC channel closed'));
       return new Promise((resolve, reject) => {
         const id = nextId += 1;
+        const effectiveTimeout = timeoutMsOverride || timeoutMs;
         const timer = setTimeout(() => {
           pending.delete(id);
-          reject(new Error(`RPC request "${method}" timed out after ${timeoutMs}ms`));
-        }, timeoutMs);
+          reject(new Error(`RPC request "${method}" timed out after ${effectiveTimeout}ms`));
+        }, effectiveTimeout);
         pending.set(id, { resolve, reject, timer });
         post({ kind: 'req', id, method, payload });
       });

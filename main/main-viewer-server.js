@@ -14,10 +14,9 @@
 const path = require('path');
 const http = require('http');
 const { loadConfig } = require('./main-config');
-const { serveFile, pipeWebResponse } = require('./main-protocol');
+const { serveFile, serveMediaRef, pipeWebResponse } = require('./main-protocol');
 const { trackConnection } = require('./main-connections');
 const { VIEWER_PORT } = require('./main-lan');
-const { LAN_MEDIA_EXTENSIONS } = require('./main-media');
 const { isPathContained } = require('./main-path-safety');
 const { version: APP_VERSION } = require('../package.json');
 
@@ -79,21 +78,19 @@ function startViewerServer(pluginServices) {
     // Same semantics as the app://media/?p=... handler in
     // registerAppProtocol — just reachable over the LAN port instead of
     // only Electron's internal scheme, reusing the exact same Range-aware
-    // serveFile(). Unlike the app:// version (only ever reachable from this
-    // app's own sandboxed renderer), this is a plain LAN HTTP endpoint with
-    // no auth — any device on the network can request any `p`. Restricted to
-    // known media extensions so it can only ever be used to read the same
-    // kinds of files this app itself points channels/icons/audio at, not
-    // arbitrary files on the host (channels.json, OS files, etc.).
+    // serveMediaRef() (dispatches to a media-source plugin's readRange for a
+    // mediasource:<id>:... ref, same as the app:// version, so a LAN viewer
+    // watching a plugin-sourced channel streams correctly too — not just
+    // the main window). Unlike the app:// version (only ever reachable from
+    // this app's own sandboxed renderer), this is a plain LAN HTTP endpoint
+    // with no auth — any device on the network can request any `p`.
+    // serveMediaRef's own extension allowlist is what keeps this scoped to
+    // the same kinds of files this app itself points channels/icons/audio
+    // at, not arbitrary files on the host (channels.json, OS files, etc.).
     if (url.pathname === '/media') {
       const target = url.searchParams.get('p');
       if (!target) { res.writeHead(400).end('Bad request'); return; }
-      const resolved = path.normalize(decodeURIComponent(target));
-      if (!LAN_MEDIA_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
-        res.writeHead(403).end('Forbidden');
-        return;
-      }
-      await pipeWebResponse(await serveFile(resolved, range), res);
+      await pipeWebResponse(await serveMediaRef(decodeURIComponent(target), range), res);
       return;
     }
 

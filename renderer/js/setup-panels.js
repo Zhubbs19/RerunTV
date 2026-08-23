@@ -56,11 +56,17 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   folderOpt0.value = '';
   folderOpt0.textContent = 'SELECT BY FOLDER…';
   folderSelect.appendChild(folderOpt0);
-  folders.forEach((folder) => {
+  // `folders` entries are normally ch.folders[]-shaped { id, ref, label }
+  // objects, but a block's own single folder (setup-schedule.js) is still
+  // passed as a bare path string — support both without forcing a block's
+  // singular `folder` field through the full entry-object migration too.
+  folders.forEach((entry) => {
     const opt = document.createElement('option');
-    opt.value = folder;
-    opt.textContent = folder.split(/[\\/]/).pop() || folder;
-    opt.title = folder;
+    const value = typeof entry === 'string' ? entry : entry.id;
+    const display = typeof entry === 'string' ? entry : (entry.label || entry.ref);
+    opt.value = value;
+    opt.textContent = display.split(/[\\/]/).pop() || display;
+    opt.title = display;
     folderSelect.appendChild(opt);
   });
   if (folders.length < 2) folderSelect.classList.add('hidden');
@@ -545,17 +551,18 @@ export function buildFoldersPanel(ch, panelEl) {
   const list = document.createElement('div');
   list.className = 'titles-list';
 
-  (ch.folders || []).forEach((folder) => {
+  (ch.folders || []).forEach((entry) => {
     const row = document.createElement('div');
     row.className = 'folder-row';
 
+    const display = entry.label || entry.ref;
     const path = document.createElement('span');
     path.className = 'folder-row-path';
-    path.textContent = folder;
-    path.title = folder;
+    path.textContent = entry.source && entry.source !== 'local' ? `[${entry.source}] ${display}` : display;
+    path.title = display;
     row.appendChild(path);
 
-    const count = ch.files.filter((f) => f.folder === folder).length;
+    const count = ch.files.filter((f) => f.folder === entry.id).length;
     const countEl = document.createElement('span');
     countEl.className = 'folder-row-count';
     countEl.textContent = `${count} video${count === 1 ? '' : 's'}`;
@@ -566,7 +573,7 @@ export function buildFoldersPanel(ch, panelEl) {
     removeBtn.textContent = 'REMOVE';
     removeBtn.addEventListener('click', async () => {
       if (!(await confirmDialog(`Remove this folder (${count} video${count === 1 ? '' : 's'}) from the channel?`))) return;
-      removeFolderFromChannel(ch, folder);
+      removeFolderFromChannel(ch, entry);
     });
     row.appendChild(removeBtn);
 

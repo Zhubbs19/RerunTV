@@ -5,7 +5,7 @@
 import { applyConfigDefaults, showTvScreen } from './app.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import {
-  buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, nextChannelNumber, sortedChannels,
+  buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, mediaRefId, nextChannelNumber, parseMediaRef, sortedChannels,
 } from './channels.js';
 import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
@@ -22,7 +22,7 @@ import { buildChannelAdsPanel, buildCommercialsPanel, buildFoldersPanel, buildLo
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
-import { toggleLazyPanel, probeDuration, attachSliderReadout } from './setup-util.js';
+import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './setup-util.js';
 import {
   computeLivePosition, computeSourcePosition, isWithinBroadcastHours, matchesTrigger, resolveActiveSource,
 } from './schedule.js';
@@ -92,7 +92,7 @@ export async function fixChannelPlayback(ch, btn) {
 
     if (!ok) {
       scanProgressEl.textContent = `CH ${ch.number}: FIXING ${i + 1} / ${allFiles.length}…`;
-      const result = await window.api.transcode(file.path);
+      const result = await window.api.transcode(file.source || 'local', file.path);
       if (!result.error) fixedCount++;
     }
   }
@@ -142,6 +142,7 @@ function filteredSetupChannels(fullList) {
 
 export function renderChannelList() {
   if (!channelListEl) return;
+  ensureMediaSourceProvidersLoaded();
   channelListEl.innerHTML = '';
   channelListEl.classList.toggle('select-mode', !!S.bulkSelectMode);
   
@@ -266,10 +267,7 @@ export function renderChannelList() {
       nameInput.value = ch.name || '';
       nameInput.addEventListener('input', () => { ch.name = nameInput.value; saveConfigDebounced(); });
 
-      const folderBtn = document.createElement('button');
-      folderBtn.className = 'btn folder-btn';
-      folderBtn.textContent = ch.folders.length ? '+ ADD FOLDER' : 'CHOOSE FOLDER';
-      folderBtn.addEventListener('click', () => addFolderToChannel(ch));
+      const folderBtn = buildChooseSourceControl(ch);
 
       const removeBtn = document.createElement('button');
       removeBtn.className = 'btn remove-btn';
@@ -968,13 +966,139 @@ bulkRemoveBtn.addEventListener('click', async () => {
   renderChannelList();
 });
 
+// ---------- Media sources (CHOOSE SOURCE) ----------
+// Which media-source provider plugins are actually activated right now
+// (main.js's plugins:listMediaSourceProviders — a filtered projection of
+// discoverPlugins(), see main.js's own comment). Fetched once per session,
+// not per row-render — a plugin's activation state can't change without an
+// app restart (same "restart to activate" convention every capability
+// change already follows), so there's nothing to gain from re-fetching on
+// every renderChannelList() call, only IPC round-trips to avoid.
+let cachedMediaSourceProviders = [];
+let mediaSourceProvidersFetchStarted = false;
+function ensureMediaSourceProvidersLoaded() {
+  if (mediaSourceProvidersFetchStarted) return;
+  mediaSourceProvidersFetchStarted = true;
+  window.api.listMediaSourceProviders().then((providers) => {
+    if (!providers || !providers.length) return;
+    cachedMediaSourceProviders = providers;
+    renderChannelList(); // re-render once so already-drawn rows pick up the real picker instead of just "CHOOSE FOLDER"
+  }).catch(() => {}); // no providers active — cachedMediaSourceProviders stays [], every row just shows the plain local button
+}
+
+// The per-channel folder/source picker — a plain "CHOOSE FOLDER" button
+// when no media-source provider plugin is active (true for the overwhelming
+// majority of setups, and exactly what every existing screenshot/muscle
+// memory already expects — zero visual change), or a small select offering
+// "Local Folder" plus each active provider once at least one exists.
+function buildChooseSourceControl(ch) {
+  if (!cachedMediaSourceProviders.length) {
+    const btn = document.createElement('button');
+    btn.className = 'btn folder-btn';
+    btn.textContent = ch.folders.length ? '+ ADD FOLDER' : 'CHOOSE FOLDER';
+    btn.addEventListener('click', () => addFolderToChannel(ch));
+    return btn;
+  }
+
+  const select = document.createElement('select');
+  select.className = 'btn folder-btn';
+  select.title = 'CHOOSE SOURCE';
+  const localOpt = document.createElement('option');
+  localOpt.value = '';
+  localOpt.textContent = ch.folders.length ? '+ ADD FOLDER…' : 'CHOOSE SOURCE…';
+  select.appendChild(localOpt);
+  const localSubOpt = document.createElement('option');
+  localSubOpt.value = 'local';
+  localSubOpt.textContent = 'LOCAL FOLDER';
+  select.appendChild(localSubOpt);
+  cachedMediaSourceProviders.forEach((p) => {
+    const opt = document.createElement('option');
+    opt.value = p.providerId;
+    opt.textContent = p.displayName.toUpperCase();
+    select.appendChild(opt);
+  });
+  select.addEventListener('change', () => {
+    const providerId = select.value;
+    select.value = '';
+    if (!providerId || providerId === 'local') { addFolderToChannel(ch); return; }
+    addPluginSourceToChannel(ch, providerId);
+  });
+  return select;
+}
+
+// Mirrors addFolderToChannel's picker -> scan -> probe -> merge flow below,
+// but for a plugin-provided source: the plugin owns what "picking a
+// folder" even means for its own namespace (core has no folder-browser UI
+// for e.g. a Drive folder), so this calls the provider's own optional
+// pickFolder hook instead of window.api.selectFolder(); if a provider
+// doesn't register that (PLUGIN_DEVELOPMENT.md's "Media sources" section
+// — it's optional, unlike the four core verbs), a plain text prompt is the
+// fallback so CHOOSE SOURCE still works, just less pleasantly.
+export async function addPluginSourceToChannel(ch, providerId) {
+  const providerInfo = cachedMediaSourceProviders.find((p) => p.providerId === providerId);
+  const label = providerInfo ? providerInfo.displayName : providerId;
+
+  let folderRef;
+  try {
+    folderRef = await window.api.callMediaSourceHook(providerId, 'pickFolder');
+  } catch (err) {
+    folderRef = window.prompt(`Enter a folder reference for ${label} (this provider has no picker UI of its own):`);
+  }
+  if (!folderRef) return;
+
+  if (ch.folders.some((e) => e.source === providerId && e.ref === folderRef)) {
+    scanProgressEl.classList.remove('hidden');
+    scanProgressEl.textContent = 'THAT SOURCE IS ALREADY ON THIS CHANNEL';
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 2000);
+    return;
+  }
+
+  scanProgressEl.classList.remove('hidden');
+  scanProgressEl.textContent = `SCANNING ${label.toUpperCase()}…`;
+
+  let refs;
+  try {
+    refs = await window.api.scanFolder(providerId, folderRef);
+  } catch (err) {
+    scanProgressEl.textContent = `COULDN'T REACH ${label.toUpperCase()}: ${(err && err.message) || 'unknown error'}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 3500);
+    return;
+  }
+  if (!refs || refs.length === 0) {
+    scanProgressEl.textContent = `NO VIDEO FILES FOUND IN THAT ${label.toUpperCase()} FOLDER`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+    return;
+  }
+
+  const entry = { id: mediaRefId(providerId, folderRef), source: providerId, ref: folderRef, label: null };
+  const newFiles = [];
+  for (let i = 0; i < refs.length; i++) {
+    scanProgressEl.textContent = `PROBING VIDEO ${i + 1} / ${refs.length}…`;
+    // refs[i] is already the wrapped mediasource:<providerId>: form (main.js's
+    // fs:scanFolder handler applies that once, at scan time) — probing
+    // needs the raw ref back, same convention every provider call uses.
+    const rawRef = parseMediaRef(refs[i]).ref;
+    const duration = await probeDurationForEntry(providerId, rawRef);
+    newFiles.push({ path: refs[i], duration, folder: entry.id, source: providerId });
+  }
+  ch.folders.push(entry);
+  ch.files = ch.files.concat(newFiles);
+  if (ch.shuffle) shuffleArray(ch.files);
+  if (!ch.anchor) ch.anchor = Date.now();
+  scanProgressEl.classList.add('hidden');
+  saveConfigDebounced();
+  renderChannelList();
+}
+
 // Adds a folder to a channel's playlist, alongside whatever's already there
 // — CHOOSE/CHANGE FOLDER used to replace ch.files outright, but multi-folder
-// channels need the scan to merge in rather than clobber.
+// channels need the scan to merge in rather than clobber. Always local —
+// see addPluginSourceToChannel above for the plugin-provided-source
+// counterpart CHOOSE SOURCE offers once at least one provider is active.
 export async function addFolderToChannel(ch) {
   const folder = await window.api.selectFolder();
   if (!folder) return;
-  if (ch.folders.includes(folder)) {
+  if (ch.folders.some((e) => e.source === 'local' && e.ref === folder)) {
     scanProgressEl.classList.remove('hidden');
     scanProgressEl.textContent = 'THAT FOLDER IS ALREADY ON THIS CHANNEL';
     setTimeout(() => scanProgressEl.classList.add('hidden'), 2000);
@@ -984,20 +1108,21 @@ export async function addFolderToChannel(ch) {
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING FOLDER…';
 
-  const paths = await window.api.scanFolder(folder);
+  const paths = await window.api.scanFolder('local', folder);
   if (paths.length === 0) {
     scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
     setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
     return;
   }
 
+  const entry = { id: mediaRefId('local', folder), source: 'local', ref: folder, label: null };
   const newFiles = [];
   for (let i = 0; i < paths.length; i++) {
     scanProgressEl.textContent = `PROBING VIDEO ${i + 1} / ${paths.length}…`;
-    const duration = await probeDuration(paths[i]);
-    newFiles.push({ path: paths[i], duration, folder });
+    const duration = await probeDurationForEntry('local', paths[i]);
+    newFiles.push({ path: paths[i], duration, folder: entry.id, source: 'local' });
   }
-  ch.folders.push(folder);
+  ch.folders.push(entry);
   ch.files = ch.files.concat(newFiles);
   if (ch.shuffle) shuffleArray(ch.files);
   // Anchor is set once, the first time a channel gets any content — later
@@ -1010,10 +1135,15 @@ export async function addFolderToChannel(ch) {
 }
 
 // Re-scans every folder already assigned to every channel, picking up files
-// added to disk since the last scan. Additive only — a file that vanished
-// from disk stays in the channel list (and keeps any custom title) rather
-// than being silently dropped, matching the "no silent destructive action"
-// rule the confirm-on-remove dialogs follow.
+// added to disk (or, for a plugin source, added at the source) since the
+// last scan. Additive only — a file that vanished stays in the channel list
+// (and keeps any custom title) rather than being silently dropped, matching
+// the "no silent destructive action" rule the confirm-on-remove dialogs
+// follow. A non-'local' entry whose provider is currently unreachable/
+// disabled (a stale reference in a hand-edited config, or a plugin toggled
+// off) is skipped with its own error caught per-entry, not per-channel —
+// one broken source shouldn't abort rescanning every other channel's
+// folders in the same pass.
 export async function rescanAllFolders() {
   const targets = S.config.channels.filter((c) => c.folders && c.folders.length > 0);
   if (targets.length === 0) return;
@@ -1021,16 +1151,25 @@ export async function rescanAllFolders() {
   scanProgressEl.classList.remove('hidden');
   let added = 0;
   for (const ch of targets) {
-    for (const folder of ch.folders) {
+    for (const entry of ch.folders) {
       const label = ch.name && ch.name.trim() ? ch.name.trim() : `CH ${ch.number}`;
-      scanProgressEl.textContent = `RESCANNING ${label}: ${folder}…`;
-      const paths = await window.api.scanFolder(folder);
-      const known = new Set(ch.files.filter((f) => f.folder === folder).map((f) => f.path));
+      scanProgressEl.textContent = `RESCANNING ${label}: ${entry.label || entry.ref}…`;
+      let paths;
+      try {
+        paths = await window.api.scanFolder(entry.source, entry.ref);
+      } catch (err) {
+        continue; // eslint-disable-line no-continue
+      }
+      const known = new Set(ch.files.filter((f) => f.folder === entry.id).map((f) => f.path));
       const newPaths = paths.filter((p) => !known.has(p));
       for (let i = 0; i < newPaths.length; i++) {
         scanProgressEl.textContent = `${label}: PROBING NEW VIDEO ${i + 1} / ${newPaths.length}…`;
-        const duration = await probeDuration(newPaths[i]);
-        ch.files.push({ path: newPaths[i], duration, folder });
+        // newPaths[i] is already the wrapped form (main.js's fs:scanFolder
+        // handler applies that once, at scan time) — probing needs the raw,
+        // provider-native ref back, same as any provider's own probe(ref).
+        const rawRef = entry.source === 'local' ? newPaths[i] : parseMediaRef(newPaths[i]).ref;
+        const duration = await probeDurationForEntry(entry.source, rawRef);
+        ch.files.push({ path: newPaths[i], duration, folder: entry.id, source: entry.source });
         added++;
       }
       if (ch.shuffle && newPaths.length > 0) shuffleArray(ch.files);
@@ -1043,9 +1182,9 @@ export async function rescanAllFolders() {
   renderChannelList();
 }
 
-export function removeFolderFromChannel(ch, folder) {
-  ch.folders = ch.folders.filter((f) => f !== folder);
-  ch.files = ch.files.filter((f) => f.folder !== folder);
+export function removeFolderFromChannel(ch, folderEntry) {
+  ch.folders = ch.folders.filter((e) => e.id !== folderEntry.id);
+  ch.files = ch.files.filter((f) => f.folder !== folderEntry.id);
   renderChannelList();
 }
 
