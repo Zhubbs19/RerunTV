@@ -54,7 +54,13 @@ jobs:
         run: |
           tag="v${{ steps.version.outputs.version }}"
           product=$(node -p "require('./package.json').build.productName || require('./package.json').productName")
-          installer="dist/${product} Setup ${{ steps.version.outputs.version }}.exe"
+          # Matches build.artifactName (package.json) exactly, no spaces —
+          # electron-builder's own latest.yml records this same hyphenated
+          # name as the expected download, so this has to stay byte-for-byte
+          # in sync with that template or electron-updater 404s resolving a
+          # name GitHub never actually has (spaces get dot-mangled by GitHub
+          # on upload, a mismatch found live testing the update flow).
+          installer="dist/${product}-Setup-${{ steps.version.outputs.version }}.exe"
           notes="Automated alpha build from deploy branch, commit ${{ github.sha }}."$'\n\n'
           notes+="**This installer is unsigned.** Windows SmartScreen and your browser will likely warn "
           notes+="you before running it — that's expected for an unsigned, low-download-count executable, "

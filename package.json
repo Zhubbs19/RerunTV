@@ -28,6 +28,7 @@
     "directories": {
       "output": "dist"
     },
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "files": [
       "main/**/*.js",
       "renderer/**/*",
