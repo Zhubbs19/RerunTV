@@ -51,7 +51,7 @@ const {
 } = require('./main-media');
 const { loadConfig, saveConfig, listBackups, restoreBackup, deleteBackup, setBackupLabel, backupCurrentConfig } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
-const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT } = require('./main-lan');
+const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT, VIEWER_PORT } = require('./main-lan');
 const { getConnectedDevices, trackConnection } = require('./main-connections');
 const { fetchJsonCached } = require('./main-api-cache');
 const { readJsonBody, serveStaticFile } = require('./main-http-util');
@@ -61,7 +61,7 @@ const { startDiscoveryServer } = require('./main-discovery-server');
 const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers } = require('./main-plugins');
 const { wireAppQuitPropagation } = require('./main-plugin-isolation');
 const {
-  wrapMediaRef, setApprovedMediaSourceProviders, callMediaService,
+  parseMediaRef, wrapMediaRef, setApprovedMediaSourceProviders, callMediaService,
   MEDIA_LIST_TIMEOUT_MS, MEDIA_PROBE_TIMEOUT_MS, MEDIA_CHECK_TIMEOUT_MS,
 } = require('./main-media-dispatch');
 const { initAutoUpdater } = require('./main-updater');
@@ -365,15 +365,26 @@ ipcMain.handle('plugins:list', async () => {
 // show up here — the CHANNELS tab's CHOOSE SOURCE picker (setup-
 // channels.js) should never offer something it can't actually call.
 // Generic passthrough to any of a media-source provider's own registered
-// service verbs — used today only for the optional, UI-facing `pickFolder`
-// (PLUGIN_DEVELOPMENT.md's "Media sources" section), reached from
-// setup-channels.js's CHOOSE SOURCE flow. Not restricted to `pickFolder`
-// specifically (a future provider-specific UI verb needs no new IPC
-// channel of its own), but still gated by callMediaService's own
-// assertKnownProvider check — same defense-in-depth as every other
-// media-source dispatch call, not a way to reach an arbitrary service key
-// outside the mediaSource: namespace.
+// EXTRA service verbs — pickFolder, getFetchProgress, getLocalCachePath,
+// getDisplayName, and any plugin-invented verb (configure/signIn/status/
+// listFolders/...), reached from setup-channels.js's CHOOSE SOURCE flow and
+// a plugin's own settings-panel renderer.js. Gated by callMediaService's
+// own assertKnownProvider check, same defense-in-depth as every other
+// media-source dispatch call — but that alone isn't enough here: the four
+// RESERVED core verbs (list/probe/readRange/checkAvailable) must stay
+// unreachable through this generic door. In particular, readRange is only
+// ever meant to be called by serveFileViaPlugin (main-protocol.js), which
+// wraps it in a chunk-size cap specifically because an uncapped Range
+// crossing the plugin-process RPC boundary risks a multi-gigabyte
+// structured-clone payload — calling it directly through this passthrough
+// would bypass that cap entirely (found in review, never actually
+// exploited, but a real gap: nothing else in the dispatch chain enforces
+// the cap, only this call site's own choice of arguments does).
+const RESERVED_MEDIA_SOURCE_VERBS = new Set(['list', 'probe', 'readRange', 'checkAvailable']);
 ipcMain.handle('mediaSource:callHook', async (event, providerId, verb, args) => {
+  if (RESERVED_MEDIA_SOURCE_VERBS.has(verb)) {
+    throw new Error(`"${verb}" is a reserved media-source verb and can't be called via mediaSource:callHook — it's only ever invoked internally by core's own dispatch layer.`);
+  }
   return callMediaService(pluginServicesRef, providerId, verb, args || []);
 });
 
@@ -610,6 +621,23 @@ ipcMain.handle('manual:openPrintable', async (event, html) => {
 // renderer's origin is no longer file:// and Chromium won't load file://
 // subresources from it.
 ipcMain.handle('path:toFileUrl', async (event, filePath) => {
+  // A media-source-plugin ref (still-prefixed, i.e. not yet resolved to a
+  // real local cache path by resolvePlayablePath) is routed through the LAN
+  // viewer's own already-running, genuine http.Server (main-viewer-server.js
+  // — same /media route a LAN viewer device already uses, which happens to
+  // already dispatch through serveMediaRef the exact same way app://media
+  // does) instead of Electron's custom app:// protocol.handle. Found live:
+  // Chromium's <video> element never issues a follow-up Range request
+  // through app://media for a plugin-backed resource, no matter what's in
+  // the response — but does for a genuine local file through that same
+  // handler, and (this is what's being tested) may behave like any other
+  // ordinary HTTP video URL when the exact same data is served through a
+  // real loopback HTTP connection instead of Electron's Response-based
+  // custom-protocol dispatch. Local refs are untouched — zero behavior
+  // change, same app://media path proven reliable for every local channel.
+  if (parseMediaRef(filePath).source !== 'local') {
+    return `http://127.0.0.1:${VIEWER_PORT}/media?p=${encodeURIComponent(filePath)}`;
+  }
   return `app://media/?p=${encodeURIComponent(filePath)}`;
 });
 
@@ -626,7 +654,36 @@ ipcMain.handle('path:basename', async (event, filePath) => {
 // tells playback.js's handleUnplayable() not to attempt the FIX PLAYBACK
 // flow at all rather than trying and failing at it.
 ipcMain.handle('media:resolvePlayablePath', async (event, source, srcPath) => {
-  if (source && source !== 'local') return { path: srcPath, alreadyFixed: false, transcodable: false };
+  if (source && source !== 'local') {
+    // Once a media-source plugin has a file fully cached to local disk
+    // (getLocalCachePath, an optional verb alongside getFetchProgress —
+    // see PLUGIN_DEVELOPMENT.md's "Media sources" section), redirect
+    // playback to that real local path instead of continuing to serve it
+    // as a live plugin stream. Found live: Chromium's <video> element never issues a
+    // follow-up Range request through the app://media custom protocol for
+    // a plugin-backed resource — exactly one request, regardless of what's
+    // in the response — even though it happily makes many for a genuine
+    // local file through that same protocol. Rather than keep chasing
+    // that, once the bytes are actually on disk there's no reason to route
+    // through the RPC-per-chunk path at all: toFileUrl'ing a real local
+    // path here means main-protocol.js's parseMediaRef sees it as
+    // source:'local' and serves it via serveFile — the exact,
+    // already-proven-reliable code path every local channel already uses.
+    try {
+      const { ref } = parseMediaRef(srcPath);
+      const localPath = await callMediaService(pluginServicesRef, source, 'getLocalCachePath', [ref], MEDIA_CHECK_TIMEOUT_MS);
+      if (localPath) {
+        // Genuinely a local file now (in the plugin's own cache dir, but a
+        // real file on this disk ffmpeg can read/write same as any other)
+        // — full local-file treatment, auto-fix included, not the
+        // can't-be-auto-fixed messaging that's still correct for a file
+        // that's actually still a live plugin stream.
+        recoverPendingSwap(localPath);
+        return { path: localPath, alreadyFixed: fs.existsSync(backupPathFor(localPath)), transcodable: true };
+      }
+    } catch (e) { /* provider doesn't implement getLocalCachePath, or isn't cached yet — fall through */ }
+    return { path: srcPath, alreadyFixed: false, transcodable: false };
+  }
   recoverPendingSwap(srcPath);
   return { path: srcPath, alreadyFixed: fs.existsSync(backupPathFor(srcPath)), transcodable: true };
 });

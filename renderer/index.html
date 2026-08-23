@@ -14,7 +14,19 @@
      inline event-handler attributes anywhere in this app, so that stays
      tight. object-src/base-uri/form-action are locked to 'none' since
      nothing here uses <object>/<embed>, a <base> tag, or an HTML <form>. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app:; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<!-- media-src also allows http://127.0.0.1:8724 (main-lan.js's VIEWER_PORT,
+     hardcoded here since this is a static meta tag, not something the main
+     process can inject) — a media-source plugin's still-live (not yet
+     locally cached) file is routed through the LAN viewer server's own
+     /media route (a genuine http.Server) instead of app://media
+     (main.js's path:toFileUrl), since Electron's custom-protocol
+     protocol.handle Response never prompted Chromium's <video> element to
+     make more than one Range request for a plugin-backed resource — found
+     live. Without this origin explicitly allowed, the CSP silently blocks
+     that <video src> outright before any request is even attempted, which
+     read as "instant failure, straight to the caching fallback" with no
+     visible live attempt at all. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8724; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales

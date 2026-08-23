@@ -1,5 +1,5 @@
 import { playChannelClickSound, sfxChannelChange } from './audio.js';
-import { channelColor, getChannel, pickLogoBugProfile, sortedChannels } from './channels.js';
+import { channelColor, getChannel, parseMediaRef, pickLogoBugProfile, sortedChannels } from './channels.js';
 import {
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
@@ -36,6 +36,91 @@ function computeLiveContentPosition(ch) {
   return computeSourcePosition(source, viewNow());
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => { setTimeout(resolve, ms); });
+}
+
+// Stops and blanks the player element: pause, drop the src, force a real
+// reload (removeAttribute alone doesn't make Chromium actually drop its
+// last painted frame — found live via the "COMING SOON shows the previous
+// channel's frozen frame" bug), and reset loop. Extracted here after the
+// same four lines with an identical inline comment turned up copy-pasted
+// across five call sites (found in review) — every "nothing to show right
+// now" branch in tuneToChannel plus waitForMediaSourceReady.
+function clearPlayerToBlank() {
+  player.pause();
+  player.removeAttribute('src');
+  player.load();
+  player.loop = false;
+}
+
+// Optional, provider-defined verb (mediaSource:<id>:getFetchProgress, called
+// via the same generic callMediaSourceHook passthrough CHOOSE SOURCE's
+// pickFolder/a plugin's own settings panel already use) — lets a provider
+// whose readRange can genuinely take a long time (e.g. a provider that
+// lazily caches to local disk before it can serve anything) report a real
+// progress fraction instead of the tune just sitting there with no visible
+// feedback while readRange blocks underneath. Returns
+// { ok:false } for a provider that doesn't implement this, or on any error
+// calling it — the caller decides what that means (see waitForMediaSourceReady:
+// "not implemented" on the very first call means proceed straight to
+// playback, same as always; a transient failure mid-poll must NOT be read
+// the same way, or one flaky RPC call turns a file that's still genuinely
+// downloading into a premature, wrong failure).
+async function tryGetFetchProgress(source, ref) {
+  try {
+    return { ok: true, progress: await window.api.callMediaSourceHook(source, 'getFetchProgress', ref) };
+  } catch (err) {
+    return { ok: false, progress: null };
+  }
+}
+
+// Called from handleUnplayable below, as a plugin-sourced file's own
+// recovery path once a genuine live playback attempt has already failed to
+// decode a frame — not an eager pre-check (a live attempt is always tried
+// first for every file, local or plugin-sourced, same as any other
+// channel). Polls the provider's fetch progress (if it reports any) and
+// shows a visible "please wait" card — same cyan, same visual language as
+// the local TRANSCODING… card — instead of leaving the screen on static/a
+// stale frame with zero explanation for however long caching takes. Clears
+// the player first (pause/removeAttribute/load) for the same reason the
+// COMING SOON and sign-off/blocked cards do: without it, whatever the
+// previous channel was showing sits frozen underneath this card's
+// transparent background. Returns false if the tune was abandoned (channel
+// changed / powered off) while waiting, so the caller knows not to proceed
+// with this now-stale playback attempt.
+async function waitForMediaSourceReady(ch, file) {
+  if (!file.source || file.source === 'local') return true;
+  const rawRef = parseMediaRef(file.path).ref;
+  const first = await tryGetFetchProgress(file.source, rawRef);
+  // Not implemented (or failed on this very first call, indistinguishable
+  // from "not implemented" — same as before this fix) — proceed straight
+  // to playback, nothing to show.
+  if (!first.ok || !first.progress || first.progress.ready !== false) return true;
+  let progress = first.progress;
+  clearPlayerToBlank();
+  while (progress && progress.ready === false) {
+    if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
+    markStaticReady(); // nothing decoding yet — don't let held static block this card from showing
+    const pct = typeof progress.progress === 'number' ? ` — ${Math.round(progress.progress * 100)}%` : '';
+    showNoSignal('PREPARING…', progress.label ? `CH ${ch.number} — ${progress.label.toUpperCase()}` : `CH ${ch.number} — FETCHING MEDIA${pct}`, 'transcoding');
+    // eslint-disable-next-line no-await-in-loop -- deliberately sequential polling, not a batch of independent work
+    await sleep(1000);
+    if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
+    // A transient failure here (network blip, brief plugin-process stall)
+    // must not be read as "ready" — found in review: the old code did
+    // exactly that, since tryGetFetchProgress caught every error and
+    // returned null, and null failed the loop condition the same way a
+    // real "ready" result would. Keep waiting on the last known progress
+    // instead of bailing out on one flaky poll.
+    // eslint-disable-next-line no-await-in-loop
+    const next = await tryGetFetchProgress(file.source, rawRef);
+    if (next.ok) progress = next.progress;
+  }
+  noSignalEl.classList.add('hidden'); // clear the card once ready — playChannelLive's normal flow takes over from here
+  return true;
+}
+
 export async function playChannelLive(ch, opts) {
   opts = opts || {};
   window.__tuneT0 = performance.now();
@@ -52,6 +137,7 @@ export async function playChannelLive(ch, opts) {
     return;
   }
   const file = pos.file;
+
   // Re-applied for real once metadata is confirmed (onMeta below) — this
   // early call exists only to avoid sitting at a STALE previous-channel
   // frame size while this tune's own video is still loading. Unlike a plain
@@ -92,6 +178,27 @@ export async function playChannelLive(ch, opts) {
   async function handleUnplayable() {
     if (handled || S.currentNumber !== ch.number || !S.isPoweredOn) return;
     handled = true;
+
+    // Live playback (the default, first attempt for every file — local or
+    // plugin-sourced alike) failed for a plugin-sourced file that hasn't
+    // been through caching yet — resolved.transcodable === false is
+    // exactly what resolvePlayablePath (main.js) returns for a still-live
+    // ref its provider hasn't fully cached to local disk. Try caching as
+    // this source's own "fix" (waitForMediaSourceReady shows its own
+    // progress card and waits), then retry playback fresh once ready —
+    // same idea as a local codec issue triggering auto-transcode below,
+    // just a different kind of fix for a different kind of problem.
+    // Guarded by opts.cacheRetried so a file that's STILL unplayable even
+    // once genuinely cached (a real codec issue on top of everything else,
+    // or a provider whose caching itself never succeeds) falls through to
+    // the normal transcode-or-give-up logic exactly once, not forever.
+    if (!opts.cacheRetried && file.source && file.source !== 'local' && resolved.transcodable === false) {
+      const ready = await waitForMediaSourceReady(ch, file);
+      if (!ready) return; // tuned away while waiting
+      playChannelLive(ch, { ...opts, cacheRetried: true });
+      return;
+    }
+
     // Every branch below either shows a NO SIGNAL-style card or a
     // multi-second TRANSCODING… status — none of them are "content is about
     // to appear," so release the static hold immediately rather than
@@ -116,11 +223,13 @@ export async function playChannelLive(ch, opts) {
       return;
     }
 
-    // A media-source-plugin-backed file has no local copy for the transcode
-    // rename-swap dance to operate on — resolvePlayablePath (main.js) marks
-    // this explicitly rather than leaving it to fail inside transcodeVideo.
-    // Skip straight to a clear, accurate error instead of flashing
-    // "TRANSCODING…" for a fix that was never going to be attempted.
+    // Reached either for opts.cacheRetried (already tried the cache-fallback
+    // above once, still no local copy to work with) or a plugin source with
+    // no caching support at all (getLocalCachePath unimplemented) — a
+    // genuinely last-resort case, not the common path for a working
+    // media-source plugin. resolvePlayablePath (main.js) marks this
+    // explicitly rather than leaving it to fail inside transcodeVideo — no
+    // local file for the transcode rename-swap dance to operate on.
     if (resolved.transcodable === false) {
       showNoSignal('PLAYBACK ERROR', `CH ${ch.number} — ${base.toUpperCase()}: FILE FROM A PLUGIN MEDIA SOURCE CAN'T BE AUTO-FIXED`, 'error');
       return;
@@ -142,9 +251,16 @@ export async function playChannelLive(ch, opts) {
     // throw outside the handler's own try/catch, e.g. recoverPendingSwap
     // hitting an edge case) — without this, that would leave the
     // TRANSCODING… card on screen forever instead of surfacing an error.
+    // resolved.path (not file.path) is what's actually open in the player —
+    // for a media-source plugin file resolvePlayablePath (main.js)
+    // redirected to a fully cached local copy, that's the real local cache
+    // path, not the channel config's original (still-plugin-sourced)
+    // reference. The transcodable === false early-return above guarantees
+    // resolved.transcodable is true by this point, so this is always a
+    // genuine local file — 'local' unconditionally, not file.source.
     let result;
     try {
-      result = await window.api.transcode(file.source || 'local', file.path);
+      result = await window.api.transcode('local', resolved.path);
     } catch (err) {
       result = { error: (err && err.message) || 'transcode call failed' };
     }
@@ -160,7 +276,13 @@ export async function playChannelLive(ch, opts) {
     }
 
     noSignalEl.classList.add('hidden');
-    playChannelLive(ch);
+    // Propagate the original opts (fadeInOnReady in particular) — found in
+    // review: this retry used to call playChannelLive(ch) bare, silently
+    // dropping whatever gate the ORIGINAL tune was called with. A tune that
+    // started via a break transition (endBreak's fadeInOnReady: true) and
+    // then needed a transcode fix would resume without its fade-in, a
+    // real (if narrow) visible-transition regression.
+    playChannelLive(ch, opts);
   }
 
   function watchForDecodedFrame() {
@@ -913,9 +1035,7 @@ export async function tuneToChannel(number, opts) {
 
   if (!ch) {
     markStaticReady();
-    player.pause();
-    player.removeAttribute('src');
-    player.loop = false;
+    clearPlayerToBlank();
     updateLogoBug(null);
     const tp = S.config.testPattern;
     if (isEnabledByDefault(tp)) {
@@ -939,9 +1059,7 @@ export async function tuneToChannel(number, opts) {
   // cable company" card, for a channel the user wants blocked outright.
   if (ch.notSubscribed) {
     markStaticReady();
-    player.pause();
-    player.removeAttribute('src');
-    player.loop = false;
+    clearPlayerToBlank();
     showBlockedCard(ch);
     showGuideOverlay(number, ch);
     return;
@@ -953,9 +1071,7 @@ export async function tuneToChannel(number, opts) {
   // full schedule still shows nothing outside its broadcast day.
   if (ch.broadcastHours && ch.broadcastHours.enabled && !isWithinBroadcastHours(ch, viewNow())) {
     markStaticReady();
-    player.pause();
-    player.removeAttribute('src');
-    player.loop = false;
+    clearPlayerToBlank();
     showSignOffCard(ch);
     showGuideOverlay(number, ch);
     scheduleBroadcastHoursRetune(ch);
@@ -965,9 +1081,23 @@ export async function tuneToChannel(number, opts) {
   // A channel the user has named/reserved but hasn't pointed at any content
   // yet — reuses the no-signal overlay with distinct copy instead of the
   // generic "NO SIGNAL" card, and skips all the playback scheduling below
-  // since there's nothing to schedule.
+  // since there's nothing to schedule. Clears the player the same way the
+  // sign-off branch above does — .no-signal has no background of its own
+  // (by design, so the static-canvas noise shows through behind its text on
+  // every other no-signal variant), so without this the previous channel's
+  // last decoded frame just sits there frozen underneath the COMING SOON
+  // text instead of the static that's supposed to be there.
   if (!ch.files || ch.files.length === 0) {
     markStaticReady();
+    clearPlayerToBlank();
+    // Same test-pattern treatment as the !ch ("NO SIGNAL") branch above —
+    // an empty channel is conceptually the same "nothing to show" state,
+    // just with a name/number already reserved for it.
+    const tp = S.config.testPattern;
+    if (isEnabledByDefault(tp)) {
+      runCoreHooks('draw-test-pattern');
+      testPatternCanvasEl.classList.remove('hidden');
+    }
     showNoSignal('COMING SOON', `CH ${number} — ${ch.name ? ch.name.toUpperCase() : 'NEW CHANNEL'}`, 'comingsoon');
     showGuideOverlay(number, ch);
     return;

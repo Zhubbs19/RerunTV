@@ -158,18 +158,85 @@ ctx.registerService('mediaSource:my-source:checkAvailable', async (ref) => {
 ```
 
 All four must be registered — core does not fall back to local behavior for
-a verb you didn't implement, it surfaces the call failure instead. A fifth,
-optional, UI-facing verb — `mediaSource:my-source:pickFolder`, `() =>
-Promise<folderRef | null>` — lets you show your own "browse for a folder"
-UI when the user clicks CHOOSE SOURCE on a channel; without it, they get a
-plain text-input fallback.
+a verb you didn't implement, it surfaces the call failure instead.
 
-Two things unlike local files: a codec-fix (`FIX PLAYBACK`) never applies to
-your refs — there's no local file to rename-swap a transcoded copy into, so
-an unplayable file from your source just shows a clear error instead. And
-your provider is responsible for its own auth/token refresh (if any) —
-`probe`/`readRange`/`checkAvailable` are called fresh each time, so refresh
-transparently inside them rather than assuming a token stays valid.
+For "browse for a folder" UI when the user clicks CHOOSE SOURCE on a
+channel, you have three options, tried in this order and each optional:
+
+1. **`ctx.registerMediaSourcePicker(providerId, pickerFn)`** (in your
+   `renderer.js`, not `main.js`) — `pickerFn: () => Promise<folderRef |
+   null>`. This is the recommended option if you want real picker UI:
+   since your `renderer.js` runs in the same window/process as core (same
+   reason `registerSettingsPanel`/`registerChannelType` are plain function
+   calls, not IPC), `pickerFn` can build and show a genuine modal —
+   breadcrumbs, a clickable folder list, whatever fits your provider's own
+   data shape — with no cross-process choreography needed. Reuse the app's
+   own `confirm-dialog`/`confirm-dialog-box`/`confirm-dialog-title`/
+   `confirm-dialog-actions`/`folder-row` CSS classes (`css/setup.css`) for
+   visual consistency; they're globally available — e.g. a breadcrumb
+   folder browser backed by an extra `listFolders` verb on the same
+   provider (see "Extra verbs" below).
+2. A main-process `mediaSource:my-source:pickFolder` verb (`() =>
+   Promise<folderRef | null>`, registered in `main.js` like the four core
+   verbs) — for a provider that would rather not ship any renderer UI at
+   all. Tried only if no picker is registered via option 1.
+3. A plain text-input prompt — always available as the last resort, so
+   CHOOSE SOURCE never dead-ends even for the simplest possible provider.
+   Not something you implement; core falls back to it automatically if
+   neither option above is registered.
+
+**Extra verbs**: nothing stops you from registering more
+`mediaSource:my-source:<anything>` services beyond the four core ones plus
+`pickFolder` — e.g. a settings-panel-facing `configure`/`signIn`/`status`
+for a provider that needs its own credentials, or a `listFolders` verb
+purpose-built to back your own picker UI (option 1 above). Your
+`renderer.js` calls any of them the same way:
+`window.api.callMediaSourceHook(providerId, verb, ...args)` — a generic
+passthrough to whatever you've registered, not limited to the reserved
+verb names. See `plugins/gdrive-media-source` for a complete worked
+example of both patterns together.
+
+**`getFetchProgress(ref) => Promise<{ ready: boolean, progress?: number, label?: string }>`**
+— another optional, well-known verb name (not one of the four core ones,
+but recognized by core rather than provider-invented): if your `readRange`
+can legitimately take a long time on first access (e.g. downloading to a
+local cache before it can serve anything — see `plugins/gdrive-media-source`'s
+lazy-cache strategy), register this and `renderer/js/playback.js` will call
+it before attempting playback, showing a visible progress card
+(`{ready: false, progress: 0-1, label}`) and polling once a second until
+you return `{ready: true}`, instead of the tune just sitting on static with
+no explanation while `readRange` blocks underneath. Don't register it if
+your `readRange` is always fast — its absence is a pure no-op, straight to
+playback as before.
+
+**`getLocalCachePath(ref) => Promise<string | null>`** — pairs with
+`getFetchProgress`: if your provider caches a file to local disk (rather
+than serving `readRange` live), register this too and
+`main/main.js`'s `media:resolvePlayablePath` will redirect playback to that
+real local path once you return one, instead of continuing to route it
+through your `readRange`. Return `null` while nothing's cached yet. Once
+redirected, the file gets full local-file treatment — including `FIX
+PLAYBACK`'s codec auto-fix, which operates on your cache file directly, not
+the original remote copy. `renderer/js/playback.js` calls this as a
+fallback only, after a genuine live playback attempt (going straight
+through your `readRange`, same as any file) fails to decode — see
+`plugins/gdrive-media-source` for the full pattern: live streaming by
+default, caching only kicks in if live genuinely doesn't work for a given
+file.
+
+**`getDisplayName(ref) => Promise<string | null>`** — a `ch.files[].path`
+for your provider is an opaque ref (e.g. a Drive file id), which has no
+meaningful basename the way a local path's filename does — without this,
+every UI that shows a file's title (`getDisplayTitle`, `util.js`) falls
+back to showing that raw ref. Register this to return a real human-readable
+name; `setup-channels.js` calls it once per file at scan time
+(`addPluginSourceToChannel`/`rescanAllFolders`) and stores it as the file's
+`title`.
+
+Your provider is responsible for its own auth/token refresh (if any) — the
+core verbs (`probe`/`readRange`/`checkAvailable`) are called fresh each
+time, so refresh transparently inside them rather than assuming a token
+stays valid.
 
 `ctx.fs` is similar but always available (no declaration needed): reads
 (`existsSync`/`readFile`/`readFileSync`/`readdirSync`) take any path — this

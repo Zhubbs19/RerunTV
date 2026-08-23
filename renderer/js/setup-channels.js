@@ -3,7 +3,7 @@
 // panel's tab bar (wiring together the panels built in setup-panels.js and
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { applyConfigDefaults, showTvScreen } from './app.js';
-import { confirmDialog, alertDialog } from './setup-dialogs.js';
+import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
   buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, mediaRefId, nextChannelNumber, parseMediaRef, sortedChannels,
 } from './channels.js';
@@ -23,6 +23,7 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
 import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './setup-util.js';
+import { getMediaSourcePicker } from './plugins.js';
 import {
   computeLivePosition, computeSourcePosition, isWithinBroadcastHours, matchesTrigger, resolveActiveSource,
 } from './schedule.js';
@@ -1029,20 +1030,54 @@ function buildChooseSourceControl(ch) {
 // Mirrors addFolderToChannel's picker -> scan -> probe -> merge flow below,
 // but for a plugin-provided source: the plugin owns what "picking a
 // folder" even means for its own namespace (core has no folder-browser UI
-// for e.g. a Drive folder), so this calls the provider's own optional
-// pickFolder hook instead of window.api.selectFolder(); if a provider
-// doesn't register that (PLUGIN_DEVELOPMENT.md's "Media sources" section
-// — it's optional, unlike the four core verbs), a plain text prompt is the
-// fallback so CHOOSE SOURCE still works, just less pleasantly.
+// for e.g. a Drive folder). Three-tier fallback, richest first:
+//   1. A renderer-registered picker (registerMediaSourcePicker, plugins.js)
+//      — the plugin's own renderer.js builds and shows a real modal
+//      (breadcrumbs, a clickable list, whatever fits its data), same-window
+//      plain function call, no IPC involved.
+//   2. A main-process pickFolder service verb (PLUGIN_DEVELOPMENT.md's
+//      "Media sources" section) — for a provider that would rather not
+//      ship any renderer UI at all.
+//   3. A plain text-input prompt (setup-dialogs.js's promptDialog) — always
+//      available, so CHOOSE SOURCE never dead-ends even for the simplest
+//      possible provider.
+// Optional per-provider verb (PLUGIN_DEVELOPMENT.md's "Media sources"
+// section) — a plugin-sourced file's `path` is that provider's opaque ref
+// (e.g. a Drive file id), which has no meaningful basename the way a local
+// path's filename does, so without this the TITLES panel/NOW-playing
+// bar/etc. all fall back to showing the raw ref (getDisplayTitle, util.js).
+// Called once per file at scan time; a provider that doesn't implement it
+// just leaves the title unset, same as today.
+async function tryGetDisplayName(providerId, rawRef) {
+  try {
+    return await window.api.callMediaSourceHook(providerId, 'getDisplayName', rawRef);
+  } catch (err) {
+    return null;
+  }
+}
+
 export async function addPluginSourceToChannel(ch, providerId) {
   const providerInfo = cachedMediaSourceProviders.find((p) => p.providerId === providerId);
   const label = providerInfo ? providerInfo.displayName : providerId;
 
   let folderRef;
-  try {
-    folderRef = await window.api.callMediaSourceHook(providerId, 'pickFolder');
-  } catch (err) {
-    folderRef = window.prompt(`Enter a folder reference for ${label} (this provider has no picker UI of its own):`);
+  const renderedPicker = getMediaSourcePicker(providerId);
+  if (renderedPicker) {
+    folderRef = await renderedPicker();
+  } else {
+    try {
+      folderRef = await window.api.callMediaSourceHook(providerId, 'pickFolder');
+    } catch (err) {
+      // No pickFolder hook registered for this provider either — raw
+      // window.prompt() is never used anywhere else in this app (it has
+      // its own styled dialog system, setup-dialogs.js) and turned out to
+      // be silently inert in this app's Electron context, so this uses the
+      // same in-theme prompt every other text-input flow in setup uses.
+      folderRef = await promptDialog({
+        title: `${label.toUpperCase()} FOLDER`,
+        message: `Enter a folder reference for ${label} (this provider has no picker UI of its own):`,
+      });
+    }
   }
   if (!folderRef) return;
 
@@ -1078,8 +1113,18 @@ export async function addPluginSourceToChannel(ch, providerId) {
     // fs:scanFolder handler applies that once, at scan time) — probing
     // needs the raw ref back, same convention every provider call uses.
     const rawRef = parseMediaRef(refs[i]).ref;
-    const duration = await probeDurationForEntry(providerId, rawRef);
-    newFiles.push({ path: refs[i], duration, folder: entry.id, source: providerId });
+    // Independent lookups (duration, title) for the same file — run in
+    // parallel rather than sequentially awaited. Found in review: for a
+    // 200-file Drive folder this was doubling scan wall-clock time for no
+    // reason, since neither call depends on the other's result.
+    // eslint-disable-next-line no-await-in-loop -- files themselves are still scanned one at a time, only the two per-file lookups are parallelized
+    const [duration, title] = await Promise.all([
+      probeDurationForEntry(providerId, rawRef),
+      tryGetDisplayName(providerId, rawRef),
+    ]);
+    newFiles.push({
+      path: refs[i], duration, folder: entry.id, source: providerId, ...(title ? { title } : {}),
+    });
   }
   ch.folders.push(entry);
   ch.files = ch.files.concat(newFiles);
@@ -1168,8 +1213,16 @@ export async function rescanAllFolders() {
         // handler applies that once, at scan time) — probing needs the raw,
         // provider-native ref back, same as any provider's own probe(ref).
         const rawRef = entry.source === 'local' ? newPaths[i] : parseMediaRef(newPaths[i]).ref;
-        const duration = await probeDurationForEntry(entry.source, rawRef);
-        ch.files.push({ path: newPaths[i], duration, folder: entry.id, source: entry.source });
+        // Parallel, not sequential — see addPluginSourceToChannel's own
+        // comment on the same pattern above.
+        // eslint-disable-next-line no-await-in-loop
+        const [duration, title] = await Promise.all([
+          probeDurationForEntry(entry.source, rawRef),
+          entry.source === 'local' ? Promise.resolve(null) : tryGetDisplayName(entry.source, rawRef),
+        ]);
+        ch.files.push({
+          path: newPaths[i], duration, folder: entry.id, source: entry.source, ...(title ? { title } : {}),
+        });
         added++;
       }
       if (ch.shuffle && newPaths.length > 0) shuffleArray(ch.files);

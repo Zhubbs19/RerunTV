@@ -109,12 +109,12 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
 // matches the real access pattern rather than compromising it — no
 // streaming primitive needs to cross the plugin-process RPC boundary, only
 // bounded chunks, exactly like readRange's own contract already promises.
-// CHUNK_CAP bounds a single round-trip's payload for the one request that
-// ISN'T naturally bounded by the caller: a <video> element's very first
-// request, before it has any reason to know to send a Range header at all,
-// sometimes asks for the whole file — this must not try to pull a
-// multi-gigabyte file through one postMessage call. 4MB is enough for
-// Chromium to read container metadata and start requesting real ranges.
+// OPEN_ENDED_CHUNK_CAP/BOUNDED_CHUNK_CAP (below) bound a single round-trip's
+// payload for the one request shape that ISN'T naturally bounded by the
+// caller: a <video> element's very first request, before it has any reason
+// to know to send a Range header at all, sometimes asks for the whole
+// file — this must not try to pull a multi-gigabyte file through one
+// postMessage call.
 // Known cost, not fully solved here: every chunk crosses a structured-clone
 // boundary twice (plugin process -> host via postMessage, host -> Response
 // body) — for sustained high-bitrate streaming over a slow provider link,
@@ -128,8 +128,28 @@ async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
   const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
   const match = rangeHeader && /bytes=(\d*)-(\d*)/.exec(rangeHeader);
   const start = match && match[1] ? parseInt(match[1], 10) : 0;
-  const CHUNK_CAP = 4 * 1024 * 1024;
-  const end = match && match[2] ? Math.min(parseInt(match[2], 10), start + CHUNK_CAP - 1) : start + CHUNK_CAP - 1;
+  // A client request with an explicit end (a specific seek target) is
+  // honored as-is — no reason to balloon a small, precise request. An
+  // OPEN-ENDED request (no end given — "give me from here to EOF", what a
+  // <video> element's very first request typically looks like) gets its own
+  // cap too, kept SMALL now rather than large: earlier this was pushed up
+  // to 32MB on the theory that a single response needed to contain enough
+  // for Chromium's demuxer to find the MP4 metadata (moov) atom, since at
+  // the time app://media's custom-protocol dispatch never prompted a
+  // follow-up Range request for a plugin-backed resource — found live, a
+  // real transport-layer issue, since fixed (routing a still-live plugin
+  // ref through the LAN viewer's genuine http.Server instead of Electron's
+  // protocol.handle — see renderer/js/playback.js's toFileUrl comment).
+  // Chromium reliably asks for more now, the same way it already does for
+  // any local file, so there's no reason to front-load a big first chunk
+  // anymore — a small one gets the first byte on screen faster, at the cost
+  // of a few more round-trips as playback ramps up, which is the right
+  // trade for startup latency.
+  const OPEN_ENDED_CHUNK_CAP = 2 * 1024 * 1024;
+  const BOUNDED_CHUNK_CAP = 4 * 1024 * 1024;
+  const end = match && match[2]
+    ? Math.min(parseInt(match[2], 10), start + BOUNDED_CHUNK_CAP - 1)
+    : start + OPEN_ENDED_CHUNK_CAP - 1;
 
   let result;
   try {
@@ -154,8 +174,49 @@ async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
     'Accept-Ranges': 'bytes',
     'Content-Length': String(chunk.length),
   };
-  if (result.totalSize != null) headers['Content-Range'] = `bytes ${start}-${start + chunk.length - 1}/${result.totalSize}`;
-  return new Response(chunk, { status: match ? 206 : 200, headers });
+  // Once we know the real total size, this is a 206 Partial Content
+  // response REGARDLESS of whether the request itself included a Range
+  // header — CHUNK_CAP means a chunk this size can never be the complete
+  // resource for anything but a tiny file, so answering an unranged first
+  // request with status 200 (which means "here is the entire resource")
+  // and a Content-Length of only the capped chunk size lies to the
+  // requester about how large the file actually is. Chromium's media
+  // pipeline reads that as "the whole video is ~4MB," decodes a truncated/
+  // corrupt file, and never produces a frame — exactly the local-only
+  // serveFile() doesn't have this problem, since an unranged request there
+  // really does get the true full Content-Length (the whole file, streamed
+  // in one response) rather than a capped stand-in for it.
+  // A real stream, not a plain Buffer body — matching serveFile's own
+  // pattern exactly (Readable.toWeb(fs.createReadStream(...)) above).
+  // Found live: a Buffer-backed Response here worked at the HTTP level
+  // (correct status/headers) but Chromium's media pipeline never issued a
+  // second Range request through this custom protocol regardless of chunk
+  // content or size — only ever the one. serveFile's local path, which
+  // Chromium DOES keep making follow-up requests to, has always returned a
+  // stream-backed body, never a plain buffer; this is the one concrete
+  // implementation difference between "works" and "doesn't," worth
+  // matching before concluding live streaming genuinely can't work here.
+  const body = Readable.toWeb(Readable.from([chunk]));
+  if (result.totalSize != null) {
+    headers['Content-Range'] = `bytes ${start}-${start + chunk.length - 1}/${result.totalSize}`;
+    return new Response(body, { status: 206, headers });
+  }
+  // totalSize genuinely unknown (a provider that doesn't report it) — found
+  // in review: falling back to `match ? 206 : 200` here reproduces the
+  // exact "lies about how large the file actually is" bug just fixed
+  // above, for exactly this provider shape. A capped chunk that came back
+  // FULL (length >= what was asked for) can't be trusted as "the whole
+  // resource" just because we don't know the real total — RFC 7233 allows
+  // an unknown total in Content-Range (`bytes start-end/*`), which is the
+  // honest thing to say here: partial content, more may exist. Only a
+  // response genuinely shorter than requested (this chunk really did hit
+  // EOF) is safe to call complete.
+  const gotFullCap = chunk.length >= (end - start + 1);
+  if (match || gotFullCap) {
+    headers['Content-Range'] = `bytes ${start}-${start + chunk.length - 1}/*`;
+    return new Response(body, { status: 206, headers });
+  }
+  return new Response(body, { status: 200, headers });
 }
 
 // Unified entry point for anything that used to hand a bare local path
@@ -168,16 +229,31 @@ async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
 async function serveMediaRef(ref, rangeHeader, crossOrigin) {
   const parsed = parseMediaRef(ref);
   const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
-  // Same extension allowlist for both branches — without it, any script
-  // running in the renderer origin (including a compromised/malicious
-  // plugin's renderer.js, loaded into this same window) could use a
-  // provider's readRange to read back arbitrary opaque data by feeding it a
-  // ref with an unexpected extension.
-  const extCheckTarget = parsed.source === 'local' ? parsed.path : parsed.ref;
-  if (!LAN_MEDIA_EXTENSIONS.has(path.extname(extCheckTarget).toLowerCase())) {
-    return new Response('Forbidden', { status: 403, headers: corsHeaders });
+  if (parsed.source === 'local') {
+    // Extension allowlist — without it, any script running in the renderer
+    // origin (including a compromised/malicious plugin's renderer.js,
+    // loaded into this same window) could read an arbitrary file anywhere
+    // on disk by absolute path via ?p=. This only means anything for a
+    // real local filesystem path.
+    if (!LAN_MEDIA_EXTENSIONS.has(path.extname(parsed.path).toLowerCase())) {
+      return new Response('Forbidden', { status: 403, headers: corsHeaders });
+    }
+    return serveFile(path.normalize(parsed.path), rangeHeader, crossOrigin);
   }
-  if (parsed.source === 'local') return serveFile(path.normalize(parsed.path), rangeHeader, crossOrigin);
+  // A plugin-sourced ref has no such thing to protect against: it's an
+  // opaque identifier the provider itself defines the meaning of (a Drive
+  // file id, a WebDAV path, whatever), not a raw filesystem path this
+  // process would ever open directly — dispatch already goes through
+  // assertKnownProvider (main-media-dispatch.js, only an approved,
+  // activated provider id is ever reachable) and then the provider's own
+  // access control (e.g. Drive's OAuth scope only exposes files the signed-
+  // in user authorized). Extension-checking `parsed.ref` doesn't add a real
+  // boundary here and actively breaks any provider whose refs aren't
+  // extension-shaped at all — most cloud/API-based sources' opaque file
+  // ids — which is every real provider except a raw-path-shaped one like
+  // WebDAV/SMB. Found live: a provider whose ref is a bare opaque file id
+  // 403'd unconditionally, since `path.extname(someOpaqueId)` is always ''
+  // and can never match the allowlist.
   return serveFileViaPlugin(parsed.source, parsed.ref, rangeHeader, crossOrigin);
 }
 

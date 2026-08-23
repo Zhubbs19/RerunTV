@@ -1,6 +1,6 @@
-// In-theme replacements for window.confirm()/window.alert(), styled to match
-// the setup screen's preview-modal (see css/setup.css, "confirm-dialog").
-// Two entry points:
+// In-theme replacements for window.confirm()/window.alert()/window.prompt(),
+// styled to match the setup screen's preview-modal (see css/setup.css,
+// "confirm-dialog"). Three entry points:
 //   confirmDialog({ message, title, danger, confirmText, cancelText }) -> Promise<boolean>
 //     Use before any destructive/hard-to-undo action (delete, overwrite,
 //     replace-on-import, etc). Resolves true only on explicit confirm —
@@ -8,8 +8,17 @@
 //   alertDialog(message, { title, variant }) -> Promise<void>
 //     variant: 'error' (red accent, for caught failures) or 'info' (gold,
 //     default). Resolves once the user dismisses it.
-// Both stack (last one opened sits on top) so a failure alert raised out of
-// a confirm's action handler doesn't get lost.
+//   promptDialog({ message, title, placeholder, defaultValue }) -> Promise<string|null>
+//     Single-line text input. Resolves the trimmed value on OK/Enter (empty
+//     string if left blank), null on Cancel/Escape/backdrop click — same
+//     null-means-cancelled contract window.prompt() has, but actually
+//     renders in this app: the raw browser API is never used anywhere else
+//     in this codebase and turned out to be silently inert in this app's
+//     Electron context (found live via the media-source CHOOSE SOURCE
+//     fallback for a provider with no pickFolder hook — selecting a
+//     provider appeared to do nothing at all, no dialog, no error).
+// All three stack (last one opened sits on top) so a failure alert raised
+// out of a confirm's/prompt's action handler doesn't get lost.
 
 let seq = 0;
 
@@ -52,7 +61,11 @@ function buildBox({ title, message, kind }) {
 function focusTrap(overlay, box) {
   const id = `confirm-dialog-${++seq}`;
   overlay.id = id;
-  const focusable = () => Array.from(box.querySelectorAll('button'));
+  // 'button' alone missed promptDialog's <input> — found in review: tabbing
+  // forward from OK wrapped straight to CANCEL, permanently skipping the
+  // text field for that dialog instance. confirmDialog/alertDialog have no
+  // non-button focusables, so this widened selector is a no-op for them.
+  const focusable = () => Array.from(box.querySelectorAll('button, input'));
   overlay.addEventListener('keydown', (e) => {
     if (e.key === 'Tab') {
       const els = focusable();
@@ -146,5 +159,58 @@ export function alertDialog(message, opts = {}) {
 
     document.body.appendChild(overlay);
     okBtn.focus();
+  });
+}
+
+export function promptDialog(opts = {}) {
+  const {
+    message, title = null, placeholder = '', defaultValue = '',
+  } = typeof opts === 'string' ? { message: opts } : opts;
+
+  return new Promise((resolve) => {
+    const { overlay, box } = buildBox({ title, message, kind: 'prompt' });
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'title-row-input';
+    input.placeholder = placeholder;
+    input.value = defaultValue;
+    box.appendChild(input);
+
+    const actions = document.createElement('div');
+    actions.className = 'confirm-dialog-actions';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn';
+    cancelBtn.textContent = 'CANCEL';
+
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn btn-primary';
+    okBtn.textContent = 'OK';
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(okBtn);
+    box.appendChild(actions);
+
+    const previouslyFocused = document.activeElement;
+    const close = (result) => {
+      overlay.removeEventListener('keydown', onKeydown);
+      closeOverlay(overlay);
+      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
+      resolve(result);
+    };
+    const onKeydown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); close(null); }
+      else if (e.key === 'Enter') { e.preventDefault(); close(input.value.trim()); }
+    };
+
+    cancelBtn.addEventListener('click', () => close(null));
+    okBtn.addEventListener('click', () => close(input.value.trim()));
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(null); });
+    overlay.addEventListener('keydown', onKeydown);
+    focusTrap(overlay, box);
+
+    document.body.appendChild(overlay);
+    input.focus();
   });
 }

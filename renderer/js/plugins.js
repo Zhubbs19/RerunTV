@@ -58,6 +58,7 @@ import { player } from './dom.js';
 
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
+const mediaSourcePickerRegistry = new Map();
 const themePackRegistry = new Map();
 const interruptRegistry = new Map();
 const tuneGateRegistry = new Map();
@@ -103,6 +104,32 @@ export function registerSettingsPanel(id, definition) {
 
 export function getPluginSettingsPanel(id) {
   return settingsPanelRegistry.get(id) || null;
+}
+
+// A media-source provider plugin's own "browse for a folder" UI —
+// PLUGIN_DEVELOPMENT.md's "Media sources" section documents the four core
+// verbs (list/probe/readRange/checkAvailable, called via ctx.callService
+// from the plugin's MAIN process) plus an optional main-process pickFolder
+// verb; this is a second, richer alternative to that plain pickFolder verb,
+// registered from the plugin's *renderer.js* instead — since a plugin's
+// renderer.js already runs in this same window/process (same reason
+// registerSettingsPanel/registerChannelType are plain function calls, not
+// IPC), `pickerFn` can build and show a real modal (breadcrumbs, a
+// clickable folder list, whatever the provider's own data shape needs)
+// directly, with none of the cross-process UI choreography a main-process
+// pickFolder verb would need to show anything. setup-channels.js's CHOOSE
+// SOURCE flow tries this first, falls back to the main-process pickFolder
+// verb, then finally to a plain text-input prompt if neither is
+// registered. `pickerFn(): Promise<folderRef | null>` — same
+// null-means-cancelled contract as the plain-prompt fallback.
+export function registerMediaSourcePicker(providerId, pickerFn) {
+  if (!providerId || typeof providerId !== 'string') throw new Error('registerMediaSourcePicker: providerId must be a non-empty string');
+  if (typeof pickerFn !== 'function') throw new Error(`registerMediaSourcePicker("${providerId}"): pickerFn must be a function`);
+  mediaSourcePickerRegistry.set(providerId, pickerFn);
+}
+
+export function getMediaSourcePicker(providerId) {
+  return mediaSourcePickerRegistry.get(providerId) || null;
 }
 
 // A "pack" plugin bundles one CRT theme's look (`html[data-theme="<id>"]`
@@ -331,6 +358,7 @@ function installGlobalApi() {
   window.RCBPlugins = {
     registerChannelType,
     registerSettingsPanel,
+    registerMediaSourcePicker,
     registerThemePack,
     getThemePack,
     registerInterrupt,

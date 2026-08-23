@@ -80,9 +80,15 @@ function assertKnownProvider(providerId) {
 const MEDIA_LIST_TIMEOUT_MS = 20000;
 const MEDIA_PROBE_TIMEOUT_MS = 8000;
 // Bounds one Range-request round-trip for streaming playback (see
-// main-protocol.js's serveFileViaPlugin) — a slow remote fetch can
-// legitimately take longer than rpc-channel.js's 20s default.
-const MEDIA_READRANGE_TIMEOUT_MS = 45000;
+// main-protocol.js's serveFileViaPlugin). Deliberately generous — a
+// provider's readRange isn't guaranteed to be a quick live fetch; a
+// provider that internally caches to local disk before it can serve
+// anything (see PLUGIN_DEVELOPMENT.md's "Media sources" section,
+// getFetchProgress/getLocalCachePath) can legitimately need several
+// minutes for a large file's first access. A tighter timeout here would
+// turn "still preparing, working as intended" into a spurious RPC timeout
+// error for exactly the case this generous bound exists to make reliable.
+const MEDIA_READRANGE_TIMEOUT_MS = 10 * 60 * 1000;
 const MEDIA_CHECK_TIMEOUT_MS = 10000;
 
 // `pluginServices` is the same shared object every other cross-process
