@@ -19,6 +19,7 @@
   "dependencies": {
     "adm-zip": "^0.6.0",
     "busboy": "^1.6.0",
+    "electron-updater": "^6.8.9",
     "qrcode": "^1.5.4"
   },
   "build": {
@@ -36,6 +37,12 @@
     "asarUnpack": [
       "plugins/**"
     ],
+    "publish": {
+      "provider": "github",
+      "owner": "Zhubbs19",
+      "repo": "rerun-tv",
+      "private": true
+    },
     "win": {
       "target": "nsis"
     },

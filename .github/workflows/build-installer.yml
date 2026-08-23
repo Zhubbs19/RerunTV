@@ -60,9 +60,16 @@ jobs:
           notes+="you before running it — that's expected for an unsigned, low-download-count executable, "
           notes+="not a sign anything's wrong. In SmartScreen: \"More info\" → \"Run anyway\". In Chrome's "
           notes+="download bar: the dropdown arrow → \"Keep\"."
+          # latest.yml + the .blockmap are electron-updater's update feed, not
+          # just build byproducts — without them attached here, in-app "CHECK
+          # FOR UPDATES" (main-updater.js) 404s on every check. electron-
+          # builder writes latest.yml pointing at the installer's exact
+          # filename, so it has to ship from the very same release.
           gh release create "$tag" \
             --repo "${{ github.repository }}" \
             --title "$product $tag (alpha)" \
             --prerelease \
             --notes "$notes" \
-            "$installer"
+            "$installer" \
+            "$installer.blockmap" \
+            dist/latest.yml

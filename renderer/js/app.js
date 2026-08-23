@@ -1,4 +1,4 @@
-import { S, viewNow, saveConfigDebounced, resetUndoBaseline, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
+import { S, viewNow, saveConfigDebounced, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
 import { randomInterstitialId } from './util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
@@ -35,6 +35,7 @@ import {
 import { applyDisplayMode } from './display-mode.js';
 import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
+import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
 import {
   renderChannelList, renderCommercialsPanel, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
@@ -432,6 +433,7 @@ export async function showSetupScreen() {
       const fresh = await window.api.loadConfig();
       if (fresh && fresh.channels && fresh.channels.length > 0) {
         S.config = fresh;
+        bumpConfigGeneration();
       }
     } catch (e) {}
   }
@@ -475,6 +477,7 @@ export async function showTvScreen() {
       const fresh = await window.api.loadConfig();
       if (fresh && fresh.channels && fresh.channels.length > 0) {
         S.config = fresh;
+        bumpConfigGeneration();
       }
     } catch (e) {}
   }
@@ -644,6 +647,14 @@ export function applyConfigDefaults(config) {
   if (!config.upNext) config.upNext = { enabled: true };
   if (!config.details) config.details = { enabled: true };
   if (!config.timeMachine) config.timeMachine = { enabled: false };
+  // Auto-updater settings (main-updater.js / update-notice.js) — mode:
+  // 'auto' (background-check + download, default), 'manual' (only via the
+  // HELP tab's CHECK NOW button), or 'off' (never, not even manually).
+  // showLaunchPopup: once a download finishes, interrupt with the in-app
+  // toast (true, default) vs. quietly install on the next normal quit.
+  if (!config.updates) config.updates = { mode: 'auto', showLaunchPopup: true };
+  if (!config.updates.mode) config.updates.mode = 'auto';
+  if (config.updates.showLaunchPopup == null) config.updates.showLaunchPopup = true;
   if (!config.landing) config.landing = { audio: null };
   // A plugin's own config namespace (config.<pluginId>) is seeded by that
   // plugin's own renderer.js at load time, not here — core doesn't need to
@@ -755,6 +766,7 @@ async function init() {
   // schedule, a poll loop, etc.) self-starts from its own module top-level
   // code once loadPlugins()'s dynamic imports resolve, rather than being
   // kicked off from here.
+  initUpdateNotice();
 
   // A LAN viewer (browser-api-shim.js, window.__isViewer) always boots
   // straight to live playback — there's no first-run "add a channel" setup
@@ -795,6 +807,7 @@ function startViewerConfigPolling() {
         return;
       }
       S.config = applyConfigDefaults(fresh);
+      bumpConfigGeneration();
       // Whichever plugin's toggle controls this can change live on the host
       // while a viewer sits open — just a visibility flip against config
       // already in hand, not another network round trip (the URL itself was

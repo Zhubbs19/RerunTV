@@ -219,6 +219,10 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
       (entry.end <= viewNow() ? ' past' : '');
     block.style.left = leftPct + '%';
     block.style.width = Math.max(widthPct, 2) + '%';
+    // Read back by refreshPastClasses() below on the fast-path re-render —
+    // lets the "past" dimming keep advancing on the 30s tick without
+    // needing to rebuild this block (or recompute the schedule) at all.
+    block.dataset.end = String(entry.end);
     // Opt-in only — an entry.block with no theme.accent (the overwhelming
     // default) leaves .guide-entry's own CSS untouched, same look as before
     // block theming existed. See applyBlockTheme (power.js) for the
@@ -273,6 +277,30 @@ function scheduleRemainingRows(list, windowEnd, nextIdx, selRef, renderGen) {
   }
 }
 
+// Signature of everything that affects what the grid's DOM should contain.
+// Real time isn't part of it — for a fixed (config, window, filter, slot
+// count, selection) combo the set of schedule blocks is deterministic, so
+// time passing on its own never needs a rebuild, only a moved live-line and
+// updated past-dimming (see refreshPastClasses/positionNowLine below).
+let lastGuideRenderSig = null;
+
+function guideRenderSignature(list, windowEnd) {
+  return [
+    S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
+    S.guideDocked, guideSlots(), list.length, S.guideSelRowIdx, S.guideSelTime,
+  ].join('|');
+}
+
+// Companion to the block.dataset.end stamped in buildChannelRow — moves the
+// "already aired" dimming forward on the fast-path re-render without
+// touching anything else in the (unchanged) grid.
+function refreshPastClasses() {
+  const now = viewNow();
+  guideRowsEl.querySelectorAll('.guide-entry[data-end]').forEach((el) => {
+    el.classList.toggle('past', Number(el.dataset.end) <= now);
+  });
+}
+
 export function renderGuideGrid() {
   const list = filteredChannels();
   if (sortedChannels().length === 0) { closeGuideGrid(); return; }
@@ -290,6 +318,14 @@ export function renderGuideGrid() {
   }
   S.guideSelRowIdx = Math.min(Math.max(S.guideSelRowIdx, 0), list.length - 1);
   const windowEnd = S.guideWindowStart + GUIDE_SLOT_MS * guideSlots();
+
+  const sig = guideRenderSignature(list, windowEnd);
+  if (sig === lastGuideRenderSig && guideRowsEl.children.length > 0) {
+    positionNowLine(windowEnd);
+    refreshPastClasses();
+    return;
+  }
+  lastGuideRenderSig = sig;
   const renderGen = ++S.guideRenderGen;
 
   guideTimeHeaderEl.style.gridTemplateColumns = `170px repeat(${guideSlots()}, 1fr)`;

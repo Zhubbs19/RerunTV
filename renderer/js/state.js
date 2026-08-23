@@ -3,6 +3,16 @@
 // is powered on, how far the viewing clock is shifted) stays in one place.
 export const S = {
   config: { channels: [] },
+  // Bumped on every known write to S.config — in-place mutation (via
+  // saveConfigDebounced, the funnel almost every setup-screen edit already
+  // goes through) or wholesale replacement (import/restore/undo/viewer
+  // config poll, via bumpConfigGeneration()/resetUndoBaseline()/
+  // pushUndoSnapshot()/performUndo()/performRedo() below). Config is
+  // mutated in place with no version field of its own (see CLAUDE.md's
+  // "Config mutation" section), so this is the one thing a cache can
+  // actually key on to know "config hasn't changed since I last computed
+  // this" instead of guessing from object identity.
+  configGeneration: 0,
   currentNumber: null,
   // Which channel's REAL decoded video the #player element's videoWidth/
   // videoHeight currently, confirmedly, belong to — set only once that
@@ -212,6 +222,13 @@ function setSaveIndicator(state) {
 // real edit without either losing that edit's undo step or double-pushing.
 let pendingIsUndoTracked = false;
 
+// Callers that reassign S.config wholesale outside the undo funnel below
+// (a screen-switch or LAN-viewer-poll refetch that isn't a user "edit")
+// call this directly right after the reassignment — see app.js.
+export function bumpConfigGeneration() {
+  S.configGeneration++;
+}
+
 // `opts.skipUndo` is for writes that are real config state but not a
 // meaningful "edit" to step back through — currently just S.config.
 // lastChannel, updated on every single channel tune (playback.js) so the box
@@ -220,6 +237,12 @@ let pendingIsUndoTracked = false;
 // a pile of "last channel changed" undo steps, making Ctrl+Z on the setup
 // screen nearly useless after any TV-watching in between.
 export function saveConfigDebounced(delay, opts) {
+  // Fires synchronously, right when the in-place mutation that triggered
+  // this call actually happened — not inside the debounced timeout below,
+  // which only runs once, after the last of a burst of edits. A cache keyed
+  // on configGeneration needs to see the bump immediately, before whatever
+  // re-render the caller does next reads the (already mutated) config.
+  bumpConfigGeneration();
   const skipUndo = !!(opts && opts.skipUndo);
   // One "burst" of rapid edits (every keystroke in a text field, a slider
   // being dragged) becomes a single undo step: the snapshot pushed below is
@@ -265,6 +288,7 @@ export function resetUndoBaseline() {
   lastSavedSnapshot = JSON.stringify(S.config);
   undoStack.length = 0;
   redoStack.length = 0;
+  bumpConfigGeneration();
 }
 
 // For the rare call sites that replace S.config wholesale and persist it
@@ -279,6 +303,7 @@ export function pushUndoSnapshot() {
     redoStack.length = 0;
   }
   lastSavedSnapshot = JSON.stringify(S.config);
+  bumpConfigGeneration();
 }
 
 export function canUndo() { return undoStack.length > 0; }
@@ -290,6 +315,7 @@ function applySnapshot(snapshot) {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
   setSaveIndicator('saving');
+  bumpConfigGeneration();
   window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
 }
 

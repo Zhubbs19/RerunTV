@@ -8,6 +8,21 @@ contextBridge.exposeInMainWorld('api', {
   // of reading File objects straight off the DragEvent itself.
   getPathForFile: (file) => webUtils.getPathForFile(file),
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+  // 'dev-mode' (running from source, nothing to check against), 'up-to-date',
+  // 'downloading' (found one, autoUpdater is fetching it now), 'disabled'
+  // (config.updates.mode is 'off'), or 'error'. Once a 'downloading' result
+  // actually finishes, onUpdateStatus below fires separately — see
+  // main-updater.js and renderer/js/update-notice.js.
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  // {state: 'downloaded', version, showPopup} — showPopup mirrors
+  // config.updates.showLaunchPopup at the moment the download finished;
+  // update-notice.js only shows its toast when true (main process already
+  // set autoInstallOnAppQuit for the false case, so nothing else to do).
+  onUpdateStatus: (cb) => ipcRenderer.on('updates:status', (event, status) => cb(status)),
+  installUpdateNow: () => ipcRenderer.invoke('updates:installNow'),
+  // Live GitHub Releases feed for the HELP tab's RELEASE NOTES panel — see
+  // main-updater.js's registerReleaseNotesHandler.
+  getReleaseNotes: () => ipcRenderer.invoke('updates:getReleaseNotes'),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),

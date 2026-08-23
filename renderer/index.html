@@ -41,6 +41,18 @@
       <button id="migration-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
     </div>
 
+    <!-- Update-ready notice — shown once autoUpdater finishes downloading an
+         update, gated by config.updates.showLaunchPopup (main-updater.js /
+         update-notice.js). Same toast chrome as migration-toast above, plus
+         action buttons since this one needs a real decision, not just a
+         dismiss. -->
+    <div id="update-toast" class="migration-toast hidden">
+      <span id="update-toast-text"></span>
+      <button id="update-toast-view-notes" class="btn">VIEW CHANGELOG</button>
+      <button id="update-toast-install" class="btn btn-primary">RESTART &amp; INSTALL</button>
+      <button id="update-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
+    </div>
+
     <!-- App-wide display mode (DISPLAY > APP DISPLAY MODE, display-mode.js) —
          simulates the fixed aspect/resolution a real box's own display would
          have had, independent of the video-only ASPECT RATIO setting. Wraps
@@ -779,10 +791,30 @@
               <span class="panel-status">Every shortcut below also works from the universal remote's browser page. The full hint bar (bottom of the TV screen, H to hide) is the same list.</span>
               <div id="help-shortcuts-grid" class="help-shortcuts-grid"></div>
             </div>
+            <div class="panel span-full" id="update-settings-panel">
+              <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
+              <span class="panel-status">Update checks run against this project's GitHub Releases. Choose how often, and whether a ready update should interrupt you or just quietly install itself the next time you close RerunTV.</span>
+              <div class="update-settings-row">
+                <label for="update-mode-select">CHECK</label>
+                <select id="update-mode-select">
+                  <option value="auto">AUTOMATICALLY</option>
+                  <option value="manual">ONLY WHEN I ASK</option>
+                  <option value="off">NEVER</option>
+                </select>
+                <label class="shuffle-toggle"><input type="checkbox" id="update-launch-popup-enabled">SHOW A POPUP WHEN AN UPDATE IS READY</label>
+                <button id="check-updates-btn" class="btn">CHECK NOW</button>
+              </div>
+              <span id="update-status-line" class="panel-status update-status-line"></span>
+            </div>
             <div class="panel span-full">
-              <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW <span id="help-version" class="help-version"></span></label>
+              <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW</label>
               <span class="panel-status">Recently shipped, newest first — a running log of what changed under the hood.</span>
               <div id="help-changelog-list" class="help-changelog-list"></div>
+            </div>
+            <div class="panel span-full" id="release-notes-panel">
+              <label class="panel-toggle" style="cursor:default">📰 RELEASE NOTES</label>
+              <span class="panel-status">Pulled live from GitHub Releases — always current, no manual upkeep.</span>
+              <div id="help-release-notes-list" class="help-changelog-list"></div>
             </div>
           </div>
         </div>

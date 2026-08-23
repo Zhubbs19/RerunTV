@@ -60,6 +60,7 @@ const { startViewerServer } = require('./main-viewer-server');
 const { startDiscoveryServer } = require('./main-discovery-server');
 const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers } = require('./main-plugins');
 const { wireAppQuitPropagation } = require('./main-plugin-isolation');
+const { initAutoUpdater } = require('./main-updater');
 // Handed to the party-channel/universal-remote plugins via ctx — both need
 // these npm packages (multipart upload parsing, QR code generation) but
 // can't require() them directly themselves (they run from userData/plugins/,
@@ -202,6 +203,7 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+  initAutoUpdater(getMainWindow);
 });
 
 app.on('window-all-closed', () => {

@@ -388,7 +388,38 @@ export function prevBroadcastHoursBoundary(ch, fromMs) {
 // default. Deliberately independent of resolveActiveSource for the
 // block/channel fallback — a block can override ad settings for its hours
 // without also overriding content (a "quiet hours" block with no folder).
+// Memoized on (channel, exact atMs, fileTags) — this function is pure given
+// those inputs, but nextCommercialsBoundary below calls it in an hour-by-hour
+// scan, and the guide/setup-schedule preview paths re-query the same handful
+// of (channel, hour) pairs on every tick even when nothing changed. Keyed on
+// S.configGeneration rather than any object identity, since config is
+// mutated in place with no version field of its own (see CLAUDE.md's "Config
+// mutation" section) — the cache is simply thrown away whenever that
+// generation counter shows config has moved on, so a stale entry can never
+// outlive the edit that invalidated it. Capped in size so a long session
+// scanning many distinct timestamps within one generation can't grow this
+// unbounded.
+const RAC_CACHE_MAX = 2000;
+let racCache = new Map();
+let racCacheGen = -1;
+
 export function resolveActiveCommercials(ch, atMs, fileTags) {
+  if (S.configGeneration !== racCacheGen) {
+    racCache = new Map();
+    racCacheGen = S.configGeneration;
+  } else if (racCache.size > RAC_CACHE_MAX) {
+    racCache.clear();
+  }
+  const tagKey = fileTags && fileTags.length ? fileTags.join(',') : '';
+  const cacheKey = `${ch.number}|${atMs}|${tagKey}`;
+  const cached = racCache.get(cacheKey);
+  if (cached) return cached;
+  const result = computeActiveCommercials(ch, atMs, fileTags);
+  racCache.set(cacheKey, result);
+  return result;
+}
+
+function computeActiveCommercials(ch, atMs, fileTags) {
   // ch.adsEnabled is the channel-level kill-switch — false means no breaks at
   // all on this channel regardless of flows, presets, or block overrides.
   if (ch.adsEnabled === false) return { commercials: { enabled: false }, key: 'disabled' };

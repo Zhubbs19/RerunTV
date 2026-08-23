@@ -36,11 +36,23 @@ different timestamp.
 Config objects (channels, interstitial flows, blocks) are mutated **in place** throughout
 the codebase — e.g. `setup-interstitials-flowbuilder.js` does `.steps.splice()` /
 `.steps.push()` on the same object reference, and several `main.js` IPC handlers mutate a
-`loadConfig()` result before calling `saveConfig()` with it. There is no version/generation
-counter anywhere. **Do not add reference-based memoization of anything derived from config**
-without first adding real invalidation — a stale cache here means a wrong schedule airing.
-This has already been evaluated and deliberately deferred twice (a `resolveActiveCommercials`
-memoization, a `guide.js` DOM-diffing fast path) for exactly this reason.
+`loadConfig()` result before calling `saveConfig()` with it. **Do not add reference-based
+memoization of anything derived from config** without first keying it on real invalidation
+— a stale cache here means a wrong schedule airing.
+
+`S.configGeneration` (`renderer/js/state.js`) is that invalidation: a counter bumped by
+`bumpConfigGeneration()` on every known write to `S.config` — in-place mutation via
+`saveConfigDebounced()` (the funnel almost every setup-screen edit already goes through,
+bumped synchronously before its debounce timer, not inside it) and wholesale replacement via
+`resetUndoBaseline()`/`pushUndoSnapshot()`/undo/redo, plus three call sites in `app.js` that
+reassign `S.config` outside that funnel (screen-switch refetch, LAN-viewer config poll) and
+bump it directly. Any new mutation site that doesn't already flow through one of those funnels
+needs its own explicit `bumpConfigGeneration()` call, or a config change through it will go
+unnoticed by every cache keyed on the generation. Two caches now key on it:
+`resolveActiveCommercials`'s memoization (`schedule.js`) and `guide.js`'s render-signature
+fast path (skips the per-channel `getChannelSchedule()` sweep on the 30s guide tick when
+config/window/filter/selection are all unchanged, just moving the live line and
+`past`-dimming instead).
 
 ## Directory map
 
@@ -90,5 +102,8 @@ An extensive audit-and-fix pass (see git log on `master`) covered, in order: sec
 main.js/main-plugins.js decomposition into focused modules, general polish, a round of
 performance fixes (async I/O instead of blocking calls, caching, bounded queues/caches,
 debouncing), and a readability pass (naming, dense conditionals, comment trims, small
-dedup). Two items were deliberately deferred for the config-mutation reason above — don't
-"fix" them without adding real cache invalidation first.
+dedup). Two items — a `resolveActiveCommercials` memoization and a `guide.js` DOM-diffing
+fast path — were deferred twice for the config-mutation reason above before finally landing,
+gated on the `S.configGeneration` counter described there. Any future cache derived from
+config must key on that same counter (or extend it) rather than inventing its own
+invalidation story.

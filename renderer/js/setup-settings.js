@@ -31,7 +31,10 @@ import {
   viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
-  setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, helpGuideListEl, helpGuideSearchEl, helpPrintManualBtn, hintBarEl, hintBarItemsListEl,
+  setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
+  updateModeSelect, updateLaunchPopupEnabledEl, updateStatusLineEl, updateSettingsPanelEl,
+  helpReleaseNotesListEl, releaseNotesPanelEl,
+  helpGuideListEl, helpGuideSearchEl, helpPrintManualBtn, hintBarEl, hintBarItemsListEl,
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
@@ -781,6 +784,114 @@ const CHANGELOG = [
   ] },
 ];
 
+// 'off' also disables the manual CHECK NOW button — "disable update checks
+// entirely" means entirely, not just the background one. main-updater.js
+// enforces the same rule server-side (its updates:check handler), this is
+// just so the UI doesn't offer a button that'll come back with "disabled".
+function refreshUpdateModeUI() {
+  const mode = (S.config.updates && S.config.updates.mode) || 'auto';
+  if (checkUpdatesBtn) checkUpdatesBtn.disabled = mode === 'off';
+}
+
+function setUpdateStatus(text) {
+  if (updateStatusLineEl) updateStatusLineEl.textContent = text;
+}
+
+// Bound once (renderHelpTab's helpTabRendered guard keeps this from
+// double-firing) — config.updates itself can still change afterward via
+// undo/import, same caveat as the rest of this once-rendered tab.
+function initUpdateSettingsPanel() {
+  if (updateModeSelect) {
+    updateModeSelect.value = (S.config.updates && S.config.updates.mode) || 'auto';
+    updateModeSelect.addEventListener('change', () => {
+      S.config.updates = S.config.updates || {};
+      S.config.updates.mode = updateModeSelect.value;
+      saveConfigDebounced();
+      refreshUpdateModeUI();
+      setUpdateStatus('');
+    });
+  }
+  if (updateLaunchPopupEnabledEl) {
+    updateLaunchPopupEnabledEl.checked = !S.config.updates || S.config.updates.showLaunchPopup !== false;
+    updateLaunchPopupEnabledEl.addEventListener('change', () => {
+      S.config.updates = S.config.updates || {};
+      S.config.updates.showLaunchPopup = updateLaunchPopupEnabledEl.checked;
+      saveConfigDebounced();
+    });
+  }
+  refreshUpdateModeUI();
+
+  if (checkUpdatesBtn) {
+    checkUpdatesBtn.addEventListener('click', async () => {
+      checkUpdatesBtn.disabled = true;
+      const originalText = checkUpdatesBtn.textContent;
+      checkUpdatesBtn.textContent = 'CHECKING…';
+      try {
+        const result = await window.api.checkForUpdates();
+        if (result.status === 'dev-mode') {
+          setUpdateStatus('Update checks only run in a packaged build — this is a dev copy running from source.');
+        } else if (result.status === 'disabled') {
+          setUpdateStatus('Update checks are turned off (CHECK: NEVER, above).');
+        } else if (result.status === 'downloading') {
+          setUpdateStatus(`Update v${result.version} found — downloading now. You'll be notified once it's ready.`);
+        } else if (result.status === 'up-to-date') {
+          setUpdateStatus(`You're on the latest version (v${result.version}), checked just now.`);
+        } else {
+          setUpdateStatus(`Update check failed: ${result.message}`);
+        }
+      } catch (e) {
+        setUpdateStatus(`Update check failed: ${e.message}`);
+      } finally {
+        checkUpdatesBtn.disabled = (S.config.updates && S.config.updates.mode) === 'off';
+        checkUpdatesBtn.textContent = originalText;
+      }
+    });
+  }
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function formatReleaseDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : `${MONTHS_SHORT[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+// Live GitHub Releases feed — fetched once per HELP-tab visit (main
+// process caches the actual HTTP call for an hour regardless, see
+// main-updater.js's RELEASE_NOTES_TTL_MS), so re-opening HELP later in the
+// same session still shows current data without hammering GitHub's API.
+async function renderReleaseNotes() {
+  if (!helpReleaseNotesListEl) return;
+  helpReleaseNotesListEl.textContent = 'Loading…';
+  let releases;
+  try {
+    releases = await window.api.getReleaseNotes();
+  } catch (e) {
+    releases = [];
+  }
+  if (!releases || releases.length === 0) {
+    helpReleaseNotesListEl.textContent = 'Couldn\'t reach GitHub for release notes right now — try again later.';
+    return;
+  }
+  helpReleaseNotesListEl.innerHTML = '';
+  releases.forEach((r) => {
+    const entry = document.createElement('div');
+    entry.className = 'help-changelog-entry';
+    const date = document.createElement('div');
+    date.className = 'help-changelog-date';
+    date.textContent = `${r.name}${r.prerelease ? ' (pre-release)' : ''} — ${formatReleaseDate(r.publishedAt)}`;
+    entry.appendChild(date);
+    const body = document.createElement('div');
+    // Release bodies are markdown but this is a plain-text panel, not a
+    // markdown renderer — bullet lines still read fine as plain text
+    // (GitHub's own convention, "- " per line), and escaping the rest
+    // avoids trusting arbitrary release-note HTML/script content.
+    body.innerHTML = (r.body || 'No description.').split('\n').map((line) => escapeHtml(line)).join('<br>');
+    entry.appendChild(body);
+    helpReleaseNotesListEl.appendChild(entry);
+  });
+}
+
 function renderHelpTab() {
   if (helpTabRendered) return; // static content — no need to rebuild on every visit
   helpTabRendered = true;
@@ -791,6 +902,21 @@ function renderHelpTab() {
     window.api.getAppVersion().then((v) => {
       if (v) helpVersionEl.textContent = `v${v}`;
     });
+  }
+
+  // Not exposed to the LAN viewer's browser-api-shim (nothing to install on
+  // a read-only browser tab) — hide the whole panel rather than wire up
+  // controls that would just error.
+  if (!window.api.checkForUpdates) {
+    if (updateSettingsPanelEl) updateSettingsPanelEl.classList.add('hidden');
+  } else {
+    initUpdateSettingsPanel();
+  }
+
+  if (!window.api.getReleaseNotes) {
+    if (releaseNotesPanelEl) releaseNotesPanelEl.classList.add('hidden');
+  } else {
+    renderReleaseNotes();
   }
 
   if (helpShortcutsGridEl && hintBarEl) {

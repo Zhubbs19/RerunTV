@@ -2737,6 +2737,15 @@ input[type="checkbox"].shuffle-toggle:active {
   color: var(--paper-dim);
   margin-left: auto;
 }
+.update-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.update-settings-row select { flex-shrink: 0; }
+.update-status-line { display: block; margin-top: 6px; }
 .help-changelog-list {
   display: flex;
   flex-direction: column;
