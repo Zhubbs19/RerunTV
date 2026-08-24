@@ -232,6 +232,20 @@ test('isolated plugins can read their packaged userData plugin directory', () =>
   assert.doesNotMatch(readArg, /userData(?:,|$)/i, 'permission must remain scoped below userData');
 });
 
+test('Party channel exposes and renders the host pairing code on CH 94', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'plugins', 'party-channel', 'main.js'), 'utf8');
+  const renderer = fs.readFileSync(path.join(ROOT, 'plugins', 'party-channel', 'renderer.js'), 'utf8');
+  const settings = fs.readFileSync(path.join(ROOT, 'plugins', 'party-channel', 'settings.js'), 'utf8');
+  const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
+
+  assert.match(main, /pairingCode:\s*access\.pairingCode/);
+  assert.match(renderer, /const PARTY_CH = 94;/);
+  assert.match(renderer, /partyPairingCodeEl\.textContent = info\.pairingCode/);
+  assert.match(settings, /joinCodeEl/);
+  assert.match(markup, /id="party-pairing-code"/);
+  assert.doesNotMatch(`${settings}\n${markup}`, /CH\s*5\b/);
+});
+
 test('shared CSS defines every semantic token used by core components', () => {
   const tokens = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'tokens.css'), 'utf8');
   for (const name of ['panel-2', 'selection', 'gold-dim', 'border', 'bg', 'text', 'shadow-soft', 'shadow-hard-md']) {

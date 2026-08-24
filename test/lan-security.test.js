@@ -19,6 +19,7 @@ test('LAN services are opt-in', () => {
 
 test('pairing exchanges a short code for an HttpOnly session and rate limits it', async (t) => {
   const access = createLanAccess('test', { readLimit: 2, writeLimit: 10 });
+  assert.match(access.pairingCode, /^\d{8}$/);
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (!(await access.authorize(req, res, url))) return;
@@ -30,7 +31,15 @@ test('pairing exchanges a short code for an HttpOnly session and rate limits it'
   const unpaired = await fetch(base);
   assert.match(await unpaired.text(), /pairing code/i);
 
-  const paired = await fetch(access.pairingUrl(base), { redirect: 'manual' });
+  const qrShortcut = await fetch(access.pairingUrl(base), { redirect: 'manual' });
+  assert.equal(qrShortcut.status, 303);
+
+  const paired = await fetch(`${base}/_pair`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: access.pairingCode }),
+    redirect: 'manual',
+  });
   assert.equal(paired.status, 303);
   const cookie = paired.headers.get('set-cookie');
   assert.match(cookie, /HttpOnly/i);

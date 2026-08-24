@@ -77,14 +77,16 @@ function renderTriviaQuestions(listEl, cfg, rerender) {
   });
 }
 
-function renderJoinInfo(urlEl, qrEl) {
+function renderJoinInfo(urlEl, qrEl, codeEl) {
   window.api.getPartyJoinInfo().then((info) => {
     if (!info || !info.url) {
       urlEl.textContent = 'Party LAN access is not active. Enable the channel and restart RerunTV, or connect the host to WiFi/ethernet.';
+      codeEl.textContent = '--------';
       qrEl.classList.add('hidden');
       return;
     }
     urlEl.textContent = info.url;
+    codeEl.textContent = info.pairingCode || '--------';
     if (info.qrDataUrl) {
       qrEl.src = info.qrDataUrl;
       qrEl.classList.remove('hidden');
@@ -104,12 +106,16 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     container.innerHTML = `
       <label class="panel-toggle">
         <input type="checkbox" id="party-plugin-enabled">
-        PARTY CHANNEL (CH 5)
+        PARTY CHANNEL (CH 94)
       </label>
       <span class="panel-status">Guests can post photos/videos, announcements, votes, and more after opening the paired link. LAN access is off until this channel is enabled and RerunTV restarts.</span>
       <div class="party-join-box">
         <img data-el="join-qr" class="party-join-qr" alt="Scan to join the party page">
-        <div class="party-join-url" data-el="join-url">—</div>
+        <div class="party-join-details">
+          <div class="party-join-url" data-el="join-url">—</div>
+          <div class="party-join-code-label">PAIRING CODE</div>
+          <div class="party-join-code" data-el="join-code">--------</div>
+        </div>
         <button type="button" data-el="join-refresh-btn" class="btn">REFRESH</button>
       </div>
       <label class="panel-toggle" style="cursor:default; margin-top:16px;">BULLETIN &amp; SOUNDBOARD</label>
@@ -183,6 +189,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     const enabledEl = container.querySelector('#party-plugin-enabled');
     const joinUrlEl = q('join-url');
     const joinQrEl = q('join-qr');
+    const joinCodeEl = q('join-code');
     const joinRefreshBtn = q('join-refresh-btn');
     const soundboardBtn = q('soundboard-btn');
     const soundboardClearBtn = q('soundboard-clear-btn');
@@ -215,12 +222,13 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
 
     const rerenderTrivia = () => renderTriviaQuestions(triviaQuestionsEl, cfg, rerenderTrivia);
     rerenderTrivia();
-    renderJoinInfo(joinUrlEl, joinQrEl);
+    renderJoinInfo(joinUrlEl, joinQrEl, joinCodeEl);
 
     enabledEl.addEventListener('change', () => {
       cfg.enabled = enabledEl.checked;
       ctx.saveConfigDebounced();
       joinUrlEl.textContent = `${enabledEl.checked ? 'Party LAN access will start' : 'Party LAN access will stop'} after RerunTV restarts.`;
+      joinCodeEl.textContent = '--------';
       joinQrEl.classList.add('hidden');
     });
     soundboardBtn.addEventListener('click', async () => {
@@ -296,7 +304,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
       rerenderTrivia();
     });
     triviaStartBtn.addEventListener('click', () => startTriviaRound());
-    joinRefreshBtn.addEventListener('click', () => renderJoinInfo(joinUrlEl, joinQrEl));
+    joinRefreshBtn.addEventListener('click', () => renderJoinInfo(joinUrlEl, joinQrEl, joinCodeEl));
     },
   }],
 });
