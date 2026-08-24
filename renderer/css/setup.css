@@ -91,7 +91,7 @@
   cursor: pointer;
 }
 .setup-search-result:hover,
-.setup-search-result.active { background: rgba(240, 180, 41, 0.16); }
+.setup-search-result.active { background: rgba(var(--gold-rgb), 0.16); }
 .setup-search-result-path { color: var(--gold); font-weight: 700; letter-spacing: .5px; }
 .setup-search-result-preview { color: var(--paper-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-target-flash { animation: search-target-flash 1.1s ease-out; }
@@ -175,18 +175,18 @@
   letter-spacing: 0.8px;
   padding: 8px 14px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .setup-subtab-btn:hover {
   color: var(--gold);
   border-color: var(--gold);
-  background: rgba(240, 180, 41, 0.08);
+  background: rgba(var(--gold-rgb), 0.08);
 }
 .setup-subtab-btn.active {
-  background: rgba(240, 180, 41, 0.18);
+  background: rgba(var(--gold-rgb), 0.18);
   border-color: var(--gold);
   color: var(--gold);
-  box-shadow: 0 4px 10px -2px rgba(240, 180, 41, 0.36);
+  box-shadow: 0 4px 10px -2px rgba(var(--gold-rgb), 0.36);
 }
 
 .setup-eyebrow {
@@ -207,7 +207,7 @@
   font-size: 31px;
   letter-spacing: 2px;
   margin: 0 0 12px 0;
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(240, 180, 41, 0.5);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(var(--gold-rgb), 0.5);
 }
 
 .setup-sub {
@@ -409,7 +409,7 @@
 }
 .channel-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .channel-badge.editable { cursor: pointer; }
-.channel-badge.editable:hover { border-color: var(--gold); box-shadow: var(--bevel-raised), 0 0 10px rgba(240, 180, 41, 0.4); }
+.channel-badge.editable:hover { border-color: var(--gold); box-shadow: var(--bevel-raised), 0 0 10px rgba(var(--gold-rgb), 0.4); }
 .channel-badge.small {
   width: 28px;
   height: 28px;
@@ -552,19 +552,19 @@ input[type="checkbox"].shuffle-toggle:active {
 
 .channel-row .remove-btn {
   color: var(--danger);
-  border-color: rgba(255, 107, 91, 0.4);
+  border-color: rgba(var(--danger-rgb), 0.4);
 }
 
 .channel-row .fix-btn {
   color: var(--cyan);
-  border-color: rgba(111, 224, 242, 0.4);
+  border-color: rgba(var(--cyan-rgb), 0.4);
   white-space: nowrap;
 }
-.channel-row .fix-btn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.08); }
+.channel-row .fix-btn:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(var(--cyan-rgb), 0.08); }
 
 .channel-row .titles-btn { white-space: nowrap; }
 .channel-row .edit-btn { border-color: var(--gold); color: var(--gold); }
-.channel-row .edit-btn:hover { background: rgba(240, 180, 41, 0.1); }
+.channel-row .edit-btn:hover { background: rgba(var(--gold-rgb), 0.1); }
 .channel-row .edit-btn.edit-btn-open {
   background: var(--gold);
   color: var(--ink-deep);
@@ -599,7 +599,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .edit-tab-btn.active {
   border-color: var(--gold);
   color: var(--gold);
-  background: rgba(240, 180, 41, 0.12);
+  background: rgba(var(--gold-rgb), 0.12);
 }
 /* Not-yet-functional tabs (e.g. per-channel THEME) read visually distinct
    from the 6 working ones instead of looking identically actionable. */
@@ -852,7 +852,7 @@ input[type="checkbox"].shuffle-toggle:active {
   align-items: center;
 }
 .channel-filter-row .titles-search { flex: 1; }
-.channel-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.1); }
+.channel-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(var(--cyan-rgb), 0.1); }
 
 .interstitials-filter-row { flex-wrap: wrap; }
 .interstitials-filter-row .titles-search { flex: 1; min-width: 160px; }
@@ -863,7 +863,7 @@ input[type="checkbox"].shuffle-toggle:active {
   padding: 12px;
   border: 1px solid var(--cyan);
   border-radius: var(--radius-md);
-  background: rgba(111, 224, 242, 0.06);
+  background: rgba(var(--cyan-rgb), 0.06);
 }
 .library-search-results {
   display: flex;
@@ -952,7 +952,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .now-next-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .now-next-row .nnr-chan { color: var(--gold); font-weight: 700; }
 .now-next-row .nnr-next { color: var(--paper-dim); }
-.interstitials-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(111, 224, 242, 0.1); }
+.interstitials-filter-row .btn.active { border-color: var(--cyan); color: var(--cyan); background: rgba(var(--cyan-rgb), 0.1); }
 
 .interstitial-bulk-checkbox {
   flex-shrink: 0;
@@ -1006,7 +1006,7 @@ input[type="checkbox"].shuffle-toggle:active {
   padding: 10px 12px;
   border: 1px solid var(--cyan);
   border-radius: var(--radius-md);
-  background: rgba(111, 224, 242, 0.06);
+  background: rgba(var(--cyan-rgb), 0.06);
 }
 .bulk-selected-count {
   font-family: var(--font-ui);
@@ -1673,7 +1673,7 @@ input[type="checkbox"].shuffle-toggle:active {
   color: var(--paper);
   cursor: pointer;
 }
-.tag-ac-item:hover { background: rgba(240, 180, 41, 0.15); color: var(--gold); }
+.tag-ac-item:hover { background: rgba(var(--gold-rgb), 0.15); color: var(--gold); }
 
 .btn {
   position: relative;
@@ -1714,7 +1714,7 @@ input[type="checkbox"].shuffle-toggle:active {
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   font-weight: 600;
 }
-.btn-primary:hover { color: var(--gold-ink); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(240, 180, 41, 0.5); }
+.btn-primary:hover { color: var(--gold-ink); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--gold-rgb), 0.5); }
 
 .btn-danger {
   border-color: var(--danger);
@@ -1910,7 +1910,7 @@ input[type="checkbox"].shuffle-toggle:active {
 }
 
 .panel:hover {
-  border-color: rgba(111, 224, 242, 0.4);
+  border-color: rgba(var(--cyan-rgb), 0.4);
 }
 
 .panel-toggle {
@@ -2025,54 +2025,7 @@ input[type="checkbox"].shuffle-toggle:active {
 [data-subtab-panel="virtual"] .panel.collapsed { gap: 0; }
 [data-subtab-panel="virtual"] .panel.filtered-out { display: none; }
 
-/* PARTY CH 5 join panel — see setup-settings.js's renderPartyJoinInfo */
-.party-join-box {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 8px;
-  padding: 12px;
-  background: var(--ink-deep);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-}
-.party-join-qr {
-  width: 84px;
-  height: 84px;
-  background: #fff;
-  padding: 4px;
-  border-radius: 4px;
-  flex-shrink: 0;
-}
-.party-join-url {
-  flex: 1;
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--cyan);
-  word-break: break-all;
-}
-
-/* PARTY panel's GUEST ENGAGEMENT card groups 4 independent toggle features
-   (ticker feed/check-in/countdown/vote) in one card — a left-border indent
-   on each toggle's own block visually ties its follow-on fields (e.g.
-   countdown's target/label) back to the checkbox that owns them, instead of
-   every checkbox and field reading as one long undifferentiated list. */
-.party-subgroup {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-left: 10px;
-  border-left: 2px solid var(--line);
-}
-/* .panel-interval input defaults to a 56px numeric-spinner width (see the
-   many SEC fields across this file) — too narrow for a datetime-local or a
-   free-text label, which clipped to unreadable ("mm/", "e.g. HAF") before
-   this override. */
-.party-wide-input {
-  width: 200px !important;
-  text-align: left !important;
-}
+/* Party Channel settings UI moved to plugins/party-channel/style.css. */
 
 .crt-sliders { flex-wrap: wrap; gap: 20px; }
 
@@ -2104,7 +2057,7 @@ input[type="checkbox"].shuffle-toggle:active {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 30% 25%, rgba(111, 224, 242, 0.35), transparent 55%),
+    radial-gradient(circle at 30% 25%, rgba(var(--cyan-rgb), 0.35), transparent 55%),
     linear-gradient(135deg, #16306b 0%, #0c1a3d 55%, #050a1c 100%);
 }
 .crt-slider {
@@ -2540,7 +2493,7 @@ input[type="checkbox"].shuffle-toggle:active {
   letter-spacing: 0.3px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(240, 180, 41, 0.15);
+  background: rgba(var(--gold-rgb), 0.15);
   color: var(--gold);
   white-space: nowrap;
 }
@@ -2746,7 +2699,7 @@ input[type="checkbox"].shuffle-toggle:active {
   white-space: nowrap;
 }
 .command-palette-item.active,
-.command-palette-item:hover { background: rgba(240, 180, 41, 0.15); color: var(--gold); }
+.command-palette-item:hover { background: rgba(var(--gold-rgb), 0.15); color: var(--gold); }
 .command-palette-item.active .command-palette-item-hint,
 .command-palette-item:hover .command-palette-item-hint { color: var(--gold); opacity: 0.7; }
 .command-palette-empty {
@@ -2780,7 +2733,7 @@ input[type="checkbox"].shuffle-toggle:active {
 #interstitials-add-entry-btn.os-drag-over {
   outline: 2px dashed var(--gold);
   outline-offset: -2px;
-  background: rgba(240, 180, 41, 0.08);
+  background: rgba(var(--gold-rgb), 0.08);
 }
 
 .setup-breadcrumb {
@@ -3026,7 +2979,7 @@ input[type="checkbox"].shuffle-toggle:active {
   font-weight: 900;
   color: var(--gold);
   letter-spacing: 1px;
-  text-shadow: 0 0 10px rgba(250, 204, 21, 0.4);
+  text-shadow: 0 0 10px rgba(var(--gold-rgb), 0.4);
   margin-bottom: 4px;
 }
 
@@ -3147,7 +3100,7 @@ input[type="checkbox"].shuffle-toggle:active {
 
 .flow-config-header {
   background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(0, 240, 255, 0.25);
+  border: 1px solid rgba(var(--cyan-rgb), 0.25);
   border-radius: var(--radius-md);
   padding: 14px 18px;
   display: flex;
@@ -3221,8 +3174,8 @@ input[type="checkbox"].shuffle-toggle:active {
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--cyan);
-  background: rgba(0, 240, 255, 0.08);
-  border: 1px dashed rgba(0, 240, 255, 0.3);
+  background: rgba(var(--cyan-rgb), 0.08);
+  border: 1px dashed rgba(var(--cyan-rgb), 0.3);
   padding: 8px 12px;
   border-radius: 4px;
 }
@@ -3252,13 +3205,13 @@ input[type="checkbox"].shuffle-toggle:active {
 }
 
 .flow-add-btn {
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(var(--cyan-rgb), 0.1);
   border-color: var(--cyan);
   color: var(--cyan);
   font-weight: 700;
 }
 .flow-add-btn:hover {
-  background: rgba(0, 240, 255, 0.25);
+  background: rgba(var(--cyan-rgb), 0.25);
   color: #ffffff;
 }
 
@@ -3341,7 +3294,7 @@ input[type="checkbox"].shuffle-toggle:active {
 
 .flow-node-card.drag-over {
   border-color: var(--cyan) !important;
-  box-shadow: 0 0 24px rgba(0, 240, 255, 0.6) !important;
+  box-shadow: 0 0 24px rgba(var(--cyan-rgb), 0.6) !important;
   transform: scale(1.03);
 }
 
@@ -3352,13 +3305,13 @@ input[type="checkbox"].shuffle-toggle:active {
 /* Color Coding Node Card Types */
 
 .flow-node-card.type-bumper {
-  border-color: rgba(0, 240, 255, 0.6);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.15);
+  border-color: rgba(var(--cyan-rgb), 0.6);
+  box-shadow: 0 0 15px rgba(var(--cyan-rgb), 0.15);
 }
 
 .flow-node-card.type-segment {
-  border-color: rgba(240, 180, 41, 0.6);
-  box-shadow: 0 0 15px rgba(240, 180, 41, 0.15);
+  border-color: rgba(var(--gold-rgb), 0.6);
+  box-shadow: 0 0 15px rgba(var(--gold-rgb), 0.15);
 }
 
 .flow-node-card.type-pod {
@@ -3402,8 +3355,8 @@ input[type="checkbox"].shuffle-toggle:active {
   min-width: 0;
 }
 
-.type-bumper .flow-step-badge { background: rgba(0, 240, 255, 0.2); color: var(--cyan); border: 1px solid var(--cyan); }
-.type-segment .flow-step-badge { background: rgba(240, 180, 41, 0.2); color: var(--gold); border: 1px solid var(--gold); }
+.type-bumper .flow-step-badge { background: rgba(var(--cyan-rgb), 0.2); color: var(--cyan); border: 1px solid var(--cyan); }
+.type-segment .flow-step-badge { background: rgba(var(--gold-rgb), 0.2); color: var(--gold); border: 1px solid var(--gold); }
 .type-pod .flow-step-badge { background: rgba(217, 70, 239, 0.2); color: #f0abfc; border: 1px solid #f0abfc; }
 .type-stationid .flow-step-badge { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #4ade80; }
 
@@ -3463,7 +3416,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .flow-simulator-drawer {
   background: rgba(5, 10, 20, 0.95);
   border: 1px solid var(--cyan);
-  box-shadow: 0 0 24px rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 24px rgba(var(--cyan-rgb), 0.3);
   border-radius: var(--radius-md);
   padding: 16px;
   display: flex;
@@ -3502,14 +3455,14 @@ input[type="checkbox"].shuffle-toggle:active {
   font-family: var(--font-ui);
   font-size: 10px;
   text-align: center;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .flow-sim-step.active {
-  background: rgba(0, 240, 255, 0.2);
+  background: rgba(var(--cyan-rgb), 0.2);
   border-color: var(--cyan);
   color: var(--cyan);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 10px rgba(var(--cyan-rgb), 0.4);
 }
 
 .flow-sim-output {

@@ -147,8 +147,20 @@
 
   --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  --shadow-hard-md: var(--shadow-hard);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.35);
   --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
   --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Semantic surface aliases used by shared setup/plugin components. Keep
+     these as references, not copied colors, so every theme's existing base
+     token overrides flow through without expanding the theme contract. */
+  --panel-2: var(--ink-deep);
+  --selection: rgba(var(--gold-rgb), 0.2);
+  --gold-dim: rgba(var(--gold-rgb), 0.55);
+  --border: var(--line);
+  --bg: var(--ink-deep);
+  --text: var(--paper);
 
   /* Setup-shell surfaces are explicit theme tokens because the navigation
      now stays visible while its page scrolls and the flow builder uses an
@@ -182,6 +194,37 @@ html, body {
      UI font. Long-form copy opts into --font-body explicitly. */
   font-family: var(--font-ui);
   user-select: none;
+}
+
+/* Controls still avoid accidental selection, while text users commonly
+   need to copy (paths, diagnostics, errors, release notes) opts back in. */
+input,
+textarea,
+pre,
+code,
+[contenteditable="true"],
+[role="textbox"],
+.panel-status,
+.folder-status,
+.plugin-row-desc,
+.plugin-row-error,
+.plugin-diagnostics-log,
+.health-check-results,
+.update-changelog-body {
+  user-select: text;
+}
+
+/* One app-wide motion safeguard also covers dynamically loaded third-party
+   plugin CSS. Individual components can still provide a more intentional
+   static reduced-motion state, but no animation or transition can slip
+   through merely because its stylesheet loads after core. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 #app {

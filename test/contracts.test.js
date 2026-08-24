@@ -189,3 +189,33 @@ test('untrusted plugin UI and CSS are blocked in both renderer load phases', () 
   const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'plugins.js'), 'utf8');
   assert.equal((source.match(/needsIntegrityApproval/g) || []).length >= 2, true);
 });
+
+test('channel display mode is applied before virtual channels can return', () => {
+  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'playback.js'), 'utf8');
+  const resetAt = source.indexOf('S.currentPlayerChannelNumber = null;');
+  const applyAt = source.indexOf('applyDisplayMode();', resetAt);
+  const virtualAt = source.indexOf('if (isVirtualChannel(number))', resetAt);
+  assert.ok(resetAt >= 0 && applyAt > resetAt && virtualAt > applyAt,
+    'display mode must be applied after stale metadata is cleared and before the virtual-channel return');
+});
+
+test('plugin styles are self-contained and do not borrow cross-plugin keyframes', () => {
+  const partyManifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'plugins', 'party-channel', 'manifest.json'), 'utf8'));
+  const partyCss = fs.readFileSync(path.join(ROOT, 'plugins', 'party-channel', partyManifest.style), 'utf8');
+  const overlaysCss = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'overlays.css'), 'utf8');
+  const setupCss = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'setup.css'), 'utf8');
+  const screensaverCss = fs.readFileSync(path.join(ROOT, 'plugins', 'screensaver', 'style.css'), 'utf8');
+  assert.match(partyCss, /\.party-channel\s*\{/);
+  assert.doesNotMatch(overlaysCss, /\.party-channel\s*\{/);
+  assert.doesNotMatch(setupCss, /\.party-join-box\s*\{/);
+  assert.match(screensaverCss, /@keyframes\s+screensaver-lineup-cycle/);
+  assert.doesNotMatch(screensaverCss, /animation:\s*landing-promo-cycle/);
+});
+
+test('shared CSS defines every semantic token used by core components', () => {
+  const tokens = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'tokens.css'), 'utf8');
+  for (const name of ['panel-2', 'selection', 'gold-dim', 'border', 'bg', 'text', 'shadow-soft', 'shadow-hard-md']) {
+    assert.match(tokens, new RegExp(`--${name}\\s*:`), `tokens.css is missing --${name}`);
+  }
+  assert.match(tokens, /prefers-reduced-motion[\s\S]*animation-duration:\s*0\.01ms\s*!important/);
+});
