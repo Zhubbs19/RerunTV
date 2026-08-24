@@ -983,13 +983,22 @@ export async function tuneToChannel(number, opts) {
   // for any tune that does play content.
   applyBlockTheme(null);
   applyVhsQuality(null);
-  applyTvBezel(0, 0); // 0,0 reads as "unknown" (see applyTvBezel) — resets #player/bezel to default
   // AUTO aspect/resolution's real-video-size signal (display-mode.js) must
   // never trust a lingering PREVIOUS channel's videoWidth/videoHeight as if
   // they belonged to this new tune — reset here, confirmed again (set to
   // this tune's own ch.number) only once ITS OWN loadedmetadata actually
   // fires, same reset-then-reapply discipline as the calls just above.
   S.currentPlayerChannelNumber = null;
+  // Display mode is channel-scoped too, including virtual plugin channels.
+  // Apply it before any branch below can return: plugin channels never enter
+  // playChannelLive(), which is where regular channels used to pick up their
+  // aspect/resolution override, so they otherwise retained the previous
+  // channel's frame indefinitely. The later playChannelLive() call remains
+  // useful for regular channels because metadata can refine AUTO detection.
+  applyDisplayMode();
+  // Display mode changes #display-frame geometry, so reset the bezel only
+  // after the new channel-scoped frame has been applied.
+  applyTvBezel(0, 0); // 0,0 reads as "unknown" (see applyTvBezel) — resets #player/bezel to default
   applyVolume();
   player.classList.remove('screen-fade-out');
   // Surfing keeps the time offset (so you can see what else was on at

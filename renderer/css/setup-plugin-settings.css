@@ -16,7 +16,7 @@
   gap: 12px 20px;
   align-items: start;
 }
-.plugin-settings-section[data-layout="two-column"] .plugin-settings-section-content > :is(.panel-toggle, .panel-status, .party-join-box, .titles-list) {
+.plugin-settings-section[data-layout="two-column"] .plugin-settings-section-content > :is(.panel-toggle, .panel-status, .titles-list) {
   grid-column: 1 / -1;
 }
 .plugin-settings-section[data-layout="two-column"] .plugin-settings-section-content > * { min-width: 0; }
