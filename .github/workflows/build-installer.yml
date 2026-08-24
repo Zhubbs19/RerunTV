@@ -64,11 +64,12 @@ jobs:
           # name GitHub never actually has (spaces get dot-mangled by GitHub
           # on upload, a mismatch found live testing the update flow).
           installer="dist/${product}-Setup-${{ steps.version.outputs.version }}.exe"
-          notes="Automated alpha build from deploy branch, commit ${{ github.sha }}."$'\n\n'
-          notes+="**This installer is unsigned.** Windows SmartScreen and your browser will likely warn "
-          notes+="you before running it — that's expected for an unsigned, low-download-count executable, "
-          notes+="not a sign anything's wrong. In SmartScreen: \"More info\" → \"Run anyway\". In Chrome's "
-          notes+="download bar: the dropdown arrow → \"Keep\"."
+          # --generate-notes asks GitHub to describe the commits and pull
+          # requests shipped since the previous release. The short custom
+          # note is prepended to that generated changelog, so the installer
+          # warning remains visible without replacing the actual app changes.
+          notes="**Unsigned alpha:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
+          notes+="Verify that it came from this repository; in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
           # just build byproducts — without them attached here, in-app "CHECK
           # FOR UPDATES" (main-updater.js) 404s on every check. electron-
@@ -78,6 +79,8 @@ jobs:
             --repo "${{ github.repository }}" \
             --title "$product $tag (alpha)" \
             --prerelease \
+            --target "${{ github.sha }}" \
+            --generate-notes \
             --notes "$notes" \
             "$installer" \
             "$installer.blockmap" \
