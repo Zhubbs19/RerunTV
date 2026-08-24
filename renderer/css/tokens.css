@@ -305,6 +305,31 @@ body:has(#guide-grid:not(.hidden)) #screen-crt-overlay {
 }
 .migration-toast-dismiss:hover { color: var(--gold); }
 
+/* The update notice has two real actions, unlike the short migration
+   notice that shares its base chrome. Give those labels intrinsic space
+   instead of allowing flexbox to squeeze them into clipped multi-line
+   slivers; at narrow widths the group wraps as complete controls. */
+#update-toast {
+  width: min(92vw, 860px);
+  max-width: none;
+  flex-wrap: wrap;
+}
+#update-toast-text {
+  flex: 1 1 390px;
+  min-width: 0;
+  line-height: 1.4;
+}
+#update-toast .btn {
+  flex: 0 0 auto;
+  min-width: max-content;
+  white-space: nowrap;
+}
+#update-toast .migration-toast-dismiss { flex: 0 0 auto; }
+
+@media (max-width: 700px) {
+  #update-toast-text { flex-basis: 100%; }
+}
+
 /* Themed scrollbars — every scrollable area in the app (the setup screen
    itself, the channel/interstitials/titles lists, the weekly timeline grid,
    the program guide) previously fell back to the OS's default scrollbar,
