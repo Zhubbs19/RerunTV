@@ -274,13 +274,13 @@ async function activate(ctx) {
   // tradeoff, now also baked into the on-screen idle card.
   async function getPartyJoinInfo() {
     const urls = getPartyUrls();
-    if (!urls.length) return { url: '', qrDataUrl: '' };
+    if (!urls.length) return { url: '', qrDataUrl: '', pairingCode: '' };
     const url = urls[0].url;
     try {
       const qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 320 });
-      return { url, qrDataUrl };
+      return { url, qrDataUrl, pairingCode: access.pairingCode };
     } catch (e) {
-      return { url, qrDataUrl: '' };
+      return { url, qrDataUrl: '', pairingCode: access.pairingCode };
     }
   }
 
@@ -564,7 +564,7 @@ async function activate(ctx) {
 // than reject.
 function registerFallback(ipcMain) {
   ipcMain.handle('party:captureVideoFrame', async () => null);
-  ipcMain.handle('party:getJoinInfo', async () => ({ url: '', qrDataUrl: '' }));
+  ipcMain.handle('party:getJoinInfo', async () => ({ url: '', qrDataUrl: '', pairingCode: '' }));
 }
 
 module.exports = { activate, registerFallback };

@@ -65,6 +65,7 @@ const partyChannelEl = document.getElementById('party-channel');
 const partyIdleEl = document.getElementById('party-idle');
 const partyQrEl = document.getElementById('party-qr');
 const partyIdleUrlEl = document.getElementById('party-idle-url');
+const partyPairingCodeEl = document.getElementById('party-pairing-code');
 
 // Active content card — whatever's currently up from S.partyQueue.
 const partyActiveEl = document.getElementById('party-active');
@@ -593,6 +594,7 @@ function renderPartyIdle() {
     if (S.currentNumber !== PARTY_CH || S.partyCurrentItem) return;
     partyQrEl.src = info.qrDataUrl || '';
     partyIdleUrlEl.textContent = info.url || '';
+    partyPairingCodeEl.textContent = info.pairingCode || '--------';
   }).catch(() => { });
 }
 
@@ -656,7 +658,7 @@ window.RCBPlugins.registerChannelType('party-channel', {
   // section is stored under config.pluginSettings and wins over these.
   resolutionOverride: S.config.party.resolutionOverride || null,
   displayAspectOverride: S.config.party.displayAspectOverride || null,
-  // The user's own "PARTY CHANNEL (CH 5)" toggle, on top of the plugin
+  // The user's own "PARTY CHANNEL (CH 94)" toggle, on top of the plugin
   // being installed+enabled (which loadPlugins() already gates before this
   // registration call even runs) — same enabled(ctx) gate pattern
   // public-access's own CH 2 toggle uses.

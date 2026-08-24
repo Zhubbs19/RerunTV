@@ -179,7 +179,7 @@
     // own to offer as a capture source.
     listDesktopSources: () => Promise.resolve([]),
     sendPartyQueueState: () => {},
-    getPartyJoinInfo: () => Promise.resolve({ url: '', qrDataUrl: '' }),
+    getPartyJoinInfo: () => Promise.resolve({ url: '', qrDataUrl: '', pairingCode: '' }),
     // A viewer opening its own Setup screen has nothing meaningful to show
     // here either — it's not itself reachable as a further "watch on other
     // devices" source, that's the host's role.

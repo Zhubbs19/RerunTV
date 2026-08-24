@@ -91,7 +91,7 @@ contextBridge.exposeInMainWorld('api', {
   onPartyTriggerTrivia: (cb) => ipcRenderer.on('party:triggerTrivia', () => cb()),
   // Party channel (party.js) — the LAN party page's guest actions (see
   // plugins/party-channel/main.js's startPartyServer) arrive here the same way remote commands do.
-  // getPartyJoinInfo returns {url, qrDataUrl} for the idle screen/setup
+  // getPartyJoinInfo returns {url, qrDataUrl, pairingCode} for the idle screen/setup
   // panel; sendPartyQueueState is the renderer's half going back the other
   // way, cached in main so the party page's GET /queue has something to poll.
   onPartyPost: (cb) => ipcRenderer.on('party:post', (event, data) => cb(data)),
