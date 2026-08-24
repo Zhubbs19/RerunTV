@@ -1,11 +1,11 @@
-import { playChannelClickSound, sfxChannelChange } from './audio.js';
+import { playChannelClickSound, playConfiguredSound, sfxChannelChange } from './audio.js';
 import { channelColor, getChannel, parseMediaRef, pickLogoBugProfile, sortedChannels } from './channels.js';
 import {
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
-import { applyDisplayMode, cacheVideoSize } from './display-mode.js';
+import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from './display-mode.js';
 import { showGuideOverlay } from './guide.js';
 import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
 import { tuneTimingEnabled } from './perf.js';
@@ -590,6 +590,7 @@ function startBreak(ch, resolved, key) {
     // `player`, so no ad-volume multiplier applies here.
     stationIdNameEl.textContent = (entry && entry.text) || (ch.name || `CHANNEL ${ch.number}`).toUpperCase();
     stationIdBarEl.classList.add('show');
+    playConfiguredSound('card', ch.number);
     return;
   }
   if (type === 'trivia') {
@@ -1169,6 +1170,7 @@ export function scheduleUpNextBar(ch, pos) {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
     upNextTitleEl.textContent = getDisplayTitle(nextFile);
     upNextBarEl.classList.add('show');
+    playConfiguredSound('card', ch.number);
     S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, 8000, () => upNextBarEl.classList.remove('show'));
   }, remainingMs - 45000);
 }
@@ -1185,6 +1187,12 @@ function activeLogoBugProfiles(ch) {
   return (ch && ch.logoBugProfiles) || (S.config.display && S.config.display.logoBugProfiles) || [];
 }
 
+function activeLogoBugContext() {
+  return S.config.display && S.config.display.logoBugAutoAdjust
+    ? resolveContentDisplayMode()
+    : resolveEffectiveDisplayMode();
+}
+
 // Position + size are resolution-aware now (S.config.display.logoBugProfiles
 // / ch.logoBugProfiles — see pickLogoBugProfile, channels.js), keyed off the
 // actively-playing video's own width. `player.videoWidth` reads 0 before
@@ -1194,7 +1202,7 @@ function activeLogoBugProfiles(ch) {
 // width is known, so a resolution-specific profile still gets a chance to
 // apply within the same tune, not just on the next one.
 export function applyLogoBugPlacement(ch) {
-  const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), player.videoWidth) || FALLBACK_LOGO_BUG_PROFILE;
+  const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
   logoBugEl.style.left = `${profile.x}%`;
   logoBugEl.style.top = `${profile.y}%`;
   logoBugEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
@@ -1235,7 +1243,7 @@ const BURN_IN_FULL_MS = 30 * 60000;
 
 function logoBugBurnKeyFor(ch) {
   if (!ch) return null;
-  const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), player.videoWidth) || FALLBACK_LOGO_BUG_PROFILE;
+  const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
   return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}`;
 }
 
@@ -1289,7 +1297,7 @@ function applyLogoBugGhost(ch) {
     logoBugGhostEl.innerHTML = '';
     logoBugGhostEl.style.background = '';
     if (ch) {
-      const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), player.videoWidth) || FALLBACK_LOGO_BUG_PROFILE;
+      const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
       logoBugGhostEl.style.left = `${profile.x}%`;
       logoBugGhostEl.style.top = `${profile.y}%`;
       logoBugGhostEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
@@ -1327,6 +1335,7 @@ function applyLogoBugGhost(ch) {
 export function flashRatingBug(ch) {
   ratingBugEl.textContent = ch.rating;
   ratingBugEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
   S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 6000, () => ratingBugEl.classList.remove('show'));
 }
 

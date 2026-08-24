@@ -10,7 +10,7 @@ import { showDetailsForCurrentChannel, hideDetailsOverlay } from './details.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { showOnboarding } from './onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
-import { foldLogoBugCorner, freshChannel, normalizeChannel, sortedChannels, getChannel } from './channels.js';
+import { foldLogoBugCorner, freshChannel, normalizeChannel, normalizeLogoBugProfiles, sortedChannels, getChannel } from './channels.js';
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
@@ -697,6 +697,10 @@ export function applyConfigDefaults(config) {
   if (!config.display.logoBugProfiles) {
     config.display.logoBugProfiles = foldLogoBugCorner(config.display.logoBugPosition, config.display.logoBugSize);
   }
+  config.display.logoBugProfiles = normalizeLogoBugProfiles(config.display.logoBugProfiles);
+  if (config.display.logoBugAutoAdjust == null) config.display.logoBugAutoAdjust = false;
+  if (!config.display.overlayLayouts || typeof config.display.overlayLayouts !== 'object') config.display.overlayLayouts = {};
+  if (!config.customSounds || typeof config.customSounds !== 'object') config.customSounds = {};
   delete config.display.logoBugPosition;
   delete config.display.logoBugSize;
   if (config.display.hintBar == null) config.display.hintBar = true;

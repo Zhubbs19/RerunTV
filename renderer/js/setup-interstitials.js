@@ -19,7 +19,7 @@ import {
   scanProgressEl, standbyEnabledEl, standbyIntervalEl, player,
 } from './dom.js';
 import { blockPickerLabel } from './setup-schedule.js';
-import { attachTagAutocomplete, buildBreakpointTrack, parsePositiveInt, probeDuration } from './setup-util.js';
+import { attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, parsePositiveInt, probeDuration } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 import { confirmDialog } from './setup-dialogs.js';
 import { basenameNoExt } from './util.js';
@@ -217,6 +217,14 @@ function entrySummaryTitle(entry, typeDef) {
   return entry.text ? entry.text : '(auto text)';
 }
 
+function buildInterstitialThumbnail(entry, typeDef) {
+  const file = entry.dynamic ? entry.bgFile : entry.file;
+  return buildMediaThumbnail(typeDef.contentKind === 'video' && file ? file.path : null, {
+    label: typeDef.label || entry.type || 'AD',
+    className: 'interstitial-thumbnail',
+  });
+}
+
 function buildInterstitialCard(entry, idx, pool) {
     const typeDef = interstitialTypeDef(entry.type);
     const card = document.createElement('div');
@@ -246,6 +254,8 @@ function buildInterstitialCard(entry, idx, pool) {
     chevron.className = 'interstitial-card-chevron';
     chevron.textContent = '▸';
     summary.appendChild(chevron);
+
+    summary.appendChild(buildInterstitialThumbnail(entry, typeDef));
 
     const pill = document.createElement('span');
     pill.className = 'interstitial-type-pill';

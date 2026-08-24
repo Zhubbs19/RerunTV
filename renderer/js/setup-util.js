@@ -2,7 +2,59 @@
 // setup-schedule.js, setup-channels.js, setup-interstitials.js,
 // setup-settings.js) — split out of the old monolithic setup.js so none of
 // those modules need to import from each other just to get these.
-import { S } from './state.js';
+import { S, saveConfigDebounced } from './state.js';
+
+const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
+const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
+
+// A single lazy media-preview implementation shared by channel titles, the
+// bumper/ad pool, tag-usage reporting, and flow-builder match previews. Video
+// thumbnails seek to an early frame after metadata loads so they do not all
+// appear as the same black first frame. Failed or non-file sources degrade to
+// a labelled placeholder instead of leaving a broken media element behind.
+export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' } = {}) {
+  const thumb = document.createElement('div');
+  thumb.className = `media-thumbnail${className ? ` ${className}` : ''}`;
+  const fallback = (text = label) => {
+    thumb.innerHTML = '';
+    thumb.classList.add('placeholder');
+    thumb.textContent = String(text || 'MEDIA').slice(0, 5).toUpperCase();
+  };
+  if (!filePath) {
+    fallback();
+    return thumb;
+  }
+  if (AUDIO_MEDIA_RE.test(filePath)) {
+    fallback('♪');
+    return thumb;
+  }
+
+  const media = document.createElement(IMAGE_MEDIA_RE.test(filePath) ? 'img' : 'video');
+  media.alt = '';
+  if (media.tagName === 'VIDEO') {
+    media.muted = true;
+    media.playsInline = true;
+    media.preload = 'metadata';
+    media.addEventListener('loadedmetadata', () => {
+      if (media.duration > 1) media.currentTime = Math.min(1, media.duration / 4);
+    }, { once: true });
+  }
+  media.addEventListener('error', () => fallback(), { once: true });
+  thumb.appendChild(media);
+
+  const load = () => Promise.resolve(window.api.toFileUrl(filePath))
+    .then((url) => { media.src = url; })
+    .catch(() => fallback());
+  if (window.IntersectionObserver) {
+    const observer = new IntersectionObserver((records) => {
+      if (!records.some((record) => record.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    }, { rootMargin: '160px' });
+    observer.observe(thumb);
+  } else load();
+  return thumb;
+}
 
 // Every distinct tag currently in use anywhere tags mean something —
 // per-file tags (TITLES tab), pool-entry contentTags, and preset
@@ -178,216 +230,379 @@ export function buildBreakpointTrack(getPoints, setPoints, syncTextInput) {
 let logoBugProfileIdCounter = 0;
 function newLogoBugProfileId() { return `p${Date.now().toString(36)}${(logoBugProfileIdCounter++).toString(36)}`; }
 
-// Drag-and-drop editor for a logoBugProfiles array (box-wide:
-// S.config.display.logoBugProfiles — setup-settings.js; per-channel
-// override: ch.logoBugProfiles — setup-panels.js). Same drag mechanics as
-// buildBreakpointTrack above (plain mousedown/mousemove/mouseup on
-// `document` during a drag, direct style mutation while dragging, a real
-// commit — persist + re-render — only once the drag ends or the profile
-// *set* itself changes), extended to two axes (x/y position) plus a resize
-// handle, since a logo bug's placement isn't just "where on a 0-100% line"
-// like a break point is. `getProfiles`/`setProfiles` read/write wherever the
-// caller's own array actually lives, same indirection buildBreakpointTrack
-// uses, so one editor serves both the box-wide default and a per-channel
-// override. `onLiveChange` re-applies placement to the real on-screen logo
-// bug so dragging reads as instant feedback, same as the old corner
-// select/size slider had.
+async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange }) {
+  const profileSnapshot = (getProfiles() || []).map((profile) => ({ ...profile }));
+  const displayModeSnapshot = { ...(S.config.displayMode || {}) };
+  const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
+  const overlayLayoutsSnapshot = JSON.parse(JSON.stringify((S.config.display && S.config.display.overlayLayouts) || {}));
+  const [{ showSetupScreen, showTvScreen }, displayMode, channels] = await Promise.all([
+    import('./app.js'), import('./display-mode.js'), import('./channels.js'),
+  ]);
+
+  await showTvScreen();
+  const currentIsReal = (S.config.channels || []).some((channel) => channel.number === S.currentNumber);
+  if (!currentIsReal && S.config.channels && S.config.channels.length && window.tuneToChannel) {
+    await window.tuneToChannel(S.config.channels[0].number, { silent: true });
+  }
+
+  const crt = document.querySelector('.crt');
+  const app = document.getElementById('app');
+  const logo = document.getElementById('logo-bug');
+  if (!crt || !app || !logo) return;
+  const previewElements = new Map(['logo-bug', ...displayMode.OVERLAY_LAYOUT_TARGETS.map(({ id }) => id)].map((id) => {
+    const element = document.getElementById(id);
+    return [id, element && { className: element.className, style: element.getAttribute('style') }];
+  }));
+
+  const overlay = document.createElement('div');
+  overlay.className = 'logobug-live-overlay';
+  overlay.setAttribute('role', 'application');
+  overlay.setAttribute('aria-label', 'Live channel logo placement editor');
+
+  const selection = document.createElement('div');
+  selection.className = 'logobug-live-selection';
+  selection.setAttribute('aria-label', 'Drag to move the channel logo');
+  const resizeEdges = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+  const handles = resizeEdges.map((edge) => {
+    const handle = document.createElement('div');
+    handle.className = `logobug-live-anchor logobug-live-anchor-${edge}`;
+    handle.dataset.edge = edge;
+    handle.setAttribute('aria-label', `Resize logo from ${edge.toUpperCase()} anchor`);
+    selection.appendChild(handle);
+    return handle;
+  });
+  overlay.appendChild(selection);
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'logobug-live-toolbar';
+  const title = document.createElement('div');
+  title.className = 'logobug-live-title';
+  title.textContent = 'LIVE OVERLAY LAYOUT';
+  const status = document.createElement('div');
+  status.className = 'logobug-live-status';
+  toolbar.append(title, status);
+
+  const targetField = document.createElement('label');
+  targetField.className = 'logobug-live-field';
+  targetField.appendChild(document.createTextNode('OVERLAY ELEMENT'));
+  const targetSelect = document.createElement('select');
+  [{ id: 'logo-bug', label: 'CHANNEL LOGO' }, ...displayMode.OVERLAY_LAYOUT_TARGETS].forEach(({ id, label }) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = label;
+    targetSelect.appendChild(option);
+  });
+  targetField.appendChild(targetSelect);
+  toolbar.appendChild(targetField);
+
+  function addSelect(label, key, options) {
+    const field = document.createElement('label');
+    field.className = 'logobug-live-field';
+    field.appendChild(document.createTextNode(label));
+    const select = document.createElement('select');
+    options.forEach(([value, text]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      select.appendChild(option);
+    });
+    select.value = (S.config.displayMode && S.config.displayMode[key]) || options[0][0];
+    select.addEventListener('change', async () => {
+      S.config.displayMode = { ...(S.config.displayMode || {}), [key]: select.value };
+      await displayMode.applyDisplayModeSettled();
+      selectProfileForContext();
+    });
+    field.appendChild(select);
+    toolbar.appendChild(field);
+    return select;
+  }
+
+  addSelect('ASPECT', 'aspect', [['16:9', '16:9'], ['4:3', '4:3'], ['auto', 'AUTO']]);
+  addSelect('WINDOW', 'windowMode', [['letterbox', 'LETTERBOX'], ['lockWindow', 'LOCK WINDOW']]);
+  addSelect('RESOLUTION', 'resolution', [['native', 'NATIVE'], ['sd480', 'SD 480'], ['sd240', 'SD 240'], ['auto', 'AUTO']]);
+
+  const autoField = document.createElement('label');
+  autoField.className = 'logobug-live-auto';
+  const autoAdjust = document.createElement('input');
+  autoAdjust.type = 'checkbox';
+  autoAdjust.checked = autoAdjustSnapshot;
+  autoField.append(autoAdjust, document.createTextNode(' AUTO MATCH CONTENT'));
+  toolbar.appendChild(autoField);
+
+  const actions = document.createElement('div');
+  actions.className = 'logobug-live-actions';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'btn';
+  cancel.textContent = 'CANCEL';
+  const apply = document.createElement('button');
+  apply.type = 'button';
+  apply.className = 'btn btn-primary';
+  apply.textContent = 'APPLY PLACEMENT';
+  actions.append(cancel, apply);
+  toolbar.appendChild(actions);
+
+  const logoWasHidden = logo.classList.contains('hidden');
+  logo.classList.remove('hidden');
+  let activeId = null;
+  let activeTarget = 'logo-bug';
+
+  function currentContext() {
+    return autoAdjust.checked
+      ? displayMode.resolveContentDisplayMode()
+      : displayMode.resolveEffectiveDisplayMode();
+  }
+
+  function activeProfile() {
+    return targetProfiles().find((profile) => profile.id === activeId);
+  }
+
+  function targetElement() {
+    return document.getElementById(activeTarget);
+  }
+
+  function targetProfiles() {
+    if (activeTarget === 'logo-bug') return channels.normalizeLogoBugProfiles(getProfiles());
+    return (((S.config.display || {}).overlayLayouts || {})[activeTarget] || []).map((profile) => ({ ...profile }));
+  }
+
+  function setTargetProfiles(profiles) {
+    if (activeTarget === 'logo-bug') {
+      setProfiles(profiles);
+      return;
+    }
+    S.config.display.overlayLayouts = { ...(S.config.display.overlayLayouts || {}), [activeTarget]: profiles };
+  }
+
+  function restorePreviewElement(id) {
+    const element = document.getElementById(id);
+    const snapshot = previewElements.get(id);
+    if (!element || !snapshot) return;
+    element.className = snapshot.className;
+    if (snapshot.style == null) element.removeAttribute('style');
+    else element.setAttribute('style', snapshot.style);
+  }
+
+  function showTargetForEditing() {
+    previewElements.forEach((_, id) => restorePreviewElement(id));
+    const element = targetElement();
+    if (!element) return;
+    element.classList.remove('hidden');
+    element.classList.add('show');
+    element.style.opacity = '1';
+  }
+
+  function selectProfileForContext() {
+    const context = currentContext();
+    showTargetForEditing();
+    const profiles = targetProfiles();
+    let exact = profiles.find((profile) => profile.aspect === context.aspect && profile.resolution === context.resolution);
+    if (!exact) {
+      const element = targetElement();
+      const overlayRect = overlay.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const base = activeTarget === 'logo-bug'
+        ? channels.pickLogoBugProfile(profiles, context) || channels.foldLogoBugCorner(null, null)[0]
+        : profiles.find((profile) => (!profile.aspect || profile.aspect === context.aspect)
+          && (!profile.resolution || profile.resolution === context.resolution)) || {
+          x: Math.max(0, (elementRect.left - overlayRect.left) / overlayRect.width * 100),
+          y: Math.max(0, (elementRect.top - overlayRect.top) / overlayRect.height * 100),
+          scale: 1,
+        };
+      exact = {
+        id: newLogoBugProfileId(),
+        aspect: context.aspect,
+        resolution: context.resolution,
+        x: base.x,
+        y: base.y,
+        ...(activeTarget === 'logo-bug' ? { size: base.size } : { scale: base.scale || 1 }),
+      };
+      setTargetProfiles([...profiles, exact]);
+    }
+    activeId = exact.id;
+    renderProfile();
+  }
+
+  function renderProfile() {
+    const profile = activeProfile();
+    const element = targetElement();
+    if (!profile) return;
+    selection.style.left = `${profile.x}%`;
+    selection.style.top = `${profile.y}%`;
+    if (activeTarget === 'logo-bug') {
+      selection.style.width = `${profile.size}px`;
+      selection.style.height = `${profile.size}px`;
+      logo.style.left = `${profile.x}%`;
+      logo.style.top = `${profile.y}%`;
+      logo.style.setProperty('--logo-bug-size', `${profile.size}px`);
+    } else {
+      const scale = profile.scale || 1;
+      selection.style.width = `${element.offsetWidth * scale}px`;
+      selection.style.height = `${element.offsetHeight * scale}px`;
+      element.style.left = `${profile.x}%`;
+      element.style.top = `${profile.y}%`;
+      element.style.right = 'auto';
+      element.style.bottom = 'auto';
+      element.style.transformOrigin = 'top left';
+      element.style.transform = `scale(${scale})`;
+    }
+    const mode = `${profile.aspect} + ${profile.resolution === 'native' ? 'NATIVE' : profile.resolution.toUpperCase()}`;
+    const size = activeTarget === 'logo-bug' ? `${profile.size}px` : `${Math.round((profile.scale || 1) * 100)}%`;
+    status.textContent = `${mode}  •  X ${profile.x.toFixed(1)}%  Y ${profile.y.toFixed(1)}%  •  ${size}`;
+  }
+
+  function updateProfile(patch) {
+    setTargetProfiles(targetProfiles().map((profile) => (
+      profile.id === activeId ? { ...profile, ...patch } : profile
+    )));
+    renderProfile();
+  }
+
+  function trackDrag(event, onMove) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const pointerId = event.pointerId;
+    const move = (nextEvent) => {
+      if (nextEvent.pointerId === pointerId) onMove(nextEvent);
+    };
+    const finish = (nextEvent) => {
+      if (nextEvent.pointerId !== pointerId) return;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', finish);
+      document.removeEventListener('pointercancel', finish);
+    };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
+  }
+
+  selection.addEventListener('pointerdown', (event) => {
+    if (event.target.closest('.logobug-live-anchor')) return;
+    const rect = overlay.getBoundingClientRect();
+    const selectionRect = selection.getBoundingClientRect();
+    const offsetX = event.clientX - selectionRect.left;
+    const offsetY = event.clientY - selectionRect.top;
+    trackDrag(event, (nextEvent) => {
+      const maxX = Math.max(0, 100 - selection.offsetWidth / overlay.clientWidth * 100);
+      const maxY = Math.max(0, 100 - selection.offsetHeight / overlay.clientHeight * 100);
+      const x = Math.min(maxX, Math.max(0, ((nextEvent.clientX - offsetX - rect.left) / rect.width) * 100));
+      const y = Math.min(maxY, Math.max(0, ((nextEvent.clientY - offsetY - rect.top) / rect.height) * 100));
+      updateProfile({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 });
+    });
+  });
+
+  handles.forEach((handle) => {
+    handle.addEventListener('pointerdown', (event) => {
+      const profile = activeProfile();
+      const edge = handle.dataset.edge;
+      const overlayRect = overlay.getBoundingClientRect();
+      const scaleX = overlay.clientWidth / overlayRect.width;
+      const scaleY = overlay.clientHeight / overlayRect.height;
+      const startPointer = { x: event.clientX, y: event.clientY };
+      const startSize = activeTarget === 'logo-bug' ? profile.size : targetElement().offsetWidth * (profile.scale || 1);
+      const startHeight = activeTarget === 'logo-bug' ? profile.size : targetElement().offsetHeight * (profile.scale || 1);
+      const startLeft = profile.x / 100 * overlay.clientWidth;
+      const startTop = profile.y / 100 * overlay.clientHeight;
+      trackDrag(event, (nextEvent) => {
+        const dx = (nextEvent.clientX - startPointer.x) * scaleX;
+        const dy = (nextEvent.clientY - startPointer.y) * scaleY;
+        const widthDeltas = [];
+        if (edge.includes('e')) widthDeltas.push(dx / startSize);
+        if (edge.includes('w')) widthDeltas.push(-dx / startSize);
+        if (edge.includes('s')) widthDeltas.push(dy / startHeight);
+        if (edge.includes('n')) widthDeltas.push(-dy / startHeight);
+        const ratio = 1 + widthDeltas.reduce((sum, value) => sum + value, 0) / widthDeltas.length;
+        const size = activeTarget === 'logo-bug'
+          ? Math.round(Math.min(240, overlay.clientWidth, overlay.clientHeight, Math.max(28, startSize * ratio)))
+          : Math.min(3, Math.max(0.5, (profile.scale || 1) * ratio));
+        const nextWidth = activeTarget === 'logo-bug' ? size : targetElement().offsetWidth * size;
+        const nextHeight = activeTarget === 'logo-bug' ? size : targetElement().offsetHeight * size;
+        let left = startLeft;
+        let top = startTop;
+        if (edge.includes('w')) left = startLeft + startSize - nextWidth;
+        if (edge.includes('n')) top = startTop + startHeight - nextHeight;
+        left = Math.min(overlay.clientWidth - nextWidth, Math.max(0, left));
+        top = Math.min(overlay.clientHeight - nextHeight, Math.max(0, top));
+        updateProfile({
+          ...(activeTarget === 'logo-bug' ? { size } : { scale: Math.round(size * 100) / 100 }),
+          x: Math.round(left / overlay.clientWidth * 1000) / 10,
+          y: Math.round(top / overlay.clientHeight * 1000) / 10,
+        });
+      });
+    });
+  });
+
+  autoAdjust.addEventListener('change', () => {
+    S.config.display.logoBugAutoAdjust = autoAdjust.checked;
+    selectProfileForContext();
+  });
+
+  targetSelect.addEventListener('change', () => {
+    activeTarget = targetSelect.value;
+    activeId = null;
+    selectProfileForContext();
+  });
+
+  let closing = false;
+  async function closeEditor(keepChanges) {
+    if (closing) return;
+    closing = true;
+    document.removeEventListener('keydown', onKeyDown);
+    overlay.remove();
+    toolbar.remove();
+    if (!keepChanges) {
+      S.config.displayMode = displayModeSnapshot;
+      S.config.display.logoBugAutoAdjust = autoAdjustSnapshot;
+      S.config.display.overlayLayouts = overlayLayoutsSnapshot;
+      setProfiles(profileSnapshot.map((profile) => ({ ...profile })));
+      displayMode.applyDisplayModeSettled();
+    } else {
+      S.config.display.logoBugAutoAdjust = autoAdjust.checked;
+      saveConfigDebounced();
+    }
+    if (logoWasHidden) logo.classList.add('hidden');
+    previewElements.forEach((_, id) => restorePreviewElement(id));
+    displayMode.applyOverlayLayouts();
+    if (onLiveChange) onLiveChange();
+    await showSetupScreen();
+  }
+
+  function onKeyDown(event) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeEditor(false);
+    }
+  }
+  document.addEventListener('keydown', onKeyDown);
+  cancel.addEventListener('click', () => closeEditor(false));
+  apply.addEventListener('click', () => closeEditor(true));
+
+  crt.appendChild(overlay);
+  app.appendChild(toolbar);
+  selectProfileForContext();
+}
+
+// The old detached miniature preview was removed: placement is edited only
+// against the running channel, so the grid, display mode, logo and touch
+// targets all use the same geometry the viewer will actually see.
 export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange) {
   const wrap = document.createElement('div');
-  let activeId = null;
-
-  function sorted() {
-    return (getProfiles() || []).slice().sort((a, b) => (a.maxWidth ?? Infinity) - (b.maxWidth ?? Infinity));
-  }
-
-  // Lightweight write path for continuous drag feedback — persists +
-  // re-applies the real logo bug's placement, but does NOT rebuild this
-  // editor's own DOM (that would fight the drag: the element currently
-  // being dragged would get replaced out from under the mouse mid-move).
-  function persist(profiles) {
-    setProfiles(profiles);
-    if (onLiveChange) onLiveChange();
-  }
-
-  // Full commit — for anything that changes the *set* of profiles (add/
-  // remove/resolution-threshold edit) or which one is active, where a
-  // rebuild is exactly what's needed rather than something to avoid.
-  function commit(profiles) {
-    persist(profiles);
-    render();
-  }
-
-  function render() {
-    wrap.innerHTML = '';
-    const profiles = sorted();
-    if (!profiles.length) return; // caller always seeds at least a DEFAULT profile
-    if (!profiles.some((p) => p.id === activeId)) activeId = profiles[0].id;
-    const active = profiles.find((p) => p.id === activeId);
-
-    // ---- profile list: pick which breakpoint the preview below edits ----
-    const list = document.createElement('div');
-    list.className = 'logobug-editor-profile-list';
-    profiles.forEach((p) => {
-      const row = document.createElement('div');
-      row.className = `block-row logobug-editor-profile-row${p.id === activeId ? ' active' : ''}`;
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', (e) => {
-        if (e.target.closest('button, input')) return; // let the width field/remove button handle their own clicks
-        activeId = p.id;
-        render();
-      });
-
-      const label = document.createElement('span');
-      label.className = 'block-count';
-      label.textContent = p.maxWidth == null ? 'DEFAULT (any resolution)' : 'UP TO';
-      row.appendChild(label);
-
-      if (p.maxWidth != null) {
-        const widthInput = document.createElement('input');
-        widthInput.type = 'number';
-        widthInput.min = '1';
-        widthInput.value = p.maxWidth;
-        widthInput.title = 'Applies to video this wide or narrower, in pixels';
-        widthInput.addEventListener('click', (e) => e.stopPropagation());
-        widthInput.addEventListener('change', () => {
-          const v = parseInt(widthInput.value, 10);
-          if (Number.isFinite(v) && v > 0) commit(sorted().map((x) => (x.id === p.id ? { ...x, maxWidth: v } : x)));
-        });
-        row.appendChild(widthInput);
-
-        const px = document.createElement('span');
-        px.className = 'block-count';
-        px.textContent = 'PX WIDE';
-        row.appendChild(px);
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn-danger';
-        removeBtn.textContent = 'REMOVE';
-        removeBtn.addEventListener('click', () => {
-          if (activeId === p.id) activeId = null;
-          commit(sorted().filter((x) => x.id !== p.id));
-        });
-        row.appendChild(removeBtn);
-      }
-      list.appendChild(row);
-    });
-    wrap.appendChild(list);
-
-    const addBtn = document.createElement('button');
-    addBtn.className = 'btn';
-    addBtn.textContent = '+ ADD RESOLUTION BREAKPOINT';
-    addBtn.title = 'Give this resolution (and anything narrower, unless a narrower breakpoint exists too) its own position/size';
-    addBtn.addEventListener('click', () => {
-      // Read fresh rather than closing over the outer `profiles`/`active`
-      // (captured once, at the top of this render() call) — a drag since
-      // the last render only ever calls persist(), never a full render(),
-      // specifically so it doesn't fight the in-progress drag; that means
-      // this closure's `profiles`/`active` can be stale by the time ADD is
-      // clicked, and spreading a stale array here would silently discard
-      // whatever the drag just changed.
-      const current = sorted();
-      const narrowest = current.find((p) => p.maxWidth != null);
-      const maxWidth = narrowest ? Math.max(1, Math.round(narrowest.maxWidth / 2)) : 720;
-      const base = current.find((p) => p.id === activeId) || current[current.length - 1];
-      const fresh = { id: newLogoBugProfileId(), maxWidth, x: base.x, y: base.y, size: base.size };
-      activeId = fresh.id;
-      commit([...current, fresh]);
-    });
-    wrap.appendChild(addBtn);
-
-    // ---- drag preview: a 16:9 stand-in for the screen, reference canvas
-    // 1920x1080 so a dragged x/y (%) and a resized `size` (px) both mean the
-    // same real screen position/size regardless of the preview box's own
-    // rendered pixel dimensions. ----
-    const preview = document.createElement('div');
-    preview.className = 'logobug-editor-preview';
-
-    function xyFromEvent(e) {
-      const rect = preview.getBoundingClientRect();
-      const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
-      const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
-      return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
-    }
-
-    const handle = document.createElement('div');
-    handle.className = 'logobug-editor-handle';
-    handle.title = 'Drag to position — drag the corner tab to resize';
-    handle.textContent = active.maxWidth == null ? 'DEF' : `≤${active.maxWidth}`;
-    handle.style.left = `${active.x}%`;
-    handle.style.top = `${active.y}%`;
-    handle.style.width = `${(active.size / 1920) * 100}%`;
-    handle.style.height = `${(active.size / 1080) * 100}%`;
-
-    const resizeTab = document.createElement('div');
-    resizeTab.className = 'logobug-editor-resize';
-    handle.appendChild(resizeTab);
-
-    // A drag that ends with the cursor no longer directly over the element
-    // mousedown started on (true for a resize — the cursor moves away from
-    // the small corner tab — and possible for a move too) still fires a
-    // native 'click' afterward, targeted whatever's now under the cursor.
-    // Landing on bare `preview` background would trigger its own "click to
-    // jump the handle here" listener below, silently overwriting the drag's
-    // own result with a second, unwanted write. One flag suppresses exactly
-    // that next click, reset immediately after.
-    let suppressNextPreviewClick = false;
-
-    handle.addEventListener('mousedown', (e) => {
-      if (e.target === resizeTab) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const onMove = (ev) => {
-        const { x, y } = xyFromEvent(ev);
-        handle.style.left = `${x}%`;
-        handle.style.top = `${y}%`;
-        persist(sorted().map((p) => (p.id === activeId ? { ...p, x, y } : p)));
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        suppressNextPreviewClick = true;
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    resizeTab.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const onMove = (ev) => {
-        const previewRect = preview.getBoundingClientRect();
-        const handleRect = handle.getBoundingClientRect();
-        const pxSize = Math.max(1, ev.clientX - handleRect.left);
-        const size = Math.min(96, Math.max(28, Math.round(pxSize * (1920 / previewRect.width))));
-        handle.style.width = `${(size / 1920) * 100}%`;
-        handle.style.height = `${(size / 1080) * 100}%`;
-        persist(sorted().map((p) => (p.id === activeId ? { ...p, size } : p)));
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        suppressNextPreviewClick = true;
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    // Click anywhere else in the preview to jump the handle straight there,
-    // rather than only ever being able to drag it from its current spot.
-    preview.addEventListener('click', (e) => {
-      if (suppressNextPreviewClick) { suppressNextPreviewClick = false; return; }
-      if (e.target !== preview) return;
-      const { x, y } = xyFromEvent(e);
-      handle.style.left = `${x}%`;
-      handle.style.top = `${y}%`;
-      persist(sorted().map((p) => (p.id === activeId ? { ...p, x, y } : p)));
-    });
-
-    preview.appendChild(handle);
-    wrap.appendChild(preview);
-  }
-
-  render();
+  const explanation = document.createElement('p');
+  explanation.className = 'panel-status logobug-live-description';
+  explanation.textContent = 'Edit the logo over the running channel. Each aspect and resolution combination keeps its own placement.';
+  const liveBtn = document.createElement('button');
+  liveBtn.type = 'button';
+  liveBtn.className = 'btn btn-primary logobug-live-open';
+  liveBtn.textContent = 'EDIT ON CURRENT CHANNEL';
+  liveBtn.disabled = !(S.config.channels && S.config.channels.length);
+  liveBtn.title = liveBtn.disabled
+    ? 'Add a channel before opening the live placement editor'
+    : 'Overlay an alignment grid on the running channel and edit placement in real time';
+  liveBtn.addEventListener('click', () => openLiveLogoBugEditor({
+    getProfiles, setProfiles, onLiveChange,
+  }));
+  wrap.append(explanation, liveBtn);
   return wrap;
 }
 

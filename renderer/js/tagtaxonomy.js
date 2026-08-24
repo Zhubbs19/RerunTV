@@ -16,13 +16,15 @@ function normalize(t) { return String(t || '').trim().toLowerCase(); }
 function allTagFields(ch) {
   const fields = [];
   const addFileFields = (f) => {
-    fields.push({ get: () => f.tags, set: (v) => { f.tags = v; } });
+    const sourcePath = f.path || null;
+    fields.push({ get: () => f.tags, set: (v) => { f.tags = v; }, sourcePath });
     if (f.facets) {
-      fields.push({ get: () => f.facets.genre, set: (v) => { f.facets.genre = v; } });
-      fields.push({ get: () => f.facets.mood, set: (v) => { f.facets.mood = v; } });
+      fields.push({ get: () => f.facets.genre, set: (v) => { f.facets.genre = v; }, sourcePath });
+      fields.push({ get: () => f.facets.mood, set: (v) => { f.facets.mood = v; }, sourcePath });
       fields.push({
         get: () => (f.facets.era ? [f.facets.era] : []),
         set: (v) => { f.facets.era = v.length ? v[0] : null; },
+        sourcePath,
       });
     }
   };
@@ -37,7 +39,11 @@ function collectAllTagFields() {
   const fields = [];
   (S.config.channels || []).forEach((ch) => fields.push(...allTagFields(ch)));
   ((S.config.interstitials && S.config.interstitials.pool) || []).forEach((e) => {
-    fields.push({ get: () => e.contentTags, set: (v) => { e.contentTags = v; } });
+    fields.push({
+      get: () => e.contentTags,
+      set: (v) => { e.contentTags = v; },
+      sourcePath: (e.file && e.file.path) || (e.bgFile && e.bgFile.path) || null,
+    });
   });
   ((S.config.interstitials && S.config.interstitials.presets) || []).forEach((p) => {
     fields.push({ get: () => p.contentTags, set: (v) => { p.contentTags = v; } });
@@ -72,19 +78,23 @@ function collectAllTagFields() {
 // so the tags most worth cleaning up (or promoting into the taxonomy)
 // surface first.
 export function collectTagUsage() {
-  const counts = new Map();
+  const uses = new Map();
   collectAllTagFields().forEach((field) => {
     (field.get() || []).forEach((t) => {
       const n = normalize(t);
       if (!n) return;
-      counts.set(n, (counts.get(n) || 0) + 1);
+      if (!uses.has(n)) uses.set(n, { count: 0, mediaPaths: new Set() });
+      const usage = uses.get(n);
+      usage.count += 1;
+      if (field.sourcePath) usage.mediaPaths.add(field.sourcePath);
     });
   });
   const tx = S.config.tagTaxonomy || { genres: [], eras: [], moods: [] };
   const inCategory = (t, list) => list.includes(t);
-  return Array.from(counts.entries())
-    .map(([tag, count]) => ({
-      tag, count,
+  return Array.from(uses.entries())
+    .map(([tag, usage]) => ({
+      tag, count: usage.count,
+      mediaPaths: Array.from(usage.mediaPaths),
       categories: ['genres', 'eras', 'moods'].filter((cat) => inCategory(tag, tx[cat])),
     }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));

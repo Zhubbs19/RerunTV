@@ -6,6 +6,7 @@
 // without hand-editing every file/entry using the stale spelling.
 import { S, saveConfigDebounced } from './state.js';
 import { collectTagUsage, removeTagEverywhere, renameTagEverywhere } from './tagtaxonomy.js';
+import { buildMediaThumbnail } from './setup-util.js';
 import { confirmDialog } from './setup-dialogs.js';
 import { tagtaxonomyRootEl } from './dom.js';
 import { renderChannelList } from './setup-channels.js';
@@ -101,6 +102,22 @@ function buildUsageRow(entry) {
   const summary = document.createElement('div');
   summary.className = 'interstitial-card-summary';
   summary.style.cursor = 'default';
+
+  const previews = document.createElement('span');
+  previews.className = 'tagtaxonomy-usage-thumbnails';
+  const mediaPaths = (entry.mediaPaths || []).slice(0, 3);
+  if (mediaPaths.length) {
+    mediaPaths.forEach((path) => previews.appendChild(buildMediaThumbnail(path, {
+      label: 'USE',
+      className: 'tagtaxonomy-usage-thumbnail',
+    })));
+  } else {
+    previews.appendChild(buildMediaThumbnail(null, {
+      label: 'TAG',
+      className: 'tagtaxonomy-usage-thumbnail',
+    }));
+  }
+  summary.appendChild(previews);
 
   const title = document.createElement('span');
   title.className = 'interstitial-card-title';

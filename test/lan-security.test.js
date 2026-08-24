@@ -33,6 +33,29 @@ test('pairing exchanges a short code for an HttpOnly session and rate limits it'
 
   const qrShortcut = await fetch(access.pairingUrl(base), { redirect: 'manual' });
   assert.equal(qrShortcut.status, 303);
+  const existingCookie = qrShortcut.headers.get('set-cookie').split(';')[0];
+
+  // Mobile browsers may submit a cached pairing form after a QR preview has
+  // already established a session. The pairing endpoint must still consume
+  // that POST rather than allowing it to fall through to a 405 static route.
+  const repeatedPair = await fetch(`${base}/_pair`, {
+    method: 'POST',
+    headers: {
+      Cookie: existingCookie,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({ code: access.pairingCode }),
+    redirect: 'manual',
+  });
+  assert.equal(repeatedPair.status, 303);
+
+  const formattedPair = await fetch(`${base}/_pair`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ code: `${access.pairingCode.slice(0, 4)} ${access.pairingCode.slice(4)}` }),
+    redirect: 'manual',
+  });
+  assert.equal(formattedPair.status, 303);
 
   const paired = await fetch(`${base}/_pair`, {
     method: 'POST',

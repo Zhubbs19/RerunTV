@@ -1,5 +1,5 @@
 import { showSetupScreen } from './app.js';
-import { sfxGuideToggle } from './audio.js';
+import { playConfiguredSound, sfxGuideToggle } from './audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, getChannel, guideSlots, sortedChannels } from './channels.js';
 import {
   crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid,
@@ -51,6 +51,7 @@ export function showGuideOverlay(number, ch) {
   updateGuideLogo(ch);
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
+  playConfiguredSound('card', number);
   S.guideHideTimer = autoHideAfter(S.guideHideTimer, 4000, () => guideOverlay.classList.add('hidden'));
 }
 
