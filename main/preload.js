@@ -10,14 +10,12 @@ contextBridge.exposeInMainWorld('api', {
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
   // 'dev-mode' (running from source, nothing to check against), 'up-to-date',
   // 'downloading' (found one, autoUpdater is fetching it now), 'disabled'
-  // (config.updates.mode is 'off'), or 'error'. Once a 'downloading' result
+  // (config.updates.strategy is 'off'), or 'error'. Once a 'downloading' result
   // actually finishes, onUpdateStatus below fires separately — see
   // main-updater.js and renderer/js/update-notice.js.
   checkForUpdates: () => ipcRenderer.invoke('updates:check'),
-  // {state: 'downloaded', version, showPopup} — showPopup mirrors
-  // config.updates.showLaunchPopup at the moment the download finished;
-  // update-notice.js only shows its toast when true (main process already
-  // set autoInstallOnAppQuit for the false case, so nothing else to do).
+  // {state: 'downloaded', version, showPopup}; background-notify and manual
+  // checks show the toast, while background-auto installs on normal quit.
   onUpdateStatus: (cb) => ipcRenderer.on('updates:status', (event, status) => cb(status)),
   installUpdateNow: () => ipcRenderer.invoke('updates:installNow'),
   // Live GitHub Releases feed for the HELP tab's RELEASE NOTES panel — see
@@ -53,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   restoreBackup: (file) => ipcRenderer.invoke('backups:restore', file),
   deleteBackup: (file) => ipcRenderer.invoke('backups:delete', file),
   setBackupLabel: (file, label) => ipcRenderer.invoke('backups:setLabel', file, label),
+  setBackupPinned: (file, pinned) => ipcRenderer.invoke('backups:setPinned', file, pinned),
   createBackupNow: () => ipcRenderer.invoke('backups:createNow'),
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (config) => ipcRenderer.invoke('config:save', config),
@@ -135,6 +134,8 @@ contextBridge.exposeInMainWorld('api', {
   noaaGetForecast: (opts) => ipcRenderer.invoke('noaa:getForecast', opts),
   // Plugins — see main-plugins.js and renderer/js/plugins.js.
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
+  getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
+  exportDiagnostics: (rendererSnapshot) => ipcRenderer.invoke('diagnostics:export', rendererSnapshot),
   pluginsOpenFolder: () => ipcRenderer.invoke('plugins:openFolder'),
   pluginsSetEnabled: (id, enabled) => ipcRenderer.invoke('plugins:setEnabled', id, enabled),
   pluginsInstallFromZip: (opts) => ipcRenderer.invoke('plugins:installFromZip', opts),

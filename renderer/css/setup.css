@@ -1622,6 +1622,31 @@ input[type="checkbox"].shuffle-toggle:active {
 .health-check-summary.is-clean { color: var(--good, #5fd68a); }
 .health-check-group-title { font-weight: 700; color: var(--danger); margin: 8px 0 3px; letter-spacing: 0.5px; }
 .health-check-item { color: var(--paper-dim); padding: 2px 0 2px 8px; line-height: 1.5; }
+.health-check-relink-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.health-check-relink-row .btn { flex: 0 0 auto; }
+
+.aircheck-controls, .aircheck-force-row { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; margin-top: 12px; }
+.aircheck-controls label, .aircheck-force-row label { display: grid; gap: 4px; color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
+.aircheck-controls select, .aircheck-controls input, .aircheck-force-row select { height: 30px; min-width: 0; }
+.aircheck-controls label:first-child { flex: 0 1 230px; }
+.aircheck-controls label:nth-child(2) { flex: 0 1 190px; }
+.aircheck-controls label > select, .aircheck-controls label > input, .aircheck-force-row label > select { width: 100%; }
+.aircheck-force-row label { flex: 1 1 420px; }
+.aircheck-summary { display: grid; gap: 6px; margin-top: 12px; }
+.aircheck-row { display: grid; grid-template-columns: 100px minmax(150px, .7fr) 1fr; gap: 10px; align-items: baseline; padding: 7px 9px; border: 1px solid var(--line); background: var(--panel-2); }
+.aircheck-row strong { color: var(--gold); letter-spacing: 1px; }
+.aircheck-row span { color: var(--paper); font-weight: 700; }
+.aircheck-row small { color: var(--paper-dim); font-family: var(--font-body); }
+@media (max-width: 760px) { .aircheck-row { grid-template-columns: 90px 1fr; } .aircheck-row small { grid-column: 1 / -1; } }
+.playback-order-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; padding: 8px; border: 1px solid var(--line); background: var(--panel-2); }
+.playback-order-bar strong { color: var(--gold); margin-right: auto; letter-spacing: 1px; }
+.title-row-wrap[draggable="true"] { cursor: grab; }
+.title-row-wrap.is-dragging { opacity: .45; }
+.channel-identity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
+.channel-identity-field { display: grid; gap: 5px; color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
+.channel-identity-color { display: flex; align-items: center; gap: 8px; min-height: 31px; }
+.channel-identity-color input[type="color"] { width: 70px; height: 30px; padding: 2px; border: 1px solid var(--line); background: var(--panel-2); }
+@media (max-width: 760px) { .channel-identity-grid { grid-template-columns: 1fr; } }
 
 /* Tag autocomplete dropdown — see attachTagAutocomplete, setup-util.js */
 .tag-ac-wrap { position: relative; display: block; min-width: 0; }
@@ -1779,11 +1804,22 @@ input[type="checkbox"].shuffle-toggle:active {
   gap: 8px;
 }
 
-/* First-run welcome screen (onboarding.js) — same confirm-dialog box, just
-   wider (to fit the bullet list without cramming) and with a plain "OK"-only
-   action row (no cancel/backdrop-dismiss — it's informational, not a
-   decision). */
-.onboarding-box { max-width: 560px; }
+/* Two-page first-run setup (onboarding.js). */
+.onboarding-screen { overflow-y: auto; padding: 24px; }
+.onboarding-box {
+  width: min(760px, 96vw);
+  max-width: 760px;
+  max-height: none;
+  margin: auto;
+}
+.onboarding-kicker {
+  color: var(--cyan);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+.onboarding-title { margin-top: 6px; }
 .onboarding-list {
   margin: 0;
   padding-left: 20px;
@@ -1797,6 +1833,55 @@ input[type="checkbox"].shuffle-toggle:active {
   color: var(--paper);
 }
 .onboarding-list li::marker { color: var(--gold); }
+.onboarding-update-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.onboarding-update-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  cursor: pointer;
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+}
+.onboarding-update-choice:has(input:checked) {
+  border-color: var(--gold);
+  box-shadow: var(--bevel-inset), 0 0 10px rgba(var(--gold-rgb), .25);
+}
+.onboarding-update-choice input { margin-top: 3px; accent-color: var(--gold); }
+.onboarding-update-copy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.onboarding-update-copy strong {
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: .7px;
+}
+.onboarding-update-copy strong em {
+  color: var(--gold-ink);
+  background: var(--gold);
+  border-radius: 2px;
+  padding: 2px 5px;
+  font-size: 9px;
+  font-style: normal;
+  white-space: nowrap;
+}
+.onboarding-update-copy > span {
+  color: var(--paper-dim);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.onboarding-actions { margin-top: 2px; }
+@media (max-width: 680px) {
+  .onboarding-update-choices { grid-template-columns: 1fr; }
+  .onboarding-screen { padding: 12px; }
+}
 
 .panel {
   border: 1px solid var(--line);
@@ -2836,7 +2921,10 @@ input[type="checkbox"].shuffle-toggle:active {
   flex-wrap: wrap;
   margin-top: 8px;
 }
-.update-settings-row select { flex-shrink: 0; }
+.update-settings-row select {
+  flex-shrink: 0;
+  min-width: min(100%, 290px);
+}
 .update-status-line { display: block; margin-top: 6px; }
 .help-changelog-list {
   display: flex;

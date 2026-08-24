@@ -873,6 +873,17 @@ renderer.js does.
 
 ## Verifying your plugin works
 
+The PLUGINS tab includes **PLUGIN DEVELOPER DIAGNOSTICS**. It inventories
+registered renderer extension points, main-process activation state, published services,
+declared capability activity, renderer/main load errors, recent bounded logs, and whether
+an enable/disable change still needs a restart.
+
+**EXPORT REDACTED SUPPORT BUNDLE** writes the same information as JSON. The export does not
+contain `channels.json` or the media inventory. Before writing, core recursively redacts
+credential-shaped keys, authorization strings, URL credentials, GitHub-style tokens, the
+user-data path, and the home path. A plugin settings schema should still declare
+`sensitivePaths` so `ctx.getRedactedPluginSettings(id)` is safe anywhere else it is used.
+
 `npm test` permanently checks every bundled/starter manifest entry, bundled
 seeding upgrades, renderer bridge parity, boot ordering, viewer HTTP assets,
 schedule clock behavior, and config-cache invalidation. It is not a general

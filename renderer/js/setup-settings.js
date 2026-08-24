@@ -32,7 +32,7 @@ import {
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
-  updateModeSelect, updateLaunchPopupEnabledEl, updateStatusLineEl, updateSettingsPanelEl,
+  updateModeSelect, updateStatusLineEl, updateSettingsPanelEl,
   helpReleaseNotesListEl, releaseNotesPanelEl,
   helpGuideListEl, helpGuideSearchEl, helpPrintManualBtn, hintBarEl, hintBarItemsListEl,
   player,
@@ -248,6 +248,7 @@ export function renderSettingsPanels() {
 
 import { startPerfMonitor, stopPerfMonitor } from './perf.js';
 import { renderPluginsTab } from './setup-plugins.js';
+import { renderPluginDiagnostics } from './plugin-diagnostics.js';
 
 // ---------- Settings screen tabs ----------
 const setupTabBtns = document.querySelectorAll('.setup-tab-btn');
@@ -344,7 +345,7 @@ setupTabBtns.forEach((btn) => {
       stopPerfMonitor();
     }
     if (tab === 'help') renderHelpTab();
-    if (tab === 'plugins') renderPluginsTab();
+    if (tab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
     restoreActiveSubtabPanels();
     updateBreadcrumb();
   });
@@ -362,7 +363,7 @@ export function resetSetupTabs() {
   setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== lastSetupTab));
   if (lastSetupTab === 'help') renderHelpTab();
   if (lastSetupTab === 'perf') { startPerfMonitor(); renderBoxStatus(); }
-  if (lastSetupTab === 'plugins') renderPluginsTab();
+  if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
   restoreActiveSubtabPanels();
   updateBreadcrumb();
 }
@@ -451,6 +452,11 @@ const HELP_GUIDE = [
     'CAUTION: If you move, rename, or delete video files outside the app, the channel won\'t know where they went. Click "CHECK CHANNELS" to scan for anything missing, and "FIX PLAYBACK" to relink or remove those files.',
     'Need to change something on a bunch of channels at once — like favoriting several, or bulk-deleting? Click "SELECT CHANNELS" to turn on checkboxes for the whole list.',
   ] },
+  { group: 'SECTION 3 — THE CHANNELS TAB', title: '3.4 Playback Order, Channel Packages, and Broadcast Identity', body: [
+    'The TITLES editor can sort naturally, reverse, restore folder order, create a repeatable seeded shuffle, or accept drag-and-drop ordering. Every automatic reorder previews the change and asks before it re-anchors the live channel.',
+    'EXPORT CHANNEL creates a portable package containing that channel and the programming resources it directly uses. IMPORT CHANNEL merges one into your current box, remaps conflicting channel/resource numbers, and can relink missing local folders without replacing unrelated settings.',
+    'IDENTITY lets one channel override the box theme, tune sound, static style, and accent colors. Leave any choice on INHERIT to keep following the box-wide theme.',
+  ] },
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.1 The Bumper & Ad Pool', body: [
     'This is the shared library of everything that plays between shows — commercials, station IDs, "up next" bumpers, trivia cards. Each item is tagged with which channels or blocks it belongs to, so ad breaks automatically pull from the right ones.',
     'STEP 1: Click "+ ADD FOLDER" to bring in a whole folder of commercials at once, or "+ ADD ENTRY" to add one by hand — you can even make a text-only station ID with no video file needed.',
@@ -464,6 +470,10 @@ const HELP_GUIDE = [
     'TEXT TICKER scrolls a message along the bottom of the screen, like a news channel.',
     'The Emergency Alert System and Breaking News Alerts have their own settings — look for SETTINGS next to each one in the PLUGINS tab. EAS runs a periodic test alert (or press E to trigger one now); Breaking News interrupts with a styled bulletin, either automatically or on demand with the B key.',
     'NOTE: Press I any time to see details about what\'s currently playing. Press T to open the TIME MACHINE and jump the schedule backward or forward.',
+  ] },
+  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.4 Air Check', body: [
+    'AIR CHECK is the broadcast resolver console. Pick a channel and time to see which source, show position, schedule block, ad policy, and output RerunTV resolves, plus why that result won. Previous/next boundary buttons make timing problems easier to isolate.',
+    'The pool inspector shows which bumper and ad entries are eligible. FORCE ON TV previews one selected entry without rewriting the real schedule.',
   ] },
   { group: 'SECTION 5 — THE DISPLAY TAB', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
@@ -500,7 +510,11 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.6 Backing Up Your Settings', body: [
     'CAUTION: Your settings are backed up automatically on a rotating basis, and you can also click "snapshot now" any time for a manual backup. If something ever goes wrong, click "RESTORE" next to any backup to roll back to it — and if that wasn\'t what you wanted, Ctrl+Z undoes even that (see SECTION 8).',
-    'TIP: Give an important backup a LABEL (like "before reorganizing cartoons") so it\'s easy to spot later instead of just a timestamp.',
+    'TIP: Give an important backup a LABEL (like "before reorganizing cartoons") and PIN it so automatic rotation never removes it. PREVIEW shows channel, title-count, schedule, and box-setting differences before you restore.',
+  ] },
+  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.7 Opt-In Library Synchronization', body: [
+    'LIBRARY SYNC is off by default. When enabled, it checks only the folders already linked to your channels, either after startup or at your chosen interval, and adds new titles automatically.',
+    'Likely renames preserve your title, tags, and other metadata only when the match is unambiguous. Missing titles are reported but kept by default; automatic removal is a separate warned option you must explicitly enable.',
   ] },
   { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.1 The Built-In Channels', body: [
     'Alongside your own channels, the box comes with a few special built-in ones — a program guide, a community bulletin board, a weather channel, a party channel, and more. Each one is its own plugin, and you can turn any of them on or off from the PLUGINS tab, even the ones that come on by default.',
@@ -515,6 +529,10 @@ const HELP_GUIDE = [
     'Press Ctrl+K, or the COMMANDS button, to open a searchable list of everything you can do on this screen — jump to a tab, add a channel, run a diagnostic, export your settings, and more, all without hunting through menus.',
     'TIP: You can also get around this whole screen with just the keyboard. Arrow keys move between tabs and list rows, Enter selects, Delete removes, and Ctrl+F jumps straight to the search box.',
   ] },
+  { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
+    'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',
+    'SET REMINDER creates a local reminder. When the viewing clock reaches the program, a toast offers TUNE NOW or DISMISS; reminders follow the time-machine clock just like the schedule itself.',
+  ] },
   { group: 'SECTION 9 — THE PLUGINS TAB', title: '9.1 Installing, Turning On/Off, and Removing Plugins', body: [
     'A lot of what this box can do — every special channel from SECTION 7, the remote control, weather and show-info lookups, even audio streaming features that need extra processing behind the scenes — comes from individual PLUGINS, listed on the PLUGINS tab. Some come built in and turned on by default; you can add more yourself.',
     'STEP 1: To add one, either click "INSTALL FROM ZIP…" and pick the file, or drop its folder into the plugins folder (click "OPEN PLUGINS FOLDER" to find it) and click "RESCAN".',
@@ -525,6 +543,10 @@ const HELP_GUIDE = [
     'Some plugins need extra permissions — to talk to the internet, open another program, or run their own little web page. Each plugin lists exactly which of these it needs and why, right in the PLUGINS tab. The first time you use a plugin like this (or after an update adds a new permission), you\'ll see a prompt to approve it before it can run.',
     'CAUTION: Only install plugins from sources you trust. Approving a permission limits what a plugin is allowed to do — it doesn\'t guarantee the plugin only does good things with the access you give it.',
     'Many plugins also run in their own separate, walled-off space instead of sharing the app\'s own — similar to how each tab in a web browser runs separately. That way, if one plugin crashes or misbehaves, it can\'t take the rest of the box down with it, and it\'s genuinely limited by your computer to only what it asked permission for.',
+  ] },
+  { group: 'SECTION 9 — THE PLUGINS TAB', title: '9.3 Developer Diagnostics and Support Bundles', body: [
+    'PLUGIN DEVELOPER DIAGNOSTICS shows main and renderer load state, registered extension points, declared capability activity, published services, recent bounded logs, and whether a restart is still needed.',
+    'EXPORT REDACTED SUPPORT BUNDLE writes that snapshot as JSON. Credential-shaped fields, authorization strings, URL credentials, and user-specific filesystem roots are removed first; your channel configuration and media inventory are not included.',
   ] },
 ];
 
@@ -809,6 +831,12 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-08-24', items: [
+    'Unified the app typography around the original cable-guide face, with a separate readable face reserved for longer descriptions; fixed the downloaded-update notice so its copy and actions fit as a responsive card.',
+    'Added five explicit update policies, including the new recommended pre-launch update flow, plus a two-step first-time setup that explains local-media privacy, autosave/backups, optional integrations, and the update choice.',
+    'Channel Health can now relink a moved local media folder: it preserves the old relative layout, verifies the proposed replacement, previews unresolved files, and updates shared channel/schedule references as one undoable edit.',
+    'Completed the feature audit: channel packages, Air Check, safe playback-order editing, guide-wide program search/reminders, backup comparison and pinned snapshots, per-channel broadcast identity, opt-in smart library sync, and redacted plugin diagnostics/support export.',
+  ] },
   { date: '2026-08-19', items: [
     'Boot-time power-on animation (DISPLAY > PICTURE toggle, on by default) — the app now plays the same powering-on CRT flash the manual power button uses when it first lands on the TV screen, instead of cutting straight to live video. Wood-Grain Console, Late-Night UHF, and Digital Satellite each got their own period-appropriate version (sluggish tube warm-up, tearing signal, crisp digital snap).',
     'Fixed a real bug where an approved plugin\'s REVIEW & APPROVE PERMISSIONS button could keep showing (and the approval could silently be lost) after a restart — the approval write and the settings screen\'s own autosave were racing each other.',
@@ -837,13 +865,11 @@ const CHANGELOG = [
   ] },
 ];
 
-// 'off' also disables the manual CHECK NOW button — "disable update checks
-// entirely" means entirely, not just the background one. main-updater.js
-// enforces the same rule server-side (its updates:check handler), this is
-// just so the UI doesn't offer a button that'll come back with "disabled".
+// 'off' also disables CHECK NOW — "never" means no update network requests,
+// including user-triggered ones. main-updater.js enforces the same rule.
 function refreshUpdateModeUI() {
-  const mode = (S.config.updates && S.config.updates.mode) || 'auto';
-  if (checkUpdatesBtn) checkUpdatesBtn.disabled = mode === 'off';
+  const strategy = (S.config.updates && S.config.updates.strategy) || 'startup-auto';
+  if (checkUpdatesBtn) checkUpdatesBtn.disabled = strategy === 'off';
 }
 
 function setUpdateStatus(text) {
@@ -855,21 +881,13 @@ function setUpdateStatus(text) {
 // undo/import, same caveat as the rest of this once-rendered tab.
 function initUpdateSettingsPanel() {
   if (updateModeSelect) {
-    updateModeSelect.value = (S.config.updates && S.config.updates.mode) || 'auto';
+    updateModeSelect.value = (S.config.updates && S.config.updates.strategy) || 'startup-auto';
     updateModeSelect.addEventListener('change', () => {
       S.config.updates = S.config.updates || {};
-      S.config.updates.mode = updateModeSelect.value;
+      S.config.updates.strategy = updateModeSelect.value;
       saveConfigDebounced();
       refreshUpdateModeUI();
       setUpdateStatus('');
-    });
-  }
-  if (updateLaunchPopupEnabledEl) {
-    updateLaunchPopupEnabledEl.checked = !S.config.updates || S.config.updates.showLaunchPopup !== false;
-    updateLaunchPopupEnabledEl.addEventListener('change', () => {
-      S.config.updates = S.config.updates || {};
-      S.config.updates.showLaunchPopup = updateLaunchPopupEnabledEl.checked;
-      saveConfigDebounced();
     });
   }
   refreshUpdateModeUI();
@@ -884,7 +902,7 @@ function initUpdateSettingsPanel() {
         if (result.status === 'dev-mode') {
           setUpdateStatus('Update checks only run in a packaged build — this is a dev copy running from source.');
         } else if (result.status === 'disabled') {
-          setUpdateStatus('Update checks are turned off (CHECK: NEVER, above).');
+          setUpdateStatus('Update checks are turned off (UPDATE POLICY: NEVER, above).');
         } else if (result.status === 'downloading') {
           setUpdateStatus(`Update v${result.version} found — downloading now. You'll be notified once it's ready.`);
         } else if (result.status === 'up-to-date') {
@@ -895,7 +913,7 @@ function initUpdateSettingsPanel() {
       } catch (e) {
         setUpdateStatus(`Update check failed: ${e.message}`);
       } finally {
-        checkUpdatesBtn.disabled = (S.config.updates && S.config.updates.mode) === 'off';
+        checkUpdatesBtn.disabled = (S.config.updates && S.config.updates.strategy) === 'off';
         checkUpdatesBtn.textContent = originalText;
       }
     });

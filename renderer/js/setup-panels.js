@@ -5,12 +5,13 @@
 // setup-channels.js.
 import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags } from './channels.js';
 import { applyLogoBugPlacement } from './playback.js';
-import { titleRowActionEntries } from './plugins.js';
+import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, saveConfigDebounced, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, stripReleaseTags, suggestFacetsFromPath } from './util.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
-import { confirmDialog, alertDialog } from './setup-dialogs.js';
+import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
+import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
 
 // `target` just needs a `.files` array — works for a channel (ch.files) or
 // a single schedule block (block.files), since both store their file pool
@@ -25,6 +26,55 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   search.type = 'text';
   search.className = 'titles-search';
   search.placeholder = 'FILTER FILES…';
+
+  const orderBar = document.createElement('div');
+  orderBar.className = 'playback-order-bar';
+  const orderLabel = document.createElement('strong');
+  orderLabel.textContent = 'PLAYBACK ORDER';
+  const naturalBtn = document.createElement('button');
+  naturalBtn.className = 'btn'; naturalBtn.textContent = 'NATURAL EPISODE SORT';
+  const seededBtn = document.createElement('button');
+  seededBtn.className = 'btn'; seededBtn.textContent = 'SEEDED SHUFFLE…';
+  const reverseBtn = document.createElement('button');
+  reverseBtn.className = 'btn'; reverseBtn.textContent = 'REVERSE';
+  const restoreBtn = document.createElement('button');
+  restoreBtn.className = 'btn'; restoreBtn.textContent = 'RESTORE FOLDER ORDER';
+  orderBar.append(orderLabel, naturalBtn, seededBtn, reverseBtn, restoreBtn);
+
+  async function applyProposedOrder(proposed, actionLabel) {
+    if (proposed.length !== target.files.length || proposed.every((file, index) => file === target.files[index])) return;
+    const now = viewNow();
+    const before = fileAtOrder(target.files, target.anchor, now);
+    const afterWithoutReset = fileAtOrder(proposed, target.anchor, now);
+    const preview = proposed.slice(0, 6).map((file, index) => `${index + 1}. ${file.title || basenameNoExt(file.path)}`).join('\n');
+    const impact = before && afterWithoutReset && before !== afterWithoutReset
+      ? `\n\nWith the existing anchor, NOW would change from “${before.title || basenameNoExt(before.path)}” to “${afterWithoutReset.title || basenameNoExt(afterWithoutReset.path)}”.`
+      : '';
+    const accepted = await confirmDialog({
+      title: actionLabel,
+      message: `Preview of the new first items:\n\n${preview}${proposed.length > 6 ? '\n…' : ''}${impact}\n\nApply this order and reset this lineup's broadcast anchor to now so item 1 starts cleanly?`,
+      danger: false, confirmText: 'APPLY & RE-ANCHOR',
+    });
+    if (!accepted) return;
+    target.files.splice(0, target.files.length, ...proposed);
+    // A channel/block anchor is deliberately real wall-clock state: this
+    // user action starts a new continuous broadcast rotation from now.
+    target.anchor = Date.now();
+    saveConfigDebounced();
+    renderRows(search.value);
+  }
+
+  naturalBtn.addEventListener('click', () => applyProposedOrder(naturalFileOrder(target.files), 'NATURAL EPISODE SORT'));
+  reverseBtn.addEventListener('click', () => applyProposedOrder(target.files.slice().reverse(), 'REVERSE PLAYBACK ORDER'));
+  restoreBtn.addEventListener('click', () => applyProposedOrder(folderFileOrder(target.files, folders), 'RESTORE FOLDER ORDER'));
+  seededBtn.addEventListener('click', async () => {
+    const seed = await promptDialog({
+      title: 'SEEDED SHUFFLE', message: 'Enter a reusable seed. The same seed and file list always produce the same order.',
+      defaultValue: new Date().toISOString().slice(0, 10),
+    });
+    if (seed == null) return;
+    applyProposedOrder(seededFileOrder(target.files, seed), `SEEDED SHUFFLE · ${seed}`);
+  });
 
   // Bulk-tag toolbar — lets tagging a whole channel's worth of files (e.g.
   // 500+ Spongebob episodes, all needing the same "spongebob" tag to feed
@@ -514,6 +564,27 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
 
       const wrap = document.createElement('div');
       wrap.className = 'title-row-wrap';
+      wrap.draggable = !q;
+      if (!q) {
+        wrap.title = 'Drag to change playback order';
+        wrap.addEventListener('dragstart', (event) => {
+          event.dataTransfer.effectAllowed = 'move';
+          event.dataTransfer.setData('text/plain', String(target.files.indexOf(file)));
+          wrap.classList.add('is-dragging');
+        });
+        wrap.addEventListener('dragend', () => wrap.classList.remove('is-dragging'));
+        wrap.addEventListener('dragover', (event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; });
+        wrap.addEventListener('drop', (event) => {
+          event.preventDefault();
+          const from = Number(event.dataTransfer.getData('text/plain'));
+          const to = target.files.indexOf(file);
+          if (!Number.isInteger(from) || from < 0 || to < 0 || from === to) return;
+          const proposed = target.files.slice();
+          const [moved] = proposed.splice(from, 1);
+          proposed.splice(to, 0, moved);
+          applyProposedOrder(proposed, 'MANUAL PLAYBACK REORDER');
+        });
+      }
       wrap.appendChild(row);
       wrap.appendChild(descInput);
       wrap.appendChild(facetsRow);
@@ -539,6 +610,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   search.addEventListener('input', () => renderRows(search.value));
   renderRows('');
 
+  panelEl.appendChild(orderBar);
   panelEl.appendChild(search);
   panelEl.appendChild(bulkBar);
   panelEl.appendChild(bulkFacetsBar);
@@ -866,13 +938,58 @@ export function buildLogoBugPanel(ch, panelEl) {
   render();
 }
 
-// Reserved slot for per-channel theming (accent/accent2/staticTint, badge
-// style) — not built yet, but registered as a real tab now so that work
-// slots in here later instead of reopening the channel-row layout again.
-export function buildThemePlaceholderPanel(ch, panelEl) {
+export function buildChannelIdentityPanel(ch, panelEl) {
   panelEl.innerHTML = '';
-  const hint = document.createElement('div');
-  hint.className = 'titles-empty';
-  hint.textContent = 'PER-CHANNEL THEMING IS COMING SOON. THIS CHANNEL USES THE BOX-WIDE THEME FOR NOW.';
-  panelEl.appendChild(hint);
+  const identity = ch.broadcastIdentity ? { ...ch.broadcastIdentity } : {};
+  const persistIdentity = () => {
+    if (Object.keys(identity).length) ch.broadcastIdentity = identity;
+    else delete ch.broadcastIdentity;
+    saveConfigDebounced();
+  };
+  const intro = document.createElement('div');
+  intro.className = 'titles-empty';
+  intro.textContent = 'OPTIONAL CHANNEL IDENTITY OVERRIDES. LEAVE A FIELD ON INHERIT TO FOLLOW THE BOX THEME.';
+
+  function selectField(label, key, options) {
+    const wrap = document.createElement('label');
+    wrap.className = 'channel-identity-field';
+    wrap.append(document.createTextNode(label));
+    const select = document.createElement('select');
+    select.className = 'block-hour-select';
+    options.forEach(([value, text]) => {
+      const option = document.createElement('option'); option.value = value; option.textContent = text; select.appendChild(option);
+    });
+    select.value = identity[key] || '';
+    select.addEventListener('change', () => {
+      if (select.value) identity[key] = select.value; else delete identity[key];
+      persistIdentity();
+    });
+    wrap.appendChild(select);
+    return wrap;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'channel-identity-grid';
+  grid.append(
+    selectField('THEME / ERA', 'theme', [['', 'INHERIT BOX THEME'], ...themePackEntries().map((entry) => [entry.id, entry.label])]),
+    selectField('TUNE SOUND', 'tuneSfx', [['', 'INHERIT THEME'], ['soft', 'SOFT CHIME'], ['analog', 'ANALOG STATIC'], ['digital', 'DIGITAL CHIRP'], ['silent', 'SILENT']]),
+    selectField('TUNING STATIC', 'staticStyle', [['', 'INHERIT THEME'], ['noise', 'CLASSIC NOISE'], ['quiet', 'QUIET BLIP'], ['roll', 'VERTICAL ROLL'], ['tear', 'TEARING SIGNAL'], ['acquire', 'DIGITAL ACQUIRE']]),
+  );
+  [['PRIMARY ACCENT', 'accent'], ['SECONDARY ACCENT', 'accent2'], ['STATIC TINT', 'staticTint']].forEach(([labelText, key]) => {
+    const label = document.createElement('label');
+    label.className = 'channel-identity-field';
+    label.append(document.createTextNode(labelText));
+    const input = document.createElement('input');
+    input.type = 'color'; input.value = identity[key] || (key === 'accent2' ? '#56d9ff' : '#f4cf3f');
+    const enabled = document.createElement('input');
+    enabled.type = 'checkbox'; enabled.checked = !!identity[key]; enabled.title = `Override ${labelText.toLowerCase()}`;
+    const row = document.createElement('span'); row.className = 'channel-identity-color'; row.append(enabled, input);
+    const commit = () => { if (enabled.checked) identity[key] = input.value; else delete identity[key]; persistIdentity(); };
+    enabled.addEventListener('change', commit); input.addEventListener('input', () => { enabled.checked = true; commit(); });
+    label.appendChild(row); grid.appendChild(label);
+  });
+  const clear = document.createElement('button');
+  clear.className = 'btn'; clear.textContent = 'CLEAR ALL IDENTITY OVERRIDES';
+  clear.addEventListener('click', () => { delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); saveConfigDebounced(); });
+  panelEl.append(intro, grid, clear);
 }

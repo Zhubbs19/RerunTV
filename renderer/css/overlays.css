@@ -441,7 +441,7 @@
   /* Falls back to the box theme's gold when the active block has no
      theme.accent — see applyBlockTheme (power.js), which only ever sets
      --block-accent when a block explicitly opts in. */
-  color: var(--block-accent, var(--gold));
+  color: var(--block-accent, var(--channel-accent, var(--gold)));
   font-size: 13px;
   letter-spacing: 2px;
   background: var(--gradient-panel);
@@ -708,7 +708,7 @@
   background: var(--gradient-panel);
   border: 1px solid var(--line);
   /* Falls back to the box theme's gold — see applyBlockTheme (power.js). */
-  border-left: 6px solid var(--block-accent, var(--gold));
+  border-left: 6px solid var(--block-accent, var(--channel-accent, var(--gold)));
   border-radius: var(--radius-md);
   box-shadow: var(--bevel-raised), var(--shadow-hard);
   padding: 9px 18px;
@@ -742,7 +742,7 @@
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 2px;
-  color: var(--block-accent, var(--gold));
+  color: var(--block-accent, var(--channel-accent, var(--gold)));
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
   white-space: nowrap;
 }
@@ -865,7 +865,7 @@
   border: 1px solid var(--line);
   /* Falls back to the box theme's cyan when the active block has no
      theme.accent2 — see applyBlockTheme (power.js). */
-  border-left: 6px solid var(--block-accent2, var(--cyan));
+  border-left: 6px solid var(--block-accent2, var(--channel-accent2, var(--cyan)));
   border-radius: var(--radius-md);
   box-shadow: var(--bevel-raised), var(--shadow-hard);
   padding: 9px 18px;
@@ -880,7 +880,7 @@
   font-weight: 700;
   font-size: 12px;
   letter-spacing: 2px;
-  color: var(--block-accent2, var(--cyan));
+  color: var(--block-accent2, var(--channel-accent2, var(--cyan)));
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
   white-space: nowrap;
 }

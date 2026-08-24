@@ -31,6 +31,7 @@ const {
   normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./main-plugin-capabilities');
+const { recordDiagnostic } = require('./main-diagnostics');
 
 function getPluginsDir() {
   return path.join(app.getPath('userData'), 'plugins');
@@ -356,10 +357,12 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   const checkedIpcMain = {
     handle: (channel, fn) => {
       if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
+      recordDiagnostic('plugin-capability', 'log', `${manifest.id} registered declared IPC handler ${channel}`);
       return ipcMain.handle(channel, fn);
     },
     on: (channel, fn) => {
       if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
+      recordDiagnostic('plugin-capability', 'log', `${manifest.id} registered declared IPC listener ${channel}`);
       return ipcMain.on(channel, fn);
     },
   };
@@ -472,6 +475,7 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
       }
     }
     if (activated) {
+      recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
       (plugin.capabilities.mediaSource || []).forEach((e) => { activatedMediaSourceProviders[e.providerId] = plugin.id; });
     }
   }

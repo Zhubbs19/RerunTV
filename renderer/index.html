@@ -54,16 +54,19 @@
       <button id="migration-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
     </div>
 
-    <!-- Update-ready notice — shown once autoUpdater finishes downloading an
-         update, gated by config.updates.showLaunchPopup (main-updater.js /
-         update-notice.js). Same toast chrome as migration-toast above, plus
-         action buttons since this one needs a real decision, not just a
-         dismiss. -->
+    <!-- Update-ready notice for background-notify/manual policy. The
+         default startup-auto policy installs before this full renderer is
+         opened, so it never needs an in-app toast. -->
     <div id="update-toast" class="migration-toast hidden" role="status" aria-live="polite">
-      <span id="update-toast-text"></span>
-      <button id="update-toast-view-notes" class="btn">VIEW CHANGELOG</button>
-      <button id="update-toast-install" class="btn btn-primary">RESTART &amp; INSTALL</button>
-      <button id="update-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
+      <div class="update-toast-copy">
+        <strong class="update-toast-label">UPDATE READY</strong>
+        <span id="update-toast-text"></span>
+      </div>
+      <div class="update-toast-actions">
+        <button id="update-toast-view-notes" class="btn">RELEASE NOTES</button>
+        <button id="update-toast-install" class="btn btn-primary">INSTALL NOW</button>
+        <button id="update-toast-dismiss" class="btn" aria-label="Install later">LATER</button>
+      </div>
     </div>
 
     <!-- One-time post-update changelog. Unlike the update-ready toast above,
@@ -358,6 +361,7 @@
           <button class="setup-subtab-btn" data-subtab="onscreen">ON-SCREEN EXTRAS</button>
           <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAG TAXONOMY</button>
+          <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
         </div>
 
         <!-- SHOW & AD FLOWS (INTERACTIVE VISUAL FLOW BUILDER) -->
@@ -573,6 +577,28 @@
         </div>
         </div>
 
+        <div class="setup-subtab-panel hidden" data-subtab-panel="aircheck">
+          <div class="settings-grid">
+            <div class="panel span-full aircheck-panel">
+              <label class="panel-toggle" style="cursor:default">BROADCAST AIR-CHECK CONSOLE</label>
+              <span class="panel-status">Inspect exactly what a channel resolves at any time, step across schedule/content/break boundaries, and force a pool item for a real TV-screen preview.</span>
+              <div class="aircheck-controls">
+                <label>CHANNEL <select id="aircheck-channel" class="block-hour-select"></select></label>
+                <label>AS OF <input id="aircheck-datetime" class="title-row-input" type="datetime-local"></label>
+                <button id="aircheck-now" class="btn">NOW</button>
+                <button id="aircheck-prev" class="btn">◀ PREVIOUS BOUNDARY</button>
+                <button id="aircheck-next" class="btn">NEXT BOUNDARY ▶</button>
+                <button id="aircheck-run" class="btn btn-primary">RESOLVE</button>
+              </div>
+              <div id="aircheck-summary" class="aircheck-summary" aria-live="polite"></div>
+              <div class="aircheck-force-row">
+                <label>FORCE POOL ITEM <select id="aircheck-pool-entry" class="block-hour-select"><option value="">— choose an eligible entry —</option></select></label>
+                <button id="aircheck-force" class="btn" disabled>FORCE ON TV ▶</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- AUTO-CURATE -->
         <div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
         <div class="settings-grid">
@@ -607,6 +633,7 @@
           <button class="setup-subtab-btn" data-subtab="network">NETWORK &amp; DEVICES</button>
           <button class="setup-subtab-btn" data-subtab="virtual">SECURITY</button>
           <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
+          <button class="setup-subtab-btn" data-subtab="librarysync">LIBRARY SYNC</button>
         </div>
 
         <div class="setup-subtab-panel" data-subtab-panel="system">
@@ -687,6 +714,27 @@
             <button id="backups-snapshot-now-btn" class="btn">+ SNAPSHOT NOW…</button>
           </div>
           <div id="backups-list" class="titles-list"></div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="librarysync">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle"><input type="checkbox" id="library-sync-enabled"> KEEP CHANNEL FOLDERS IN SYNC</label>
+          <span class="panel-status">Opt in to checking every channel's linked folders for additions, removals, and likely renames. This uses each media source's own listing service; RerunTV does not watch or scan unrelated folders.</span>
+          <div class="panel-body">
+            <label class="shuffle-toggle"><input type="checkbox" id="library-sync-startup">CHECK AFTER RERUNTV STARTS</label>
+            <label class="shuffle-toggle"><input type="checkbox" id="library-sync-remove-missing">AUTOMATICALLY REMOVE FILES THE SOURCE NO LONGER REPORTS</label>
+            <div class="panel-interval">CHECK EVERY <input id="library-sync-interval" type="number" min="5" max="1440" value="30"> MINUTES</div>
+          </div>
+          <div class="block-row">
+            <button id="library-sync-now-btn" class="btn btn-primary">RUN SYNC NOW</button>
+          </div>
+          <div id="library-sync-status" class="panel-status" role="status" aria-live="polite">SYNC IS OFF.</div>
+          <div id="library-sync-results" class="titles-list"></div>
         </div>
 
         </div>
@@ -816,6 +864,18 @@
               <div id="plugins-filter-empty" class="plugins-empty hidden">NO PLUGINS MATCH YOUR FILTER.</div>
             </div>
 
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🛠 PLUGIN DEVELOPER DIAGNOSTICS</label>
+              <span class="panel-status">Inspect main/renderer load state, registered extension points, declared capability activity, and recent bounded logs. Support bundles are redacted before they are written and do not include your channel configuration or media inventory.</span>
+              <div class="block-row">
+                <button id="plugin-diagnostics-refresh-btn" class="btn">REFRESH DIAGNOSTICS</button>
+                <button id="plugin-diagnostics-export-btn" class="btn btn-primary">EXPORT REDACTED SUPPORT BUNDLE…</button>
+              </div>
+              <div id="plugin-diagnostics-status" class="panel-status" role="status" aria-live="polite"></div>
+              <div id="plugin-diagnostics-summary" class="perf-telemetry-grid"></div>
+              <pre id="plugin-diagnostics-log" class="plugin-diagnostics-log">OPEN THE PLUGINS TAB TO LOAD DIAGNOSTICS.</pre>
+            </div>
+
           </div>
         </div>
 
@@ -837,15 +897,16 @@
             </div>
             <div class="panel span-full" id="update-settings-panel">
               <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
-              <span class="panel-status">Update checks run against this project's GitHub Releases. Choose how often, and whether a ready update should interrupt you or just quietly install itself the next time you close RerunTV.</span>
+              <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
               <div class="update-settings-row">
-                <label for="update-mode-select">CHECK</label>
-                <select id="update-mode-select">
-                  <option value="auto">AUTOMATICALLY</option>
+                <label for="update-mode-select">UPDATE POLICY</label>
+                <select id="update-mode-select" class="block-hour-select">
+                  <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
+                  <option value="background-auto">AFTER APP OPENS — INSTALL WHEN I QUIT</option>
+                  <option value="background-notify">AFTER APP OPENS — ASK WHEN READY</option>
                   <option value="manual">ONLY WHEN I ASK</option>
                   <option value="off">NEVER</option>
                 </select>
-                <label class="shuffle-toggle"><input type="checkbox" id="update-launch-popup-enabled">SHOW A POPUP WHEN AN UPDATE IS READY</label>
                 <button id="check-updates-btn" class="btn">CHECK NOW</button>
               </div>
               <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
@@ -866,6 +927,7 @@
         <div class="setup-footer">
           <div class="backup-restore" title="Export saves everything currently loaded — all channels and settings — to a JSON file you can keep as a backup or move to another machine. Import replaces everything currently loaded with a previously exported file.">
             <button id="config-export-btn" class="btn">EXPORT CONFIG…</button>
+            <button id="channel-import-btn" class="btn">IMPORT CHANNEL…</button>
             <button id="config-import-btn" class="btn">IMPORT CONFIG…</button>
             <button id="config-restore-auto-btn" class="btn">🔄 RESTORE CHANNELS FROM DISK</button>
           </div>
@@ -1045,10 +1107,11 @@
               </div>
             </div>
             <div class="guide-search-row">
-              <input type="text" id="guide-search" class="guide-search" placeholder="/ FILTER CHANNELS…" aria-label="Filter guide channels">
+              <input type="text" id="guide-search" class="guide-search" placeholder="/ SEARCH CHANNELS OR UPCOMING PROGRAMS…" aria-label="Search guide channels and upcoming programs">
               <div class="guide-daterange" id="guide-daterange"></div>
             </div>
           </div>
+          <div id="guide-program-results" class="guide-program-results hidden"></div>
           <div class="guide-timeheader" id="guide-timeheader"></div>
           <div class="guide-rows" id="guide-rows">
             <div class="guide-gridlines" id="guide-gridlines"></div>
@@ -1062,6 +1125,12 @@
             <span>D DOCK / FULL PAGE</span>
             <span>G / ESC CLOSE</span>
           </div>
+        </div>
+
+        <div id="program-reminder-toast" class="program-reminder-toast hidden" role="status" aria-live="assertive">
+          <div><strong>PROGRAM REMINDER</strong><span id="program-reminder-copy"></span></div>
+          <button id="program-reminder-tune" class="btn btn-primary">TUNE NOW</button>
+          <button id="program-reminder-dismiss" class="btn">DISMISS</button>
         </div>
 
         <!-- CH 1-2 are reserved for full-ownership plugin channels,

@@ -8,6 +8,41 @@ const Module = require('node:module');
 
 const ROOT = path.join(__dirname, '..');
 
+test('support bundle redaction removes secrets, authorization, and user-specific paths', () => {
+  const { redactDiagnosticValue } = require(path.join(ROOT, 'main', 'main-diagnostics.js'));
+  const redacted = redactDiagnosticValue({
+    token: 'raw-token',
+    nested: { authorization: 'Bearer abcdefghijklmnop', message: 'failed at C:\\Users\\Casey\\Videos\\show.mkv' },
+    url: 'https://person:password@example.test/path',
+  }, { homePath: 'C:\\Users\\Casey' });
+  assert.equal(redacted.token, '[REDACTED]');
+  assert.equal(redacted.nested.authorization, '[REDACTED]');
+  assert.match(redacted.nested.message, /\[USER_PATH\]/);
+  assert.doesNotMatch(redacted.url, /person:password/);
+});
+const { compareConfigs } = require('../main/config-diff');
+
+test('backup comparison reports channel, schedule, and settings changes', () => {
+  const current = { theme: 'old', channels: [{ number: 2, name: 'TWO', files: [{}], blocks: [] }, { number: 4, name: 'REMOVE', files: [], blocks: [] }] };
+  const snapshot = { theme: 'new', channels: [{ number: 2, name: 'TWO HD', files: [{}, {}], blocks: [{ id: 'prime' }] }, { number: 7, name: 'ADD', files: [], blocks: [] }] };
+  const diff = compareConfigs(current, snapshot);
+  assert.equal(diff.addedChannels[0].number, 7);
+  assert.equal(diff.removedChannels[0].number, 4);
+  assert.equal(diff.renamedChannels[0].to, 'TWO HD');
+  assert.equal(diff.fileCountChanges[0].snapshot, 2);
+  assert.equal(diff.scheduleChanges[0].number, 2);
+  assert.deepEqual(diff.settingsChanges, ['theme']);
+});
+
+test('packaged startup awaits the updater gate before creating the full window', () => {
+  const main = fs.readFileSync(path.join(ROOT, 'main', 'main.js'), 'utf8');
+  const updaterCall = main.indexOf('await initAutoUpdater');
+  const windowCall = main.indexOf('createWindow();', updaterCall);
+  assert.ok(updaterCall >= 0, 'main startup must await initAutoUpdater');
+  assert.ok(windowCall > updaterCall, 'full window must be created after the updater gate');
+  assert.match(main.slice(updaterCall, windowCall), /if \(installingUpdate\) return;/);
+});
+
 test('every plugin manifest entry points to an existing file', () => {
   for (const base of [path.join(ROOT, 'plugins'), path.join(ROOT, 'plugin-dev-kit', 'starter-plugin')]) {
     const dirs = base.endsWith('starter-plugin') ? [base]

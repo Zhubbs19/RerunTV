@@ -3,7 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const { loadConfig, backupUserDataForUpdate } = require('./main-config');
 const { fetchJsonCached } = require('./main-api-cache');
-const { prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRelease } = require('./main-updater-state');
+const {
+  normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRelease,
+} = require('./main-updater-state');
 
 // Auto-update via electron-updater, fed by this repo's GitHub Releases (see
 // package.json's build.publish). Releases are published by
@@ -35,21 +37,20 @@ const { prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRel
 // at all — the HELP tab's CHECK NOW button and the settings there both stay
 // usable for a developer running from source, just inert.
 //
-// User-facing controls all live in config.updates (applyConfigDefaults,
-// app.js): `mode` — 'auto' (background-check + auto-download, default),
-// 'manual' (only ever check when the HELP tab's button is clicked), or
-// 'off' (never check, at all, even manually); and `showLaunchPopup` — once
-// an update finishes downloading, this chooses between interrupting with
-// the in-app toast (renderer/js/update-notice.js) or just quietly installing
-// on the next normal app quit (autoUpdater.autoInstallOnAppQuit below), read
-// fresh from disk at the moment each decision is actually made rather than
-// cached at startup, so a setting changed mid-session takes effect on the
-// very next check/download without needing a restart.
+// User-facing control lives in one config.updates.strategy value rather
+// than two overlapping toggles: startup-auto, background-auto,
+// background-notify, manual, or off. See main-updater-state.js for legacy
+// migration. Read fresh at every decision so a settings change takes effect
+// without a restart.
 let autoUpdater = null;
 let progressWindow = null;
 let progressWindowReady = false;
 let latestProgressState = null;
 let progressCloseTimer = null;
+let startupUpdateActive = false;
+let startupUpdateResolve = null;
+let startupCheckTimer = null;
+let manualCheckRequested = false;
 
 function updateStatePath() {
   return path.join(app.getPath('userData'), 'update-state.json');
@@ -160,8 +161,7 @@ function getAutoUpdater() {
   if (!autoUpdater) {
     ({ autoUpdater } = require('electron-updater'));
     autoUpdater.autoDownload = true;
-    // Decided per-download instead — see the update-downloaded handler
-    // below — based on config.updates.showLaunchPopup at that moment.
+    // Decided per download by the active strategy below.
     autoUpdater.autoInstallOnAppQuit = false;
     // Every release this repo's CI actually publishes (.github/workflows/
     // build-installer.yml, deploy branch) is tagged --prerelease — there is
@@ -177,8 +177,18 @@ function getAutoUpdater() {
 
 function updatesConfig() {
   const cfg = loadConfig();
-  const u = cfg.updates || {};
-  return { mode: u.mode || 'auto', showLaunchPopup: u.showLaunchPopup !== false };
+  return { strategy: normalizeUpdateStrategy(cfg.updates) };
+}
+
+function finishStartupUpdate(installing) {
+  if (!startupUpdateActive) return;
+  startupUpdateActive = false;
+  clearTimeout(startupCheckTimer);
+  startupCheckTimer = null;
+  const resolve = startupUpdateResolve;
+  startupUpdateResolve = null;
+  if (!installing) closeProgressWindow();
+  if (resolve) resolve(!!installing);
 }
 
 function sendStatus(getMainWindow, payload) {
@@ -257,26 +267,32 @@ function registerReleaseNotesHandler() {
   });
 }
 
-// Registers the manual-check/install IPC handlers and, unless disabled,
-// kicks off one silent background check shortly after boot. Called from
-// main.js's app.whenReady() — never in --headless mode (see main.js's own
-// HEADLESS comment: an unattended server restarting itself mid-stream to
-// install an update would cut off whatever LAN viewers are currently
-// watching), so getMainWindow() below is always expected to resolve to a
-// real window once it matters.
-function initAutoUpdater(getMainWindow) {
+// Registers update IPC/events, optionally runs the startup gate, and starts
+// a delayed background check for policies that request one. The startup
+// gate runs before the full app window/plugin boot: only this small progress
+// window is visible while a found release downloads and installs. A fresh
+// install skips that gate once so onboarding can explain and save the choice
+// first. Headless mode never calls this function.
+async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {}) {
   preparePostUpdateNotice();
   registerReleaseNotesHandler();
 
   if (!app.isPackaged) {
     ipcMain.handle('updates:check', async () => ({ status: 'dev-mode' }));
     ipcMain.handle('updates:installNow', async () => {});
-    return;
+    return false;
   }
 
   const updater = getAutoUpdater();
 
   updater.on('update-available', (info) => {
+    // The launch timeout only protects a slow/unreachable check. Once a
+    // real release has been found, downloading it is the chosen startup
+    // policy and must not suddenly fall through into the full app.
+    if (startupUpdateActive) {
+      clearTimeout(startupCheckTimer);
+      startupCheckTimer = null;
+    }
     showProgressWindow(getMainWindow, {
       kind: 'download', title: `DOWNLOADING RERUNTV v${info.version}`,
       detail: 'Starting the update download…', percent: 0,
@@ -289,29 +305,46 @@ function initAutoUpdater(getMainWindow) {
     });
     sendStatus(getMainWindow, { state: 'progress', version: progress.version, percent: progress.percent });
   });
-  updater.on('update-not-available', () => closeProgressWindow());
+  updater.on('update-not-available', () => {
+    manualCheckRequested = false;
+    finishStartupUpdate(false);
+    closeProgressWindow();
+  });
 
   updater.on('update-downloaded', (info) => {
-    const { showLaunchPopup } = updatesConfig();
-    updater.autoInstallOnAppQuit = !showLaunchPopup;
-    // Backed up here, not only in the installNow handler below — when
-    // showLaunchPopup is off, autoInstallOnAppQuit installs on the next
-    // normal quit without ever going through that handler, so this is the
-    // only guaranteed point before the install can happen either way.
+    const { strategy } = updatesConfig();
     // Persist release metadata before the safety copy so both the changelog
     // and its previous-version baseline survive an installer that replaces
     // the portable userData directory.
     rememberDownloadedRelease(info);
     backupUserDataForUpdate();
+
+    if (startupUpdateActive && strategy === 'startup-auto') {
+      updater.autoInstallOnAppQuit = false;
+      showProgressWindow(getMainWindow, {
+        kind: 'install', title: 'APPLYING UPDATE',
+        detail: 'RerunTV will open automatically when the update is complete.',
+        percent: 100, indeterminate: true,
+      });
+      finishStartupUpdate(true);
+      // Let the applying state paint before Electron hands off to NSIS.
+      setTimeout(() => updater.quitAndInstall(true, true), 650);
+      return;
+    }
+
+    const showPopup = strategy === 'background-notify' || manualCheckRequested;
+    updater.autoInstallOnAppQuit = !showPopup;
     showProgressWindow(getMainWindow, {
       kind: 'complete', title: 'UPDATE READY',
       detail: `RerunTV v${info.version} is ready to install.`, percent: 100,
     });
     closeProgressWindow(1200);
-    sendStatus(getMainWindow, { state: 'downloaded', version: info.version, showPopup: showLaunchPopup });
+    sendStatus(getMainWindow, { state: 'downloaded', version: info.version, showPopup });
+    manualCheckRequested = false;
   });
   updater.on('error', (err) => {
     console.error('[auto-updater]', err == null ? err : err.stack || err.message || err);
+    manualCheckRequested = false;
     if (progressWindow && !progressWindow.isDestroyed()) {
       showProgressWindow(getMainWindow, {
         kind: 'error', title: 'UPDATE PAUSED',
@@ -319,11 +352,13 @@ function initAutoUpdater(getMainWindow) {
       });
       closeProgressWindow(4500);
     }
+    finishStartupUpdate(false);
   });
 
   ipcMain.handle('updates:check', async () => {
-    const { mode } = updatesConfig();
-    if (mode === 'off') return { status: 'disabled' };
+    const { strategy } = updatesConfig();
+    if (strategy === 'off') return { status: 'disabled' };
+    manualCheckRequested = true;
     try {
       const result = await updater.checkForUpdates();
       // checkForUpdates() resolves even when there's nothing newer —
@@ -332,8 +367,10 @@ function initAutoUpdater(getMainWindow) {
       // "found one, now downloading" for the HELP tab's status line.
       const latest = result && result.updateInfo && result.updateInfo.version;
       if (latest && latest !== app.getVersion()) return { status: 'downloading', version: latest };
+      manualCheckRequested = false;
       return { status: 'up-to-date', version: app.getVersion() };
     } catch (e) {
+      manualCheckRequested = false;
       return { status: 'error', message: e.message };
     }
   });
@@ -364,17 +401,36 @@ function initAutoUpdater(getMainWindow) {
     setTimeout(() => updater.quitAndInstall(true, true), 650);
   });
 
-  // Delayed rather than fired immediately at boot — same reasoning as the
-  // rest of this app's startup sequencing (see app.whenReady() in main.js):
-  // let the window actually paint and the config/plugin load finish before
-  // adding a network round trip to the critical path. Re-reads mode at fire
-  // time (not once at init) so a setting flipped to 'manual'/'off' during
-  // that window is honored instead of racing it.
-  setTimeout(() => {
-    const { mode } = updatesConfig();
-    if (mode !== 'auto') return;
-    updater.checkForUpdates().catch((e) => console.error('[auto-updater] background check failed:', e.message));
-  }, 15000);
+  const { strategy } = updatesConfig();
+  if (!skipStartupCheck && strategy === 'startup-auto') {
+    startupUpdateActive = true;
+    const gate = new Promise((resolve) => { startupUpdateResolve = resolve; });
+    showProgressWindow(getMainWindow, {
+      kind: 'check', title: 'CHECKING FOR UPDATES',
+      detail: 'Making sure RerunTV is ready before launch…', percent: 0, indeterminate: true,
+    });
+    // A missing network/token must never make the application unusable.
+    // This timeout covers only the availability check; update-available
+    // clears it and lets the selected download finish.
+    startupCheckTimer = setTimeout(() => {
+      console.warn('[auto-updater] startup check timed out; continuing normal launch');
+      finishStartupUpdate(false);
+    }, 12000);
+    updater.checkForUpdates().catch((e) => {
+      console.error('[auto-updater] startup check failed:', e.message);
+      finishStartupUpdate(false);
+    });
+    return gate;
+  }
+
+  if (strategy === 'background-auto' || strategy === 'background-notify') {
+    setTimeout(() => {
+      const current = updatesConfig().strategy;
+      if (current !== 'background-auto' && current !== 'background-notify') return;
+      updater.checkForUpdates().catch((e) => console.error('[auto-updater] background check failed:', e.message));
+    }, 2500);
+  }
+  return false;
 }
 
 module.exports = { initAutoUpdater };

@@ -42,4 +42,34 @@ function rememberDownloadedRelease(state, info) {
   return state;
 }
 
-module.exports = { prepareVersionTransition, rememberDownloadedRelease, releaseNotesText };
+const UPDATE_STRATEGIES = Object.freeze([
+  'startup-auto',
+  'background-auto',
+  'background-notify',
+  'manual',
+  'off',
+]);
+
+// One update policy describes both when a check happens and what happens
+// after download. Older configs used two overlapping fields (mode and
+// showLaunchPopup); preserve their exact behavior when migrating instead of
+// silently turning an existing user's background check into a launch gate.
+function normalizeUpdateStrategy(updates) {
+  const value = updates && updates.strategy;
+  if (UPDATE_STRATEGIES.includes(value)) return value;
+  const legacyMode = updates && updates.mode;
+  if (legacyMode === 'off') return 'off';
+  if (legacyMode === 'manual') return 'manual';
+  if (legacyMode === 'auto') {
+    return updates.showLaunchPopup === false ? 'background-auto' : 'background-notify';
+  }
+  return 'startup-auto';
+}
+
+module.exports = {
+  UPDATE_STRATEGIES,
+  normalizeUpdateStrategy,
+  prepareVersionTransition,
+  rememberDownloadedRelease,
+  releaseNotesText,
+};

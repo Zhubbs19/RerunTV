@@ -1,63 +1,147 @@
-// First-run welcome screen. Shown once, gated on main-config.js's loadConfig
-// returning `_isFirstRun: true` (config file didn't exist yet — a genuinely
-// fresh install, not just a user who deleted all their channels). Reuses the
-// setup-dialogs.js "confirm-dialog" box/backdrop CSS for a consistent look
-// rather than inventing a second modal style.
+// First-run setup. A genuinely new install gets one short orientation page
+// and one explicit updater-policy page before reaching Channel Setup. The
+// main process deliberately skips its pre-launch update gate on this first
+// run so the default is explained before it is enforced.
 
-export function showOnboarding() {
+const UPDATE_CHOICES = [
+  {
+    value: 'startup-auto', title: 'UPDATE BEFORE RERUNTV OPENS', badge: 'RECOMMENDED',
+    detail: 'Check, download, and install first. The full app opens only after it is current. Network errors continue to RerunTV normally.',
+  },
+  {
+    value: 'background-auto', title: 'DOWNLOAD WHILE I WATCH',
+    detail: 'Open immediately, download quietly, and install the next time you close RerunTV.',
+  },
+  {
+    value: 'background-notify', title: 'DOWNLOAD, THEN ASK ME',
+    detail: 'Open immediately and show a compact notice when the update is ready.',
+  },
+  {
+    value: 'manual', title: 'ONLY WHEN I CHECK',
+    detail: 'Never check automatically. Use Help → Software Updates → Check Now.',
+  },
+  {
+    value: 'off', title: 'NEVER CHECK',
+    detail: 'Make no update requests. You can change this later from Help.',
+  },
+];
+
+function makeButton(label, className = 'btn') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.textContent = label;
+  return button;
+}
+
+export function showOnboarding({ updateStrategy = 'startup-auto' } = {}) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
-    overlay.className = 'confirm-dialog';
+    overlay.className = 'confirm-dialog onboarding-screen';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'onboarding-title');
 
     const box = document.createElement('div');
     box.className = 'confirm-dialog-box onboarding-box';
-
-    const title = document.createElement('div');
-    title.className = 'confirm-dialog-title';
-    title.textContent = 'WELCOME TO RETRO CABLE BOX';
-    box.appendChild(title);
-
-    const message = document.createElement('div');
-    message.className = 'confirm-dialog-message';
-    message.textContent = 'This turns your own media library into a channel-surfable cable box, complete with schedules, bumpers, and commercial breaks. A few things to know before you dive in:';
-    box.appendChild(message);
-
-    const list = document.createElement('ul');
-    list.className = 'onboarding-list';
-    [
-      'Add a CHANNEL in the setup screen and point it at a media folder — SCAN A FOLDER builds a lineup from your video files automatically.',
-      'Optional add-ons (live weather, party mode, and more) live in the PLUGINS tab — everything starts off, install or enable only what you want.',
-      'Everything autosaves as you go, with rotating backups — check the BACKUPS panel if you ever need to roll back a change.',
-    ].forEach((text) => {
-      const li = document.createElement('li');
-      li.textContent = text;
-      list.appendChild(li);
-    });
-    box.appendChild(list);
-
-    const actions = document.createElement('div');
-    actions.className = 'confirm-dialog-actions';
-    const startBtn = document.createElement('button');
-    startBtn.className = 'btn btn-primary';
-    startBtn.textContent = 'GET STARTED';
-    actions.appendChild(startBtn);
-    box.appendChild(actions);
-
     overlay.appendChild(box);
 
-    const close = () => {
-      overlay.removeEventListener('keydown', onKeydown);
-      overlay.remove();
-      resolve();
-    };
-    const onKeydown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
-    };
+    let step = 0;
+    let selectedStrategy = updateStrategy;
 
-    startBtn.addEventListener('click', close);
+    function renderWelcome() {
+      box.innerHTML = '';
+      const kicker = document.createElement('div');
+      kicker.className = 'onboarding-kicker';
+      kicker.textContent = 'FIRST-TIME SETUP  ·  1 OF 2';
+      const title = document.createElement('div');
+      title.id = 'onboarding-title';
+      title.className = 'confirm-dialog-title onboarding-title';
+      title.textContent = 'WELCOME TO RERUNTV';
+      const message = document.createElement('div');
+      message.className = 'confirm-dialog-message';
+      message.textContent = 'Turn your own media library into a channel-surfable cable box. Before building the lineup, here is what RerunTV changes—and what it does not.';
+      const list = document.createElement('ul');
+      list.className = 'onboarding-list';
+      [
+        'Your media stays where it is. RerunTV stores paths, schedules, titles, and settings; it does not upload your library.',
+        'Channel Setup autosaves and keeps rotating backups. Undo, export, and restore are available from the setup screen.',
+        'LAN viewing, phone controls, external metadata, and other integrations are optional plugins or opt-in services.',
+      ].forEach((text) => {
+        const item = document.createElement('li');
+        item.textContent = text;
+        list.appendChild(item);
+      });
+      const actions = document.createElement('div');
+      actions.className = 'confirm-dialog-actions';
+      const next = makeButton('CONTINUE', 'btn btn-primary');
+      next.addEventListener('click', () => { step = 1; renderUpdates(); });
+      actions.appendChild(next);
+      box.append(kicker, title, message, list, actions);
+      next.focus();
+    }
+
+    function renderUpdates() {
+      box.innerHTML = '';
+      const kicker = document.createElement('div');
+      kicker.className = 'onboarding-kicker';
+      kicker.textContent = 'FIRST-TIME SETUP  ·  2 OF 2';
+      const title = document.createElement('div');
+      title.id = 'onboarding-title';
+      title.className = 'confirm-dialog-title onboarding-title';
+      title.textContent = 'CHOOSE HOW RERUNTV UPDATES';
+      const message = document.createElement('div');
+      message.className = 'confirm-dialog-message';
+      message.textContent = 'The recommended default updates before the full app launches, so you never start a viewing session only to restart moments later. You remain in control and can change this from Help at any time.';
+      const choices = document.createElement('div');
+      choices.className = 'onboarding-update-choices';
+      UPDATE_CHOICES.forEach((choice) => {
+        const label = document.createElement('label');
+        label.className = 'onboarding-update-choice';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'onboarding-update-strategy';
+        radio.value = choice.value;
+        radio.checked = choice.value === selectedStrategy;
+        radio.addEventListener('change', () => { selectedStrategy = choice.value; });
+        const copy = document.createElement('span');
+        copy.className = 'onboarding-update-copy';
+        const heading = document.createElement('strong');
+        heading.textContent = choice.title;
+        if (choice.badge) {
+          const badge = document.createElement('em');
+          badge.textContent = choice.badge;
+          heading.append(' ', badge);
+        }
+        const detail = document.createElement('span');
+        detail.textContent = choice.detail;
+        copy.append(heading, detail);
+        label.append(radio, copy);
+        choices.appendChild(label);
+      });
+      const actions = document.createElement('div');
+      actions.className = 'confirm-dialog-actions onboarding-actions';
+      const back = makeButton('BACK');
+      const finish = makeButton('SAVE & OPEN CHANNEL SETUP', 'btn btn-primary');
+      back.addEventListener('click', () => { step = 0; renderWelcome(); });
+      finish.addEventListener('click', () => {
+        overlay.removeEventListener('keydown', onKeydown);
+        overlay.remove();
+        resolve({ updateStrategy: selectedStrategy || 'startup-auto' });
+      });
+      actions.append(back, finish);
+      box.append(kicker, title, message, choices, actions);
+      choices.querySelector('input:checked')?.focus();
+    }
+
+    function onKeydown(event) {
+      if (event.key !== 'Enter' || event.target?.matches('button')) return;
+      event.preventDefault();
+      box.querySelector('.btn-primary')?.click();
+    }
+
     overlay.addEventListener('keydown', onKeydown);
-
     document.body.appendChild(overlay);
-    startBtn.focus();
+    renderWelcome();
   });
 }
