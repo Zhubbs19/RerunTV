@@ -58,7 +58,8 @@ const { readJsonBody, serveStaticFile } = require('./main-http-util');
 const { setMainWindow, getMainWindow } = require('./main-window-ref');
 const { startViewerServer } = require('./main-viewer-server');
 const { startDiscoveryServer } = require('./main-discovery-server');
-const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers } = require('./main-plugins');
+const { isLanServiceEnabled } = require('./main-lan-security');
+const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity } = require('./main-plugins');
 const { wireAppQuitPropagation } = require('./main-plugin-isolation');
 const {
   parseMediaRef, wrapMediaRef, setApprovedMediaSourceProviders, callMediaService,
@@ -150,6 +151,7 @@ let pluginMainLoadErrors = {};
 // to plugins:list the same way pluginMainLoadErrors is, so the PLUGINS tab
 // can show an APPROVE PERMISSIONS prompt instead of silently not-activating.
 let pluginsNeedingApproval = [];
+let pluginsNeedingIntegrityApproval = [];
 // providerId -> pluginId, for every media-source provider actually
 // activated this boot — see loadMainPlugins()'s doc comment
 // (main-plugins.js) and setApprovedMediaSourceProviders
@@ -165,6 +167,7 @@ let activatedMediaSourceProviders = {};
 // loadMainPlugins() populates inside whenReady below, just referenced from
 // a wider scope than before this existed.
 let pluginServicesRef = {};
+let viewerAccessUrls = [];
 
 app.whenReady().then(async () => {
   // `services` is a single shared object, mutated in place by whichever
@@ -177,8 +180,6 @@ app.whenReady().then(async () => {
   const pluginServices = {};
   pluginServicesRef = pluginServices;
   setMediaDispatchServices(pluginServices);
-  startViewerServer(pluginServices);
-  startDiscoveryServer();
   wireAppQuitPropagation();
   // The remote/party servers, and any plugin's own bridge/stream server,
   // used to start here too — now started by the universal-remote/
@@ -190,21 +191,39 @@ app.whenReady().then(async () => {
   // integration plugin may have nothing to do with the on-screen UI at all.
   const bootConfig = loadConfig();
   seedBundledPlugins();
+  if (isLanServiceEnabled(bootConfig, 'viewer')) {
+    const viewerRuntime = startViewerServer(pluginServices, {
+      pluginsDir: getPluginsDir(),
+      listPlugins: () => discoverPlugins().map((plugin) => (
+        plugin.error ? plugin : {
+          ...plugin,
+          loadError: pluginMainLoadErrors[plugin.id] || null,
+          needsIntegrityApproval: plugin.integrityStatus === 'unverified' || plugin.integrityStatus === 'modified',
+        }
+      )),
+    });
+    viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+  }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   const approvedCapabilities = (bootConfig.plugins && bootConfig.plugins.approvedCapabilities) || {};
   const loadResult = await loadMainPlugins(disabledPluginIds, {
     fetchJsonCached, getMainWindow, getLanAddresses, readJsonBody,
     serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
-    getViewerUrls, remotePort: REMOTE_PORT,
+    getViewerUrls: () => viewerAccessUrls, remotePort: REMOTE_PORT,
     ffmpegStaticPath: FFMPEG_STATIC_PATH, services: pluginServices,
   }, approvedCapabilities);
   pluginMainLoadErrors = loadResult.loadErrors;
   pluginsNeedingApproval = loadResult.needsApproval;
-  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval), ipcMain, loadResult.allPlugins);
+  pluginsNeedingIntegrityApproval = loadResult.needsIntegrityApproval;
+  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval, pluginsNeedingIntegrityApproval), ipcMain, loadResult.allPlugins);
   setFfmpegPath(pluginServices.ffmpegPath || null);
   activatedMediaSourceProviders = loadResult.activatedMediaSourceProviders;
   setApprovedMediaSourceProviders(loadResult.activatedMediaSourceProviders);
+  const remoteEnabled = Array.isArray(pluginServices.remoteAccessUrls) && pluginServices.remoteAccessUrls.length > 0;
+  if (viewerAccessUrls.length || remoteEnabled) {
+    startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, remoteEnabled });
+  }
 
   if (HEADLESS) {
     // No window, no app:// protocol (only ever used to load the host's own
@@ -214,9 +233,9 @@ app.whenReady().then(async () => {
     // keeps running until it's stopped externally (Ctrl+C in the console
     // this was launched from, or the process being killed).
     console.log('RerunTV is running in SERVER mode — no window on this machine.');
-    console.log('The LAN viewer, remote control, and auto-discovery are all active for other devices:');
-    getViewerUrls().forEach((u) => console.log(`  Watch at ${u.url}  (${u.name})`));
-    getLanUrls().forEach((u) => console.log(`  Remote at ${u.url}  (${u.name})`));
+    console.log('Enabled LAN services are available to paired devices:');
+    viewerAccessUrls.forEach((u) => console.log(`  Watch at ${u.url}  (${u.name})`));
+    (pluginServices.remoteAccessUrls || []).forEach((u) => console.log(`  Remote at ${u.url}  (${u.name})`));
     console.log('Press Ctrl+C to stop.');
     return;
   }
@@ -239,7 +258,7 @@ ipcMain.handle('app:getVersion', async () => {
 });
 
 ipcMain.handle('remote:getUrl', async () => {
-  return getLanUrls();
+  return pluginServicesRef.remoteAccessUrls || [];
 });
 
 ipcMain.handle('network:getConnections', async () => {
@@ -247,7 +266,7 @@ ipcMain.handle('network:getConnections', async () => {
 });
 
 ipcMain.handle('viewer:getUrl', async () => {
-  return getViewerUrls();
+  return viewerAccessUrls;
 });
 
 ipcMain.handle('window:toggleFullscreen', async () => {
@@ -351,7 +370,12 @@ ipcMain.handle('dialog:selectCss', async () => {
 // restart, which the PLUGINS setup panel says explicitly.
 ipcMain.handle('plugins:list', async () => {
   return discoverPlugins().map((p) => (
-    p.error ? p : { ...p, loadError: pluginMainLoadErrors[p.id] || null, needsApproval: pluginsNeedingApproval.includes(p.id) }
+    p.error ? p : {
+      ...p,
+      loadError: pluginMainLoadErrors[p.id] || null,
+      needsApproval: pluginsNeedingApproval.includes(p.id),
+      needsIntegrityApproval: p.integrityStatus === 'unverified' || p.integrityStatus === 'modified',
+    }
   ));
 });
 
@@ -426,6 +450,15 @@ ipcMain.handle('plugins:revokeCapabilities', async (event, id) => {
     delete config.plugins.approvedCapabilities[id];
     saveConfig(config);
   }
+  return true;
+});
+
+ipcMain.handle('plugins:approveIntegrity', async (event, id, hash) => {
+  const plugin = discoverPlugins().find((entry) => !entry.error && entry.id === id);
+  if (!plugin || plugin.integrityHash !== hash) {
+    throw new Error('Plugin files changed again before integrity approval could be saved.');
+  }
+  recordPluginIntegrity(id, hash);
   return true;
 });
 

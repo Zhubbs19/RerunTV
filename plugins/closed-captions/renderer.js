@@ -25,6 +25,13 @@ function clearActiveTrack() {
   }
 }
 
+export function setCaptionsEnabled(enabled) {
+  const captionsConfig = cfg();
+  captionsConfig.enabled = !!enabled;
+  saveConfigDebounced();
+  if (!captionsConfig.enabled) clearActiveTrack();
+}
+
 // Prefers a sidecar file (an intentional, purpose-made caption file) over an
 // embedded stream, and among embedded streams prefers one already tagged
 // 'eng' if present — otherwise just the first one found.
@@ -126,28 +133,6 @@ window.RCBPlugins.registerInterrupt('closed-captions', {
   hotkey: 'k',
   run() {
     const c = cfg();
-    c.enabled = !c.enabled;
-    saveConfigDebounced();
-    if (!c.enabled) clearActiveTrack();
-  },
-});
-
-window.RCBPlugins.registerSettingsPanel('closed-captions', {
-  render(container) {
-    const c = cfg();
-    container.innerHTML = `
-      <label class="panel-toggle">
-        <input type="checkbox" id="cc-plugin-enabled">
-        CLOSED CAPTIONS (K TO TOGGLE)
-      </label>
-      <span class="panel-status">Real captions only — a sidecar .srt/.vtt file next to the video, or a subtitle stream already embedded in the file. Nothing is auto-generated. Caption styling follows the active guide/OSD theme.</span>
-    `;
-    const enabledEl = container.querySelector('#cc-plugin-enabled');
-    enabledEl.checked = !!c.enabled;
-    enabledEl.addEventListener('change', () => {
-      c.enabled = enabledEl.checked;
-      saveConfigDebounced();
-      if (!c.enabled) clearActiveTrack();
-    });
+    setCaptionsEnabled(!c.enabled);
   },
 });

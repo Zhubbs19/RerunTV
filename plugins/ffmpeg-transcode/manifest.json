@@ -5,5 +5,6 @@
   "description": "Publishes a resolved ffmpeg binary's path for other features to spawn: core video-codec compatibility transcode, party channel thumbnail capture, and any plugin that pipes live audio through it. This build doesn't bundle ffmpeg (see the README's 'About RerunTV') — it resolves a system-installed ffmpeg from PATH, or a custom path set in this plugin's own settings panel, and is enabled by default — disabling it turns those features off (a clear warning shows in each) rather than breaking the app. Isolated as its own plugin because ffmpeg is GPL-3.0-or-later licensed, distinct from this app's own MIT license.",
   "category": "system",
   "main": "main.js",
+  "settings": "settings.js",
   "isolated": true
 }

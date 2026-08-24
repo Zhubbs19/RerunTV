@@ -7,6 +7,8 @@
    neon glow shadows), a chunkier condensed display face standing in for a
    slab serif since no new webfont ships with this pass. */
 html[data-theme="wood-console-70s"] {
+  --setup-nav-bg: #10241a;
+  --setup-overflow-shadow: rgba(214, 167, 75, 0.48);
   --ink: #0a1f14;
   --ink-deep: #050f0a;
   --cell: #1b4d2e;
@@ -15,7 +17,7 @@ html[data-theme="wood-console-70s"] {
   --gold-ink: #1a0f00;
   --cyan: #e8dcae;
   --paper: #e8dcae;
-  --paper-dim: #a9926a;
+  --paper-dim: #c8b48d;
   --line: #4a3a1e;
   --danger: #c65b3a;
 

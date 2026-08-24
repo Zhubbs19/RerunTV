@@ -148,6 +148,12 @@
   --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.55);
   --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
   --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.55), inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Setup-shell surfaces are explicit theme tokens because the navigation
+     now stays visible while its page scrolls and the flow builder uses an
+     inset edge cue. Theme plugins override both alongside their palette. */
+  --setup-nav-bg: #131c58;
+  --setup-overflow-shadow: rgba(0, 0, 0, 0.75);
 }
 
 

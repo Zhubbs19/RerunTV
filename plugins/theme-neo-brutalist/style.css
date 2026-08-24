@@ -5,6 +5,8 @@
    nothing overlapping; that distinction is what keeps this actually usable
    rather than just loud. See renderer.js for the registration call. */
 html[data-theme="neo-brutalist"] {
+  --setup-nav-bg: rgba(255, 255, 255, 0.98);
+  --setup-overflow-shadow: rgba(0, 0, 0, 0.6);
   --ink: #f5f3ea;
   --ink-deep: #ffffff;
   --cell: #e7e2d3;

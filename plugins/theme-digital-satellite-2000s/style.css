@@ -6,6 +6,8 @@
    "clean" digital option next to the others' warm/analog accents, with
    gloss dialed way down and tighter shadows in place of any glow. */
 html[data-theme="digital-satellite-2000s"] {
+  --setup-nav-bg: #001a33;
+  --setup-overflow-shadow: rgba(0, 191, 255, 0.45);
   --ink: #001a33;
   --ink-deep: #000d1a;
   --cell: #003366;

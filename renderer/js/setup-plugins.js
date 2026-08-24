@@ -7,8 +7,13 @@ import {
   pluginsOpenFolderBtn, pluginsRescanBtn, pluginsSaveBtn, pluginsSaveStatusEl, pluginsSummaryEl,
 } from './dom.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
-import { applyCustomCss, getPluginSettingsPanel } from './plugins.js';
+import {
+  applyCustomCss,
+  getPluginChannelType,
+  getPluginSettingsSections,
+} from './plugins.js';
 import { S, saveConfigDebounced } from './state.js';
+import { renderPluginSettings } from './setup-plugin-settings.js';
 
 // Set right before a renderPluginsList() triggered by an approve/revoke, so
 // that row gets a brief highlight flash instead of silently reappearing —
@@ -209,6 +214,22 @@ function effectiveCategory(p) {
   return CATEGORY_LABELS[p.category] ? p.category : 'other';
 }
 
+async function promptIntegrityApproval(p) {
+  const changed = p.integrityStatus === 'modified';
+  const message = `${p.name}'s files are ${changed ? 'different from the last trusted install' : 'not from a recorded ZIP install'}.\n\nRenderer JavaScript and CSS run inside RerunTV's UI and can read or change anything visible there. Main-process isolation does not sandbox renderer code.\n\nCurrent SHA-256: ${p.integrityHash}\n\nOnly trust this exact version if you know where it came from.`;
+  const approved = await confirmDialog({
+    title: changed ? 'PLUGIN FILES CHANGED' : 'TRUST PLUGIN FILES',
+    message,
+    danger: true,
+    confirmText: 'TRUST THIS VERSION',
+  });
+  if (!approved) return;
+  await window.api.pluginsApproveIntegrity(p.id, p.integrityHash);
+  await alertDialog(`This exact version of ${p.name} is trusted. Restart RerunTV to load it.`, { title: 'RESTART NEEDED' });
+  lastCapabilityChangedId = p.id;
+  renderPluginsList();
+}
+
 let activeCategory = 'all';
 
 function renderCategoryTabs(plugins) {
@@ -339,6 +360,29 @@ export async function renderPluginsList() {
         err.textContent = `Failed to load: ${p.loadError}`;
         info.appendChild(err);
       }
+      if (p.needsIntegrityApproval) {
+        const notice = document.createElement('div');
+        notice.className = 'plugin-row-error';
+        notice.textContent = p.integrityStatus === 'modified'
+          ? 'Plugin files changed after installation. UI, CSS, and system code are blocked.'
+          : 'Plugin origin is unverified. UI, CSS, and system code are blocked.';
+        info.appendChild(notice);
+        const trustBtn = document.createElement('button');
+        trustBtn.type = 'button';
+        trustBtn.className = 'btn btn-danger';
+        trustBtn.textContent = 'REVIEW & TRUST THIS VERSION';
+        trustBtn.addEventListener('click', () => promptIntegrityApproval(p));
+        info.appendChild(trustBtn);
+      } else {
+        const integrity = document.createElement('div');
+        integrity.className = 'plugin-row-approved';
+        integrity.textContent = p.integrityStatus === 'bundled'
+          ? 'Built in by RerunTV.'
+          : p.bundled
+            ? 'Locally modified built-in files match the trusted SHA-256 record.'
+            : 'Installed files match the trusted SHA-256 record.';
+        info.appendChild(integrity);
+      }
       // Declared capabilities.ipc/spawn/net that don't match what's in
       // config.plugins.approvedCapabilities yet (a first install, or an
       // update that added a new one) — the plugin stays inactive (same
@@ -387,7 +431,8 @@ export async function renderPluginsList() {
       const kinds = document.createElement('div');
       kinds.className = 'plugin-row-kinds';
       if (p.style) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'CSS'; kinds.appendChild(k); }
-      if (p.renderer) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'UI'; kinds.appendChild(k); }
+      if (p.renderer) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'UI — FULL RENDERER ACCESS'; kinds.appendChild(k); }
+      if (p.settings) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SETTINGS'; kinds.appendChild(k); }
       if (p.main) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SYSTEM'; kinds.appendChild(k); }
       if (kinds.children.length) info.appendChild(kinds);
 
@@ -423,12 +468,13 @@ export async function renderPluginsList() {
 
     row.appendChild(info);
 
-    // A plugin that registered its own settings UI (registerSettingsPanel)
-    // gets an in-place SETTINGS toggle instead of a fixed always-visible
-    // slot elsewhere in the setup screen — keeps this list scannable when
-    // several plugins are installed, and puts each plugin's config right
-    // next to the plugin it belongs to instead of on a different tab.
-    const panelDef = !p.error ? getPluginSettingsPanel(p.id) : null;
+    // Settings are composed from core-provided sections (currently channel
+    // display overrides) plus any sections the plugin registered itself.
+    // Legacy registerSettingsPanel definitions are exposed as one custom
+    // section by getPluginSettingsSections, preserving existing plugins.
+    const channelDefinition = !p.error ? getPluginChannelType(p.id) : null;
+    const settingsSections = !p.error ? getPluginSettingsSections(p.id) : [];
+    const hasSettings = !!channelDefinition || settingsSections.length > 0;
     const entry = document.createElement('div');
     entry.className = 'plugin-entry';
     // Precomputed lowercase haystack for the filter input below — cheaper
@@ -438,30 +484,29 @@ export async function renderPluginsList() {
     entry.dataset.category = effectiveCategory(p);
     entry.appendChild(row);
 
-    if (panelDef) {
+    if (hasSettings) {
       const settingsBtn = document.createElement('button');
       settingsBtn.type = 'button';
       settingsBtn.className = 'btn plugin-settings-toggle-btn';
       settingsBtn.textContent = 'SETTINGS';
+      settingsBtn.setAttribute('aria-expanded', 'false');
       row.appendChild(settingsBtn);
 
       const settingsPanel = document.createElement('div');
       settingsPanel.className = 'plugin-settings-panel hidden panel';
+      settingsPanel.id = `plugin-settings-${p.id}`;
+      settingsBtn.setAttribute('aria-controls', settingsPanel.id);
       entry.appendChild(settingsPanel);
 
       settingsBtn.addEventListener('click', () => {
         const willShow = settingsPanel.classList.contains('hidden');
         settingsPanel.classList.toggle('hidden', !willShow);
         settingsBtn.classList.toggle('active', willShow);
+        settingsBtn.setAttribute('aria-expanded', String(willShow));
         if (willShow) {
-          // Same "rebuild from scratch on every show" contract registerSettingsPanel
-          // documents — reflects whatever changed elsewhere since it was last open.
-          settingsPanel.innerHTML = '';
-          try {
-            panelDef.render(settingsPanel, { S, saveConfigDebounced, selectExecutable: window.api.selectExecutable });
-          } catch (e) {
-            console.error(`[plugin settings ${p.id}] render() threw`, e);
-          }
+          // Rebuild from current config on every expansion so changes made
+          // elsewhere while collapsed are always reflected.
+          renderPluginSettings(settingsPanel, p, channelDefinition, settingsSections);
           settingsPanel.classList.remove('panel-reveal');
           void settingsPanel.offsetWidth;
           settingsPanel.classList.add('panel-reveal');
@@ -593,3 +638,8 @@ export function renderPluginsTab() {
   renderCustomCssRow();
   renderPluginsList();
 }
+
+window.addEventListener('rcb:plugins-loaded', () => {
+  const panel = document.querySelector('[data-tab-panel="plugins"]');
+  if (panel && !panel.classList.contains('hidden')) renderPluginsList();
+});

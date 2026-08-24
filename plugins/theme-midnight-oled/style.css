@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="midnight-oled"] {
+  --setup-nav-bg: #090c14;
+  --setup-overflow-shadow: rgba(99, 102, 241, 0.5);
   --ink: #07090e;
   --ink-deep: #030406;
   --cell: #121824;

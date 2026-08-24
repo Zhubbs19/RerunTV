@@ -5,5 +5,5 @@
 window.RCBPlugins.registerThemePack('cyberpunk-synth', {
   group: 'STYLIZED',
   label: '80s NEON CYBERPUNK (SYNTHWAVE PINK/CYAN)',
-  borderImage: 'app://plugins/theme-cyberpunk-synth/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

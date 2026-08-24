@@ -2,8 +2,10 @@
   "id": "starter-plugin",
   "name": "Starter Plugin",
   "version": "1.0.0",
-  "description": "A copyable starting point demonstrating a channel, a settings panel, and a main-process IPC handler. See PLUGIN_DEVELOPMENT.md for the full guide.",
+  "description": "A copyable starting point demonstrating a channel, composable settings, and a main-process IPC handler. See PLUGIN_DEVELOPMENT.md for the full guide.",
+  "category": "channel",
   "style": "style.css",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "main": "main.js"
 }

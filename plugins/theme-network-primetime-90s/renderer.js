@@ -39,5 +39,5 @@ window.RCBPlugins.registerThemePack('network-primetime-90s', {
     });
   },
 
-  borderImage: 'app://plugins/theme-network-primetime-90s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

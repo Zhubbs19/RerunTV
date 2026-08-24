@@ -12,6 +12,7 @@ import { pad2, toDatetimeLocalValue } from './util.js';
 import { buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
 import { runCoreHooks, themePackEntries } from './plugins.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
+import { initBackups, renderBackupsList as renderBackupsListFeature } from './setup-backups.js';
 import { renderCommercialsPanel, renderInterstitialsList, renderPresetsList, renderStandbyPanel } from './setup-interstitials.js';
 import { initFlowBuilder, renderFlowsList } from './setup-interstitials-flowbuilder.js';
 import { renderAutoCurateList } from './setup-autocurate.js';
@@ -23,12 +24,11 @@ import { hidePinLockScreen } from './pin-lock.js';
 import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
-  backupsListEl, backupsRefreshBtn, backupsSnapshotNowBtn,
   clock24El, detailsEnabledEl,
   guideSlotsSelect, hintBarEnabledEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider, logoBugEditorEl, movieModeEnabledEl, pictureModeSelect,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
-  viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
+  viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
@@ -428,17 +428,17 @@ const HELP_GUIDE = [
     'VINTAGE CRT AUDIO FILTER & SFX softens the sound a bit and can add a faint hum and mechanical click sounds, for that old-TV-speaker feel.',
   ] },
   { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
-    'Under WATCH ON OTHER DEVICES, REMOTE CONTROL gives you a web address you can open in any browser on a phone or tablet on the same WiFi — no app needed. It shows a full remote: number entry, channel up/down, volume, mute, guide, menu, and every shortcut listed in SECTION 8 and the shortcuts panel below.',
+    'Enable PHONE REMOTE LAN ACCESS in the Universal Remote plugin, save, and restart. Its pairing link opens a full remote in any browser on the same WiFi; the short code is exchanged for a private session before controls or channel data are available.',
     'NOTE: This only works on your home WiFi, not over cellular data or from outside the house.',
     'TIP: If the remote page won\'t load, double check your phone is on the exact same WiFi network as the box (not a guest network) — that\'s the most common issue.',
   ] },
   { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.3 Watching on Other Screens (The LAN Viewer)', body: [
-    'There\'s a second web address, also under WATCH ON OTHER DEVICES, that shows a live view of whatever channel is currently playing — on a laptop, a tablet, or a second TV anywhere on your network. Nothing to sign in or set up.',
-    'NOTE: Everyone watching sees the exact same channel as the main box. Change the channel at the box (or from the remote) and every viewer switches along with it.',
+    'WATCH ON OTHER DEVICES is off by default. Enable it, save, and restart, then open its pairing link on a laptop, tablet, or second TV. The viewer receives schedule data and opaque media ids, never host filesystem paths.',
+    'NOTE: Each paired viewer is an independent read-only instance of the channel lineup and can tune locally without changing the main box.',
     'There\'s also an early Android TV app included in this project for a proper big-screen version of the same viewer, if you\'re comfortable building it yourself.',
   ] },
   { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.4 The Party Page (Guest Bulletin & Jukebox)', body: [
-    'When the PARTY channel (see SECTION 7) is turned on, it shows a QR code that opens a web page for your guests — no app, no account needed. It lets anyone at the party join in from their own phone.',
+    'When the PARTY channel (see SECTION 7) is enabled and RerunTV restarted, it shows a pairing QR code for the guest page. Guests need no account, but must use that host-issued link before posting or controlling party features.',
     'From that page, a guest can: post a photo or short video to the screen, send a text-to-speech announcement, play a sound effect, join a trivia round, submit a caption contest entry, vote for what plays next, check in on the guest wall, and — if the jukebox is turned on — add or vote to skip a song.',
     'TIP: The QR code shows right on screen whenever the PARTY channel is idle, so guests can just scan it — no need to read a URL out loud over the music.',
     'NOTE: Anything posted from the party page only lasts for that session — it\'s not saved permanently, and clears out the next time the box restarts.',
@@ -527,6 +527,7 @@ function renderHelpGuide() {
     const header = document.createElement('div');
     header.className = 'help-guide-card-header';
     header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', String(open));
     header.tabIndex = 0;
     const chevron = document.createElement('span');
     chevron.className = 'help-guide-chevron';
@@ -538,6 +539,7 @@ function renderHelpGuide() {
     const toggle = () => {
       const nowOpen = card.classList.toggle('open');
       chevron.textContent = nowOpen ? '▾' : '▸';
+      header.setAttribute('aria-expanded', String(nowOpen));
     };
     header.addEventListener('click', toggle);
     header.addEventListener('keydown', (e) => {
@@ -1063,15 +1065,27 @@ if (virtualFilterInputEl) {
 // this same app (browser-api-shim.js), tuning its own channel and seeing
 // the exact same breaks/bumpers/CRT effects the host does.
 export function renderViewerUrlStatus() {
+  viewerEnabledEl.checked = !!(S.config.network && S.config.network.viewerEnabled);
+  if (!viewerEnabledEl.checked) {
+    viewerUrlStatusEl.textContent = 'Off by default. Enable this, save, and restart RerunTV to accept paired viewers.';
+    return;
+  }
   window.api.getViewerUrl().then((candidates) => {
     if (!candidates || !candidates.length) {
-      viewerUrlStatusEl.textContent = 'No network connection found — connect this computer to WiFi/ethernet to watch on other devices.';
+      viewerUrlStatusEl.textContent = 'Viewer access is enabled but not active yet. Restart RerunTV, or connect this computer to WiFi/ethernet.';
       return;
     }
     const list = candidates.map((c) => `${c.url} (${c.name})`).join(', ');
-    viewerUrlStatusEl.textContent = `Open one of these on any phone/tablet/TV browser (same WiFi) to watch live — read-only, no login: ${list}`;
+    viewerUrlStatusEl.textContent = `Open a pairing link on the other device. The code is exchanged for a private read-only session: ${list}`;
   });
 }
+
+viewerEnabledEl.addEventListener('change', () => {
+  if (!S.config.network) S.config.network = { viewerEnabled: false, remoteEnabled: false };
+  S.config.network.viewerEnabled = viewerEnabledEl.checked;
+  saveConfigDebounced();
+  viewerUrlStatusEl.textContent = `${viewerEnabledEl.checked ? 'Viewer access will start' : 'Viewer access will stop'} after RerunTV restarts.`;
+});
 
 // Host visibility into who's actually on the LAN right now — see
 // trackConnection/getConnectedDevices (main.js). Polled on an interval
@@ -1123,117 +1137,16 @@ export function renderConnectedDevices() {
 // snapshot, so only that row plays a reveal — not every row on a plain
 // refresh/tab-switch re-list (listBackups sorts newest-first, so a new
 // snapshot is always index 0).
-let justSnapshotted = false;
-
-function formatBackupTimestamp(mtimeMs) {
-  const d = new Date(mtimeMs);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
 export function renderBackupsList() {
-  window.api.listBackups().then((backups) => {
-    backupsListEl.innerHTML = '';
-    if (!backups || !backups.length) {
-      const empty = document.createElement('div');
-      empty.className = 'titles-empty';
-      empty.textContent = 'NO BACKUPS YET — ONE IS TAKEN AUTOMATICALLY AT THE START OF EACH SESSION.';
-      backupsListEl.appendChild(empty);
-      return;
-    }
-    backups.forEach((b, i) => {
-      const row = document.createElement('div');
-      row.className = 'block-row';
-      if (justSnapshotted && i === 0) row.classList.add('reveal');
-
-      const label = document.createElement('span');
-      label.className = 'block-count';
-      label.textContent = `${formatBackupTimestamp(b.mtimeMs)} (${Math.max(1, Math.round(b.size / 1024))} KB)`;
-      if (b.label) {
-        const tag = document.createElement('span');
-        tag.className = 'backup-label-tag';
-        tag.textContent = b.label;
-        label.appendChild(tag);
-      }
-      row.appendChild(label);
-
-      const labelBtn = document.createElement('button');
-      labelBtn.className = 'btn';
-      labelBtn.textContent = b.label ? 'RELABEL' : '+ LABEL';
-      labelBtn.addEventListener('click', async () => {
-        const next = window.prompt('Label this backup (e.g. "before reorganizing Nickelodeon") — blank to clear:', b.label || '');
-        if (next === null) return; // cancelled
-        try {
-          await window.api.setBackupLabel(b.file, next);
-          renderBackupsList();
-        } catch (e) {
-          alertDialog(`Couldn't save that label: ${e.message}`, { variant: 'error' });
-        }
-      });
-      row.appendChild(labelBtn);
-
-      const restoreBtn = document.createElement('button');
-      restoreBtn.className = 'btn';
-      restoreBtn.textContent = 'RESTORE';
-      restoreBtn.addEventListener('click', async () => {
-        if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(b.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
-        try {
-          const restored = await window.api.restoreBackup(b.file);
-          S.config = applyConfigDefaults(restored);
-          pushUndoSnapshot();
-          renderChannelList();
-          renderCommercialsPanel();
-          renderStandbyPanel();
-          renderSettingsPanels();
-        } catch (e) {
-          alertDialog(`Restore failed: ${e.message}`, { variant: 'error' });
-        }
-      });
-      row.appendChild(restoreBtn);
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'btn remove-btn';
-      deleteBtn.textContent = 'DELETE';
-      deleteBtn.addEventListener('click', async () => {
-        if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(b.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
-        try {
-          await window.api.deleteBackup(b.file);
-          renderBackupsList();
-        } catch (e) {
-          alertDialog(`Delete failed: ${e.message}`, { variant: 'error' });
-        }
-      });
-      row.appendChild(deleteBtn);
-
-      backupsListEl.appendChild(row);
-    });
-    justSnapshotted = false;
-  });
+  return renderBackupsListFeature();
 }
-
-backupsRefreshBtn.addEventListener('click', () => renderBackupsList());
-
-// Forces an immediate snapshot (bypassing the normal 15-min rate limit,
-// main-config.js) and prompts for a label right away, so "before I do
-// something risky" is a real one-click action instead of hoping the next
-// automatic snapshot happens to land before the risky edit.
-backupsSnapshotNowBtn.addEventListener('click', async () => {
-  backupsSnapshotNowBtn.disabled = true;
-  try {
-    const file = await window.api.createBackupNow();
-    if (!file) {
-      alertDialog('Nothing to snapshot yet — there\'s no config on disk (a fresh install before the first save).');
-      return;
-    }
-    const label = window.prompt('Label this snapshot (optional):', '');
-    if (label && label.trim()) await window.api.setBackupLabel(file, label);
-    justSnapshotted = true;
-    renderBackupsList();
-  } catch (e) {
-    alertDialog(`Snapshot failed: ${e.message}`, { variant: 'error' });
-  } finally {
-    backupsSnapshotNowBtn.disabled = false;
-  }
+initBackups((restored) => {
+  S.config = applyConfigDefaults(restored);
+  pushUndoSnapshot();
+  renderChannelList();
+  renderCommercialsPanel();
+  renderStandbyPanel();
+  renderSettingsPanels();
 });
 
 crtScanlinesSlider.addEventListener('input', () => {

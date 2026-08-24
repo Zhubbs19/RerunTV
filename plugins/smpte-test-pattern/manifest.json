@@ -4,5 +4,6 @@
   "version": "1.0.0",
   "description": "Classic color-bar test pattern shown instead of a plain \"NO SIGNAL\" card when you tune to a channel number that isn't configured.",
   "category": "onscreen",
-  "renderer": "renderer.js"
+  "renderer": "renderer.js",
+  "settings": "settings.js"
 }

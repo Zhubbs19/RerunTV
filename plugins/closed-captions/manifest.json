@@ -6,6 +6,7 @@
   "category": "onscreen",
   "main": "main.js",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "isolated": true,
   "dataDir": "closed-captions",
   "dependsOn": ["ffmpeg-transcode"],

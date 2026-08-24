@@ -4,9 +4,9 @@
 // manifest.json:
 //   { "id": "my-plugin", "name": "My Plugin", "version": "1.0.0",
 //     "description": "...", "style": "style.css", "renderer": "index.js",
-//     "main": "main.js" }
-// All three of style/renderer/main are optional — a plugin can be pure CSS,
-// pure renderer UI, pure main-process integration, or any mix.
+//     "settings": "settings.js", "main": "main.js" }
+// All four entry points are optional — a plugin can be pure CSS, runtime
+// renderer UI, settings UI, main-process integration, or any mix.
 //
 // Trust model: by default, main.js plugin code runs via require() in the
 // Electron main process — full Node/Electron access (ipcMain, child_process,
@@ -22,9 +22,11 @@
 const { app, ipcMain, shell, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const { activateIsolatedPlugin, callAnyService } = require('./main-plugin-isolation');
 const { isPathContained } = require('./main-path-safety');
+const { createLanAccess, isLanServiceEnabled } = require('./main-lan-security');
 const {
   normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
   createCheckedSpawn, createCheckedServer, createCheckedFs,
@@ -42,11 +44,11 @@ function ensurePluginsDir() {
 
 // Plugins the app ships with itself (./plugins/<id>/, bundled the same way
 // as main-*.js — included in electron-builder's `files`), as opposed to
-// third-party plugins a user drops into userData/plugins/ by hand. Copied
-// into userData/plugins/ once on first boot after they're introduced, same
-// one-way "never overwrite" semantics as the userData migration copy in
-// main-config.js — so a user who edits a bundled plugin's installed copy
-// has that respected on every later boot, not stomped by a re-seed.
+// third-party plugins a user drops into userData/plugins/ by hand. App-owned
+// copies are refreshed whenever their shipped source hash changes; an
+// untracked folder that merely collides with a bundled id is never adopted
+// or overwritten. Local edits to an app-owned bundled copy survive ordinary
+// restarts, but a later app update to that same plugin intentionally wins.
 // In a packaged build, plugins/ is unpacked from the asar (package.json's
 // asarUnpack — the seeding copy below uses fs.cpSync, which doesn't get
 // Electron's usual transparent asar-read redirection the way readFile/
@@ -82,25 +84,74 @@ function isBundledPluginId(id) {
 // one. A plain JSON file rather than a config field: this is loader
 // bookkeeping, not user-facing config, and keeping it here means it doesn't
 // need to coordinate with channels.json's own separate load/save timing.
-// Read/write are both best-effort — a missing or corrupt manifest just means
-// this boot treats every currently-bundled id as newly-seeded (see
-// seedBundledPlugins() below), which only affects the auto-removal below,
-// never the copy-in step.
+// Read/write are both best-effort. A missing/corrupt ledger makes existing
+// folders untracked and therefore preserves them; genuinely missing bundled
+// folders can still be seeded safely on that boot.
 function seededManifestPath() {
   return path.join(getPluginsDir(), '.bundled-manifest.json');
 }
 function loadSeededManifest() {
   try {
     const parsed = JSON.parse(fs.readFileSync(seededManifestPath(), 'utf-8'));
-    return Array.isArray(parsed) ? parsed : [];
+    if (Array.isArray(parsed)) return new Map(parsed.map((id) => [id, null]));
+    if (parsed && parsed.version === 2 && parsed.plugins && typeof parsed.plugins === 'object') {
+      return new Map(Object.entries(parsed.plugins));
+    }
+    return new Map();
   } catch (e) {
-    return [];
+    return new Map();
   }
 }
-function saveSeededManifest(ids) {
+function saveSeededManifest(entries) {
   try {
-    fs.writeFileSync(seededManifestPath(), JSON.stringify(ids.slice().sort()));
+    const plugins = Object.fromEntries(Array.from(entries).sort(([a], [b]) => a.localeCompare(b)));
+    fs.writeFileSync(seededManifestPath(), JSON.stringify({ version: 2, plugins }));
   } catch (e) { /* best-effort — worst case, next boot re-derives from scratch */ }
+}
+
+function hashDirectory(dir) {
+  const hash = crypto.createHash('sha256');
+  function visit(current, relative = '') {
+    fs.readdirSync(current, { withFileTypes: true })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .forEach((entry) => {
+        const rel = path.join(relative, entry.name);
+        hash.update(rel.replace(/\\/g, '/'));
+        const absolute = path.join(current, entry.name);
+        if (entry.isDirectory()) visit(absolute, rel);
+        else if (entry.isFile()) hash.update(fs.readFileSync(absolute));
+      });
+  }
+  visit(dir);
+  return hash.digest('hex');
+}
+
+// Integrity records live outside plugin folders so plugin code cannot edit
+// its own expected hash. ZIP installs are recorded immediately after a
+// successful extraction; manually copied plugins must be explicitly trusted
+// once. A later byte change blocks main/renderer/CSS activation until the
+// user reviews and trusts the new hash.
+function integrityManifestPath() {
+  return path.join(getPluginsDir(), '.plugin-integrity.json');
+}
+function loadIntegrityManifest() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(integrityManifestPath(), 'utf-8'));
+    return parsed && parsed.version === 1 && parsed.plugins && typeof parsed.plugins === 'object'
+      ? parsed.plugins : {};
+  } catch (e) { return {}; }
+}
+function saveIntegrityManifest(plugins) {
+  fs.writeFileSync(integrityManifestPath(), JSON.stringify({ version: 1, plugins }, null, 2));
+}
+function recordPluginIntegrity(id, hash) {
+  const plugins = loadIntegrityManifest();
+  plugins[id] = { hash, trustedAt: new Date().toISOString() };
+  saveIntegrityManifest(plugins);
+}
+function removePluginIntegrity(id) {
+  const plugins = loadIntegrityManifest();
+  if (plugins[id]) { delete plugins[id]; saveIntegrityManifest(plugins); }
 }
 
 function seedBundledPlugins() {
@@ -112,12 +163,23 @@ function seedBundledPlugins() {
   }
   const dest = ensurePluginsDir();
   const bundledIds = new Set(folders.map((f) => f.name));
-  const seeded = new Set(loadSeededManifest());
+  const seeded = loadSeededManifest();
 
   for (const folder of folders) {
+    const sourceDir = path.join(BUNDLED_PLUGINS_DIR, folder.name);
     const destDir = path.join(dest, folder.name);
-    if (!fs.existsSync(destDir)) fs.cpSync(path.join(BUNDLED_PLUGINS_DIR, folder.name), destDir, { recursive: true });
-    seeded.add(folder.name); // whether freshly copied or already present — either way it's bundled-sourced
+    const sourceHash = hashDirectory(sourceDir);
+    if (!fs.existsSync(destDir)) {
+      fs.cpSync(sourceDir, destDir, { recursive: true });
+      seeded.set(folder.name, sourceHash);
+    } else if (seeded.has(folder.name)) {
+      // A null hash is the old v1 array ledger: refresh once while upgrading
+      // it so existing installs receive newly added settings/runtime files.
+      if (seeded.get(folder.name) !== sourceHash) {
+        fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+      }
+      seeded.set(folder.name, sourceHash);
+    }
   }
 
   // A previously-seeded id whose bundled source no longer exists — remove
@@ -128,13 +190,13 @@ function seedBundledPlugins() {
   // was already stale before this tracking existed isn't retroactively
   // identified (no history to check it against), and needs a one-time
   // manual cleanup the same way it always did.
-  for (const id of Array.from(seeded)) {
+  for (const id of Array.from(seeded.keys())) {
     if (bundledIds.has(id)) continue;
     try { fs.rmSync(path.join(dest, id), { recursive: true, force: true }); } catch (e) { /* best-effort */ }
     seeded.delete(id);
   }
 
-  saveSeededManifest(Array.from(seeded));
+  saveSeededManifest(seeded);
 }
 
 // Capability normalization/signing (normalizeCapabilities, used below, and
@@ -143,13 +205,15 @@ function seedBundledPlugins() {
 // logic — see that file's header comment for why it's a separate module.
 
 // Reads every <pluginsDir>/<folder>/manifest.json, returning {id, name,
-// version, description, style, renderer, main, dir, error} per entry — a
+// version, description, style, renderer, settings, main, dir, error} per entry — a
 // malformed manifest or duplicate id shows up as `error` rather than
 // throwing, so one broken plugin folder can't take the rest down with it.
 function discoverPlugins() {
   const dir = ensurePluginsDir();
   const seen = new Set();
   const results = [];
+  const integrityManifest = loadIntegrityManifest();
+  const seededManifest = loadSeededManifest();
   let folders;
   try {
     folders = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory());
@@ -171,6 +235,17 @@ function discoverPlugins() {
         continue;
       }
       seen.add(manifest.id);
+      // A matching source id alone is not ownership: an untracked folder may
+      // intentionally collide with a bundled id and seedBundledPlugins()
+      // promises not to adopt it. Only the external seeding ledger proves
+      // this installed copy is app-owned.
+      const bundled = isBundledPluginId(manifest.id) && seededManifest.has(folder.name);
+      const integrityHash = hashDirectory(pluginDir);
+      const integrityRecord = integrityManifest[manifest.id];
+      const bundledSourceMatches = bundled && seededManifest.get(folder.name) === integrityHash;
+      const integrityStatus = bundledSourceMatches ? 'bundled'
+        : integrityRecord && integrityRecord.hash === integrityHash ? 'verified'
+          : bundled || integrityRecord ? 'modified' : 'unverified';
       results.push({
         id: manifest.id,
         name: manifest.name || manifest.id,
@@ -185,6 +260,7 @@ function discoverPlugins() {
         category: typeof manifest.category === 'string' ? manifest.category : null,
         style: manifest.style || null,
         renderer: manifest.renderer || null,
+        settings: manifest.settings || null,
         main: manifest.main || null,
         dependsOn: Array.isArray(manifest.dependsOn) ? manifest.dependsOn : [],
         // A root-level userData/ folder this plugin owns beyond its own
@@ -212,7 +288,9 @@ function discoverPlugins() {
         isolated: manifest.isolated === true,
         // See isBundledPluginId() above — gates whether the PLUGINS tab
         // offers FULLY UNINSTALL (bundled plugins would just come back).
-        bundled: isBundledPluginId(manifest.id),
+        bundled,
+        integrityHash,
+        integrityStatus,
         dir: folder.name,
       });
     } catch (e) {
@@ -292,6 +370,8 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     spawn: createCheckedSpawn(manifest.id, allowedSpawn),
     createServer: createCheckedServer(manifest.id, allowedPorts),
     fs: createCheckedFs(manifest.id, dataDir),
+    createLanAccess,
+    isLanServiceEnabled,
     // Symmetric with the isolated runtime's ctx.registerService/callService
     // (plugin-isolation-runtime.js) — same shared baseCtx.services object
     // and the same cross-process-aware resolution (callAnyService,
@@ -347,6 +427,7 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const plugins = orderByDependencies(allPlugins.filter((plugin) => !plugin.error && plugin.main && !disabled.has(plugin.id)));
   const loadErrors = {};
   const needsApproval = [];
+  const needsIntegrityApproval = [];
   // providerId -> pluginId, for every mediaSource capability entry belonging
   // to a plugin that actually activated (not skipped for approval, not
   // errored) — main-media-dispatch.js's dispatch layer checks a
@@ -359,6 +440,10 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const baseCtx = { ipcMain, app, shell, desktopCapturer, ...extraCtx };
   const appRootDir = path.join(__dirname, '..');
   for (const plugin of plugins) {
+    if (plugin.integrityStatus === 'unverified' || plugin.integrityStatus === 'modified') {
+      needsIntegrityApproval.push(plugin.id);
+      continue; // eslint-disable-line no-continue
+    }
     const signature = capabilitiesSignature(plugin.capabilities);
     const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length
       || plugin.capabilities.net.length || plugin.capabilities.mediaSource.length;
@@ -391,7 +476,7 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
     }
   }
   return {
-    loadErrors, needsApproval, allPlugins, activatedMediaSourceProviders,
+    loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders,
   };
 }
 
@@ -473,6 +558,7 @@ function installPluginFromZip(zipPath, opts) {
       fs.mkdirSync(path.dirname(outPath), { recursive: true });
       fs.writeFileSync(outPath, entry.getData());
     });
+    recordPluginIntegrity(manifest.id, hashDirectory(destDir));
   } catch (e) {
     try { fs.rmSync(destDir, { recursive: true, force: true }); } catch (e2) { /* best-effort cleanup of a partial extract */ }
     return { success: false, error: `Extraction failed (${e.message}).` };
@@ -496,6 +582,7 @@ function uninstallPlugin(id) {
   const pluginDir = path.join(getPluginsDir(), plugin.dir);
   try {
     fs.rmSync(pluginDir, { recursive: true, force: true });
+    removePluginIntegrity(id);
   } catch (e) {
     return { success: false, error: `Couldn't remove the plugin folder (${e.message}).` };
   }
@@ -548,5 +635,5 @@ function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
 
 module.exports = {
   getPluginsDir, ensurePluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip,
-  uninstallPlugin, registerFallbackHandlers,
+  uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity,
 };

@@ -82,14 +82,25 @@ const TYPE_COLORS = {
 // own comment for why this replaces relying on placeholder text alone.
 // Exported for setup-interstitials-flowbuilder.js, which builds its own
 // step-editor form rows the same way.
+let fieldLabelId = 0;
 export function labeledField(labelText, controlEl, opts) {
   const wrap = document.createElement('div');
   wrap.className = 'field' + (opts && opts.wide ? ' field-span-full' : '');
   const label = document.createElement('span');
   label.className = 'field-label';
   label.textContent = labelText;
+  fieldLabelId += 1;
+  label.id = `setup-field-label-${fieldLabelId}`;
   wrap.appendChild(label);
   wrap.appendChild(controlEl);
+  const controls = controlEl.matches && controlEl.matches('input, select, textarea')
+    ? [controlEl]
+    : Array.from(controlEl.querySelectorAll ? controlEl.querySelectorAll('input, select, textarea') : []);
+  controls.forEach((control) => {
+    if (!control.getAttribute('aria-label') && !control.getAttribute('aria-labelledby')) {
+      control.setAttribute('aria-labelledby', label.id);
+    }
+  });
   return wrap;
 }
 

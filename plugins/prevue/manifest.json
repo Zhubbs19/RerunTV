@@ -5,5 +5,6 @@
   "description": "Virtual CH 1 — the classic scrolling program-guide channel, listing every configured channel's NOW/NEXT lineup. Always on — CH 1 can't be disabled independently of this plugin.",
   "category": "channel",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "style": "style.css"
 }

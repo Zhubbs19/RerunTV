@@ -5,5 +5,5 @@
 window.RCBPlugins.registerThemePack('emerald-matrix', {
   group: 'STYLIZED',
   label: '90s CYBER TERMINAL (MATRIX PHOSPHOR GREEN)',
-  borderImage: 'app://plugins/theme-emerald-matrix/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

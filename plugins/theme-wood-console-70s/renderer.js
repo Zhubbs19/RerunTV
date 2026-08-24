@@ -36,5 +36,5 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
     crackle: { minMs: 4000, maxMs: 14000, gain: [0.05, 0.09], filterFreq: [150, 500] },
   },
 
-  borderImage: 'app://plugins/theme-wood-console-70s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

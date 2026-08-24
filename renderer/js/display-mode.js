@@ -4,6 +4,7 @@
 // affects object-fit on #player.
 import { getChannel } from './channels.js';
 import { displayFrameEl, player } from './dom.js';
+import { getPluginChannelDisplaySettings, getPluginChannelEntryForNumber } from './plugins.js';
 import { computeLivePosition } from './schedule.js';
 import { S } from './state.js';
 
@@ -173,13 +174,26 @@ function autoDetectResolution(ch) {
   return byVideoSize || byEra || 'native';
 }
 
-// Top-level resolution decision: a per-channel override (setup-channels.js)
-// wins outright when set — including its own independent 'auto' choice —
-// and only falls through to the box-wide RESOLUTION select (DISPLAY tab,
-// itself possibly 'auto' too) when the channel has no override at all.
+// Finds the registerChannelType definition for the current channel number
+// when that number isn't in S.config.channels (i.e. it's a virtual plugin
+// channel). Used as a fallback by the two resolve functions below so plugin
+// channels can use the generic plugin settings namespace. Definition fields
+// remain a backward-compatible/default fallback for older plugins.
+function pluginChannelDisplaySettingsForNumber(number) {
+  const entry = getPluginChannelEntryForNumber(number);
+  return entry ? getPluginChannelDisplaySettings(entry.id, entry.definition) : null;
+}
+
+// Top-level resolution decision: a per-channel override wins outright when
+// set — including its own independent 'auto' choice — and only falls through
+// to the box-wide RESOLUTION select (DISPLAY tab, itself possibly 'auto'
+// too) when the channel has no override at all.
+// Regular user-channel overrides live on the channel config entry; virtual
+// plugin-channel overrides live in config.pluginSettings.
 function resolveEffectiveResolution(dm) {
   const ch = getChannel(S.currentNumber);
-  const override = ch && ch.resolutionOverride;
+  const override = (ch && ch.resolutionOverride)
+    || (!ch && (pluginChannelDisplaySettingsForNumber(S.currentNumber) || {}).resolutionOverride);
   if (override === 'auto') return autoDetectResolution(ch);
   if (override) return override;
   const boxWide = dm.resolution || 'native';
@@ -192,10 +206,10 @@ function resolveEffectiveResolution(dm) {
 //     videoWidth/videoHeight) — whichever of 4:3/16:9 its ratio sits closer
 //     to. Unlike resolution's video-size signal (only trusted as a POSITIVE
 //     signal for a low tier, since a re-encode can raise pixel count
-//     without changing "era"), a file's actual aspect ratio is reliable
+//     without changing \"era\"), a file's actual aspect ratio is reliable
 //     evidence of its shape regardless of encode history, so this is
 //     authoritative whenever metadata is available — no high-res-style
-//     "inconclusive" case to fall through on.
+//     \"inconclusive\" case to fall through on.
 //  2. The currently-airing file's facets.era, split at 1998 (roughly when
 //     16:9 broadcast/DVD content became common) — same free-text,
 //     best-effort fallback as the resolution era check.
@@ -224,12 +238,14 @@ function autoDetectAspect(ch) {
   return byVideoSize || byEra || '16:9';
 }
 
-// Top-level aspect decision — same "per-channel override (incl. its own
-// AUTO) beats box-wide (incl. its own AUTO)" shape as
-// resolveEffectiveResolution above.
+// Top-level aspect decision — same \"per-channel override (incl. its own
+// AUTO) beats box-wide (incl. its own AUTO)\" shape as
+// resolveEffectiveResolution above. Same plugin-channel fallback too:
+// plugin channels resolve their saved value through the plugin registry.
 function resolveEffectiveAspect(dm) {
   const ch = getChannel(S.currentNumber);
-  const override = ch && ch.displayAspectOverride;
+  const override = (ch && ch.displayAspectOverride)
+    || (!ch && (pluginChannelDisplaySettingsForNumber(S.currentNumber) || {}).displayAspectOverride);
   if (override === 'auto') return autoDetectAspect(ch);
   if (override) return override;
   const boxWide = dm.aspect || '16:9';

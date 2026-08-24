@@ -1,7 +1,7 @@
 // ---------- Party channel (PARTY_CH) — LAN guest page ----------
 // Migrated from core main-party-server.js. A LAN-facing server (independent
-// of the remote/viewer ones, same "no auth in v1, LAN trust model" — see
-// universal-remote) serving the guest-facing party/ page and its actions:
+// of the remote/viewer ones) serving the guest-facing party/ page and its actions.
+// It binds only when PARTY CHANNEL is enabled at boot and requires pairing:
 // posting a photo/video to the bulletin, sending a text-to-speech
 // announcement, playing a soundboard sting, trivia, caption contest,
 // vote-for-next, check-in, effects, and reactions. All relay to the
@@ -110,13 +110,18 @@ function readRawBody(req) {
 // let alone hand it out by name.
 const PARTY_PORT = 8726;
 
-function activate(ctx) {
+async function activate(ctx) {
   const {
     ipcMain, spawn, createServer, fs: pluginFs, sendToMainWindow, trackConnection, mimeFor, readJsonBody, serveStatic,
-    loadConfig, busboy, QRCode, getLanAddresses, getViewerUrls,
+    loadConfig, busboy, QRCode, getLanAddresses, getViewerUrls, createLanAccess, isLanServiceEnabled,
   } = ctx;
   const partyPort = PARTY_PORT;
-  const getPartyUrls = () => getLanAddresses().map((c) => ({ name: c.name, url: `http://${c.address}:${partyPort}` }));
+  const bootConfig = await loadConfig();
+  const lanEnabled = isLanServiceEnabled(bootConfig, 'party');
+  const access = lanEnabled ? createLanAccess('party', { readLimit: 600, writeLimit: 90 }) : null;
+  const getPartyUrls = () => access ? getLanAddresses().map((c) => ({
+    name: c.name, url: access.pairingUrl(`http://${c.address}:${partyPort}`),
+  })) : [];
 
   // ctx.fs.dataDir (buildCheckedCtx, main-plugins.js) is this plugin's
   // declared "party-uploads" dataDir, already resolved to an absolute
@@ -130,6 +135,12 @@ function activate(ctx) {
     let caption = '';
     let saved = null; // {kind, path}
     let fileTooBig = false;
+    let responseSent = false;
+    const reply = (status, body = '', headers = {}) => {
+      if (responseSent) return;
+      responseSent = true;
+      res.writeHead(status, headers).end(body);
+    };
     // busboy's own 'close' fires once the incoming multipart body has been
     // fully *read*, which can race ahead of the file's writeStream actually
     // finishing its flush to disk (confirmed live — a small test upload
@@ -154,30 +165,39 @@ function activate(ctx) {
       const destPath = path.join(partyUploadsDir(), filename);
       const writeStream = pluginFs.createWriteStream(filename);
       fileStream.on('limit', () => { fileTooBig = true; });
-      fileStream.pipe(writeStream);
       writesFinished.push(new Promise((resolve) => {
-        writeStream.on('close', () => {
-          if (fileTooBig) { pluginFs.unlink(filename, () => {}); resolve(); return; }
-          saved = { kind: mapped.kind, path: destPath };
+        let settled = false;
+        const finish = (ok) => {
+          if (settled) return;
+          settled = true;
+          if (!ok || fileTooBig) pluginFs.unlink(filename, () => {});
+          else saved = { kind: mapped.kind, path: destPath };
           resolve();
+        };
+        writeStream.on('finish', () => finish(true));
+        writeStream.on('error', () => finish(false));
+        fileStream.on('error', () => {
+          writeStream.destroy();
+          finish(false);
         });
       }));
+      fileStream.pipe(writeStream);
     });
 
     bb.on('close', async () => {
       await Promise.all(writesFinished);
       if (!saved) {
-        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'No supported image/video file received' }));
+        reply(400, JSON.stringify({ error: 'No supported image/video file received' }), { 'Content-Type': 'application/json' });
         return;
       }
       sendToMainWindow('party:post', {
         id: `post-${Date.now()}`, kind: saved.kind, path: saved.path, caption,
       });
-      res.writeHead(204).end();
+      reply(204);
     });
 
     bb.on('error', () => {
-      res.writeHead(400).end('Bad request');
+      reply(400, 'Bad request');
     });
 
     req.pipe(bb);
@@ -213,7 +233,8 @@ function activate(ctx) {
   function captureVideoFrame(filePath, timeSeconds) {
     const ffmpegPath = ctx.services.ffmpegPath;
     if (!filePath || !pluginFs.existsSync(filePath) || !ffmpegPath) return Promise.resolve(null);
-    const destPath = path.join(partyUploadsDir(), `caption-${Date.now()}.jpg`);
+    const destName = `caption-${Date.now()}.jpg`;
+    const destPath = path.join(partyUploadsDir(), destName);
     const ss = Math.max(0, timeSeconds || 0);
     return new Promise((resolve) => {
       // Neither stdout nor stderr is read here — 'ignore' avoids opening
@@ -221,13 +242,25 @@ function activate(ctx) {
       // indefinitely on unusually verbose output (see main-media.js's
       // transcodeVideo() spawn for the same reasoning).
       const ff = spawn(ffmpegPath, ['-y', '-ss', String(ss), '-i', filePath, '-frames:v', '1', '-q:v', '3', destPath], { stdio: 'ignore' });
-      ff.on('error', () => resolve(null));
+      let settled = false;
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (!result) pluginFs.unlink(destName, () => {});
+        resolve(result);
+      };
+      const timer = setTimeout(() => {
+        ff.kill();
+        finish(null);
+      }, 30 * 1000);
+      ff.on('error', () => finish(null));
       ff.on('close', (code) => {
         if (code === 0 && pluginFs.existsSync(destPath)) {
           currentCaptionImagePath = destPath;
-          resolve(destPath);
+          finish(destPath);
         } else {
-          resolve(null);
+          finish(null);
         }
       });
     });
@@ -251,9 +284,12 @@ function activate(ctx) {
     }
   }
 
-  const server = createServer(async (req, res) => {
+  let server = null;
+  if (lanEnabled) server = createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const kind = req.method === 'GET' ? 'read' : 'write';
+    if (!(await access.authorize(req, res, url, kind))) return;
     trackConnection('party', req);
-    const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (req.method === 'POST' && url.pathname === '/post') {
       handlePartyPost(req, res);
@@ -491,10 +527,12 @@ function activate(ctx) {
     serveStatic(PARTY_DIR, url.pathname, req, res);
   });
 
-  server.on('error', (err) => {
-    console.error(`Party server failed to start on port ${partyPort}:`, err.message);
-  });
-  server.listen(partyPort, '0.0.0.0');
+  if (server) {
+    server.on('error', (err) => {
+      console.error(`Party server failed to start on port ${partyPort}:`, err.message);
+    });
+    server.listen(partyPort, '0.0.0.0');
+  }
 
   ctx.services.partyReactionEmoji = PARTY_REACTION_EMOJI;
   // Generic "watch live" link capability (see renderer.js's viewerLink on
@@ -503,6 +541,7 @@ function activate(ctx) {
   // the party channel specifically, it just reads whatever URL(s) got
   // published here.
   ctx.services.viewerLiveLinkUrls = getPartyUrls();
+  ctx.services.partyAccessUrls = getPartyUrls();
 
   ipcMain.on('party:queueState', (event, state) => {
     latestPartyQueueState = state && typeof state === 'object' ? state : { current: null, queueLength: 0 };

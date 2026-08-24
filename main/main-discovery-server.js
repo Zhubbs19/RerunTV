@@ -17,7 +17,7 @@ const DISCOVERY_PORT = 41234;
 const DISCOVERY_MAGIC = 'RETRO_CABLE_BOX_DISCOVER';
 const DISCOVERY_REPLY_MAGIC = 'RETRO_CABLE_BOX_HELLO';
 
-function startDiscoveryServer() {
+function startDiscoveryServer(options = {}) {
   const dgram = require('dgram');
   const socket = dgram.createSocket('udp4');
 
@@ -29,8 +29,8 @@ function startDiscoveryServer() {
     if (msg.toString('utf-8') !== DISCOVERY_MAGIC) return;
     const reply = Buffer.from(JSON.stringify({
       magic: DISCOVERY_REPLY_MAGIC,
-      viewerPort: VIEWER_PORT,
-      remotePort: REMOTE_PORT,
+      viewerPort: options.viewerEnabled ? VIEWER_PORT : null,
+      remotePort: options.remoteEnabled ? REMOTE_PORT : null,
       name: os.hostname(),
     }));
     socket.send(reply, rinfo.port, rinfo.address);

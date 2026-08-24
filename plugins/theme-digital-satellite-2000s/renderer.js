@@ -37,5 +37,5 @@ window.RCBPlugins.registerThemePack('digital-satellite-2000s', {
   // digital theme, hiss/crackle would be wrong for it.
   ambientTexture: { type: 'tone', freq: 9200, gain: 0.006 },
 
-  borderImage: 'app://plugins/theme-digital-satellite-2000s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

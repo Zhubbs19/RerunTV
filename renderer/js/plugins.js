@@ -3,11 +3,10 @@
 // At boot (see loadPlugins(), called once from app.js's init()):
 //   1. Fetch the manifest list from the main process (window.api.pluginsList).
 //   2. For each enabled plugin with a `style`, inject a <link> that loads it
-//      from app://plugins/<dir>/<style> — same custom-protocol trick the app
-//      itself is served over (see main-protocol.js), needed because a
-//      non-file:// origin can't load file:// stylesheets.
+//      from app://plugins/<dir>/<style> in Electron or /plugins/<dir>/<style>
+//      in the LAN viewer (see main-protocol.js/main-viewer-server.js).
 //   3. For each enabled plugin with a `renderer` entry, dynamic-import it as
-//      an ES module from the same app://plugins/ origin. The module runs
+//      an ES module from the same plugin asset origin. The module runs
 //      with the RCBPlugins API already on `window` (set up before any
 //      import), so it can call registerChannelType() etc. at top level.
 //
@@ -55,9 +54,14 @@ import { alertDialog } from './setup-dialogs.js';
 import { MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from './util.js';
 import { player } from './dom.js';
+import {
+  applyPluginSettingsSchema, normalizePluginSettingsSchema, redactPluginSettings, validatePluginSettings,
+} from './plugin-settings-schema.js';
 
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
+const settingsSectionRegistry = new Map();
+const settingsSchemaRegistry = new Map();
 const mediaSourcePickerRegistry = new Map();
 const themePackRegistry = new Map();
 const interruptRegistry = new Map();
@@ -86,6 +90,69 @@ export function pluginChannelTypeIds() {
   return Array.from(channelTypeRegistry.keys());
 }
 
+export function getPluginChannelEntryForNumber(number) {
+  for (const [id, definition] of channelTypeRegistry) {
+    if (definition.number === number) return { id, definition };
+  }
+  return null;
+}
+
+// Generic persisted settings owned by the plugin platform. Plugin-specific
+// legacy config can keep living where it already does; shared/type-provided
+// settings use this namespace so core never needs to know a plugin's private
+// config shape. Reads are non-mutating, while writes always use the renderer's
+// normal save funnel so configGeneration and undo/redo stay correct.
+export function getPluginSettings(id) {
+  const root = S.config && S.config.pluginSettings;
+  const settings = root && Object.prototype.hasOwnProperty.call(root, id) ? root[id] : null;
+  return settings && typeof settings === 'object' && !Array.isArray(settings) ? settings : {};
+}
+
+export function updatePluginSettings(id, patch) {
+  if (!id || typeof id !== 'string') throw new Error('updatePluginSettings: id must be a non-empty string');
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    throw new Error(`updatePluginSettings("${id}"): patch must be an object`);
+  }
+  if (!S.config.pluginSettings || typeof S.config.pluginSettings !== 'object' || Array.isArray(S.config.pluginSettings)) {
+    S.config.pluginSettings = {};
+  }
+  const previous = getPluginSettings(id);
+  const next = { ...previous, ...patch };
+  validatePluginSettings(id, next, settingsSchemaRegistry.get(id));
+  Object.defineProperty(S.config.pluginSettings, id, {
+    value: next, enumerable: true, configurable: true, writable: true,
+  });
+  saveConfigDebounced();
+  return S.config.pluginSettings[id];
+}
+
+export function getRedactedPluginSettings(id) {
+  return redactPluginSettings(getPluginSettings(id), settingsSchemaRegistry.get(id));
+}
+
+// Definition fields remain a compatibility/default fallback for plugins
+// written before core-owned channel settings existed. Once a user chooses a
+// value in the generated panel, even an explicit null (INHERIT) wins over the
+// old definition value and is persisted in the generic namespace.
+export function getPluginChannelDisplaySettings(id, definition = getPluginChannelType(id)) {
+  const stored = getPluginSettings(id).channelDisplay;
+  const hasStored = stored && typeof stored === 'object' && !Array.isArray(stored);
+  const hasResolution = hasStored && Object.prototype.hasOwnProperty.call(stored, 'resolutionOverride');
+  const hasAspect = hasStored && Object.prototype.hasOwnProperty.call(stored, 'displayAspectOverride');
+  return {
+    resolutionOverride: hasResolution ? stored.resolutionOverride : ((definition && definition.resolutionOverride) || null),
+    displayAspectOverride: hasAspect ? stored.displayAspectOverride : ((definition && definition.displayAspectOverride) || null),
+  };
+}
+
+export function updatePluginChannelDisplaySettings(id, patch) {
+  const previous = getPluginSettings(id);
+  const channelDisplay = previous.channelDisplay && typeof previous.channelDisplay === 'object' && !Array.isArray(previous.channelDisplay)
+    ? previous.channelDisplay
+    : {};
+  return updatePluginSettings(id, { channelDisplay: { ...channelDisplay, ...patch } });
+}
+
 // A plugin that wants its own settings UI (a toggle, a path field, whatever)
 // registers one of these instead of the app hardcoding a panel for it in
 // index.html — mirrors registerChannelType's shape. render(container, ctx)
@@ -104,6 +171,57 @@ export function registerSettingsPanel(id, definition) {
 
 export function getPluginSettingsPanel(id) {
   return settingsPanelRegistry.get(id) || null;
+}
+
+// New composable settings API. Type-provided sections are assembled by core;
+// plugins contribute only their own sections. registerSettingsPanel above is
+// intentionally retained as a legacy single-section contract.
+export function registerPluginSettings(id, definition) {
+  if (!id || typeof id !== 'string') throw new Error('registerPluginSettings: id must be a non-empty string');
+  if (!definition || !Array.isArray(definition.sections) || !definition.sections.length) {
+    throw new Error(`registerPluginSettings("${id}"): definition.sections must be a non-empty array`);
+  }
+  const schema = normalizePluginSettingsSchema(id, definition);
+  if (schema) {
+    const metaRoot = S.config.pluginSettingsMeta && typeof S.config.pluginSettingsMeta === 'object' && !Array.isArray(S.config.pluginSettingsMeta)
+      ? S.config.pluginSettingsMeta
+      : {};
+    const storedMeta = metaRoot[id] && typeof metaRoot[id] === 'object' ? metaRoot[id] : {};
+    const applied = applyPluginSettingsSchema(id, getPluginSettings(id), storedMeta.schemaVersion, schema);
+    settingsSchemaRegistry.set(id, schema);
+    if (applied.changed) {
+      if (!S.config.pluginSettings || typeof S.config.pluginSettings !== 'object' || Array.isArray(S.config.pluginSettings)) S.config.pluginSettings = {};
+      S.config.pluginSettings[id] = applied.settings;
+      S.config.pluginSettingsMeta = metaRoot;
+      metaRoot[id] = { schemaVersion: applied.version };
+      saveConfigDebounced(0, { skipUndo: true });
+    }
+  }
+  const existing = settingsSectionRegistry.get(id) || [];
+  const seen = new Set(existing.map((section) => section.id));
+  const allowedLayouts = new Set(['stack', 'two-column', 'wide']);
+  const sections = definition.sections.map((section) => {
+    if (!section || !section.id || typeof section.id !== 'string') {
+      throw new Error(`registerPluginSettings("${id}"): every section needs a string id`);
+    }
+    if (seen.has(section.id)) throw new Error(`registerPluginSettings("${id}"): duplicate section id "${section.id}"`);
+    if (typeof section.render !== 'function') {
+      throw new Error(`registerPluginSettings("${id}", "${section.id}"): render(container, ctx) is required`);
+    }
+    const layout = section.layout || 'stack';
+    if (!allowedLayouts.has(layout)) {
+      throw new Error(`registerPluginSettings("${id}", "${section.id}"): layout must be stack, two-column, or wide`);
+    }
+    seen.add(section.id);
+    return { id: section.id, label: section.label || '', layout, render: section.render };
+  });
+  settingsSectionRegistry.set(id, [...existing, ...sections]);
+}
+
+export function getPluginSettingsSections(id) {
+  const sections = settingsSectionRegistry.get(id) || [];
+  const legacy = getPluginSettingsPanel(id);
+  return legacy ? [...sections, { id: 'legacy-panel', label: '', render: legacy.render, legacy: true }] : [...sections];
 }
 
 // A media-source provider plugin's own "browse for a folder" UI —
@@ -358,6 +476,7 @@ function installGlobalApi() {
   window.RCBPlugins = {
     registerChannelType,
     registerSettingsPanel,
+    registerPluginSettings,
     registerMediaSourcePicker,
     registerThemePack,
     getThemePack,
@@ -400,6 +519,8 @@ function installGlobalApi() {
       S, viewNow, player, playTone, playNoiseBurst, getAudioCtx,
       sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, saveConfigDebounced,
       addFilesToChannel, addInterstitialPoolEntry, formatClock, WEEKDAYS, MONTHS,
+      getPluginSettings, updatePluginSettings,
+      getRedactedPluginSettings,
     },
     // Read-only escape hatch for plugins that need something not covered by
     // registerChannelType/registerSettingsPanel yet — kept intentionally
@@ -432,26 +553,32 @@ export async function loadPlugins() {
     if (p.error) { loadErrors.push({ id: p.dir, name: p.dir, error: p.error }); return; }
     if (isDisabled(p)) return;
     if (p.loadError) { loadErrors.push({ id: p.id, name: p.name, error: `(main process) ${p.loadError}` }); return; }
+    if (p.needsIntegrityApproval) return;
     if (p.style) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = `app://plugins/${encodeURIComponent(p.dir)}/${p.style}`;
+      const base = window.__isViewer ? '/plugins' : 'app://plugins';
+      link.href = `${base}/${encodeURIComponent(p.dir)}/${p.style}`;
       link.dataset.pluginId = p.id;
       document.head.appendChild(link);
     }
   });
 
-  // Renderer entries are imported sequentially (not Promise.all) so one
+  // Renderer/settings entries are imported sequentially (not Promise.all) so one
   // plugin's top-level throw can't interleave with another's registration
   // calls in a confusing order — plugin count is small enough that this
   // isn't a meaningful boot-time cost.
   for (const p of manifests) {
-    if (p.error || p.loadError || !p.renderer || isDisabled(p)) continue;
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await import(/* webpackIgnore: true */ `app://plugins/${encodeURIComponent(p.dir)}/${p.renderer}`);
-    } catch (e) {
-      loadErrors.push({ id: p.id, name: p.name, error: e.message });
+    if (p.error || p.loadError || p.needsIntegrityApproval || isDisabled(p)) continue;
+    for (const [kind, entry] of [['renderer', p.renderer], ['settings', p.settings]]) {
+      if (!entry) continue;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const base = window.__isViewer ? '/plugins' : 'app://plugins';
+        await import(/* webpackIgnore: true */ `${base}/${encodeURIComponent(p.dir)}/${entry}`);
+      } catch (e) {
+        loadErrors.push({ id: p.id, name: p.name, error: `(${kind}) ${e.message}` });
+      }
     }
   }
 
@@ -459,6 +586,9 @@ export async function loadPlugins() {
     const lines = loadErrors.map((e) => `${e.name}: ${e.error}`).join('\n');
     alertDialog(`${loadErrors.length} plugin${loadErrors.length === 1 ? '' : 's'} failed to load:\n\n${lines}`, { variant: 'error', title: 'PLUGIN ERROR' });
   }
+  // Also notify any future caller that deliberately reloads/rebuilds plugin
+  // UI outside the initial awaited boot sequence.
+  window.dispatchEvent(new Event('rcb:plugins-loaded'));
 }
 
 // A single user stylesheet, loaded dead last (appended to <head> after every

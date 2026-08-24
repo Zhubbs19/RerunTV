@@ -4,6 +4,8 @@
    territory — this one is darker and warmer toward magenta/black).
    See renderer.js for the registration call. */
 html[data-theme="outrun-synthwave"] {
+  --setup-nav-bg: #150723;
+  --setup-overflow-shadow: rgba(255, 46, 196, 0.55);
   --ink: #170826;
   --ink-deep: #0d0221;
   --cell: #1a0a2e;

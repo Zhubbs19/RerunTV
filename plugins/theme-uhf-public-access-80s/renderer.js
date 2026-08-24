@@ -50,5 +50,5 @@ window.RCBPlugins.registerThemePack('uhf-public-access-80s', {
     crackle: { minMs: 1500, maxMs: 6000, gain: [0.05, 0.1], filterFreq: [1200, 5000] },
   },
 
-  borderImage: 'app://plugins/theme-uhf-public-access-80s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

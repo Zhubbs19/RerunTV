@@ -4,5 +4,5 @@
 // comment for the full field contract.
 window.RCBPlugins.registerThemePack('midnight-oled', {
   label: 'MIDNIGHT LUXURY (OLED INDIGO & GLASS)',
-  borderImage: 'app://plugins/theme-midnight-oled/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

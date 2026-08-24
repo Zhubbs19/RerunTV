@@ -4,5 +4,6 @@
   "version": "1.0.0",
   "description": "Theme-tied ambient audio texture — analog tape hiss/crackle, wood-console hum, UHF static, or satellite carrier tone, depending on the active guide/OSD theme.",
   "category": "onscreen",
-  "renderer": "renderer.js"
+  "renderer": "renderer.js",
+  "settings": "settings.js"
 }

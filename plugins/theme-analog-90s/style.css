@@ -9,6 +9,8 @@
    Set on <html> by applyTheme() in themes.js so both the TV screen and the
    setup/admin screen re-skin together (they share the same token vocabulary). */
 html[data-theme="analog-90s"] {
+  --setup-nav-bg: #0b0905;
+  --setup-overflow-shadow: rgba(255, 176, 0, 0.45);
   --ink: #050400;
   --ink-deep: #000000;
   --cell: #16130a;

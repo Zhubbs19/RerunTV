@@ -1,7 +1,5 @@
-// Renderer half of the starter plugin. Demonstrates a channel
-// (registerChannelType) and a settings panel (registerSettingsPanel) — use
-// either, both, or neither depending on what your plugin actually needs.
-// See PLUGIN_DEVELOPMENT.md for the full API this is built on.
+// Runtime renderer half of the starter plugin. settings.js owns setup UI;
+// core automatically supplies this channel's display override controls.
 
 let currentContainer = null;
 let clockTimer = null;
@@ -28,7 +26,7 @@ window.RCBPlugins.registerChannelType('starter-plugin', {
 
   render(container, ctx) {
     currentContainer = container;
-    const cfg = ctx.S.config.starterPlugin || {};
+    const cfg = ctx.getPluginSettings('starter-plugin');
     const greeting = cfg.greeting || 'Hello, world!';
 
     container.innerHTML = `
@@ -78,28 +76,5 @@ window.RCBPlugins.registerChannelType('starter-plugin', {
       return true;
     }
     return false;
-  },
-});
-
-// --- A settings panel ---
-window.RCBPlugins.registerSettingsPanel('starter-plugin', {
-  render(container, ctx) {
-    if (!ctx.S.config.starterPlugin) ctx.S.config.starterPlugin = {};
-    const cfg = ctx.S.config.starterPlugin;
-
-    container.innerHTML = `
-      <label class="panel-toggle">STARTER PLUGIN</label>
-      <div class="panel-body">
-        <input type="text" data-el="greeting" class="title-row-input" placeholder="Hello, world!" maxlength="60">
-      </div>
-      <span class="panel-status">Whatever you type here shows on the STARTER CHANNEL (900).</span>
-    `;
-
-    const greetingEl = container.querySelector('[data-el="greeting"]');
-    greetingEl.value = cfg.greeting || '';
-    greetingEl.addEventListener('input', () => {
-      cfg.greeting = greetingEl.value;
-      ctx.saveConfigDebounced();
-    });
   },
 });

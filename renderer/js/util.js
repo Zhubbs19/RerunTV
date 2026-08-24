@@ -1,7 +1,8 @@
 import { GUIDE_SLOT_MS, S } from './state.js';
 
 export function getDisplayTitle(file) {
-  return (file.title && file.title.trim()) ? file.title.trim() : guessCleanTitle(basenameNoExt(file.path));
+  if (file.title && file.title.trim()) return file.title.trim();
+  return stripReleaseTags(guessCleanTitle(basenameNoExt(file.path)));
 }
 
 // Most of this library follows "Show - SxxExx - Episode Title" (or just

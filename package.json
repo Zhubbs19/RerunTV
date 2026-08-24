@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "server": "electron . --headless",
+    "test": "node --experimental-vm-modules --test test/*.test.js",
     "pack": "electron-builder --dir",
     "dist": "electron-builder"
   },

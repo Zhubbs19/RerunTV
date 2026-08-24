@@ -2,6 +2,8 @@
    primaries, chunky beveled "3D" buttons (light top/left, dark bottom/right)
    instead of a smooth gradient. See renderer.js for the registration call. */
 html[data-theme="cable-box-osd"] {
+  --setup-nav-bg: #050505;
+  --setup-overflow-shadow: rgba(255, 138, 0, 0.45);
   --ink: #000000;
   --ink-deep: #000000;
   --cell: #0a0a0a;

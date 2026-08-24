@@ -133,6 +133,7 @@ contextBridge.exposeInMainWorld('api', {
   pluginsInstallFromZip: (opts) => ipcRenderer.invoke('plugins:installFromZip', opts),
   pluginsApproveCapabilities: (id, signature) => ipcRenderer.invoke('plugins:approveCapabilities', id, signature),
   pluginsRevokeCapabilities: (id) => ipcRenderer.invoke('plugins:revokeCapabilities', id),
+  pluginsApproveIntegrity: (id, hash) => ipcRenderer.invoke('plugins:approveIntegrity', id, hash),
   pluginsUninstall: (id) => ipcRenderer.invoke('plugins:uninstall', id),
   // Media-source abstraction — see main-media-dispatch.js and
   // PLUGIN_DEVELOPMENT.md's "Media sources" section. listMediaSourceProviders

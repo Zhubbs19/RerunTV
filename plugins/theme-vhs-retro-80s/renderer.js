@@ -4,5 +4,5 @@
 // comment for the full field contract.
 window.RCBPlugins.registerThemePack('vhs-retro-80s', {
   label: '80s RADICAL VHS (HOT CORAL & PURPLE)',
-  borderImage: 'app://plugins/theme-vhs-retro-80s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

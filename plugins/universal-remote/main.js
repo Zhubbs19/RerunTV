@@ -4,10 +4,8 @@
 // remote/ page and relays button presses into the renderer's existing
 // keyboard handler (see handleKey, app.js) via IPC — this is purely a new
 // *input* path alongside the keyboard, nothing about playback/scheduling
-// changes. Bound to 0.0.0.0 so a phone on the same WiFi can reach it;
-// there's no internet exposure since nothing forwards the port, and no auth
-// in v1 (same trust model as a physical remote — anyone on the LAN can use
-// it, same as anyone who can pick up a remote).
+// changes. It only binds after the user opts in, and every client exchanges
+// the host-visible pairing code for an authenticated session first.
 const path = require('path');
 
 const REMOTE_DIR = path.join(__dirname, 'remote');
@@ -16,9 +14,10 @@ const REMOTE_DIR = path.join(__dirname, 'remote');
 // playback.js).
 let latestRemoteState = { number: null, name: null };
 
-function activate(ctx) {
+async function activate(ctx) {
   const {
     ipcMain, createServer, sendToMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, remotePort,
+    getLanAddresses, createLanAccess, isLanServiceEnabled,
   } = ctx;
   // Not a hard dependency (this plugin works fully without it) — just
   // published by the party-channel plugin onto ctx.services if that one's
@@ -28,9 +27,26 @@ function activate(ctx) {
   // can activate without it.
   const partyReactionEmoji = ctx.services.partyReactionEmoji || null;
 
+  ipcMain.on('remote:state', (event, state) => {
+    latestRemoteState = state && typeof state === 'object' ? state : { number: null, name: null };
+  });
+
+  const config = await loadConfig();
+  if (!isLanServiceEnabled(config, 'remote')) {
+    ctx.services.remoteAccessUrls = [];
+    return;
+  }
+  const access = createLanAccess('remote', { readLimit: 600, writeLimit: 90 });
+  const accessUrls = getLanAddresses().map((entry) => ({
+    name: entry.name, url: access.pairingUrl(`http://${entry.address}:${remotePort}`),
+  }));
+  ctx.services.remoteAccessUrls = accessUrls;
+
   const server = createServer(async (req, res) => {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const kind = req.method === 'GET' ? 'read' : 'write';
+    if (!(await access.authorize(req, res, url, kind))) return;
     trackConnection('remote', req);
-    const url = new URL(req.url, `http://${req.headers.host}`);
 
     if (req.method === 'POST' && url.pathname === '/command') {
       try {
@@ -141,9 +157,6 @@ function activate(ctx) {
   });
   server.listen(remotePort, '0.0.0.0');
 
-  ipcMain.on('remote:state', (event, state) => {
-    latestRemoteState = state && typeof state === 'object' ? state : { number: null, name: null };
-  });
 }
 
 module.exports = { activate };

@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="vhs-retro-80s"] {
+  --setup-nav-bg: #1a0833;
+  --setup-overflow-shadow: rgba(255, 51, 102, 0.5);
   --ink: #120b24;
   --ink-deep: #090514;
   --cell: #2a164d;

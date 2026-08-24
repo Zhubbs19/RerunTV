@@ -4,6 +4,8 @@
    rendering headroom for shine or soft shadow. See renderer.js for the
    registration call. */
 html[data-theme="prevue-guide-94"] {
+  --setup-nav-bg: #101b44;
+  --setup-overflow-shadow: rgba(255, 196, 0, 0.45);
   --ink: #0d1740;
   --ink-deep: #060a1c;
   --cell: #1c2f6e;

@@ -8,6 +8,8 @@
    glow. Distinct from cyberpunk-synth/vhs-retro-80s by intent: this one is
    scrappy public-access-at-2am, not a glossy arcade. */
 html[data-theme="uhf-public-access-80s"] {
+  --setup-nav-bg: #0a0316;
+  --setup-overflow-shadow: rgba(255, 71, 202, 0.5);
   --ink: #050014;
   --ink-deep: #02000a;
   --cell: #1c0a33;

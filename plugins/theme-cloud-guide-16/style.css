@@ -3,11 +3,13 @@
    firmware, server-composited UI) that current cable boxes actually run.
    See renderer.js for the registration call. */
 html[data-theme="cloud-guide-16"] {
+  --setup-nav-bg: #0f1524;
+  --setup-overflow-shadow: rgba(47, 111, 237, 0.5);
   --ink: #0f1524;
   --ink-deep: #080b12;
   --cell: #171c2b;
   --cell-alt: #1c2236;
-  --gold: #2f6fed;
+  --gold: #4f83ff;
   --gold-ink: #06090f;
   --cyan: #48d17a;
   --paper: #e7ebf5;
@@ -15,7 +17,7 @@ html[data-theme="cloud-guide-16"] {
   --line: #242b3d;
   --danger: #e0212c;
 
-  --gold-rgb: 47, 111, 237;
+  --gold-rgb: 79, 131, 255;
   --danger-rgb: 224, 33, 44;
   --cyan-rgb: 72, 209, 122;
 

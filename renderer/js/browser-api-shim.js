@@ -4,8 +4,9 @@
 // any page script executes, so window.api exists and this file is a
 // complete no-op there. In a plain LAN browser (the "LAN viewer" feature —
 // see main.js's startViewerServer), nothing has defined window.api yet, so
-// this becomes the real implementation: every method preload.js exposes,
-// backed by HTTP calls to the viewer server instead of Electron IPC.
+// this becomes the real implementation: playback/runtime methods get browser
+// equivalents and setup mutations get explicit inert fallbacks. Host-only
+// surfaces such as updates are deliberately omitted so their panels hide.
 //
 // This is a classic (non-module) script, loaded via a plain <script> tag in
 // index.html BEFORE the `type="module"` app.js script — module scripts are
@@ -14,6 +15,8 @@
 // are guaranteed to exist before any of app.js's imports run.
 (function () {
   if (window.api) return; // Electron's preload already provided the real one
+  const contract = window.RCBApiContract;
+  if (!contract) throw new Error('window.api contract must load before browser-api-shim.js');
 
   window.__isViewer = true;
 
@@ -24,20 +27,23 @@
     };
   }
 
-  window.api = {
+  const browserApi = {
     // ---- Setup/editing actions: intentionally inert on a viewer. A
     // curious user opening Setup here can click around freely, but nothing
     // they do here ever reaches the host's real channels.json.
+    getPathForFile: () => '',
     selectFolder: readOnlyNoop('selectFolder'),
     selectImage: readOnlyNoop('selectImage'),
     selectAudio: readOnlyNoop('selectAudio'),
     selectVideo: readOnlyNoop('selectVideo'),
     selectExecutable: readOnlyNoop('selectExecutable'),
+    selectCss: readOnlyNoop('selectCss'),
     scanFolder: readOnlyNoop('scanFolder'),
     probeDuration: readOnlyNoop('probeDuration'),
     saveConfig: readOnlyNoop('saveConfig'),
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
+    openPrintableManual: readOnlyNoop('openPrintableManual'),
     // A viewer has no host filesystem access and must never rewrite the
     // host's real channels.json from a backup — both stay host-only.
     checkPathsExist: readOnlyNoop('checkPathsExist'),
@@ -50,12 +56,26 @@
     // ---- Config / media: the real read path a viewer needs.
     loadConfig: () => fetch('/api/config').then((r) => r.json()),
     getAppVersion: () => fetch('/api/version').then((r) => r.json()).then((data) => data.version),
-    // Same shape as the app://media/?p=... URL preload's real toFileUrl
-    // returns, just a same-origin relative path instead of Electron's
-    // custom scheme — the viewer server's /media route (main.js) serves it
-    // with the exact same Range-aware file handler the host uses.
-    toFileUrl: (filePath) => Promise.resolve(`/media?p=${encodeURIComponent(filePath)}`),
+    pluginsList: () => fetch('/api/plugins').then((r) => r.json()),
+    pluginsOpenFolder: readOnlyNoop('pluginsOpenFolder'),
+    pluginsSetEnabled: readOnlyNoop('pluginsSetEnabled'),
+    pluginsInstallFromZip: () => Promise.resolve({ cancelled: true }),
+    pluginsApproveCapabilities: readOnlyNoop('pluginsApproveCapabilities'),
+    pluginsRevokeCapabilities: readOnlyNoop('pluginsRevokeCapabilities'),
+    pluginsApproveIntegrity: readOnlyNoop('pluginsApproveIntegrity'),
+    pluginsUninstall: () => Promise.resolve({ success: false, error: 'Plugins can only be uninstalled on the host device' }),
+    listMediaSourceProviders: () => Promise.resolve([]),
+    callMediaSourceHook: () => Promise.resolve(null),
+    // The projected viewer config contains process-scoped `viewer:<id>`
+    // references, never host filesystem paths/provider refs. The authenticated
+    // /media endpoint resolves that id server-side and rejects raw paths.
+    toFileUrl: (filePath) => {
+      const match = /^viewer:([A-Za-z0-9_-]+)$/.exec(String(filePath || ''));
+      return Promise.resolve(match ? `/media?id=${encodeURIComponent(match[1])}` : '');
+    },
     basename: (filePath) => {
+      const opaque = /^viewer:([A-Za-z0-9_-]+)$/.exec(String(filePath || ''));
+      if (opaque) return fetch(`/api/media-name?id=${encodeURIComponent(opaque[1])}`).then((r) => r.json()).then((data) => data.name || 'media');
       const name = String(filePath).split(/[\\/]/).pop() || '';
       const dot = name.lastIndexOf('.');
       return Promise.resolve(dot > 0 ? name.slice(0, dot) : name);
@@ -138,10 +158,13 @@
     // receives those, so a viewer would just never see these fire.
     onPartyPost: () => {},
     onPartyAnnounce: () => {},
+    onPartyNews: () => {},
+    onPartyBingo: () => {},
     onPartySoundboardPlay: () => {},
     onPartyEffect: () => {},
     onPartyCheckin: () => {},
     onPartyVote: () => {},
+    onPartyReaction: () => {},
     sendPartyVoteState: () => {},
     captureVideoFrame: () => Promise.resolve(null),
     onPartyCaption: () => {},
@@ -167,7 +190,10 @@
     // as on the host) silently no-ops instead of erroring on every tune.
     tmdbSearch: () => Promise.resolve({ results: [], error: 'TMDB lookups only run on the host device' }),
     tmdbGetCredits: () => Promise.resolve({ cast: [] }),
+    captionsScanForFile: () => Promise.resolve({ tracks: [] }),
+    captionsExtractTrack: () => Promise.resolve({ error: 'Caption extraction only runs on the host device' }),
     noaaGetActiveAlerts: () => Promise.resolve({ alerts: [] }),
     noaaGetForecast: () => Promise.resolve({ periods: [] }),
   };
+  window.api = contract.createApiSurface(browserApi, 'viewer');
 })();

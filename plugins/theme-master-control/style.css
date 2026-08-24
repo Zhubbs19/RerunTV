@@ -2,6 +2,8 @@
    amber phosphor as the one accent, hairline dividers, no gloss/gradient
    shine. See renderer.js for the registration call. */
 html[data-theme="master-control"] {
+  --setup-nav-bg: #111417;
+  --setup-overflow-shadow: rgba(255, 176, 0, 0.42);
   --ink: #14171a;
   --ink-deep: #0a0c0e;
   --cell: #191d21;

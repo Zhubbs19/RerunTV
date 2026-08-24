@@ -21,6 +21,7 @@ import {
   autoHideAfter, formatClock, formatHourLabel, getDisplayTitle, isEnabledByDefault,
 } from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
+import { waitForMediaSourceReady as waitForProviderMediaSource } from './playback-recovery.js';
 
 // Same shape as computeLivePosition, but content playback lags real time by
 // however many ms it's been paused through breaks on this source so far
@@ -67,14 +68,6 @@ function clearPlayerToBlank() {
 // playback, same as always; a transient failure mid-poll must NOT be read
 // the same way, or one flaky RPC call turns a file that's still genuinely
 // downloading into a premature, wrong failure).
-async function tryGetFetchProgress(source, ref) {
-  try {
-    return { ok: true, progress: await window.api.callMediaSourceHook(source, 'getFetchProgress', ref) };
-  } catch (err) {
-    return { ok: false, progress: null };
-  }
-}
-
 // Called from handleUnplayable below, as a plugin-sourced file's own
 // recovery path once a genuine live playback attempt has already failed to
 // decode a frame — not an eager pre-check (a live attempt is always tried
@@ -90,35 +83,13 @@ async function tryGetFetchProgress(source, ref) {
 // changed / powered off) while waiting, so the caller knows not to proceed
 // with this now-stale playback attempt.
 async function waitForMediaSourceReady(ch, file) {
-  if (!file.source || file.source === 'local') return true;
-  const rawRef = parseMediaRef(file.path).ref;
-  const first = await tryGetFetchProgress(file.source, rawRef);
-  // Not implemented (or failed on this very first call, indistinguishable
-  // from "not implemented" — same as before this fix) — proceed straight
-  // to playback, nothing to show.
-  if (!first.ok || !first.progress || first.progress.ready !== false) return true;
-  let progress = first.progress;
-  clearPlayerToBlank();
-  while (progress && progress.ready === false) {
-    if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
-    markStaticReady(); // nothing decoding yet — don't let held static block this card from showing
-    const pct = typeof progress.progress === 'number' ? ` — ${Math.round(progress.progress * 100)}%` : '';
-    showNoSignal('PREPARING…', progress.label ? `CH ${ch.number} — ${progress.label.toUpperCase()}` : `CH ${ch.number} — FETCHING MEDIA${pct}`, 'transcoding');
-    // eslint-disable-next-line no-await-in-loop -- deliberately sequential polling, not a batch of independent work
-    await sleep(1000);
-    if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
-    // A transient failure here (network blip, brief plugin-process stall)
-    // must not be read as "ready" — found in review: the old code did
-    // exactly that, since tryGetFetchProgress caught every error and
-    // returned null, and null failed the loop condition the same way a
-    // real "ready" result would. Keep waiting on the last known progress
-    // instead of bailing out on one flaky poll.
-    // eslint-disable-next-line no-await-in-loop
-    const next = await tryGetFetchProgress(file.source, rawRef);
-    if (next.ok) progress = next.progress;
-  }
-  noSignalEl.classList.add('hidden'); // clear the card once ready — playChannelLive's normal flow takes over from here
-  return true;
+  return waitForProviderMediaSource(ch, file, {
+    clearPlayer: clearPlayerToBlank,
+    isActive: () => S.currentNumber === ch.number && S.isPoweredOn,
+    markVisualReady: markStaticReady,
+    showStatus: showNoSignal,
+    clearStatus: () => noSignalEl.classList.add('hidden'),
+  });
 }
 
 export async function playChannelLive(ch, opts) {

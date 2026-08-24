@@ -33,12 +33,24 @@ Same-process mode still exists for plugins with lighter needs (a single
 worth it, and capabilities are still checked there too — just not by the OS,
 only by the same JS-level wrapper as before.
 
-**Only install plugins you trust the source of, isolated or not.** Isolation
+**Only install plugins you trust the source of, isolated or not.** A ZIP
+install records a SHA-256 digest outside the plugin folder. Manually copied
+plugins require an explicit one-time trust decision, and any later byte
+change blocks all of that plugin's main, renderer, settings, and CSS entry
+points until the exact new digest is reviewed. This detects replacement or
+local tampering; it is not an author signature and does not prove who wrote
+the original ZIP.
+
+Isolation
 scopes *what* a plugin's main.js can touch on disk and which binaries it can
 spawn; it does nothing to stop a plugin from, say, exfiltrating data over the
-network it already declared a capability to use, or a renderer-side
-`registerChannelType`/`registerSettingsPanel` doing something malicious in
-the UI. If you're distributing a plugin, say clearly what it does and what
+network it already declared a capability to use. It does not isolate
+`renderer.js`, `settings.js`, or `style.css`: those intentionally join the
+same renderer document as core and can inspect or modify the whole UI and
+call the exposed `window.api` surface. If third-party UI does not require
+direct DOM integration, prefer a sandboxed iframe or Worker communicating
+through narrow messages instead of a renderer entry point. If you're
+distributing a plugin, say clearly what it does and what
 it talks to (network requests, spawned processes, file access) so users can
 make that call.
 
@@ -53,6 +65,7 @@ make that call.
   "category": "channel",
   "style": "style.css",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "main": "main.js",
   "dependsOn": ["other-plugin-id"],
   "isolated": true
@@ -67,14 +80,15 @@ make that call.
 | `description` | no | One sentence, shown in the PLUGINS tab. |
 | `category` | no | One of `"channel"` (registers a real channel number), `"theme"` (a `registerThemePack` entry — see below), `"onscreen"` (an overlay/effect, not tuned to), or `"system"` (background service, remote control, integration — no on-screen presence of its own). Purely a grouping hint for the PLUGINS tab's category tabs — omit or use anything else and your plugin just lands in an "OTHER" tab, nothing breaks. |
 | `style` | no | Path to a CSS file, loaded globally (as a real `<link>`) whenever the plugin is enabled. Omit if you have no CSS of your own. |
-| `renderer` | no | Path to a JS file loaded as an ES module in the renderer process. This is where `registerChannelType`/`registerSettingsPanel` calls go. Omit for a main-process-only plugin (e.g. one that just adds an IPC handler another plugin depends on). |
+| `renderer` | no | Path to the runtime JS entry point loaded as an ES module in the renderer process. This is where channel, theme, overlay, and other runtime registrations normally go. Omit for a settings-only or main-process-only plugin. |
+| `settings` | no | Path to a separate JS settings entry point, loaded after `renderer`. Use it for `registerPluginSettings` so runtime channel/overlay behavior stays separate from setup-screen UI. Existing plugins may continue registering settings from `renderer`. |
 | `main` | no | Path to a JS file `require()`'d in the Electron main process. Must export `{ activate(ctx) }`. Omit if you have no main-process code. |
 | `dependsOn` | no | Array of other plugin ids yours needs. Purely informational + load-ordering (see below) — the app doesn't hard-block loading if a dependency is missing, so check for it yourself at runtime (`ctx.services.whatever` being undefined, or `window.RCBPlugins.otherPlugin` being undefined) and degrade gracefully. |
 | `dataDir` | no | Name of a folder your plugin keeps at the top level of `userData/` (sibling to `userData/plugins/`) for real data beyond your own plugin folder — a download cache, guest uploads, whatever. Declaring it here means the app's own userData migration (moving to a new install layout) knows to carry it along; skip this field if your plugin has no such folder. |
 | `capabilities` | no, but required if your `main.js` needs `ctx.ipcMain`/`ctx.spawn`/`ctx.createServer` | What your `main.js` needs to touch beyond reading files — see "Declaring capabilities" below. Shown to the user as a permission-approval prompt before your plugin is allowed to activate. |
 | `isolated` | no | `true` runs your `main.js` in its own real OS process instead of the same-process default — see "Isolated plugins" below. Recommended for any plugin with real `spawn`/`net`/filesystem-write capabilities. |
 
-At least one of `style`/`renderer`/`main` should be present, or your plugin
+At least one of `style`/`renderer`/`settings`/`main` should be present, or your plugin
 does nothing.
 
 ### Declaring capabilities
@@ -396,10 +410,14 @@ is actually present and enabled — always check.
 
 ## The renderer-process side: `renderer.js`
 
-Loaded as an ES module, with `window.RCBPlugins` already set up before your
-top-level code runs. You get two registration calls, and you can use either,
-both, or neither (a plugin can be pure settings-UI with no channel, or a
-pure channel with no settings).
+This is a **fully trusted UI extension point**, not the isolated-main
+sandbox. Its module shares RerunTV's renderer document and its CSS is global.
+The PLUGINS screen labels this access explicitly and verifies the installed
+file digest before loading it.
+
+Loaded as ES modules, with `window.RCBPlugins` already set up before your
+top-level code runs. `renderer` loads before `settings` when both are present.
+A plugin can provide runtime behavior, settings UI, both, or neither.
 
 ### A big constraint: **you cannot `import` core app code**
 
@@ -468,6 +486,13 @@ window.RCBPlugins.registerChannelType('my-plugin', {
 });
 ```
 
+Every registered channel automatically gets a **CHANNEL DISPLAY** settings
+section containing RESOLUTION and DISPLAY ASPECT overrides. Core renders and
+persists those controls under `S.config.pluginSettings[id].channelDisplay`;
+the plugin should not duplicate them in its own settings UI. A channel can
+provide `resolutionOverride` / `displayAspectOverride` on its definition as
+backward-compatible initial defaults, but an explicit saved user choice wins.
+
 `ctx` passed to `render`/`stop`/`onOk`/`onKey` is `{ S, viewNow, player }`:
 
 - `S` — the live, mutable app-state object. `S.config` is the whole user
@@ -499,6 +524,10 @@ the config schema:
   interstitials pool, filling in the usual defaults (`type: 'commercial'`,
   `channelAffinity: 'any'`, a fresh id, …) — pass just the fields you're
   overriding, e.g. `{ file: { path, duration } }` or `{ text: 'Some fact' }`.
+- `ctx.getPluginSettings(id)` — reads the generic persisted settings object
+  for a plugin without mutating config when no settings exist yet.
+- `ctx.updatePluginSettings(id, patch)` — shallow-merges generic settings and
+  saves through the app's normal config-generation/undo funnel.
 
 ### `registerThemePack(id, definition)`
 
@@ -539,9 +568,69 @@ registered for that theme at all. Manifest `category: "theme"` (see the
 manifest table above) is the convention every first-party theme plugin
 uses to land in the PLUGINS tab's own THEMES tab, though nothing enforces it.
 
-### `registerSettingsPanel(id, definition)`
+### `registerPluginSettings(id, definition)`
 
-Gives your plugin a SETTINGS toggle on its own row in the PLUGINS tab.
+Adds one or more plugin-specific sections after any settings supplied by the
+plugin type. Put this call in the manifest's optional `settings.js` entry point
+when possible:
+
+```js
+window.RCBPlugins.registerPluginSettings('my-plugin', {
+  schemaVersion: 2,
+  defaults: { enabled: false, account: { apiKey: '' } },
+  sensitivePaths: ['account.apiKey'],
+  migrations: {
+    1(settings) {
+      return { ...settings, enabled: settings.active ?? settings.enabled ?? false };
+    },
+  },
+  validate(settings) {
+    return typeof settings.enabled === 'boolean' ? true : 'enabled must be a boolean';
+  },
+  sections: [{
+    id: 'behavior',
+    label: 'MY PLUGIN OPTIONS',
+    layout: 'two-column',
+    render(container, ctx) {
+      const cfg = ctx.settings;
+      container.innerHTML = `
+        <label class="panel-toggle"><input type="checkbox">ENABLE THE THING</label>
+      `;
+      const enabled = container.querySelector('input');
+      enabled.checked = !!cfg.enabled;
+      enabled.addEventListener('change', () => ctx.updateSettings({ enabled: enabled.checked }));
+    },
+  }],
+});
+```
+
+The schema fields are optional, but recommended for persisted settings.
+`schemaVersion` is a positive integer. `defaults` are deep-filled without
+overwriting saved values. `migrations` maps each source version to a function
+that returns the next version's settings (the example migrates v1 to v2), and
+core records the applied version in `pluginSettingsMeta`. `validate` runs after
+migration/defaulting and before every `updateSettings` write; return `true`,
+return an error string, or throw. Dotted `sensitivePaths` are redacted by
+`ctx.getRedactedPluginSettings(id)` when settings are copied into diagnostics
+or support output. Do not render secrets into the DOM or write them to logs.
+
+The section context contains `S`, `player`, `saveConfigDebounced`, and
+`selectExecutable` plus `pluginId`, a current generic `settings` snapshot,
+and the id-bound `updateSettings(patch)` helper. `player` is useful for a
+settings action such as capturing the current frame; runtime playback still
+belongs in the channel's `render`/`stop` lifecycle.
+
+Each section may set `layout` to `stack` (the default), `two-column`, or
+`wide`. Core owns the responsive breakpoint: `two-column` becomes one column
+in narrow windows, so plugins should describe their layout intent instead of
+adding app-wide setup selectors or hardcoding a particular viewport. `wide`
+keeps the section spanning the available settings grid.
+
+### `registerSettingsPanel(id, definition)` (legacy)
+
+Existing plugins can keep using the original single-panel API. Core treats it
+as one custom section and composes it after type-provided settings. New plugins
+should prefer `registerPluginSettings` and a separate `settings.js` entry.
 
 ```js
 window.RCBPlugins.registerSettingsPanel('my-plugin', {
@@ -770,7 +859,10 @@ that's a legitimate ask.
 
 ## Config namespacing
 
-Store your plugin's settings under `S.config.<your-plugin-id-or-similar>`.
+New plugins should store ordinary settings through the id-bound
+`ctx.settings`/`ctx.updateSettings()` contract. Existing private config under
+`S.config.<your-plugin-id-or-similar>` remains supported; migrate it only when
+there is a concrete benefit rather than rewriting user configuration eagerly.
 Don't write to config keys that look like they belong to another plugin or
 to core. The one exception is a plugin that's genuinely extending a
 core-shared feature (NOAA Weather reads/writes fields inside `config.eas`
@@ -781,8 +873,11 @@ renderer.js does.
 
 ## Verifying your plugin works
 
-There's no automated test harness for third-party plugins. Practically:
-drop your folder into the plugins directory, RESCAN, restart the app, and
+`npm test` permanently checks every bundled/starter manifest entry, bundled
+seeding upgrades, renderer bridge parity, boot ordering, viewer HTTP assets,
+schedule clock behavior, and config-cache invalidation. It is not a general
+third-party plugin behavior harness. Practically: drop your folder into the
+plugins directory, approve its recorded SHA-256 in PLUGINS, restart the app, and
 check the PLUGINS tab shows it with no error. If it registers a channel,
 tune to its number and confirm it renders and cleans up correctly on
 tune-away. If it registers settings, expand its SETTINGS row and confirm

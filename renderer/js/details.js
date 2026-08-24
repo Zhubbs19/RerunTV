@@ -10,6 +10,8 @@ import { computeLivePosition } from './schedule.js';
 import { S } from './state.js';
 import { getDisplayTitle } from './util.js';
 
+let detailsPreviouslyFocused = null;
+
 function populateDetails(file, ctx) {
   detailsTitleEl.textContent = file ? getDisplayTitle(file) : 'NO INFO AVAILABLE';
 
@@ -56,12 +58,20 @@ function populateDetails(file, ctx) {
 }
 
 export function showDetailsOverlay(file, ctx) {
+  if (detailsOverlayEl.classList.contains('hidden')) detailsPreviouslyFocused = document.activeElement;
   populateDetails(file, ctx || {});
   detailsOverlayEl.classList.remove('hidden');
+  requestAnimationFrame(() => detailsOverlayEl.focus({ preventScroll: true }));
 }
 
 export function hideDetailsOverlay() {
   detailsOverlayEl.classList.add('hidden');
+  if (detailsPreviouslyFocused && detailsPreviouslyFocused.isConnected && detailsPreviouslyFocused.getClientRects().length && detailsPreviouslyFocused.focus) {
+    detailsPreviouslyFocused.focus({ preventScroll: true });
+  } else if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+  detailsPreviouslyFocused = null;
 }
 
 // Live-playback entry point (the I key outside the guide) — shows details

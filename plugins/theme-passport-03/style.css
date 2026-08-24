@@ -5,6 +5,8 @@
    headroom than Prevue's Amiga did) but still restrained. See renderer.js
    for the registration call. */
 html[data-theme="passport-03"] {
+  --setup-nav-bg: #05132e;
+  --setup-overflow-shadow: rgba(77, 155, 255, 0.48);
   --ink: #0a2559;
   --ink-deep: #05132e;
   --cell: #123a86;

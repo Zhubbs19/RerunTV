@@ -12,5 +12,5 @@ window.RCBPlugins.registerThemePack('analog-90s', {
     type: 'noise', filterType: 'highpass', filterFreq: 3500, gain: 0.018,
     crackle: { minMs: 3000, maxMs: 12000, gain: [0.04, 0.08], filterFreq: [2000, 6000] },
   },
-  borderImage: 'app://plugins/theme-analog-90s/border.svg',
+  borderImage: new URL('./border.svg', import.meta.url).href,
 });

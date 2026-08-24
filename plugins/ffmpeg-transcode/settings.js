@@ -1,15 +1,8 @@
-// Settings panel for the ffmpeg-transcode plugin — this build resolves
-// ffmpeg from PATH by default rather than bundling it (see main.js's
-// activate()), so a way to point at a specific binary is useful. Registered
-// via window.RCBPlugins.registerSettingsPanel rather than hardcoded into
-// core index.html, so core stays identical to any build that resolves
-// ffmpeg differently (e.g. one that bundles it and never needed this panel
-// at all).
-const { S } = window.RCBPlugins.ctx;
-if (!S.config.ffmpeg) S.config.ffmpeg = { ffmpegPath: null };
-
-window.RCBPlugins.registerSettingsPanel('ffmpeg-transcode', {
+window.RCBPlugins.registerPluginSettings('ffmpeg-transcode', {
+  sections: [{
+    id: 'general',
   render(container, ctx) {
+    if (!ctx.S.config.ffmpeg) ctx.S.config.ffmpeg = { ffmpegPath: null };
     const cfg = ctx.S.config.ffmpeg;
     container.innerHTML = `
       <label class="panel-toggle">FFMPEG</label>
@@ -42,5 +35,7 @@ window.RCBPlugins.registerSettingsPanel('ffmpeg-transcode', {
       pathEl.value = '';
       ctx.saveConfigDebounced();
     });
-  },
+    },
+  }],
 });
+

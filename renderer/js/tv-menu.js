@@ -62,6 +62,7 @@ const gridEl = document.getElementById('tv-menu-grid');
 // renderer.js modules import+register asynchronously (loadPlugins(),
 // app.js) after this module's own top-level code has already run.
 let buttons = [];
+let menuPreviouslyFocused = null;
 function rebuildMenu() {
   gridEl.innerHTML = '';
   buttons = actions().map((a) => {
@@ -70,8 +71,8 @@ function rebuildMenu() {
     btn.className = 'tv-menu-btn';
     btn.textContent = a.label;
     btn.addEventListener('click', () => {
-      a.run();
       closeTvMenu();
+      a.run();
     });
     gridEl.appendChild(btn);
     return btn;
@@ -79,6 +80,7 @@ function rebuildMenu() {
 }
 
 export function openTvMenu() {
+  if (shortcutsOverlayEl.classList.contains('hidden')) menuPreviouslyFocused = document.activeElement;
   rebuildMenu();
   shortcutsOverlayEl.classList.remove('hidden');
   if (buttons[0]) buttons[0].focus();
@@ -86,6 +88,12 @@ export function openTvMenu() {
 
 export function closeTvMenu() {
   shortcutsOverlayEl.classList.add('hidden');
+  if (menuPreviouslyFocused && menuPreviouslyFocused.isConnected && menuPreviouslyFocused.getClientRects().length && menuPreviouslyFocused.focus) {
+    menuPreviouslyFocused.focus({ preventScroll: true });
+  } else if (document.activeElement && document.activeElement.blur) {
+    document.activeElement.blur();
+  }
+  menuPreviouslyFocused = null;
 }
 
 // Real 2D grid navigation — arrow keys move focus by row/column. A plain
@@ -99,6 +107,12 @@ export function handleTvMenuKey(e) {
     return;
   }
   const current = buttons.indexOf(document.activeElement);
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const index = current === -1 ? 0 : (current + (e.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+    if (buttons[index]) buttons[index].focus();
+    return;
+  }
   if (current === -1) {
     if (e.key === 'Enter' || e.key === ' ') buttons[0] && buttons[0].click();
     else if (buttons[0]) buttons[0].focus();

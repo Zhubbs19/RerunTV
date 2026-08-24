@@ -196,6 +196,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
         dataDir,
         remotePort: baseCtx.remotePort,
         ffmpegStaticPath: baseCtx.ffmpegStaticPath,
+        viewerUrls: typeof baseCtx.getViewerUrls === 'function' ? baseCtx.getViewerUrls() : [],
         servicesSnapshot: { ...pluginServices },
       });
     });

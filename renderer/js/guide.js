@@ -74,6 +74,7 @@ setInterval(() => {
 // close callback firing after a fresh open would yank 'hidden' back onto a
 // guide the user just reopened.
 let guideAnimToken = 0;
+let guidePreviouslyFocused = null;
 
 function guideAnimEnabled() {
   return !!(S.config.display && S.config.display.guideOpenCloseAnim)
@@ -82,7 +83,11 @@ function guideAnimEnabled() {
 
 export function openGuideGrid() {
   if (sortedChannels().length === 0) return;
+  if (guideGrid.classList.contains('hidden')) guidePreviouslyFocused = document.activeElement;
   sfxGuideToggle(true);
+  clearTimeout(S.guideHideTimer);
+  S.guideHideTimer = null;
+  guideOverlay.classList.add('hidden');
   S.guideFilterQuery = '';
   guideSearchEl.value = '';
   const list = filteredChannels();
@@ -136,6 +141,7 @@ export function openGuideGrid() {
   }
   clearInterval(S.guideTickTimer);
   S.guideTickTimer = setInterval(renderGuideGrid, 30000);
+  requestAnimationFrame(() => guideSearchEl.focus({ preventScroll: true }));
 }
 
 export function closeGuideGrid() {
@@ -148,6 +154,12 @@ export function closeGuideGrid() {
   const finish = () => {
     guideGrid.classList.add('hidden');
     crtContainer.classList.remove('guide-active', 'guide-docked', 'guide-full', 'guide-anim-enabled');
+    if (guidePreviouslyFocused && guidePreviouslyFocused.isConnected && guidePreviouslyFocused.getClientRects().length && guidePreviouslyFocused.focus) {
+      guidePreviouslyFocused.focus({ preventScroll: true });
+    } else if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    guidePreviouslyFocused = null;
   };
   if (crtContainer.classList.contains('guide-anim-enabled') && guideAnimEnabled()) {
     const ms = (S.config.display && S.config.display.guideOpenCloseAnimMs) || 180;
@@ -528,7 +540,10 @@ export function handleGuideGridKey(e) {
   // While the filter box has focus, only intercept Escape — everything
   // else (letters, digits, arrows for cursor movement) is normal typing.
   if (document.activeElement === guideSearchEl) {
-    if (e.key === 'Escape') {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      guideSearchEl.focus();
+    } else if (e.key === 'Escape') {
       if (guideSearchEl.value) {
         guideSearchEl.value = '';
         S.guideFilterQuery = '';

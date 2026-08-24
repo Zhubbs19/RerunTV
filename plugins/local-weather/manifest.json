@@ -5,5 +5,6 @@
   "description": "Virtual CH 3 — a generated local-weather barker channel (deterministic synthetic forecast, upgraded to a real api.weather.gov forecast when a location is set via the NOAA Weather & EAS plugin).",
   "category": "channel",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "style": "style.css"
 }

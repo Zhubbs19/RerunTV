@@ -1254,6 +1254,7 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
 
   const viewToggle = document.createElement('div');
   viewToggle.className = 'edit-tab-bar schedule-view-toggle';
+  viewToggle.setAttribute('role', 'tablist');
   const timelineBtn = document.createElement('button');
   timelineBtn.className = 'btn edit-tab-btn';
   timelineBtn.textContent = 'TIMELINE';
@@ -1271,6 +1272,12 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   viewToggle.appendChild(calendarBtn);
 
   const body = document.createElement('div');
+  body.id = `channel-${ch.number}-schedule-panel`;
+  body.setAttribute('role', 'tabpanel');
+  [timelineBtn, blocksBtn, calendarBtn].forEach((button) => button.setAttribute('aria-controls', body.id));
+  timelineBtn.id = `channel-${ch.number}-schedule-tab-timeline`;
+  blocksBtn.id = `channel-${ch.number}-schedule-tab-blocks`;
+  calendarBtn.id = `channel-${ch.number}-schedule-tab-calendar`;
   panelEl.appendChild(viewToggle);
   panelEl.appendChild(body);
 
@@ -1294,6 +1301,7 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
     timelineBtn.setAttribute('aria-selected', String(activeView === 'timeline'));
     blocksBtn.setAttribute('aria-selected', String(activeView === 'blocks'));
     calendarBtn.setAttribute('aria-selected', String(activeView === 'calendar'));
+    body.setAttribute('aria-labelledby', `channel-${ch.number}-schedule-tab-${activeView}`);
     body.innerHTML = '';
     if (activeView === 'timeline') {
       buildTimelinePanel(ch, body, { onEditBlock: jumpToBlock });

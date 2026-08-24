@@ -115,10 +115,34 @@ window.addEventListener('keydown', (e) => {
 // tab strip behaves. Wired once per bar since the top-level bar and every
 // .setup-subtabs bar are static markup (setup.css/index.html), never
 // rebuilt — only which button carries .active changes.
+let generatedA11yId = 0;
+function ensureA11yId(el, prefix) {
+  if (!el.id) {
+    generatedA11yId += 1;
+    el.id = `${prefix}-${generatedA11yId}`;
+  }
+  return el.id;
+}
+
+function controlledPanelForTab(bar, btn) {
+  if (btn.dataset.tab) return document.querySelector(`.setup-tab-panel[data-tab-panel="${btn.dataset.tab}"]`);
+  if (btn.dataset.subtab) return bar.parentElement.querySelector(`:scope > .setup-subtab-panel[data-subtab-panel="${btn.dataset.subtab}"]`);
+  return null;
+}
+
 function enableTabBarKeyboardNav(bar, btnSelector) {
   const btns = () => Array.from(bar.querySelectorAll(btnSelector));
   bar.setAttribute('role', 'tablist');
-  btns().forEach((btn) => btn.setAttribute('role', 'tab'));
+  btns().forEach((btn) => {
+    btn.setAttribute('role', 'tab');
+    const panel = controlledPanelForTab(bar, btn);
+    if (!panel) return;
+    const tabId = ensureA11yId(btn, 'setup-tab');
+    const panelId = ensureA11yId(panel, 'setup-tabpanel');
+    btn.setAttribute('aria-controls', panelId);
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', tabId);
+  });
 
   function syncRovingTabindex() {
     const all = btns();
@@ -152,6 +176,54 @@ function enableTabBarKeyboardNav(bar, btnSelector) {
 
 enableTabBarKeyboardNav(document.getElementById('setup-tabs'), '.setup-tab-btn');
 document.querySelectorAll('.setup-subtabs').forEach((bar) => enableTabBarKeyboardNav(bar, '.setup-subtab-btn'));
+
+const CONTROL_LABELS = new Map([
+  ['rating-select', 'Content rating'],
+  ['aspect-select', 'Video aspect ratio'],
+  ['resolution-select', 'Resolution override'],
+  ['display-aspect-select', 'Display aspect override'],
+]);
+
+function nearbyControlLabel(control) {
+  for (const className of control.classList) {
+    if (CONTROL_LABELS.has(className)) return CONTROL_LABELS.get(className);
+  }
+  if (control.title) return control.title;
+  if (control.placeholder) return control.placeholder.replace(/[….]+$/g, '').trim();
+  const pluginRow = control.closest('.plugin-row');
+  if (pluginRow && control.type === 'checkbox') {
+    const pluginName = pluginRow.querySelector('.plugin-row-name')?.childNodes[0]?.textContent.trim();
+    if (pluginName) return `Enable ${pluginName}`;
+  }
+  const parent = control.closest('.panel-interval, .flow-meta-field, .flow-step-field, .flow-field, .field, .block-row');
+  if (!parent) return '';
+  const explicit = parent.querySelector(':scope > .flow-label, :scope > label, :scope > .block-label');
+  if (explicit && !explicit.contains(control)) return explicit.textContent.replace(/\s+/g, ' ').trim();
+  return Array.from(parent.childNodes)
+    .filter((node) => node.nodeType === Node.TEXT_NODE)
+    .map((node) => node.textContent.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' ');
+}
+
+function syncSetupControlNames(root = setupScreen) {
+  const controls = [];
+  if (root.matches && root.matches('input, select, textarea')) controls.push(root);
+  if (root.querySelectorAll) controls.push(...root.querySelectorAll('input, select, textarea'));
+  controls.forEach((control) => {
+    if (control.type === 'hidden' || control.getAttribute('aria-label') || control.getAttribute('aria-labelledby')) return;
+    if (control.closest('label') || (control.id && document.querySelector(`label[for="${CSS.escape(control.id)}"]`))) return;
+    const label = nearbyControlLabel(control);
+    if (label) control.setAttribute('aria-label', label);
+  });
+}
+
+syncSetupControlNames();
+new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) syncSetupControlNames(node);
+  }));
+}).observe(setupScreen, { childList: true, subtree: true });
 
 // ---------- List roving-tabindex nav (channel rows / interstitial cards) ----------
 // Up/Down/Home/End move focus between rows, Enter/Space activates the row's

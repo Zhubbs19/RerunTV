@@ -37,6 +37,7 @@
 <title>RerunTV</title>
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/setup.css" />
+<link rel="stylesheet" href="css/setup-plugin-settings.css" />
 <link rel="stylesheet" href="css/tv.css" />
 <link rel="stylesheet" href="css/overlays.css" />
 <link rel="stylesheet" href="css/guide.css" />
@@ -48,7 +49,7 @@
          loaded config on boot — visible regardless of which screen loads
          first (setup vs TV), unlike the TV-screen-only crtToggleFlash used
          elsewhere. Dismissed by its own timeout or a click. -->
-    <div id="migration-toast" class="migration-toast hidden">
+    <div id="migration-toast" class="migration-toast hidden" role="status" aria-live="polite">
       <span id="migration-toast-text"></span>
       <button id="migration-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
     </div>
@@ -58,7 +59,7 @@
          update-notice.js). Same toast chrome as migration-toast above, plus
          action buttons since this one needs a real decision, not just a
          dismiss. -->
-    <div id="update-toast" class="migration-toast hidden">
+    <div id="update-toast" class="migration-toast hidden" role="status" aria-live="polite">
       <span id="update-toast-text"></span>
       <button id="update-toast-view-notes" class="btn">VIEW CHANGELOG</button>
       <button id="update-toast-install" class="btn btn-primary">RESTART &amp; INSTALL</button>
@@ -87,7 +88,8 @@
           <h1 class="setup-title">CHANNEL SETUP</h1>
           <p class="setup-sub">Point each channel at your media library, then shape how it broadcasts — dayparts and holiday takeovers, commercials and station IDs, and the picture/audio settings for the whole box.</p>
         </div>
-        <div class="setup-tabs" id="setup-tabs">
+        <div class="setup-nav">
+        <div class="setup-tabs" id="setup-tabs" aria-label="Settings sections">
           <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
           <button class="setup-tab-btn" data-tab="display">DISPLAY</button>
           <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
@@ -99,6 +101,7 @@
         <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
         <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH ALL SETTINGS (DISPLAY / PROGRAMMING / AUDIO &amp; SYSTEM)…">
         <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
+        </div>
 
         <div class="setup-tab-panel" data-tab-panel="channels">
           <div class="channel-filter-row">
@@ -160,7 +163,7 @@
             <button id="rescan-all-btn" class="btn">RESCAN ALL FOLDERS</button>
             <button id="health-check-btn" class="btn">CHECK CHANNELS</button>
           </div>
-          <div id="scan-progress" class="scan-progress hidden"></div>
+          <div id="scan-progress" class="scan-progress hidden" role="status" aria-live="polite"></div>
           <div id="health-check-results" class="health-check-results hidden"></div>
         </div>
 
@@ -350,7 +353,7 @@
             </div>
             <div class="flow-selector-bar">
               <span id="flow-count-badge" class="flow-count-badge"></span>
-              <select id="flow-template-select" class="block-hour-select flow-select"></select>
+              <select id="flow-template-select" class="block-hour-select flow-select" aria-label="Flow template"></select>
               <button id="flow-create-btn" class="btn">+ NEW FLOW</button>
               <button id="flow-delete-btn" class="btn remove-btn">DELETE</button>
             </div>
@@ -378,7 +381,7 @@
                 </label>
               </div>
             </div>
-            <div id="flow-status-banner" class="flow-status-banner"></div>
+            <div id="flow-status-banner" class="flow-status-banner" role="status" aria-live="polite"></div>
           </div>
 
           <div class="flow-timeline-header">
@@ -417,10 +420,10 @@
           <span class="panel-status">A shared pool of bumpers, station IDs, promos, and trivia facts — tagged by type and channel/block/content tags. Used by your Show Flows, Ad Presets, and Channel Ad Cadences to resolve media during playback.</span>
           <div class="block-row interstitials-filter-row">
             <input type="text" id="interstitials-search" class="titles-search" placeholder="SEARCH FILENAME / TEXT…">
-            <select id="interstitials-filter-type" class="block-hour-select">
+            <select id="interstitials-filter-type" class="block-hour-select" aria-label="Filter bumper and ad pool by type">
               <option value="any">ALL TYPES</option>
             </select>
-            <select id="interstitials-filter-channel" class="block-hour-select">
+            <select id="interstitials-filter-channel" class="block-hour-select" aria-label="Filter bumper and ad pool by channel">
               <option value="all">ALL CHANNELS</option>
               <option value="any">UNASSIGNED (ANY CHANNEL)</option>
             </select>
@@ -589,7 +592,7 @@
         </div>
 
         <div class="panel">
-          <div class="panel-toggle">WATCH ON OTHER DEVICES</div>
+          <label class="panel-toggle"><input type="checkbox" id="viewer-enabled"> WATCH ON OTHER DEVICES</label>
           <div class="panel-body">
             <span id="viewer-url-status" class="panel-status">Checking for a network connection…</span>
           </div>
@@ -600,7 +603,7 @@
           <div class="panel-body">
             <div id="connected-devices-list" class="titles-list"></div>
           </div>
-          <span class="panel-status">Devices currently polling the remote, viewer, or party servers on your network. A device drops off this list ~30 seconds after it stops checking in (tab closed, phone locked, etc.) — this isn't a persistent connection count, just recent activity.</span>
+          <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
         </div>
 
         <div class="panel">
@@ -776,7 +779,7 @@
               <div id="plugins-category-tabs" class="plugins-category-tabs"></div>
               <div class="plugins-summary-row">
                 <div id="plugins-summary" class="plugins-summary"></div>
-                <span id="plugins-save-status" class="plugins-save-status"></span>
+                <span id="plugins-save-status" class="plugins-save-status" role="status" aria-live="polite"></span>
                 <button id="plugins-save-btn" class="btn btn-primary hidden">SAVE CHANGES</button>
               </div>
               <div id="plugins-list" class="plugins-list"></div>
@@ -816,7 +819,7 @@
                 <label class="shuffle-toggle"><input type="checkbox" id="update-launch-popup-enabled">SHOW A POPUP WHEN AN UPDATE IS READY</label>
                 <button id="check-updates-btn" class="btn">CHECK NOW</button>
               </div>
-              <span id="update-status-line" class="panel-status update-status-line"></span>
+              <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
             </div>
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW</label>
@@ -1002,7 +1005,7 @@
         </div>
 
         <!-- Full time-grid program guide -->
-        <div id="guide-grid" class="guide-grid hidden">
+        <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel">
           <div class="guide-topbar">
             <div class="guide-info-panel">
               <div class="guide-info-number" id="gi-number">--</div>
@@ -1013,7 +1016,7 @@
               </div>
             </div>
             <div class="guide-search-row">
-              <input type="text" id="guide-search" class="guide-search" placeholder="/ FILTER CHANNELS…">
+              <input type="text" id="guide-search" class="guide-search" placeholder="/ FILTER CHANNELS…" aria-label="Filter guide channels">
               <div class="guide-daterange" id="guide-daterange"></div>
             </div>
           </div>
@@ -1128,9 +1131,9 @@
 
         <!-- Program details card, toggled with I — the live-playing show, or
              whichever show is highlighted in the guide if it's open. -->
-        <div id="details-overlay" class="details-overlay hidden">
+        <div id="details-overlay" class="details-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="details-title" tabindex="-1">
           <div class="details-panel">
-            <img id="details-poster" class="details-poster hidden">
+            <img id="details-poster" class="details-poster hidden" alt="">
             <div class="details-title" id="details-title"></div>
             <div class="details-meta" id="details-meta"></div>
             <div class="details-description" id="details-description"></div>
@@ -1146,9 +1149,9 @@
              CRT effect" is exactly as unusable as the old hint bar text —
              every action here is a real button you can navigate to and
              press instead. -->
-        <div id="shortcuts-overlay" class="shortcuts-overlay hidden">
+        <div id="shortcuts-overlay" class="shortcuts-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="tv-menu-title" tabindex="-1">
           <div class="shortcuts-panel">
-            <div class="shortcuts-header">TV MENU</div>
+            <div class="shortcuts-header" id="tv-menu-title">TV MENU</div>
             <div id="tv-menu-grid" class="tv-menu-grid"></div>
             <div class="shortcuts-hint">ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE</div>
           </div>
@@ -1211,6 +1214,7 @@
   <!-- Classic script, must run before the module script below — see
        browser-api-shim.js's header comment for why. No-ops entirely inside
        Electron (preload.js already defined window.api by this point). -->
+  <script src="js/api-contract.js"></script>
   <script src="js/browser-api-shim.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>

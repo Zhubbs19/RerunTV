@@ -22,7 +22,8 @@ const path = require('path');
 const { createRpc } = require('./rpc-channel');
 const { mimeFor } = require('./main-mime');
 const { readJsonBody, serveStaticFile } = require('./main-http-util');
-const { getLanAddresses, getViewerUrls } = require('./main-lan');
+const { getLanAddresses } = require('./main-lan');
+const { createLanAccess, isLanServiceEnabled } = require('./main-lan-security');
 const {
   capabilityError, allowedSetsFor, createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./main-plugin-capabilities');
@@ -147,7 +148,9 @@ function buildCtx(manifest, pluginDir, init) {
     readJsonBody,
     serveStatic: serveStaticFile,
     getLanAddresses,
-    getViewerUrls,
+    getViewerUrls: () => init.viewerUrls || [],
+    createLanAccess,
+    isLanServiceEnabled,
     QRCode,
     busboy,
     remotePort: init.remotePort,

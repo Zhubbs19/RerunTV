@@ -7,7 +7,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 36px 24px;
+  padding: 24px;
   overflow-y: auto;
   color: var(--paper);
 }
@@ -32,7 +32,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 30px 0 20px;
+  margin: 18px 0 12px;
   padding-bottom: 10px;
   border-bottom: 2px solid var(--line);
 }
@@ -146,7 +146,7 @@
   color: var(--paper-dim);
   font-size: 13px;
   line-height: 1.6;
-  margin-bottom: 28px;
+  margin-bottom: 14px;
   max-width: 560px;
 }
 
@@ -1503,19 +1503,6 @@ input[type="checkbox"].shuffle-toggle:active {
   font-size: 10.5px;
   padding: 4px 10px;
 }
-
-/* A plugin's own SETTINGS toggle + its expand-in-place panel (see
-   setup-plugins.js's renderPluginsList) — each plugin's config lives right
-   next to that plugin's own row instead of on a separate tab. */
-.plugin-entry { display: flex; flex-direction: column; gap: 0; }
-.plugin-settings-toggle-btn.active {
-  border-color: var(--gold);
-  color: var(--gold);
-}
-.plugin-settings-panel {
-  margin-top: 8px;
-}
-.plugin-settings-panel.hidden { display: none; }
 
 .health-check-results {
   margin-top: 8px;
@@ -3116,6 +3103,20 @@ input[type="checkbox"].shuffle-toggle:active {
   padding: 16px 8px 24px;
   min-height: 220px;
   scroll-behavior: smooth;
+  scrollbar-color: var(--gold) var(--ink-deep);
+  scrollbar-width: auto;
+  box-shadow: inset -24px 0 20px -24px var(--setup-overflow-shadow);
+}
+
+.flow-timeline-canvas::-webkit-scrollbar { height: 12px; }
+.flow-timeline-canvas::-webkit-scrollbar-track {
+  background: var(--ink-deep);
+  border: 1px solid var(--line);
+}
+.flow-timeline-canvas::-webkit-scrollbar-thumb {
+  background: var(--gradient-gold);
+  border: 2px solid var(--ink-deep);
+  border-radius: var(--radius-sm);
 }
 
 .flow-node-card {
@@ -3329,4 +3330,54 @@ input[type="checkbox"].shuffle-toggle:active {
   max-height: 180px;
   overflow-y: auto;
   line-height: 1.6;
+}
+
+/* ---------- P3 setup readability, sticky navigation, and responsive QA ---------- */
+
+.setup-nav {
+  position: sticky;
+  top: -16px;
+  z-index: 40;
+  padding: 8px 0 4px;
+  background: var(--setup-nav-bg);
+  box-shadow: 0 10px 18px -16px var(--setup-overflow-shadow);
+}
+
+/* The audit found the sub-12px controls concentrated in generated flow,
+   taxonomy, and plugin UI. This ID-scoped floor wins over their local class
+   rules while leaving large display headings and compact decorative badges
+   alone. Checkboxes/radios/ranges have no rendered text and are excluded. */
+#setup-screen :is(
+  button,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea,
+  [role="button"]
+) { font-size: max(12px, 0.75rem); }
+
+#setup-screen :is(
+  .panel-status,
+  .folder-status,
+  .plugin-row-desc,
+  .plugin-row-version,
+  .plugin-row-approved,
+  .plugin-row-error,
+  .plugin-row-kind,
+  .plugin-row-deps,
+  .flow-label,
+  .flow-status-banner,
+  .flow-sim-step,
+  .flow-sim-output,
+  .tag-taxonomy-meta
+) {
+  font-size: max(12px, 0.75rem);
+  line-height: 1.45;
+}
+
+@media (max-width: 900px) {
+  #setup-screen { padding: 16px 12px; }
+  .setup-nav { top: -8px; }
+  .setup-title { font-size: 28px; }
+  .setup-sub { max-width: none; }
+  .settings-grid { grid-template-columns: minmax(0, 1fr); }
 }

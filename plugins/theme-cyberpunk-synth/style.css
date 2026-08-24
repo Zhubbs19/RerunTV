@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="cyberpunk-synth"] {
+  --setup-nav-bg: #120322;
+  --setup-overflow-shadow: rgba(255, 0, 255, 0.5);
   --ink: #0d061a;
   --ink-deep: #06020c;
   --cell: #240a3e;

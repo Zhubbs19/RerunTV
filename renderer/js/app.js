@@ -171,6 +171,7 @@ export function handleKey(e) {
 
   if (!detailsOverlayEl.classList.contains('hidden')) {
     if (e.key === 'i' || e.key === 'I' || e.key === 'Escape') hideDetailsOverlay();
+    else if (e.key === 'Tab') { e.preventDefault(); detailsOverlayEl.focus(); }
     return;
   }
 
@@ -695,6 +696,9 @@ export function applyConfigDefaults(config) {
   if (!config.plugins.approvedCapabilities || typeof config.plugins.approvedCapabilities !== 'object') {
     config.plugins.approvedCapabilities = {};
   }
+  if (!config.network || typeof config.network !== 'object') config.network = {};
+  if (config.network.viewerEnabled == null) config.network.viewerEnabled = false;
+  if (config.network.remoteEnabled == null) config.network.remoteEnabled = false;
   if (config.muted == null) config.muted = false;
   if (config.adVolume == null) config.adVolume = 1;
   if (config.contentVolume == null) config.contentVolume = 1;
@@ -755,13 +759,16 @@ async function init() {
     showMigrationToast();
   }
   applyCustomCss();
-  // Not awaited (plugin loading shouldn't block the rest of boot), but some
-  // hint bar items key off whether their owning plugin actually finished
-  // loading (see applyHintBarState, power.js) — re-apply once loadPlugins()
-  // resolves so those items go from hidden (their provisional pre-load
-  // state) to shown correctly, instead of staying hidden if the bar
-  // happened to render before plugin loading finished.
-  loadPlugins().then(() => applyHintBarState());
+  // Plugin registration is part of boot correctness, not background polish:
+  // a LAN viewer can legitimately reopen while tuned to a plugin channel,
+  // and showTvScreen() must see that channel type before its first tune.
+  // Styles/modules are local assets, so the small startup cost is bounded.
+  await loadPlugins();
+  // Declarative plugin settings schemas may have filled defaults or applied
+  // migrations during registration. Treat that boot normalization as the
+  // baseline, not as a user edit that Ctrl+Z should be able to undo.
+  resetUndoBaseline();
+  applyHintBarState();
   // Any plugin's own periodic/self-starting behavior (a random-alert
   // schedule, a poll loop, etc.) self-starts from its own module top-level
   // code once loadPlugins()'s dynamic imports resolve, rather than being

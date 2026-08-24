@@ -6,6 +6,7 @@
   "category": "system",
   "main": "main.js",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "isolated": true,
   "capabilities": {
     "ipc": [

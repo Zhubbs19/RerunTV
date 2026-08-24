@@ -53,10 +53,9 @@ Setup is saved to Electron's app-data folder. Press **S** any time to go back.
 npm run server
 ```
 
-Runs with no window on this machine — useful for running RerunTV on a headless box purely
-as a LAN streaming source. The LAN viewer, remote-control server, and auto-discovery all
-still run exactly as they do alongside a normal window; every other device on the network
-watches through those, same as always.
+Runs with no window on this machine — useful for running RerunTV on a headless box. Only
+LAN services explicitly enabled in the saved config bind to the network, and clients must
+open a host-issued pairing link before receiving controls, schedule data, or media.
 
 ## Controls
 
@@ -152,9 +151,9 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
   guide era
 - **Ticker** — a bottom-of-screen scrolling text strip
 - **Vintage audio texture** — ambient tape hiss/static/carrier hum tied to the active theme
-- **Party Channel** — a LAN guest page (photo/video bulletin, TTS announcements,
+- **Party Channel** — an opt-in, paired LAN guest page (photo/video bulletin, TTS announcements,
   soundboard, trivia, caption contest, vote-for-next, check-in wall, visual effects)
-- **Universal Remote** — turns any phone on the same WiFi into a remote; also the API the
+- **Universal Remote** — turns a paired phone on the same WiFi into a remote; also the API the
   Android companion app uses
 - **TMDB metadata matching** for the TITLES tab (needs a free API key)
 - **FFmpeg Transcode** — codec-compatibility fix-up (see "About RerunTV" above); resolves

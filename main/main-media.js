@@ -70,10 +70,9 @@ const VIDEO_EXTENSIONS = new Set([
 // dialog:selectImage/dialog:selectAudio filters, the only other places a
 // user picks a media path from disk). Combined with VIDEO_EXTENSIONS below
 // as the allowlist for any handler that serves an arbitrary user-supplied
-// path off the LAN (main-viewer-server.js's GET /media) — that endpoint has
-// no other access control (LAN trust model, no auth), so without an
-// extension allowlist it would let any device on the network read *any*
-// file on this machine (channels.json, OS files, anything), not just media.
+// path to an authenticated viewer (main-viewer-server.js's GET /media).
+// That endpoint accepts only process-scoped opaque ids; this extension
+// allowlist remains defense in depth against a bad projected reference.
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']);
 const LAN_MEDIA_EXTENSIONS = new Set([...VIDEO_EXTENSIONS, ...IMAGE_EXTENSIONS, ...AUDIO_EXTENSIONS]);
@@ -199,7 +198,9 @@ async function transcodeVideo(srcPath) {
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
     let stderr = '';
-    ff.stderr.on('data', (d) => { stderr += d.toString(); });
+    ff.stderr.on('data', (d) => {
+      stderr = (stderr + d.toString()).slice(-4096);
+    });
 
     ff.on('error', (err) => {
       resolve({ error: `couldn't launch bundled ffmpeg (${err.message})` });

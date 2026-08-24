@@ -5,6 +5,8 @@
    app's existing "digital-2000s" era name. See renderer.js for the
    registration call. */
 html[data-theme="frutiger-aero"] {
+  --setup-nav-bg: rgba(234, 249, 240, 0.98);
+  --setup-overflow-shadow: rgba(14, 111, 128, 0.45);
   --ink: #cdeeff;
   --ink-deep: #eaf9f0;
   --cell: #dff5ff;

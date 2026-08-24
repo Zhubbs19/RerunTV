@@ -63,18 +63,7 @@ export function applyVolume() {
   refreshSfxGainLevel();
 }
 
-// A LAN viewer (window.__isViewer, see browser-api-shim.js) boots straight
-// to live playback with no preceding user interaction — but every browser
-// blocks autoplay entirely (not just sound) for a video whose `play()` is
-// called unmuted without a prior gesture, which is what S.config.muted
-// being false (the normal default) would otherwise do here. That's what
-// "video shows a frame but never advances" turned out to be: play() was
-// being silently rejected by the browser's autoplay policy, not that
-// playback was somehow stuck. Force-muted (regardless of S.config.muted)
-// until S.viewerAudioUnlocked flips true on the first real user interaction
-// (see the listener wired in app.js) — the standard muted-autoplay-then-
-// unlock-on-gesture pattern. Never applies on the host (window.__isViewer
-// is always falsy there), so Electron's own playback is unaffected.
+
 export function applyMuteState() {
   const forceMuted = window.__isViewer && !S.viewerAudioUnlocked;
   player.muted = forceMuted ? true : !!S.config.muted;

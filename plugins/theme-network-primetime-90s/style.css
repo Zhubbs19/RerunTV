@@ -6,11 +6,13 @@
    corner radii box-wide (rounded-lower-third feel instead of every other
    theme's hard edges) alongside its own palette. */
 html[data-theme="network-primetime-90s"] {
+  --setup-nav-bg: #241209;
+  --setup-overflow-shadow: rgba(209, 74, 58, 0.48);
   --ink: #1c0f0a;
   --ink-deep: #100805;
   --cell: #3a1f16;
   --cell-alt: #47281c;
-  --gold: #c0392b;
+  --gold: #e76f61;
   --gold-ink: #1a0500;
   --cyan: #e9c46a;
   --paper: #f5f0e1;
@@ -18,7 +20,7 @@ html[data-theme="network-primetime-90s"] {
   --line: #8a7752;
   --danger: #e63946;
 
-  --gold-rgb: 192, 57, 43;
+  --gold-rgb: 231, 111, 97;
   --danger-rgb: 230, 57, 70;
   --cyan-rgb: 233, 196, 106;
 

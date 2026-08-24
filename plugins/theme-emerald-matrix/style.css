@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="emerald-matrix"] {
+  --setup-nav-bg: #031208;
+  --setup-overflow-shadow: rgba(0, 255, 102, 0.45);
   --ink: #020d06;
   --ink-deep: #000502;
   --cell: #092612;

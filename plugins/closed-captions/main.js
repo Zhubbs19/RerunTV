@@ -11,6 +11,9 @@ const crypto = require('crypto');
 const { pathToFileURL } = require('url');
 
 const SUBTITLE_EXTENSIONS = ['.vtt', '.srt'];
+const FFMPEG_TIMEOUT_MS = 60 * 1000;
+const FFMPEG_OUTPUT_LIMIT = 1024 * 1024;
+const EMBEDDED_TRACK_CACHE_MAX = 512;
 
 function sidecarCandidates(filePath) {
   const dir = path.dirname(filePath);
@@ -28,10 +31,30 @@ function runFfmpeg(ffmpegPath, args, spawnFn) {
   return new Promise((resolve) => {
     const child = spawnFn(ffmpegPath, args, { windowsHide: true });
     let output = '';
-    child.stdout && child.stdout.on('data', (d) => { output += d.toString(); });
-    child.stderr && child.stderr.on('data', (d) => { output += d.toString(); });
-    child.on('error', () => resolve({ ok: false, output }));
-    child.on('close', (code) => resolve({ ok: code === 0, output }));
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve({ ok, output });
+    };
+    const appendOutput = (chunk) => {
+      if (settled) return;
+      output += chunk.toString();
+      if (output.length > FFMPEG_OUTPUT_LIMIT) {
+        output = output.slice(0, FFMPEG_OUTPUT_LIMIT);
+        child.kill();
+        finish(false);
+      }
+    };
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(false);
+    }, FFMPEG_TIMEOUT_MS);
+    child.stdout && child.stdout.on('data', appendOutput);
+    child.stderr && child.stderr.on('data', appendOutput);
+    child.on('error', () => finish(false));
+    child.on('close', (code) => finish(code === 0));
   });
 }
 
@@ -69,6 +92,9 @@ async function embeddedTracksFor(filePath, ffmpegPath, spawn) {
   if (embeddedTracksCache.has(filePath)) return embeddedTracksCache.get(filePath);
   const result = await runFfmpeg(ffmpegPath, ['-hide_banner', '-i', filePath], spawn);
   const tracks = parseSubtitleStreams(result.output);
+  if (embeddedTracksCache.size >= EMBEDDED_TRACK_CACHE_MAX) {
+    embeddedTracksCache.delete(embeddedTracksCache.keys().next().value);
+  }
   embeddedTracksCache.set(filePath, tracks);
   return tracks;
 }
@@ -119,6 +145,7 @@ function activate(ctx) {
         : ['-y', '-i', filePath, '-map', `0:${track.index}`, '-c:s', 'webvtt', cacheAbsPath];
       const result = await runFfmpeg(ffmpegPath, args, spawn);
       if (!result.ok || !fs.existsSync(cacheAbsPath)) {
+        fs.unlink(cacheRelName, () => {});
         return { error: 'ffmpeg failed to produce a caption track' };
       }
     }

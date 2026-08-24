@@ -6,6 +6,7 @@
   "category": "channel",
   "main": "main.js",
   "renderer": "renderer.js",
+  "settings": "settings.js",
   "dataDir": "party-uploads",
   "dependsOn": ["ffmpeg-transcode"],
   "isolated": true,

@@ -4,6 +4,8 @@
    (mapped to --gold, the primary-accent slot). See renderer.js for the
    registration call. */
 html[data-theme="ops-dashboard"] {
+  --setup-nav-bg: #141821;
+  --setup-overflow-shadow: rgba(91, 141, 238, 0.5);
   --ink: #1a1e27;
   --ink-deep: #12151c;
   --cell: #212633;

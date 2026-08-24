@@ -24,12 +24,10 @@ import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
 import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './setup-util.js';
 import { getMediaSourcePicker } from './plugins.js';
-import {
-  computeLivePosition, computeSourcePosition, isWithinBroadcastHours, matchesTrigger, resolveActiveSource,
-} from './schedule.js';
-import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
+import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
 import { BADGE_COLORS, S, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
-import { basenameNoExt, getDisplayTitle, shuffleArray, pad2, randomInterstitialId, toDatetimeLocalValue } from './util.js';
+import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue } from './util.js';
+import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import {
   librarySearchToggleBtn, librarySearchPanelEl, librarySearchInputEl, librarySearchResultsEl,
   nowNextToggleBtn, nowNextPanelEl,
@@ -403,8 +401,11 @@ export function renderChannelList() {
 
       const editTabBar = document.createElement('div');
       editTabBar.className = 'edit-tab-bar';
+      editTabBar.setAttribute('role', 'tablist');
       const editTabContent = document.createElement('div');
       editTabContent.className = 'edit-tab-content';
+      editTabContent.id = `channel-${ch.number}-edit-panel`;
+      editTabContent.setAttribute('role', 'tabpanel');
       editPanel.appendChild(editHeaderRow);
       editPanel.appendChild(editTabBar);
       editPanel.appendChild(editTabContent);
@@ -418,6 +419,8 @@ export function renderChannelList() {
           tabBtn.className = 'btn edit-tab-btn' + (tabActive ? ' active' : '') + (t.soon ? ' edit-tab-soon' : '');
           tabBtn.setAttribute('role', 'tab');
           tabBtn.setAttribute('aria-selected', String(tabActive));
+          tabBtn.setAttribute('aria-controls', editTabContent.id);
+          tabBtn.id = `channel-${ch.number}-edit-tab-${t.id}`;
           tabBtn.textContent = t.soon ? `${t.label} (SOON)` : t.label;
           tabBtn.addEventListener('click', () => {
             activeEditTab = t.id;
@@ -432,6 +435,7 @@ export function renderChannelList() {
       }
       function renderEditTabContent() {
         const t = editTabs.find((t) => t.id === activeEditTab) || editTabs[0];
+        editTabContent.setAttribute('aria-labelledby', `channel-${ch.number}-edit-tab-${t.id}`);
         editTabContent.innerHTML = '';
         t.build(ch, editTabContent);
       }
@@ -459,8 +463,10 @@ export function renderChannelList() {
           openChannelEditTabs.delete(ch.number);
         }
         editBtn.classList.toggle('edit-btn-open', isOpenNow);
+        editBtn.setAttribute('aria-expanded', String(isOpenNow));
         editBtn.textContent = isOpenNow ? 'EDIT ▾' : 'EDIT';
       });
+      editBtn.setAttribute('aria-expanded', String(isInitiallyOpen));
 
       const status = document.createElement('div');
       status.className = 'folder-status';
@@ -1252,11 +1258,6 @@ export function removeFolderFromChannel(ch, folderEntry) {
 // S.timeOffsetMs mechanism the time machine uses (state.js's viewNow()),
 // so a preview is indistinguishable from live playback to every other
 // module — nothing scheduling-related needs to know "this is a preview."
-function formatPreviewBannerTime(ms) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-}
-
 // Which channel the modal's currently open for — needed by the block
 // dropdown and quick-jump buttons below, which all need ch.blocks/
 // ch.broadcastHours, not just the number already stashed on the dataset.
@@ -1319,42 +1320,10 @@ function setPreviewFieldMs(ms) {
 // is a "when would THIS block ever be live" jump for testing it in
 // isolation, not a promise resolveActiveSource will pick it once there
 // (a higher-priority block could still win at that instant).
-function nextBlockActiveMs(block, fromMs) {
-  const HOUR_MS = 3600000;
-  let t = fromMs;
-  for (let i = 0; i < 24 * 400; i++) {
-    if (matchesTrigger(t, block)) return t;
-    const d = new Date(t);
-    d.setMinutes(0, 0, 0);
-    t = d.getTime() + HOUR_MS;
-  }
-  return null;
-}
-
 // nextBreakBoundary returns the *end* of a break already in progress at
 // fromMs, or the *start* of the next one otherwise — looping past any
 // already-in-progress break so NEXT BREAK always lands you at a break's
 // start, never its tail end.
-function nextBreakStartMs(ch, fromMs) {
-  let t = fromMs;
-  for (let i = 0; i < 50; i++) {
-    const boundary = nextBreakBoundary(ch, t);
-    if (!isFinite(boundary)) return null;
-    if (resolveBreakAt(ch, boundary)) return boundary;
-    t = boundary + 1;
-  }
-  return null;
-}
-
-function randomPreviewMs(ch, fromMs) {
-  const WEEK_MS = 7 * 24 * 3600000;
-  for (let i = 0; i < 20; i++) {
-    const candidate = fromMs + Math.random() * WEEK_MS;
-    if (!ch.broadcastHours || !ch.broadcastHours.enabled || isWithinBroadcastHours(ch, candidate)) return candidate;
-  }
-  return fromMs + Math.random() * 24 * 3600000;
-}
-
 previewModalCancelBtn.addEventListener('click', closePreviewModal);
 previewModalNowBtn.addEventListener('click', () => {
   previewPreciseMs = null;

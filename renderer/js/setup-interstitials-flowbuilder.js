@@ -96,6 +96,7 @@ export function renderFlowsList() {
     channelsContainer.innerHTML = '';
     const chSelect = document.createElement('select');
     chSelect.className = 'block-hour-select flow-select';
+    chSelect.setAttribute('aria-label', 'Target channels');
     
     const optAll = document.createElement('option');
     optAll.value = 'all';
@@ -233,6 +234,9 @@ function renderFlowTimelineCanvas(flow) {
   const canvas = document.getElementById('flow-timeline-canvas');
   if (!canvas) return;
   canvas.innerHTML = '';
+  const stepCount = (flow.steps || []).length;
+  canvas.setAttribute('role', 'region');
+  canvas.setAttribute('aria-label', `${flow.name || 'Untitled flow'} sequence, ${stepCount} step${stepCount === 1 ? '' : 's'}. Scroll horizontally for later steps.`);
 
   if (!flow.steps || !flow.steps.length) {
     const empty = document.createElement('div');
@@ -379,6 +383,7 @@ function renderFlowTimelineCanvas(flow) {
       podRow.className = 'block-card-row';
       const minIn = document.createElement('input');
       minIn.type = 'number';
+      minIn.setAttribute('aria-label', 'Minimum commercial spots');
       minIn.className = 'block-priority-input';
       minIn.value = step.podMin || 3;
       minIn.addEventListener('change', () => {
@@ -396,6 +401,7 @@ function renderFlowTimelineCanvas(flow) {
       podRow.appendChild(sep);
       const maxIn = document.createElement('input');
       maxIn.type = 'number';
+      maxIn.setAttribute('aria-label', 'Maximum commercial spots');
       maxIn.className = 'block-priority-input';
       maxIn.value = step.podMax || 4;
       maxIn.addEventListener('change', () => {

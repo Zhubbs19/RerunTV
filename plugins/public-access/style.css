@@ -49,7 +49,7 @@
   white-space: pre-wrap;
 }
 
-/* Settings-panel bulletin-slide editor rows (registerSettingsPanel, see
+/* Settings-panel bulletin-slide editor rows (registerPluginSettings, see
    renderer.js) — moved out of core setup.css alongside the on-screen CSS
    above, same reasoning. */
 .pubaccess-slide-row {

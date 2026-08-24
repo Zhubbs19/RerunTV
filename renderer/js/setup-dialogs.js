@@ -37,6 +37,9 @@ function buildBox({ title, message, kind }) {
   const overlay = document.createElement('div');
   overlay.className = 'confirm-dialog';
   overlay.dataset.kind = kind;
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', title || (kind === 'prompt' ? 'Input required' : 'Message'));
 
   const box = document.createElement('div');
   box.className = 'confirm-dialog-box';

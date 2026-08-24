@@ -8,9 +8,9 @@
 // schedule state from the same config rather than the host proxying
 // frames/decisions to it — so every existing feature (breaks, bumpers, CRT
 // effects, time machine) works identically with nothing new to keep in
-// sync. Always starts, no separate enable toggle — same "no auth in v1,
-// LAN trust model" as the remote server (anyone on the LAN can watch, same
-// as anyone who could pick up a physical remote).
+// sync. The server is opt-in and every request is authenticated through a
+// short host-visible pairing code before any config, plugin, or media bytes
+// leave the machine.
 const path = require('path');
 const http = require('http');
 const { loadConfig } = require('./main-config');
@@ -18,6 +18,8 @@ const { serveFile, serveMediaRef, pipeWebResponse } = require('./main-protocol')
 const { trackConnection } = require('./main-connections');
 const { VIEWER_PORT } = require('./main-lan');
 const { isPathContained } = require('./main-path-safety');
+const { createLanAccess } = require('./main-lan-security');
+const { sanitizeViewerConfig, createViewerProjection } = require('./main-viewer-projection');
 const { version: APP_VERSION } = require('../package.json');
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
@@ -31,8 +33,14 @@ const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
 // loadMainPlugins() has run, but that's fine: the object reference is
 // captured once here and read fresh on every actual request, which only
 // ever arrives well after boot has finished populating it.
-function startViewerServer(pluginServices) {
+function startViewerServer(pluginServices, pluginRuntime = {}) {
   const services = pluginServices || {};
+  const pluginsDir = pluginRuntime.pluginsDir || null;
+  const access = pluginRuntime.access || createLanAccess('viewer', { readLimit: 1200, writeLimit: 30 });
+  const projection = pluginRuntime.projection || createViewerProjection();
+  const loadViewerConfig = pluginRuntime.loadConfig || loadConfig;
+  const port = pluginRuntime.port === undefined ? VIEWER_PORT : pluginRuntime.port;
+  const host = pluginRuntime.host || '0.0.0.0';
   const server = http.createServer(async (req, res) => {
     try {
       await handleRequest(req, res);
@@ -47,21 +55,37 @@ function startViewerServer(pluginServices) {
   });
 
   async function handleRequest(req, res) {
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    if (!(await access.authorize(req, res, url, 'read'))) return;
     if (req.method !== 'GET') {
       res.writeHead(405).end('Method not allowed');
       return;
     }
     trackConnection('viewer', req);
-    const url = new URL(req.url, `http://${req.headers.host}`);
     const range = req.headers.range;
 
     if (url.pathname === '/api/config') {
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(loadConfig()));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(projection.project(loadViewerConfig())));
       return;
     }
 
     if (url.pathname === '/api/version') {
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ version: APP_VERSION }));
+      return;
+    }
+
+    if (url.pathname === '/api/plugins') {
+      const plugins = typeof pluginRuntime.listPlugins === 'function'
+        ? pluginRuntime.listPlugins()
+        : [];
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(plugins));
+      return;
+    }
+
+    if (url.pathname === '/api/media-name') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({ name: projection.name(url.searchParams.get('id')) }));
       return;
     }
 
@@ -83,14 +107,23 @@ function startViewerServer(pluginServices) {
     // watching a plugin-sourced channel streams correctly too — not just
     // the main window). Unlike the app:// version (only ever reachable from
     // this app's own sandboxed renderer), this is a plain LAN HTTP endpoint
-    // with no auth — any device on the network can request any `p`.
-    // serveMediaRef's own extension allowlist is what keeps this scoped to
-    // the same kinds of files this app itself points channels/icons/audio
-    // at, not arbitrary files on the host (channels.json, OS files, etc.).
+    // The browser never receives `p` or another host/provider reference.
+    // Only ids registered while projecting the authenticated config resolve.
     if (url.pathname === '/media') {
-      const target = url.searchParams.get('p');
+      const target = projection.resolve(url.searchParams.get('id'));
       if (!target) { res.writeHead(400).end('Bad request'); return; }
-      await pipeWebResponse(await serveMediaRef(decodeURIComponent(target), range), res);
+      await pipeWebResponse(await serveMediaRef(target, range), res);
+      return;
+    }
+
+    if (pluginsDir && url.pathname.startsWith('/plugins/')) {
+      const rel = decodeURIComponent(url.pathname.slice('/plugins/'.length));
+      const resolved = path.normalize(path.join(pluginsDir, rel));
+      if (!isPathContained(pluginsDir, resolved)) {
+        res.writeHead(403).end('Forbidden');
+        return;
+      }
+      await pipeWebResponse(await serveFile(resolved, range), res);
       return;
     }
 
@@ -112,7 +145,8 @@ function startViewerServer(pluginServices) {
     // LAN viewers just won't be reachable this run.
     console.error(`LAN viewer server failed to start on port ${VIEWER_PORT}:`, err.message);
   });
-  server.listen(VIEWER_PORT, '0.0.0.0');
+  server.listen(port, host);
+  return { server, access, projection };
 }
 
-module.exports = { startViewerServer };
+module.exports = { startViewerServer, sanitizeViewerConfig, createViewerProjection };

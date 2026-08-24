@@ -149,6 +149,7 @@ export const upNextEnabledEl = document.getElementById('upnext-enabled');
 export const timeMachineEnabledEl = document.getElementById('timemachine-enabled');
 export const detailsEnabledEl = document.getElementById('details-enabled');
 export const viewerUrlStatusEl = document.getElementById('viewer-url-status');
+export const viewerEnabledEl = document.getElementById('viewer-enabled');
 export const connectedDevicesListEl = document.getElementById('connected-devices-list');
 export const viewerLiveLinkEl = document.getElementById('viewer-live-link');
 export const dynamicBumperTextEl = document.getElementById('dynamic-bumper-text');
