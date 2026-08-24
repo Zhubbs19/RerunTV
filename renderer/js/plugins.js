@@ -472,6 +472,25 @@ export function runCoreHooks(event, ...args) {
   });
 }
 
+// Functions and DOM nodes never cross the diagnostics boundary. This is an
+// inventory of registration ids/counts only, safe to display and export.
+export function pluginDiagnosticsSnapshot() {
+  return {
+    channelTypes: Array.from(channelTypeRegistry.keys()),
+    settingsPanels: Array.from(settingsPanelRegistry.keys()),
+    settingsSections: Array.from(settingsSectionRegistry.entries()).map(([id, sections]) => ({ id, sections: sections.map((s) => s.id) })),
+    settingsSchemas: Array.from(settingsSchemaRegistry.keys()),
+    mediaSourcePickers: Array.from(mediaSourcePickerRegistry.keys()),
+    themePacks: Array.from(themePackRegistry.keys()),
+    interrupts: Array.from(interruptRegistry.keys()),
+    tuneGates: Array.from(tuneGateRegistry.keys()),
+    overlayAudioSources: Array.from(overlayAudioRegistry.keys()),
+    titleRowActions: Array.from(titleRowActionRegistry.keys()),
+    coreHooks: Array.from(coreHookRegistry.entries()).map(([event, handlers]) => ({ event, count: handlers.size })),
+    loadErrors: loadErrors.map((entry) => ({ ...entry })),
+  };
+}
+
 function installGlobalApi() {
   window.RCBPlugins = {
     registerChannelType,

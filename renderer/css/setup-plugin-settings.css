@@ -41,3 +41,15 @@
   }
   .plugin-settings-section[data-layout="two-column"] .plugin-settings-section-content > * { grid-column: 1; }
 }
+.plugin-diagnostics-log {
+  max-height: 22rem;
+  overflow: auto;
+  margin: 0.75rem 0 0;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 88%, black);
+  color: var(--text);
+  font: 0.78rem/1.45 var(--font-mono, Consolas, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

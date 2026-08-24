@@ -52,12 +52,15 @@
     restoreBackup: readOnlyNoop('restoreBackup'),
     deleteBackup: readOnlyNoop('deleteBackup'),
     setBackupLabel: readOnlyNoop('setBackupLabel'),
+    setBackupPinned: readOnlyNoop('setBackupPinned'),
     createBackupNow: readOnlyNoop('createBackupNow'),
 
     // ---- Config / media: the real read path a viewer needs.
     loadConfig: () => fetch('/api/config').then((r) => r.json()),
     getAppVersion: () => fetch('/api/version').then((r) => r.json()).then((data) => data.version),
     pluginsList: () => fetch('/api/plugins').then((r) => r.json()),
+    getDiagnostics: () => Promise.resolve({ app: { platform: 'viewer' }, plugins: [], services: [], logs: [] }),
+    exportDiagnostics: () => Promise.resolve({ cancelled: true }),
     pluginsOpenFolder: readOnlyNoop('pluginsOpenFolder'),
     pluginsSetEnabled: readOnlyNoop('pluginsSetEnabled'),
     pluginsInstallFromZip: () => Promise.resolve({ cancelled: true }),

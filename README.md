@@ -107,6 +107,7 @@ the guide also scrolls backward into the past.
 - **Multi-folder channels** — merge several folders into one channel's loop; add/remove
   them independently without rescanning the rest
 - **Time-grid guide** with half-hour columns, a live "now" line, channel icons, filtering
+- **Seven-day program search and local reminders** directly from guide results
 - **Channel icons** — assign an image per channel, or use the auto-colored number badge
 - **Dayparting** — give a channel time blocks that swap in a different folder by hour
   (cartoons 6am–8pm, something else overnight); guide and playback both follow
@@ -116,6 +117,18 @@ the guide also scrolls backward into the past.
   carve out an ad-free/ad-different stretch of the day without changing content)
 - **Interactive Show & Ad Flow Builder** — a timeline canvas for scripting exactly when
   interstitials fire around a piece of content, with its own simulator
+- **Air Check resolver console** — inspect source, schedule block, show position, break
+  policy, eligible interstitials, and adjacent boundaries for any channel and time
+- **Safe playback-order editor** — natural/reverse/folder sorting, seeded shuffle, and drag
+  ordering with a live-impact preview before the channel is re-anchored
+- **Portable channel packages** — export/import one channel with only its related flows,
+  presets, pool entries, and conflict-safe id remapping
+- **Per-channel broadcast identity** — optional theme, tune/static treatment, and accent
+  overrides that inherit box defaults unless explicitly changed
+- **Opt-in library synchronization** — startup/periodic source polling for additions,
+  missing titles, and unambiguous renames; automatic removal remains separately opt-in
+- **Compared and pinned backups** — preview meaningful differences before restore and keep
+  important snapshots out of automatic rotation
 - **Up-next banner** ~45s before a program ends
 - **Channel logo bug** in the corner, like a network watermark
 - **Auto-curation** — tag content by facets (era, mood, rating, etc.), then let day-part
@@ -128,6 +141,8 @@ the guide also scrolls backward into the past.
   ffmpeg; the original moves to `_originals_backup/`, never deleted
 - **Undo/redo, a command palette (Ctrl+K), full keyboard nav, and OS drag-and-drop** on
   the setup screen
+- **Plugin developer diagnostics** — registration/capability inventory, bounded main and
+  renderer logs, reload status, and redacted JSON support bundles
 - **18 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
   set to a modern streaming-guide look — each with its own palette, SFX, and (where it
   fits the era) a physical border/bezel image; grouped by era in the theme picker

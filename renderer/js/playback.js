@@ -9,7 +9,7 @@ import { applyDisplayMode, cacheVideoSize } from './display-mode.js';
 import { showGuideOverlay } from './guide.js';
 import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
 import { tuneTimingEnabled } from './perf.js';
-import { applyBlockTheme, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
+import { applyBlockTheme, applyChannelIdentity, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
 import { cancelAllInterrupts, getThemePack, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from './plugins.js';
 import {
   computeSourcePosition, isWithinBroadcastHours, nextBlockStartMs, nextBroadcastHoursBoundary, nextSourceBoundary,
@@ -22,6 +22,7 @@ import {
 } from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 import { waitForMediaSourceReady as waitForProviderMediaSource } from './playback-recovery.js';
+import { channelIdentity, effectiveThemeId } from './broadcast-identity.js';
 
 // Same shape as computeLivePosition, but content playback lags real time by
 // however many ms it's been paused through breaks on this source so far
@@ -709,6 +710,22 @@ function startBreak(ch, resolved, key) {
   })();
 }
 
+// Setup's AIR CHECK console uses the same playback path as a naturally
+// resolved break, but with an explicit pool entry selected by the user.
+// This is a preview-only action; it does not alter schedule state or mark a
+// deterministic slot as completed.
+export function forceInterstitialPreview(ch, entry) {
+  if (!ch || !entry) return false;
+  const durationS = entry.dynamic ? (entry.durationS || 15) :
+    ((entry.file && entry.file.duration) || (entry.type === 'trivia' ? 8 : 15));
+  const windowStart = viewNow();
+  startBreak(ch, {
+    type: entry.type, entry, label: 'preview', windowStart,
+    windowEnd: windowStart + durationS * 1000,
+  }, null);
+  return true;
+}
+
 function endBreak(ch) {
   const shouldResume = S.activeBreakInterruptsContent;
   if (S.activeBreakKey) markBreakCompleted(S.activeBreakKey);
@@ -803,8 +820,9 @@ export function showStaticBurst(durationMs, tintHex) {
   const se = S.config.staticEffect;
   let peakOpacity = (se && se.intensity != null ? se.intensity : 100) / 100;
   const tint = hexToRgb(tintHex);
-  const pack = getThemePack(S.config.theme);
-  const staticStyle = (pack && pack.staticStyle) || 'noise';
+  const identity = channelIdentity(S.config, S.currentNumber);
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
+  const staticStyle = (identity && identity.staticStyle) || (pack && pack.staticStyle) || 'noise';
   // Network broadcast didn't cut to visible tuning noise between its own
   // channels the way cable/UHF did — a quick, low-opacity blip instead of a
   // full static burst.
@@ -931,6 +949,8 @@ export async function tuneToChannel(number, opts) {
   const prevNumber = S.currentNumber;
   if (prevNumber != null && prevNumber !== number) S.previousNumber = prevNumber;
   S.currentNumber = number;
+  window.applyTheme?.();
+  applyChannelIdentity(ch);
   // Universal remote's "NOW WATCHING" readout (and full status snapshot,
   // see pushRemoteState) — one call here covers every path below (virtual
   // channel, no signal, coming soon, sign-off, normal playback) instead of
@@ -988,6 +1008,7 @@ export async function tuneToChannel(number, opts) {
       // core has no business knowing which specific plugins exist or what
       // color each one picked for itself.
       const tint = (activeBlock && activeBlock.theme && activeBlock.theme.staticTint)
+        || (ch && ch.broadcastIdentity && ch.broadcastIdentity.staticTint)
         || (isVirtualChannel(number) ? getVirtualBadge(number).bg : undefined);
       showStaticBurst(durationMs, tint);
     }

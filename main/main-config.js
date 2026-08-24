@@ -1,6 +1,7 @@
 const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { compareConfigs, configSummary } = require('./config-diff');
 
 // ---------- Portable-install userData migration ----------
 // All per-user data (channels.json, backups, plugins, window state, any
@@ -294,6 +295,14 @@ function setBackupLabel(file, label) {
   return true;
 }
 
+function setBackupPinned(file, pinned) {
+  if (!isValidBackupFilename(file)) throw new Error('Invalid backup filename');
+  const metadata = readBackupMetadata();
+  metadata[file] = { ...(metadata[file] || {}), pinned: !!pinned };
+  writeBackupMetadata(metadata);
+  return true;
+}
+
 // Returns the created snapshot's filename (or null if nothing was written —
 // no config on disk yet, or skipped by the rate limit) so a caller like the
 // new "SNAPSHOT NOW" button can attach a label to the exact file it made,
@@ -319,8 +328,10 @@ function backupCurrentConfig(force, reason = force ? 'manual' : 'automatic') {
       .sort(); // ISO timestamps in the filename sort chronologically as plain strings
     const labels = readLabels();
     let labelsChanged = false;
-    while (files.length > MAX_BACKUPS) {
-      const oldest = files.shift();
+    const removable = files.filter((file) => !metadata[file]?.pinned);
+    while (removable.length > MAX_BACKUPS) {
+      const oldest = removable.shift();
+      files.splice(files.indexOf(oldest), 1);
       try { fs.unlinkSync(path.join(backupsDir, oldest)); } catch (e) {}
       if (labels[oldest] !== undefined) { delete labels[oldest]; labelsChanged = true; }
       if (metadata[oldest] !== undefined) delete metadata[oldest];
@@ -344,9 +355,9 @@ function listBackups() {
       .filter((f) => /^channels-.+\.json$/.test(f))
       .map((f) => {
         const stat = fs.statSync(path.join(backupsDir, f));
-        return { file: f, mtimeMs: stat.mtimeMs, size: stat.size, label: labels[f] || null, reason: metadata[f]?.reason || 'automatic' };
+        return { file: f, mtimeMs: stat.mtimeMs, size: stat.size, label: labels[f] || null, reason: metadata[f]?.reason || 'automatic', pinned: !!metadata[f]?.pinned };
       })
-      .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.mtimeMs - a.mtimeMs);
   } catch (e) {
     return [];
   }
@@ -381,21 +392,12 @@ function deleteBackup(file) {
   return true;
 }
 
-function configSummary(config) {
-  const channels = Array.isArray(config.channels) ? config.channels : [];
-  return {
-    channels: channels.length,
-    files: channels.reduce((sum, channel) => sum + (channel.files || []).length, 0),
-    blocks: channels.reduce((sum, channel) => sum + (channel.blocks || []).length, 0),
-  };
-}
-
 function previewBackup(file) {
   if (!isValidBackupFilename(file)) throw new Error('Invalid backup filename');
   const snapshot = JSON.parse(fs.readFileSync(path.join(getBackupsDir(), file), 'utf-8'));
   let current = { channels: [] };
   try { current = JSON.parse(readConfigFileCached()); } catch (e) { /* report an empty current summary */ }
-  return { snapshot: configSummary(snapshot), current: configSummary(current) };
+  return { snapshot: configSummary(snapshot), current: configSummary(current), diff: compareConfigs(current, snapshot) };
 }
 
 // Only ever writes one .corrupt-<timestamp> backup per process run, even
@@ -466,5 +468,5 @@ function saveConfig(config) {
 
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
-  getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel,
+  getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
 };

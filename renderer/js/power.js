@@ -10,6 +10,7 @@ import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntrie
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, saveConfigDebounced, viewNow } from './state.js';
 import { stopShuttle } from './timemachine.js';
 import { autoHideAfter } from './util.js';
+import { effectiveThemeId } from './broadcast-identity.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -179,7 +180,7 @@ export function toggleHintBar() {
 // uhf-public-access-80s (the one era that should look faintly curved/warped
 // even before the user touches the slider) needs a floor instead.
 function crtBias() {
-  const pack = getThemePack(S.config.theme);
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
   return (pack && pack.crtBias) || null;
 }
 
@@ -410,7 +411,7 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
     borderEligible = Math.max(rawRect.left, rawRect.top) >= MIN_BEZEL_MARGIN_PX;
   }
 
-  const pack = getThemePack(S.config.theme);
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
   const borderImage = pack && borderEligible && !S.config.display.movieMode ? pack.borderImage : null;
 
   // Content auto-shrinks/repositions to clear the border's safe area only
@@ -495,6 +496,14 @@ export function applyBlockTheme(block) {
   else crtContainer.style.removeProperty('--block-accent');
   if (theme && theme.accent2) crtContainer.style.setProperty('--block-accent2', theme.accent2);
   else crtContainer.style.removeProperty('--block-accent2');
+}
+
+export function applyChannelIdentity(ch) {
+  const identity = ch && ch.broadcastIdentity;
+  if (identity && identity.accent) crtContainer.style.setProperty('--channel-accent', identity.accent);
+  else crtContainer.style.removeProperty('--channel-accent');
+  if (identity && identity.accent2) crtContainer.style.setProperty('--channel-accent2', identity.accent2);
+  else crtContainer.style.removeProperty('--channel-accent2');
 }
 
 function tickVhsTimestamp() {

@@ -55,6 +55,7 @@ export function renderBackupsList() {
       const timestamp = document.createElement('div');
       timestamp.className = 'backup-row-time';
       timestamp.textContent = formatRelativeTime(backup.mtimeMs);
+      if (backup.pinned) timestamp.prepend('★ ');
       const reason = document.createElement('span');
       reason.className = `backup-reason-tag backup-reason-${backup.reason || 'automatic'}`;
       reason.textContent = BACKUP_REASON_LABELS[backup.reason] || 'AUTO-SAVE';
@@ -81,6 +82,15 @@ export function renderBackupsList() {
         catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
       });
       row.appendChild(labelBtn);
+      const pinBtn = document.createElement('button');
+      pinBtn.className = 'btn';
+      pinBtn.textContent = backup.pinned ? 'UNPIN' : 'PIN';
+      pinBtn.title = backup.pinned ? 'Allow this snapshot to rotate out normally' : 'Keep this snapshot outside the rotating backup window';
+      pinBtn.addEventListener('click', async () => {
+        try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
+        catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
+      });
+      row.appendChild(pinBtn);
       const previewBtn = document.createElement('button');
       previewBtn.className = 'btn';
       previewBtn.textContent = 'PREVIEW';
@@ -91,6 +101,14 @@ export function renderBackupsList() {
             metricLine('CHANNELS', preview.current.channels, preview.snapshot.channels),
             metricLine('MEDIA FILES', preview.current.files, preview.snapshot.files),
             metricLine('PROGRAM BLOCKS', preview.current.blocks, preview.snapshot.blocks),
+            '',
+            ...(preview.diff.addedChannels.length ? [`ADDED IN SNAPSHOT: ${preview.diff.addedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
+            ...(preview.diff.removedChannels.length ? [`REMOVED IN SNAPSHOT: ${preview.diff.removedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
+            ...(preview.diff.renamedChannels.length ? preview.diff.renamedChannels.map((entry) => `RENAMED: CH ${entry.number} “${entry.from}” → “${entry.to}”`) : []),
+            ...(preview.diff.fileCountChanges.length ? preview.diff.fileCountChanges.map((entry) => `MEDIA: CH ${entry.number} ${entry.current} → ${entry.snapshot} files`) : []),
+            ...(preview.diff.scheduleChanges.length ? [`SCHEDULE CHANGES: ${preview.diff.scheduleChanges.map((entry) => `CH ${entry.number}`).join(', ')}`] : []),
+            ...(preview.diff.settingsChanges.length ? [`SETTINGS/PLUGINS CHANGED: ${preview.diff.settingsChanges.join(', ')}`] : []),
+            ...(!preview.diff.addedChannels.length && !preview.diff.removedChannels.length && !preview.diff.renamedChannels.length && !preview.diff.fileCountChanges.length && !preview.diff.scheduleChanges.length && !preview.diff.settingsChanges.length ? ['NO CONFIGURATION DIFFERENCES FOUND.'] : []),
             '',
             'Preview only — nothing has been changed.',
           ];

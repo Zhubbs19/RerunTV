@@ -129,6 +129,7 @@
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   --font-body: 'Barlow', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 
   /* Mid-2000s digital-guide chrome: gradient fields, glossy raised buttons,
      recessed inputs, hard-edged drop shadows layered under the phosphor glow. */
@@ -175,7 +176,11 @@ html, body {
      a barely-perceptible fade rather than a color-swap flash either way. */
   background: #000;
   overflow: hidden;
-  font-family: var(--font-body);
+  /* Archivo Narrow is the box's original control/OSD voice. Make it the
+     inherited default so a newly-added button, status line, or generated
+     plugin-settings control cannot silently fall back to Barlow or the OS
+     UI font. Long-form copy opts into --font-body explicitly. */
+  font-family: var(--font-ui);
   user-select: none;
 }
 
@@ -305,29 +310,52 @@ body:has(#guide-grid:not(.hidden)) #screen-crt-overlay {
 }
 .migration-toast-dismiss:hover { color: var(--gold); }
 
-/* The update notice has two real actions, unlike the short migration
-   notice that shares its base chrome. Give those labels intrinsic space
-   instead of allowing flexbox to squeeze them into clipped multi-line
-   slivers; at narrow widths the group wraps as complete controls. */
+/* Update-ready is a small card, not a migration-toast sentence with extra
+   buttons bolted onto the same flex row. Keeping copy and actions in their
+   own rows prevents long release text from squeezing or clipping either. */
 #update-toast {
-  width: min(92vw, 860px);
+  width: min(92vw, 680px);
   max-width: none;
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  padding: 14px 16px;
 }
-#update-toast-text {
-  flex: 1 1 390px;
+.update-toast-copy {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px 12px;
   min-width: 0;
-  line-height: 1.4;
 }
-#update-toast .btn {
-  flex: 0 0 auto;
-  min-width: max-content;
+.update-toast-label {
+  color: var(--gold);
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 1px;
   white-space: nowrap;
 }
-#update-toast .migration-toast-dismiss { flex: 0 0 auto; }
+#update-toast-text {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.update-toast-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#update-toast .btn,
+#update-toast .migration-toast-dismiss {
+  white-space: nowrap;
+}
 
-@media (max-width: 700px) {
-  #update-toast-text { flex-basis: 100%; }
+@media (max-width: 560px) {
+  .update-toast-copy { grid-template-columns: 1fr; gap: 4px; }
+  .update-toast-actions { justify-content: stretch; }
+  .update-toast-actions .btn,
+  .update-toast-actions .migration-toast-dismiss { flex: 1 1 auto; }
 }
 
 /* Themed scrollbars — every scrollable area in the app (the setup screen
@@ -411,12 +439,25 @@ button {
   -webkit-appearance: none;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: var(--font-ui);
+}
+
 select {
   appearance: none;
   -webkit-appearance: none;
+  background-color: var(--ink-deep);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='rgba(255,255,255,0.65)' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-inset);
+  color: var(--gold);
+  font-weight: 600;
   padding-right: 26px !important;
   box-sizing: border-box;
   cursor: pointer;
@@ -474,4 +515,10 @@ select:disabled { cursor: default; opacity: 0.6; }
    active), so this is a no-op there. */
 select option {
   font-size: calc(1em * var(--display-frame-scale, 1)) !important;
+  background-color: var(--ink-deep);
+  color: var(--paper);
+}
+select option:checked {
+  background-color: var(--panel-2);
+  color: var(--gold);
 }

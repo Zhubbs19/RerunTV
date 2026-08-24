@@ -3,6 +3,7 @@
 // panel's tab bar (wiring together the panels built in setup-panels.js and
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { applyConfigDefaults, showTvScreen } from './app.js';
+import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from './channel-package.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
   buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, mediaRefId, nextChannelNumber, parseMediaRef, sortedChannels,
@@ -11,14 +12,14 @@ import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
   bulkRatingSelect, bulkRemoveBtn, bulkSelectAllBtn, bulkSelectedCountEl, bulkSelectToggleBtn, bulkShuffleOffBtn,
   bulkShuffleOnBtn, bulkVolumeApplyBtn, bulkVolumeInheritBtn, bulkVolumeSlider,
-  channelFilterEl, channelListEl, configExportBtn, configImportBtn, doneBtn,
+  channelFilterEl, channelImportBtn, channelListEl, configExportBtn, configImportBtn, doneBtn,
   previewBannerEl, previewModalBlockEl, previewModalCancelBtn, previewModalChannelLabelEl, previewModalDatetimeEl,
   previewModalEl, previewModalGoBtn, previewModalNowBtn, previewModalQuickEl, rescanAllBtn, scanProgressEl,
 } from './dom.js';
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from './display-mode.js';
 import { tuneToChannel } from './playback.js';
 import { CHANNEL_ASPECT_OPTIONS } from './power.js';
-import { buildChannelAdsPanel, buildCommercialsPanel, buildFoldersPanel, buildLogoBugPanel, buildTitlesPanel } from './setup-panels.js';
+import { buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildFoldersPanel, buildLogoBugPanel, buildTitlesPanel } from './setup-panels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
@@ -28,6 +29,7 @@ import { computeLivePosition, computeSourcePosition, resolveActiveSource } from 
 import { BADGE_COLORS, S, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
+import { applyLocalFolderRelink } from './library-relink.js';
 import {
   librarySearchToggleBtn, librarySearchPanelEl, librarySearchInputEl, librarySearchResultsEl,
   nowNextToggleBtn, nowNextPanelEl,
@@ -313,6 +315,7 @@ export function renderChannelList() {
       }
       editTabs.push({ id: 'ads', label: 'ADS', build: (c, p) => buildChannelAdsPanel(c, p) });
       editTabs.push({ id: 'logo', label: 'LOGO', build: buildLogoBugPanel });
+      editTabs.push({ id: 'identity', label: ch.broadcastIdentity && Object.keys(ch.broadcastIdentity).length ? 'IDENTITY ✓' : 'IDENTITY', build: buildChannelIdentityPanel });
 
       const editPanel = document.createElement('div');
       editPanel.className = 'titles-panel edit-panel hidden';
@@ -339,12 +342,9 @@ export function renderChannelList() {
       editHeaderPreviewBtn.addEventListener('click', () => openPreviewModal(ch));
       editHeaderRow.appendChild(editHeaderPreviewBtn);
 
-      // Exports just this one channel (folders/schedule/ads/logo/tags —
-      // everything on `ch`) as its own JSON file, separate from the
-      // whole-box EXPORT CONFIG in the footer. Reuses the same
-      // config:export IPC/save-dialog plumbing, just scoped to a
-      // single-channel `{channels: [...]}` shape so it re-imports cleanly
-      // through the existing IMPORT CONFIG flow if ever moved to another box.
+      // Exports the channel plus only its directly referenced flows,
+      // presets, and pool entries. IMPORT CHANNEL merges this package into
+      // another box without replacing unrelated settings.
       const editHeaderExportBtn = document.createElement('button');
       editHeaderExportBtn.className = 'btn';
       editHeaderExportBtn.textContent = 'EXPORT CHANNEL…';
@@ -352,7 +352,7 @@ export function renderChannelList() {
       editHeaderExportBtn.addEventListener('click', async () => {
         try {
           const suggestedName = `channel-${ch.number}-${(ch.name || 'untitled').trim().replace(/\s+/g, '-').toLowerCase()}`;
-          const filePath = await window.api.exportConfig({ channels: [ch] }, suggestedName);
+          const filePath = await window.api.exportConfig(buildChannelPackage(S.config, ch), suggestedName);
           if (!filePath) return;
           scanProgressEl.classList.remove('hidden');
           scanProgressEl.textContent = `EXPORTED TO ${filePath}`;
@@ -1450,6 +1450,75 @@ configExportBtn.addEventListener('click', async () => {
   } catch (e) {
     alertDialog(`Export failed: ${e.message}`, { variant: 'error' });
   }
+});
+
+channelImportBtn.addEventListener('click', async () => {
+  let imported;
+  try { imported = await window.api.importConfig(); }
+  catch (e) { alertDialog(`Import failed: ${e.message}`, { variant: 'error' }); return; }
+  if (!imported) return;
+  const pkg = normalizeChannelPackage(imported);
+  if (!pkg) {
+    await alertDialog('Choose a single-channel package. Full configurations still use IMPORT CONFIG.', { title: 'NOT A CHANNEL PACKAGE' });
+    return;
+  }
+
+  let targetNumber = Number(pkg.channel.number);
+  let replace = false;
+  const conflict = S.config.channels.some((channel) => channel.number === targetNumber);
+  if (conflict) {
+    const fallback = nextChannelNumber();
+    const entered = await promptDialog({
+      title: 'CHANNEL NUMBER CONFLICT',
+      message: `CH ${targetNumber} already exists. Enter a different channel number, or keep ${targetNumber} to replace it after confirmation.`,
+      defaultValue: String(fallback),
+    });
+    if (entered == null) return;
+    targetNumber = Number(entered);
+    if (!Number.isInteger(targetNumber) || targetNumber < 1 || targetNumber > 9999) {
+      await alertDialog('Enter a whole-number channel from 1 to 9999.', { variant: 'error' });
+      return;
+    }
+    if (S.config.channels.some((channel) => channel.number === targetNumber)) {
+      replace = await confirmDialog({
+        title: `REPLACE CH ${targetNumber}?`,
+        message: 'The existing channel will be replaced by the imported package. Other channels and box settings stay unchanged. This can be undone with Ctrl+Z.',
+        danger: true, confirmText: 'REPLACE CHANNEL',
+      });
+      if (!replace) return;
+    }
+  }
+
+  const result = mergeChannelPackage(S.config, pkg, {
+    targetNumber, replace, makeId: randomInterstitialId,
+  });
+
+  // Offer source-root mapping immediately for folders that do not exist on
+  // this machine. The same verified relink helper powers Channel Health.
+  for (const folder of (result.channel.folders || []).filter((entry) => entry.source === 'local')) {
+    let exists = true;
+    try { [exists] = await window.api.checkPathsExist([{ source: 'local', ref: folder.ref }]); } catch (e) {}
+    if (exists !== false) continue;
+    const choose = await confirmDialog({
+      title: 'MAP MISSING SOURCE FOLDER?', danger: false, confirmText: 'CHOOSE NEW LOCATION', cancelText: 'KEEP OLD PATH',
+      message: `${folder.label || folder.ref}\n\nThis source folder is not available on this computer. Choose its new location now, or keep the saved path and relink it later from Channel Health.`,
+    });
+    if (!choose) continue;
+    const newRoot = await window.api.selectFolder();
+    if (!newRoot) continue;
+    applyLocalFolderRelink(S.config, {
+      oldId: folder.id, oldRoot: folder.ref, newId: mediaRefId('local', newRoot), newRoot,
+    });
+  }
+
+  saveConfigDebounced();
+  S.setupFilterQuery = '';
+  channelFilterEl.value = '';
+  renderChannelList();
+  await alertDialog(
+    `Imported CH ${targetNumber} with ${result.added.flows} flow(s), ${result.added.presets} preset(s), and ${result.added.pool} bumper/pool entr${result.added.pool === 1 ? 'y' : 'ies'}.`,
+    { title: result.replaced ? 'CHANNEL REPLACED' : 'CHANNEL IMPORTED' },
+  );
 });
 
 configImportBtn.addEventListener('click', async () => {

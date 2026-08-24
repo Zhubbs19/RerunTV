@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { prepareVersionTransition, rememberDownloadedRelease, releaseNotesText } = require('../main/main-updater-state');
+const {
+  normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease, releaseNotesText,
+} = require('../main/main-updater-state');
 
 test('update state turns a downloaded old-to-new transition into one post-update changelog', () => {
   const state = { lastSeenVersion: '1.4.0' };
@@ -28,4 +30,14 @@ test('fresh installs establish a silent baseline and normalize release-note shap
   prepareVersionTransition(state, '2.0.0');
   assert.deepEqual(state, { lastSeenVersion: '2.0.0' });
   assert.equal(releaseNotesText(['One', { version: '2.0.0', note: 'Two' }]), 'One\n\nVersion 2.0.0\nTwo');
+});
+
+test('update strategies preserve legacy choices and default new installs to pre-launch', () => {
+  assert.equal(normalizeUpdateStrategy(null), 'startup-auto');
+  assert.equal(normalizeUpdateStrategy({}), 'startup-auto');
+  assert.equal(normalizeUpdateStrategy({ mode: 'auto', showLaunchPopup: true }), 'background-notify');
+  assert.equal(normalizeUpdateStrategy({ mode: 'auto', showLaunchPopup: false }), 'background-auto');
+  assert.equal(normalizeUpdateStrategy({ mode: 'manual' }), 'manual');
+  assert.equal(normalizeUpdateStrategy({ mode: 'off' }), 'off');
+  assert.equal(normalizeUpdateStrategy({ strategy: 'startup-auto', mode: 'off' }), 'startup-auto');
 });

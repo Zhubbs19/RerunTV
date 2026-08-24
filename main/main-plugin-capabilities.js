@@ -19,6 +19,7 @@ const fs = require('fs');
 const { spawn: nodeSpawn } = require('child_process');
 const http = require('http');
 const { isPathContained, stripExeSuffix } = require('./main-path-safety');
+const { recordDiagnostic } = require('./main-diagnostics');
 
 // Capabilities schema: manifest `"capabilities"` is an object with any of
 // `ipc`/`spawn`/`net`/`mediaSource` (each an array of `{ <value-key>: "...",
@@ -103,6 +104,7 @@ function createCheckedSpawn(pluginId, allowedSpawn) {
   return function checkedSpawn(bin, args, opts) {
     const base = stripExeSuffix(path.basename(bin));
     if (!allowedSpawn.has(base)) throw capabilityError(pluginId, 'spawn', bin, 'spawn');
+    recordDiagnostic('plugin-capability', 'log', `${pluginId} spawned declared binary ${base}`);
     return nodeSpawn(bin, args, opts);
   };
 }
@@ -113,6 +115,7 @@ function createCheckedServer(pluginId, allowedPorts) {
     const realListen = server.listen.bind(server);
     server.listen = (port, ...rest) => {
       if (!allowedPorts.has(port)) throw capabilityError(pluginId, 'listen on port', port, 'net');
+      recordDiagnostic('plugin-capability', 'log', `${pluginId} listened on declared port ${port}`);
       return realListen(port, ...rest);
     };
     return server;

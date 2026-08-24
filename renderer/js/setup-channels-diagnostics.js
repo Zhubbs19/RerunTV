@@ -7,14 +7,16 @@
 // remains in setup-channels.js beyond a handful of shared dom.js element
 // references (the NOW/NEXT and library-search toggle buttons are mutually
 // exclusive — each file's own listener closes the other's panel).
-import { parseMediaRef, sortedChannels } from './channels.js';
+import { findFolderEntry, mediaRefId, parseMediaRef, sortedChannels } from './channels.js';
 import {
   boxStatusBackupEl, boxStatusChannelsEl, boxStatusCheckBtn, boxStatusFilesEl, boxStatusIssuesEl,
   healthCheckBtn, healthCheckResultsEl, librarySearchPanelEl, librarySearchToggleBtn,
   nowNextPanelEl, nowNextRowsEl, nowNextToggleBtn,
 } from './dom.js';
 import { getChannelSchedule } from './schedule.js';
-import { S, viewNow } from './state.js';
+import { alertDialog, confirmDialog } from './setup-dialogs.js';
+import { applyLocalFolderRelink, replaceLocalRoot } from './library-relink.js';
+import { S, saveConfigDebounced, viewNow } from './state.js';
 import { formatSlotLabel, getDisplayTitle } from './util.js';
 
 // ---------- Cross-channel NOW/NEXT dashboard ----------
@@ -66,7 +68,7 @@ nowNextToggleBtn.addEventListener('click', () => {
 // preset whose contentTags never match any file's tags anywhere (it will
 // simply never fire), and pool entries still targeting a channel/block that
 // no longer exists.
-function renderHealthCheckResults({ missingByChannel, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
+function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
   const totalIssues = missingTotal + orphanedPresets.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
@@ -87,6 +89,48 @@ function renderHealthCheckResults({ missingByChannel, orphanedPresets, danglingP
       item.className = 'health-check-item';
       item.textContent = `CH ${chNumber}${ch && ch.name ? ' — ' + ch.name : ''}: ${paths.size} file(s) not found on disk`;
       healthCheckResultsEl.appendChild(item);
+    });
+  }
+
+  if (missingFolderGroups.size) {
+    const title = document.createElement('div');
+    title.className = 'health-check-group-title';
+    title.textContent = 'RELINK MOVED LOCAL FOLDERS';
+    healthCheckResultsEl.appendChild(title);
+    missingFolderGroups.forEach(({ entry, paths }) => {
+      const row = document.createElement('div');
+      row.className = 'health-check-item health-check-relink-row';
+      const copy = document.createElement('span');
+      copy.textContent = `${entry.label || entry.ref} — ${paths.size} missing file(s)`;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-small';
+      button.textContent = 'RELINK…';
+      button.addEventListener('click', async () => {
+        const newRoot = await window.api.selectFolder();
+        if (!newRoot || newRoot === entry.ref) return;
+        const candidates = Array.from(paths).map((oldPath) => replaceLocalRoot(oldPath, entry.ref, newRoot));
+        const checks = await window.api.checkPathsExist(candidates.map((ref) => ({ source: 'local', ref })));
+        const found = checks.filter(Boolean).length;
+        if (found === 0) {
+          await alertDialog('None of the missing files were found under that folder. Choose the new location that corresponds to the old folder shown in the health check.', { title: 'NOT A MATCH' });
+          return;
+        }
+        const unresolved = candidates.length - found;
+        const message = `Found ${found} of ${candidates.length} missing file(s) under:\n${newRoot}` +
+          (unresolved ? `\n\n${unresolved} file(s) will still be missing after the relink.` : '') +
+          '\n\nUpdate every channel and schedule reference that uses this folder? This can be undone with Ctrl+Z.';
+        if (!(await confirmDialog({ message, title: 'RELINK MOVED FOLDER', danger: false, confirmText: 'RELINK' }))) return;
+        const newId = mediaRefId('local', newRoot);
+        const result = applyLocalFolderRelink(S.config, {
+          oldId: entry.id, oldRoot: entry.ref, newId, newRoot,
+        });
+        saveConfigDebounced();
+        await alertDialog(`Relinked ${result.fileReferences} media reference(s) across ${result.folderEntries} folder entr${result.folderEntries === 1 ? 'y' : 'ies'}.`, { title: 'FOLDER RELINKED' });
+        checkChannelHealth();
+      });
+      row.append(copy, button);
+      healthCheckResultsEl.appendChild(row);
     });
   }
 
@@ -156,8 +200,8 @@ export async function checkChannelHealth() {
 
   const pathEntries = [];
   S.config.channels.forEach((ch) => {
-    (ch.files || []).forEach((f) => pathEntries.push({ path: f.path, ch }));
-    (ch.blocks || []).forEach((b) => (b.files || []).forEach((f) => pathEntries.push({ path: f.path, ch })));
+    (ch.files || []).forEach((f) => pathEntries.push({ path: f.path, ch, file: f }));
+    (ch.blocks || []).forEach((b) => (b.files || []).forEach((f) => pathEntries.push({ path: f.path, ch, file: f })));
   });
 
   // Bumper pool entries carry their own files (video-kind: `file`; a
@@ -191,10 +235,16 @@ export async function checkChannelHealth() {
   } catch (e) { /* leave existsMap empty — nothing gets flagged rather than risk false positives */ }
 
   const missingByChannel = new Map();
-  pathEntries.forEach(({ path, ch }) => {
+  const missingFolderGroups = new Map();
+  pathEntries.forEach(({ path, ch, file }) => {
     if (existsMap[path] === false) {
       if (!missingByChannel.has(ch.number)) missingByChannel.set(ch.number, new Set());
       missingByChannel.get(ch.number).add(path);
+      const folder = file && findFolderEntry(file.folder);
+      if (folder && folder.source === 'local' && replaceLocalRoot(path, folder.ref, folder.ref)) {
+        if (!missingFolderGroups.has(folder.id)) missingFolderGroups.set(folder.id, { entry: folder, paths: new Set() });
+        missingFolderGroups.get(folder.id).paths.add(path);
+      }
     }
   });
 
@@ -234,7 +284,7 @@ export async function checkChannelHealth() {
     if (channelSet.size > 1) duplicateFiles.push({ path, channels: Array.from(channelSet).sort((a, b) => a - b) });
   });
 
-  renderHealthCheckResults({ missingByChannel, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles });
+  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles });
   healthCheckBtn.disabled = false;
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
   return missingTotal + orphanedPresets.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;

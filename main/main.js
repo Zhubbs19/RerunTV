@@ -25,6 +25,8 @@ const fs = require('fs');
 // itself safe to do this early: none of its own top-level code touches
 // app.getPath('userData') (see its own header comment).
 require('./main-config').migrateUserDataIfNeeded();
+const { installMainLogCapture, recordDiagnostic, redactDiagnosticValue, getMainLogs } = require('./main-diagnostics');
+installMainLogCapture();
 
 // "Server mode" — a --headless (or --server) launch never creates or shows
 // a BrowserWindow on this machine, but every LAN-facing server (viewer,
@@ -36,6 +38,7 @@ require('./main-config').migrateUserDataIfNeeded();
 // safe with no further changes needed elsewhere. See package.json's
 // "server" script / run-server.bat for how this is meant to be launched.
 const HEADLESS = process.argv.includes('--headless') || process.argv.includes('--server');
+let interactiveBootInProgress = !HEADLESS;
 
 // Split out of this file into focused main-*.js modules — config/backups,
 // window-state, LAN address discovery, the app:// protocol handler,
@@ -49,7 +52,7 @@ const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServic
 const {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, recoverPendingSwap, scanFolderForVideos, transcodeVideo,
 } = require('./main-media');
-const { loadConfig, saveConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, backupCurrentConfig } = require('./main-config');
+const { loadConfig, saveConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned, backupCurrentConfig } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
 const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT, VIEWER_PORT } = require('./main-lan');
 const { getConnectedDevices, trackConnection } = require('./main-connections');
@@ -168,6 +171,7 @@ let activatedMediaSourceProviders = {};
 // a wider scope than before this existed.
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
+let pluginDisabledAtBoot = [];
 
 app.whenReady().then(async () => {
   // `services` is a single shared object, mutated in place by whichever
@@ -191,6 +195,17 @@ app.whenReady().then(async () => {
   // integration plugin may have nothing to do with the on-screen UI at all.
   const bootConfig = loadConfig();
   seedBundledPlugins();
+  if (!HEADLESS) {
+    // The updater's small pre-launch window is served through app:// too,
+    // so the protocol must exist before the startup gate. A genuinely fresh
+    // install skips the gate once; renderer onboarding explains and saves
+    // the user's update policy before later launches enforce it.
+    registerAppProtocol(path.join(__dirname, '..'), getPluginsDir());
+    const installingUpdate = await initAutoUpdater(getMainWindow, {
+      skipStartupCheck: !!bootConfig._isFirstRun,
+    });
+    if (installingUpdate) return;
+  }
   if (isLanServiceEnabled(bootConfig, 'viewer')) {
     const viewerRuntime = startViewerServer(pluginServices, {
       pluginsDir: getPluginsDir(),
@@ -205,6 +220,7 @@ app.whenReady().then(async () => {
     viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
+  pluginDisabledAtBoot = [...disabledPluginIds];
   const approvedCapabilities = (bootConfig.plugins && bootConfig.plugins.approvedCapabilities) || {};
   const loadResult = await loadMainPlugins(disabledPluginIds, {
     fetchJsonCached, getMainWindow, getLanAddresses, readJsonBody,
@@ -240,15 +256,18 @@ app.whenReady().then(async () => {
     return;
   }
 
-  registerAppProtocol(path.join(__dirname, '..'), getPluginsDir());
   createWindow();
+  interactiveBootInProgress = false;
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
-  initAutoUpdater(getMainWindow);
 });
 
 app.on('window-all-closed', () => {
+  // The pre-launch updater window can close after an up-to-date/error
+  // result while plugin boot is still finishing and before createWindow().
+  // That transient zero-window interval is not a user quit.
+  if (interactiveBootInProgress) return;
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -409,6 +428,7 @@ ipcMain.handle('mediaSource:callHook', async (event, providerId, verb, args) => 
   if (RESERVED_MEDIA_SOURCE_VERBS.has(verb)) {
     throw new Error(`"${verb}" is a reserved media-source verb and can't be called via mediaSource:callHook — it's only ever invoked internally by core's own dispatch layer.`);
   }
+  recordDiagnostic('plugin-capability', 'log', `${providerId} called media-source hook ${verb}`);
   return callMediaService(pluginServicesRef, providerId, verb, args || []);
 });
 
@@ -594,6 +614,10 @@ ipcMain.handle('backups:setLabel', async (event, file, label) => {
   return setBackupLabel(file, label);
 });
 
+ipcMain.handle('backups:setPinned', async (event, file, pinned) => {
+  return setBackupPinned(file, pinned);
+});
+
 // Forces a snapshot right now, bypassing the normal 15-min rate limit —
 // "before I do something risky" is a real, deliberate moment, not the
 // steady-state autosave case that limit exists to throttle. Returns the
@@ -602,6 +626,58 @@ ipcMain.handle('backups:setLabel', async (event, file, label) => {
 // written, not "whichever is newest" a moment later.
 ipcMain.handle('backups:createNow', async () => {
   return backupCurrentConfig(true, 'manual');
+});
+
+// ---------- Developer diagnostics ----------
+function pluginDiagnosticInventory() {
+  const currentDisabled = new Set(((loadConfig().plugins || {}).disabled) || []);
+  const bootDisabled = new Set(pluginDisabledAtBoot);
+  return discoverPlugins().map((plugin) => (plugin.error ? {
+    id: plugin.dir, state: 'manifest-error', error: plugin.error,
+  } : {
+    id: plugin.id, name: plugin.name, version: plugin.version, isolated: !!plugin.isolated,
+    state: pluginMainLoadErrors[plugin.id] ? 'load-error'
+      : (bootDisabled.has(plugin.id) ? 'disabled'
+        : (pluginsNeedingApproval.includes(plugin.id) ? 'needs-capability-approval'
+          : (pluginsNeedingIntegrityApproval.includes(plugin.id) ? 'needs-integrity-approval' : 'active'))),
+    configuredEnabled: !currentDisabled.has(plugin.id),
+    loadError: pluginMainLoadErrors[plugin.id] || null,
+    capabilities: plugin.capabilities,
+  }));
+}
+
+function pluginRestartPending() {
+  const current = ((loadConfig().plugins || {}).disabled || []).slice().sort();
+  const boot = pluginDisabledAtBoot.slice().sort();
+  return JSON.stringify(current) !== JSON.stringify(boot);
+}
+
+ipcMain.handle('diagnostics:get', async () => ({
+  generatedAt: new Date().toISOString(),
+  app: { version: app.getVersion(), platform: process.platform, arch: process.arch, electron: process.versions.electron },
+  plugins: pluginDiagnosticInventory(),
+  mediaSourceProviders: { ...activatedMediaSourceProviders },
+  services: Object.keys(pluginServicesRef).sort(),
+  restartRequired: pluginRestartPending(),
+  logs: getMainLogs(),
+}));
+
+ipcMain.handle('diagnostics:export', async (event, rendererSnapshot) => {
+  const result = await dialog.showSaveDialog(getMainWindow(), {
+    title: 'Export redacted support bundle',
+    defaultPath: `reruntv-support-${new Date().toISOString().slice(0, 10)}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (result.canceled || !result.filePath) return { cancelled: true };
+  const bundle = {
+    format: 'reruntv-support-bundle', version: 1, generatedAt: new Date().toISOString(),
+    app: { version: app.getVersion(), platform: process.platform, arch: process.arch, electron: process.versions.electron },
+    plugins: pluginDiagnosticInventory(), mediaSourceProviders: { ...activatedMediaSourceProviders },
+    services: Object.keys(pluginServicesRef).sort(), restartRequired: pluginRestartPending(), mainLogs: getMainLogs(), renderer: rendererSnapshot || {},
+  };
+  fs.writeFileSync(result.filePath, `${JSON.stringify(redactDiagnosticValue(bundle, { userDataPath: app.getPath('userData') }), null, 2)}\n`, 'utf8');
+  recordDiagnostic('diagnostics', 'log', 'Exported redacted support bundle');
+  return { success: true, filePath: result.filePath };
 });
 
 // ---------- Config load/save/export/import ----------
@@ -634,8 +710,10 @@ ipcMain.handle('config:import', async () => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
   const parsed = JSON.parse(raw);
-  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.channels)) {
-    throw new Error('That file doesn\'t look like a RerunTV config (no channels array).');
+  const isConfig = parsed && typeof parsed === 'object' && Array.isArray(parsed.channels);
+  const isChannelPackage = parsed && parsed.kind === 'reruntv-channel-package' && parsed.channel;
+  if (!isConfig && !isChannelPackage) {
+    throw new Error('That file doesn\'t look like a RerunTV config or channel package.');
   }
   return parsed;
 });

@@ -1,6 +1,7 @@
 import { player } from './dom.js';
 import { getThemePack } from './plugins.js';
 import { S } from './state.js';
+import { channelIdentity, effectiveThemeId } from './broadcast-identity.js';
 
 // Also re-syncs S.sfxGain's level with the current mute/volume state on
 // every call, as a side effect — every one-shot SFX calls this right before
@@ -74,11 +75,16 @@ export function playNoiseBurst(opts) {
 // sfxChannelChange()/sfxPowerOff() below fall through to the plain generic
 // sound every theme originally had.
 function themeChannelChangeSfx() {
-  const pack = getThemePack(S.config.theme);
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
   if (pack && pack.channelChangeSfx) { pack.channelChangeSfx(window.RCBPlugins.ctx); return true; }
   return false;
 }
 export function sfxChannelChange() {
+  const identity = channelIdentity(S.config, S.currentNumber);
+  if (identity && identity.tuneSfx === 'silent') return;
+  if (identity && identity.tuneSfx === 'soft') { playTone({ freq: 620, duration: 70, type: 'sine', gain: 0.07 }); return; }
+  if (identity && identity.tuneSfx === 'analog') { playNoiseBurst({ duration: 180, gain: 0.1, filterFreq: 1100 }); return; }
+  if (identity && identity.tuneSfx === 'digital') { playTone({ freq: 520, endFreq: 980, duration: 90, type: 'square', gain: 0.06 }); return; }
   if (themeChannelChangeSfx()) return;
   playNoiseBurst({ duration: 130, gain: 0.07, filterFreq: 1400 });
 }
@@ -86,7 +92,7 @@ export function sfxVolumeTick(up) { playTone({ freq: up ? 900 : 500, duration: 4
 export function sfxGuideToggle(opening) { playTone({ freq: opening ? 650 : 480, duration: 55, type: 'sine', gain: 0.1 }); }
 
 function themePowerSfx(isOn) {
-  const pack = getThemePack(S.config.theme);
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
   if (pack && pack.powerSfx) { pack.powerSfx(isOn, window.RCBPlugins.ctx); return true; }
   return false;
 }

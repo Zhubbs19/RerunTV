@@ -6,7 +6,7 @@
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
-    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'createBackupNow', 'loadConfig', 'saveConfig',
+    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
     'transcode', 'toggleFullscreen', 'setAspectLock', 'onRemoteCommand', 'sendRemoteState', 'getRemoteUrl',
     'getConnectedDevices', 'onRemoteTune', 'onRemoteSetChannelFlag', 'onPartyTriggerTrivia', 'onPartyPost',
@@ -14,7 +14,7 @@
     'onPartyCheckin', 'onPartyVote', 'onPartyReaction', 'sendPartyVoteState', 'captureVideoFrame',
     'onPartyCaption', 'sendPartyTriviaState', 'onPartyTriviaAnswer', 'listDesktopSources',
     'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'tmdbSearch', 'tmdbGetCredits',
-    'captionsScanForFile', 'captionsExtractTrack', 'noaaGetActiveAlerts', 'noaaGetForecast', 'pluginsList',
+    'captionsScanForFile', 'captionsExtractTrack', 'noaaGetActiveAlerts', 'noaaGetForecast', 'pluginsList', 'getDiagnostics', 'exportDiagnostics',
     'pluginsOpenFolder', 'pluginsSetEnabled', 'pluginsInstallFromZip', 'pluginsApproveCapabilities',
     'pluginsRevokeCapabilities', 'pluginsApproveIntegrity', 'pluginsUninstall', 'listMediaSourceProviders',
     'callMediaSourceHook',

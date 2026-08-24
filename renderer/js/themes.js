@@ -7,15 +7,16 @@ import { runCoreHooks } from './plugins.js';
 import { S } from './state.js';
 import { player } from './dom.js';
 import { getChannel } from './channels.js';
+import { effectiveThemeId } from './broadcast-identity.js';
 
-export function applyTheme() {
-  document.documentElement.dataset.theme = S.config.theme || 'digital-2000s';
+export function applyTheme({ boxOnly = false } = {}) {
+  document.documentElement.dataset.theme = effectiveThemeId(S.config, S.currentNumber, boxOnly);
   // The theme engine's audio side (tape hiss/crackle for an analog-feeling
   // theme vs. clean silence for a digital one) is plugin-owned.
   runCoreHooks('theme-audio-refresh');
   // Re-derive the CRT picture bias (power.js) for the newly active theme —
-  // applyCrtState() reads S.config.theme itself, so this just needs to fire
-  // on every theme switch, not only when a slider moves.
+  // applyCrtState() resolves the effective box/channel theme itself, so this
+  // fires on every theme switch, not only when a slider moves.
   applyCrtState();
   // Deliberately does NOT touch AUTO resolution/aspect (display-mode.js) —
   // a theme switch should only change the FRAME around whatever the video
@@ -24,3 +25,5 @@ export function applyTheme() {
     applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
   }
 }
+
+window.applyTheme = applyTheme;

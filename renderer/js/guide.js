@@ -9,7 +9,8 @@ import {
 import { showDetailsOverlay } from './details.js';
 import { tuneToChannel } from './playback.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
-import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, viewNow } from './state.js';
+import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
+import { searchUpcomingPrograms } from './program-search.js';
 import { updateTimeShiftBadge } from './timemachine.js';
 import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
@@ -75,6 +76,114 @@ setInterval(() => {
 // guide the user just reopened.
 let guideAnimToken = 0;
 let guidePreviouslyFocused = null;
+const programResultsEl = document.getElementById('guide-program-results');
+const reminderToastEl = document.getElementById('program-reminder-toast');
+const reminderCopyEl = document.getElementById('program-reminder-copy');
+const reminderTuneBtn = document.getElementById('program-reminder-tune');
+const reminderDismissBtn = document.getElementById('program-reminder-dismiss');
+const notifiedReminders = new Set();
+let activeReminder = null;
+let programSearchTimer = null;
+
+function hideProgramResults() {
+  programResultsEl?.classList.add('hidden');
+  if (programResultsEl) programResultsEl.innerHTML = '';
+}
+
+function jumpToProgramResult(result) {
+  S.guideFilterQuery = '';
+  guideSearchEl.value = '';
+  const list = filteredChannels();
+  S.guideSelRowIdx = Math.max(0, list.findIndex((channel) => channel.number === result.channel.number));
+  S.guideSelTime = result.entry.start + 1;
+  S.guideWindowStart = floorToSlot(result.entry.start);
+  hideProgramResults();
+  renderGuideGrid();
+}
+
+function addProgramReminder(result) {
+  if (!Array.isArray(S.config.reminders)) S.config.reminders = [];
+  const duplicate = S.config.reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
+  if (duplicate) return;
+  S.config.reminders.push({
+    id: `reminder-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    channelNumber: result.channel.number, channelName: result.channel.name || '',
+    title: result.title, path: result.entry.file.path,
+    start: result.entry.start, end: result.entry.end,
+  });
+  saveConfigDebounced();
+}
+
+function renderProgramResults(query) {
+  if (!programResultsEl || query.trim().length < 2) { hideProgramResults(); return; }
+  const results = searchUpcomingPrograms(sortedChannels(), query, viewNow());
+  programResultsEl.innerHTML = '';
+  programResultsEl.classList.remove('hidden');
+  const heading = document.createElement('div');
+  heading.className = 'guide-program-results-heading';
+  heading.textContent = results.length ? `${results.length} UPCOMING MATCH${results.length === 1 ? '' : 'ES'} · NEXT 7 DAYS` : 'NO UPCOMING PROGRAM MATCHES · NEXT 7 DAYS';
+  programResultsEl.appendChild(heading);
+  results.slice(0, 30).forEach((result) => {
+    const row = document.createElement('div');
+    row.className = 'guide-program-result';
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.className = 'guide-program-result-copy';
+    copy.innerHTML = `<strong>${escapeHtml(result.title)}</strong><span>CH ${result.channel.number} · ${escapeHtml(result.channel.name || 'UNNAMED')} · ${new Date(result.entry.start).toLocaleString()}</span>`;
+    copy.addEventListener('click', () => jumpToProgramResult(result));
+    const remind = document.createElement('button');
+    remind.type = 'button';
+    remind.className = 'btn';
+    const exists = (S.config.reminders || []).some((entry) => entry.channelNumber === result.channel.number && entry.start === result.entry.start && entry.path === result.entry.file.path);
+    remind.textContent = exists ? 'REMINDER SET' : 'REMIND ME';
+    remind.disabled = exists;
+    remind.addEventListener('click', () => { addProgramReminder(result); remind.textContent = 'REMINDER SET'; remind.disabled = true; });
+    row.append(copy, remind);
+    programResultsEl.appendChild(row);
+  });
+}
+
+guideSearchEl.addEventListener('input', () => {
+  clearTimeout(programSearchTimer);
+  programSearchTimer = setTimeout(() => renderProgramResults(guideSearchEl.value), 160);
+});
+
+function removeReminder(id) {
+  S.config.reminders = (S.config.reminders || []).filter((reminder) => reminder.id !== id);
+  notifiedReminders.delete(id);
+  saveConfigDebounced();
+}
+
+function dismissActiveReminder() {
+  if (activeReminder) removeReminder(activeReminder.id);
+  activeReminder = null;
+  reminderToastEl?.classList.add('hidden');
+}
+
+function checkProgramReminders() {
+  const now = viewNow();
+  let changed = false;
+  S.config.reminders = (S.config.reminders || []).filter((reminder) => {
+    if (now > reminder.end + 5 * 60000) { changed = true; return false; }
+    return true;
+  });
+  if (changed) saveConfigDebounced();
+  if (activeReminder) return;
+  const due = (S.config.reminders || []).find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - 60000 && now <= reminder.end);
+  if (!due) return;
+  activeReminder = due;
+  notifiedReminders.add(due.id);
+  reminderCopyEl.textContent = `${due.title} starts ${formatSlotLabel(due.start)} on CH ${due.channelNumber}${due.channelName ? ` · ${due.channelName}` : ''}.`;
+  reminderToastEl.classList.remove('hidden');
+}
+
+reminderTuneBtn?.addEventListener('click', () => {
+  if (!activeReminder) return;
+  tuneToChannel(activeReminder.channelNumber);
+  dismissActiveReminder();
+});
+reminderDismissBtn?.addEventListener('click', dismissActiveReminder);
+setInterval(checkProgramReminders, 15000);
 
 function guideAnimEnabled() {
   return !!(S.config.display && S.config.display.guideOpenCloseAnim)
@@ -148,6 +257,7 @@ export function closeGuideGrid() {
   if (guideGrid.classList.contains('hidden')) return;
   sfxGuideToggle(false);
   clearInterval(S.guideTickTimer);
+  hideProgramResults();
   S.guideTickTimer = null;
   guideAnimToken += 1;
   const token = guideAnimToken;

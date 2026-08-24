@@ -37,6 +37,7 @@ import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
+import { initLibrarySync } from './library-sync.js';
 import {
   renderChannelList, renderCommercialsPanel, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
 } from './setup.js';
@@ -461,7 +462,7 @@ export async function showSetupScreen() {
   clearTimeout(S.idleTimer); S.idleTimer = null;
   tvScreen.classList.add('hidden');
   setupScreen.classList.remove('hidden');
-  applyTheme();
+  applyTheme({ boxOnly: true });
   applyDisplayModeSettled();
   resetSetupTabs();
   S.setupFilterQuery = '';
@@ -576,6 +577,17 @@ function migrateCommercialsToPool(pool, cc, channelAffinity, blockAffinity) {
   if (cc) { delete cc.folder; delete cc.files; delete cc.useOwnFolder; }
 }
 
+function normalizeUpdateStrategy(updates) {
+  const valid = ['startup-auto', 'background-auto', 'background-notify', 'manual', 'off'];
+  if (updates && valid.includes(updates.strategy)) return updates.strategy;
+  if (updates && updates.mode === 'off') return 'off';
+  if (updates && updates.mode === 'manual') return 'manual';
+  if (updates && updates.mode === 'auto') {
+    return updates.showLaunchPopup === false ? 'background-auto' : 'background-notify';
+  }
+  return 'startup-auto';
+}
+
 // ================= INIT =================
 // Fills in any config field a fresh/older/imported config might be missing —
 // shared by the normal boot load and by importConfig() (setup.js) so an
@@ -648,14 +660,18 @@ export function applyConfigDefaults(config) {
   if (!config.upNext) config.upNext = { enabled: true };
   if (!config.details) config.details = { enabled: true };
   if (!config.timeMachine) config.timeMachine = { enabled: false };
-  // Auto-updater settings (main-updater.js / update-notice.js) — mode:
-  // 'auto' (background-check + download, default), 'manual' (only via the
-  // HELP tab's CHECK NOW button), or 'off' (never, not even manually).
-  // showLaunchPopup: once a download finishes, interrupt with the in-app
-  // toast (true, default) vs. quietly install on the next normal quit.
-  if (!config.updates) config.updates = { mode: 'auto', showLaunchPopup: true };
-  if (!config.updates.mode) config.updates.mode = 'auto';
-  if (config.updates.showLaunchPopup == null) config.updates.showLaunchPopup = true;
+  if (!Array.isArray(config.reminders)) config.reminders = [];
+  if (!config.librarySync) config.librarySync = { enabled: false, runAtStartup: true, intervalMinutes: 30, removeMissing: false };
+  if (config.librarySync.runAtStartup == null) config.librarySync.runAtStartup = true;
+  if (!config.librarySync.intervalMinutes) config.librarySync.intervalMinutes = 30;
+  if (config.librarySync.removeMissing == null) config.librarySync.removeMissing = false;
+  // One policy describes check timing and install behavior. Old two-field
+  // configs migrate to their equivalent background behavior; only a truly
+  // new install receives startup-auto as its default.
+  if (!config.updates) config.updates = {};
+  config.updates.strategy = normalizeUpdateStrategy(config.updates);
+  delete config.updates.mode;
+  delete config.updates.showLaunchPopup;
   if (!config.landing) config.landing = { audio: null };
   // A plugin's own config namespace (config.<pluginId>) is seeded by that
   // plugin's own renderer.js at load time, not here — core doesn't need to
@@ -775,6 +791,7 @@ async function init() {
   // code once loadPlugins()'s dynamic imports resolve, rather than being
   // kicked off from here.
   initUpdateNotice();
+  initLibrarySync();
 
   // A LAN viewer (browser-api-shim.js, window.__isViewer) always boots
   // straight to live playback — there's no first-run "add a channel" setup
@@ -788,7 +805,15 @@ async function init() {
     initTouchControls();
     initViewerLiveLink();
   } else if (S.config.channels.length === 0) {
-    if (isFirstRun) await showOnboarding();
+    if (isFirstRun) {
+      const onboarding = await showOnboarding({ updateStrategy: S.config.updates.strategy });
+      S.config.updates.strategy = onboarding.updateStrategy;
+      // Persist the choice before the first setup interaction so the next
+      // launch's main-process preflight can enforce it even if the user
+      // closes the app without adding a channel.
+      await window.api.saveConfig(S.config);
+      resetUndoBaseline();
+    }
     showSetupScreen();
   } else {
     showTvScreen();

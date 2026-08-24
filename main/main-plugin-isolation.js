@@ -18,6 +18,7 @@ const { app, ipcMain, shell, desktopCapturer } = require('electron');
 const { utilityProcess } = require('electron');
 const { createRpc } = require('./rpc-channel');
 const { recordConnection } = require('./main-connections');
+const { recordDiagnostic } = require('./main-diagnostics');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'plugin-isolation-runtime.js');
 
@@ -155,8 +156,14 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     // Surfaced the same way a same-process plugin's console output already
     // is — not routed anywhere fancier, just so a dev console shows it
     // rather than it vanishing silently into the child's own pipe.
-    if (child.stdout) child.stdout.on('data', (d) => process.stdout.write(`[${manifest.id}] ${d}`));
-    if (child.stderr) child.stderr.on('data', (d) => process.stderr.write(`[${manifest.id}] ${d}`));
+    if (child.stdout) child.stdout.on('data', (d) => {
+      recordDiagnostic(`plugin:${manifest.id}`, 'log', String(d).trim());
+      process.stdout.write(`[${manifest.id}] ${d}`);
+    });
+    if (child.stderr) child.stderr.on('data', (d) => {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', String(d).trim());
+      process.stderr.write(`[${manifest.id}] ${d}`);
+    });
 
     let settled = false;
     const settle = (result) => {
