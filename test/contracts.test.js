@@ -212,6 +212,19 @@ test('plugin styles are self-contained and do not borrow cross-plugin keyframes'
   assert.doesNotMatch(screensaverCss, /animation:\s*landing-promo-cycle/);
 });
 
+test('isolated plugins can read their packaged userData plugin directory', () => {
+  const { buildExecArgv } = require(path.join(ROOT, 'main', 'main-plugin-isolation.js'));
+  const appRoot = path.join('C:', 'Apps', 'RerunTV', 'resources', 'app.asar');
+  const pluginDir = path.join('C:', 'Apps', 'RerunTV', 'userData', 'plugins', 'party-channel');
+  const dataDir = path.join('C:', 'Apps', 'RerunTV', 'userData', 'party-uploads');
+  const args = buildExecArgv({ capabilities: { spawn: [] } }, appRoot, pluginDir, dataDir);
+  const readArg = args.find((arg) => arg.startsWith('--allow-fs-read='));
+
+  assert.ok(readArg, 'isolated runtime must declare filesystem read permissions');
+  assert.match(readArg, new RegExp(pluginDir.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')));
+  assert.doesNotMatch(readArg, /userData(?:,|$)/i, 'permission must remain scoped below userData');
+});
+
 test('shared CSS defines every semantic token used by core components', () => {
   const tokens = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'tokens.css'), 'utf8');
   for (const name of ['panel-2', 'selection', 'gold-dim', 'border', 'bg', 'text', 'shadow-soft', 'shadow-hard-md']) {
