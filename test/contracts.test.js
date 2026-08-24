@@ -43,6 +43,13 @@ test('packaged startup awaits the updater gate before creating the full window',
   assert.match(main.slice(updaterCall, windowCall), /if \(installingUpdate\) return;/);
 });
 
+test('deploy releases describe the changes in the exact commit being built', () => {
+  const workflow = fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'build-installer.yml'), 'utf8');
+  assert.match(workflow, /--generate-notes/);
+  assert.match(workflow, /--target "\$\{\{ github\.sha \}\}"/);
+  assert.doesNotMatch(workflow, /Automated alpha build from deploy branch/);
+});
+
 test('every plugin manifest entry points to an existing file', () => {
   for (const base of [path.join(ROOT, 'plugins'), path.join(ROOT, 'plugin-dev-kit', 'starter-plugin')]) {
     const dirs = base.endsWith('starter-plugin') ? [base]
