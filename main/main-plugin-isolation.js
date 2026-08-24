@@ -53,8 +53,13 @@ const runningChildren = new Set(); // { child, pluginId } — for teardown + dia
 // dataDir; here there isn't one to target). child-process spawn is only
 // granted at all if the manifest declares at least one capabilities.spawn
 // entry.
-function buildExecArgv(manifest, appRootDir, dataDir) {
-  const readPaths = [appRootDir];
+function buildExecArgv(manifest, appRootDir, pluginDir, dataDir) {
+  // Packaged plugins are seeded under portable userData/plugins, which is a
+  // sibling of resources/app.asar rather than a child of appRootDir. Grant
+  // the plugin's own directory explicitly so the runtime can require its
+  // entry point and read its bundled assets without broadening access to the
+  // rest of userData.
+  const readPaths = [appRootDir, pluginDir];
   const writePaths = [];
   if (dataDir) { readPaths.push(dataDir); writePaths.push(dataDir); }
   const args = [
@@ -145,7 +150,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     try {
       child = utilityProcess.fork(RUNTIME_SCRIPT, [], {
         serviceName: `plugin:${manifest.id}`,
-        execArgv: buildExecArgv(manifest, appRootDir, dataDir),
+        execArgv: buildExecArgv(manifest, appRootDir, pluginDir, dataDir),
         stdio: 'pipe',
       });
     } catch (e) {
@@ -226,4 +231,4 @@ function wireAppQuitPropagation() {
   });
 }
 
-module.exports = { activateIsolatedPlugin, wireAppQuitPropagation, callAnyService };
+module.exports = { activateIsolatedPlugin, wireAppQuitPropagation, callAnyService, buildExecArgv };
