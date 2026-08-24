@@ -113,7 +113,6 @@ export function confirmDialog(opts) {
     };
     const onKeydown = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); close(false); }
-      else if (e.key === 'Enter' && document.activeElement !== cancelBtn) { e.preventDefault(); close(true); }
     };
 
     cancelBtn.addEventListener('click', () => close(false));
@@ -123,7 +122,10 @@ export function confirmDialog(opts) {
     focusTrap(overlay, box);
 
     document.body.appendChild(overlay);
-    confirmBtn.focus();
+    // Destructive dialogs default to the safe action. Enter now activates
+    // whichever real button owns focus instead of confirming from anywhere
+    // in the dialog, preventing an accidental key repeat from deleting data.
+    (danger ? cancelBtn : confirmBtn).focus();
   });
 }
 

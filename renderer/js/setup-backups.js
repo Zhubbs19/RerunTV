@@ -11,6 +11,31 @@ function formatBackupTimestamp(mtimeMs) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+function formatRelativeTime(mtimeMs) {
+  const seconds = Math.max(0, Math.round((Date.now() - mtimeMs) / 1000));
+  if (seconds < 60) return 'JUST NOW';
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} MIN AGO`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} HR${hours === 1 ? '' : 'S'} AGO`;
+  const days = Math.round(hours / 24);
+  return `${days} DAY${days === 1 ? '' : 'S'} AGO`;
+}
+
+const BACKUP_REASON_LABELS = {
+  automatic: 'AUTO-SAVE',
+  manual: 'MANUAL',
+  'session-start': 'SESSION START',
+  'before-restore': 'BEFORE RESTORE',
+  'before-update': 'BEFORE UPDATE',
+};
+
+function metricLine(label, current, snapshot) {
+  const delta = snapshot - current;
+  const change = delta === 0 ? 'NO CHANGE' : `${delta > 0 ? '+' : ''}${delta}`;
+  return `${label}: ${current} NOW → ${snapshot} IN SNAPSHOT (${change})`;
+}
+
 export function renderBackupsList() {
   window.api.listBackups().then((backups) => {
     backupsListEl.innerHTML = '';
@@ -25,9 +50,20 @@ export function renderBackupsList() {
       const row = document.createElement('div');
       row.className = 'block-row';
       if (justSnapshotted && index === 0) row.classList.add('reveal');
-      const label = document.createElement('span');
-      label.className = 'block-count';
-      label.textContent = `${formatBackupTimestamp(backup.mtimeMs)} (${Math.max(1, Math.round(backup.size / 1024))} KB)`;
+      const label = document.createElement('div');
+      label.className = 'backup-row-info';
+      const timestamp = document.createElement('div');
+      timestamp.className = 'backup-row-time';
+      timestamp.textContent = formatRelativeTime(backup.mtimeMs);
+      const reason = document.createElement('span');
+      reason.className = `backup-reason-tag backup-reason-${backup.reason || 'automatic'}`;
+      reason.textContent = BACKUP_REASON_LABELS[backup.reason] || 'AUTO-SAVE';
+      timestamp.appendChild(reason);
+      label.appendChild(timestamp);
+      const detail = document.createElement('div');
+      detail.className = 'backup-row-detail';
+      detail.textContent = `${formatBackupTimestamp(backup.mtimeMs)} · ${Math.max(1, Math.round(backup.size / 1024))} KB`;
+      label.appendChild(detail);
       if (backup.label) {
         const tag = document.createElement('span');
         tag.className = 'backup-label-tag';
@@ -45,6 +81,23 @@ export function renderBackupsList() {
         catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
       });
       row.appendChild(labelBtn);
+      const previewBtn = document.createElement('button');
+      previewBtn.className = 'btn';
+      previewBtn.textContent = 'PREVIEW';
+      previewBtn.addEventListener('click', async () => {
+        try {
+          const preview = await window.api.previewBackup(backup.file);
+          const lines = [
+            metricLine('CHANNELS', preview.current.channels, preview.snapshot.channels),
+            metricLine('MEDIA FILES', preview.current.files, preview.snapshot.files),
+            metricLine('PROGRAM BLOCKS', preview.current.blocks, preview.snapshot.blocks),
+            '',
+            'Preview only — nothing has been changed.',
+          ];
+          await alertDialog(lines.join('\n'), { title: `SNAPSHOT · ${formatRelativeTime(backup.mtimeMs)}` });
+        } catch (error) { alertDialog(`Couldn't preview that snapshot: ${error.message}`, { variant: 'error' }); }
+      });
+      row.appendChild(previewBtn);
       const restoreBtn = document.createElement('button');
       restoreBtn.className = 'btn';
       restoreBtn.textContent = 'RESTORE';

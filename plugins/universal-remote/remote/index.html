@@ -2,14 +2,14 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RerunTV Remote</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="header">
     <div class="title">RETRO CABLE BOX</div>
-    <div class="now-watching" id="now-watching">CONNECTING…</div>
+    <div class="now-watching" id="now-watching" aria-live="polite">CONNECTING…</div>
   </header>
 
   <div class="remote">
@@ -41,11 +41,11 @@
     <div class="section dpad-section">
       <div class="section-label">NAVIGATE / SURF</div>
       <div class="dpad">
-        <button class="btn dpad-up" data-key="ArrowUp">▲</button>
-        <button class="btn dpad-left" data-key="ArrowLeft">◀</button>
+        <button class="btn dpad-up" data-key="ArrowUp" aria-label="Navigate up">▲</button>
+        <button class="btn dpad-left" data-key="ArrowLeft" aria-label="Navigate left">◀</button>
         <button class="btn dpad-ok" data-key="Enter">OK</button>
-        <button class="btn dpad-right" data-key="ArrowRight">▶</button>
-        <button class="btn dpad-down" data-key="ArrowDown">▼</button>
+        <button class="btn dpad-right" data-key="ArrowRight" aria-label="Navigate right">▶</button>
+        <button class="btn dpad-down" data-key="ArrowDown" aria-label="Navigate down">▼</button>
       </div>
       <div class="fav-row">
         <button class="btn small" data-key="ArrowUp" data-shift="1">FAV ▲</button>
@@ -64,6 +64,10 @@
     <div class="section">
       <div class="section-label">FUNCTIONS</div>
       <div class="grid-functions">
+        <button class="btn" data-key="Escape">BACK</button>
+        <button class="btn" data-key="?">TV MENU</button>
+        <button class="btn" data-key="i">INFO</button>
+        <button class="btn" data-key="k">CAPTIONS</button>
         <button class="btn" data-key="s">SETUP</button>
         <button class="btn" data-key="t">TIME MACHINE</button>
         <button class="btn" data-key="l">LIVE</button>
@@ -78,6 +82,8 @@
     </div>
 
   </div>
+
+  <div id="command-feedback" class="command-feedback" role="status" aria-live="polite"></div>
 
   <script src="/remote.js"></script>
 </body>

@@ -29,6 +29,7 @@ const fs = require('fs');
 // an earlier blind recursive-copy attempt here fail outright.
 const OWN_DATA_ENTRIES = [
   'channels.json', 'window-state.json', 'api-cache.json',
+  'update-state.json',
   'backups', 'plugins',
 ];
 
@@ -93,10 +94,20 @@ function pendingUpdateBackupDir() {
 // way. Copies (not moves) the current data to a safe location outside the
 // install dir; restoreUserDataIfWiped() below reconciles it back on the next
 // boot, whichever way the install actually behaved.
+let preUpdateSnapshotTaken = false;
+
 function backupUserDataForUpdate() {
   try {
     const localDir = portableUserDataDir();
     if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
+    // Keep an ordinary, user-visible restore point as well as the external
+    // whole-userData safety copy. This makes the Backups screen explain
+    // exactly which snapshot preceded an update and lets users inspect or
+    // restore it without digging through a temporary directory.
+    if (!preUpdateSnapshotTaken) {
+      backupCurrentConfig(true, 'before-update');
+      preUpdateSnapshotTaken = true;
+    }
     const backupDir = pendingUpdateBackupDir();
     fs.rmSync(backupDir, { recursive: true, force: true }); // clear any stale backup from a previous update attempt
     fs.mkdirSync(backupDir, { recursive: true });
@@ -234,6 +245,7 @@ let lastBackupAtMs = 0;
 // validates it below) completely untouched, so labeling is purely additive.
 // Missing/corrupt labels.json just means no labels yet, never an error.
 function getLabelsPath() { return path.join(getBackupsDir(), 'labels.json'); }
+function getBackupMetadataPath() { return path.join(getBackupsDir(), 'metadata.json'); }
 
 function readLabels() {
   try {
@@ -250,6 +262,16 @@ function writeLabels(labels) {
   } catch (e) {
     console.error('Writing backup labels failed:', e.message);
   }
+}
+
+function readBackupMetadata() {
+  try { return JSON.parse(fs.readFileSync(getBackupMetadataPath(), 'utf-8')); }
+  catch (e) { return {}; }
+}
+
+function writeBackupMetadata(metadata) {
+  try { fs.writeFileSync(getBackupMetadataPath(), JSON.stringify(metadata, null, 2), 'utf-8'); }
+  catch (e) { console.error('Writing backup metadata failed:', e.message); }
 }
 
 // Every one of backupCurrentConfig's own filenames matches this, and every
@@ -277,7 +299,7 @@ function setBackupLabel(file, label) {
 // new "SNAPSHOT NOW" button can attach a label to the exact file it made,
 // not just "whichever one is newest" (a second rapid snapshot elsewhere
 // could otherwise race it).
-function backupCurrentConfig(force) {
+function backupCurrentConfig(force, reason = force ? 'manual' : 'automatic') {
   const configPath = getConfigPath();
   if (!fs.existsSync(configPath)) return null; // nothing to snapshot yet (fresh install)
   const now = Date.now();
@@ -289,6 +311,9 @@ function backupCurrentConfig(force) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `channels-${stamp}.json`;
     fs.copyFileSync(configPath, path.join(backupsDir, filename));
+    const metadata = readBackupMetadata();
+    metadata[filename] = { reason, createdAt: now };
+    writeBackupMetadata(metadata);
     const files = fs.readdirSync(backupsDir)
       .filter((f) => /^channels-.+\.json$/.test(f))
       .sort(); // ISO timestamps in the filename sort chronologically as plain strings
@@ -298,8 +323,10 @@ function backupCurrentConfig(force) {
       const oldest = files.shift();
       try { fs.unlinkSync(path.join(backupsDir, oldest)); } catch (e) {}
       if (labels[oldest] !== undefined) { delete labels[oldest]; labelsChanged = true; }
+      if (metadata[oldest] !== undefined) delete metadata[oldest];
     }
     if (labelsChanged) writeLabels(labels);
+    writeBackupMetadata(metadata);
     return filename;
   } catch (e) {
     console.error('Config backup failed:', e.message);
@@ -312,11 +339,12 @@ function listBackups() {
     const backupsDir = getBackupsDir();
     fs.mkdirSync(backupsDir, { recursive: true });
     const labels = readLabels();
+    const metadata = readBackupMetadata();
     return fs.readdirSync(backupsDir)
       .filter((f) => /^channels-.+\.json$/.test(f))
       .map((f) => {
         const stat = fs.statSync(path.join(backupsDir, f));
-        return { file: f, mtimeMs: stat.mtimeMs, size: stat.size, label: labels[f] || null };
+        return { file: f, mtimeMs: stat.mtimeMs, size: stat.size, label: labels[f] || null, reason: metadata[f]?.reason || 'automatic' };
       })
       .sort((a, b) => b.mtimeMs - a.mtimeMs);
   } catch (e) {
@@ -331,7 +359,7 @@ function restoreBackup(file) {
   const backupPath = path.join(getBackupsDir(), file);
   const raw = fs.readFileSync(backupPath, 'utf-8'); // throws if missing
   const parsed = JSON.parse(raw); // throws if somehow corrupt — caller sees the rejection, nothing is overwritten
-  backupCurrentConfig(true); // the state being replaced is itself worth keeping, forced past the rate limit
+  backupCurrentConfig(true, 'before-restore'); // the state being replaced is itself worth keeping, forced past the rate limit
   writeConfigFile(raw);
   return parsed;
 }
@@ -348,7 +376,26 @@ function deleteBackup(file) {
   fs.unlinkSync(path.join(getBackupsDir(), file)); // throws if missing — caller sees the rejection
   const labels = readLabels();
   if (labels[file] !== undefined) { delete labels[file]; writeLabels(labels); }
+  const metadata = readBackupMetadata();
+  if (metadata[file] !== undefined) { delete metadata[file]; writeBackupMetadata(metadata); }
   return true;
+}
+
+function configSummary(config) {
+  const channels = Array.isArray(config.channels) ? config.channels : [];
+  return {
+    channels: channels.length,
+    files: channels.reduce((sum, channel) => sum + (channel.files || []).length, 0),
+    blocks: channels.reduce((sum, channel) => sum + (channel.blocks || []).length, 0),
+  };
+}
+
+function previewBackup(file) {
+  if (!isValidBackupFilename(file)) throw new Error('Invalid backup filename');
+  const snapshot = JSON.parse(fs.readFileSync(path.join(getBackupsDir(), file), 'utf-8'));
+  let current = { channels: [] };
+  try { current = JSON.parse(readConfigFileCached()); } catch (e) { /* report an empty current summary */ }
+  return { snapshot: configSummary(snapshot), current: configSummary(current) };
 }
 
 // Only ever writes one .corrupt-<timestamp> backup per process run, even
@@ -370,7 +417,7 @@ function loadConfig() {
   const configPath = getConfigPath();
   if (!sessionStartBackupTaken) {
     sessionStartBackupTaken = true;
-    backupCurrentConfig(true);
+    backupCurrentConfig(true, 'session-start');
   }
   let raw;
   try {
@@ -412,12 +459,12 @@ function loadConfig() {
 // temp file lives next to the real one so the rename stays on the same
 // volume (cross-volume renames aren't atomic).
 function saveConfig(config) {
-  backupCurrentConfig(); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
+  backupCurrentConfig(false, 'automatic'); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
   writeConfigFile(JSON.stringify(config, null, 2));
   return true;
 }
 
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
-  getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, restoreBackup, deleteBackup, setBackupLabel,
+  getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel,
 };

@@ -4,6 +4,7 @@
 // /queue) instead of /command.
 (function () {
   var queueStatusEl = document.getElementById('queue-status');
+  var activityPickerEl = document.getElementById('activity-picker');
 
   // Trivia question/option text is host-authored (setup screen), but this
   // page builds its trivia markup via innerHTML — escape it before
@@ -16,12 +17,22 @@
   }
 
   // ---------- Tabs ----------
-  document.querySelectorAll('.tab-btn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
-      document.querySelectorAll('.panel').forEach(function (p) { p.classList.add('hidden'); });
+  function selectActivity(tabName, focusPanel) {
+      var btn = document.querySelector('.tab-btn[data-tab="' + tabName + '"]');
+      if (!btn) return;
+      document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+        b.tabIndex = -1;
+      });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.add('hidden'); p.hidden = true; });
       btn.classList.add('active');
-      document.getElementById('panel-' + btn.dataset.tab).classList.remove('hidden');
+      btn.setAttribute('aria-selected', 'true');
+      btn.tabIndex = 0;
+      var panel = document.getElementById('panel-' + btn.dataset.tab);
+      panel.classList.remove('hidden');
+      panel.hidden = false;
+      activityPickerEl.value = btn.dataset.tab;
       if (btn.dataset.tab === 'soundboard') loadSoundboard();
       if (btn.dataset.tab === 'vote') loadVoteOptions();
       if (btn.dataset.tab === 'caption') loadCaptionImage();
@@ -31,8 +42,38 @@
         pollTrivia();
         triviaPollTimer = setInterval(pollTrivia, 2000);
       }
+      if (focusPanel) panel.focus();
+  }
+
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    var panel = document.getElementById('panel-' + btn.dataset.tab);
+    btn.id = 'tab-' + btn.dataset.tab;
+    btn.setAttribute('role', 'tab');
+    btn.setAttribute('aria-controls', panel.id);
+    btn.setAttribute('aria-selected', btn.classList.contains('active') ? 'true' : 'false');
+    btn.tabIndex = btn.classList.contains('active') ? 0 : -1;
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', btn.id);
+    panel.tabIndex = -1;
+    panel.hidden = panel.classList.contains('hidden');
+    btn.addEventListener('click', function () {
+      selectActivity(btn.dataset.tab, false);
+    });
+    btn.addEventListener('keydown', function (event) {
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab-btn:not(.hidden)'));
+      var index = tabs.indexOf(btn);
+      if (event.key === 'ArrowRight') index = (index + 1) % tabs.length;
+      else if (event.key === 'ArrowLeft') index = (index - 1 + tabs.length) % tabs.length;
+      else if (event.key === 'Home') index = 0;
+      else if (event.key === 'End') index = tabs.length - 1;
+      else return;
+      event.preventDefault();
+      selectActivity(tabs[index].dataset.tab, false);
+      tabs[index].focus();
     });
   });
+  activityPickerEl.addEventListener('change', function () { selectActivity(activityPickerEl.value, true); });
+  document.querySelectorAll('.status-msg').forEach(function (el) { el.setAttribute('aria-live', 'polite'); });
 
   // ---------- Queue status (polled) ----------
   function pollQueue() {

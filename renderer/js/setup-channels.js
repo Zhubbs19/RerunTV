@@ -18,7 +18,7 @@ import {
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from './display-mode.js';
 import { tuneToChannel } from './playback.js';
 import { CHANNEL_ASPECT_OPTIONS } from './power.js';
-import { buildChannelAdsPanel, buildCommercialsPanel, buildFoldersPanel, buildLogoBugPanel, buildThemePlaceholderPanel, buildTitlesPanel } from './setup-panels.js';
+import { buildChannelAdsPanel, buildCommercialsPanel, buildFoldersPanel, buildLogoBugPanel, buildTitlesPanel } from './setup-panels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
@@ -313,10 +313,17 @@ export function renderChannelList() {
       }
       editTabs.push({ id: 'ads', label: 'ADS', build: (c, p) => buildChannelAdsPanel(c, p) });
       editTabs.push({ id: 'logo', label: 'LOGO', build: buildLogoBugPanel });
-      editTabs.push({ id: 'theme', label: 'THEME', soon: true, build: buildThemePlaceholderPanel });
 
       const editPanel = document.createElement('div');
       editPanel.className = 'titles-panel edit-panel hidden';
+
+      const editHeading = document.createElement('div');
+      editHeading.className = 'edit-channel-heading';
+      const editHeadingTitle = document.createElement('strong');
+      editHeadingTitle.textContent = `EDITING CH ${String(ch.number).padStart(2, '0')} — ${ch.name || 'UNTITLED'}`;
+      const editHeadingSummary = document.createElement('span');
+      editHeadingSummary.textContent = `${ch.files.length} MEDIA FILE${ch.files.length === 1 ? '' : 'S'} · ${ch.folders.length} FOLDER${ch.folders.length === 1 ? '' : 'S'} · ${schedCount} SCHEDULE BLOCK${schedCount === 1 ? '' : 'S'}`;
+      editHeading.append(editHeadingTitle, editHeadingSummary);
 
       // A separate row, never innerHTML-cleared by renderEditTabBar() below
       // (which rebuilds editTabBar's contents on every tab switch) — putting
@@ -406,6 +413,7 @@ export function renderChannelList() {
       editTabContent.className = 'edit-tab-content';
       editTabContent.id = `channel-${ch.number}-edit-panel`;
       editTabContent.setAttribute('role', 'tabpanel');
+      editPanel.appendChild(editHeading);
       editPanel.appendChild(editHeaderRow);
       editPanel.appendChild(editTabBar);
       editPanel.appendChild(editTabContent);
@@ -655,9 +663,19 @@ export function renderChannelList() {
       actions.appendChild(folderBtn);
       actions.appendChild(editBtn);
       actions.appendChild(previewBtn);
-      if (fixBtn) actions.appendChild(fixBtn);
-      actions.appendChild(duplicateBtn);
-      actions.appendChild(removeBtn);
+      const more = document.createElement('details');
+      more.className = 'channel-more';
+      const moreSummary = document.createElement('summary');
+      moreSummary.className = 'btn';
+      moreSummary.textContent = 'MORE…';
+      moreSummary.setAttribute('aria-label', `More actions for channel ${ch.number}`);
+      const moreMenu = document.createElement('div');
+      moreMenu.className = 'channel-more-menu';
+      if (fixBtn) moreMenu.appendChild(fixBtn);
+      moreMenu.appendChild(duplicateBtn);
+      moreMenu.appendChild(removeBtn);
+      more.append(moreSummary, moreMenu);
+      actions.appendChild(more);
 
       const ratingLabel = document.createElement('span');
       ratingLabel.className = 'option-label';

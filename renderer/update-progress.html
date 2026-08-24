@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'">
+  <title>Updating RerunTV</title>
+  <link rel="stylesheet" href="css/update-progress.css">
+</head>
+<body>
+  <main class="update-window" aria-labelledby="update-progress-title">
+    <div class="update-signal" aria-hidden="true"><span></span><span></span><span></span></div>
+    <div class="update-copy">
+      <div class="update-kicker">RERUNTV SYSTEM UPDATE</div>
+      <h1 id="update-progress-title">PREPARING UPDATE</h1>
+      <div id="update-progress-detail" class="update-detail" aria-live="polite">Getting the next broadcast ready…</div>
+    </div>
+    <div class="update-track" role="progressbar" aria-label="Update progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div id="update-progress-fill" class="update-fill"></div>
+      <div class="update-scan" aria-hidden="true"></div>
+    </div>
+    <div class="update-footer">
+      <span id="update-progress-percent">0%</span>
+      <span>KEEP RERUNTV OPEN</span>
+    </div>
+  </main>
+  <script src="js/update-progress.js"></script>
+</body>
+</html>

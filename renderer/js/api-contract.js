@@ -5,7 +5,7 @@
 (function installApiContract(root) {
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
-    'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups',
+    'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
     'restoreBackup', 'deleteBackup', 'setBackupLabel', 'createBackupNow', 'loadConfig', 'saveConfig',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
     'transcode', 'toggleFullscreen', 'setAspectLock', 'onRemoteCommand', 'sendRemoteState', 'getRemoteUrl',
@@ -20,7 +20,8 @@
     'callMediaSourceHook',
   ];
   const hostOnlyMethods = [
-    'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes', 'onFullscreenChange',
+    'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
+    'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),

@@ -7,7 +7,12 @@
 import { showSetupScreen } from './app.js';
 import {
   updateToastEl, updateToastTextEl, updateToastViewNotesBtn, updateToastInstallBtn, updateToastDismissBtn,
+  updateChangelogEl, updateChangelogVersionEl, updateChangelogTitleEl, updateChangelogBodyEl,
+  updateChangelogViewAllBtn, updateChangelogDoneBtn,
 } from './dom.js';
+
+let pendingPostUpdate = null;
+let postUpdatePreviouslyFocused = null;
 
 function hideToast() {
   if (updateToastEl) updateToastEl.classList.add('hidden');
@@ -34,6 +39,72 @@ async function jumpToReleaseNotes() {
   document.getElementById('help-release-notes-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
+function readableReleaseNotes(markdown) {
+  const text = String(markdown || '').trim();
+  if (!text) {
+    return 'RerunTV was updated successfully. Your channels and settings are ready exactly where you left them.';
+  }
+  return text
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^[-*]\s+/gm, '• ')
+    .replace(/\n{3,}/g, '\n\n')
+    .slice(0, 6000);
+}
+
+async function acknowledgePostUpdate() {
+  if (!pendingPostUpdate) return;
+  const version = pendingPostUpdate.toVersion;
+  pendingPostUpdate = null;
+  try { await window.api.acknowledgePostUpdateNotice(version); } catch (e) { /* retry on next launch */ }
+}
+
+async function closePostUpdate({ openReleaseNotes = false } = {}) {
+  if (!updateChangelogEl || updateChangelogEl.classList.contains('hidden')) return;
+  updateChangelogEl.classList.add('hidden');
+  await acknowledgePostUpdate();
+  if (postUpdatePreviouslyFocused && postUpdatePreviouslyFocused.isConnected) {
+    postUpdatePreviouslyFocused.focus({ preventScroll: true });
+  }
+  postUpdatePreviouslyFocused = null;
+  if (openReleaseNotes) await jumpToReleaseNotes();
+}
+
+function showPostUpdate(notice) {
+  if (!updateChangelogEl || !notice) return;
+  pendingPostUpdate = notice;
+  postUpdatePreviouslyFocused = document.activeElement;
+  const from = notice.fromVersion ? `v${notice.fromVersion}` : null;
+  const to = notice.toVersion ? `v${notice.toVersion}` : '';
+  updateChangelogVersionEl.textContent = from ? `${from}  →  ${to}` : to;
+  updateChangelogTitleEl.textContent = notice.name || `WHAT'S NEW IN RERUNTV ${to}`;
+  updateChangelogBodyEl.textContent = readableReleaseNotes(notice.notes);
+  updateChangelogEl.classList.remove('hidden');
+  updateChangelogDoneBtn.focus({ preventScroll: true });
+}
+
+function trapPostUpdateFocus(event) {
+  if (!updateChangelogEl || updateChangelogEl.classList.contains('hidden')) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closePostUpdate();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const controls = [updateChangelogViewAllBtn, updateChangelogDoneBtn].filter(Boolean);
+  if (!controls.length) return;
+  const first = controls[0];
+  const last = controls[controls.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 // Called once at boot (app.js) — a no-op for the LAN viewer (window.api's
 // browser-api-shim doesn't implement onUpdateStatus at all: a viewer is a
 // read-only browser tab, never the thing that gets installed/restarted).
@@ -50,6 +121,11 @@ export function initUpdateNotice() {
       window.api.installUpdateNow();
     });
   }
+  if (updateChangelogDoneBtn) updateChangelogDoneBtn.addEventListener('click', () => closePostUpdate());
+  if (updateChangelogViewAllBtn) {
+    updateChangelogViewAllBtn.addEventListener('click', () => closePostUpdate({ openReleaseNotes: true }));
+  }
+  if (updateChangelogEl) updateChangelogEl.addEventListener('keydown', trapPostUpdateFocus);
 
   window.api.onUpdateStatus((status) => {
     if (status.state === 'downloaded' && status.showPopup) showToast(status.version);
@@ -57,4 +133,9 @@ export function initUpdateNotice() {
     // autoUpdater.autoInstallOnAppQuit — it'll install quietly next quit,
     // nothing for this toast to do.
   });
+
+  // Invoke rather than relying on a boot event: the listener is registered
+  // only after config/plugin initialization, while the main process detects
+  // the version transition earlier. Pulling the persisted notice cannot race.
+  window.api.getPostUpdateNotice().then(showPostUpdate).catch(() => {});
 }

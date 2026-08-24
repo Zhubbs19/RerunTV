@@ -48,6 +48,7 @@
     // host's real channels.json from a backup — both stay host-only.
     checkPathsExist: readOnlyNoop('checkPathsExist'),
     listBackups: () => Promise.resolve([]),
+    previewBackup: readOnlyNoop('previewBackup'),
     restoreBackup: readOnlyNoop('restoreBackup'),
     deleteBackup: readOnlyNoop('deleteBackup'),
     setBackupLabel: readOnlyNoop('setBackupLabel'),
