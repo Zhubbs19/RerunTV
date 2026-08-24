@@ -237,6 +237,14 @@ html, body {
   isolation: isolate;
 }
 
+/* Text-heavy surfaces stay readable even when the user chooses an intense
+   whole-glass CRT treatment. The TV picture still receives the full chosen
+   effect; setup and guide cap the overlay as a usability safeguard. */
+body:has(#setup-screen:not(.hidden)) #screen-crt-overlay,
+body:has(#guide-grid:not(.hidden)) #screen-crt-overlay {
+  opacity: .32;
+}
+
 /* --display-content-zoom (display-mode.js): uniformly shrinks every
    descendant's effective px sizing (fonts, padding, gaps, icons, popups —
    everything, automatically) when a simulated low RESOLUTION is active, so

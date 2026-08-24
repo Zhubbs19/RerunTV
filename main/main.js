@@ -49,7 +49,7 @@ const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServic
 const {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, recoverPendingSwap, scanFolderForVideos, transcodeVideo,
 } = require('./main-media');
-const { loadConfig, saveConfig, listBackups, restoreBackup, deleteBackup, setBackupLabel, backupCurrentConfig } = require('./main-config');
+const { loadConfig, saveConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, backupCurrentConfig } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
 const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT, VIEWER_PORT } = require('./main-lan');
 const { getConnectedDevices, trackConnection } = require('./main-connections');
@@ -578,6 +578,10 @@ ipcMain.handle('backups:list', async () => {
   return listBackups();
 });
 
+ipcMain.handle('backups:preview', async (event, file) => {
+  return previewBackup(file);
+});
+
 ipcMain.handle('backups:restore', async (event, file) => {
   return restoreBackup(file);
 });
@@ -597,7 +601,7 @@ ipcMain.handle('backups:setLabel', async (event, file, label) => {
 // caller can immediately attach the user's label to the exact file just
 // written, not "whichever is newest" a moment later.
 ipcMain.handle('backups:createNow', async () => {
-  return backupCurrentConfig(true);
+  return backupCurrentConfig(true, 'manual');
 });
 
 // ---------- Config load/save/export/import ----------

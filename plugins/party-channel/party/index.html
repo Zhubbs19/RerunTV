@@ -2,18 +2,32 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RerunTV — Party</title>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="header">
     <div class="title">🎉 RETRO CABLE BOX PARTY</div>
-    <div class="queue-status" id="queue-status">Loading…</div>
+    <div class="queue-status" id="queue-status" aria-live="polite">Loading…</div>
     <a href="#" class="watch-live-link hidden" id="watch-live-link" target="_blank" rel="noopener">📺 WATCH LIVE</a>
   </header>
 
-  <div class="tabs">
+  <label class="activity-picker-label" for="activity-picker">CHOOSE AN ACTIVITY</label>
+  <select id="activity-picker" class="activity-picker" aria-label="Choose a party activity">
+    <option value="bulletin">Bulletin</option>
+    <option value="announce">Announce</option>
+    <option value="news">Breaking News</option>
+    <option value="bingo">Bingo</option>
+    <option value="soundboard">Soundboard</option>
+    <option value="effects">Effects</option>
+    <option value="reactions">React</option>
+    <option value="checkin">Check In</option>
+    <option value="vote">Vote</option>
+    <option value="caption">Caption</option>
+    <option value="trivia">Trivia</option>
+  </select>
+  <div class="tabs" role="tablist" aria-label="Party activities">
     <button class="tab-btn active" data-tab="bulletin">BULLETIN</button>
     <button class="tab-btn" data-tab="announce">ANNOUNCE</button>
     <button class="tab-btn" data-tab="news">BREAKING NEWS</button>
@@ -37,7 +51,7 @@
           <input type="file" id="bulletin-file" accept="image/*,video/*" capture="environment">
           <span id="file-picker-text">📷 CHOOSE OR TAKE A PHOTO/VIDEO</span>
         </label>
-        <input type="text" id="bulletin-caption" maxlength="140" placeholder="Add a caption (optional)">
+        <input type="text" id="bulletin-caption" maxlength="140" placeholder="Add a caption (optional)" aria-label="Bulletin caption, optional">
         <button type="submit" class="btn btn-primary" id="bulletin-submit" disabled>POST IT</button>
       </form>
       <div class="status-msg" id="bulletin-status"></div>
@@ -46,7 +60,7 @@
     <section class="panel hidden" id="panel-announce">
       <div class="section-label">MAKE AN ANNOUNCEMENT</div>
       <p class="hint">Read aloud on the TV and shown as a card — good for "pizza's here!" or "cake time!"</p>
-      <textarea id="announce-text" maxlength="280" rows="4" placeholder="Type your announcement…"></textarea>
+      <textarea id="announce-text" maxlength="280" rows="4" placeholder="Type your announcement…" aria-label="Announcement text"></textarea>
       <button type="button" class="btn btn-primary" id="announce-submit" disabled>📢 ANNOUNCE IT</button>
       <div class="status-msg" id="announce-status"></div>
     </section>
@@ -54,7 +68,7 @@
     <section class="panel hidden" id="panel-news">
       <div class="section-label">TRIGGER BREAKING NEWS</div>
       <p class="hint">Flashes a retro Breaking News Alert across the TV screen for everyone to see.</p>
-      <textarea id="news-text" maxlength="280" rows="3" placeholder="Custom headline (leave blank for random news generator)…"></textarea>
+      <textarea id="news-text" maxlength="280" rows="3" placeholder="Custom headline (leave blank for random news generator)…" aria-label="Breaking news headline, optional"></textarea>
       <button type="button" class="btn btn-primary" id="news-submit">🚨 BROADCAST BREAKING NEWS</button>
       <div class="status-msg" id="news-status"></div>
     </section>
@@ -119,7 +133,7 @@
         <img id="caption-image" class="caption-image hidden" alt="Current caption contest frame">
         <div id="caption-image-empty" class="status-msg">No image yet — ask the host to capture one.</div>
       </div>
-      <input type="text" id="caption-text" maxlength="140" placeholder="Your caption…">
+      <input type="text" id="caption-text" maxlength="140" placeholder="Your caption…" aria-label="Caption contest entry">
       <button type="button" class="btn btn-primary" id="caption-submit" disabled>SUBMIT CAPTION</button>
       <div class="status-msg" id="caption-status"></div>
     </section>
@@ -135,7 +149,7 @@
     <section class="panel hidden" id="panel-checkin">
       <div class="section-label">CHECK IN</div>
       <p class="hint">Add your name to the "who's here" wall on the TV — plays a little chime.</p>
-      <input type="text" id="checkin-name" maxlength="24" placeholder="Your name">
+      <input type="text" id="checkin-name" maxlength="24" placeholder="Your name" aria-label="Your name">
       <button type="button" class="btn btn-primary" id="checkin-submit" disabled>👋 CHECK IN</button>
       <div class="status-msg" id="checkin-status"></div>
     </section>

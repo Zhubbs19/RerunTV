@@ -684,6 +684,7 @@ export function applyConfigDefaults(config) {
   delete config.display.logoBugPosition;
   delete config.display.logoBugSize;
   if (config.display.hintBar == null) config.display.hintBar = true;
+  if (config.display.hintBarCompact == null) config.display.hintBarCompact = true;
   if (!Array.isArray(config.display.hintBarHidden)) config.display.hintBarHidden = [];
   if (config.display.customCssPath === undefined) config.display.customCssPath = null;
   if (config.display.bootPowerOnAnim === undefined) config.display.bootPowerOnAnim = true;

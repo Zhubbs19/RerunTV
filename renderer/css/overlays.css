@@ -1236,6 +1236,93 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
+/* ---------- Post-update changelog ---------- */
+.update-changelog {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 6, 18, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.update-changelog-card {
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  background: var(--gradient-panel);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--bevel-raised), 0 18px 56px rgba(0, 0, 0, 0.72);
+  padding: 28px 32px;
+  color: var(--paper);
+}
+
+.update-changelog-kicker {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+
+.update-changelog-version {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 4px 9px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--gold);
+  background: var(--ink-deep);
+}
+
+.update-changelog-title {
+  margin: 16px 0 10px;
+  font-family: var(--font-display);
+  font-size: clamp(24px, 4vw, 34px);
+  line-height: 1.1;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.55);
+}
+
+.update-changelog-body {
+  min-height: 90px;
+  overflow-y: auto;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--ink-deep);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--paper);
+  white-space: pre-wrap;
+}
+
+.update-changelog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+@media (max-width: 640px) {
+  .update-changelog { padding: 12px; }
+  .update-changelog-card { padding: 22px 18px; }
+  .update-changelog-actions .btn { flex: 1 1 100%; }
+}
+
 /* ---------- Plugin channels — see plugins.js/virtual.js ---------- */
 .plugin-channel-container {
   position: absolute;

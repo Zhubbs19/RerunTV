@@ -61,6 +61,30 @@ html, body {
 }
 .watch-live-link.hidden { display: none; }
 
+.activity-picker-label {
+  display: none;
+  max-width: 480px;
+  margin: 12px auto 5px;
+  padding: 0 16px;
+  color: var(--cyan);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+.activity-picker {
+  display: none;
+  width: calc(100% - 32px);
+  max-width: 448px;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ink-deep);
+  color: var(--paper);
+  font: 700 14px 'Barlow', system-ui, sans-serif;
+  padding: 12px;
+  min-height: 44px;
+}
+
 /* Horizontally scrollable, not equal-width flex — this page grew past the
    handful of tabs a single-row equal-width layout can comfortably fit on a
    phone (BULLETIN/ANNOUNCE/SOUNDBOARD/EFFECTS/VOTE/CHECK IN/CAPTION/TRIVIA). */
@@ -90,6 +114,15 @@ html, body {
   background: var(--ink-deep);
   color: var(--gold);
   border-bottom-color: var(--ink-deep);
+}
+.tab-btn:focus-visible,
+.activity-picker:focus-visible,
+.btn:focus-visible,
+.sound-btn:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--cyan);
+  outline-offset: 2px;
 }
 
 .content {
@@ -153,7 +186,7 @@ input[type="text"], textarea {
   padding: 12px;
   resize: vertical;
 }
-input[type="text"]::placeholder, textarea::placeholder { color: #7a6ba8; }
+input[type="text"]::placeholder, textarea::placeholder { color: #b6aad7; }
 
 .btn {
   background: linear-gradient(180deg, #7a4fd6 0%, #5b3d99 55%, #452e75 100%);
@@ -221,6 +254,13 @@ input[type="text"]::placeholder, textarea::placeholder { color: #7a6ba8; }
 
 @media (min-width: 480px) {
   .soundboard-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 479px) {
+  .activity-picker-label,
+  .activity-picker { display: block; }
+  .tabs { display: none; }
+  .content { padding-top: 14px; }
 }
 
 .jukebox-search-row {

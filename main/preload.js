@@ -23,6 +23,12 @@ contextBridge.exposeInMainWorld('api', {
   // Live GitHub Releases feed for the HELP tab's RELEASE NOTES panel — see
   // main-updater.js's registerReleaseNotesHandler.
   getReleaseNotes: () => ipcRenderer.invoke('updates:getReleaseNotes'),
+  // One-shot changelog shown after the installed app version changes. The
+  // main process persists the old/new versions and downloaded release notes
+  // across quitAndInstall(), so this remains available after an offline
+  // restart and is acknowledged only after the user dismisses it.
+  getPostUpdateNotice: () => ipcRenderer.invoke('updates:getPostUpdateNotice'),
+  acknowledgePostUpdateNotice: (version) => ipcRenderer.invoke('updates:acknowledgePostUpdateNotice', version),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),
@@ -43,6 +49,7 @@ contextBridge.exposeInMainWorld('api', {
   // screen's BACKUPS panel, restoreBackup to roll the live config back to a
   // previous snapshot.
   listBackups: () => ipcRenderer.invoke('backups:list'),
+  previewBackup: (file) => ipcRenderer.invoke('backups:preview', file),
   restoreBackup: (file) => ipcRenderer.invoke('backups:restore', file),
   deleteBackup: (file) => ipcRenderer.invoke('backups:delete', file),
   setBackupLabel: (file, label) => ipcRenderer.invoke('backups:setLabel', file, label),

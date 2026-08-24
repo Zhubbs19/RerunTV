@@ -154,7 +154,8 @@ export function applyHintBarState() {
   Array.from(hintBarEl.children).forEach((span) => {
     const key = span.dataset.hintKey;
     const hideForPlugin = span.dataset.pluginHint === 'true' ? !registeredHintKeys.has(key) : false;
-    span.classList.toggle('hidden', hidden.includes(key) || hideForPlugin);
+    const hideForCompact = S.config.display.hintBarCompact !== false && span.dataset.hintSecondary === 'true';
+    span.classList.toggle('hidden', hidden.includes(key) || hideForPlugin || hideForCompact);
   });
 }
 

@@ -29,6 +29,26 @@ export function updatePerfMetrics() {
     const pct = Math.min(100, Math.max(0, (currentFps / 60) * 100));
     fpsBarEl.style.width = `${pct}%`;
   }
+  const statusBadgeEl = document.getElementById('perf-status-badge');
+  if (statusBadgeEl) {
+    let status = '● PLAYBACK HEALTHY';
+    let level = 'healthy';
+    if (document.hidden) {
+      status = '● WINDOW IN BACKGROUND — FPS THROTTLED';
+      level = 'idle';
+    } else if (!player || player.paused) {
+      status = '● IDLE — NO ACTIVE PLAYBACK LOAD';
+      level = 'idle';
+    } else if (currentFps < 30) {
+      status = '● PERFORMANCE NEEDS ATTENTION';
+      level = 'danger';
+    } else if (currentFps < 50) {
+      status = '● PLAYBACK PERFORMANCE REDUCED';
+      level = 'warning';
+    }
+    statusBadgeEl.textContent = status;
+    statusBadgeEl.dataset.level = level;
+  }
 
   // Memory Heap Readout
   const memValEl = document.getElementById('perf-mem-val');

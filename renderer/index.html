@@ -66,6 +66,23 @@
       <button id="update-toast-dismiss" class="migration-toast-dismiss" aria-label="Dismiss">&times;</button>
     </div>
 
+    <!-- One-time post-update changelog. Unlike the update-ready toast above,
+         this appears after the new version has actually launched, including
+         a quiet auto-install-on-quit. update-state.json carries the old/new
+         versions and release body across the installer restart. -->
+    <div id="update-changelog" class="update-changelog hidden" role="dialog" aria-modal="true" aria-labelledby="update-changelog-title">
+      <div class="update-changelog-card">
+        <div class="update-changelog-kicker">UPDATE COMPLETE</div>
+        <div id="update-changelog-version" class="update-changelog-version"></div>
+        <h2 id="update-changelog-title" class="update-changelog-title">WHAT'S NEW IN RERUNTV</h2>
+        <div id="update-changelog-body" class="update-changelog-body"></div>
+        <div class="update-changelog-actions">
+          <button id="update-changelog-view-all" class="btn">VIEW ALL RELEASE NOTES</button>
+          <button id="update-changelog-done" class="btn btn-primary">START WATCHING</button>
+        </div>
+      </div>
+    </div>
+
     <!-- App-wide display mode (DISPLAY > APP DISPLAY MODE, display-mode.js) —
          simulates the fixed aspect/resolution a real box's own display would
          have had, independent of the video-only ASPECT RATIO setting. Wraps
@@ -85,21 +102,22 @@
       <div class="setup-panel">
         <div class="setup-header">
           <div class="setup-eyebrow">SYSTEM CONFIG // REV 1.0</div>
-          <h1 class="setup-title">CHANNEL SETUP</h1>
-          <p class="setup-sub">Point each channel at your media library, then shape how it broadcasts — dayparts and holiday takeovers, commercials and station IDs, and the picture/audio settings for the whole box.</p>
+          <h1 id="setup-page-title" class="setup-title">CHANNELS</h1>
+          <p id="setup-page-description" class="setup-sub">Build and manage the channel lineup, media folders, schedules, titles, ads, and logos.</p>
         </div>
         <div class="setup-nav">
         <div class="setup-tabs" id="setup-tabs" aria-label="Settings sections">
           <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
           <button class="setup-tab-btn" data-tab="display">DISPLAY</button>
           <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
-          <button class="setup-tab-btn" data-tab="audio">AUDIO &amp; SYSTEM</button>
+          <button class="setup-tab-btn" data-tab="audio">SYSTEM</button>
           <button class="setup-tab-btn" data-tab="perf">PERFORMANCE</button>
           <button class="setup-tab-btn" data-tab="plugins">PLUGINS</button>
           <button class="setup-tab-btn" data-tab="help">HELP</button>
         </div>
         <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
-        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH ALL SETTINGS (DISPLAY / PROGRAMMING / AUDIO &amp; SYSTEM)…">
+        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH SETTINGS AND ACTIONS…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
+        <div id="setup-search-results" class="setup-search-results hidden" role="listbox" aria-label="Settings search results"></div>
         <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
         </div>
 
@@ -292,6 +310,7 @@
           <div class="panel-body">
             <label class="shuffle-toggle"><input type="checkbox" id="clock24-enabled">24-HOUR CLOCK</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-enabled" checked>SHOW HINT BAR (H TO TOGGLE)</label>
+            <label class="shuffle-toggle"><input type="checkbox" id="hintbar-compact" checked>COMPACT HINT BAR (CORE CONTROLS + TV MENU)</label>
             <div class="panel-interval">
               GUIDE SLOTS
               <select id="guide-slots-select">
@@ -317,7 +336,7 @@
 
         <div class="panel">
           <div class="panel-toggle">HINT BAR ITEMS</div>
-          <span class="panel-status">Choose which shortcuts show in the on-screen hint bar — turning one off here doesn't disable the key itself, just hides it from the bar. The full list always stays in HELP &gt; SHORTCUTS regardless of what's checked here.</span>
+          <span class="panel-status">Choose which shortcuts are available to the on-screen hint bar. Compact mode shows the core controls and TV Menu shortcut; turn it off to show every checked item. The full reference always stays in HELP &gt; SHORTCUTS.</span>
           <div id="hintbar-items-list" class="hintbar-items-list"></div>
         </div>
 
@@ -343,6 +362,16 @@
 
         <!-- SHOW & AD FLOWS (INTERACTIVE VISUAL FLOW BUILDER) -->
         <div class="setup-subtab-panel" data-subtab-panel="flows">
+        <div class="programming-path-picker panel">
+          <div>
+            <div class="panel-toggle">CHOOSE YOUR PROGRAMMING WORKFLOW</div>
+            <span class="panel-status">Use cadence presets for straightforward timed breaks. Use the advanced flow builder when a show needs an exact sequence of bumpers, segments, IDs, and ad pods.</span>
+          </div>
+          <div class="programming-path-actions">
+            <button id="programming-simple-path-btn" class="btn btn-primary">SET UP A SIMPLE CADENCE</button>
+            <button id="programming-advanced-path-btn" class="btn">OPEN ADVANCED FLOW BUILDER</button>
+          </div>
+        </div>
         <div class="settings-grid">
 
         <div class="panel span-full flow-builder-panel">
@@ -574,8 +603,9 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="audio">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="system">SYSTEM</button>
-          <button class="setup-subtab-btn" data-subtab="virtual">VIRTUAL CHANNELS</button>
+          <button class="setup-subtab-btn active" data-subtab="system">AUDIO &amp; POWER</button>
+          <button class="setup-subtab-btn" data-subtab="network">NETWORK &amp; DEVICES</button>
+          <button class="setup-subtab-btn" data-subtab="virtual">SECURITY</button>
           <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
         </div>
 
@@ -621,12 +651,11 @@
         </div>
         </div>
 
-        <div class="setup-subtab-panel hidden" data-subtab-panel="virtual">
-        <div class="virtual-channels-toolbar">
-          <input type="text" id="virtual-filter-input" class="titles-search" placeholder="FILTER VIRTUAL CHANNELS…">
-          <button type="button" id="virtual-expand-all-btn" class="btn">EXPAND ALL</button>
-          <button type="button" id="virtual-collapse-all-btn" class="btn">COLLAPSE ALL</button>
+        <div class="setup-subtab-panel hidden" data-subtab-panel="network">
+          <div id="network-settings-grid" class="settings-grid"></div>
         </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="virtual">
         <div class="settings-grid">
 
 
@@ -1165,22 +1194,23 @@
 
       <div id="hint-bar" class="hint-bar">
         <span data-hint-key="channel">&uarr;&darr; CHANGE CHANNEL</span>
-        <span data-hint-key="favorites">SHIFT+&uarr;&darr; FAVORITES</span>
-        <span data-hint-key="direct-entry">0-9 DIRECT ENTRY</span>
-        <span data-hint-key="last">BKSP LAST</span>
+        <span data-hint-key="favorites" data-hint-secondary="true">SHIFT+&uarr;&darr; FAVORITES</span>
+        <span data-hint-key="direct-entry" data-hint-secondary="true">0-9 DIRECT ENTRY</span>
+        <span data-hint-key="last" data-hint-secondary="true">BKSP LAST</span>
         <span data-hint-key="guide">G GUIDE</span>
         <span data-hint-key="setup">S SETUP</span>
         <span data-hint-key="mute">M MUTE</span>
         <span data-hint-key="volume">+/&minus; VOLUME</span>
-        <span data-hint-key="crt">C CRT EFFECT</span>
-        <span data-hint-key="picture-mode">V PICTURE MODE</span>
-        <span data-hint-key="aspect">A ASPECT RATIO</span>
-        <span data-hint-key="sleep">Z SLEEP TIMER</span>
-        <span data-hint-key="fullscreen">F FULLSCREEN</span>
-        <span data-hint-key="power">P POWER</span>
+        <span data-hint-key="crt" data-hint-secondary="true">C CRT EFFECT</span>
+        <span data-hint-key="picture-mode" data-hint-secondary="true">V PICTURE MODE</span>
+        <span data-hint-key="aspect" data-hint-secondary="true">A ASPECT RATIO</span>
+        <span data-hint-key="sleep" data-hint-secondary="true">Z SLEEP TIMER</span>
+        <span data-hint-key="fullscreen" data-hint-secondary="true">F FULLSCREEN</span>
+        <span data-hint-key="power" data-hint-secondary="true">P POWER</span>
         <span data-hint-key="time-machine">T TIME MACHINE / PLAY</span>
-        <span data-hint-key="news-alert" data-plugin-hint="true">B NEWS ALERT</span>
-        <span data-hint-key="closed-captions" data-plugin-hint="true">K CAPTIONS</span>
+        <span data-hint-key="news-alert" data-plugin-hint="true" data-hint-secondary="true">B NEWS ALERT</span>
+        <span data-hint-key="closed-captions" data-plugin-hint="true" data-hint-secondary="true">K CAPTIONS</span>
+        <span data-hint-key="tv-menu">? TV MENU</span>
         <span data-hint-key="hide-hints">H HIDE HINTS</span>
       </div>
 

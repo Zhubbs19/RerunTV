@@ -4,6 +4,8 @@
 // handleKey, renderer/js/app.js).
 (function () {
   var nowWatchingEl = document.getElementById('now-watching');
+  var commandFeedbackEl = document.getElementById('command-feedback');
+  var feedbackTimer = null;
 
   // pointerdown, not click — click waits for the browser's touchend->click
   // synthesis (a real, ~300ms-class delay on mobile even with fast-tap CSS
@@ -14,24 +16,35 @@
   document.querySelectorAll('.btn[data-key]').forEach(function (btn) {
     btn.addEventListener('pointerdown', function (e) {
       e.preventDefault();
-      sendCommand(btn.dataset.key, btn.dataset.shift === '1');
+      sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim());
+    });
+    // Keyboard/switch-control activation emits a click with detail 0 and no
+    // pointerdown. Preserve that accessible path without double-sending a
+    // normal touch/mouse activation.
+    btn.addEventListener('click', function (e) {
+      if (e.detail === 0) sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim());
     });
   });
-  // Some browsers need this to actually suppress the trailing synthetic
-  // click/zoom gesture on a fast repeated tap.
-  document.addEventListener('click', function (e) { e.preventDefault(); }, true);
 
-  function sendCommand(key, shift) {
+  function sendCommand(key, shift, label) {
     // Fire-and-forget — the button's own :active CSS state is the feedback
     // the user sees instantly, regardless of how long the round trip to the
     // app actually takes. Awaiting the response before allowing another
     // tap would only add perceived lag for zero benefit (POST /command
     // always just returns 204).
+    commandFeedbackEl.textContent = label + ' SENT';
+    commandFeedbackEl.classList.remove('error');
+    commandFeedbackEl.classList.add('show');
+    clearTimeout(feedbackTimer);
+    feedbackTimer = setTimeout(function () { commandFeedbackEl.classList.remove('show'); }, 900);
     fetch('/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key: key, shift: shift }),
-    }).catch(function () {});
+    }).catch(function () {
+      commandFeedbackEl.textContent = 'REMOTE DISCONNECTED';
+      commandFeedbackEl.classList.add('show', 'error');
+    });
   }
 
   function pollState() {

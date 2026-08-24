@@ -192,9 +192,11 @@ function updateSummary(plugins) {
   if (!plugins.length) { pluginsSummaryEl.textContent = ''; return; }
   const disabledIds = S.config.plugins.disabled || [];
   const errorCount = plugins.filter((p) => p.error || p.loadError).length;
+  const attentionCount = plugins.filter(needsAttention).length;
   const enabledCount = plugins.filter((p) => !p.error && !disabledIds.includes(p.id)).length;
   const bits = [`${enabledCount} of ${plugins.length} enabled`];
   if (errorCount) bits.push(`${errorCount} with errors`);
+  else if (attentionCount) bits.push(`${attentionCount} need attention`);
   pluginsSummaryEl.textContent = bits.join(' · ').toUpperCase();
 }
 
@@ -214,6 +216,18 @@ function effectiveCategory(p) {
   return CATEGORY_LABELS[p.category] ? p.category : 'other';
 }
 
+function needsAttention(p) {
+  if (p.error || p.loadError || p.needsIntegrityApproval) return true;
+  if (!p.error && permissionState(p) === 'needs-approval') return true;
+  return (p.dependsOn || []).some((depId) => {
+    const allPlugins = currentPluginsForAttention;
+    const dependency = allPlugins.find((other) => other.id === depId);
+    return !dependency || dependency.error || (S.config.plugins.disabled || []).includes(depId);
+  });
+}
+
+let currentPluginsForAttention = [];
+
 async function promptIntegrityApproval(p) {
   const changed = p.integrityStatus === 'modified';
   const message = `${p.name}'s files are ${changed ? 'different from the last trusted install' : 'not from a recorded ZIP install'}.\n\nRenderer JavaScript and CSS run inside RerunTV's UI and can read or change anything visible there. Main-process isolation does not sandbox renderer code.\n\nCurrent SHA-256: ${p.integrityHash}\n\nOnly trust this exact version if you know where it came from.`;
@@ -230,7 +244,7 @@ async function promptIntegrityApproval(p) {
   renderPluginsList();
 }
 
-let activeCategory = 'all';
+let activeCategory = null;
 
 function renderCategoryTabs(plugins) {
   if (!pluginsCategoryTabsEl) return;
@@ -240,11 +254,15 @@ function renderCategoryTabs(plugins) {
     counts[cat] = (counts[cat] || 0) + 1;
   });
   const present = CATEGORY_ORDER.filter((cat) => counts[cat] > 0);
+  currentPluginsForAttention = plugins;
+  const attentionCount = plugins.filter(needsAttention).length;
   // Tabs aren't worth showing at all for a small/single-category install —
   // only third-party-heavy or fully-loaded setups actually benefit from
   // the split.
-  if (present.length < 2) { pluginsCategoryTabsEl.innerHTML = ''; activeCategory = 'all'; return; }
-  if (activeCategory !== 'all' && !present.includes(activeCategory)) activeCategory = 'all';
+  if (present.length < 2 && !attentionCount) { pluginsCategoryTabsEl.innerHTML = ''; activeCategory = 'all'; return; }
+  if (activeCategory == null) activeCategory = attentionCount ? 'attention' : 'all';
+  if (activeCategory !== 'all' && activeCategory !== 'attention' && !present.includes(activeCategory)) activeCategory = 'all';
+  if (activeCategory === 'attention' && !attentionCount) activeCategory = 'all';
 
   pluginsCategoryTabsEl.innerHTML = '';
   const makeTab = (key, label, count) => {
@@ -260,6 +278,7 @@ function renderCategoryTabs(plugins) {
     pluginsCategoryTabsEl.appendChild(btn);
   };
   makeTab('all', 'ALL', plugins.length);
+  if (attentionCount) makeTab('attention', 'NEEDS ATTENTION', attentionCount);
   present.forEach((cat) => makeTab(cat, CATEGORY_LABELS[cat], counts[cat]));
 }
 
@@ -276,6 +295,7 @@ export async function renderPluginsList() {
     return;
   }
   pluginsListEl.innerHTML = '';
+  currentPluginsForAttention = plugins;
   pluginsEmptyEl.classList.toggle('hidden', plugins.length > 0);
   updateSummary(plugins);
   renderCategoryTabs(plugins);
@@ -482,6 +502,7 @@ export async function renderPluginsList() {
     // panel contents once expanded) on every keystroke.
     entry.dataset.search = [p.name, p.id, p.dir, p.description, ...(p.dependsOn || [])].filter(Boolean).join(' ').toLowerCase();
     entry.dataset.category = effectiveCategory(p);
+    entry.dataset.attention = needsAttention(p) ? 'true' : 'false';
     entry.appendChild(row);
 
     if (hasSettings) {
@@ -584,7 +605,8 @@ function applyPluginsFilter() {
   let anyVisible = false;
   entries.forEach((entry) => {
     const matchesText = !q || (entry.dataset.search || '').includes(q);
-    const matchesCategory = activeCategory === 'all' || entry.dataset.category === activeCategory;
+    const matchesCategory = activeCategory === 'all'
+      || (activeCategory === 'attention' ? entry.dataset.attention === 'true' : entry.dataset.category === activeCategory);
     const matches = matchesText && matchesCategory;
     entry.classList.toggle('filtered-out', !matches);
     if (matches) anyVisible = true;

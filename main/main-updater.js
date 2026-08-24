@@ -1,6 +1,9 @@
-const { app, ipcMain } = require('electron');
+const { app, ipcMain, BrowserWindow } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const { loadConfig, backupUserDataForUpdate } = require('./main-config');
 const { fetchJsonCached } = require('./main-api-cache');
+const { prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRelease } = require('./main-updater-state');
 
 // Auto-update via electron-updater, fed by this repo's GitHub Releases (see
 // package.json's build.publish). Releases are published by
@@ -43,6 +46,116 @@ const { fetchJsonCached } = require('./main-api-cache');
 // cached at startup, so a setting changed mid-session takes effect on the
 // very next check/download without needing a restart.
 let autoUpdater = null;
+let progressWindow = null;
+let progressWindowReady = false;
+let latestProgressState = null;
+let progressCloseTimer = null;
+
+function updateStatePath() {
+  return path.join(app.getPath('userData'), 'update-state.json');
+}
+
+function readUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(updateStatePath(), 'utf8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+function writeUpdateState(state) {
+  try {
+    const file = updateStatePath();
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temp = `${file}.tmp`;
+    fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    fs.renameSync(temp, file);
+  } catch (e) {
+    console.error('[auto-updater] could not persist update state:', e.message);
+  }
+}
+
+// Called after userData restoration and before the renderer asks for its
+// one-time notice. A brand-new install establishes a baseline silently;
+// only a later version transition creates a pending changelog.
+function preparePostUpdateNotice() {
+  const currentVersion = app.getVersion();
+  const state = readUpdateState();
+  const before = JSON.stringify(state);
+  prepareVersionTransition(state, currentVersion);
+  if (JSON.stringify(state) !== before) writeUpdateState(state);
+}
+
+function rememberDownloadedRelease(info) {
+  const state = readUpdateState();
+  recordDownloadedRelease(state, info);
+  writeUpdateState(state);
+}
+
+function progressDetail(progress) {
+  const transferredMb = Number(progress.transferred || 0) / (1024 * 1024);
+  const totalMb = Number(progress.total || 0) / (1024 * 1024);
+  const speedMb = Number(progress.bytesPerSecond || 0) / (1024 * 1024);
+  const size = totalMb > 0 ? `${transferredMb.toFixed(1)} of ${totalMb.toFixed(1)} MB` : '';
+  const speed = speedMb > 0 ? `${speedMb.toFixed(1)} MB/s` : '';
+  return [size, speed].filter(Boolean).join('  •  ') || 'Downloading the update package…';
+}
+
+function sendProgressState(state) {
+  latestProgressState = state;
+  if (progressWindowReady && progressWindow && !progressWindow.isDestroyed()) {
+    progressWindow.webContents.send('update-progress:state', state);
+  }
+}
+
+function showProgressWindow(getMainWindow, state) {
+  clearTimeout(progressCloseTimer);
+  if (!progressWindow || progressWindow.isDestroyed()) {
+    const parent = getMainWindow();
+    progressWindowReady = false;
+    progressWindow = new BrowserWindow({
+      width: 520,
+      height: 210,
+      parent: parent && !parent.isDestroyed() ? parent : undefined,
+      modal: false,
+      frame: false,
+      transparent: true,
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      show: false,
+      skipTaskbar: true,
+      alwaysOnTop: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        preload: path.join(__dirname, 'update-progress-preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+    progressWindow.setMenuBarVisibility(false);
+    progressWindow.on('closed', () => {
+      progressWindow = null;
+      progressWindowReady = false;
+    });
+    progressWindow.webContents.on('did-finish-load', () => {
+      progressWindowReady = true;
+      if (latestProgressState) sendProgressState(latestProgressState);
+      if (progressWindow && !progressWindow.isDestroyed()) progressWindow.showInactive();
+    });
+    progressWindow.loadURL('app://bundle/renderer/update-progress.html');
+  }
+  sendProgressState(state);
+}
+
+function closeProgressWindow(delayMs = 0) {
+  clearTimeout(progressCloseTimer);
+  progressCloseTimer = setTimeout(() => {
+    if (progressWindow && !progressWindow.isDestroyed()) progressWindow.close();
+  }, delayMs);
+}
 function getAutoUpdater() {
   if (!autoUpdater) {
     ({ autoUpdater } = require('electron-updater'));
@@ -83,35 +196,63 @@ const GITHUB_REPO = 'RerunTV';
 // behavior, for free.
 const RELEASE_NOTES_TTL_MS = 60 * 60 * 1000;
 
+async function fetchReleaseNotes() {
+  try {
+    const headers = { 'User-Agent': 'RerunTV', Accept: 'application/vnd.github+json' };
+    const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+    if (token) headers.Authorization = `token ${token}`;
+    const data = await fetchJsonCached(
+      'github-releases',
+      `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=10`,
+      { headers },
+      RELEASE_NOTES_TTL_MS,
+    );
+    if (!Array.isArray(data)) return [];
+    return data.map((r) => ({
+      tag: r.tag_name,
+      name: r.name || r.tag_name,
+      body: r.body || '',
+      publishedAt: r.published_at,
+      prerelease: !!r.prerelease,
+      url: r.html_url,
+    }));
+  } catch (e) {
+    return [];
+  }
+}
+
 function registerReleaseNotesHandler() {
   ipcMain.handle('updates:getReleaseNotes', async () => {
-    try {
-      // This repo is private (see package.json's build.publish.private,
-      // which is the same reason autoUpdater itself needs a token — see
-      // getAutoUpdater's comment above). GitHub 404s an unauthenticated
-      // request to a private repo's API rather than 403ing, same as it
-      // does for one that doesn't exist at all — no token, no release
-      // notes, same as no token means autoUpdater can't check either.
-      const headers = { 'User-Agent': 'RerunTV', Accept: 'application/vnd.github+json' };
-      const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-      if (token) headers.Authorization = `token ${token}`;
-      const data = await fetchJsonCached(
-        'github-releases',
-        `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases?per_page=10`,
-        { headers },
-        RELEASE_NOTES_TTL_MS,
-      );
-      if (!Array.isArray(data)) return [];
-      return data.map((r) => ({
-        tag: r.tag_name,
-        name: r.name || r.tag_name,
-        body: r.body || '',
-        publishedAt: r.published_at,
-        prerelease: !!r.prerelease,
-        url: r.html_url,
-      }));
-    } catch (e) {
-      return [];
+    // This repo is private (see package.json's build.publish.private,
+    // which is the same reason autoUpdater itself needs a token). GitHub
+    // returns 404 to an unauthenticated private-repo request.
+    return fetchReleaseNotes();
+  });
+
+  ipcMain.handle('updates:getPostUpdateNotice', async () => {
+    const state = readUpdateState();
+    const pending = state.pendingNotice;
+    if (!pending) return null;
+    if (!pending.notes) {
+      const releases = await fetchReleaseNotes();
+      const version = String(pending.toVersion || '').replace(/^v/i, '');
+      const match = releases.find((release) => String(release.tag || '').replace(/^v/i, '') === version);
+      if (match) {
+        pending.name = match.name;
+        pending.notes = match.body;
+        pending.publishedAt = match.publishedAt;
+        state.pendingNotice = pending;
+        writeUpdateState(state);
+      }
+    }
+    return pending;
+  });
+
+  ipcMain.handle('updates:acknowledgePostUpdateNotice', async (_event, version) => {
+    const state = readUpdateState();
+    if (state.pendingNotice && state.pendingNotice.toVersion === version) {
+      delete state.pendingNotice;
+      writeUpdateState(state);
     }
   });
 }
@@ -124,6 +265,7 @@ function registerReleaseNotesHandler() {
 // watching), so getMainWindow() below is always expected to resolve to a
 // real window once it matters.
 function initAutoUpdater(getMainWindow) {
+  preparePostUpdateNotice();
   registerReleaseNotesHandler();
 
   if (!app.isPackaged) {
@@ -134,6 +276,21 @@ function initAutoUpdater(getMainWindow) {
 
   const updater = getAutoUpdater();
 
+  updater.on('update-available', (info) => {
+    showProgressWindow(getMainWindow, {
+      kind: 'download', title: `DOWNLOADING RERUNTV v${info.version}`,
+      detail: 'Starting the update download…', percent: 0,
+    });
+  });
+  updater.on('download-progress', (progress) => {
+    showProgressWindow(getMainWindow, {
+      kind: 'download', title: 'DOWNLOADING UPDATE',
+      detail: progressDetail(progress), percent: progress.percent,
+    });
+    sendStatus(getMainWindow, { state: 'progress', version: progress.version, percent: progress.percent });
+  });
+  updater.on('update-not-available', () => closeProgressWindow());
+
   updater.on('update-downloaded', (info) => {
     const { showLaunchPopup } = updatesConfig();
     updater.autoInstallOnAppQuit = !showLaunchPopup;
@@ -141,11 +298,27 @@ function initAutoUpdater(getMainWindow) {
     // showLaunchPopup is off, autoInstallOnAppQuit installs on the next
     // normal quit without ever going through that handler, so this is the
     // only guaranteed point before the install can happen either way.
+    // Persist release metadata before the safety copy so both the changelog
+    // and its previous-version baseline survive an installer that replaces
+    // the portable userData directory.
+    rememberDownloadedRelease(info);
     backupUserDataForUpdate();
+    showProgressWindow(getMainWindow, {
+      kind: 'complete', title: 'UPDATE READY',
+      detail: `RerunTV v${info.version} is ready to install.`, percent: 100,
+    });
+    closeProgressWindow(1200);
     sendStatus(getMainWindow, { state: 'downloaded', version: info.version, showPopup: showLaunchPopup });
   });
   updater.on('error', (err) => {
     console.error('[auto-updater]', err == null ? err : err.stack || err.message || err);
+    if (progressWindow && !progressWindow.isDestroyed()) {
+      showProgressWindow(getMainWindow, {
+        kind: 'error', title: 'UPDATE PAUSED',
+        detail: 'The update could not be downloaded. RerunTV will keep running normally.', percent: 0,
+      });
+      closeProgressWindow(4500);
+    }
   });
 
   ipcMain.handle('updates:check', async () => {
@@ -172,6 +345,11 @@ function initAutoUpdater(getMainWindow) {
     // down the new version. Safety-copy it out first; main-config.js's
     // restoreUserDataIfWiped() reconciles it back on the next boot.
     backupUserDataForUpdate();
+    showProgressWindow(getMainWindow, {
+      kind: 'install', title: 'APPLYING UPDATE',
+      detail: 'RerunTV will close and reopen automatically. Keep this window open.',
+      percent: 100, indeterminate: true,
+    });
     // isSilent=true: the NSIS wizard's own generic "Welcome to the RerunTV
     // Setup Wizard" pages look identical to a fresh install with no update-
     // specific wording of their own (customizing that would mean a NSIS
@@ -181,7 +359,9 @@ function initAutoUpdater(getMainWindow) {
     // (isForceRunAfter=true) puts the "an update is happening" messaging
     // entirely in our own already-trusted UI (the toast that led here)
     // instead of a wizard the user never asked to interact with.
-    updater.quitAndInstall(true, true);
+    // Give the frameless progress window enough time to paint its applying
+    // state before Electron exits into the silent NSIS update process.
+    setTimeout(() => updater.quitAndInstall(true, true), 650);
   });
 
   // Delayed rather than fired immediately at boot — same reasoning as the

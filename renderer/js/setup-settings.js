@@ -25,11 +25,11 @@ import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
   clock24El, detailsEnabledEl,
-  guideSlotsSelect, hintBarEnabledEl,
+  guideSlotsSelect, hintBarEnabledEl, hintBarCompactEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider, logoBugEditorEl, movieModeEnabledEl, pictureModeSelect,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
-  setupSearchEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
+  setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
   updateModeSelect, updateLaunchPopupEnabledEl, updateStatusLineEl, updateSettingsPanelEl,
@@ -54,6 +54,18 @@ const sliderReadouts = [
   adVolumeSlider, contentVolumeSlider,
 ].map((s) => attachSliderReadout(s, { suffix: '%' }))
   .concat([attachSliderReadout(guideAnimSpeedSlider, { suffix: 'ms' })]);
+
+function setDependentControlState(control, enabled) {
+  if (!control) return;
+  control.disabled = !enabled;
+  control.closest('label, .panel-interval')?.classList.toggle('control-disabled', !enabled);
+}
+
+function refreshDependentControls() {
+  setDependentControlState(guideAnimSpeedSlider, guideOpenCloseAnimEnabledEl.checked);
+  setDependentControlState(staticIntensitySlider, staticEnabledEl.checked);
+  setDependentControlState(staticDurationSlider, staticEnabledEl.checked);
+}
 
 // Built from the live #hint-bar spans themselves (same "one source of
 // truth" pattern the HELP tab's shortcuts grid already uses below) rather
@@ -186,6 +198,7 @@ export function renderSettingsPanels() {
   crtBurninSlider.value = ci.burnIn != null ? ci.burnIn : 0;
   clock24El.checked = !!S.config.display.clock24;
   hintBarEnabledEl.checked = S.config.display.hintBar !== false;
+  hintBarCompactEl.checked = S.config.display.hintBarCompact !== false;
   renderHintBarItemsList();
   adVolumeSlider.value = Math.round((typeof S.config.adVolume === 'number' ? S.config.adVolume : 1) * 100);
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
@@ -216,6 +229,7 @@ export function renderSettingsPanels() {
     staticDurationSlider.value = durMs;
     if (staticDurationVal) staticDurationVal.textContent = durMs === 0 ? '0ms (INSTANT)' : `${durMs}ms`;
   }
+  refreshDependentControls();
   triviaEnabledEl.checked = !!S.config.trivia.enabled;
   triviaIntervalEl.value = S.config.trivia.intervalMinutes || 20;
   if (!S.config.pinLock) S.config.pinLock = { enabled: false, code: '1234' };
@@ -239,6 +253,18 @@ import { renderPluginsTab } from './setup-plugins.js';
 const setupTabBtns = document.querySelectorAll('.setup-tab-btn');
 const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
 
+// The original SYSTEM markup mixed audio/power with LAN device access in a
+// single grid. Move the two network cards into their dedicated sub-tab at
+// boot; keeping their existing elements/ids means all listeners and config
+// contracts remain unchanged.
+const networkSettingsGrid = document.getElementById('network-settings-grid');
+if (networkSettingsGrid) {
+  const viewerPanel = viewerEnabledEl?.closest('.panel');
+  const devicesPanel = connectedDevicesListEl?.closest('.panel');
+  if (viewerPanel) networkSettingsGrid.appendChild(viewerPanel);
+  if (devicesPanel) networkSettingsGrid.appendChild(devicesPanel);
+}
+
 // ---------- Breadcrumb + session resume ----------
 // Session resume is deliberately in-memory only (not written to
 // S.config/disk) — it's "don't lose my place if I tab away to watch
@@ -250,6 +276,34 @@ const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
 // torn down); restoreActiveSubtabPanels() below already re-applies
 // whichever sub-tab is currently marked active.
 let lastSetupTab = 'channels';
+
+const SETUP_SECTION_COPY = {
+  channels: ['CHANNELS', 'Build and manage the lineup, media folders, schedules, titles, ads, and logos.'],
+  display: ['DISPLAY', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
+  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
+  audio: ['AUDIO, NETWORK & STORAGE', 'Control audio levels, connected viewing, access, virtual channels, and backups.'],
+  perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
+  plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
+  help: ['HELP & UPDATES', 'Find guidance, shortcuts, software updates, and release notes.'],
+};
+
+function updateSetupHeading(tab) {
+  const [title, description] = SETUP_SECTION_COPY[tab] || SETUP_SECTION_COPY.channels;
+  const titleEl = document.getElementById('setup-page-title');
+  const descriptionEl = document.getElementById('setup-page-description');
+  if (titleEl) titleEl.textContent = title;
+  if (descriptionEl) descriptionEl.textContent = description;
+}
+
+function closeSettingsSearch() {
+  if (setupSearchResultsEl) {
+    setupSearchResultsEl.classList.add('hidden');
+    setupSearchResultsEl.innerHTML = '';
+  }
+  if (setupSearchEl) setupSearchEl.setAttribute('aria-expanded', 'false');
+  if (setupSearchEl) setupSearchEl.removeAttribute('aria-activedescendant');
+  if (setupSearchEmptyEl) setupSearchEmptyEl.classList.add('hidden');
+}
 
 // Restarts the .panel-reveal fade — a plain class add is a no-op if the
 // panel already carries it from a previous switch, so force a reflow
@@ -265,6 +319,7 @@ function updateBreadcrumb() {
   if (!setupBreadcrumbEl) return;
   const activeTabBtn = Array.from(setupTabBtns).find((b) => b.classList.contains('active'));
   if (!activeTabBtn) { setupBreadcrumbEl.textContent = ''; return; }
+  updateSetupHeading(activeTabBtn.dataset.tab);
   const parts = [activeTabBtn.textContent.trim()];
   const activePanel = Array.from(setupTabPanels).find((p) => p.dataset.tabPanel === activeTabBtn.dataset.tab);
   const subBtn = activePanel && activePanel.querySelector('.setup-subtabs .setup-subtab-btn.active');
@@ -276,9 +331,7 @@ function updateBreadcrumb() {
 
 setupTabBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
-    preSearchTab = null;
-    setupSearchEl.value = '';
-    searchableUnits().forEach((u) => u.classList.remove('search-no-match'));
+    closeSettingsSearch();
     const tab = btn.dataset.tab;
     lastSetupTab = tab;
     setupTabBtns.forEach((b) => b.classList.toggle('active', b === btn));
@@ -303,10 +356,8 @@ setupTabBtns.forEach((btn) => {
 // per-channel edit view with its own 6 tabs) that losing your place every
 // time you glance back at the TV screen and press S again got old.
 export function resetSetupTabs() {
-  preSearchTab = null;
   setupSearchEl.value = '';
-  searchableUnits().forEach((u) => u.classList.remove('search-no-match'));
-  setupSearchEmptyEl.classList.add('hidden');
+  closeSettingsSearch();
   setupTabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === lastSetupTab));
   setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== lastSetupTab));
   if (lastSetupTab === 'help') renderHelpTab();
@@ -952,55 +1003,143 @@ function renderHelpTab() {
   }
 }
 
-// ---------- Global settings search ----------
-// Mirrors the channel-list filter's substring-match UX, but across every
-// non-CHANNELS tab at once — CHANNELS keeps its own dedicated filter above
-// the channel list, which already does this job there. Searching shows
-// DISPLAY/PROGRAMMING/AUDIO & SYSTEM stacked and hides only the individual
-// settings blocks (.panel) whose text doesn't match; clearing the box
-// restores whichever single tab was active before the search started.
-const SEARCHABLE_TAB_NAMES = ['display', 'programming', 'audio', 'plugins'];
+// ---------- Global settings and action search ----------
+// Results remain a compact list and navigate to their real tab/sub-tab.
+// Earlier behavior temporarily exposed every matching panel from every tab
+// in one stacked page, which removed navigation context and produced a very
+// long, surprising layout for broad queries.
 function searchableUnits() {
-  return Array.from(document.querySelectorAll(
-    SEARCHABLE_TAB_NAMES.map((t) => `[data-tab-panel="${t}"] .panel`).join(', '),
-  ));
+  return Array.from(document.querySelectorAll('.setup-tab-panel .panel'));
 }
-let preSearchTab = null;
-setupSearchEl.addEventListener('input', () => {
-  const q = setupSearchEl.value.trim().toLowerCase();
-  if (!q) {
-    searchableUnits().forEach((u) => u.classList.remove('search-no-match'));
-    setupSearchEmptyEl.classList.add('hidden');
-    const restoreTab = preSearchTab || 'channels';
-    setupTabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === restoreTab));
-    setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== restoreTab));
-    restoreActiveSubtabPanels();
-    preSearchTab = null;
-    return;
+
+const SEARCH_ACTIONS = [
+  ['channels', null, '#add-channel-btn', 'Add channel'],
+  ['channels', null, '#library-search-toggle-btn', 'Search media library'],
+  ['channels', null, '#now-next-toggle-btn', 'Open Now and Next dashboard'],
+  ['channels', null, '#bulk-select-toggle-btn', 'Select and edit multiple channels'],
+  ['channels', null, '#health-check-btn', 'Check channel health'],
+  ['plugins', null, '#plugins-install-zip-btn', 'Install plugin from ZIP'],
+  ['perf', null, '#box-status-check-btn', 'Run health check'],
+  ['help', null, '#check-updates-btn', 'Check for software updates'],
+];
+
+function cleanSearchText(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+function searchEntryForPanel(panel) {
+  const tabPanel = panel.closest('.setup-tab-panel[data-tab-panel]');
+  const subPanel = panel.closest('.setup-subtab-panel[data-subtab-panel]');
+  const tab = tabPanel && tabPanel.dataset.tabPanel;
+  const subtab = subPanel && subPanel.dataset.subtabPanel;
+  const topButton = document.querySelector(`.setup-tab-btn[data-tab="${tab}"]`);
+  const subButton = subtab && tabPanel.querySelector(`.setup-subtab-btn[data-subtab="${subtab}"]`);
+  const heading = panel.querySelector('.panel-toggle, .flow-timeline-title, h2, h3');
+  const title = cleanSearchText(heading ? heading.textContent : 'Settings');
+  const previewNode = panel.querySelector('.panel-status, p, .plugin-row-desc');
+  return {
+    tab, subtab, target: panel, title,
+    path: [topButton && cleanSearchText(topButton.textContent), subButton && cleanSearchText(subButton.textContent), title].filter(Boolean).join(' › '),
+    preview: cleanSearchText(previewNode && previewNode.textContent),
+    haystack: cleanSearchText(panel.textContent).toLowerCase(),
+  };
+}
+
+function allSearchEntries() {
+  const panels = searchableUnits().map(searchEntryForPanel).filter((entry) => entry.tab);
+  const actions = SEARCH_ACTIONS.map(([tab, subtab, selector, title]) => {
+    const target = document.querySelector(selector);
+    const topButton = document.querySelector(`.setup-tab-btn[data-tab="${tab}"]`);
+    return target && {
+      tab, subtab, target, title,
+      path: `${cleanSearchText(topButton && topButton.textContent)} › ${title}`,
+      preview: 'Action', haystack: `${title} ${cleanSearchText(target.title)}`.toLowerCase(),
+    };
+  }).filter(Boolean);
+  return [...actions, ...panels];
+}
+
+function navigateToSearchEntry(entry) {
+  const topButton = document.querySelector(`.setup-tab-btn[data-tab="${entry.tab}"]`);
+  if (topButton) topButton.click();
+  if (entry.subtab) {
+    const panel = document.querySelector(`.setup-tab-panel[data-tab-panel="${entry.tab}"]`);
+    panel?.querySelector(`.setup-subtab-btn[data-subtab="${entry.subtab}"]`)?.click();
   }
-  if (preSearchTab === null) {
-    const activeBtn = Array.from(setupTabBtns).find((b) => b.classList.contains('active'));
-    preSearchTab = activeBtn ? activeBtn.dataset.tab : 'channels';
-  }
-  setupTabBtns.forEach((b) => b.classList.remove('active'));
-  setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel === 'channels'));
-  // A match might be sitting in a sub-tab that isn't currently selected —
-  // reveal every sub-tab panel for the duration of the search rather than
-  // only searching the active one; restoreActiveSubtabPanels() (above) puts
-  // each bar back the way it was once the search box is cleared.
-  document.querySelectorAll('.setup-subtab-panel').forEach((p) => p.classList.remove('hidden'));
-  const units = searchableUnits();
-  let anyMatch = false;
-  units.forEach((u) => {
-    const matches = u.textContent.toLowerCase().includes(q);
-    if (matches) anyMatch = true;
-    u.classList.toggle('search-no-match', !matches);
+  setupSearchEl.value = '';
+  closeSettingsSearch();
+  requestAnimationFrame(() => {
+    entry.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    entry.target.classList.remove('search-target-flash');
+    void entry.target.offsetWidth;
+    entry.target.classList.add('search-target-flash');
+    setTimeout(() => entry.target.classList.remove('search-target-flash'), 1200);
   });
-  // Otherwise a search with zero matches just shows three empty-looking
-  // tab panels stacked with nothing in them — no feedback that the search
-  // actually ran and legitimately found nothing, as opposed to the screen
-  // being broken.
-  setupSearchEmptyEl.classList.toggle('hidden', anyMatch);
+}
+
+function renderSettingsSearch() {
+  const q = setupSearchEl.value.trim().toLowerCase();
+  setupSearchResultsEl.innerHTML = '';
+  if (!q) { closeSettingsSearch(); return; }
+  const words = q.split(/\s+/).filter(Boolean);
+  const matches = allSearchEntries().filter((entry) => words.every((word) => entry.haystack.includes(word))).slice(0, 30);
+  setupSearchEmptyEl.classList.toggle('hidden', matches.length > 0);
+  setupSearchResultsEl.classList.toggle('hidden', matches.length === 0);
+  setupSearchEl.setAttribute('aria-expanded', String(matches.length > 0));
+  matches.forEach((entry, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = `setup-search-result-${index}`;
+    button.className = `setup-search-result${index === 0 ? ' active' : ''}`;
+    button.setAttribute('role', 'option');
+    button.setAttribute('aria-selected', String(index === 0));
+    const pathEl = document.createElement('span');
+    pathEl.className = 'setup-search-result-path';
+    pathEl.textContent = entry.path;
+    const preview = document.createElement('span');
+    preview.className = 'setup-search-result-preview';
+    preview.textContent = entry.preview || 'Open this setting';
+    button.append(pathEl, preview);
+    button.addEventListener('click', () => navigateToSearchEntry(entry));
+    setupSearchResultsEl.appendChild(button);
+  });
+  if (matches.length) setupSearchEl.setAttribute('aria-activedescendant', 'setup-search-result-0');
+  else setupSearchEl.removeAttribute('aria-activedescendant');
+}
+
+setupSearchEl.addEventListener('input', renderSettingsSearch);
+setupSearchEl.addEventListener('keydown', (event) => {
+  const results = Array.from(setupSearchResultsEl.querySelectorAll('.setup-search-result'));
+  if (!results.length) return;
+  let index = results.findIndex((result) => result.classList.contains('active'));
+  if (event.key === 'ArrowDown') index = (index + 1) % results.length;
+  else if (event.key === 'ArrowUp') index = (index - 1 + results.length) % results.length;
+  else if (event.key === 'Enter') {
+    event.preventDefault();
+    results[Math.max(0, index)].click();
+    return;
+  } else if (event.key === 'Escape') {
+    closeSettingsSearch();
+    return;
+  } else return;
+  event.preventDefault();
+  results.forEach((result, resultIndex) => {
+    const active = resultIndex === index;
+    result.classList.toggle('active', active);
+    result.setAttribute('aria-selected', String(active));
+  });
+  setupSearchEl.setAttribute('aria-activedescendant', results[index].id);
+  results[index].scrollIntoView({ block: 'nearest' });
+});
+
+document.getElementById('programming-simple-path-btn')?.addEventListener('click', () => {
+  document.querySelector('.setup-tab-panel[data-tab-panel="programming"] .setup-subtab-btn[data-subtab="presets"]')?.click();
+});
+document.getElementById('programming-advanced-path-btn')?.addEventListener('click', () => {
+  document.querySelector('.flow-builder-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+document.addEventListener('pointerdown', (event) => {
+  if (!event.target.closest('.setup-nav')) closeSettingsSearch();
 });
 
 // ---------- Virtual Channels: collapsible cards + local filter ----------
@@ -1188,6 +1327,11 @@ hintBarEnabledEl.addEventListener('change', () => {
   applyHintBarState();
   saveConfigDebounced();
 });
+hintBarCompactEl.addEventListener('change', () => {
+  S.config.display.hintBarCompact = hintBarCompactEl.checked;
+  applyHintBarState();
+  saveConfigDebounced();
+});
 adVolumeSlider.addEventListener('input', () => {
   S.config.adVolume = parseInt(adVolumeSlider.value, 10) / 100;
   applyVolume();
@@ -1250,6 +1394,7 @@ bootPowerAnimEnabledEl.addEventListener('change', () => {
 });
 guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
   S.config.display.guideOpenCloseAnim = guideOpenCloseAnimEnabledEl.checked;
+  refreshDependentControls();
   saveConfigDebounced();
 });
 guideAnimSpeedSlider.addEventListener('input', () => {
@@ -1284,6 +1429,7 @@ stationIdIntervalEl.addEventListener('change', () => {
 });
 staticEnabledEl.addEventListener('change', () => {
   S.config.staticEffect.enabled = staticEnabledEl.checked;
+  refreshDependentControls();
   saveConfigDebounced();
 });
 staticIntensitySlider.addEventListener('input', () => {
