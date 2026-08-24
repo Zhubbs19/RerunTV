@@ -1,6 +1,7 @@
 // DISPLAY / AUDIO & SYSTEM box-wide settings, the setup-tab bar itself
 // (CHANNELS/DISPLAY/PROGRAMMING/AUDIO), and the cross-tab settings search.
 import { applyConfigDefaults } from './app.js';
+import { CUSTOM_SOUND_SLOTS } from './audio.js';
 import { applyDisplayMode } from './display-mode.js';
 import { applyLogoBugPlacement, refreshLogoBugGhost } from './playback.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel } from './power.js';
@@ -188,6 +189,44 @@ function renderLogoBugEditor() {
   ));
 }
 
+function renderCustomSoundSettings() {
+  const root = document.getElementById('custom-sounds-list');
+  if (!root) return;
+  root.innerHTML = '';
+  S.config.customSounds = S.config.customSounds || {};
+  CUSTOM_SOUND_SLOTS.forEach(([slot, label]) => {
+    const row = document.createElement('div');
+    row.className = 'custom-sound-row';
+    const name = document.createElement('strong');
+    name.textContent = label;
+    const status = document.createElement('span');
+    status.className = 'custom-sound-status';
+    const refresh = async () => {
+      const value = S.config.customSounds[slot];
+      status.textContent = value === false ? 'SILENT' : (typeof value === 'string' ? await window.api.basename(value) : 'BUILT-IN');
+    };
+    const choose = document.createElement('button');
+    choose.type = 'button'; choose.className = 'btn'; choose.textContent = 'CHOOSE…';
+    choose.disabled = !window.api.selectAudio;
+    choose.addEventListener('click', async () => {
+      const path = await window.api.selectAudio();
+      if (!path) return;
+      S.config.customSounds[slot] = path;
+      saveConfigDebounced();
+      refresh();
+    });
+    const builtIn = document.createElement('button');
+    builtIn.type = 'button'; builtIn.className = 'btn'; builtIn.textContent = 'BUILT-IN';
+    builtIn.addEventListener('click', () => { delete S.config.customSounds[slot]; saveConfigDebounced(); refresh(); });
+    const silent = document.createElement('button');
+    silent.type = 'button'; silent.className = 'btn'; silent.textContent = 'SILENT';
+    silent.addEventListener('click', () => { S.config.customSounds[slot] = false; saveConfigDebounced(); refresh(); });
+    row.append(name, status, choose, builtIn, silent);
+    root.appendChild(row);
+    refresh();
+  });
+}
+
 export function renderSettingsPanels() {
   const ci = S.config.crtIntensity;
   crtScanlinesSlider.value = ci.scanlines;
@@ -204,6 +243,7 @@ export function renderSettingsPanels() {
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
   renderLogoBugEditor();
+  renderCustomSoundSettings();
   pictureModeSelect.value = S.config.pictureMode || 'standard';
   aspectModeSelect.value = S.config.aspectMode || 'contain';
   movieModeEnabledEl.checked = !!S.config.display.movieMode;
@@ -464,7 +504,7 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.2 Ad Presets and the Show & Ad Flow Builder', body: [
     'CADENCE & PRESETS lets you save a break pattern and apply it to anything with a matching tag, instead of picking one channel at a time — handy if you want every "sitcom"-tagged show to break the same way.',
-    'SHOW & AD FLOWS is a drag-and-drop builder for the rare channel that needs an exact, fixed order of segments (bumper, show, ad break, bumper) instead of the usual automatic timing.',
+    'ADVANCED FLOWS is a visual builder for the rare channel that needs an exact order of segments, bumpers, ad pods, and IDs instead of the usual automatic cadence.',
   ] },
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.3 On-Screen Extras', body: [
     'TEXT TICKER scrolls a message along the bottom of the screen, like a news channel.',
@@ -1038,7 +1078,7 @@ const SEARCH_ACTIONS = [
   ['channels', null, '#health-check-btn', 'Check channel health'],
   ['plugins', null, '#plugins-install-zip-btn', 'Install plugin from ZIP'],
   ['perf', null, '#box-status-check-btn', 'Run health check'],
-  ['help', null, '#check-updates-btn', 'Check for software updates'],
+  ['help', 'updates', '#check-updates-btn', 'Check for software updates'],
 ];
 
 function cleanSearchText(text) {
@@ -1150,12 +1190,6 @@ setupSearchEl.addEventListener('keydown', (event) => {
   results[index].scrollIntoView({ block: 'nearest' });
 });
 
-document.getElementById('programming-simple-path-btn')?.addEventListener('click', () => {
-  document.querySelector('.setup-tab-panel[data-tab-panel="programming"] .setup-subtab-btn[data-subtab="presets"]')?.click();
-});
-document.getElementById('programming-advanced-path-btn')?.addEventListener('click', () => {
-  document.querySelector('.flow-builder-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
 document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('.setup-nav')) closeSettingsSearch();
 });

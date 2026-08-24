@@ -37,10 +37,14 @@ function safeEqual(a, b) {
   return aa.length === bb.length && crypto.timingSafeEqual(aa, bb);
 }
 
+function normalizePairingCode(value) {
+  return String(value || '').replace(/[\s-]/g, '');
+}
+
 function pairingPage(service, message) {
   const title = `${service[0].toUpperCase()}${service.slice(1)} pairing`;
   const note = message ? `<p role="alert">${message}</p>` : '<p>Enter the pairing code shown by RerunTV on the host.</p>';
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px system-ui;background:#171a3b;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0}main{width:min(360px,calc(100% - 40px));background:#292f6b;padding:28px;border-radius:16px}input,button{font:inherit;width:100%;box-sizing:border-box;padding:12px;margin-top:12px}input{letter-spacing:.25em;text-align:center}button{background:#f0b429;border:0;font-weight:700}p{line-height:1.45}</style></head><body><main><h1>${title}</h1>${note}<form method="post" action="/_pair"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required aria-label="Pairing code"><button type="submit">PAIR DEVICE</button></form></main></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:16px system-ui;background:#171a3b;color:#fff;display:grid;place-items:center;min-height:100vh;margin:0}main{width:min(360px,calc(100% - 40px));background:#292f6b;padding:28px;border-radius:16px}input,button{font:inherit;width:100%;box-sizing:border-box;padding:12px;margin-top:12px}input{letter-spacing:.25em;text-align:center}button{background:#f0b429;border:0;font-weight:700}p{line-height:1.45}</style></head><body><main><h1>${title}</h1>${note}<form method="post" action="/_pair"><input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required aria-label="Pairing code"><button type="submit">PAIR DEVICE</button></form></main></body></html>`;
 }
 
 function readFormBody(req, maxBytes = 1024) {
@@ -117,6 +121,7 @@ function createLanAccess(service, opts = {}) {
         return true;
       }
     }
+    supplied = normalizePairingCode(supplied);
     if (supplied && safeEqual(supplied, pairingCode)) {
       const token = issueSession();
       setSession(res, token);
@@ -137,6 +142,15 @@ function createLanAccess(service, opts = {}) {
   }
 
   async function authorize(req, res, url, kind = 'read') {
+    // Always consume the pairing form endpoint, even when this browser
+    // already has a valid session. A phone can submit a cached pairing page
+    // after a QR preview/prefetch established its cookie; letting that POST
+    // pass into the service router makes its static-file fallback answer
+    // 405 Method Not Allowed instead of completing pairing idempotently.
+    if (req.method === 'POST' && url.pathname === '/_pair') {
+      await handlePairing(req, res, url);
+      return false;
+    }
     if (!isAuthenticated(req)) {
       await handlePairing(req, res, url);
       return false;

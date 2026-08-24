@@ -344,8 +344,8 @@
         </div>
 
         <div class="panel">
-          <div class="panel-toggle">CHANNEL LOGO (LOGO BUG)</div>
-          <span class="panel-status">Drag to position, drag the corner tab to resize. Add a resolution breakpoint to use a different position/size for lower-resolution content.</span>
+          <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
+          <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
           <div id="logobug-editor"></div>
         </div>
 
@@ -355,9 +355,9 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="programming">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="flows">SHOW &amp; AD FLOWS</button>
+          <button class="setup-subtab-btn active" data-subtab="presets">CADENCE &amp; PRESETS</button>
+          <button class="setup-subtab-btn" data-subtab="flows">ADVANCED FLOWS</button>
           <button class="setup-subtab-btn" data-subtab="pool">BUMPER &amp; AD POOL</button>
-          <button class="setup-subtab-btn" data-subtab="presets">CADENCE &amp; PRESETS</button>
           <button class="setup-subtab-btn" data-subtab="onscreen">ON-SCREEN EXTRAS</button>
           <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAG TAXONOMY</button>
@@ -365,17 +365,7 @@
         </div>
 
         <!-- SHOW & AD FLOWS (INTERACTIVE VISUAL FLOW BUILDER) -->
-        <div class="setup-subtab-panel" data-subtab-panel="flows">
-        <div class="programming-path-picker panel">
-          <div>
-            <div class="panel-toggle">CHOOSE YOUR PROGRAMMING WORKFLOW</div>
-            <span class="panel-status">Use cadence presets for straightforward timed breaks. Use the advanced flow builder when a show needs an exact sequence of bumpers, segments, IDs, and ad pods.</span>
-          </div>
-          <div class="programming-path-actions">
-            <button id="programming-simple-path-btn" class="btn btn-primary">SET UP A SIMPLE CADENCE</button>
-            <button id="programming-advanced-path-btn" class="btn">OPEN ADVANCED FLOW BUILDER</button>
-          </div>
-        </div>
+        <div class="setup-subtab-panel hidden" data-subtab-panel="flows">
         <div class="settings-grid">
 
         <div class="panel span-full flow-builder-panel">
@@ -492,7 +482,7 @@
         </div>
 
         <!-- CADENCE & PRESETS (CONSOLIDATED AD SETTINGS) -->
-        <div class="setup-subtab-panel hidden" data-subtab-panel="presets">
+        <div class="setup-subtab-panel" data-subtab-panel="presets">
         <div class="settings-grid">
 
         <div class="panel">
@@ -648,6 +638,12 @@
           <span class="panel-status">Both are a percentage of the master volume (the +/- keys), applied depending on whether a commercial/bumper break is currently on screen. Lower the commercial slider if ads run louder than your shows, or raise the content slider if shows run quiet. Per-channel volume overrides live on each channel's row in the CHANNELS tab.</span>
         </div>
 
+        <div class="panel span-full">
+          <div class="panel-toggle">CUSTOM SOUND PROFILE</div>
+          <span class="panel-status">Replace individual interface, tuning, power, guide, card, and notification sounds with your own audio files. Each event can use the built-in sound, a custom file, or silence.</span>
+          <div id="custom-sounds-list" class="custom-sound-grid"></div>
+        </div>
+
         <div class="panel">
           <label class="panel-toggle"><input type="checkbox" id="viewer-enabled"> WATCH ON OTHER DEVICES</label>
           <div class="panel-body">
@@ -743,6 +739,12 @@
 
         <!-- PERFORMANCE MONITOR TAB PANEL -->
         <div class="setup-tab-panel hidden" data-tab-panel="perf">
+          <div class="setup-subtabs">
+            <button class="setup-subtab-btn active" data-subtab="status">BOX STATUS</button>
+            <button class="setup-subtab-btn" data-subtab="monitor">LIVE MONITOR</button>
+            <button class="setup-subtab-btn" data-subtab="telemetry">TELEMETRY</button>
+          </div>
+          <div class="setup-subtab-panel" data-subtab-panel="status">
           <div class="settings-grid">
 
             <div class="panel span-full">
@@ -769,6 +771,11 @@
               <button id="box-status-check-btn" class="btn">RUN HEALTH CHECK…</button>
             </div>
 
+          </div>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="monitor">
+          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">⚡ REAL-TIME SYSTEM &amp; RENDER MONITOR</label>
               <span class="panel-status">Live hardware metrics, video player performance, memory telemetry, and channel broadcast stats.</span>
@@ -791,6 +798,11 @@
               </div>
             </div>
 
+          </div>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="telemetry">
+          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">📊 BROADCAST &amp; MEDIA TELEMETRY</label>
               <div class="perf-telemetry-grid">
@@ -822,10 +834,17 @@
             </div>
 
           </div>
+          </div>
         </div>
 
         <!-- PLUGINS TAB PANEL -->
         <div class="setup-tab-panel hidden" data-tab-panel="plugins">
+          <div class="setup-subtabs">
+            <button class="setup-subtab-btn active" data-subtab="installed">INSTALLED</button>
+            <button class="setup-subtab-btn" data-subtab="appearance">CUSTOM CSS</button>
+            <button class="setup-subtab-btn" data-subtab="diagnostics">DIAGNOSTICS</button>
+          </div>
+          <div class="setup-subtab-panel hidden" data-subtab-panel="appearance">
           <div class="settings-grid">
 
             <div class="panel span-full">
@@ -838,6 +857,11 @@
               </div>
             </div>
 
+          </div>
+          </div>
+
+          <div class="setup-subtab-panel" data-subtab-panel="installed">
+          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">🧩 INSTALLED PLUGINS</label>
               <span class="panel-status">
@@ -864,6 +888,11 @@
               <div id="plugins-filter-empty" class="plugins-empty hidden">NO PLUGINS MATCH YOUR FILTER.</div>
             </div>
 
+          </div>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="diagnostics">
+          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">🛠 PLUGIN DEVELOPER DIAGNOSTICS</label>
               <span class="panel-status">Inspect main/renderer load state, registered extension points, declared capability activity, and recent bounded logs. Support bundles are redacted before they are written and do not include your channel configuration or media inventory.</span>
@@ -877,49 +906,74 @@
             </div>
 
           </div>
+          </div>
         </div>
 
         <div class="setup-tab-panel hidden" data-tab-panel="help">
-          <div class="settings-grid">
-            <div class="panel span-full">
-              <label class="panel-toggle" style="cursor:default">📖 FEATURE GUIDE</label>
-              <span class="panel-status">How each part of the box works, grouped by tab. Click a topic to expand it — search below filters both the topic titles and their text.</span>
-              <div class="help-guide-toolbar">
-                <input type="text" id="help-guide-search" class="titles-search" placeholder="SEARCH THE GUIDE…">
-                <button id="help-print-manual-btn" class="btn" title="Opens a print-ready owner's-manual version of this guide in your browser">&#128424; PRINTABLE MANUAL</button>
+          <div class="setup-subtabs">
+            <button class="setup-subtab-btn active" data-subtab="guide">FEATURE GUIDE</button>
+            <button class="setup-subtab-btn" data-subtab="shortcuts">SHORTCUTS</button>
+            <button class="setup-subtab-btn" data-subtab="updates">UPDATES</button>
+            <button class="setup-subtab-btn" data-subtab="releases">WHAT'S NEW</button>
+          </div>
+
+          <div class="setup-subtab-panel" data-subtab-panel="guide">
+            <div class="settings-grid">
+              <div class="panel span-full">
+                <label class="panel-toggle" style="cursor:default">📖 FEATURE GUIDE</label>
+                <span class="panel-status">How each part of the box works, grouped by tab. Click a topic to expand it — search below filters both the topic titles and their text.</span>
+                <div class="help-guide-toolbar">
+                  <input type="text" id="help-guide-search" class="titles-search" placeholder="SEARCH THE GUIDE…">
+                  <button id="help-print-manual-btn" class="btn" title="Opens a print-ready owner's-manual version of this guide in your browser">&#128424; PRINTABLE MANUAL</button>
+                </div>
+                <div id="help-guide-list" class="help-guide-list"></div>
               </div>
-              <div id="help-guide-list" class="help-guide-list"></div>
             </div>
-            <div class="panel span-full">
-              <label class="panel-toggle" style="cursor:default">⌨ KEYBOARD SHORTCUTS</label>
-              <span class="panel-status">Every shortcut below also works from the universal remote's browser page. The full hint bar (bottom of the TV screen, H to hide) is the same list.</span>
-              <div id="help-shortcuts-grid" class="help-shortcuts-grid"></div>
-            </div>
-            <div class="panel span-full" id="update-settings-panel">
-              <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
-              <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
-              <div class="update-settings-row">
-                <label for="update-mode-select">UPDATE POLICY</label>
-                <select id="update-mode-select" class="block-hour-select">
-                  <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
-                  <option value="background-auto">AFTER APP OPENS — INSTALL WHEN I QUIT</option>
-                  <option value="background-notify">AFTER APP OPENS — ASK WHEN READY</option>
-                  <option value="manual">ONLY WHEN I ASK</option>
-                  <option value="off">NEVER</option>
-                </select>
-                <button id="check-updates-btn" class="btn">CHECK NOW</button>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="shortcuts">
+            <div class="settings-grid">
+              <div class="panel span-full">
+                <label class="panel-toggle" style="cursor:default">⌨ KEYBOARD SHORTCUTS</label>
+                <span class="panel-status">Every shortcut below also works from the universal remote's browser page. The full hint bar (bottom of the TV screen, H to hide) is the same list.</span>
+                <div id="help-shortcuts-grid" class="help-shortcuts-grid"></div>
               </div>
-              <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
             </div>
-            <div class="panel span-full">
-              <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW</label>
-              <span class="panel-status">Recently shipped, newest first — a running log of what changed under the hood.</span>
-              <div id="help-changelog-list" class="help-changelog-list"></div>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="updates">
+            <div class="settings-grid">
+              <div class="panel span-full" id="update-settings-panel">
+                <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
+                <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
+                <div class="update-settings-row">
+                  <label for="update-mode-select">UPDATE POLICY</label>
+                  <select id="update-mode-select" class="block-hour-select">
+                    <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
+                    <option value="background-auto">AFTER APP OPENS — INSTALL WHEN I QUIT</option>
+                    <option value="background-notify">AFTER APP OPENS — ASK WHEN READY</option>
+                    <option value="manual">ONLY WHEN I ASK</option>
+                    <option value="off">NEVER</option>
+                  </select>
+                  <button id="check-updates-btn" class="btn">CHECK NOW</button>
+                </div>
+                <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
+              </div>
             </div>
-            <div class="panel span-full" id="release-notes-panel">
-              <label class="panel-toggle" style="cursor:default">📰 RELEASE NOTES</label>
-              <span class="panel-status">Pulled live from GitHub Releases — always current, no manual upkeep.</span>
-              <div id="help-release-notes-list" class="help-changelog-list"></div>
+          </div>
+
+          <div class="setup-subtab-panel hidden" data-subtab-panel="releases">
+            <div class="settings-grid">
+              <div class="panel span-full">
+                <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW</label>
+                <span class="panel-status">Recently shipped, newest first — a running log of what changed under the hood.</span>
+                <div id="help-changelog-list" class="help-changelog-list"></div>
+              </div>
+              <div class="panel span-full" id="release-notes-panel">
+                <label class="panel-toggle" style="cursor:default">📰 RELEASE NOTES</label>
+                <span class="panel-status">Pulled live from GitHub Releases — always current, no manual upkeep.</span>
+                <div id="help-release-notes-list" class="help-changelog-list"></div>
+              </div>
             </div>
           </div>
         </div>

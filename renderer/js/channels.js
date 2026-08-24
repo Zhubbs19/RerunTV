@@ -153,10 +153,9 @@ export function freshChannel() {
 // ---------- Logo bug placement profiles ----------
 // A logoBugProfiles array (box-wide: S.config.display.logoBugProfiles;
 // per-channel override: ch.logoBugProfiles, null = inherit box-wide) is a
-// list of { id, label, maxWidth, x, y, size } sorted ascending by maxWidth,
-// with exactly one catch-all entry (maxWidth: null) always last — the
-// "DEFAULT" profile used whenever the active video's width doesn't fall
-// under any narrower breakpoint. x/y are 0-100 percentages of the screen
+// list of { id, aspect, resolution, x, y, size }. null aspect/resolution
+// values are wildcards; the all-null profile is the DEFAULT. x/y are
+// 0-100 percentages of the screen
 // (the logo bug's top-left corner), so placement survives a window resize
 // instead of drifting the way a fixed-pixel position would.
 const LOGO_BUG_CORNER_XY = {
@@ -170,19 +169,49 @@ const LOGO_BUG_CORNER_XY = {
 // the same corner->x/y mapping.
 export function foldLogoBugCorner(position, size) {
   const xy = LOGO_BUG_CORNER_XY[position] || LOGO_BUG_CORNER_XY['bottom-right'];
-  return [{ id: 'default', label: 'DEFAULT', maxWidth: null, size: size || 46, ...xy }];
+  return [{ id: 'default', aspect: null, resolution: null, size: size || 46, ...xy }];
 }
 
-// Resolves which profile applies for a video of the given width — the
-// first (narrowest) profile whose maxWidth covers it, sorted ascending so
-// an SD/4:3 breakpoint (e.g. maxWidth: 720) wins over the catch-all DEFAULT
-// (maxWidth: null) for anything at or under that width. `profiles` is
-// expected pre-sorted (the editor keeps it that way on every edit); this
-// re-sorts defensively since a hand-edited/imported config might not be.
-export function pickLogoBugProfile(profiles, videoWidth) {
+// Migrates the former width-breakpoint shape and sanitizes hand-edited
+// configs. Old <=480 entries become SD 240 placements; wider finite
+// breakpoints become SD 480 placements. Duplicate combinations collapse
+// deterministically, and the DEFAULT is always present.
+export function normalizeLogoBugProfiles(profiles) {
+  const source = Array.isArray(profiles) && profiles.length ? profiles : foldLogoBugCorner(null, null);
+  const seen = new Set();
+  const normalized = [];
+  source.forEach((profile, index) => {
+    let aspect = profile.aspect === '4:3' || profile.aspect === '16:9' ? profile.aspect : null;
+    let resolution = ['native', 'sd480', 'sd240'].includes(profile.resolution) ? profile.resolution : null;
+    if (profile.maxWidth != null && resolution == null) resolution = Number(profile.maxWidth) <= 480 ? 'sd240' : 'sd480';
+    const key = `${aspect || '*'}|${resolution || '*'}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    normalized.push({
+      id: profile.id || (key === '*|*' ? 'default' : `logo-${index}`),
+      aspect,
+      resolution,
+      x: Number.isFinite(Number(profile.x)) ? Number(profile.x) : 94,
+      y: Number.isFinite(Number(profile.y)) ? Number(profile.y) : 90,
+      size: Math.min(240, Math.max(28, Number(profile.size) || 46)),
+    });
+  });
+  if (!seen.has('*|*')) normalized.push(foldLogoBugCorner(null, null)[0]);
+  return normalized;
+}
+
+// Exact aspect+resolution wins, then a one-field match, then DEFAULT.
+export function pickLogoBugProfile(profiles, context = {}) {
   if (!profiles || !profiles.length) return null;
-  const sorted = profiles.slice().sort((a, b) => (a.maxWidth ?? Infinity) - (b.maxWidth ?? Infinity));
-  return sorted.find((p) => p.maxWidth == null || !videoWidth || videoWidth <= p.maxWidth) || sorted[sorted.length - 1];
+  const normalized = normalizeLogoBugProfiles(profiles);
+  const aspect = context && typeof context === 'object' ? context.aspect : null;
+  const resolution = context && typeof context === 'object' ? context.resolution : null;
+  return normalized
+    .filter((profile) => (!profile.aspect || profile.aspect === aspect) && (!profile.resolution || profile.resolution === resolution))
+    .sort((a, b) => Number(Boolean(b.aspect)) + Number(Boolean(b.resolution))
+      - Number(Boolean(a.aspect)) - Number(Boolean(a.resolution)))[0]
+    || normalized.find((profile) => !profile.aspect && !profile.resolution)
+    || normalized[0];
 }
 
 // A folder/file's `source` names which media-source provider it came from —
@@ -315,6 +344,7 @@ export function normalizeChannel(ch) {
       ? foldLogoBugCorner(ch.logoBugPosition, ch.logoBugSize)
       : null;
   }
+  if (ch.logoBugProfiles) ch.logoBugProfiles = normalizeLogoBugProfiles(ch.logoBugProfiles);
   delete ch.logoBugPosition;
   delete ch.logoBugSize;
   // null = inherit the box-wide master volume; a number 0-1 overrides it for

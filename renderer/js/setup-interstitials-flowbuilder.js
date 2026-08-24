@@ -13,7 +13,7 @@ import { getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { labeledField } from './setup-interstitials.js';
-import { attachTagAutocomplete, parsePositiveInt } from './setup-util.js';
+import { attachTagAutocomplete, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 
 export function ensureFlowsConfig() {
@@ -217,8 +217,8 @@ function updateFlowStatusBanner(flow) {
   banner.textContent = `⚡ FLOW ACTIVE FOR ${chsStr} // SHOWS: ${tagsStr} — ${stepCount} STEP${stepCount === 1 ? '' : 'S'} IN SEQUENCE`;
 }
 
-function countMatchingPoolEntries(tags, type) {
-  if (!tags || !tags.length) return 0;
+function matchingPoolEntries(tags, type) {
+  if (!tags || !tags.length) return [];
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   const targetType = normalizePoolType(type);
   // 'ident' draws from both adBreakIn and adBreakOut combined
@@ -226,7 +226,57 @@ function countMatchingPoolEntries(tags, type) {
   return pool.filter((e) => {
     if (!matchTypes.includes(e.type)) return false;
     return !tags.length || (e.contentTags && e.contentTags.some((t) => tags.includes(t)));
-  }).length;
+  });
+}
+
+function countMatchingPoolEntries(tags, type) {
+  const matches = matchingPoolEntries(tags, type);
+  return Array.isArray(matches) ? matches.length : 0;
+}
+
+function flowStepPreviewPaths(flow, step) {
+  if (step.type === 'contentSegment') {
+    const channelFilter = new Set(flow.channels || []);
+    const tags = (step.tags && step.tags.length) ? step.tags : (flow.contentTags || []);
+    const files = (S.config.channels || [])
+      .filter((ch) => !channelFilter.size || channelFilter.has(ch.number))
+      .flatMap((ch) => [
+        ...(ch.files || []),
+        ...(ch.blocks || []).flatMap((block) => block.files || []),
+      ])
+      .filter((file) => !tags.length || (file.tags || []).some((tag) => tags.includes(tag)));
+    return files.map((file) => file.path).filter(Boolean);
+  }
+
+  let entries;
+  if (step.type === 'adPod') {
+    entries = [
+      ...matchingPoolEntries(step.bumpInTags, 'adBreakIn'),
+      ...matchingPoolEntries(step.commercialTags, 'commercial'),
+      ...matchingPoolEntries(step.bumpOutTags, 'adBreakOut'),
+    ];
+  } else {
+    entries = matchingPoolEntries(step.tags, step.type);
+  }
+  return entries
+    .map((entry) => (entry.file && entry.file.path) || (entry.bgFile && entry.bgFile.path))
+    .filter(Boolean);
+}
+
+function renderFlowStepPreviews(container, flow, step) {
+  container.innerHTML = '';
+  const paths = Array.from(new Set(flowStepPreviewPaths(flow, step))).slice(0, 4);
+  if (!paths.length) {
+    container.appendChild(buildMediaThumbnail(null, {
+      label: step.type === 'contentSegment' ? 'SHOW' : 'NONE',
+      className: 'flow-step-thumbnail',
+    }));
+  } else {
+    paths.forEach((path) => container.appendChild(buildMediaThumbnail(path, {
+      label: 'MATCH',
+      className: 'flow-step-thumbnail',
+    })));
+  }
 }
 
 
@@ -341,6 +391,12 @@ function renderFlowTimelineCanvas(flow) {
     top.appendChild(controls);
     card.appendChild(top);
 
+    const previews = document.createElement('div');
+    previews.className = 'flow-step-previews';
+    previews.setAttribute('aria-label', 'Matching media previews');
+    renderFlowStepPreviews(previews, flow, step);
+    card.appendChild(previews);
+
     const body = document.createElement('div');
     body.className = 'flow-node-body';
 
@@ -363,6 +419,7 @@ function renderFlowTimelineCanvas(flow) {
       tagInput.value = (step.tags || []).join(', ');
       tagInput.addEventListener('change', () => {
         step.tags = tagInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+        renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
       body.appendChild(labeledField('SHOW TARGET TAGS', attachTagAutocomplete(tagInput)));
@@ -375,6 +432,7 @@ function renderFlowTimelineCanvas(flow) {
       bumpInInput.addEventListener('change', () => {
         step.bumpInTags = bumpInInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
+        renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
       body.appendChild(labeledField('BUMP-IN IDENT TAGS (e.g. "Network Ident")', attachTagAutocomplete(bumpInInput)));
@@ -423,6 +481,7 @@ function renderFlowTimelineCanvas(flow) {
       commTagsIn.addEventListener('change', () => {
         step.commercialTags = commTagsIn.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
+        renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
       body.appendChild(labeledField('COMMERCIAL SPOTS TAGS', attachTagAutocomplete(commTagsIn)));
@@ -435,6 +494,7 @@ function renderFlowTimelineCanvas(flow) {
       bumpOutInput.addEventListener('change', () => {
         step.bumpOutTags = bumpOutInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
+        renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
       body.appendChild(labeledField('BUMP-OUT IDENT TAGS (e.g. "Back to the Show")', attachTagAutocomplete(bumpOutInput)));
@@ -483,6 +543,7 @@ function renderFlowTimelineCanvas(flow) {
       tagInput.addEventListener('change', () => {
         step.tags = tagInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
+        renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
       body.appendChild(labeledField('BUMPER TAGS', attachTagAutocomplete(tagInput)));

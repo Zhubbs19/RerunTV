@@ -252,12 +252,71 @@ function resolveEffectiveAspect(dm) {
   return boxWide === 'auto' ? autoDetectAspect(ch) : boxWide;
 }
 
+export function resolveEffectiveDisplayMode() {
+  const dm = S.config.displayMode || {};
+  return {
+    aspect: resolveEffectiveAspect(dm),
+    resolution: resolveEffectiveResolution(dm),
+    windowMode: dm.windowMode || 'letterbox',
+  };
+}
+
+// Content-derived context for overlay placement. Unlike the effective app
+// display mode, this deliberately ignores manual display overrides so an
+// AUTO MATCH CONTENT layout can follow each playing file as it changes.
+export function resolveContentDisplayMode() {
+  const ch = getChannel(S.currentNumber);
+  return {
+    aspect: autoDetectAspect(ch),
+    resolution: autoDetectResolution(ch),
+    windowMode: (S.config.displayMode && S.config.displayMode.windowMode) || 'letterbox',
+  };
+}
+
+export const OVERLAY_LAYOUT_TARGETS = [
+  { id: 'guide-overlay', label: 'CHANNEL / NOW PLAYING CARD' },
+  { id: 'station-id-bar', label: "YOU'RE WATCHING CARD" },
+  { id: 'upnext-bar', label: 'UP NEXT CARD' },
+  { id: 'rating-bug', label: 'CONTENT RATING CARD' },
+  { id: 'channel-entry', label: 'CHANNEL NUMBER POP-UP' },
+  { id: 'volume-indicator', label: 'VOLUME POP-UP' },
+  { id: 'timeshift-badge', label: 'TIME SHIFT BADGE' },
+  { id: 'vcr-osd', label: 'VCR / TIME MACHINE CARD' },
+];
+
+function pickOverlayLayout(profiles, context) {
+  return (profiles || [])
+    .filter((profile) => (!profile.aspect || profile.aspect === context.aspect)
+      && (!profile.resolution || profile.resolution === context.resolution))
+    .sort((a, b) => Number(Boolean(b.aspect)) + Number(Boolean(b.resolution))
+      - Number(Boolean(a.aspect)) - Number(Boolean(a.resolution)))[0] || null;
+}
+
+export function resolveOverlayLayoutContext() {
+  return S.config.display && S.config.display.logoBugAutoAdjust
+    ? resolveContentDisplayMode()
+    : resolveEffectiveDisplayMode();
+}
+
+export function applyOverlayLayouts() {
+  const layouts = (S.config.display && S.config.display.overlayLayouts) || {};
+  const context = resolveOverlayLayoutContext();
+  OVERLAY_LAYOUT_TARGETS.forEach(({ id }) => {
+    const element = document.getElementById(id);
+    const profile = pickOverlayLayout(layouts[id], context);
+    if (!element || !profile) return;
+    element.style.left = `${profile.x}%`;
+    element.style.top = `${profile.y}%`;
+    element.style.right = 'auto';
+    element.style.bottom = 'auto';
+    element.style.transformOrigin = 'top left';
+    element.style.transform = `scale(${profile.scale || 1})`;
+  });
+}
+
 export function applyDisplayMode() {
   if (!displayFrameEl) return;
-  const dm = S.config.displayMode || {};
-  const aspect = resolveEffectiveAspect(dm);
-  const windowMode = dm.windowMode || 'letterbox';
-  const resolution = resolveEffectiveResolution(dm);
+  const { aspect, windowMode, resolution } = resolveEffectiveDisplayMode();
   const ratio = ASPECT_RATIOS[aspect] || ASPECT_RATIOS['16:9'];
   const root = document.documentElement.style;
 
@@ -287,6 +346,7 @@ export function applyDisplayMode() {
     root.setProperty('--display-frame-image-rendering', 'auto');
     root.setProperty('--display-content-zoom', '1');
     root.setProperty('--display-frame-scale', '1');
+    applyOverlayLayouts();
     return;
   }
 
@@ -310,6 +370,7 @@ export function applyDisplayMode() {
   // would otherwise render at a fraction of how big the closed select's
   // OWN text appears on screen once magnified by it).
   root.setProperty('--display-frame-scale', String(scale));
+  applyOverlayLayouts();
 }
 
 // The px sizes/scale computed above are a snapshot of #app's size at call

@@ -19,7 +19,7 @@
 // (`type: 'tone'`, for the satellite era's carrier hum — noise would read
 // as static, wrong for a clean digital theme). `crackle` is optional.
 //
-// Note: S.config.vintageAudio's `cutoffHz`/`hum` fields are exposed in the
+// Note: S.config.vintageAudio's `cutoffHz` field is exposed in the
 // settings panel below but not actually read by applyThemeAudio() — this is
 // a pre-existing gap inherited from the old core implementation, not
 // introduced by this migration. Only `clicks` (read by core audio.js's
@@ -106,14 +106,16 @@ function scheduleThemeCrackle(profile) {
 // state they're asking for.
 export function applyThemeAudio() {
   const S = window.S;
-  const pack = window.RCBPlugins.getThemePack(S.config.theme);
+  const channel = (S.config.channels || []).find((entry) => entry.number === S.currentNumber);
+  const themeId = (channel && channel.broadcastIdentity && channel.broadcastIdentity.theme) || S.config.theme;
+  const pack = window.RCBPlugins.getThemePack(themeId);
   const profile = pack && pack.ambientTexture;
   const cfg = S.config.vintageAudio;
   const active = S.isPoweredOn && !S.isSetupOpen && !S.config.display.movieMode
-    && !!profile && (!cfg || cfg.enabled !== false);
+    && !!profile && (!cfg || (cfg.enabled !== false && cfg.themeAmbient !== false));
   const ctx = S.audioCtx || window.getAudioCtx();
 
-  if (active && activeTextureTheme !== S.config.theme) {
+  if (active && activeTextureTheme !== themeId) {
     // Switched from one textured theme to another (or from none) — stop
     // whichever generator was running before starting the new one, so two
     // textures never layer on top of each other.
@@ -122,7 +124,7 @@ export function applyThemeAudio() {
     clearTimeout(themeCrackleTimer);
     themeCrackleTimer = null;
   }
-  activeTextureTheme = active ? S.config.theme : null;
+  activeTextureTheme = active ? themeId : null;
 
   if (active && profile.type === 'noise') {
     ensureThemeHiss(profile);

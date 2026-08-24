@@ -9,7 +9,7 @@ import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, stripReleaseTags, suggestFacetsFromPath } from './util.js';
-import { attachTagAutocomplete, buildBreakpointTrack, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
+import { attachTagAutocomplete, buildBreakpointTrack, buildLogoBugProfileEditor, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
 
@@ -404,6 +404,11 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       name.className = 'title-row-file';
       name.textContent = base;
 
+      const thumbnail = buildMediaThumbnail(file.path, {
+        label: 'VIDEO',
+        className: 'title-row-thumbnail',
+      });
+
       const duration = document.createElement('span');
       duration.className = 'title-row-duration';
       duration.textContent = formatDuration(file.duration);
@@ -543,6 +548,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       });
 
       row.appendChild(selectCheckbox);
+      row.appendChild(thumbnail);
       row.appendChild(name);
       row.appendChild(duration);
       row.appendChild(input);
@@ -683,7 +689,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
 
   const hint = document.createElement('div');
   hint.className = 'titles-empty';
-  hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE ALL CONFIGURED IN THE PROGRAMMING TAB (SHOW & AD FLOWS / CADENCE & PRESETS). THIS TOGGLE IS A GLOBAL KILL-SWITCH FOR ADS ON THIS CHANNEL ONLY.';
+  hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE CONFIGURED IN PROGRAMMING (CADENCE & PRESETS; ADVANCED FLOWS WHEN NEEDED). THIS TOGGLE IS A GLOBAL KILL-SWITCH FOR ADS ON THIS CHANNEL ONLY.';
   panelEl.appendChild(hint);
 }
 
@@ -974,6 +980,49 @@ export function buildChannelIdentityPanel(ch, panelEl) {
     selectField('THEME / ERA', 'theme', [['', 'INHERIT BOX THEME'], ...themePackEntries().map((entry) => [entry.id, entry.label])]),
     selectField('TUNE SOUND', 'tuneSfx', [['', 'INHERIT THEME'], ['soft', 'SOFT CHIME'], ['analog', 'ANALOG STATIC'], ['digital', 'DIGITAL CHIRP'], ['silent', 'SILENT']]),
     selectField('TUNING STATIC', 'staticStyle', [['', 'INHERIT THEME'], ['noise', 'CLASSIC NOISE'], ['quiet', 'QUIET BLIP'], ['roll', 'VERTICAL ROLL'], ['tear', 'TEARING SIGNAL'], ['acquire', 'DIGITAL ACQUIRE']]),
+  );
+  function soundOverrideField(labelText, slot) {
+    const label = document.createElement('div');
+    label.className = 'channel-identity-field';
+    label.append(document.createTextNode(labelText));
+    const status = document.createElement('span');
+    status.className = 'custom-sound-status';
+    const refresh = async () => {
+      const value = identity.sounds && identity.sounds[slot];
+      status.textContent = value === false ? 'SILENT' : (typeof value === 'string' ? await window.api.basename(value) : 'INHERIT BOX');
+    };
+    const actions = document.createElement('span');
+    actions.className = 'channel-identity-color';
+    const choose = document.createElement('button');
+    choose.type = 'button'; choose.className = 'btn'; choose.textContent = 'CHOOSE…';
+    choose.disabled = !window.api.selectAudio;
+    choose.addEventListener('click', async () => {
+      const path = await window.api.selectAudio();
+      if (!path) return;
+      identity.sounds = { ...(identity.sounds || {}), [slot]: path };
+      persistIdentity(); refresh();
+    });
+    const inherit = document.createElement('button');
+    inherit.type = 'button'; inherit.className = 'btn'; inherit.textContent = 'INHERIT';
+    inherit.addEventListener('click', () => {
+      if (identity.sounds) delete identity.sounds[slot];
+      if (identity.sounds && !Object.keys(identity.sounds).length) delete identity.sounds;
+      persistIdentity(); refresh();
+    });
+    const silent = document.createElement('button');
+    silent.type = 'button'; silent.className = 'btn'; silent.textContent = 'SILENT';
+    silent.addEventListener('click', () => {
+      identity.sounds = { ...(identity.sounds || {}), [slot]: false };
+      persistIdentity(); refresh();
+    });
+    actions.append(choose, inherit, silent);
+    label.append(status, actions);
+    refresh();
+    return label;
+  }
+  grid.append(
+    soundOverrideField('CUSTOM TUNE SOUND', 'channelTune'),
+    soundOverrideField('CUSTOM CARD SOUND', 'card'),
   );
   [['PRIMARY ACCENT', 'accent'], ['SECONDARY ACCENT', 'accent2'], ['STATIC TINT', 'staticTint']].forEach(([labelText, key]) => {
     const label = document.createElement('label');

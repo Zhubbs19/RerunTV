@@ -5,6 +5,7 @@
 // meaty enough — a real decision with two buttons, not just a dismiss —
 // to earn its own file.
 import { showSetupScreen } from './app.js';
+import { playConfiguredSound } from './audio.js';
 import {
   updateToastEl, updateToastTextEl, updateToastViewNotesBtn, updateToastInstallBtn, updateToastDismissBtn,
   updateChangelogEl, updateChangelogVersionEl, updateChangelogTitleEl, updateChangelogBodyEl,
@@ -26,6 +27,7 @@ function showToast(version) {
   // place the user learns it before the app closes out from under them.
   updateToastTextEl.textContent = `RerunTV v${version} is downloaded. Install now to restart and reopen automatically, or choose Later to keep watching.`;
   updateToastEl.classList.remove('hidden');
+  playConfiguredSound('notification');
 }
 
 async function jumpToReleaseNotes() {
@@ -78,6 +80,7 @@ function showPostUpdate(notice) {
   updateChangelogTitleEl.textContent = notice.name || `WHAT'S NEW IN RERUNTV ${to}`;
   updateChangelogBodyEl.textContent = readableReleaseNotes(notice.notes);
   updateChangelogEl.classList.remove('hidden');
+  playConfiguredSound('notification');
   updateChangelogDoneBtn.focus({ preventScroll: true });
 }
 

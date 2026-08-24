@@ -246,6 +246,83 @@ test('Party channel exposes and renders the host pairing code on CH 94', () => {
   assert.doesNotMatch(`${settings}\n${markup}`, /CH\s*5\b/);
 });
 
+test('logo bug position and resize editor supports pointer input', () => {
+  const editor = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-util.js'), 'utf8');
+  const setupCss = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'setup.css'), 'utf8');
+  const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
+
+  assert.match(editor, /addEventListener\('pointerdown'/);
+  assert.match(editor, /addEventListener\('pointermove'/);
+  assert.match(editor, /addEventListener\('pointercancel'/);
+  assert.match(editor, /EDIT ON CURRENT CHANNEL/);
+  assert.match(editor, /LIVE OVERLAY LAYOUT/);
+  assert.match(editor, /applyDisplayModeSettled/);
+  assert.match(editor, /OVERLAY ELEMENT/);
+  assert.match(editor, /AUTO MATCH CONTENT/);
+  assert.match(editor, /\['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'\]/);
+  assert.doesNotMatch(editor, /logobug-editor-preview/);
+  assert.doesNotMatch(editor, /logobug[\s\S]{0,8000}addEventListener\('mousedown'/);
+  assert.match(setupCss, /\.logobug-live-overlay\s*\{/);
+  assert.match(setupCss, /\.logobug-live-anchor-nw/);
+  assert.doesNotMatch(setupCss, /\.logobug-editor-preview/);
+  assert.match(displayMode, /resolveContentDisplayMode/);
+  assert.match(displayMode, /OVERLAY_LAYOUT_TARGETS/);
+});
+
+test('Help uses focused subtabs and update search navigates to its panel', () => {
+  const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
+  const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
+  for (const name of ['guide', 'shortcuts', 'updates', 'releases']) {
+    assert.match(markup, new RegExp(`data-subtab="${name}"`));
+    assert.match(markup, new RegExp(`data-subtab-panel="${name}"`));
+  }
+  assert.match(settings, /\['help', 'updates', '#check-updates-btn'/);
+});
+
+test('dense setup areas use task-focused subtabs', () => {
+  const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
+  for (const name of ['status', 'monitor', 'telemetry', 'installed', 'appearance', 'diagnostics']) {
+    assert.match(markup, new RegExp(`data-subtab="${name}"`));
+    assert.match(markup, new RegExp(`data-subtab-panel="${name}"`));
+  }
+  assert.match(markup, /class="setup-subtab-btn active" data-subtab="presets"/);
+  assert.doesNotMatch(markup, /programming-path-picker/);
+});
+
+test('custom sound profiles cover global events, channel overrides, and theme ambience', () => {
+  const audio = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'audio.js'), 'utf8');
+  const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
+  const panels = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-panels.js'), 'utf8');
+  const ambient = fs.readFileSync(path.join(ROOT, 'plugins', 'vintage-audio', 'renderer.js'), 'utf8');
+  assert.match(audio, /CUSTOM_SOUND_SLOTS/);
+  for (const slot of ['button', 'channelTune', 'card', 'notification', 'powerOn', 'guideOpen']) {
+    assert.match(audio, new RegExp(`['"]${slot}['"]`));
+  }
+  assert.match(settings, /custom-sounds-list/);
+  assert.match(panels, /CUSTOM TUNE SOUND/);
+  assert.match(panels, /CUSTOM CARD SOUND/);
+  assert.match(ambient, /themeAmbient !== false/);
+});
+
+test('titles, taxonomy uses, ad pool, and flow steps share lazy media thumbnails', () => {
+  const util = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-util.js'), 'utf8');
+  const interstitials = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-interstitials.js'), 'utf8');
+  const panels = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-panels.js'), 'utf8');
+  const taxonomy = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-tagtaxonomy.js'), 'utf8');
+  const flows = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-interstitials-flowbuilder.js'), 'utf8');
+  const setupCss = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'setup.css'), 'utf8');
+  assert.match(util, /export function buildMediaThumbnail/);
+  assert.match(util, /IntersectionObserver/);
+  assert.match(util, /media\.currentTime/);
+  assert.match(interstitials, /buildInterstitialThumbnail/);
+  assert.match(panels, /title-row-thumbnail/);
+  assert.match(taxonomy, /tagtaxonomy-usage-thumbnail/);
+  assert.match(flows, /flowStepPreviewPaths/);
+  assert.match(flows, /flow-step-previews/);
+  assert.match(setupCss, /\.media-thumbnail\s*\{/);
+  assert.match(setupCss, /\.interstitial-thumbnail\s*\{/);
+});
+
 test('shared CSS defines every semantic token used by core components', () => {
   const tokens = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'tokens.css'), 'utf8');
   for (const name of ['panel-2', 'selection', 'gold-dim', 'border', 'bg', 'text', 'shadow-soft', 'shadow-hard-md']) {

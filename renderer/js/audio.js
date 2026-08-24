@@ -3,6 +3,40 @@ import { getThemePack } from './plugins.js';
 import { S } from './state.js';
 import { channelIdentity, effectiveThemeId } from './broadcast-identity.js';
 
+export const CUSTOM_SOUND_SLOTS = [
+  ['button', 'BUTTON / CONTROL'], ['channelClick', 'CHANNEL BUTTON CLICK'], ['channelTune', 'CHANNEL TUNING'],
+  ['guideOpen', 'GUIDE OPEN'], ['guideClose', 'GUIDE CLOSE'], ['volumeUp', 'VOLUME UP'], ['volumeDown', 'VOLUME DOWN'],
+  ['powerOn', 'POWER ON'], ['powerOff', 'POWER OFF'], ['card', 'POP-UP / VIEWER CARD'],
+  ['notification', 'NOTIFICATION'], ['unlock', 'UNLOCK / SUCCESS'], ['purchase', 'PURCHASE CONFIRMATION'],
+];
+
+const customAudioBySlot = new Map();
+function configuredSound(slot, channelNumber = S.currentNumber) {
+  const ch = (S.config.channels || []).find((channel) => channel.number === channelNumber);
+  const channelValue = ch && ch.broadcastIdentity && ch.broadcastIdentity.sounds
+    ? ch.broadcastIdentity.sounds[slot] : undefined;
+  if (channelValue !== undefined) return channelValue;
+  return S.config.customSounds ? S.config.customSounds[slot] : undefined;
+}
+
+// Returns true when a custom/silent override handled the event, allowing
+// callers to skip their synthesized/theme fallback. `false` is an explicit
+// silent choice; null/undefined means keep the normal built-in sound.
+export function playConfiguredSound(slot, channelNumber = S.currentNumber) {
+  const configured = configuredSound(slot, channelNumber);
+  if (configured === false) return true;
+  if (typeof configured !== 'string' || !configured) return false;
+  Promise.resolve(window.api.toFileUrl(configured)).then((url) => {
+    const previous = customAudioBySlot.get(slot);
+    if (previous) { previous.pause(); previous.currentTime = 0; }
+    const audio = new Audio(url);
+    audio.volume = player.muted ? 0 : (typeof S.config.volume === 'number' ? S.config.volume : 1);
+    customAudioBySlot.set(slot, audio);
+    audio.play().catch(() => {});
+  }).catch(() => {});
+  return true;
+}
+
 // Also re-syncs S.sfxGain's level with the current mute/volume state on
 // every call, as a side effect — every one-shot SFX calls this right before
 // playing, so that's how a one-shot always reads the right level without a
@@ -80,6 +114,7 @@ function themeChannelChangeSfx() {
   return false;
 }
 export function sfxChannelChange() {
+  if (playConfiguredSound('channelTune')) return;
   const identity = channelIdentity(S.config, S.currentNumber);
   if (identity && identity.tuneSfx === 'silent') return;
   if (identity && identity.tuneSfx === 'soft') { playTone({ freq: 620, duration: 70, type: 'sine', gain: 0.07 }); return; }
@@ -88,8 +123,14 @@ export function sfxChannelChange() {
   if (themeChannelChangeSfx()) return;
   playNoiseBurst({ duration: 130, gain: 0.07, filterFreq: 1400 });
 }
-export function sfxVolumeTick(up) { playTone({ freq: up ? 900 : 500, duration: 45, type: 'sine', gain: 0.12 }); }
-export function sfxGuideToggle(opening) { playTone({ freq: opening ? 650 : 480, duration: 55, type: 'sine', gain: 0.1 }); }
+export function sfxVolumeTick(up) {
+  if (playConfiguredSound(up ? 'volumeUp' : 'volumeDown')) return;
+  playTone({ freq: up ? 900 : 500, duration: 45, type: 'sine', gain: 0.12 });
+}
+export function sfxGuideToggle(opening) {
+  if (playConfiguredSound(opening ? 'guideOpen' : 'guideClose')) return;
+  playTone({ freq: opening ? 650 : 480, duration: 55, type: 'sine', gain: 0.1 });
+}
 
 function themePowerSfx(isOn) {
   const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber));
@@ -97,11 +138,13 @@ function themePowerSfx(isOn) {
   return false;
 }
 export function sfxPowerOff() {
+  if (playConfiguredSound('powerOff')) return;
   if (themePowerSfx(false)) return;
   playNoiseBurst({ duration: 25, gain: 0.25 });
   playTone({ freq: 880, endFreq: 80, duration: 320, type: 'sine', gain: 0.12 });
 }
 export function sfxPowerOn() {
+  if (playConfiguredSound('powerOn')) return;
   if (themePowerSfx(true)) return;
   playNoiseBurst({ duration: 25, gain: 0.25 });
   playTone({ freq: 120, endFreq: 880, duration: 380, type: 'sine', gain: 0.12 });
@@ -233,6 +276,7 @@ export function cancelNewsSpeech() {
 }
 
 export function playPurchaseConfirmSound() {
+  if (playConfiguredSound('purchase')) return;
   // Cash register cha-ching + success chime
   playNoiseBurst({ duration: 40, gain: 0.15, filterFreq: 3000 });
   setTimeout(() => playTone({ freq: 1200, duration: 80, type: 'triangle', gain: 0.15 }), 50);
@@ -240,15 +284,23 @@ export function playPurchaseConfirmSound() {
 }
 
 export function playPinUnlockSound() {
+  if (playConfiguredSound('unlock')) return;
   playTone({ freq: 880, duration: 100, type: 'sine', gain: 0.15 });
   setTimeout(() => playTone({ freq: 1760, duration: 250, type: 'sine', gain: 0.18 }), 100);
 }
 
 
 export function playChannelClickSound() {
+  if (playConfiguredSound('channelClick')) return;
   if (S.config && S.config.vintageAudio && S.config.vintageAudio.clicks === false) return;
   playNoiseBurst({ duration: 35, gain: 0.25, filterFreq: 1200 });
   playTone({ freq: 880, endFreq: 440, duration: 40, type: 'square', gain: 0.15 });
+}
+
+if (document.addEventListener) {
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('button, [role="button"]')) playConfiguredSound('button');
+  });
 }
 
 // Re-syncs S.sfxGain's live level with the current mute/volume state.
