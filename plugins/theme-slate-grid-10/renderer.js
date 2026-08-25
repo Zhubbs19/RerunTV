@@ -13,5 +13,4 @@ window.RCBPlugins.registerThemePack('slate-grid-10', {
   powerSfx(isOn) {
     playTone({ freq: isOn ? 220 : 760, endFreq: isOn ? 760 : 180, duration: 220, type: 'triangle', gain: 0.065 });
   },
-  ambientTexture: { type: 'tone', freq: 4200, gain: 0.0035 },
 });

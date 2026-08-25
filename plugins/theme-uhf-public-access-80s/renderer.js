@@ -46,10 +46,5 @@ window.RCBPlugins.registerThemePack('uhf-public-access-80s', {
     });
   },
 
-  ambientTexture: {
-    type: 'noise', filterType: 'highpass', filterFreq: 2000, gain: 0.03,
-    crackle: { minMs: 1500, maxMs: 6000, gain: [0.05, 0.1], filterFreq: [1200, 5000] },
-  },
-
   borderImage: new URL('./border.svg', import.meta.url).href,
 });

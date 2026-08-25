@@ -1,5 +1,5 @@
 import { playChannelClickSound, playConfiguredSound, sfxChannelChange } from './audio.js';
-import { channelColor, getChannel, parseMediaRef, pickLogoBugProfile, sortedChannels } from './channels.js';
+import { channelColor, getChannel, logoBugProfileDimensions, parseMediaRef, pickLogoBugProfile, sortedChannels } from './channels.js';
 import {
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
@@ -1244,9 +1244,14 @@ function activeLogoBugContext() {
 // apply within the same tune, not just on the next one.
 export function applyLogoBugPlacement(ch) {
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
+  const { width, height } = logoBugProfileDimensions(profile);
   logoBugEl.style.left = `${profile.x}%`;
   logoBugEl.style.top = `${profile.y}%`;
+  // --logo-bug-size kept for backward compat with any legacy CSS still
+  // referencing it; --logo-bug-width/height are the canonical dimensions.
   logoBugEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
+  logoBugEl.style.setProperty('--logo-bug-width', `${width}px`);
+  logoBugEl.style.setProperty('--logo-bug-height', `${height}px`);
 }
 
 export function updateLogoBug(ch) {
@@ -1339,9 +1344,12 @@ function applyLogoBugGhost(ch) {
     logoBugGhostEl.style.background = '';
     if (ch) {
       const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
+      const { width, height } = logoBugProfileDimensions(profile);
       logoBugGhostEl.style.left = `${profile.x}%`;
       logoBugGhostEl.style.top = `${profile.y}%`;
       logoBugGhostEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
+      logoBugGhostEl.style.setProperty('--logo-bug-width', `${width}px`);
+      logoBugGhostEl.style.setProperty('--logo-bug-height', `${height}px`);
       if (ch.icon) {
         const img = document.createElement('img');
         img.alt = String(ch.number);

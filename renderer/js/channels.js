@@ -153,11 +153,13 @@ export function freshChannel() {
 // ---------- Logo bug placement profiles ----------
 // A logoBugProfiles array (box-wide: S.config.display.logoBugProfiles;
 // per-channel override: ch.logoBugProfiles, null = inherit box-wide) is a
-// list of { id, aspect, resolution, x, y, size }. null aspect/resolution
-// values are wildcards; the all-null profile is the DEFAULT. x/y are
-// 0-100 percentages of the screen
-// (the logo bug's top-left corner), so placement survives a window resize
-// instead of drifting the way a fixed-pixel position would.
+// list of { id, aspect, resolution, x, y, size, width?, height? }.
+// `size` is the legacy square dimension; `width`/`height` (optional) allow
+// non-square placement — if present they override `size` for that axis.
+// null aspect/resolution values are wildcards; the all-null profile is the
+// DEFAULT. x/y are 0-100 percentages of the screen (the logo bug's top-left
+// corner), so placement survives a window resize instead of drifting the way
+// a fixed-pixel position would.
 const LOGO_BUG_CORNER_XY = {
   'bottom-right': { x: 94, y: 90 }, 'bottom-left': { x: 4, y: 90 },
   'top-right': { x: 94, y: 6 }, 'top-left': { x: 4, y: 6 },
@@ -166,7 +168,7 @@ const LOGO_BUG_CORNER_XY = {
 // One-time migration helper (app.js's applyConfigDefaults, and
 // normalizeChannel below) — folds the old corner-enum + size-px shape into
 // a single DEFAULT profile. Shared here so both call sites agree on exactly
-// the same corner->x/y mapping.
+// the same corner-to-x/y mapping.
 export function foldLogoBugCorner(position, size) {
   const xy = LOGO_BUG_CORNER_XY[position] || LOGO_BUG_CORNER_XY['bottom-right'];
   return [{ id: 'default', aspect: null, resolution: null, size: size || 46, ...xy }];
@@ -187,17 +189,36 @@ export function normalizeLogoBugProfiles(profiles) {
     const key = `${aspect || '*'}|${resolution || '*'}`;
     if (seen.has(key)) return;
     seen.add(key);
-    normalized.push({
+    const size = Math.min(240, Math.max(28, Number(profile.size) || 46));
+    // width/height are optional — only written when the user explicitly sets
+    // a non-square shape via the live editor, so older configs round-trip
+    // cleanly without extra keys.
+    const entry = {
       id: profile.id || (key === '*|*' ? 'default' : `logo-${index}`),
       aspect,
       resolution,
       x: Number.isFinite(Number(profile.x)) ? Number(profile.x) : 94,
       y: Number.isFinite(Number(profile.y)) ? Number(profile.y) : 90,
-      size: Math.min(240, Math.max(28, Number(profile.size) || 46)),
-    });
+      size,
+    };
+    if (Number.isFinite(Number(profile.width))) entry.width = Math.min(400, Math.max(14, Number(profile.width)));
+    if (Number.isFinite(Number(profile.height))) entry.height = Math.min(400, Math.max(14, Number(profile.height)));
+    normalized.push(entry);
   });
   if (!seen.has('*|*')) normalized.push(foldLogoBugCorner(null, null)[0]);
   return normalized;
+}
+
+// Resolved pixel width/height for a profile — uses explicit width/height when
+// present, otherwise falls back to the square `size`. Consumers (playback.js,
+// setup-util.js) should call this instead of reading profile.size directly so
+// non-square images just work everywhere.
+export function logoBugProfileDimensions(profile) {
+  const size = profile.size || 46;
+  return {
+    width: Number.isFinite(Number(profile.width)) ? profile.width : size,
+    height: Number.isFinite(Number(profile.height)) ? profile.height : size,
+  };
 }
 
 // Exact aspect+resolution wins, then a one-field match, then DEFAULT.

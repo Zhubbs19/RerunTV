@@ -1,9 +1,0 @@
-{
-  "id": "shopping-network",
-  "name": "Retro Shopping Network",
-  "version": "1.1.0",
-  "description": "Virtual CH 96 — a parody home shopping channel with a rotating product card, stock counter, and a call-in order confirmation.",
-  "category": "channel",
-  "renderer": "renderer.js",
-  "style": "style.css"
-}

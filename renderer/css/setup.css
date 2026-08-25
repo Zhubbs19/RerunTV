@@ -410,7 +410,7 @@
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
   background: var(--gradient-cell);
 }
-.channel-badge img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.channel-badge img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .channel-badge.editable { cursor: pointer; }
 .channel-badge.editable:hover { border-color: var(--gold); box-shadow: var(--bevel-raised), 0 0 10px rgba(var(--gold-rgb), 0.4); }
 .channel-badge.small {

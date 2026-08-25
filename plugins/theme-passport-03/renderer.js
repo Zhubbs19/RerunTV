@@ -19,5 +19,4 @@ window.RCBPlugins.registerThemePack('passport-03', {
   powerSfx(isOn) {
     playTone({ freq: isOn ? 260 : 760, endFreq: isOn ? 760 : 220, duration: 210, type: 'square', gain: 0.05 });
   },
-  ambientTexture: { type: 'tone', freq: 3600, gain: 0.004 },
 });

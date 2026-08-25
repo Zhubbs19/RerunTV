@@ -35,9 +35,5 @@ window.RCBPlugins.registerThemePack('digital-satellite-2000s', {
     });
   },
 
-  // A clean carrier-hum tone rather than a noise texture — this is a clean
-  // digital theme, hiss/crackle would be wrong for it.
-  ambientTexture: { type: 'tone', freq: 9200, gain: 0.006 },
-
   borderImage: new URL('./border.svg', import.meta.url).href,
 });
