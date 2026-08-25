@@ -1,0 +1,86 @@
+/* Mid-2000s interactive guide. Period manuals emphasize a
+   90-minute-at-a-glance grid, Instant Information above it, and remote-key
+   shortcuts below. Branding artwork is intentionally omitted; hierarchy,
+   density, and focus behavior carry the historical identity. */
+html[data-theme="aqua-grid-06"] {
+  --motion-control-duration: 105ms; --motion-control-ease: steps(2, end); --motion-control-hover: translateY(-1px); --motion-control-active: translateY(1px);
+  --motion-card-duration: 120ms; --motion-card-ease: steps(2, end); --motion-card-from-y: 12px; --motion-card-from-scale: 1; --motion-digit-duration: 100ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.08;
+  --setup-nav-bg: #042846;
+  --setup-overflow-shadow: rgba(87, 218, 234, .55);
+  --ink: #07516e;
+  --ink-deep: #03263e;
+  --cell: #0d5273;
+  --cell-alt: #17486d;
+  --gold: #dff27d;
+  --gold-ink: #13220c;
+  --cyan: #69d7e6;
+  --paper: #f7ffff;
+  --paper-dim: #c2e7e9;
+  --line: #83bec7;
+  --danger: #e95a72;
+  --gold-rgb: 223, 242, 125;
+  --danger-rgb: 233, 90, 114;
+  --cyan-rgb: 105, 215, 230;
+  --font-display: 'Arial Narrow', 'Archivo Narrow', sans-serif;
+  --font-ui: Verdana, Tahoma, system-ui, sans-serif;
+  --font-body: Verdana, Tahoma, system-ui, sans-serif;
+  --gradient-page: linear-gradient(180deg, #087c9b 0%, #07516e 45%, #03263e 100%);
+  --gradient-panel: linear-gradient(180deg, #0d7894 0%, #07516e 60%, #03263e 100%);
+  --gradient-cell: linear-gradient(180deg, #136787 0%, #0b4d6c 100%);
+  --gradient-btn: linear-gradient(180deg, #168baa 0%, #08657f 58%, #06445f 100%);
+  --gradient-gold: linear-gradient(180deg, #f4ffb5 0%, #dff27d 70%, #b8d058 100%);
+  --gloss-strong: linear-gradient(180deg, rgba(255,255,255,.16), transparent 52%);
+  --gloss-soft: linear-gradient(180deg, rgba(255,255,255,.09), transparent 55%);
+  --radius-sm: 0;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+  --shadow-hard: 1px 1px 0 rgba(0,0,0,.65);
+  --shadow-hard-sm: 1px 1px 0 rgba(0,0,0,.55);
+  --bevel-raised: inset 0 1px rgba(255,255,255,.22), inset 0 -1px rgba(0,0,0,.3);
+  --bevel-inset: inset 0 1px 2px rgba(0,0,0,.5);
+  --guide-grid-bg: #053957;
+  --guide-channel-bg: #d5e8e5;
+  --guide-channel-fg: #073149;
+  --guide-channel-subtle: #20566a;
+  --guide-program-bg: #0b405e;
+  --guide-program-alt-bg: #17466c;
+  --guide-selection-bg: #e4f58a;
+  --guide-selection-fg: #0a2634;
+  --guide-timebar-bg: #08798d;
+  --guide-row-height: 48px;
+  --guide-row-gap: 1px;
+}
+html[data-theme="aqua-grid-06"] .guide-grid { --guide-chan-col: clamp(92px, 21%, 155px); }
+html[data-theme="aqua-grid-06"] .guide-topbar { border-bottom: 3px solid #69d7e6; }
+html[data-theme="aqua-grid-06"] .guide-timeheader { padding: 6px 0; margin-bottom: 1px; color: #fff; }
+html[data-theme="aqua-grid-06"] .guide-row-chan,
+html[data-theme="aqua-grid-06"] .guide-row-track { border-radius: 0; border-color: #9acdd1; box-shadow: none; }
+html[data-theme="aqua-grid-06"] .guide-entry { border-right: 2px solid #9acdd1; font-size: 14px; }
+html[data-theme="aqua-grid-06"] .guide-entry.sel { animation: none; box-shadow: inset 0 0 0 2px #fff; }
+html[data-theme="aqua-grid-06"] .guide-now-line { width: 2px; box-shadow: none; }
+html[data-theme="aqua-grid-06"] .guide-hint,
+html[data-theme="aqua-grid-06"] .hint-bar { background: #0785a4; color: #fff; border-color: #9de6ee; }
+
+/* Appliance behavior: information is presented as hard-edged modules,
+   channel entry snaps into an upper-corner plate, and the remote menu uses
+   icon-button-like square cells rather than generic setup buttons. */
+html[data-theme="aqua-grid-06"] .guide-overlay {
+  left: 0; bottom: 0; min-width: 52%; max-width: 72%;
+  border: 2px solid #9de6ee; border-left-width: 2px; border-radius: 0;
+  padding: 9px 14px; backdrop-filter: none; animation: aqua-card-in 120ms steps(2, end);
+}
+html[data-theme="aqua-grid-06"] .guide-number { color: #e4f58a; border-right: 2px solid #9de6ee; text-shadow: 1px 1px #03263e; }
+html[data-theme="aqua-grid-06"] .guide-bar { height: 7px; border-radius: 0; background: repeating-linear-gradient(90deg, #03263e 0 12%, #07516e 12% 14%); }
+html[data-theme="aqua-grid-06"] .channel-entry { top: 18px; right: 18px; padding: 3px 10px; color: #082c43; background: #d5e8e5; border: 2px solid #fff; text-shadow: none; }
+html[data-theme="aqua-grid-06"] .tv-menu-btn { border-radius: 0; border: 2px outset #83bec7; background: #07516e; }
+html[data-theme="aqua-grid-06"] .tv-menu-btn:focus-visible { color: #13220c; background: #e4f58a; outline: 2px solid #fff; }
+@keyframes aqua-card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { html[data-theme="aqua-grid-06"] .guide-overlay { animation: none; } }
+
+/* Global controls follow the same square, tactile remote-button language. */
+html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn, input, select, textarea) { border-radius: 0; }
+html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn) { border-width: 2px; border-style: outset; box-shadow: none; }
+html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn):active { border-style: inset; transform: translate(1px, 1px); }
+html[data-theme="aqua-grid-06"] :is(.setup-tab-btn, .setup-subtab-btn).active { color: #13220c; background: #e4f58a; border-color: #fff; }
+html[data-theme="aqua-grid-06"] :is(input, select, textarea):focus { outline: 2px solid #e4f58a; outline-offset: 1px; }
+html[data-theme="aqua-grid-06"] .shuffle-toggle { border-radius: 0; }

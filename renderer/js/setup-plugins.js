@@ -4,7 +4,8 @@
 import {
   customCssChooseBtn, customCssPathEl, customCssRemoveBtn,
   pluginsCategoryTabsEl, pluginsEmptyEl, pluginsFilterEmptyEl, pluginsFilterInputEl, pluginsInstallZipBtn, pluginsListEl,
-  pluginsOpenFolderBtn, pluginsRescanBtn, pluginsSaveBtn, pluginsSaveStatusEl, pluginsSummaryEl,
+  pluginsOpenFolderBtn, pluginsRescanBtn, pluginsResultsCountEl, pluginsSaveBtn, pluginsSaveStatusEl,
+  pluginsStateFilterEl, pluginsSummaryEl,
 } from './dom.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import {
@@ -334,14 +335,23 @@ export async function renderPluginsList() {
       checkbox.type = 'checkbox';
       checkbox.className = 'shuffle-toggle';
       checkbox.checked = originalEnabled;
+      row.dataset.enabled = String(originalEnabled);
       row.classList.toggle('is-disabled', !checkbox.checked);
       checkbox.addEventListener('change', () => {
         if (checkbox.checked === originalEnabled) pendingChanges.delete(p.id);
         else pendingChanges.set(p.id, checkbox.checked);
         row.classList.toggle('is-disabled', !checkbox.checked);
+        row.dataset.enabled = String(checkbox.checked);
         row.classList.toggle('pending-change', pendingChanges.has(p.id));
+        entry.dataset.enabled = String(checkbox.checked);
+        const status = row.querySelector('.plugin-row-status');
+        if (status && row.dataset.attention !== 'true') {
+          status.textContent = checkbox.checked ? 'ENABLED' : 'OFF';
+          status.classList.toggle('is-off', !checkbox.checked);
+        }
         if (pluginsSaveStatusEl) pluginsSaveStatusEl.textContent = '';
         updateSaveUi();
+        applyPluginsFilter();
       });
       row.appendChild(checkbox);
     }
@@ -349,6 +359,8 @@ export async function renderPluginsList() {
     const info = document.createElement('div');
     info.className = 'plugin-row-info';
 
+    const nameLine = document.createElement('div');
+    nameLine.className = 'plugin-row-name-line';
     const name = document.createElement('div');
     name.className = 'plugin-row-name';
     if (p.error) {
@@ -360,7 +372,16 @@ export async function renderPluginsList() {
       version.textContent = `v${p.version}`;
       name.appendChild(version);
     }
-    info.appendChild(name);
+    nameLine.appendChild(name);
+    if (!p.error) {
+      const attention = needsAttention(p);
+      const status = document.createElement('span');
+      status.className = `plugin-row-status${attention ? ' needs-attention' : (disabledIdsAtRender.includes(p.id) ? ' is-off' : '')}`;
+      status.textContent = attention ? 'ATTENTION' : (disabledIdsAtRender.includes(p.id) ? 'OFF' : 'ENABLED');
+      nameLine.appendChild(status);
+      row.dataset.attention = String(attention);
+    }
+    info.appendChild(nameLine);
 
     if (p.error) {
       const err = document.createElement('div');
@@ -494,7 +515,7 @@ export async function renderPluginsList() {
     // section by getPluginSettingsSections, preserving existing plugins.
     const channelDefinition = !p.error ? getPluginChannelType(p.id) : null;
     const settingsSections = !p.error ? getPluginSettingsSections(p.id) : [];
-    const hasSettings = !!channelDefinition || settingsSections.length > 0;
+    const hasSettings = !!channelDefinition || p.category === 'theme' || settingsSections.length > 0;
     const entry = document.createElement('div');
     entry.className = 'plugin-entry';
     // Precomputed lowercase haystack for the filter input below — cheaper
@@ -503,6 +524,7 @@ export async function renderPluginsList() {
     entry.dataset.search = [p.name, p.id, p.dir, p.description, ...(p.dependsOn || [])].filter(Boolean).join(' ').toLowerCase();
     entry.dataset.category = effectiveCategory(p);
     entry.dataset.attention = needsAttention(p) ? 'true' : 'false';
+    entry.dataset.enabled = p.error ? 'false' : String(!disabledIdsAtRender.includes(p.id));
     entry.appendChild(row);
 
     if (hasSettings) {
@@ -601,21 +623,32 @@ async function commitPendingPluginChanges(plugins, pendingChanges) {
 // filter isn't silently dropped by the next re-render.
 function applyPluginsFilter() {
   const q = pluginsFilterInputEl ? pluginsFilterInputEl.value.trim().toLowerCase() : '';
+  const state = pluginsStateFilterEl ? pluginsStateFilterEl.value : 'all';
   const entries = Array.from(pluginsListEl.children);
-  let anyVisible = false;
+  let visibleCount = 0;
   entries.forEach((entry) => {
     const matchesText = !q || (entry.dataset.search || '').includes(q);
     const matchesCategory = activeCategory === 'all'
       || (activeCategory === 'attention' ? entry.dataset.attention === 'true' : entry.dataset.category === activeCategory);
-    const matches = matchesText && matchesCategory;
+    const matchesState = state === 'all'
+      || (state === 'attention' ? entry.dataset.attention === 'true' : entry.dataset.enabled === String(state === 'enabled'));
+    const matches = matchesText && matchesCategory && matchesState;
     entry.classList.toggle('filtered-out', !matches);
-    if (matches) anyVisible = true;
+    if (matches) visibleCount += 1;
   });
-  if (pluginsFilterEmptyEl) pluginsFilterEmptyEl.classList.toggle('hidden', anyVisible || entries.length === 0);
+  if (pluginsFilterEmptyEl) pluginsFilterEmptyEl.classList.toggle('hidden', visibleCount > 0 || entries.length === 0);
+  if (pluginsResultsCountEl) {
+    pluginsResultsCountEl.textContent = visibleCount === entries.length
+      ? ''
+      : `${visibleCount} OF ${entries.length} SHOWN`;
+  }
 }
 
 if (pluginsFilterInputEl) {
   pluginsFilterInputEl.addEventListener('input', applyPluginsFilter);
+}
+if (pluginsStateFilterEl) {
+  pluginsStateFilterEl.addEventListener('change', applyPluginsFilter);
 }
 
 // Two-step because main.js's plugins:installFromZip only opens the OS file

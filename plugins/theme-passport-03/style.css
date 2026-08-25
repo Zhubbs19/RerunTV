@@ -5,6 +5,8 @@
    headroom than Prevue's Amiga did) but still restrained. See renderer.js
    for the registration call. */
 html[data-theme="passport-03"] {
+  --motion-control-duration: 80ms; --motion-control-ease: steps(2, end); --motion-control-hover: translateY(-1px); --motion-control-active: translate(1px, 1px);
+  --motion-card-duration: 140ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 12px; --motion-card-from-scale: 1; --motion-digit-duration: 90ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.06;
   --setup-nav-bg: #05132e;
   --setup-overflow-shadow: rgba(77, 155, 255, 0.48);
   --ink: #0a2559;
@@ -23,8 +25,9 @@ html[data-theme="passport-03"] {
   --danger-rgb: 255, 91, 82;
   --cyan-rgb: 77, 163, 255;
 
-  --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
-  --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-display: 'Arial Narrow', 'Archivo Narrow', system-ui, sans-serif;
+  --font-ui: Tahoma, Verdana, system-ui, sans-serif;
+  --font-body: Arial, Helvetica, sans-serif;
 
   --gradient-page: linear-gradient(180deg, #0a2559 0%, #123a86 45%, #05132e 100%);
   --gradient-panel: linear-gradient(180deg, #123a86 0%, #0d2d6b 60%, #05132e 100%);
@@ -42,7 +45,62 @@ html[data-theme="passport-03"] {
   --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.5);
   --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 rgba(0, 0, 0, 0.25);
   --bevel-inset: inset 0 1px 3px rgba(0, 0, 0, 0.45);
+
+  /* Passport Echo used a bright aqua channel rail against dense cobalt
+     listings, not one undifferentiated blue panel. */
+  --guide-grid-bg: linear-gradient(180deg, #06183f 0%, #082864 100%);
+  --guide-channel-bg: #55bdb1;
+  --guide-channel-fg: #061a2e;
+  --guide-channel-subtle: #123852;
+  --guide-program-bg: #092373;
+  --guide-program-alt-bg: #0d2d87;
+  --guide-selection-bg: #edf2c2;
+  --guide-selection-fg: #081528;
+  --guide-timebar-bg: #4eb7aa;
+  --guide-row-height: 46px;
+  --guide-row-gap: 1px;
 }
+
+/* Passport's full guide was a compact appliance UI: square cells, strong
+   ruled columns, a split information/video header, and no glowing focus
+   pulse. The existing full-guide preview supplies that split composition. */
+html[data-theme="passport-03"] .guide-grid { --guide-chan-col: clamp(88px, 20%, 148px); }
+html[data-theme="passport-03"] .guide-topbar { border-bottom: 4px solid #55bdb1; }
+html[data-theme="passport-03"] .guide-timeheader {
+  color: #061a2e;
+  padding: 5px 0;
+  margin-bottom: 1px;
+  text-shadow: none;
+}
+html[data-theme="passport-03"] .guide-row-chan,
+html[data-theme="passport-03"] .guide-row-track { border-radius: 0; border-color: #6cbfc5; box-shadow: none; }
+html[data-theme="passport-03"] .guide-entry { border-right-color: #6cbfc5; text-shadow: 1px 1px #000; }
+html[data-theme="passport-03"] .guide-entry.sel { animation: none; box-shadow: inset 0 0 0 2px #fff; text-shadow: none; }
+html[data-theme="passport-03"] .guide-now-line { width: 2px; box-shadow: none; }
+
+/* Preserve the legacy theme id for existing configs, but give the theme a
+   full early-2000s interaction identity: squared information slabs,
+   remote-key footer blocks, and stepped rather than fluid feedback. */
+html[data-theme="passport-03"] .guide-overlay {
+  left: 3%; bottom: 4%; border: 3px outset #6cbfc5; border-left: 16px solid #55bdb1;
+  border-radius: 0; background: #06195f; backdrop-filter: none;
+  animation: cobalt-card-in 140ms steps(3, end);
+}
+html[data-theme="passport-03"] .guide-number { color: #fff14b; border-right: 2px solid #55bdb1; text-shadow: 2px 2px #001038; }
+html[data-theme="passport-03"] .guide-bar { height: 6px; border-radius: 0; border: 1px inset #6cbfc5; }
+html[data-theme="passport-03"] .channel-entry { color: #071b3c; background: #55bdb1; border: 2px outset #d8ffff; padding: 2px 10px; text-shadow: none; }
+html[data-theme="passport-03"] .tv-menu-btn { border-radius: 0; border: 2px outset #2f64bb; background: #08267d; }
+html[data-theme="passport-03"] .tv-menu-btn:focus-visible { color: #111; background: #fff14b; outline: 2px solid #fff; }
+@keyframes cobalt-card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { html[data-theme="passport-03"] .guide-overlay { animation: none; } }
+
+/* Early digital controls retain hard bevels and discrete pressed states. */
+html[data-theme="passport-03"] :is(.btn, .setup-tab-btn, .setup-subtab-btn, input, select, textarea) { border-radius: 0; }
+html[data-theme="passport-03"] :is(.btn, .setup-tab-btn, .setup-subtab-btn) { border: 2px outset #2f64bb; background: #08267d; box-shadow: 1px 1px #001038; }
+html[data-theme="passport-03"] :is(.btn, .setup-tab-btn, .setup-subtab-btn):active { border-style: inset; transform: translate(1px, 1px); box-shadow: none; }
+html[data-theme="passport-03"] :is(.setup-tab-btn, .setup-subtab-btn).active { color: #111; background: #fff14b; border-color: #fff; }
+html[data-theme="passport-03"] :is(input, select, textarea):focus { border-color: #fff14b; outline: 2px solid #55bdb1; outline-offset: 1px; }
+html[data-theme="passport-03"] .shuffle-toggle { border-radius: 0; }
 
 /* A newer, better-maintained tube than Prevue's era — one gentle overshoot
    partway through instead of several stutters. */

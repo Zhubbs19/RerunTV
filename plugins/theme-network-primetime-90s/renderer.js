@@ -9,6 +9,7 @@ const { playTone } = window.RCBPlugins.ctx;
 
 window.RCBPlugins.registerThemePack('network-primetime-90s', {
   label: 'NETWORK PRIME TIME (1996 CREAM & BRICK)',
+  preview: { background: '#100805', accent: '#e76f61', secondary: '#e9c46a' },
   group: 'ERA (BY DECADE)',
 
   crtBias: { scanlines: 0.8, vignette: 0.85, grain: 0.6, flicker: 0.5, curvatureFloor: 0 },

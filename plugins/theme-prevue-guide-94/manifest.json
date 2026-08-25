@@ -1,8 +1,8 @@
 {
   "id": "theme-prevue-guide-94",
-  "name": "Prevue Guide '94",
+  "name": "Scrolling Guide '94",
   "version": "1.0.0",
-  "description": "Theme pack: the actual first interactive guide most cable subscribers ever saw — royal blue and amber-yellow, flat panels, sharp corners, no gloss (real Prevue-era hardware had no headroom for it).",
+  "description": "Theme pack: early interactive scrolling guide with royal blue and amber-yellow, flat panels, sharp corners, and analog signal texture.",
   "category": "theme",
   "renderer": "renderer.js",
   "style": "style.css"

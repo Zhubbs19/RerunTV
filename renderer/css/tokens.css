@@ -162,11 +162,53 @@
   --bg: var(--ink-deep);
   --text: var(--paper);
 
+  /* Semantic control colors stay separate from a theme's decorative button
+     chrome. Several full-look themes intentionally replace .btn backgrounds;
+     these aliases keep normal, confirm, destructive, and disabled states
+     readable even when that chrome is square, glossy, metallic, or flat. */
+  --button-fg: var(--paper-dim);
+  --button-hover-fg: var(--gold);
+  --button-primary-fg: var(--gold-ink);
+  --button-danger-fg: #fff;
+  --button-disabled-fg: var(--paper-dim);
+
+  /* Interaction profile. Theme packs override these values to make the same
+     controls feel like their hardware era without duplicating core rules. */
+  --motion-control-duration: 150ms;
+  --motion-control-ease: ease;
+  --motion-control-hover: translateY(-1px);
+  --motion-control-active: translateY(1px);
+  --motion-card-duration: 180ms;
+  --motion-card-ease: ease-out;
+  --motion-card-from-y: 10px;
+  --motion-card-from-scale: 1;
+  --motion-digit-duration: 140ms;
+  --motion-digit-ease: ease-out;
+  --motion-digit-from-scale: 1.12;
+  --motion-info-duration: 160ms;
+  --motion-info-ease: ease-out;
+
   /* Setup-shell surfaces are explicit theme tokens because the navigation
      now stays visible while its page scrolls and the flow builder uses an
      inset edge cue. Theme plugins override both alongside their palette. */
   --setup-nav-bg: #131c58;
   --setup-overflow-shadow: rgba(0, 0, 0, 0.75);
+
+  /* Guide-specific surfaces. Theme packs can now change the interaction
+     hierarchy of the EPG without overriding broad core selectors: early
+     i-Guide used a pale channel rail and cyan time bar, while Contour used
+     a dark rail, blue cells, and a flat yellow focus bar. */
+  --guide-grid-bg: var(--gradient-page);
+  --guide-channel-bg: var(--gradient-cell);
+  --guide-channel-fg: var(--paper);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: transparent;
+  --guide-program-alt-bg: var(--cell-alt);
+  --guide-selection-bg: var(--gradient-gold);
+  --guide-selection-fg: #000;
+  --guide-timebar-bg: transparent;
+  --guide-row-height: 52px;
+  --guide-row-gap: 3px;
 }
 
 

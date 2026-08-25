@@ -14,6 +14,9 @@ import { buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
 import { runCoreHooks, themePackEntries } from './plugins.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { initBackups, renderBackupsList as renderBackupsListFeature } from './setup-backups.js';
+import {
+  DEFAULT_GUIDE_GENRES, defaultGuideGenreColor, guideGenreThemeConfig, normalizeGuideGenre,
+} from './guide-genres.js';
 import { renderCommercialsPanel, renderInterstitialsList, renderPresetsList, renderStandbyPanel } from './setup-interstitials.js';
 import { initFlowBuilder, renderFlowsList } from './setup-interstitials-flowbuilder.js';
 import { renderAutoCurateList } from './setup-autocurate.js';
@@ -26,8 +29,10 @@ import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
   clock24El, detailsEnabledEl,
-  guideSlotsSelect, hintBarEnabledEl, hintBarCompactEl,
+  guideSlotsSelect, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
+  hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider, logoBugEditorEl, movieModeEnabledEl, pictureModeSelect,
+  noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
@@ -38,6 +43,7 @@ import {
   helpGuideListEl, helpGuideSearchEl, helpPrintManualBtn, hintBarEl, hintBarItemsListEl,
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
+  themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
   timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinLockEnabledEl,
 } from './dom.js';
@@ -238,6 +244,13 @@ export function renderSettingsPanels() {
   clock24El.checked = !!S.config.display.clock24;
   hintBarEnabledEl.checked = S.config.display.hintBar !== false;
   hintBarCompactEl.checked = S.config.display.hintBarCompact !== false;
+  hintBarSlideEnabledEl.checked = S.config.display.hintBarSlide !== false;
+  hintBarShowDurationEl.disabled = !hintBarSlideEnabledEl.checked;
+  hintBarHideDurationEl.disabled = !hintBarSlideEnabledEl.checked;
+  hintBarShowDurationEl.value = String(S.config.display.hintBarShowDuration);
+  hintBarShowDurationValEl.textContent = `${S.config.display.hintBarShowDuration}ms`;
+  hintBarHideDurationEl.value = String(S.config.display.hintBarHideDuration);
+  hintBarHideDurationValEl.textContent = `${S.config.display.hintBarHideDuration}ms`;
   renderHintBarItemsList();
   adVolumeSlider.value = Math.round((typeof S.config.adVolume === 'number' ? S.config.adVolume : 1) * 100);
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
@@ -255,8 +268,12 @@ export function renderSettingsPanels() {
   bootPowerAnimEnabledEl.checked = S.config.display.bootPowerOnAnim !== false;
   guideOpenCloseAnimEnabledEl.checked = !!S.config.display.guideOpenCloseAnim;
   guideAnimSpeedSlider.value = S.config.display.guideOpenCloseAnimMs || 180;
+  noSignalTitleInput.value = S.config.display.noSignalTitle || '';
+  noSignalMessageInput.value = S.config.display.noSignalMessage || '';
   renderThemeSelectOptions();
   themeSelect.value = S.config.theme || 'digital-2000s';
+  renderThemeBrowser();
+  renderGuideGenreSettings();
   upNextEnabledEl.checked = S.config.upNext.enabled !== false;
   detailsEnabledEl.checked = S.config.details.enabled !== false;
   timeMachineEnabledEl.checked = !!S.config.timeMachine.enabled;
@@ -1194,6 +1211,150 @@ document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('.setup-nav')) closeSettingsSearch();
 });
 
+// The navigation needs an opaque theme surface only while it is actually
+// pinned over scrolling content. Keeping that surface active at scrollTop=0
+// cuts a large solid rectangle through themes whose setup page is a gradient.
+const setupNavEl = setupScreen.querySelector('.setup-nav');
+function syncSetupNavStickySurface() {
+  if (!setupNavEl) return;
+  const stickyTop = parseFloat(getComputedStyle(setupNavEl).top) || 0;
+  const scrollPaddingTop = parseFloat(getComputedStyle(setupScreen).paddingTop) || 0;
+  const stuckEdge = setupScreen.getBoundingClientRect().top + scrollPaddingTop + stickyTop;
+  const isStuck = setupScreen.scrollTop > 0 && setupNavEl.getBoundingClientRect().top <= stuckEdge + 1;
+  setupNavEl.classList.toggle('is-stuck', isStuck);
+}
+
+function activeGuideGenreThemeId() {
+  return themeSelect.value || S.config.theme || 'digital-2000s';
+}
+
+function guideGenreKeys(themeConfig) {
+  const keys = new Set([...Object.keys(DEFAULT_GUIDE_GENRES), ...Object.keys(themeConfig.colors)]);
+  (S.config.channels || []).forEach((channel) => (channel.files || []).forEach((file) => {
+    (file.facets?.genre || []).forEach((genre) => {
+      const key = normalizeGuideGenre(genre);
+      if (key) keys.add(key);
+    });
+  }));
+  return Array.from(keys).sort((a, b) => a.localeCompare(b));
+}
+
+function updateGuideGenreTheme(mutator) {
+  const themeId = activeGuideGenreThemeId();
+  const current = guideGenreThemeConfig(S.config, themeId);
+  const next = { enabled: current.enabled, colors: { ...current.colors } };
+  mutator(next);
+  S.config.display.guideGenreStyles = {
+    ...(S.config.display.guideGenreStyles || {}),
+    [themeId]: next,
+  };
+  saveConfigDebounced();
+  renderGuideGenreSettings();
+}
+
+function renderGuideGenreSettings() {
+  const enabled = document.getElementById('guide-genre-colors-enabled');
+  const label = document.getElementById('guide-genre-theme-label');
+  const list = document.getElementById('guide-genre-color-list');
+  if (!enabled || !label || !list) return;
+  const themeId = activeGuideGenreThemeId();
+  const config = guideGenreThemeConfig(S.config, themeId);
+  enabled.checked = config.enabled;
+  label.textContent = `EDITING PALETTE FOR ${themeSelect.selectedOptions[0]?.textContent || themeId}`;
+  list.innerHTML = '';
+  guideGenreKeys(config).forEach((genre) => {
+    const row = document.createElement('div');
+    row.className = 'guide-genre-color-row';
+    const name = document.createElement('strong');
+    name.textContent = genre.toUpperCase();
+    const color = document.createElement('input');
+    color.type = 'color';
+    color.value = config.colors[genre] || defaultGuideGenreColor(genre);
+    color.setAttribute('aria-label', `${genre} guide color`);
+    color.addEventListener('change', () => updateGuideGenreTheme((entry) => { entry.colors[genre] = color.value; }));
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn btn-small';
+    reset.textContent = 'DEFAULT';
+    reset.disabled = !config.colors[genre];
+    reset.addEventListener('click', () => updateGuideGenreTheme((entry) => { delete entry.colors[genre]; }));
+    row.append(name, color, reset);
+    list.appendChild(row);
+  });
+}
+
+function closeThemeBrowser({ restoreFocus = false } = {}) {
+  if (!themeBrowserEl) return;
+  themeBrowserEl.classList.add('hidden');
+  document.body.classList.remove('theme-browser-open');
+  themeBrowserToggle.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) themeBrowserToggle.focus();
+}
+
+function renderThemeBrowser() {
+  if (!themeBrowserGroups) return;
+  const entries = themePackEntries();
+  const query = themeBrowserSearch ? themeBrowserSearch.value.trim().toLowerCase() : '';
+  const currentId = themeSelect.value || S.config.theme || 'digital-2000s';
+  const current = entries.find((entry) => entry.id === currentId);
+  themeBrowserCurrentLabel.textContent = current ? current.label : `${currentId} (PLUGIN NOT INSTALLED)`;
+  themeBrowserGroups.innerHTML = '';
+
+  const byGroup = new Map();
+  entries.forEach((entry) => {
+    if (query && !`${entry.label} ${entry.group}`.toLowerCase().includes(query)) return;
+    if (!byGroup.has(entry.group)) byGroup.set(entry.group, []);
+    byGroup.get(entry.group).push(entry);
+  });
+  const groups = Array.from(byGroup.keys()).sort((a, b) => {
+    const ai = THEME_GROUP_ORDER.indexOf(a);
+    const bi = THEME_GROUP_ORDER.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
+  groups.forEach((groupName) => {
+    const section = document.createElement('section');
+    section.className = 'theme-browser-group';
+    const heading = document.createElement('div');
+    heading.className = 'theme-browser-group-title';
+    heading.textContent = groupName;
+    section.appendChild(heading);
+    const grid = document.createElement('div');
+    grid.className = 'theme-browser-grid';
+    byGroup.get(groupName).sort((a, b) => a.label.localeCompare(b.label)).forEach((entry) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `theme-browser-option${entry.id === currentId ? ' active' : ''}`;
+      button.dataset.themeId = entry.id;
+      button.setAttribute('aria-pressed', String(entry.id === currentId));
+      const swatch = document.createElement('span');
+      swatch.className = 'theme-browser-swatch';
+      swatch.dataset.previewTheme = entry.id;
+      const preview = entry.preview || {};
+      swatch.style.setProperty('--theme-preview-bg', preview.background || '#101522');
+      swatch.style.setProperty('--theme-preview-accent', preview.accent || '#d7dbe7');
+      swatch.style.setProperty('--theme-preview-secondary', preview.secondary || '#68728a');
+      const label = document.createElement('span');
+      label.textContent = entry.label;
+      button.append(swatch, label);
+      button.addEventListener('click', () => {
+        themeSelect.value = entry.id;
+        themeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        closeThemeBrowser({ restoreFocus: true });
+      });
+      grid.appendChild(button);
+    });
+    section.appendChild(grid);
+    themeBrowserGroups.appendChild(section);
+  });
+  themeBrowserEmpty.classList.toggle('hidden', groups.length > 0);
+}
+setupScreen.addEventListener('scroll', syncSetupNavStickySurface, { passive: true });
+window.addEventListener('resize', syncSetupNavStickySurface);
+syncSetupNavStickySurface();
+
 // ---------- Virtual Channels: collapsible cards + local filter ----------
 // This sub-tab is one full-width .panel per system-level setting that hasn't
 // moved to a plugin's own SETTINGS panel (currently just the parental-lock
@@ -1453,10 +1614,99 @@ guideAnimSpeedSlider.addEventListener('input', () => {
   S.config.display.guideOpenCloseAnimMs = parseInt(guideAnimSpeedSlider.value, 10);
   saveConfigDebounced();
 });
+hintBarSlideEnabledEl.addEventListener('change', () => {
+  S.config.display.hintBarSlide = hintBarSlideEnabledEl.checked;
+  hintBarShowDurationEl.disabled = !hintBarSlideEnabledEl.checked;
+  hintBarHideDurationEl.disabled = !hintBarSlideEnabledEl.checked;
+  applyHintBarState();
+  saveConfigDebounced();
+});
+hintBarShowDurationEl.addEventListener('input', () => {
+  S.config.display.hintBarShowDuration = parseInt(hintBarShowDurationEl.value, 10);
+  hintBarShowDurationValEl.textContent = `${S.config.display.hintBarShowDuration}ms`;
+  applyHintBarState();
+  saveConfigDebounced();
+});
+hintBarHideDurationEl.addEventListener('input', () => {
+  S.config.display.hintBarHideDuration = parseInt(hintBarHideDurationEl.value, 10);
+  hintBarHideDurationValEl.textContent = `${S.config.display.hintBarHideDuration}ms`;
+  applyHintBarState();
+  saveConfigDebounced();
+});
+noSignalTitleInput.addEventListener('input', () => {
+  S.config.display.noSignalTitle = noSignalTitleInput.value.slice(0, 48);
+  saveConfigDebounced();
+});
+noSignalMessageInput.addEventListener('input', () => {
+  S.config.display.noSignalMessage = noSignalMessageInput.value.slice(0, 120);
+  saveConfigDebounced();
+});
+noSignalCopyReset.addEventListener('click', () => {
+  S.config.display.noSignalTitle = '';
+  S.config.display.noSignalMessage = '';
+  noSignalTitleInput.value = '';
+  noSignalMessageInput.value = '';
+  saveConfigDebounced();
+});
+document.getElementById('guide-genre-colors-enabled')?.addEventListener('change', (event) => {
+  updateGuideGenreTheme((entry) => { entry.enabled = event.target.checked; });
+});
+document.getElementById('guide-genre-add-btn')?.addEventListener('click', () => {
+  const nameInput = document.getElementById('guide-genre-add-name');
+  const colorInput = document.getElementById('guide-genre-add-color');
+  const genre = normalizeGuideGenre(nameInput.value);
+  if (!genre) return;
+  updateGuideGenreTheme((entry) => { entry.colors[genre] = colorInput.value; });
+  nameInput.value = '';
+});
+document.getElementById('guide-genre-reset-btn')?.addEventListener('click', () => {
+  updateGuideGenreTheme((entry) => { entry.colors = {}; });
+});
 themeSelect.addEventListener('change', () => {
   S.config.theme = themeSelect.value;
   applyTheme();
+  renderThemeBrowser();
+  renderGuideGenreSettings();
   saveConfigDebounced();
+});
+if (themeBrowserToggle) {
+  themeBrowserToggle.addEventListener('click', () => {
+    const opening = themeBrowserEl.classList.contains('hidden');
+    themeBrowserEl.classList.toggle('hidden', !opening);
+    document.body.classList.toggle('theme-browser-open', opening);
+    themeBrowserToggle.setAttribute('aria-expanded', String(opening));
+    if (opening) {
+      renderThemeBrowser();
+      themeBrowserSearch.focus();
+    }
+  });
+}
+if (themeBrowserSearch) {
+  themeBrowserSearch.addEventListener('input', renderThemeBrowser);
+  themeBrowserSearch.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeThemeBrowser({ restoreFocus: true });
+  });
+}
+if (themeBrowserClose) {
+  themeBrowserClose.addEventListener('click', () => closeThemeBrowser({ restoreFocus: true }));
+}
+if (themeBrowserEl) {
+  themeBrowserEl.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeThemeBrowser({ restoreFocus: true });
+    if (event.key === 'Tab') {
+      const focusable = Array.from(themeBrowserEl.querySelectorAll('button:not(:disabled), input:not(:disabled)'));
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    }
+  });
+}
+document.addEventListener('pointerdown', (event) => {
+  if (!themeBrowserEl || themeBrowserEl.classList.contains('hidden')) return;
+  if (themeBrowserEl.contains(event.target) || themeBrowserToggle.contains(event.target)) return;
+  closeThemeBrowser();
 });
 timeMachineEnabledEl.addEventListener('change', () => {
   S.config.timeMachine.enabled = timeMachineEnabledEl.checked;

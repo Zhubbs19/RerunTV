@@ -8,6 +8,7 @@ const { S, playNoiseBurst, playTone, getAudioCtx } = window.RCBPlugins.ctx;
 
 window.RCBPlugins.registerThemePack('uhf-public-access-80s', {
   label: 'LATE-NIGHT UHF (1988 MAGENTA & CYAN)',
+  preview: { background: '#02000a', accent: '#ff2bd6', secondary: '#00e5ff' },
   group: 'ERA (BY DECADE)',
 
   crtBias: { scanlines: 1.15, vignette: 1.2, grain: 1.5, flicker: 1.3, curvatureFloor: 15 },

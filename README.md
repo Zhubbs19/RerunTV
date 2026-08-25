@@ -123,14 +123,20 @@ the guide also scrolls backward into the past.
   ordering with a live-impact preview before the channel is re-anchored
 - **Portable channel packages** — export/import one channel with only its related flows,
   presets, pool entries, and conflict-safe id remapping
-- **Per-channel broadcast identity** — optional theme, tune/static treatment, and accent
-  overrides that inherit box defaults unless explicitly changed
+- **Per-channel broadcast identity** — optional theme, tune/static treatment, accent, and
+  no-signal copy overrides that inherit box defaults unless explicitly changed
 - **Opt-in library synchronization** — startup/periodic source polling for additions,
   missing titles, and unambiguous renames; automatic removal remains separately opt-in
 - **Compared and pinned backups** — preview meaningful differences before restore and keep
   important snapshots out of automatic rotation
 - **Up-next banner** ~45s before a program ends
 - **Channel logo bug** in the corner, like a network watermark
+- **Live overlay layout editor** — drag and anchor the logo and viewer cards over the
+  running channel, resize with handles, and optionally snap to 1–10% grid increments
+- **Theme-scoped guide genre colors** — opt-in palettes for movie, news, sports, kids, and
+  any custom taxonomy genre; selected programs keep the theme's own focus treatment
+- **Animated hint bar** — optional slide-up/slide-down transitions with independently
+  adjustable reveal and hide timing (and automatic reduced-motion handling)
 - **Auto-curation** — tag content by facets (era, mood, rating, etc.), then let day-part
   templates and a scheduler assemble channel lineups from the pool automatically
 - **AUTO display mode** — simulates an era-appropriate resolution/aspect ratio per file or
@@ -143,9 +149,10 @@ the guide also scrolls backward into the past.
   the setup screen
 - **Plugin developer diagnostics** — registration/capability inventory, bounded main and
   renderer logs, reload status, and redacted JSON support bundles
-- **18 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
-  set to a modern streaming-guide look — each with its own palette, SFX, and (where it
-  fits the era) a physical border/bezel image; grouped by era in the theme picker
+- **22 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
+  set through dense SD grids, metallic late-2000s menus, widescreen preview guides, and
+  modern streaming design languages. Themes can change guide density, preview composition, focus behavior,
+  palette, SFX, and (where it fits the era) a physical border/bezel image.
 
 **Shipped as plugins** (install/remove from the **PLUGINS** tab — drop a folder in, or
 install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md)):
@@ -156,6 +163,9 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
   of every channel
 - **CH 2 — Public Access**: a community bulletin board cycling text slides you write
 - **CH 3 — Local Weather**: a synthetic forecast barker channel, or a real one via NOAA
+- **CH 51 — Classified Intercept**: a fictional radar-and-satellite log channel
+- **CH 96 — Shopping Network**, and
+  **CH 98 — Pay-Per-View**: interactive fictional cable-channel experiences
 - **CH 99 — Teletext Arcade**: a parody Ceefax-style teletext service, plus a playable
   Snake game
 - **Closed captions** — sidecar `.srt`/`.vtt` or embedded subtitle streams, via the

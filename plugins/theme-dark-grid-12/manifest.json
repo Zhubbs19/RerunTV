@@ -1,0 +1,9 @@
+{
+  "id": "theme-dark-grid-12",
+  "name": "Dark Grid '12",
+  "version": "1.0.0",
+  "description": "Theme pack: compact black-and-blue cable guide with thin rules, high information density, cyan focus, and restrained chrome.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

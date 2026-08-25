@@ -4,6 +4,8 @@
    rendering headroom for shine or soft shadow. See renderer.js for the
    registration call. */
 html[data-theme="prevue-guide-94"] {
+  --motion-control-duration: 60ms; --motion-control-ease: steps(1, end); --motion-control-hover: none; --motion-control-active: translate(1px, 1px);
+  --motion-card-duration: 100ms; --motion-card-ease: steps(2, end); --motion-card-from-y: 0px; --motion-card-from-scale: 1; --motion-digit-duration: 75ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.03;
   --setup-nav-bg: #101b44;
   --setup-overflow-shadow: rgba(255, 196, 0, 0.45);
   --ink: #0d1740;
@@ -24,6 +26,19 @@ html[data-theme="prevue-guide-94"] {
 
   --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #060a1c;
+  --guide-channel-bg: #eef1ff;
+  --guide-channel-fg: #0d1740;
+  --guide-channel-subtle: #344477;
+  --guide-program-bg: #1c2f6e;
+  --guide-program-alt-bg: #263d85;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #16265c;
+  --guide-row-height: 46px;
+  --guide-row-gap: 1px;
 
   --gradient-page: linear-gradient(180deg, #0d1740 0%, #060a1c 100%);
   --gradient-panel: linear-gradient(180deg, #1c2f6e 0%, #16265c 100%);

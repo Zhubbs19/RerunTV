@@ -234,6 +234,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   const profileSnapshot = (getProfiles() || []).map((profile) => ({ ...profile }));
   const displayModeSnapshot = { ...(S.config.displayMode || {}) };
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
+  const snapIncrementSnapshot = Number(S.config.display && S.config.display.overlaySnapIncrement) || 0;
   const overlayLayoutsSnapshot = JSON.parse(JSON.stringify((S.config.display && S.config.display.overlayLayouts) || {}));
   const [{ showSetupScreen, showTvScreen }, displayMode, channels] = await Promise.all([
     import('./app.js'), import('./display-mode.js'), import('./channels.js'),
@@ -321,6 +322,20 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   addSelect('WINDOW', 'windowMode', [['letterbox', 'LETTERBOX'], ['lockWindow', 'LOCK WINDOW']]);
   addSelect('RESOLUTION', 'resolution', [['native', 'NATIVE'], ['sd480', 'SD 480'], ['sd240', 'SD 240'], ['auto', 'AUTO']]);
 
+  const snapField = document.createElement('label');
+  snapField.className = 'logobug-live-field logobug-live-snap';
+  snapField.appendChild(document.createTextNode('SNAP GRID'));
+  const snapSelect = document.createElement('select');
+  [[0, 'OFF'], [1, '1%'], [2.5, '2.5%'], [5, '5%'], [10, '10%']].forEach(([value, text]) => {
+    const option = document.createElement('option');
+    option.value = String(value);
+    option.textContent = text;
+    snapSelect.appendChild(option);
+  });
+  snapSelect.value = String(snapIncrementSnapshot);
+  snapField.appendChild(snapSelect);
+  toolbar.appendChild(snapField);
+
   const autoField = document.createElement('label');
   autoField.className = 'logobug-live-auto';
   const autoAdjust = document.createElement('input');
@@ -346,6 +361,36 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   logo.classList.remove('hidden');
   let activeId = null;
   let activeTarget = 'logo-bug';
+
+  function snapIncrement() {
+    return Number(snapSelect.value) || 0;
+  }
+
+  function snapPercent(value, max, bypass = false) {
+    const increment = bypass ? 0 : snapIncrement();
+    const snapped = increment ? Math.round(value / increment) * increment : value;
+    return Math.min(max, Math.max(0, snapped));
+  }
+
+  function snapLogoSize(value, bypass = false) {
+    const increment = bypass ? 0 : snapIncrement();
+    if (!increment) return Math.round(value);
+    const cellSize = Math.min(overlay.clientWidth, overlay.clientHeight) * increment / 100;
+    return Math.round(value / cellSize) * cellSize;
+  }
+
+  function snapScale(value, bypass = false) {
+    const increment = bypass ? 0 : snapIncrement() / 100;
+    return increment ? Math.round(value / increment) * increment : value;
+  }
+
+  function syncSnapGrid() {
+    const increment = snapIncrement();
+    overlay.classList.toggle('snap-enabled', increment > 0);
+    overlay.style.setProperty('--overlay-grid-step', increment ? `${increment}%` : '5%');
+    S.config.display.overlaySnapIncrement = increment;
+    renderProfile();
+  }
 
   function currentContext() {
     return autoAdjust.checked
@@ -448,7 +493,8 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     }
     const mode = `${profile.aspect} + ${profile.resolution === 'native' ? 'NATIVE' : profile.resolution.toUpperCase()}`;
     const size = activeTarget === 'logo-bug' ? `${profile.size}px` : `${Math.round((profile.scale || 1) * 100)}%`;
-    status.textContent = `${mode}  •  X ${profile.x.toFixed(1)}%  Y ${profile.y.toFixed(1)}%  •  ${size}`;
+    const snap = snapIncrement();
+    status.textContent = `${mode}  •  X ${profile.x.toFixed(1)}%  Y ${profile.y.toFixed(1)}%  •  ${size}  •  SNAP ${snap ? `${snap}%` : 'OFF'}`;
   }
 
   function updateProfile(patch) {
@@ -486,8 +532,10 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     trackDrag(event, (nextEvent) => {
       const maxX = Math.max(0, 100 - selection.offsetWidth / overlay.clientWidth * 100);
       const maxY = Math.max(0, 100 - selection.offsetHeight / overlay.clientHeight * 100);
-      const x = Math.min(maxX, Math.max(0, ((nextEvent.clientX - offsetX - rect.left) / rect.width) * 100));
-      const y = Math.min(maxY, Math.max(0, ((nextEvent.clientY - offsetY - rect.top) / rect.height) * 100));
+      const rawX = ((nextEvent.clientX - offsetX - rect.left) / rect.width) * 100;
+      const rawY = ((nextEvent.clientY - offsetY - rect.top) / rect.height) * 100;
+      const x = snapPercent(rawX, maxX, nextEvent.altKey);
+      const y = snapPercent(rawY, maxY, nextEvent.altKey);
       updateProfile({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 });
     });
   });
@@ -514,8 +562,9 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
         if (edge.includes('n')) widthDeltas.push(-dy / startHeight);
         const ratio = 1 + widthDeltas.reduce((sum, value) => sum + value, 0) / widthDeltas.length;
         const size = activeTarget === 'logo-bug'
-          ? Math.round(Math.min(240, overlay.clientWidth, overlay.clientHeight, Math.max(28, startSize * ratio)))
-          : Math.min(3, Math.max(0.5, (profile.scale || 1) * ratio));
+          ? Math.min(240, overlay.clientWidth, overlay.clientHeight,
+            Math.max(28, snapLogoSize(startSize * ratio, nextEvent.altKey)))
+          : Math.min(3, Math.max(0.5, snapScale((profile.scale || 1) * ratio, nextEvent.altKey)));
         const nextWidth = activeTarget === 'logo-bug' ? size : targetElement().offsetWidth * size;
         const nextHeight = activeTarget === 'logo-bug' ? size : targetElement().offsetHeight * size;
         let left = startLeft;
@@ -526,8 +575,10 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
         top = Math.min(overlay.clientHeight - nextHeight, Math.max(0, top));
         updateProfile({
           ...(activeTarget === 'logo-bug' ? { size } : { scale: Math.round(size * 100) / 100 }),
-          x: Math.round(left / overlay.clientWidth * 1000) / 10,
-          y: Math.round(top / overlay.clientHeight * 1000) / 10,
+          x: Math.round(snapPercent(left / overlay.clientWidth * 100,
+            Math.max(0, 100 - nextWidth / overlay.clientWidth * 100), nextEvent.altKey) * 10) / 10,
+          y: Math.round(snapPercent(top / overlay.clientHeight * 100,
+            Math.max(0, 100 - nextHeight / overlay.clientHeight * 100), nextEvent.altKey) * 10) / 10,
         });
       });
     });
@@ -537,6 +588,8 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     S.config.display.logoBugAutoAdjust = autoAdjust.checked;
     selectProfileForContext();
   });
+
+  snapSelect.addEventListener('change', syncSnapGrid);
 
   targetSelect.addEventListener('change', () => {
     activeTarget = targetSelect.value;
@@ -554,6 +607,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     if (!keepChanges) {
       S.config.displayMode = displayModeSnapshot;
       S.config.display.logoBugAutoAdjust = autoAdjustSnapshot;
+      S.config.display.overlaySnapIncrement = snapIncrementSnapshot;
       S.config.display.overlayLayouts = overlayLayoutsSnapshot;
       setProfiles(profileSnapshot.map((profile) => ({ ...profile })));
       displayMode.applyDisplayModeSettled();
@@ -580,6 +634,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
 
   crt.appendChild(overlay);
   app.appendChild(toolbar);
+  syncSnapGrid();
   selectProfileForContext();
 }
 

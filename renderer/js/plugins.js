@@ -69,6 +69,7 @@ const tuneGateRegistry = new Map();
 const overlayAudioRegistry = new Map();
 const titleRowActionRegistry = new Map();
 const coreHookRegistry = new Map(); // event name -> Set<fn>
+const rendererServiceRegistry = new Map();
 let loadErrors = []; // [{id, name, error}] — surfaced once via a themed alert, not per-plugin
 
 export function registerChannelType(id, definition) {
@@ -88,6 +89,19 @@ export function getPluginChannelType(id) {
 
 export function pluginChannelTypeIds() {
   return Array.from(channelTypeRegistry.keys());
+}
+
+// Renderer-local counterpart to main-process registerService/callService.
+// This keeps plugin-to-plugin UI collaboration behind a generic named
+// contract instead of encouraging plugins to attach one-off globals.
+export function registerRendererService(id, service) {
+  if (!id || typeof id !== 'string') throw new Error('registerRendererService: id must be a non-empty string');
+  if (!service || typeof service !== 'object') throw new Error(`registerRendererService("${id}"): service must be an object`);
+  rendererServiceRegistry.set(id, service);
+}
+
+export function getRendererService(id) {
+  return rendererServiceRegistry.get(id) || null;
 }
 
 export function getPluginChannelEntryForNumber(number) {
@@ -285,6 +299,10 @@ export function getMediaSourcePicker(providerId) {
 // fontFamily, fontSize, textTransform, padding, textShadow). Core has no
 // idea captions exist; this field just sits here unread unless that plugin
 // is installed, same as every other optional field on this object.
+// `preview` (optional) gives the theme browser a stable, representative
+// three-color swatch without applying the theme. Use CSS color strings for
+// `background`, `accent`, and `secondary`. Packs that omit it receive a
+// neutral preview so third-party themes remain selectable.
 export function registerThemePack(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerThemePack: id must be a non-empty string');
   if (!definition || typeof definition.label !== 'string') {
@@ -305,9 +323,19 @@ export function getThemePack(id) {
 // stay available as the safe zero-plugins default.
 export function themePackEntries() {
   const entries = Array.from(themePackRegistry.entries())
-    .map(([themeId, def]) => ({ id: themeId, label: def.label, group: def.group || 'OTHER' }));
+    .map(([themeId, def]) => ({
+      id: themeId,
+      label: def.label,
+      group: def.group || 'OTHER',
+      preview: def.preview || null,
+    }));
   if (!themePackRegistry.has('digital-2000s')) {
-    entries.unshift({ id: 'digital-2000s', label: 'DIGITAL CABLE (MID 2000s BLUE)', group: 'ERA (BY DECADE)' });
+    entries.unshift({
+      id: 'digital-2000s',
+      label: 'DIGITAL CABLE (MID 2000s BLUE)',
+      group: 'ERA (BY DECADE)',
+      preview: { background: '#000d1a', accent: '#00bfff', secondary: '#7fd4ff' },
+    });
   }
   return entries;
 }
@@ -505,6 +533,8 @@ function installGlobalApi() {
     registerOverlayAudioSource,
     registerTitleRowAction,
     registerCoreHook,
+    registerRendererService,
+    getRendererService,
     // Same shape as the ctx a channel type's render()/stop() receives —
     // exposed here too so a plugin's top-level code (e.g. registering an
     // IPC listener that needs to update S.<pluginField> even before the

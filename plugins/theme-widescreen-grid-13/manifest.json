@@ -1,0 +1,9 @@
+{
+  "id": "theme-widescreen-grid-13",
+  "name": "Widescreen Grid '13",
+  "version": "1.0.0",
+  "description": "Theme pack: early HD cable guide with a left live preview, rich blue program grid, yellow focus bar, and remote-color footer cues.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

@@ -1,0 +1,9 @@
+{
+  "id": "pay-per-view",
+  "name": "Pay-Per-View",
+  "version": "1.1.0",
+  "description": "Virtual CH 98 — a parody scrambled PPV channel: order a fake event, confirm the purchase, and the picture unscrambles for 30 seconds.",
+  "category": "channel",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

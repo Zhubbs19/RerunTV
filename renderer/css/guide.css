@@ -31,10 +31,10 @@
      all, see the note above .guide-grid below; this card is a fixed-size
      absolutely-positioned box that never triggers a rebuild, so it doesn't
      carry the same stutter risk. */
-  animation: guide-overlay-in 180ms ease-out;
+  animation: guide-overlay-in var(--motion-card-duration) var(--motion-card-ease);
 }
 @keyframes guide-overlay-in {
-  0% { opacity: 0; transform: translateY(10px); }
+  0% { opacity: 0; transform: translateY(var(--motion-card-from-y)) scale(var(--motion-card-from-scale)); }
   100% { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -151,7 +151,7 @@
   position: absolute;
   inset: 0;
   z-index: 3;
-  background: var(--gradient-page);
+  background: var(--guide-grid-bg, var(--gradient-page));
   display: flex;
   flex-direction: column;
   padding: clamp(8px, 3cqh, 20px) clamp(10px, 4cqw, 28px) clamp(6px, 2cqh, 12px);
@@ -341,7 +341,7 @@
    guide.js restarts this by toggling the class off/on across a reflow). */
 .guide-info-title, .guide-info-time { will-change: opacity; }
 .guide-info-title.gi-update, .guide-info-time.gi-update {
-  animation: guide-info-fade 160ms ease-out;
+  animation: guide-info-fade var(--motion-info-duration) var(--motion-info-ease);
 }
 @keyframes guide-info-fade {
   0% { opacity: 0; }
@@ -397,6 +397,7 @@
   margin-bottom: 4px;
   font-variant-numeric: tabular-nums;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  background: var(--guide-timebar-bg, transparent);
 }
 
 .guide-th-slot {
@@ -415,14 +416,14 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--guide-row-gap, 3px);
   padding-top: 4px;
 }
 
 .guide-row {
   display: grid;
   grid-template-columns: var(--guide-chan-col, 170px) 1fr;
-  min-height: 52px;
+  min-height: var(--guide-row-height, 52px);
 }
 
 .guide-row-chan {
@@ -431,7 +432,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--gradient-cell);
+  background: var(--guide-channel-bg, var(--gradient-cell));
   border: 1px solid var(--line);
   border-right: none;
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
@@ -448,7 +449,7 @@
 .grc-num {
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--paper);
+  color: var(--guide-channel-fg, var(--paper));
   font-size: 17px;
   letter-spacing: 0.3px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
@@ -456,7 +457,7 @@
 .grc-name {
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--paper-dim);
+  color: var(--guide-channel-subtle, var(--paper-dim));
   font-size: 11px;
   letter-spacing: 0.8px;
   text-transform: uppercase;
@@ -498,9 +499,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
+  background: var(--guide-program-bg, transparent);
 }
-.guide-entry:nth-child(even) { background: var(--cell-alt); }
+.guide-entry:nth-child(even) { background: var(--guide-program-alt-bg, var(--cell-alt)); }
 .guide-entry:hover { background: rgba(255, 255, 255, 0.12); }
+.guide-entry.guide-entry-genre:not(.sel) {
+  background: var(--guide-genre-bg);
+  color: var(--guide-genre-fg);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .42);
+}
+.guide-entry.guide-entry-genre:not(.sel):hover { filter: brightness(1.13); }
 /* Color set inline per-entry (buildChannelRow, guide.js) from the airing
    block's theme.accent — only present when a block explicitly opts in via
    the THEME panel (setup-schedule.js), so an untouched schedule looks
@@ -511,8 +519,8 @@
 
 .guide-entry.sel {
   z-index: 2;
-  background: var(--gradient-gold);
-  color: #000;
+  background: var(--guide-selection-bg, var(--gradient-gold));
+  color: var(--guide-selection-fg, #000);
   font-weight: 700;
   text-shadow: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--gold-rgb), 0.5);
@@ -605,6 +613,8 @@
 }
 
 .hint-bar {
+  --hint-bar-show-duration: 250ms;
+  --hint-bar-hide-duration: 200ms;
   background: var(--gradient-panel);
   border-top: 1px solid var(--line);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -625,6 +635,40 @@
      and getting clipped off-screen. */
   max-height: 46px;
   overflow: hidden;
+  flex-shrink: 0;
+  opacity: 1;
+  transform: translateY(0);
+  transform-origin: bottom center;
+  transition:
+    transform var(--hint-bar-show-duration) var(--motion-card-ease, ease-out),
+    opacity var(--hint-bar-show-duration) var(--motion-card-ease, ease-out),
+    max-height var(--hint-bar-show-duration) var(--motion-card-ease, ease-out),
+    padding var(--hint-bar-show-duration) var(--motion-card-ease, ease-out),
+    border-color var(--hint-bar-show-duration) linear,
+    border-width var(--hint-bar-show-duration) var(--motion-card-ease, ease-out);
+  will-change: transform, max-height, opacity;
+}
+
+.hint-bar.is-hidden {
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top-color: transparent;
+  border-top-width: 0;
+  opacity: 0;
+  transform: translateY(100%);
+  pointer-events: none;
+  transition-duration: var(--hint-bar-hide-duration);
+}
+
+.hint-bar.motion-instant,
+.hint-bar.motion-instant.is-hidden {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint-bar,
+  .hint-bar.is-hidden { transition: none; }
 }
 
 /* Fullscreen: nothing to hint at when there's no title bar/taskbar visible

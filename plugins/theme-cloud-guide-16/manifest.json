@@ -2,7 +2,7 @@
   "id": "theme-cloud-guide-16",
   "name": "Cloud Guide '16",
   "version": "1.0.0",
-  "description": "Theme pack: the current generation (Comcast X1 and its descendants) — flatter dark charcoal, blue for interaction, green for recommendations, the most contemporary of the guide-era themes.",
+  "description": "Theme pack: modern cloud-era cable UI with dark content cards, blue interaction, spacious focus targets, and restrained motion.",
   "category": "theme",
   "renderer": "renderer.js",
   "style": "style.css"

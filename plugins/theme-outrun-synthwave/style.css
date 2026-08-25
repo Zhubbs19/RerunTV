@@ -4,6 +4,8 @@
    territory — this one is darker and warmer toward magenta/black).
    See renderer.js for the registration call. */
 html[data-theme="outrun-synthwave"] {
+  --motion-control-duration: 140ms; --motion-control-ease: cubic-bezier(.2,.8,.2,1); --motion-control-hover: translateY(-2px) scale(1.02); --motion-control-active: translateY(1px) scale(.98);
+  --motion-card-duration: 180ms; --motion-card-ease: cubic-bezier(.2,.8,.2,1); --motion-card-from-y: 14px; --motion-card-from-scale: .96; --motion-digit-duration: 120ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.13;
   --setup-nav-bg: #150723;
   --setup-overflow-shadow: rgba(255, 46, 196, 0.55);
   --ink: #170826;
@@ -26,6 +28,19 @@ html[data-theme="outrun-synthwave"] {
      --font-ui staying a readable grotesque for everything else. */
   --font-display: 'Monoton', 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Comfortaa', 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #0d0221;
+  --guide-channel-bg: #170826;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #1a0a2e;
+  --guide-program-alt-bg: #261044;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: #fff;
+  --guide-timebar-bg: #300854;
+  --guide-row-height: 50px;
+  --guide-row-gap: 3px;
 
   --gradient-page: linear-gradient(180deg, #170826 0%, #0d0221 100%);
   --gradient-panel: linear-gradient(180deg, #1a0a2e 0%, #150723 100%);

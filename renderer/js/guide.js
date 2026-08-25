@@ -11,6 +11,7 @@ import { tuneToChannel } from './playback.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
 import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
 import { searchUpcomingPrograms } from './program-search.js';
+import { guideGenreStyleForFile } from './guide-genres.js';
 import { updateTimeShiftBadge } from './timemachine.js';
 import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
@@ -41,7 +42,7 @@ function updateGuideLogo(ch) {
 export function showGuideOverlay(number, ch) {
   guideNumberEl.textContent = String(number).padStart(2, '0');
   if (!ch) {
-    guideNameEl.textContent = 'NO SIGNAL';
+    guideNameEl.textContent = S.config.display?.noSignalTitle?.trim() || 'NO SIGNAL';
     guideNowEl.textContent = '';
     guideBarFillEl.style.width = '0%';
   } else {
@@ -251,7 +252,11 @@ export function openGuideGrid() {
   }
   clearInterval(S.guideTickTimer);
   S.guideTickTimer = setInterval(renderGuideGrid, 30000);
-  requestAnimationFrame(() => guideSearchEl.focus({ preventScroll: true }));
+  // Focus the guide surface so opening the guide starts in grid-navigation
+  // mode. Search is an explicit secondary action: `/` (or normal Tab
+  // navigation) moves into its input. Focusing guideSearchEl here made the
+  // same G keypress that opened the guide immediately look like search mode.
+  requestAnimationFrame(() => guideGrid.focus({ preventScroll: true }));
 }
 
 export function closeGuideGrid() {
@@ -346,6 +351,13 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
     // lets the "past" dimming keep advancing on the 30s tick without
     // needing to rebuild this block (or recompute the schedule) at all.
     block.dataset.end = String(entry.end);
+    const genreStyle = guideGenreStyleForFile(entry.file, S.config, document.documentElement.dataset.theme);
+    if (genreStyle) {
+      block.classList.add('guide-entry-genre');
+      block.dataset.genre = genreStyle.key;
+      block.style.setProperty('--guide-genre-bg', genreStyle.background);
+      block.style.setProperty('--guide-genre-fg', genreStyle.foreground);
+    }
     // Opt-in only — an entry.block with no theme.accent (the overwhelming
     // default) leaves .guide-entry's own CSS untouched, same look as before
     // block theming existed. See applyBlockTheme (power.js) for the

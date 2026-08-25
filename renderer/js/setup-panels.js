@@ -954,7 +954,7 @@ export function buildChannelIdentityPanel(ch, panelEl) {
   };
   const intro = document.createElement('div');
   intro.className = 'titles-empty';
-  intro.textContent = 'OPTIONAL CHANNEL IDENTITY OVERRIDES. LEAVE A FIELD ON INHERIT TO FOLLOW THE BOX THEME.';
+  intro.textContent = 'OPTIONAL CHANNEL IDENTITY OVERRIDES. LEAVE A FIELD ON INHERIT TO FOLLOW THE BOX THEME AND BOX-WIDE SIGNAL COPY.';
 
   function selectField(label, key, options) {
     const wrap = document.createElement('label');
@@ -974,12 +974,33 @@ export function buildChannelIdentityPanel(ch, panelEl) {
     return wrap;
   }
 
+  function textOverrideField(label, key, maxLength, placeholder) {
+    const wrap = document.createElement('label');
+    wrap.className = 'channel-identity-field channel-identity-field-wide';
+    wrap.append(document.createTextNode(label));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'title-row-input';
+    input.maxLength = maxLength;
+    input.placeholder = placeholder;
+    input.value = typeof identity[key] === 'string' ? identity[key] : '';
+    input.addEventListener('input', () => {
+      const value = input.value.slice(0, maxLength);
+      if (value) identity[key] = value; else delete identity[key];
+      persistIdentity();
+    });
+    wrap.appendChild(input);
+    return wrap;
+  }
+
   const grid = document.createElement('div');
   grid.className = 'channel-identity-grid';
   grid.append(
     selectField('THEME / ERA', 'theme', [['', 'INHERIT BOX THEME'], ...themePackEntries().map((entry) => [entry.id, entry.label])]),
     selectField('TUNE SOUND', 'tuneSfx', [['', 'INHERIT THEME'], ['soft', 'SOFT CHIME'], ['analog', 'ANALOG STATIC'], ['digital', 'DIGITAL CHIRP'], ['silent', 'SILENT']]),
     selectField('TUNING STATIC', 'staticStyle', [['', 'INHERIT THEME'], ['noise', 'CLASSIC NOISE'], ['quiet', 'QUIET BLIP'], ['roll', 'VERTICAL ROLL'], ['tear', 'TEARING SIGNAL'], ['acquire', 'DIGITAL ACQUIRE']]),
+    textOverrideField('NO SIGNAL HEADING', 'noSignalTitle', 48, 'INHERIT BOX HEADING'),
+    textOverrideField('NO SIGNAL DETAIL', 'noSignalMessage', 120, 'INHERIT BOX DETAIL — {channel} inserts number'),
   );
   function soundOverrideField(labelText, slot) {
     const label = document.createElement('div');

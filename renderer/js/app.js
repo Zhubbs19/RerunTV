@@ -699,12 +699,27 @@ export function applyConfigDefaults(config) {
   }
   config.display.logoBugProfiles = normalizeLogoBugProfiles(config.display.logoBugProfiles);
   if (config.display.logoBugAutoAdjust == null) config.display.logoBugAutoAdjust = false;
+  if (![0, 1, 2.5, 5, 10].includes(Number(config.display.overlaySnapIncrement))) {
+    config.display.overlaySnapIncrement = 0;
+  }
+  if (typeof config.display.noSignalTitle !== 'string') config.display.noSignalTitle = '';
+  if (typeof config.display.noSignalMessage !== 'string') config.display.noSignalMessage = '';
+  config.display.noSignalTitle = config.display.noSignalTitle.slice(0, 48);
+  config.display.noSignalMessage = config.display.noSignalMessage.slice(0, 120);
+  if (!config.display.guideGenreStyles || typeof config.display.guideGenreStyles !== 'object') {
+    config.display.guideGenreStyles = {};
+  }
   if (!config.display.overlayLayouts || typeof config.display.overlayLayouts !== 'object') config.display.overlayLayouts = {};
   if (!config.customSounds || typeof config.customSounds !== 'object') config.customSounds = {};
   delete config.display.logoBugPosition;
   delete config.display.logoBugSize;
   if (config.display.hintBar == null) config.display.hintBar = true;
   if (config.display.hintBarCompact == null) config.display.hintBarCompact = true;
+  if (config.display.hintBarSlide == null) config.display.hintBarSlide = true;
+  const hintBarShowDuration = Number(config.display.hintBarShowDuration);
+  const hintBarHideDuration = Number(config.display.hintBarHideDuration);
+  config.display.hintBarShowDuration = Number.isFinite(hintBarShowDuration) ? Math.min(1500, Math.max(0, hintBarShowDuration)) : 250;
+  config.display.hintBarHideDuration = Number.isFinite(hintBarHideDuration) ? Math.min(1500, Math.max(0, hintBarHideDuration)) : 200;
   if (!Array.isArray(config.display.hintBarHidden)) config.display.hintBarHidden = [];
   if (config.display.customCssPath === undefined) config.display.customCssPath = null;
   if (config.display.bootPowerOnAnim === undefined) config.display.bootPowerOnAnim = true;

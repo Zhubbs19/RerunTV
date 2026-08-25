@@ -1,0 +1,9 @@
+{
+  "id": "area-51",
+  "name": "Area 51",
+  "version": "1.1.0",
+  "description": "Virtual CH 51 — a parody classified satellite intercept channel with a radar sweep, rotating intercepted \"logs\", and a decode button.",
+  "category": "channel",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

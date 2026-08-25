@@ -1,0 +1,9 @@
+{
+  "id": "theme-slate-grid-10",
+  "name": "Slate Grid '10",
+  "version": "1.0.0",
+  "description": "Theme pack: late-2000s cable guide with metallic slate panels, electric-blue cells, yellow focus, and compact menu typography.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}
