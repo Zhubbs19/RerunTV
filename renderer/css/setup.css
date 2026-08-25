@@ -2213,6 +2213,21 @@ html[data-theme] .btn[aria-disabled="true"] {
   box-shadow: var(--bevel-inset);
   background: #000;
 }
+/* Mirror the main .crt.crt-off rules (tv.css) onto the settings preview
+   swatch — when the global CRT toggle is off, the swatch's own effect
+   layers should go dark too, not keep showing scanlines/vignette while
+   the real screen has them disabled. Border-radius also flattens back to
+   0 since a curved tube is a CRT-decorative effect. */
+.crt-preview.crt-off .crt-scanlines,
+.crt-preview.crt-off .crt-vignette,
+.crt-preview.crt-off .crt-curvature-vignette,
+.crt-preview.crt-off .crt-flicker,
+.crt-preview.crt-off .crt-grain {
+  display: none;
+}
+.crt-preview.crt-off {
+  border-radius: 0;
+}
 .crt-preview-picture {
   position: absolute;
   inset: 0;
