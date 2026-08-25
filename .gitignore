@@ -1,9 +1,8 @@
 node_modules/
 dist/
 docs/*
-!docs/AGENTS.md
-!docs/AUDIT_2026-08-24.md
 test/
+soundboard/
 _originals_backup/
 userData/
 .runtime-audit/
