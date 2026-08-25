@@ -1479,12 +1479,80 @@ input[type="checkbox"].shuffle-toggle:active {
 }
 .custom-css-path.is-set { color: var(--gold); }
 
+.theme-select-native { display: none; }
+body.theme-browser-open #setup-screen { overflow: hidden; }
+.theme-browser-current {
+  min-width: min(310px, 100%); min-height: 38px; display: flex; align-items: center;
+  justify-content: space-between; gap: 14px; padding: 8px 12px;
+  color: var(--gold); background: var(--ink-deep); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); font-family: var(--font-ui); font-weight: 700;
+  letter-spacing: .5px; text-align: left;
+}
+.theme-browser-change { color: var(--cyan); font-size: 10px; letter-spacing: 1px; }
+.theme-browser {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 120;
+  width: min(920px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 64px));
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  padding: 16px;
+  background: var(--ink-deep);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .68), var(--shadow-hard);
+}
+.theme-browser-toolbar {
+  position: sticky;
+  top: -16px;
+  z-index: 2;
+  display: flex;
+  gap: 8px;
+  padding: 16px 0 12px;
+  margin-top: -16px;
+  background: var(--ink-deep);
+}
+#theme-browser-search {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 40px;
+  padding-inline: 12px;
+}
+.theme-browser-toolbar .btn { flex: 0 0 auto; min-height: 40px; }
+.theme-browser-groups { display: grid; gap: 14px; }
+.theme-browser-group-title { margin-bottom: 6px; color: var(--paper-dim); font: 700 10px/1.3 var(--font-ui); letter-spacing: 1.2px; }
+.theme-browser-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.theme-browser-option {
+  min-height: 46px; display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  color: var(--paper); background: var(--cell); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); font: 700 11px/1.25 var(--font-ui); text-align: left;
+}
+.theme-browser-option:hover { border-color: var(--cyan); }
+.theme-browser-option.active { color: var(--gold-ink); background: var(--gold); border-color: var(--paper); }
+.theme-browser-swatch {
+  flex: 0 0 30px; width: 30px; height: 24px; border-radius: inherit;
+  background:
+    linear-gradient(135deg, transparent 0 44%, var(--theme-preview-secondary) 45% 68%, transparent 69%),
+    linear-gradient(90deg, var(--theme-preview-bg) 0 58%, var(--theme-preview-accent) 58% 100%);
+  border: 1px solid rgba(255,255,255,.45);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
+}
+@media (max-width: 620px) {
+  .theme-browser { width: calc(100vw - 24px); max-height: calc(100vh - 32px); padding: 12px; }
+  .theme-browser-toolbar { top: -12px; margin-top: -12px; padding-top: 12px; }
+  .theme-browser-grid { grid-template-columns: 1fr; }
+}
+
 .plugins-toolbar {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
 }
 .plugins-toolbar .titles-search { flex: 1 1 220px; min-width: 160px; }
+.plugins-state-filter { min-width: 150px; }
 .plugins-category-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1515,6 +1583,13 @@ input[type="checkbox"].shuffle-toggle:active {
   letter-spacing: 0.5px;
   color: var(--paper-dim);
 }
+.plugins-results-count {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+}
 .plugins-save-status {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -1536,11 +1611,14 @@ input[type="checkbox"].shuffle-toggle:active {
   .btn-appear { animation: none; }
 }
 .plugins-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 6px;
 }
+.plugin-entry { min-width: 0; }
+.plugin-entry:has(.plugin-settings-panel:not(.hidden)) { grid-column: 1 / -1; }
+.plugin-entry:not(:has(.plugin-settings-panel:not(.hidden))) .plugin-row { height: 100%; }
 .plugin-entry.filtered-out { display: none; }
 .plugins-empty {
   font-family: var(--font-ui);
@@ -1563,6 +1641,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .plugin-row.is-disabled { opacity: 0.55; }
 .plugin-row.is-disabled .plugin-row-name { color: var(--paper-dim); }
 .plugin-row-info { flex: 1; min-width: 0; }
+.plugin-row-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .plugin-row-name {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -1575,6 +1654,19 @@ input[type="checkbox"].shuffle-toggle:active {
   color: var(--paper-dim);
   margin-left: 8px;
 }
+.plugin-row-status {
+  flex: 0 0 auto;
+  font-family: var(--font-ui);
+  font-weight: 800;
+  font-size: 8.5px;
+  letter-spacing: 0.65px;
+  color: var(--ink-deep);
+  background: var(--good, #5fd68a);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+.plugin-row-status.is-off { color: var(--paper-dim); background: rgba(255, 255, 255, 0.09); }
+.plugin-row-status.needs-attention { color: #fff; background: var(--danger); }
 .plugin-row-desc {
   font-family: var(--font-ui);
   font-weight: 500;
@@ -1635,6 +1727,9 @@ input[type="checkbox"].shuffle-toggle:active {
   font-size: 10.5px;
   padding: 4px 10px;
 }
+@media (max-width: 1120px) {
+  .plugins-list { grid-template-columns: 1fr; }
+}
 
 .health-check-results {
   margin-top: 8px;
@@ -1673,9 +1768,14 @@ input[type="checkbox"].shuffle-toggle:active {
 .title-row-wrap.is-dragging { opacity: .45; }
 .channel-identity-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0; }
 .channel-identity-field { display: grid; gap: 5px; color: var(--cyan); font-size: 11px; letter-spacing: 1px; }
+.channel-identity-field-wide { grid-column: span 2; }
+.channel-identity-field-wide .title-row-input { width: 100%; min-width: 0; }
 .channel-identity-color { display: flex; align-items: center; gap: 8px; min-height: 31px; }
 .channel-identity-color input[type="color"] { width: 70px; height: 30px; padding: 2px; border: 1px solid var(--line); background: var(--panel-2); }
-@media (max-width: 760px) { .channel-identity-grid { grid-template-columns: 1fr; } }
+@media (max-width: 760px) {
+  .channel-identity-grid { grid-template-columns: 1fr; }
+  .channel-identity-field-wide { grid-column: auto; }
+}
 
 /* Tag autocomplete dropdown — see attachTagAutocomplete, setup-util.js */
 .tag-ac-wrap { position: relative; display: block; min-width: 0; }
@@ -1711,7 +1811,7 @@ input[type="checkbox"].shuffle-toggle:active {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
-  color: var(--paper-dim);
+  color: var(--button-fg);
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 13px;
@@ -1720,7 +1820,7 @@ input[type="checkbox"].shuffle-toggle:active {
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
   padding: 9px 16px;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition: transform var(--motion-control-duration) var(--motion-control-ease), border-color var(--motion-control-duration) var(--motion-control-ease), color var(--motion-control-duration) var(--motion-control-ease), box-shadow var(--motion-control-duration) var(--motion-control-ease), opacity var(--motion-control-duration) var(--motion-control-ease);
 }
 @media (prefers-reduced-motion: reduce) {
   .btn { transition: none; }
@@ -1733,26 +1833,37 @@ input[type="checkbox"].shuffle-toggle:active {
   pointer-events: none;
 }
 
-.btn:hover { border-color: var(--gold); color: var(--gold); transform: translateY(-1px); }
-.btn:active { box-shadow: var(--bevel-inset); transform: translateY(1px); }
+.btn:hover { border-color: var(--gold); color: var(--button-hover-fg); transform: var(--motion-control-hover); }
+.btn:active { box-shadow: var(--bevel-inset); transform: var(--motion-control-active); }
 
-.btn-primary {
+/* The html[data-theme] prefix deliberately outranks theme-pack rules that
+   restyle generic .btn chrome after core CSS has loaded. */
+html[data-theme] .btn.btn-primary {
   border-color: #c98914;
   background: var(--gradient-gold);
-  color: var(--gold-ink);
+  color: var(--button-primary-fg);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   font-weight: 600;
 }
-.btn-primary:hover { color: var(--gold-ink); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--gold-rgb), 0.5); }
+html[data-theme] .btn.btn-primary:hover { color: var(--button-primary-fg); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--gold-rgb), 0.5); }
 
-.btn-danger {
+html[data-theme] .btn.btn-danger {
   border-color: var(--danger);
   background: linear-gradient(180deg, rgba(var(--danger-rgb), 0.35), rgba(var(--danger-rgb), 0.18));
-  color: #fff;
+  color: var(--button-danger-fg);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   font-weight: 600;
 }
-.btn-danger:hover { color: #fff; border-color: var(--danger); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--danger-rgb), 0.5); }
+html[data-theme] .btn.btn-danger:hover { color: var(--button-danger-fg); border-color: var(--danger); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--danger-rgb), 0.5); }
+
+html[data-theme] .btn:disabled,
+html[data-theme] .btn[aria-disabled="true"] {
+  color: var(--button-disabled-fg);
+  filter: saturate(.35);
+  opacity: .46;
+  text-shadow: none;
+  transform: none;
+}
 
 /* Themed confirm()/alert() replacements — see setup-dialogs.js. Reuses the
    preview-modal's backdrop/box pattern; confirm-dialog-danger swaps the
@@ -2404,6 +2515,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .logobug-live-open { margin: 0; }
 
 .logobug-live-overlay {
+  --overlay-grid-step: 5%;
   position: absolute;
   inset: 0;
   z-index: 60;
@@ -2415,7 +2527,11 @@ input[type="checkbox"].shuffle-toggle:active {
     linear-gradient(90deg, rgba(var(--cyan-rgb), 0.34) 1px, transparent 1px),
     linear-gradient(rgba(var(--gold-rgb), 0.55) 2px, transparent 2px),
     linear-gradient(90deg, rgba(var(--gold-rgb), 0.55) 2px, transparent 2px);
-  background-size: 5% 5%, 5% 5%, 25% 25%, 25% 25%;
+  background-size: var(--overlay-grid-step) var(--overlay-grid-step), var(--overlay-grid-step) var(--overlay-grid-step), 25% 25%, 25% 25%;
+}
+.logobug-live-overlay.snap-enabled {
+  background-color: rgba(var(--gold-rgb), 0.08);
+  box-shadow: inset 0 0 0 2px rgba(var(--gold-rgb), 0.72);
 }
 .logobug-live-selection {
   position: absolute;
@@ -2466,8 +2582,48 @@ input[type="checkbox"].shuffle-toggle:active {
 .logobug-live-field { display: grid; gap: 3px; color: var(--paper-dim); font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px; }
 .logobug-live-field select { min-width: 92px; }
 .logobug-live-field:first-of-type select { min-width: 190px; }
+.logobug-live-snap select { min-width: 74px; }
 .logobug-live-auto { align-self: center; color: var(--paper); font-family: var(--font-ui); font-size: 11px; white-space: nowrap; }
 .logobug-live-actions { display: flex; gap: 7px; }
+.no-signal-copy-settings { display: grid; gap: 10px; }
+.no-signal-copy-settings .panel-interval { display: grid; gap: 5px; }
+.no-signal-copy-settings .title-row-input { width: 100%; min-width: 0; }
+.no-signal-copy-settings .btn { justify-self: start; }
+.hintbar-motion-settings { display: grid; gap: 8px; margin-top: 10px; }
+.hintbar-motion-settings .crt-slider { grid-template-columns: 92px minmax(100px, 1fr) 54px; }
+.hintbar-motion-settings span { color: var(--cyan); font-weight: 700; }
+.guide-genre-settings { display: grid; gap: 10px; }
+.guide-genre-color-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px;
+}
+.guide-genre-color-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px auto;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, .14);
+}
+.guide-genre-color-row strong {
+  overflow: hidden;
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide-genre-color-row input[type="color"],
+.guide-genre-add-row input[type="color"] { width: 38px; height: 30px; padding: 2px; }
+.guide-genre-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.guide-genre-add-row .title-row-input { flex: 1 1 180px; min-width: 0; }
 @media (max-width: 1180px) {
   .logobug-live-toolbar { flex-wrap: wrap; justify-content: center; }
   .logobug-live-status { min-width: 150px; }
@@ -3577,25 +3733,37 @@ input[type="checkbox"].shuffle-toggle:active {
 
 .setup-nav {
   position: sticky;
-  top: -16px;
+  top: -24px;
   z-index: 40;
   padding: 8px 0 4px;
-  background: var(--setup-nav-bg);
+  /* At rest this sits directly on the theme's page gradient. Painting the
+     opaque sticky surface here all the time produced a large rectangular
+     color band in gradient-heavy packs (Passport '03 was especially
+     visible). JS adds .is-stuck only after the bar reaches its sticky edge. */
+  background: transparent;
   box-shadow: 0 10px 18px -16px var(--setup-overflow-shadow);
+  isolation: isolate;
 }
-/* #setup-screen has 24px top padding while this sticky wrapper uses a
-   -16px inset, leaving an 8px strip where already-scrolled controls can
-   paint above the navigation. Extend the navigation's opaque theme surface
-   through that strip without changing its layout or the tab positions. */
 .setup-nav::before {
   content: '';
   position: absolute;
-  left: 0;
-  right: 0;
-  top: -8px;
-  height: 8px;
+  z-index: -1;
+  inset: 0;
   background: var(--setup-nav-bg);
+  box-shadow: 0 0 0 100vmax var(--setup-nav-bg);
+  clip-path: inset(0 -100vmax -24px);
+  opacity: 0;
   pointer-events: none;
+  transition: opacity var(--motion-control-duration) var(--motion-control-ease);
+}
+.setup-nav.is-stuck {
+  box-shadow: 0 10px 18px -16px var(--setup-overflow-shadow);
+}
+.setup-nav.is-stuck::before {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .setup-nav::before { transition: none; }
 }
 .backup-row-info {
   flex: 1 1 260px;
@@ -3662,7 +3830,7 @@ input[type="checkbox"].shuffle-toggle:active {
 
 @media (max-width: 900px) {
   #setup-screen { padding: 16px 12px; }
-  .setup-nav { top: -8px; }
+  .setup-nav { top: -16px; }
   .setup-title { font-size: 28px; }
   .setup-sub { max-width: none; }
   .setup-header {

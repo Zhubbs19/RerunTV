@@ -1,8 +1,8 @@
 {
   "id": "theme-passport-03",
-  "name": "Passport '03",
+  "name": "Cobalt Grid '03",
   "version": "1.0.0",
-  "description": "Theme pack: the generation most cable subscribers actually grew up with — Pioneer Passport on PowerTV, deep navy with amber-yellow selection and remote-color-button hints.",
+  "description": "Theme pack: early-2000s deep navy guide with amber-yellow selection, aqua channel rails, and remote-color-button hints.",
   "category": "theme",
   "renderer": "renderer.js",
   "style": "style.css"

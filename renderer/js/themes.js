@@ -10,7 +10,16 @@ import { getChannel } from './channels.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 
 export function applyTheme({ boxOnly = false } = {}) {
-  document.documentElement.dataset.theme = effectiveThemeId(S.config, S.currentNumber, boxOnly);
+  const themeId = effectiveThemeId(S.config, S.currentNumber, boxOnly);
+  document.documentElement.dataset.theme = themeId;
+  const fontOverrides = S.config.display && S.config.display.themeFontOverrides
+    ? S.config.display.themeFontOverrides[themeId] || {}
+    : {};
+  for (const [token, key] of [['--font-display', 'display'], ['--font-ui', 'ui'], ['--font-body', 'body']]) {
+    const value = fontOverrides[key];
+    if (value) document.documentElement.style.setProperty(token, value);
+    else document.documentElement.style.removeProperty(token);
+  }
   // The theme engine's audio side (tape hiss/crackle for an analog-feeling
   // theme vs. clean silence for a digital one) is plugin-owned.
   runCoreHooks('theme-audio-refresh');

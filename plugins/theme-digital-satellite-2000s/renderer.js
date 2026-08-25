@@ -8,6 +8,8 @@ const { playTone } = window.RCBPlugins.ctx;
 
 window.RCBPlugins.registerThemePack('digital-satellite-2000s', {
   label: 'DIGITAL SATELLITE (2001 ICE BLUE)',
+  group: 'ERA (BY DECADE)',
+  preview: { background: '#000d1a', accent: '#00bfff', secondary: '#7fd4ff' },
 
   crtBias: { scanlines: 0.5, vignette: 0.6, grain: 0.4, flicker: 0.3, curvatureFloor: 0 },
 

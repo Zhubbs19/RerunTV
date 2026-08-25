@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="cyberpunk-synth"] {
+  --motion-control-duration: 95ms; --motion-control-ease: steps(2, end); --motion-control-hover: translate(-1px, -1px); --motion-control-active: translate(1px, 1px);
+  --motion-card-duration: 125ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 0px; --motion-card-from-scale: 1.035; --motion-digit-duration: 80ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.12;
   --setup-nav-bg: #120322;
   --setup-overflow-shadow: rgba(255, 0, 255, 0.5);
   --ink: #0d061a;
@@ -19,6 +21,25 @@ html[data-theme="cyberpunk-synth"] {
   --gold-rgb: 255, 190, 11;
   --danger-rgb: 255, 0, 127;
   --cyan-rgb: 0, 240, 255;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Comfortaa', 'Barlow', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+
+  --guide-grid-bg: #06020c;
+  --guide-channel-bg: #170a30;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #240a3e;
+  --guide-program-alt-bg: #321054;
+  --guide-selection-bg: #ff007f;
+  --guide-selection-fg: #fff;
+  --guide-timebar-bg: #3d0070;
+  --guide-row-height: 50px;
+  --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #0d061a 0%, #170a30 50%, #06020c 100%);
   --gradient-panel: linear-gradient(180deg, #2a0a4a 0%, #1e0636 60%, #120322 100%);

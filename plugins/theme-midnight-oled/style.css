@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="midnight-oled"] {
+  --motion-control-duration: 190ms; --motion-control-ease: cubic-bezier(.16,1,.3,1); --motion-control-hover: translateY(-1px); --motion-control-active: scale(.98);
+  --motion-card-duration: 230ms; --motion-card-ease: cubic-bezier(.16,1,.3,1); --motion-card-from-y: 4px; --motion-card-from-scale: .96; --motion-digit-duration: 170ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.06;
   --setup-nav-bg: #090c14;
   --setup-overflow-shadow: rgba(99, 102, 241, 0.5);
   --ink: #07090e;
@@ -19,6 +21,25 @@ html[data-theme="midnight-oled"] {
   --gold-rgb: 129, 140, 248;
   --danger-rgb: 244, 63, 94;
   --cyan-rgb: 56, 189, 248;
+
+  --font-display: 'Barlow', system-ui, sans-serif;
+  --font-ui: 'Barlow', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --guide-grid-bg: #030406;
+  --guide-channel-bg: #0d121d;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #121824;
+  --guide-program-alt-bg: #1a2233;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #0d121d;
+  --guide-row-height: 52px;
+  --guide-row-gap: 4px;
 
   --gradient-page: linear-gradient(180deg, #07090e 0%, #0d121d 50%, #030406 100%);
   --gradient-panel: linear-gradient(180deg, #161e2e 0%, #101622 60%, #090c14 100%);

@@ -134,7 +134,16 @@ export function adjustVolume(delta) {
 }
 
 export function applyHintBarState() {
-  hintBarEl.classList.toggle('hidden', S.config.display.hintBar === false);
+  const display = S.config.display || {};
+  const configuredShowDuration = Number(display.hintBarShowDuration);
+  const configuredHideDuration = Number(display.hintBarHideDuration);
+  const showDuration = Number.isFinite(configuredShowDuration) ? Math.min(1500, Math.max(0, configuredShowDuration)) : 250;
+  const hideDuration = Number.isFinite(configuredHideDuration) ? Math.min(1500, Math.max(0, configuredHideDuration)) : 200;
+  hintBarEl.style.setProperty('--hint-bar-show-duration', `${showDuration}ms`);
+  hintBarEl.style.setProperty('--hint-bar-hide-duration', `${hideDuration}ms`);
+  hintBarEl.classList.toggle('motion-instant', display.hintBarSlide === false);
+  hintBarEl.classList.toggle('is-hidden', display.hintBar === false);
+  hintBarEl.setAttribute('aria-hidden', String(display.hintBar === false));
   // A hint-bar item tagged with an interrupt's hintKey (registerInterrupt,
   // plugins.js) is only meaningful when that plugin is actually installed
   // and enabled. Force-hidden regardless of the user's own
@@ -151,7 +160,7 @@ export function applyHintBarState() {
   // works, and HELP > SHORTCUTS (setup-settings.js) always lists every
   // item regardless, since that's a reference of what the app can do, not
   // a mirror of what's currently decluttered off the live bar.
-  const hidden = (S.config.display.hintBarHidden) || [];
+  const hidden = display.hintBarHidden || [];
   Array.from(hintBarEl.children).forEach((span) => {
     const key = span.dataset.hintKey;
     const hideForPlugin = span.dataset.pluginHint === 'true' ? !registeredHintKeys.has(key) : false;

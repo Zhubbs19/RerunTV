@@ -1,8 +1,8 @@
 {
   "id": "prevue",
   "name": "Preview Guide Channel",
-  "version": "1.0.0",
-  "description": "Virtual CH 1 — the classic scrolling program-guide channel, listing every configured channel's NOW/NEXT lineup. Always on — CH 1 can't be disabled independently of this plugin.",
+  "version": "1.1.0",
+  "description": "Virtual CH 1 — a continuously scrolling broadcast guide with a rotating live spotlight, program progress, and NOW/NEXT listings.",
   "category": "channel",
   "renderer": "renderer.js",
   "settings": "settings.js",

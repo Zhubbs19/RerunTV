@@ -8,6 +8,7 @@ const { playNoiseBurst, playTone } = window.RCBPlugins.ctx;
 
 window.RCBPlugins.registerThemePack('wood-console-70s', {
   label: 'WOOD-GRAIN CONSOLE (1978 FOREST & BRASS)',
+  preview: { background: '#050f0a', accent: '#b5893a', secondary: '#e8dcae' },
   group: 'ERA (BY DECADE)',
 
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },

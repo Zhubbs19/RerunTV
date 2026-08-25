@@ -6,6 +6,8 @@
    corner radii box-wide (rounded-lower-third feel instead of every other
    theme's hard edges) alongside its own palette. */
 html[data-theme="network-primetime-90s"] {
+  --motion-control-duration: 90ms; --motion-control-ease: cubic-bezier(.4,0,.2,1); --motion-control-hover: translateX(2px); --motion-control-active: translateX(3px) scale(.99);
+  --motion-card-duration: 130ms; --motion-card-ease: cubic-bezier(.4,0,.2,1); --motion-card-from-y: 0px; --motion-card-from-scale: .96; --motion-digit-duration: 100ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.08;
   --setup-nav-bg: #241209;
   --setup-overflow-shadow: rgba(209, 74, 58, 0.48);
   --ink: #1c0f0a;
@@ -26,6 +28,19 @@ html[data-theme="network-primetime-90s"] {
 
   --font-display: 'Barlow', system-ui, sans-serif;
   --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #100805;
+  --guide-channel-bg: #f5f0e1;
+  --guide-channel-fg: #3a1f16;
+  --guide-channel-subtle: #704534;
+  --guide-program-bg: #3a1f16;
+  --guide-program-alt-bg: #4a281c;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: #fff;
+  --guide-timebar-bg: #5c2a20;
+  --guide-row-height: 52px;
+  --guide-row-gap: 3px;
 
   --radius-sm: 6px;
   --radius-md: 10px;

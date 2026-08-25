@@ -1,6 +1,7 @@
 // Composes core/plugin settings sections and contains failures so one broken
 // plugin section cannot blank the rest of the PLUGINS tab.
 import { applyDisplayMode, CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from './display-mode.js';
+import { applyTheme } from './themes.js';
 import {
   getPluginChannelDisplaySettings, getPluginSettings, getRedactedPluginSettings,
   updatePluginChannelDisplaySettings, updatePluginSettings,
@@ -37,6 +38,52 @@ function renderChannelDisplaySettings(container, pluginId, channelDefinition) {
   aspectEl.addEventListener('change', () => {
     updatePluginChannelDisplaySettings(pluginId, { displayAspectOverride: aspectEl.value || null });
     applyDisplayMode();
+  });
+}
+
+const THEME_FONT_OPTIONS = [
+  { value: '', label: 'THEME DEFAULT' },
+  { value: "system-ui, 'Segoe UI', sans-serif", label: 'SYSTEM SANS' },
+  { value: "Verdana, Tahoma, system-ui, sans-serif", label: 'HUMANIST SANS' },
+  { value: "'Arial Narrow', 'Roboto Condensed', sans-serif", label: 'CONDENSED SANS' },
+  { value: "Arial, Helvetica, sans-serif", label: 'CLASSIC SANS' },
+  { value: "ui-monospace, 'Cascadia Mono', Consolas, monospace", label: 'MONOSPACE' },
+  { value: "Georgia, 'Times New Roman', serif", label: 'SERIF' },
+];
+
+function renderThemeFontSettings(container, plugin) {
+  const themeId = plugin.id.replace(/^theme-/, '');
+  if (!S.config.display.themeFontOverrides) S.config.display.themeFontOverrides = {};
+  const values = S.config.display.themeFontOverrides[themeId] || {};
+  container.innerHTML = `
+    <label class="panel-toggle" style="cursor:default;">THEME TYPOGRAPHY</label>
+    <span class="panel-status">Override this theme's typography without changing its colors or layout. THEME DEFAULT restores the plugin's intended font.</span>
+    <div class="theme-font-settings-grid">
+      <div class="panel-interval">DISPLAY / NUMBERS<select data-font-role="display"></select></div>
+      <div class="panel-interval">BUTTONS / GUIDE<select data-font-role="ui"></select></div>
+      <div class="panel-interval">BODY / DESCRIPTIONS<select data-font-role="body"></select></div>
+    </div>
+    <button type="button" class="btn" data-el="reset-fonts">RESET TYPOGRAPHY</button>
+  `;
+  container.querySelectorAll('[data-font-role]').forEach((select) => {
+    appendSelectOptions(select, THEME_FONT_OPTIONS);
+    const role = select.dataset.fontRole;
+    select.value = values[role] || '';
+    select.addEventListener('change', () => {
+      const next = { ...(S.config.display.themeFontOverrides[themeId] || {}) };
+      if (select.value) next[role] = select.value;
+      else delete next[role];
+      if (Object.keys(next).length) S.config.display.themeFontOverrides[themeId] = next;
+      else delete S.config.display.themeFontOverrides[themeId];
+      applyTheme();
+      saveConfigDebounced();
+    });
+  });
+  container.querySelector('[data-el="reset-fonts"]').addEventListener('click', () => {
+    delete S.config.display.themeFontOverrides[themeId];
+    applyTheme();
+    saveConfigDebounced();
+    renderThemeFontSettings(container, plugin);
   });
 }
 
@@ -91,6 +138,12 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
     channelSection.className = 'plugin-settings-section';
     renderChannelDisplaySettings(channelSection, plugin.id, channelDefinition);
     container.appendChild(channelSection);
+  }
+  if (plugin.category === 'theme') {
+    const fontSection = document.createElement('section');
+    fontSection.className = 'plugin-settings-section';
+    renderThemeFontSettings(fontSection, plugin);
+    container.appendChild(fontSection);
   }
   sections.forEach((section) => {
     const sectionEl = document.createElement('section');

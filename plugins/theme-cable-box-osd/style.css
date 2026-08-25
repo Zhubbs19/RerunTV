@@ -2,6 +2,8 @@
    primaries, chunky beveled "3D" buttons (light top/left, dark bottom/right)
    instead of a smooth gradient. See renderer.js for the registration call. */
 html[data-theme="cable-box-osd"] {
+  --motion-control-duration: 45ms; --motion-control-ease: steps(1, end); --motion-control-hover: none; --motion-control-active: translate(1px, 1px);
+  --motion-card-duration: 80ms; --motion-card-ease: steps(2, end); --motion-card-from-y: 0px; --motion-card-from-scale: 1; --motion-digit-duration: 65ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.02;
   --setup-nav-bg: #050505;
   --setup-overflow-shadow: rgba(255, 138, 0, 0.45);
   --ink: #000000;
@@ -25,6 +27,19 @@ html[data-theme="cable-box-osd"] {
      --font-ui stays the readable grotesque. */
   --font-display: 'VT323', 'Archivo Narrow', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #000;
+  --guide-channel-bg: #050505;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #0a0a0a;
+  --guide-program-alt-bg: #111;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #050505;
+  --guide-row-height: 48px;
+  --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #000000 0%, #050505 100%);
   --gradient-panel: linear-gradient(180deg, #0a0a0a 0%, #050505 100%);

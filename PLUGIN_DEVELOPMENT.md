@@ -5,8 +5,8 @@ folder (PLUGINS tab → OPEN PLUGINS FOLDER, or installed via INSTALL FROM
 ZIP…). This guide covers everything you need to write one — a copyable
 starting point lives in [`plugin-dev-kit/starter-plugin/`](plugin-dev-kit/starter-plugin/).
 
-Every channel and settings panel that ships with the app itself — HBO,
-Pay-Per-View, the Emergency Alert System, TMDB metadata lookup — is a plugin
+Every channel and settings panel that ships with the app itself —
+Pay-Per-View, TMDB metadata lookup — is a plugin
 built with exactly this API, no special first-party privileges. If you want
 a worked example beyond the starter kit, read any folder under
 [`plugins/`](plugins/).
@@ -278,6 +278,15 @@ see the isolated-plugins section below for the one caveat that applies only
 to that case (a snapshot, not a live reference, across the process
 boundary).
 
+Renderer plugins can publish a renderer-local object with
+`window.RCBPlugins.registerRendererService(id, service)` and retrieve it with
+`window.RCBPlugins.getRendererService(id)`. Use this for UI-only collaboration
+such as a queue controller that another renderer plugin can drive. Prefer a
+capability-shaped id (for example, `online-audio-queue`) over a provider name,
+and treat a missing service as an optional dependency. Main-process and
+isolated-process work must continue to use `ctx.registerService` /
+`ctx.callService` instead.
+
 ### Isolated plugins
 
 Set `"isolated": true` and your `main.js` is forked into its own real OS
@@ -534,7 +543,7 @@ the config schema:
 Bundles a CRT theme's look with the behavioral bits a handful of themes also
 carry beyond CSS — CRT bias defaults, a channel-change static style,
 channel/power SFX, ambient audio texture, and an optional border/bezel image
-for non-16:9 content. Every one of the 18 first-party theme plugins
+for non-16:9 content. Every first-party theme plugin
 (`plugins/theme-*/`) uses this — see any of them for a full worked example,
 or `plugins/theme-wood-console-70s/renderer.js` for one that uses every
 optional field.
@@ -545,6 +554,11 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
   group: 'ERA (BY DECADE)',   // optional — <optgroup> in the theme <select>;
                                // reuse 'ERA (BY DECADE)' / 'REAL CABLE-BOX UI' /
                                // 'BROADCAST/STUDIO' / 'STYLIZED' where it fits
+  preview: {                  // optional — stable browser-card swatch;
+    background: '#050f0a',   // CSS colors, shown without applying the theme
+    accent: '#b5893a',
+    secondary: '#e8dcae',
+  },
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
   staticStyle: 'roll',
   channelChangeSfx() { /* build a click with window.RCBPlugins.ctx's playTone/playNoiseBurst */ },
@@ -567,6 +581,28 @@ generic defaults when a field is absent — same as if no pack were
 registered for that theme at all. Manifest `category: "theme"` (see the
 manifest table above) is the convention every first-party theme plugin
 uses to land in the PLUGINS tab's own THEMES tab, though nothing enforces it.
+
+`preview` is presentation metadata only. It does not replace the theme's CSS
+tokens and never activates the theme while the browser is open. Omit it for a
+neutral fallback swatch; first-party packs provide it so every card remains
+recognizable even when another theme is currently active.
+
+Theme CSS can also reshape the program guide through semantic composition
+tokens instead of replacing core layout rules for simple variations:
+
+| Token | Controls |
+|---|---|
+| `--guide-grid-bg` | Guide canvas behind rows |
+| `--guide-channel-bg`, `--guide-channel-fg`, `--guide-channel-subtle` | Channel-number rail |
+| `--guide-program-bg`, `--guide-program-alt-bg` | Alternating program cells |
+| `--guide-selection-bg`, `--guide-selection-fg` | Remote-focused program |
+| `--guide-timebar-bg` | Time-axis surface |
+| `--guide-row-height`, `--guide-row-gap` | Grid density |
+
+Use scoped `html[data-theme="..."]` selectors for identity that cannot be
+expressed as a token—such as a split preview/info header or square ruled
+cells. Keep keyboard focus obvious, preserve reduced-motion behavior, and
+avoid copying logos or artwork from a real cable provider.
 
 ### `registerPluginSettings(id, definition)`
 
@@ -672,7 +708,7 @@ just look at how an existing plugin's settings panel is built.
 ### `registerInterrupt(id, definition)`
 
 A full-screen (or otherwise attention-grabbing) interrupt your plugin can
-trigger on top of whatever's tuned — an emergency-alert slate, a
+trigger on top of whatever's tuned — a
 breaking-news crawl, or anything similar. Registering here gets you, for
 free: a TV-menu button, an optional single-letter hotkey on live TV, an
 auto-hiding hint-bar entry (tag your `#hint-bar` span
@@ -865,11 +901,7 @@ New plugins should store ordinary settings through the id-bound
 there is a concrete benefit rather than rewriting user configuration eagerly.
 Don't write to config keys that look like they belong to another plugin or
 to core. The one exception is a plugin that's genuinely extending a
-core-shared feature (NOAA Weather reads/writes fields inside `config.eas`
-alongside the EAS plugin's own fields, since a real weather alert and a
-random EAS test are the same underlying interrupt mechanism) — if you're in
-that situation, document why in a comment, the way `noaa-weather`'s
-renderer.js does.
+core-shared feature.
 
 ## Verifying your plugin works
 

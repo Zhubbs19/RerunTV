@@ -6,6 +6,8 @@
    "clean" digital option next to the others' warm/analog accents, with
    gloss dialed way down and tighter shadows in place of any glow. */
 html[data-theme="digital-satellite-2000s"] {
+  --motion-control-duration: 110ms; --motion-control-ease: cubic-bezier(.2,.8,.2,1); --motion-control-hover: translateY(-1px) scale(1.01); --motion-control-active: translateY(1px) scale(.99);
+  --motion-card-duration: 150ms; --motion-card-ease: cubic-bezier(.2,.8,.2,1); --motion-card-from-y: 8px; --motion-card-from-scale: .985; --motion-digit-duration: 120ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.1;
   --setup-nav-bg: #001a33;
   --setup-overflow-shadow: rgba(0, 191, 255, 0.45);
   --ink: #001a33;
@@ -26,6 +28,22 @@ html[data-theme="digital-satellite-2000s"] {
 
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --guide-grid-bg: #000d1a;
+  --guide-channel-bg: #001a33;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #003366;
+  --guide-program-alt-bg: #004080;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #002347;
+  --guide-row-height: 48px;
+  --guide-row-gap: 1px;
 
   --gradient-page: linear-gradient(180deg, #001a33 0%, #002347 50%, #000d1a 100%);
   --gradient-panel: linear-gradient(180deg, #003a70 0%, #002c57 60%, #001830 100%);

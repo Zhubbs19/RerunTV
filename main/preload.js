@@ -108,6 +108,23 @@ contextBridge.exposeInMainWorld('api', {
   onPartyCaption: (cb) => ipcRenderer.on('party:caption', (event, data) => cb(data)),
   sendPartyTriviaState: (state) => ipcRenderer.send('party:triviaState', state),
   onPartyTriviaAnswer: (cb) => ipcRenderer.on('party:triviaAnswer', (event, data) => cb(data)),
+  // Optional audio-channel plugins. These are intentionally narrow named
+  // bridges rather than an arbitrary IPC passthrough; each matching main
+  // plugin still has to declare and receive approval for its channels.
+  spotifyStart: (opts) => ipcRenderer.invoke('spotify:start', opts),
+  spotifyStop: () => ipcRenderer.invoke('spotify:stop'),
+  spotifyGetStreamUrl: () => ipcRenderer.invoke('spotify:getStreamUrl'),
+  onSpotifyStatus: (cb) => ipcRenderer.on('spotify:status', (event, data) => cb(data)),
+  onSpotifyEvent: (cb) => ipcRenderer.on('spotify:event', (event, data) => cb(data)),
+  youtubeSearch: (opts) => ipcRenderer.invoke('youtube:search', opts),
+  youtubePlay: (opts) => ipcRenderer.invoke('youtube:play', opts),
+  youtubeStop: () => ipcRenderer.invoke('youtube:stop'),
+  onYoutubeStatus: (cb) => ipcRenderer.on('youtube:status', (event, data) => cb(data)),
+  sendPartyJukeboxState: (state) => ipcRenderer.send('party:jukeboxState', state),
+  onPartyJukeboxAdd: (cb) => ipcRenderer.on('party:jukeboxAdd', (event, data) => cb(data)),
+  onPartyJukeboxSkipVote: (cb) => ipcRenderer.on('party:jukeboxSkipVote', () => cb()),
+  onPartyJukeboxFun: (cb) => ipcRenderer.on('party:jukeboxFun', (event, data) => cb(data)),
+  videoSplicerLaunch: () => ipcRenderer.invoke('videoSplicer:launch'),
   // AUX channel capture — see plugins/video-in/main.js's desktop:listSources.
   listDesktopSources: () => ipcRenderer.invoke('desktop:listSources'),
   sendPartyQueueState: (state) => ipcRenderer.send('party:queueState', state),

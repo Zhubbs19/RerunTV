@@ -105,7 +105,8 @@ export async function playChannelLive(ch, opts) {
   const posFile = pos && pos.file;
   if (!pos || !pos.file) {
     markStaticReady(); // nothing's coming — don't let held static dim out the NO SIGNAL card
-    showNoSignal('NO MEDIA FOUND', `CH ${ch.number} — NO PLAYABLE FILES IN FOLDER`, 'nosignal');
+    const copy = channelNoSignalCopy(ch, 'NO MEDIA FOUND', 'CH {channel} — NO PLAYABLE FILES IN FOLDER');
+    showNoSignal(copy.title, copy.message, 'nosignal');
     return;
   }
   const file = pos.file;
@@ -768,6 +769,32 @@ export function showNoSignal(main, sub, variant) {
   noSignalEl.classList.remove('hidden');
 }
 
+function configuredNoSignalText(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveNoSignalCopy(number, identity, fallbackTitle, fallbackMessage) {
+  const display = S.config.display || {};
+  const title = configuredNoSignalText(identity?.noSignalTitle)
+    || configuredNoSignalText(display.noSignalTitle)
+    || fallbackTitle;
+  const template = configuredNoSignalText(identity?.noSignalMessage)
+    || configuredNoSignalText(display.noSignalMessage)
+    || fallbackMessage;
+  return {
+    title,
+    message: template.replaceAll('{channel}', String(number)),
+  };
+}
+
+function channelNoSignalCopy(channel, fallbackTitle, fallbackMessage) {
+  return resolveNoSignalCopy(channel.number, channel.broadcastIdentity, fallbackTitle, fallbackMessage);
+}
+
+function genericNoSignalCopy(number) {
+  return resolveNoSignalCopy(number, null, 'NO SIGNAL', 'CH {channel}');
+}
+
 function hexToRgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : null;
@@ -818,6 +845,18 @@ export function showStaticBurst(durationMs, tintHex) {
   sfxChannelChange();
   staticCanvas.width = staticCanvas.clientWidth;
   staticCanvas.height = staticCanvas.clientHeight;
+  // A minimized window, a hidden audit surface, or a theme transition can
+  // briefly leave the canvas with no layout box. createImageData(0, 0)
+  // throws and used to turn an otherwise harmless hidden tuning burst into
+  // an uncaught renderer error. There is nothing visible to animate in this
+  // state, so finish the burst immediately and let the next real tune draw
+  // once the TV surface has dimensions again.
+  if (staticCanvas.width < 1 || staticCanvas.height < 1) {
+    staticReady = true;
+    staticCanvas.style.opacity = '0';
+    player.style.opacity = '';
+    return;
+  }
   const se = S.config.staticEffect;
   let peakOpacity = (se && se.intensity != null ? se.intensity : 100) / 100;
   const tint = hexToRgb(tintHex);
@@ -1044,7 +1083,8 @@ export async function tuneToChannel(number, opts) {
       runCoreHooks('draw-test-pattern');
       testPatternCanvasEl.classList.remove('hidden');
     }
-    showNoSignal('NO SIGNAL', `CH ${number}`);
+    const copy = genericNoSignalCopy(number);
+    showNoSignal(copy.title, copy.message);
     showGuideOverlay(number, null);
     return;
   }
@@ -1100,7 +1140,8 @@ export async function tuneToChannel(number, opts) {
       runCoreHooks('draw-test-pattern');
       testPatternCanvasEl.classList.remove('hidden');
     }
-    showNoSignal('COMING SOON', `CH ${number} — ${ch.name ? ch.name.toUpperCase() : 'NEW CHANNEL'}`, 'comingsoon');
+    const copy = channelNoSignalCopy(ch, 'COMING SOON', `CH {channel} — ${ch.name ? ch.name.toUpperCase() : 'NEW CHANNEL'}`);
+    showNoSignal(copy.title, copy.message, 'comingsoon');
     showGuideOverlay(number, ch);
     return;
   }

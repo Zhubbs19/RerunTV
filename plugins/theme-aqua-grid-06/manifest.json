@@ -1,0 +1,9 @@
+{
+  "id": "theme-aqua-grid-06",
+  "name": "Aqua Grid '06",
+  "version": "1.0.0",
+  "description": "Theme pack: mid-2000s cable UI with cyan chrome, pale channel rails, dense ruled listings, and lime selection.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

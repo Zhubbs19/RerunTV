@@ -2,6 +2,8 @@
    see renderer.js for the registration call. Pure palette, no other
    core-file rules referenced this theme. */
 html[data-theme="vhs-retro-80s"] {
+  --motion-control-duration: 75ms; --motion-control-ease: steps(2, end); --motion-control-hover: translateX(1px); --motion-control-active: translate(2px, 1px);
+  --motion-card-duration: 115ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 3px; --motion-card-from-scale: 1.015; --motion-digit-duration: 80ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.1;
   --setup-nav-bg: #1a0833;
   --setup-overflow-shadow: rgba(255, 51, 102, 0.5);
   --ink: #120b24;
@@ -19,6 +21,25 @@ html[data-theme="vhs-retro-80s"] {
   --gold-rgb: 255, 230, 0;
   --danger-rgb: 255, 42, 42;
   --cyan-rgb: 51, 255, 255;
+
+  --font-display: 'Archivo Black', system-ui, sans-serif;
+  --font-ui: 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+
+  --guide-grid-bg: #090514;
+  --guide-channel-bg: #1a0833;
+  --guide-channel-fg: var(--cyan);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #2a164d;
+  --guide-program-alt-bg: #361c63;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #29104c;
+  --guide-row-height: 48px;
+  --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #160c2c 0%, #241144 50%, #0c051a 100%);
   --gradient-panel: linear-gradient(180deg, #3d1b6e 0%, #29104c 60%, #1a0833 100%);

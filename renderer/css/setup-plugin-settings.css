@@ -34,8 +34,17 @@
 .plugin-settings-failure strong { color: var(--danger); letter-spacing: 0.6px; }
 .plugin-settings-failure-message { color: var(--paper); font-family: var(--font-mono); }
 .plugin-settings-failure .btn { justify-self: start; margin-top: 2px; }
+.theme-font-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+.theme-font-settings-grid .panel-interval { display: grid; gap: 5px; }
+.theme-font-settings-grid select { width: 100%; }
 
 @media (max-width: 900px) {
+  .theme-font-settings-grid,
   .plugin-settings-section[data-layout="two-column"] .plugin-settings-section-content {
     grid-template-columns: minmax(0, 1fr);
   }

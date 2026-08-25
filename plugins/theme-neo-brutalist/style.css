@@ -5,6 +5,8 @@
    nothing overlapping; that distinction is what keeps this actually usable
    rather than just loud. See renderer.js for the registration call. */
 html[data-theme="neo-brutalist"] {
+  --motion-control-duration: 45ms; --motion-control-ease: steps(1, end); --motion-control-hover: translate(-2px, -2px); --motion-control-active: translate(3px, 3px);
+  --motion-card-duration: 70ms; --motion-card-ease: steps(1, end); --motion-card-from-y: 6px; --motion-card-from-scale: 1; --motion-digit-duration: 60ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.03;
   --setup-nav-bg: rgba(255, 255, 255, 0.98);
   --setup-overflow-shadow: rgba(0, 0, 0, 0.6);
   --ink: #f5f3ea;
@@ -36,6 +38,19 @@ html[data-theme="neo-brutalist"] {
   /* Raw hand-built monospace instead of a grotesque — core to the
      brutalist "looks hand-coded" identity. */
   --font-ui: 'IBM Plex Mono', system-ui, monospace;
+  --font-body: 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #f5f3ea;
+  --guide-channel-bg: #0a0a0a;
+  --guide-channel-fg: #fff;
+  --guide-channel-subtle: #d7d1bd;
+  --guide-program-bg: #fff;
+  --guide-program-alt-bg: #e7e2d3;
+  --guide-selection-bg: #d61f56;
+  --guide-selection-fg: #fff;
+  --guide-timebar-bg: #f0c808;
+  --guide-row-height: 50px;
+  --guide-row-gap: 5px;
 
   --gradient-page: linear-gradient(180deg, #f5f3ea 0%, #f5f3ea 100%);
   --gradient-panel: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);

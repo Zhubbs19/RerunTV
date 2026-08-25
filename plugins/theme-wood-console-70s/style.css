@@ -7,6 +7,8 @@
    neon glow shadows), a chunkier condensed display face standing in for a
    slab serif since no new webfont ships with this pass. */
 html[data-theme="wood-console-70s"] {
+  --motion-control-duration: 180ms; --motion-control-ease: cubic-bezier(.2,.7,.2,1); --motion-control-hover: translateY(-1px); --motion-control-active: translateY(2px) scale(.985);
+  --motion-card-duration: 220ms; --motion-card-ease: ease-out; --motion-card-from-y: 6px; --motion-card-from-scale: .985; --motion-digit-duration: 150ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.06;
   --setup-nav-bg: #10241a;
   --setup-overflow-shadow: rgba(214, 167, 75, 0.48);
   --ink: #0a1f14;
@@ -27,6 +29,22 @@ html[data-theme="wood-console-70s"] {
 
   --font-display: 'Barlow Condensed', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
+  --font-body: 'Barlow', system-ui, sans-serif;
+  --radius-sm: 1px;
+  --radius-md: 2px;
+  --radius-lg: 3px;
+
+  --guide-grid-bg: #050f0a;
+  --guide-channel-bg: #e8dcae;
+  --guide-channel-fg: #0a1f14;
+  --guide-channel-subtle: #3c563e;
+  --guide-program-bg: #1b4d2e;
+  --guide-program-alt-bg: #28623d;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: #0a1f14;
+  --guide-timebar-bg: #123321;
+  --guide-row-height: 48px;
+  --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #0a1f14 0%, #123321 50%, #050f0a 100%);
   --gradient-panel: linear-gradient(180deg, #234a2f 0%, #1a3624 60%, #10241a 100%);

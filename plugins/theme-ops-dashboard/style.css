@@ -4,6 +4,8 @@
    (mapped to --gold, the primary-accent slot). See renderer.js for the
    registration call. */
 html[data-theme="ops-dashboard"] {
+  --motion-control-duration: 90ms; --motion-control-ease: cubic-bezier(.4,0,.2,1); --motion-control-hover: translateX(1px); --motion-control-active: translateX(2px);
+  --motion-card-duration: 115ms; --motion-card-ease: cubic-bezier(.4,0,.2,1); --motion-card-from-y: 0px; --motion-card-from-scale: .98; --motion-digit-duration: 90ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.05;
   --setup-nav-bg: #141821;
   --setup-overflow-shadow: rgba(91, 141, 238, 0.5);
   --ink: #1a1e27;
@@ -25,6 +27,18 @@ html[data-theme="ops-dashboard"] {
   --font-display: 'Barlow Condensed', 'Archivo Narrow', system-ui, sans-serif;
   --font-ui: 'Barlow Condensed', system-ui, sans-serif;
   --font-body: 'Barlow', system-ui, sans-serif;
+
+  --guide-grid-bg: #12151c;
+  --guide-channel-bg: #1a1e27;
+  --guide-channel-fg: var(--paper);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #212633;
+  --guide-program-alt-bg: #2a3040;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: #fff;
+  --guide-timebar-bg: #1a1e27;
+  --guide-row-height: 44px;
+  --guide-row-gap: 4px;
 
   --gradient-page: linear-gradient(180deg, #1a1e27 0%, #14171f 100%);
   --gradient-panel: linear-gradient(180deg, #212633 0%, #1c202b 100%);

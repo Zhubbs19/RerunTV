@@ -1,7 +1,12 @@
 node_modules/
 dist/
-docs/
+docs/*
+!docs/AGENTS.md
+!docs/AUDIT_2026-08-24.md
+test/
+_originals_backup/
 userData/
+.runtime-audit/
 .DS_Store
 Thumbs.db
 *.log
@@ -14,20 +19,34 @@ android-tv-client/**/.gradle/
 android-tv-client/**/build/
 android-tv-client/**/local.properties
 *.iml
+run-app.bat
+run-server.bat
 
 # New plugins are gitignored by default — only the pre-existing bundled
 # plugins below are explicitly kept tracked. To actually ship a new plugin
 # with the app, add its own `!plugins/<id>/` line here.
+
+
 plugins/*
+plugins/eas-alerts/
+plugins/hbo/
+plugins/party-jukebox/
+plugins/youtube-music/
+plugins/video-splicer/
+plugins/spotify-connect/
+
 !plugins/breaking-news/
+!plugins/area-51/
 !plugins/closed-captions/
 !plugins/ffmpeg-transcode/
 !plugins/local-weather/
 !plugins/noaa-weather/
 !plugins/party-channel/
+!plugins/pay-per-view/
 !plugins/prevue/
 !plugins/public-access/
 !plugins/screensaver/
+!plugins/shopping-network/
 !plugins/smpte-test-pattern/
 !plugins/teletext-arcade/
 !plugins/theme-analog-90s/
@@ -44,6 +63,10 @@ plugins/*
 !plugins/theme-ops-dashboard/
 !plugins/theme-outrun-synthwave/
 !plugins/theme-passport-03/
+!plugins/theme-aqua-grid-06/
+!plugins/theme-widescreen-grid-13/
+!plugins/theme-dark-grid-12/
+!plugins/theme-slate-grid-10/
 !plugins/theme-prevue-guide-94/
 !plugins/theme-uhf-public-access-80s/
 !plugins/theme-vhs-retro-80s/
@@ -53,3 +76,4 @@ plugins/*
 !plugins/universal-remote/
 !plugins/video-in/
 !plugins/vintage-audio/
+

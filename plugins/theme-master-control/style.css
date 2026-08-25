@@ -2,6 +2,8 @@
    amber phosphor as the one accent, hairline dividers, no gloss/gradient
    shine. See renderer.js for the registration call. */
 html[data-theme="master-control"] {
+  --motion-control-duration: 55ms; --motion-control-ease: steps(1, end); --motion-control-hover: translateX(1px); --motion-control-active: translate(1px, 1px);
+  --motion-card-duration: 90ms; --motion-card-ease: steps(2, end); --motion-card-from-y: 0px; --motion-card-from-scale: .985; --motion-digit-duration: 75ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.04;
   --setup-nav-bg: #111417;
   --setup-overflow-shadow: rgba(255, 176, 0, 0.42);
   --ink: #14171a;
@@ -24,6 +26,19 @@ html[data-theme="master-control"] {
   /* A real rack panel's own labeling face — technical monospace instead of
      the grotesque every other theme leans on. */
   --font-ui: 'IBM Plex Mono', 'Archivo Narrow', system-ui, monospace;
+  --font-body: 'IBM Plex Mono', system-ui, monospace;
+
+  --guide-grid-bg: #0a0c0e;
+  --guide-channel-bg: #14171a;
+  --guide-channel-fg: var(--gold);
+  --guide-channel-subtle: var(--paper-dim);
+  --guide-program-bg: #191d21;
+  --guide-program-alt-bg: #22282d;
+  --guide-selection-bg: var(--gold);
+  --guide-selection-fg: var(--gold-ink);
+  --guide-timebar-bg: #14171a;
+  --guide-row-height: 44px;
+  --guide-row-gap: 3px;
 
   /* Flat rack panels — no gradient sheen, just a hairline-bordered plate. */
   --gradient-page: linear-gradient(180deg, #14171a 0%, #0f1114 100%);

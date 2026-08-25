@@ -314,6 +314,11 @@
             <label class="shuffle-toggle"><input type="checkbox" id="clock24-enabled">24-HOUR CLOCK</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-enabled" checked>SHOW HINT BAR (H TO TOGGLE)</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-compact" checked>COMPACT HINT BAR (CORE CONTROLS + TV MENU)</label>
+            <label class="shuffle-toggle"><input type="checkbox" id="hintbar-slide-enabled" checked>SLIDE HINT BAR IN / OUT</label>
+            <div class="hintbar-motion-settings">
+              <label class="crt-slider">SLIDE UP <input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val">250ms</span></label>
+              <label class="crt-slider">SLIDE DOWN <input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val">200ms</span></label>
+            </div>
             <div class="panel-interval">
               GUIDE SLOTS
               <select id="guide-slots-select">
@@ -330,11 +335,39 @@
                    available even with zero pack plugins installed (it's
                    just core's own base palette, see themePackEntries,
                    plugins.js), so it's the only static fallback option. -->
-              <select id="theme-select">
+              <select id="theme-select" class="theme-select-native" tabindex="-1" aria-hidden="true">
                 <option value="digital-2000s">DIGITAL CABLE (MID 2000s BLUE)</option>
               </select>
+              <button id="theme-browser-toggle" class="theme-browser-current" type="button" aria-expanded="false" aria-controls="theme-browser">
+                <span id="theme-browser-current-label">DIGITAL CABLE (MID 2000s BLUE)</span>
+                <span class="theme-browser-change">CHANGE…</span>
+              </button>
+              <div id="theme-browser" class="theme-browser hidden" role="dialog" aria-modal="true" aria-label="Choose guide theme">
+                <div class="theme-browser-toolbar">
+                  <input id="theme-browser-search" type="search" placeholder="SEARCH THEMES…" aria-label="Search themes">
+                  <button id="theme-browser-close" class="btn" type="button" aria-label="Close theme browser">CLOSE</button>
+                </div>
+                <div id="theme-browser-groups" class="theme-browser-groups"></div>
+                <div id="theme-browser-empty" class="plugins-empty hidden">NO THEMES MATCH YOUR SEARCH.</div>
+              </div>
           </div>
         </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">GUIDE GENRE COLORS</div>
+          <span class="panel-status">Optionally color program cells by their first GENRE facet. Each theme keeps its own palette; the active selection color always remains theme-controlled.</span>
+          <div class="panel-body guide-genre-settings">
+            <label class="shuffle-toggle"><input id="guide-genre-colors-enabled" type="checkbox">COLOR GUIDE PROGRAMS BY GENRE</label>
+            <div id="guide-genre-theme-label" class="panel-status"></div>
+            <div id="guide-genre-color-list" class="guide-genre-color-list"></div>
+            <div class="guide-genre-add-row">
+              <input id="guide-genre-add-name" class="title-row-input" type="text" maxlength="40" placeholder="CUSTOM GENRE">
+              <input id="guide-genre-add-color" type="color" value="#3559a8" aria-label="Custom genre color">
+              <button id="guide-genre-add-btn" class="btn" type="button">ADD GENRE</button>
+              <button id="guide-genre-reset-btn" class="btn" type="button">RESET THIS THEME</button>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
@@ -347,6 +380,20 @@
           <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
           <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
           <div id="logobug-editor"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">NO SIGNAL SCREEN</div>
+          <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
+          <div class="panel-body no-signal-copy-settings">
+            <label class="panel-interval">HEADING
+              <input id="no-signal-title-input" class="title-row-input" type="text" maxlength="48" placeholder="NO SIGNAL">
+            </label>
+            <label class="panel-interval">DETAIL LINE
+              <input id="no-signal-message-input" class="title-row-input" type="text" maxlength="120" placeholder="CH {channel}">
+            </label>
+            <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
+          </div>
         </div>
 
         </div>
@@ -873,6 +920,12 @@
               </span>
               <div class="plugins-toolbar">
                 <input type="text" id="plugins-filter-input" class="titles-search" placeholder="FILTER PLUGINS…">
+                <select id="plugins-state-filter" class="plugins-state-filter" aria-label="Filter plugins by status">
+                  <option value="all">ALL STATES</option>
+                  <option value="enabled">ENABLED</option>
+                  <option value="disabled">DISABLED</option>
+                  <option value="attention">NEEDS ATTENTION</option>
+                </select>
                 <button id="plugins-install-zip-btn" class="btn">INSTALL FROM ZIP…</button>
                 <button id="plugins-open-folder-btn" class="btn">OPEN PLUGINS FOLDER</button>
                 <button id="plugins-rescan-btn" class="btn">RESCAN</button>
@@ -880,6 +933,7 @@
               <div id="plugins-category-tabs" class="plugins-category-tabs"></div>
               <div class="plugins-summary-row">
                 <div id="plugins-summary" class="plugins-summary"></div>
+                <div id="plugins-results-count" class="plugins-results-count" aria-live="polite"></div>
                 <span id="plugins-save-status" class="plugins-save-status" role="status" aria-live="polite"></span>
                 <button id="plugins-save-btn" class="btn btn-primary hidden">SAVE CHANGES</button>
               </div>
@@ -1150,7 +1204,7 @@
         </div>
 
         <!-- Full time-grid program guide -->
-        <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel">
+        <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
           <div class="guide-topbar">
             <div class="guide-info-panel">
               <div class="guide-info-number" id="gi-number">--</div>

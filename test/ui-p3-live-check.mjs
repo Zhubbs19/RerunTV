@@ -52,9 +52,9 @@ assert.equal(await page.evaluate(() => document.activeElement?.closest('#shortcu
 await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'g' })));
 await page.waitForTimeout(150);
 assert.equal(await page.locator('#guide-grid').getAttribute('role'), 'dialog');
-assert.equal(await page.locator('#guide-search').evaluate((el) => document.activeElement === el), true);
+assert.equal(await page.locator('#guide-grid').evaluate((el) => document.activeElement === el), true);
 await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
 assert.equal(await page.locator('#guide-grid').evaluate((el) => el.classList.contains('hidden')), true);
 
-console.log(JSON.stringify({ ...semantics, partyLayout, tvMenuFocus: true, guideFocus: true }, null, 2));
+console.log(JSON.stringify({ ...semantics, partyLayout, tvMenuFocus: true, guideGridFocus: true }, null, 2));
 await browser.close();
