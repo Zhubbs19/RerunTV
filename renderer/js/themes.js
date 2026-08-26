@@ -3,7 +3,7 @@
 // override block there. Set on <html> (not just #tv-screen) so the setup
 // screen re-skins along with the TV screen.
 import { applyCrtState, applyTvBezel } from './power.js';
-import { runCoreHooks } from './plugins.js';
+import { getThemePack, runCoreHooks } from './plugins.js';
 import { S } from './state.js';
 import { player } from './dom.js';
 import { getChannel } from './channels.js';
@@ -12,6 +12,16 @@ import { effectiveThemeId } from './broadcast-identity.js';
 export function applyTheme({ boxOnly = false } = {}) {
   const themeId = effectiveThemeId(S.config, S.currentNumber, boxOnly);
   document.documentElement.dataset.theme = themeId;
+  // Lets main-process-owned windows that can't reach the plugin registry
+  // themselves (the frameless auto-update progress popup, main-updater.js)
+  // re-skin to match instead of always showing their hardcoded fallback
+  // palette. Same three-color swatch the theme browser already uses for its
+  // preview cards (setup-settings.js) — packs that don't define one report
+  // null, and the progress window just keeps its default colors.
+  if (window.api && window.api.reportThemeColors) {
+    const pack = getThemePack(themeId);
+    window.api.reportThemeColors((pack && pack.preview) || null);
+  }
   const fontOverrides = S.config.display && S.config.display.themeFontOverrides
     ? S.config.display.themeFontOverrides[themeId] || {}
     : {};

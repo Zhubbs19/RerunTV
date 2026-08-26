@@ -68,7 +68,7 @@ const {
   parseMediaRef, wrapMediaRef, setApprovedMediaSourceProviders, callMediaService,
   MEDIA_LIST_TIMEOUT_MS, MEDIA_PROBE_TIMEOUT_MS, MEDIA_CHECK_TIMEOUT_MS,
 } = require('./main-media-dispatch');
-const { initAutoUpdater } = require('./main-updater');
+const { initAutoUpdater, setThemeColors } = require('./main-updater');
 // Handed to the party-channel/universal-remote plugins via ctx — both need
 // these npm packages (multipart upload parsing, QR code generation) but
 // can't require() them directly themselves (they run from userData/plugins/,
@@ -274,6 +274,15 @@ app.on('window-all-closed', () => {
 // ---------- App / window / network ----------
 ipcMain.handle('app:getVersion', async () => {
   return app.getVersion();
+});
+
+// Fire-and-forget report of the renderer's active theme pack preview colors
+// (themes.js's applyTheme) — cached by main-updater.js so the frameless
+// update-progress popup, a separate BrowserWindow with no access to the
+// renderer's plugin registry, can re-skin to match instead of always
+// showing its hardcoded fallback palette.
+ipcMain.on('theme:colors', (event, colors) => {
+  setThemeColors(colors);
 });
 
 ipcMain.handle('remote:getUrl', async () => {

@@ -176,6 +176,21 @@
   display: block;
 }
 
+/* z-index 25: above everything else .crt can contain (guide grid docked/
+   full at 3, static-canvas at 8, vhs-timestamp at 6, the now-playing channel
+   card at 20) — a real tube's scanline/vignette/grain texture is a property
+   of the GLASS, so it has to sit on top of whatever's being displayed
+   through it, not get buried under the docked guide's opaque background
+   like a plain z-index:auto layer does. Mirrors the same reasoning already
+   used for #screen-crt-overlay's separate whole-screen copy (tokens.css). */
+.crt-scanlines,
+.crt-vignette,
+.crt-curvature-vignette,
+.crt-flicker,
+.crt-grain {
+  z-index: 25;
+}
+
 .crt-scanlines {
   position: absolute;
   inset: 0;

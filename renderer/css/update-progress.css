@@ -2,14 +2,24 @@
 @font-face { font-family: 'Archivo Black'; src: url('../fonts/archivo-black-900.woff2') format('woff2'); font-weight: 900; }
 
 :root {
-  --ink: #131c58;
-  --ink-deep: #080e3b;
-  --panel: #263a92;
-  --line: #6074cf;
-  --gold: #f5d327;
-  --cyan: #6fe0f2;
+  /* Fallback palette — used until update-progress.js applies a reported
+     theme (--theme-bg/--theme-accent/--theme-secondary, from the active
+     theme pack's `preview` swatch, see themes.js/main-updater.js) or when
+     no pack defines one at all. The --ink/--panel/etc. below are always
+     color-mix()ed off the --theme-* trio (never hardcoded directly) so one
+     reported swatch reskins the whole window consistently. */
+  --theme-bg: #131c58;
+  --theme-accent: #f5d327;
+  --theme-secondary: #6fe0f2;
+
+  --ink: var(--theme-bg);
+  --ink-deep: color-mix(in srgb, var(--theme-bg) 75%, black);
+  --panel: color-mix(in srgb, var(--theme-bg) 80%, white);
+  --line: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-bg));
+  --gold: var(--theme-accent);
+  --cyan: var(--theme-secondary);
   --paper: #ffffff;
-  --paper-dim: #c9d2f2;
+  --paper-dim: color-mix(in srgb, var(--paper) 80%, var(--theme-bg));
 }
 
 * { box-sizing: border-box; }
@@ -21,7 +31,7 @@ body { padding: 1px; font-family: 'Archivo Narrow', system-ui, sans-serif; color
   height: 100%;
   padding: 22px 24px 18px;
   overflow: hidden;
-  background: linear-gradient(180deg, #3046a2 0%, var(--ink) 68%, #0b1244 100%);
+  background: linear-gradient(180deg, var(--panel) 0%, var(--ink) 68%, var(--ink-deep) 100%);
   border: 1px solid var(--line);
   border-left: 6px solid var(--gold);
   border-radius: 10px;
@@ -48,7 +58,13 @@ h1 { margin: 7px 0 3px; color: var(--gold); font-family: 'Archivo Black', sans-s
 .update-detail { min-height: 19px; color: var(--paper-dim); font-size: 13px; font-weight: 600; }
 
 .update-track { position: relative; height: 18px; margin-top: 19px; overflow: hidden; background: var(--ink-deep); border: 1px solid var(--line); border-radius: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,.55); }
-.update-fill { width: 0; height: 100%; background: linear-gradient(90deg, #d7a914, var(--gold) 70%, #fff27a); box-shadow: 0 0 12px rgba(245,211,39,.5); transition: width 180ms ease-out; }
+.update-fill {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gold) 80%, black), var(--gold) 70%, color-mix(in srgb, var(--gold) 70%, white));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--gold) 50%, transparent);
+  transition: width 180ms ease-out;
+}
 .update-scan { position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.28), transparent); animation: scan 1.5s linear infinite; }
 @keyframes scan { to { transform: translateX(100%); } }
 

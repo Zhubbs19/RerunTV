@@ -1252,6 +1252,10 @@ export function applyLogoBugPlacement(ch) {
   logoBugEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
   logoBugEl.style.setProperty('--logo-bug-width', `${width}px`);
   logoBugEl.style.setProperty('--logo-bug-height', `${height}px`);
+  // Absent opacity falls back to the CSS default (55%) via the var()
+  // fallback in overlays.css, so profiles without it round-trip unchanged.
+  if (Number.isFinite(profile.opacity)) logoBugEl.style.setProperty('--logo-bug-opacity', profile.opacity / 100);
+  else logoBugEl.style.removeProperty('--logo-bug-opacity');
 }
 
 export function updateLogoBug(ch) {

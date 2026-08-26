@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('api', {
   // restart and is acknowledged only after the user dismisses it.
   getPostUpdateNotice: () => ipcRenderer.invoke('updates:getPostUpdateNotice'),
   acknowledgePostUpdateNotice: (version) => ipcRenderer.invoke('updates:acknowledgePostUpdateNotice', version),
+  // Fire-and-forget: lets the frameless update-progress popup (main-updater.js,
+  // a separate BrowserWindow with no access to the renderer's plugin/theme-pack
+  // registry) re-skin to match the active theme pack's preview swatch instead of
+  // always showing its hardcoded fallback palette. `colors` is a theme pack's
+  // `preview` object ({background, accent, secondary}) or null — see themes.js.
+  reportThemeColors: (colors) => ipcRenderer.send('theme:colors', colors),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),

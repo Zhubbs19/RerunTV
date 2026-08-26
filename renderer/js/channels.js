@@ -153,9 +153,12 @@ export function freshChannel() {
 // ---------- Logo bug placement profiles ----------
 // A logoBugProfiles array (box-wide: S.config.display.logoBugProfiles;
 // per-channel override: ch.logoBugProfiles, null = inherit box-wide) is a
-// list of { id, aspect, resolution, x, y, size, width?, height? }.
+// list of { id, aspect, resolution, x, y, size, width?, height?, opacity? }.
 // `size` is the legacy square dimension; `width`/`height` (optional) allow
 // non-square placement — if present they override `size` for that axis.
+// `opacity` (optional, 0-100) overrides overlays.css's default 55% via
+// --logo-bug-opacity (playback.js's applyLogoBugPlacement) — absent means
+// "use the CSS default", so old configs round-trip unchanged.
 // null aspect/resolution values are wildcards; the all-null profile is the
 // DEFAULT. x/y are 0-100 percentages of the screen (the logo bug's top-left
 // corner), so placement survives a window resize instead of drifting the way
@@ -203,6 +206,9 @@ export function normalizeLogoBugProfiles(profiles) {
     };
     if (Number.isFinite(Number(profile.width))) entry.width = Math.min(400, Math.max(14, Number(profile.width)));
     if (Number.isFinite(Number(profile.height))) entry.height = Math.min(400, Math.max(14, Number(profile.height)));
+    // opacity is a 0-100 percentage; absent means "use the CSS default"
+    // (55%) so old configs without this field round-trip unchanged.
+    if (Number.isFinite(Number(profile.opacity))) entry.opacity = Math.min(100, Math.max(0, Number(profile.opacity)));
     normalized.push(entry);
   });
   if (!seen.has('*|*')) normalized.push(foldLogoBugCorner(null, null)[0]);

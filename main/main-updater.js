@@ -46,6 +46,7 @@ let autoUpdater = null;
 let progressWindow = null;
 let progressWindowReady = false;
 let latestProgressState = null;
+let latestThemeColors = null;
 let progressCloseTimer = null;
 let startupUpdateActive = false;
 let startupUpdateResolve = null;
@@ -109,6 +110,21 @@ function sendProgressState(state) {
   }
 }
 
+function sendThemeColors() {
+  if (progressWindowReady && progressWindow && !progressWindow.isDestroyed()) {
+    progressWindow.webContents.send('update-progress:theme', latestThemeColors);
+  }
+}
+
+// Called from main.js's 'theme:colors' listener whenever the renderer's
+// active theme pack changes (themes.js's applyTheme) — cached here (not just
+// forwarded) so a progress window created later, or already open, always has
+// the latest report to draw from, same as latestProgressState above.
+function setThemeColors(colors) {
+  latestThemeColors = colors && typeof colors === 'object' ? colors : null;
+  sendThemeColors();
+}
+
 function showProgressWindow(getMainWindow, state) {
   clearTimeout(progressCloseTimer);
   if (!progressWindow || progressWindow.isDestroyed()) {
@@ -143,6 +159,7 @@ function showProgressWindow(getMainWindow, state) {
     });
     progressWindow.webContents.on('did-finish-load', () => {
       progressWindowReady = true;
+      sendThemeColors();
       if (latestProgressState) sendProgressState(latestProgressState);
       if (progressWindow && !progressWindow.isDestroyed()) progressWindow.showInactive();
     });
@@ -433,4 +450,4 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   return false;
 }
 
-module.exports = { initAutoUpdater };
+module.exports = { initAutoUpdater, setThemeColors };

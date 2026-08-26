@@ -335,17 +335,20 @@ code,
   isolation: isolate;
 }
 
-/* Text-heavy surfaces stay readable even when the user chooses an intense
-   whole-glass CRT treatment. The TV picture still receives the full chosen
-   effect; setup and any open dialog/menu cap the overlay as a usability
-   safeguard. [role="dialog"] covers the guide (docked and full-page alike
-   — #guide-grid carries the role itself), the theme browser, command
-   palette, details/shortcuts overlays, the post-update changelog, and
-   setup-dialogs.js's confirm/alert/prompt boxes alike, so a newly added
-   dialog is covered automatically as long as it's marked up the same way
-   instead of needing its own selector added here. */
+/* Text-heavy app chrome stays readable even when the user chooses an
+   intense whole-glass CRT treatment: setup and any open non-guide
+   dialog/menu cap the overlay as a usability safeguard. [role="dialog"]
+   covers the theme browser, command palette, details/shortcuts overlays,
+   the post-update changelog, and setup-dialogs.js's confirm/alert/prompt
+   boxes alike, so a newly added dialog is covered automatically as long as
+   it's marked up the same way instead of needing its own selector added
+   here. #guide-grid is deliberately excluded (also role="dialog", docked
+   and full-page alike) — the on-screen guide is part of the TV's own
+   picture, not app chrome layered outside it, so a real tube's glass would
+   show its full scanline/vignette/grain character over the guide exactly
+   like it does over the video, not a dimmed-down version. */
 body:has(#setup-screen:not(.hidden)) #screen-crt-overlay,
-body:has([role="dialog"]:not(.hidden)) #screen-crt-overlay {
+body:has([role="dialog"]:not(#guide-grid):not(.hidden)) #screen-crt-overlay {
   opacity: .32;
 }
 

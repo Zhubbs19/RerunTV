@@ -2608,6 +2608,8 @@ html[data-theme] .btn[aria-disabled="true"] {
 .logobug-live-field select { min-width: 92px; }
 .logobug-live-field:first-of-type select { min-width: 190px; }
 .logobug-live-snap select { min-width: 74px; }
+.logobug-live-opacity { min-width: 90px; }
+.logobug-live-opacity input[type="range"] { width: 100%; }
 .logobug-live-auto { align-self: center; color: var(--paper); font-family: var(--font-ui); font-size: 11px; white-space: nowrap; }
 .logobug-live-actions { display: flex; gap: 7px; }
 .no-signal-copy-settings { display: grid; gap: 10px; }

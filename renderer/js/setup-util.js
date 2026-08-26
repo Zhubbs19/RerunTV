@@ -336,6 +336,16 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   snapField.appendChild(snapSelect);
   toolbar.appendChild(snapField);
 
+  const opacityField = document.createElement('label');
+  opacityField.className = 'logobug-live-field logobug-live-opacity';
+  opacityField.appendChild(document.createTextNode('OPACITY'));
+  const opacitySlider = document.createElement('input');
+  opacitySlider.type = 'range';
+  opacitySlider.min = '10';
+  opacitySlider.max = '100';
+  opacityField.appendChild(opacitySlider);
+  toolbar.appendChild(opacityField);
+
   const autoField = document.createElement('label');
   autoField.className = 'logobug-live-auto';
   const autoAdjust = document.createElement('input');
@@ -434,7 +444,11 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     if (!element) return;
     element.classList.remove('hidden');
     element.classList.add('show');
-    element.style.opacity = '1';
+    // Logo bug opacity is user-adjustable and previewed live by renderProfile
+    // below (via --logo-bug-opacity) — forcing full opacity here would mask
+    // that preview. Other overlay targets (upnext bar, etc.) are normally
+    // hidden/transient, so still forced fully visible for editing.
+    if (activeTarget !== 'logo-bug') element.style.opacity = '1';
   }
 
   function selectProfileForContext() {
@@ -480,6 +494,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     if (!profile) return;
     selection.style.left = `${profile.x}%`;
     selection.style.top = `${profile.y}%`;
+    opacityField.classList.toggle('hidden', activeTarget !== 'logo-bug');
     if (activeTarget === 'logo-bug') {
       const { width, height } = channels.logoBugProfileDimensions(profile);
       selection.style.width = `${width}px`;
@@ -489,6 +504,9 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       logo.style.setProperty('--logo-bug-size', `${profile.size}px`);
       logo.style.setProperty('--logo-bug-width', `${width}px`);
       logo.style.setProperty('--logo-bug-height', `${height}px`);
+      const opacity = Number.isFinite(profile.opacity) ? profile.opacity : 55;
+      opacitySlider.value = String(opacity);
+      logo.style.setProperty('--logo-bug-opacity', opacity / 100);
     } else {
       const scale = profile.scale || 1;
       selection.style.width = `${element.offsetWidth * scale}px`;
@@ -654,6 +672,10 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   });
 
   snapSelect.addEventListener('change', syncSnapGrid);
+
+  opacitySlider.addEventListener('input', () => {
+    updateProfile({ opacity: Number(opacitySlider.value) });
+  });
 
   targetSelect.addEventListener('change', () => {
     activeTarget = targetSelect.value;

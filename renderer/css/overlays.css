@@ -431,7 +431,7 @@
   position: absolute;
   width: var(--logo-bug-width, var(--logo-bug-size, 46px));
   height: var(--logo-bug-height, var(--logo-bug-size, 46px));
-  opacity: 0.55;
+  opacity: var(--logo-bug-opacity, 0.55);
   pointer-events: none;
   z-index: 2;
   border-radius: var(--radius-sm);
