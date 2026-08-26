@@ -21,7 +21,13 @@ const crawlEl = barEl.querySelector('.ticker-crawl');
 // two are just concatenated.
 export function applyTickerState() {
   const S = window.S;
-  const tk = S.config.ticker;
+  // ch.tickerContent (per-channel override, null = inherit) lets a channel
+  // run its own crawl text/speed/on-off state instead of the box-wide
+  // S.config.ticker — set from the per-channel TICKER tab
+  // (setup-panels.js's buildTickerLayoutPanel), same inherit convention as
+  // ch.logoBugProfiles/ch.dynamicOverlays.
+  const ch = (S.config.channels || []).find((c) => c.number === S.currentNumber);
+  const tk = (ch && ch.tickerContent) || S.config.ticker;
   const staticText = (tk && tk.text || '').trim();
   const feedText = (S.config.party && S.config.party.feedTicker && S.partyTickerFeed && S.partyTickerFeed.length)
     ? S.partyTickerFeed.join('     •     ') : '';

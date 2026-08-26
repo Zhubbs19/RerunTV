@@ -11,7 +11,7 @@ import { S, saveConfigDebounced, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, stripReleaseTags, suggestFacetsFromPath } from './util.js';
 import {
   attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildLogoBugProfileEditor, buildMediaThumbnail,
-  parsePositiveInt,
+  openLiveLogoBugEditor, parsePositiveInt,
 } from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
@@ -987,6 +987,147 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
       () => ch.dynamicOverlays,
       (rules) => { ch.dynamicOverlays = rules; saveConfigDebounced(); },
     ));
+  }
+
+  render();
+}
+
+// Per-channel override for the ticker plugin's on-screen placement AND its
+// content (enabled/text/speed) — two independent inherit/override toggles,
+// same convention as buildLogoBugPanel/buildDynamicOverlaysPanel above:
+// null means "use the box-wide default." Placement
+// (ch.tickerLayout, null = inherit S.config.display.overlayLayouts
+// ['ticker-bar']) reuses the same live drag/resize editor every other HUD
+// overlay is edited with — openLiveLogoBugEditor's perChannelOverlay option
+// points its 'ticker-bar' target at ch.tickerLayout instead of the box-wide
+// list while this editor session is open. Content
+// (ch.tickerContent, null = inherit S.config.ticker) is edited inline here —
+// same enabled/text/speed fields as plugins/ticker/settings.js's box-wide
+// PLUGINS-tab panel, just scoped to this channel.
+export function buildTickerLayoutPanel(ch, panelEl) {
+  function render() {
+    panelEl.innerHTML = '';
+
+    // ---------- Placement ----------
+    const placementInheritLabel = document.createElement('label');
+    placementInheritLabel.className = 'shuffle-toggle';
+    const placementInheritCheckbox = document.createElement('input');
+    placementInheritCheckbox.type = 'checkbox';
+    placementInheritCheckbox.checked = ch.tickerLayout != null;
+    placementInheritCheckbox.addEventListener('change', () => {
+      if (placementInheritCheckbox.checked) {
+        // Seed from the box-wide default (a plain copy) so the channel's
+        // effective placement doesn't silently change the instant OVERRIDE
+        // is checked — same reasoning as buildLogoBugPanel above.
+        const boxWide = (S.config.display && S.config.display.overlayLayouts && S.config.display.overlayLayouts['ticker-bar']) || [];
+        ch.tickerLayout = boxWide.map((p) => ({ ...p }));
+      } else {
+        ch.tickerLayout = null;
+      }
+      render();
+      saveConfigDebounced();
+    });
+    placementInheritLabel.appendChild(placementInheritCheckbox);
+    placementInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER PLACEMENT FOR THIS CHANNEL'));
+    panelEl.appendChild(placementInheritLabel);
+
+    if (ch.tickerLayout == null) {
+      const hint = document.createElement('div');
+      hint.className = 'titles-empty';
+      hint.textContent = 'USES THE BOX-WIDE TICKER PLACEMENT (DISPLAY TAB)';
+      panelEl.appendChild(hint);
+    } else {
+      const explanation = document.createElement('p');
+      explanation.className = 'panel-status logobug-live-description';
+      explanation.textContent = 'Edit the ticker bar over the running channel. Each aspect and resolution combination keeps its own placement.';
+      const liveBtn = document.createElement('button');
+      liveBtn.type = 'button';
+      liveBtn.className = 'btn btn-primary logobug-live-open';
+      liveBtn.textContent = 'EDIT ON CURRENT CHANNEL';
+      liveBtn.addEventListener('click', () => openLiveLogoBugEditor({
+        getProfiles: () => ch.tickerLayout,
+        setProfiles: (profiles) => { ch.tickerLayout = profiles; },
+        perChannelOverlay: {
+          targetId: 'ticker-bar',
+          getProfiles: () => ch.tickerLayout,
+          setProfiles: (profiles) => { ch.tickerLayout = profiles; },
+        },
+      }));
+      panelEl.append(explanation, liveBtn);
+    }
+
+    const divider = document.createElement('hr');
+    divider.className = 'panel-divider';
+    panelEl.appendChild(divider);
+
+    // ---------- Content ----------
+    const contentInheritLabel = document.createElement('label');
+    contentInheritLabel.className = 'shuffle-toggle';
+    const contentInheritCheckbox = document.createElement('input');
+    contentInheritCheckbox.type = 'checkbox';
+    contentInheritCheckbox.checked = ch.tickerContent != null;
+    contentInheritCheckbox.addEventListener('change', () => {
+      if (contentInheritCheckbox.checked) {
+        const boxWide = S.config.ticker || { enabled: false, text: '', speed: 30 };
+        ch.tickerContent = { ...boxWide };
+      } else {
+        ch.tickerContent = null;
+      }
+      window.applyTickerState?.();
+      render();
+      saveConfigDebounced();
+    });
+    contentInheritLabel.appendChild(contentInheritCheckbox);
+    contentInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER TEXT/SPEED FOR THIS CHANNEL'));
+    panelEl.appendChild(contentInheritLabel);
+
+    if (ch.tickerContent == null) {
+      const hint = document.createElement('div');
+      hint.className = 'titles-empty';
+      hint.textContent = 'USES THE BOX-WIDE TICKER TEXT/SPEED (PLUGINS TAB)';
+      panelEl.appendChild(hint);
+      return;
+    }
+
+    const contentBody = document.createElement('div');
+    contentBody.className = 'panel-body';
+    const enabledLabel = document.createElement('label');
+    enabledLabel.className = 'panel-toggle';
+    const enabledEl = document.createElement('input');
+    enabledEl.type = 'checkbox';
+    enabledEl.checked = !!ch.tickerContent.enabled;
+    enabledLabel.append(enabledEl, document.createTextNode('TEXT TICKER'));
+    const textEl = document.createElement('textarea');
+    textEl.className = 'pubaccess-slide-input';
+    textEl.rows = 2;
+    textEl.placeholder = 'Scrolling ticker text…';
+    textEl.value = ch.tickerContent.text || '';
+    const speedRow = document.createElement('div');
+    speedRow.className = 'panel-interval';
+    const speedEl = document.createElement('input');
+    speedEl.type = 'number';
+    speedEl.min = '5';
+    speedEl.max = '120';
+    speedEl.value = ch.tickerContent.speed || 30;
+    speedRow.append('SPEED ', speedEl, ' SEC/LOOP (LOWER = FASTER)');
+    contentBody.append(enabledLabel, textEl, speedRow);
+    panelEl.appendChild(contentBody);
+
+    enabledEl.addEventListener('change', () => {
+      ch.tickerContent.enabled = enabledEl.checked;
+      window.applyTickerState?.();
+      saveConfigDebounced();
+    });
+    textEl.addEventListener('input', () => {
+      ch.tickerContent.text = textEl.value;
+      window.applyTickerState?.();
+      saveConfigDebounced();
+    });
+    speedEl.addEventListener('change', () => {
+      ch.tickerContent.speed = parseInt(speedEl.value, 10) || 30;
+      window.applyTickerState?.();
+      saveConfigDebounced();
+    });
   }
 
   render();

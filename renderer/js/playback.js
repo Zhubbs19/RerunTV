@@ -1079,6 +1079,7 @@ export async function tuneToChannel(number, opts) {
     S.config.lastChannel = number;
     saveConfigDebounced(600, { skipUndo: true });
     updateLogoBug(null);
+    window.applyTickerState?.();
     // The virtual channels have no schedule to shuttle through.
     if (S.timeMachineOn) exitTimeMachine();
     showVirtualChannel(number);
@@ -1089,6 +1090,7 @@ export async function tuneToChannel(number, opts) {
     markStaticReady();
     clearPlayerToBlank();
     updateLogoBug(null);
+    window.applyTickerState?.();
     const tp = S.config.testPattern;
     if (isEnabledByDefault(tp)) {
       runCoreHooks('draw-test-pattern');
@@ -1104,6 +1106,10 @@ export async function tuneToChannel(number, opts) {
   saveConfigDebounced(600, { skipUndo: true });
 
   updateLogoBug(ch);
+  // ch.tickerContent (per-channel override, null = inherit) — re-evaluate on
+  // every tune, same as updateLogoBug just above, so a channel-specific
+  // crawl message/speed/on-off state takes effect immediately.
+  window.applyTickerState?.();
 
   // A channel deliberately marked not-subscribed — checked before every
   // other content/schedule branch below since it overrides them entirely,
