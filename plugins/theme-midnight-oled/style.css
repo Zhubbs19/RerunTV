@@ -44,8 +44,8 @@ html[data-theme="midnight-oled"] {
   --gradient-page: linear-gradient(180deg, #07090e 0%, #0d121d 50%, #030406 100%);
   --gradient-panel: linear-gradient(180deg, #161e2e 0%, #101622 60%, #090c14 100%);
   --gradient-cell: linear-gradient(180deg, #1e293b 0%, #151d2a 100%);
-  --gradient-btn: linear-gradient(180deg, #4f46e5 0%, #3730a3 55%, #2a247a 100%);
-  --gradient-gold: linear-gradient(180deg, #818cf8 0%, #6366f1 45%, #4f46e5 100%);
+  --gradient-btn: linear-gradient(180deg, #242067 0%, #191649 55%, #131037 100%);
+  --gradient-gold: linear-gradient(180deg, #818cf8 0%, #6d70ff 45%, #7366ff 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.03) 45%, rgba(255, 255, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 55%);
 

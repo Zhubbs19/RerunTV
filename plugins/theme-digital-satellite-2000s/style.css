@@ -48,7 +48,7 @@ html[data-theme="digital-satellite-2000s"] {
   --gradient-page: linear-gradient(180deg, #001a33 0%, #002347 50%, #000d1a 100%);
   --gradient-panel: linear-gradient(180deg, #003a70 0%, #002c57 60%, #001830 100%);
   --gradient-cell: linear-gradient(180deg, #00457f 0%, #003666 100%);
-  --gradient-btn: linear-gradient(180deg, #0098d1 0%, #0078a8 55%, #005a80 100%);
+  --gradient-btn: linear-gradient(180deg, #00445e 0%, #00364c 55%, #00293a 100%);
   --gradient-gold: linear-gradient(180deg, #6fe0ff 0%, #00bfff 45%, #009fd6 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 45%, rgba(255, 255, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 55%);

@@ -35,7 +35,7 @@ html[data-theme="cyberpunk-synth"] {
   --guide-channel-subtle: var(--paper-dim);
   --guide-program-bg: #240a3e;
   --guide-program-alt-bg: #321054;
-  --guide-selection-bg: #ff007f;
+  --guide-selection-bg: #e20070; /* darkened from #ff007f: white selection text was 3.78:1, below WCAG AA */
   --guide-selection-fg: #fff;
   --guide-timebar-bg: #3d0070;
   --guide-row-height: 50px;

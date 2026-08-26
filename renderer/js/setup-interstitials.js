@@ -235,6 +235,9 @@ function buildInterstitialCard(entry, idx, pool) {
     // ---------- Collapsed summary (always visible) ----------
     const summary = document.createElement('div');
     summary.className = 'interstitial-card-summary';
+    summary.setAttribute('role', 'button');
+    summary.setAttribute('aria-expanded', String(isOpen));
+    summary.tabIndex = 0;
 
     if (interstitialsBulkMode) {
       const checkbox = document.createElement('input');
@@ -306,6 +309,9 @@ function buildInterstitialCard(entry, idx, pool) {
       else expandedInterstitialEntries.delete(entry.id);
       justToggledEntryId = opening ? entry.id : null;
       renderInterstitialsList();
+    });
+    summary.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === summary) { e.preventDefault(); summary.click(); }
     });
     card.appendChild(summary);
 
@@ -654,6 +660,9 @@ export function renderInterstitialsList() {
     const collapsed = collapsedInterstitialGroups.has(group.key);
     const header = document.createElement('div');
     header.className = 'interstitials-group-header' + (collapsed ? ' collapsed' : '');
+    header.setAttribute('role', 'button');
+    header.setAttribute('aria-expanded', String(!collapsed));
+    header.tabIndex = 0;
     const chevron = document.createElement('span');
     chevron.className = 'interstitials-group-chevron';
     chevron.textContent = '▾';
@@ -682,6 +691,9 @@ export function renderInterstitialsList() {
       if (collapsedInterstitialGroups.has(group.key)) collapsedInterstitialGroups.delete(group.key);
       else collapsedInterstitialGroups.add(group.key);
       renderInterstitialsList();
+    });
+    header.addEventListener('keydown', (e) => {
+      if ((e.key === 'Enter' || e.key === ' ') && e.target === header) { e.preventDefault(); header.click(); }
     });
     interstitialsListEl.appendChild(header);
 
@@ -865,6 +877,9 @@ function buildPresetRow(preset, idx, presets) {
 
   const header = document.createElement('div');
   header.className = 'interstitial-card-summary';
+  header.setAttribute('role', 'button');
+  header.setAttribute('aria-expanded', String(isOpen));
+  header.tabIndex = 0;
 
   const chevron = document.createElement('span');
   chevron.className = 'interstitial-card-chevron';
@@ -926,6 +941,9 @@ function buildPresetRow(preset, idx, presets) {
     else expandedPresets.delete(preset.id);
     justToggledPresetId = opening ? preset.id : null;
     renderPresetsList();
+  });
+  header.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target === header) { e.preventDefault(); header.click(); }
   });
   card.appendChild(header);
 

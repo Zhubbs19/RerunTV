@@ -21,10 +21,10 @@ html[data-theme="wood-console-70s"] {
   --paper: #e8dcae;
   --paper-dim: #c8b48d;
   --line: #4a3a1e;
-  --danger: #c65b3a;
+  --danger: #cd6e51; /* lightened from #c65b3a: was 4.07:1 against --ink, below WCAG AA 4.5:1 */
 
   --gold-rgb: 181, 137, 58;
-  --danger-rgb: 198, 91, 58;
+  --danger-rgb: 205, 110, 81;
   --cyan-rgb: 232, 220, 174;
 
   --font-display: 'Barlow Condensed', system-ui, sans-serif;

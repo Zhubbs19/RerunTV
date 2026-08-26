@@ -50,8 +50,8 @@ html[data-theme="uhf-public-access-80s"] {
   --gradient-page: linear-gradient(180deg, #050014 0%, #0d0324 50%, #02000a 100%);
   --gradient-panel: linear-gradient(180deg, #1c0a33 0%, #150726 60%, #0a0316 100%);
   --gradient-cell: linear-gradient(180deg, #240f42 0%, #180a2c 100%);
-  --gradient-btn: linear-gradient(180deg, #5a1aa8 0%, #3d1178 55%, #260a4d 100%);
-  --gradient-gold: linear-gradient(180deg, #ff2bd6 0%, #d600ab 45%, #a80088 100%);
+  --gradient-btn: linear-gradient(180deg, #2d0d54 0%, #1f093c 55%, #130527 100%);
+  --gradient-gold: linear-gradient(180deg, #ff2bd6 0%, #ff00de 45%, #eb00be 100%);
   --gloss-strong: linear-gradient(180deg, rgba(0, 229, 255, 0.1) 0%, rgba(0, 229, 255, 0.02) 45%, rgba(0, 229, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 43, 214, 0.08) 0%, rgba(255, 43, 214, 0) 55%);
 

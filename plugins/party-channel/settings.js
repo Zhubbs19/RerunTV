@@ -13,7 +13,7 @@ function toDatetimeLocalValue(d) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-function renderTriviaQuestions(listEl, cfg, rerender) {
+function renderTriviaQuestions(listEl, cfg, rerender, saveConfigDebounced) {
   listEl.innerHTML = '';
   (cfg.triviaQuestions || []).forEach((q, idx) => {
     const card = document.createElement('div');
@@ -30,7 +30,7 @@ function renderTriviaQuestions(listEl, cfg, rerender) {
     qInput.rows = 2;
     qInput.placeholder = 'Question…';
     qInput.value = q.question || '';
-    qInput.addEventListener('input', () => { q.question = qInput.value; });
+    qInput.addEventListener('input', () => { q.question = qInput.value; saveConfigDebounced(); });
     card.appendChild(qInput);
 
     const optionsWrap = document.createElement('div');
@@ -47,7 +47,7 @@ function renderTriviaQuestions(listEl, cfg, rerender) {
       radio.name = `trivia-correct-${idx}`;
       radio.checked = (q.correctIndex || 0) === i;
       radio.title = 'Correct answer';
-      radio.addEventListener('change', () => { q.correctIndex = i; });
+      radio.addEventListener('change', () => { q.correctIndex = i; saveConfigDebounced(); });
       const optInput = document.createElement('input');
       optInput.type = 'text';
       optInput.className = 'title-row-input';
@@ -57,6 +57,7 @@ function renderTriviaQuestions(listEl, cfg, rerender) {
       optInput.addEventListener('input', () => {
         if (!q.options) q.options = ['', '', '', ''];
         q.options[i] = optInput.value;
+        saveConfigDebounced();
       });
       row.appendChild(radio);
       row.appendChild(optInput);
@@ -70,6 +71,7 @@ function renderTriviaQuestions(listEl, cfg, rerender) {
     removeBtn.addEventListener('click', () => {
       cfg.triviaQuestions.splice(idx, 1);
       rerender();
+      saveConfigDebounced();
     });
     card.appendChild(removeBtn);
 
@@ -220,7 +222,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     voteWindowInputEl.value = cfg.voteWindowSec || 90;
     soundboardStatusEl.textContent = cfg.soundboardFolder ? `Folder: ${cfg.soundboardFolder}` : 'No soundboard folder assigned';
 
-    const rerenderTrivia = () => renderTriviaQuestions(triviaQuestionsEl, cfg, rerenderTrivia);
+    const rerenderTrivia = () => renderTriviaQuestions(triviaQuestionsEl, cfg, rerenderTrivia, ctx.saveConfigDebounced);
     rerenderTrivia();
     renderJoinInfo(joinUrlEl, joinQrEl, joinCodeEl);
 
@@ -302,6 +304,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     triviaAddBtn.addEventListener('click', () => {
       cfg.triviaQuestions.push({ question: '', options: ['', '', '', ''], correctIndex: 0 });
       rerenderTrivia();
+      ctx.saveConfigDebounced();
     });
     triviaStartBtn.addEventListener('click', () => startTriviaRound());
     joinRefreshBtn.addEventListener('click', () => renderJoinInfo(joinUrlEl, joinQrEl, joinCodeEl));

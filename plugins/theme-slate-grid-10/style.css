@@ -14,7 +14,7 @@ html[data-theme="slate-grid-10"] {
   --gold-ink: #172000;
   --cyan: #43a7ff;
   --paper: #f7f9ff;
-  --paper-dim: #bdc7da;
+  --paper-dim: #d3ddf0;
   --line: #53647d;
   --danger: #ef5b68;
   --gold-rgb: 217, 237, 63;
@@ -38,7 +38,7 @@ html[data-theme="slate-grid-10"] {
   --bevel-raised: inset 0 1px rgba(255,255,255,.24), inset 0 -1px rgba(0,0,0,.42);
   --bevel-inset: inset 0 2px 3px rgba(0,0,0,.62);
   --guide-grid-bg: linear-gradient(180deg, #202c42, #0c1322);
-  --guide-channel-bg: linear-gradient(180deg, #65758b, #35445b);
+  --guide-channel-bg: linear-gradient(180deg, #505f74, #35445b);
   --guide-channel-fg: #fff;
   --guide-channel-subtle: #e1e6ef;
   --guide-program-bg: #163b90;
@@ -77,7 +77,7 @@ html[data-theme="slate-grid-10"] .tv-menu-btn:focus-visible { color: #172000; ba
 
 /* Metallic set-top controls depress physically and use a bright selection strip. */
 html[data-theme="slate-grid-10"] :is(.btn, .setup-tab-btn, .setup-subtab-btn, input, select, textarea) { border-radius: 1px; }
-html[data-theme="slate-grid-10"] :is(.btn, .setup-tab-btn, .setup-subtab-btn) { border: 2px outset #718097; background: linear-gradient(#65758b, #2b394d); box-shadow: 1px 2px 2px #080b12; }
+html[data-theme="slate-grid-10"] :is(.btn, .setup-tab-btn, .setup-subtab-btn) { border: 2px outset #718097; background: linear-gradient(#505f74, #2b394d); box-shadow: 1px 2px 2px #080b12; }
 html[data-theme="slate-grid-10"] :is(.btn, .setup-tab-btn, .setup-subtab-btn):active { border-style: inset; box-shadow: inset 1px 2px 3px #080b12; transform: translateY(1px); }
 html[data-theme="slate-grid-10"] :is(.setup-tab-btn, .setup-subtab-btn).active { color: #172000; background: #d9ed3f; border-color: #fff; }
 html[data-theme="slate-grid-10"] :is(input, select, textarea):focus { border-color: #d9ed3f; box-shadow: inset 5px 0 #d9ed3f; outline: 0; }

@@ -3023,7 +3023,10 @@ html[data-theme] .btn[aria-disabled="true"] {
 .setup-tab-btn:focus-visible,
 .setup-subtab-btn:focus-visible,
 .channel-row:focus-visible,
-.interstitial-card:focus-visible {
+.interstitial-card:focus-visible,
+.interstitial-card-summary:focus-visible,
+.interstitials-group-header:focus-visible,
+.channel-options-header:focus-visible {
   outline: 2px solid var(--cyan);
   outline-offset: -2px;
 }

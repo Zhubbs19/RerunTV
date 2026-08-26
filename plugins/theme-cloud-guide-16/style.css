@@ -17,10 +17,10 @@ html[data-theme="cloud-guide-16"] {
   --paper: #e7ebf5;
   --paper-dim: #aab4cf;
   --line: #242b3d;
-  --danger: #e0212c;
+  --danger: #e54750; /* lightened from #e0212c: was 3.84:1 against --ink, below WCAG AA 4.5:1 for body text */
 
   --gold-rgb: 79, 131, 255;
-  --danger-rgb: 224, 33, 44;
+  --danger-rgb: 229, 71, 80;
   --cyan-rgb: 72, 209, 122;
 
   --font-display: 'Barlow Condensed', 'Archivo Narrow', system-ui, sans-serif;
@@ -52,7 +52,7 @@ html[data-theme="cloud-guide-16"] {
   --guide-channel-subtle: #8390ac;
   --guide-program-bg: #171c2b;
   --guide-program-alt-bg: #1c2236;
-  --guide-selection-bg: #4f83ff;
+  --guide-selection-bg: #436fd9; /* darkened from #4f83ff: white selection text was 3.49:1, below WCAG AA */
   --guide-selection-fg: #ffffff;
   --guide-timebar-bg: #0f1524;
   --guide-row-height: 48px;

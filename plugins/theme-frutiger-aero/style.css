@@ -22,16 +22,16 @@ html[data-theme="frutiger-aero"] {
      under WCAG AA (4.5:1) on this theme's own near-white panels — darkened
      here, within the same hue family, to fix that everywhere these tokens
      are used as text, without having to touch every call site. */
-  --gold: #127a6c;
+  --gold: #117568; /* darkened a touch further: was 4.29:1 against the near-white panels below, just under WCAG AA 4.5:1 */
   --gold-ink: #ffffff;
   --cyan: #0e6f80;
   --paper: #12333a;
   --paper-dim: #4a6a70;
   --line: #a9dbe8;
-  --danger: #a8551c;
+  --danger: #a1521b; /* darkened a touch further: was 4.34:1 against the near-white panels below, just under WCAG AA 4.5:1 */
 
-  --gold-rgb: 18, 122, 108;
-  --danger-rgb: 168, 85, 28;
+  --gold-rgb: 17, 117, 104;
+  --danger-rgb: 161, 82, 27;
   --cyan-rgb: 14, 111, 128;
 
   /* Comfortaa's rounded bubbliness at display scale is the period-correct

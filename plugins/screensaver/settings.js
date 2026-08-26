@@ -1,3 +1,5 @@
+import { rearmScreensaverTimer } from './renderer.js';
+
 window.RCBPlugins.registerPluginSettings('screensaver', {
   sections: [{
     id: 'general',
@@ -20,10 +22,12 @@ window.RCBPlugins.registerPluginSettings('screensaver', {
     enabledEl.addEventListener('change', () => {
       cfg.enabled = enabledEl.checked;
       ctx.saveConfigDebounced();
+      rearmScreensaverTimer();
     });
     intervalEl.addEventListener('change', () => {
       cfg.intervalMinutes = parseInt(intervalEl.value, 10) || 5;
       ctx.saveConfigDebounced();
+      rearmScreensaverTimer();
     });
     },
   }],

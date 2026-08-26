@@ -17,9 +17,9 @@ html[data-theme="aqua-grid-06"] {
   --paper: #f7ffff;
   --paper-dim: #c2e7e9;
   --line: #83bec7;
-  --danger: #e95a72;
+  --danger: #f3a6b3; /* lightened from #e95a72: was 2.56:1 against --ink, severely below WCAG AA 4.5:1 */
   --gold-rgb: 223, 242, 125;
-  --danger-rgb: 233, 90, 114;
+  --danger-rgb: 243, 166, 179;
   --cyan-rgb: 105, 215, 230;
   --font-display: 'Arial Narrow', 'Archivo Narrow', sans-serif;
   --font-ui: Verdana, Tahoma, system-ui, sans-serif;

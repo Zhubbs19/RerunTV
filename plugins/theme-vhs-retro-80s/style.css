@@ -44,7 +44,7 @@ html[data-theme="vhs-retro-80s"] {
   --gradient-page: linear-gradient(180deg, #160c2c 0%, #241144 50%, #0c051a 100%);
   --gradient-panel: linear-gradient(180deg, #3d1b6e 0%, #29104c 60%, #1a0833 100%);
   --gradient-cell: linear-gradient(180deg, #482082 0%, #301359 100%);
-  --gradient-btn: linear-gradient(180deg, #ff3366 0%, #cc1144 55%, #990033 100%);
+  --gradient-btn: linear-gradient(180deg, #801a33 0%, #660922 55%, #4d001a 100%);
   --gradient-gold: linear-gradient(180deg, #ffe600 0%, #ffd000 45%, #e6b800 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 230, 0, 0.3) 0%, rgba(255, 230, 0, 0.05) 45%, rgba(255, 230, 0, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 51, 102, 0.2) 0%, rgba(255, 51, 102, 0) 55%);

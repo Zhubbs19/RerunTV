@@ -16,9 +16,9 @@ html[data-theme="widescreen-grid-13"] {
   --paper: #fff;
   --paper-dim: #b9caee;
   --line: #274c93;
-  --danger: #ec4362;
+  --danger: #ee5974; /* lightened from #ec4362: was 3.96:1 against --ink, below WCAG AA 4.5:1 */
   --gold-rgb: 246, 211, 74;
-  --danger-rgb: 236, 67, 98;
+  --danger-rgb: 238, 89, 116;
   --cyan-rgb: 118, 168, 255;
   --font-display: 'Segoe UI Semibold', 'Arial Narrow', sans-serif;
   --font-ui: 'Trebuchet MS', Arial, sans-serif;

@@ -39,8 +39,18 @@ export function normalizePluginSettingsSchema(pluginId, definition) {
   const hasSchema = definition && ['schemaVersion', 'defaults', 'validate', 'sensitivePaths', 'migrations']
     .some((key) => Object.prototype.hasOwnProperty.call(definition, key));
   if (!hasSchema) return null;
-  const schemaVersion = definition.schemaVersion;
-  if (!Number.isInteger(schemaVersion) || schemaVersion < 1) {
+  // schemaVersion is only meaningful for the parts of this contract that
+  // actually version something (defaults get merged forward, migrations run
+  // between versions). A plugin that only wants sensitivePaths redaction
+  // and/or a validate() hook — no defaults, no migrations — shouldn't have
+  // to adopt a whole versioning scheme just to unlock those; default to v1
+  // instead of forcing an explicit schemaVersion in that case.
+  const needsExplicitVersion = definition.defaults != null
+    || (definition.migrations != null && Object.keys(definition.migrations).length > 0);
+  let { schemaVersion } = definition;
+  if (schemaVersion == null && !needsExplicitVersion) {
+    schemaVersion = 1;
+  } else if (!Number.isInteger(schemaVersion) || schemaVersion < 1) {
     throw new Error(`registerPluginSettings("${pluginId}"): schemaVersion must be a positive integer`);
   }
   if (definition.defaults != null && !isPlainObject(definition.defaults)) {

@@ -85,6 +85,15 @@ function cancelTimer() {
   hide();
 }
 
+// Called by settings.js whenever the ENABLED toggle or interval changes, so
+// a disable takes effect immediately instead of waiting for the already-
+// pending timer to fire (show() has no enabled check of its own) or an
+// interval edit only applying to the next idle-armed cycle.
+export function rearmScreensaverTimer() {
+  cancelTimer();
+  scheduleTimer();
+}
+
 // Core fires these generic events (registerCoreHook, plugins.js) instead of
 // calling into this plugin by name — power.js's resetIdleTimer/powerOff and
 // app.js's setup-screen-open path all just want "cancel any pending

@@ -732,6 +732,9 @@ export function renderChannelList() {
 
       const optionsHeader = document.createElement('div');
       optionsHeader.className = 'channel-options-header' + (optionsCollapsed ? ' collapsed' : '');
+      optionsHeader.setAttribute('role', 'button');
+      optionsHeader.setAttribute('aria-expanded', String(!optionsCollapsed));
+      optionsHeader.tabIndex = 0;
       const optionsChevron = document.createElement('span');
       optionsChevron.className = 'channel-options-chevron';
       optionsChevron.textContent = '▾';
@@ -757,6 +760,9 @@ export function renderChannelList() {
       optionsHeader.addEventListener('click', () => {
         channelOptionsCollapse.set(ch.number, !optionsCollapsed);
         renderChannelList();
+      });
+      optionsHeader.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); optionsHeader.click(); }
       });
 
       const options = document.createElement('div');
@@ -1223,6 +1229,7 @@ export async function rescanAllFolders() {
 
   scanProgressEl.classList.remove('hidden');
   let added = 0;
+  let unreachable = 0;
   for (const ch of targets) {
     for (const entry of ch.folders) {
       const label = ch.name && ch.name.trim() ? ch.name.trim() : `CH ${ch.number}`;
@@ -1231,6 +1238,7 @@ export async function rescanAllFolders() {
       try {
         paths = await window.api.scanFolder(entry.source, entry.ref);
       } catch (err) {
+        unreachable++;
         continue; // eslint-disable-line no-continue
       }
       const known = new Set(ch.files.filter((f) => f.folder === entry.id).map((f) => f.path));
@@ -1256,10 +1264,10 @@ export async function rescanAllFolders() {
       if (ch.shuffle && newPaths.length > 0) shuffleArray(ch.files);
     }
   }
-  scanProgressEl.textContent = added > 0
-    ? `RESCAN COMPLETE — ${added} NEW VIDEO${added === 1 ? '' : 'S'} ADDED`
-    : 'RESCAN COMPLETE — NO NEW VIDEOS FOUND';
-  setTimeout(() => scanProgressEl.classList.add('hidden'), 3000);
+  const addedText = added > 0 ? `${added} NEW VIDEO${added === 1 ? '' : 'S'} ADDED` : 'NO NEW VIDEOS FOUND';
+  const unreachableText = unreachable > 0 ? ` — ${unreachable} FOLDER${unreachable === 1 ? '' : 'S'} UNREACHABLE, LEFT UNCHANGED` : '';
+  scanProgressEl.textContent = `RESCAN COMPLETE — ${addedText}${unreachableText}`;
+  setTimeout(() => scanProgressEl.classList.add('hidden'), unreachable > 0 ? 5000 : 3000);
   renderChannelList();
 }
 
