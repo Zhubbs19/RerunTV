@@ -1482,13 +1482,23 @@ input[type="checkbox"].shuffle-toggle:active {
 .theme-select-native { display: none; }
 body.theme-browser-open #setup-screen { overflow: hidden; }
 .theme-browser-current {
-  min-width: min(310px, 100%); min-height: 38px; display: flex; align-items: center;
+  /* Same default-min-width-is-auto flex issue as .panel-interval above: this
+     is a flex child of that row, and without min-width:0 here it refuses to
+     shrink below its content width, pushing past the panel. max-width:100%
+     plus the label's own ellipsis rule below keep a long theme name (or the
+     "<id> (PLUGIN NOT INSTALLED)" fallback for a missing theme pack) from
+     overflowing instead of just clipping. */
+  min-width: 0; max-width: 100%;
+  min-height: 38px; display: flex; align-items: center;
   justify-content: space-between; gap: 14px; padding: 8px 12px;
   color: var(--gold); background: var(--ink-deep); border: 1px solid var(--line);
   border-radius: var(--radius-sm); font-family: var(--font-ui); font-weight: 700;
   letter-spacing: .5px; text-align: left;
 }
-.theme-browser-change { color: var(--cyan); font-size: 10px; letter-spacing: 1px; }
+#theme-browser-current-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.theme-browser-change { flex: none; color: var(--cyan); font-size: 10px; letter-spacing: 1px; }
 .theme-browser {
   position: fixed;
   left: 50%;
