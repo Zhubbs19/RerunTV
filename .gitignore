@@ -11,6 +11,8 @@ Thumbs.db
 *.log
 *.swp
 *.bak
+android-tv-client/
+android-remote-client/
 android-remote-client/**/.gradle/
 android-remote-client/**/build/
 android-remote-client/**/local.properties
