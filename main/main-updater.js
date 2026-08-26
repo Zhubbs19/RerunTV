@@ -2,6 +2,7 @@ const { app, ipcMain, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { loadConfig, backupUserDataForUpdate } = require('./main-config');
+const { getPluginsDir } = require('./main-plugins');
 const { fetchJsonCached } = require('./main-api-cache');
 const {
   normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRelease,
@@ -80,6 +81,85 @@ function writeUpdateState(state) {
   } catch (e) {
     console.error('[auto-updater] could not persist update state:', e.message);
   }
+}
+
+// Same custom properties themes.js reads live off <html> (renderer/js/
+// themes.js) — kept in sync by hand since this file can't import an ES
+// module.
+const THEME_COLOR_VARS = [
+  '--ink', '--ink-deep', '--gold', '--cyan', '--paper', '--paper-dim', '--line',
+  '--gradient-page', '--gradient-panel',
+];
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Pulls the resolved values straight out of a `html[data-theme="X"] { ... }`
+// block's source text — a plain balanced-brace scan from the first `{` after
+// the selector, not a real CSS parser, but these blocks are hand-authored
+// and flat (no nested rules), so this is reliable in practice.
+function extractThemeVarsFromCss(css, themeId) {
+  const markerIndex = css.indexOf(`[data-theme="${themeId}"]`);
+  if (markerIndex === -1) return null;
+  const braceStart = css.indexOf('{', markerIndex);
+  if (braceStart === -1) return null;
+  let depth = 0;
+  let braceEnd = -1;
+  for (let i = braceStart; i < css.length; i++) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}' && --depth === 0) { braceEnd = i; break; }
+  }
+  if (braceEnd === -1) return null;
+  const block = css.slice(braceStart + 1, braceEnd);
+  const colors = {};
+  THEME_COLOR_VARS.forEach((name) => {
+    const match = block.match(new RegExp(`${escapeRegExp(name)}\\s*:\\s*([^;]+);`));
+    if (match) colors[name] = match[1].trim();
+  });
+  return Object.keys(colors).length ? colors : null;
+}
+
+// Best-effort resolution of a theme's actual palette straight off disk, with
+// no renderer involved at all — lets the startup-auto "CHECKING FOR UPDATES"
+// progress window (shown before the main window, let alone its renderer,
+// exists — see initAutoUpdater below) match the configured theme on the
+// very first launch, not just from the second launch onward (the
+// live-reported latestThemeColors above only exists once a renderer has
+// actually run applyTheme() once and this process has persisted it).
+// 'digital-2000s' has no plugin — it IS core's own :root palette, already
+// this window's CSS fallback, so null (== "keep the fallback") is correct
+// for it. Scans every installed plugin's renderer.js for the
+// `registerThemePack('<themeId>', ...)` call that names it, rather than
+// assuming the bundled packs' `theme-<id>` folder-naming convention, since a
+// third-party pack isn't guaranteed to follow it.
+function resolveThemeColorsFromDisk(themeId) {
+  if (!themeId || themeId === 'digital-2000s') return null;
+  let entries;
+  try {
+    entries = fs.readdirSync(getPluginsDir(), { withFileTypes: true });
+  } catch (e) {
+    return null;
+  }
+  const registration = new RegExp(`registerThemePack\\(\\s*['"\`]${escapeRegExp(themeId)}['"\`]`);
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const pluginDir = path.join(getPluginsDir(), entry.name);
+    let rendererSrc;
+    try {
+      rendererSrc = fs.readFileSync(path.join(pluginDir, 'renderer.js'), 'utf8');
+    } catch (e) {
+      continue;
+    }
+    if (!registration.test(rendererSrc)) continue;
+    try {
+      const css = fs.readFileSync(path.join(pluginDir, 'style.css'), 'utf8');
+      return extractThemeVarsFromCss(css, themeId);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 }
 
 // Called after userData restoration and before the renderer asks for its
@@ -310,6 +390,17 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
     ipcMain.handle('updates:installNow', async () => {});
     return false;
   }
+
+  // Ground-truths latestThemeColors against the theme actually configured
+  // right now, straight off disk — covers the very first launch after
+  // install/update, before any renderer has ever run applyTheme() to report
+  // one live (see resolveThemeColorsFromDisk above). Only overrides the
+  // persisted-report seed above when it finds something; a theme this can't
+  // resolve (a third-party pack with an unconventional layout, or a report
+  // simply not landing here yet) still gets last session's real report
+  // instead of silently reverting to the hardcoded fallback.
+  const diskColors = resolveThemeColorsFromDisk((loadConfig().theme) || 'digital-2000s');
+  if (diskColors) setThemeColors(diskColors);
 
   const updater = getAutoUpdater();
 
