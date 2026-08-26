@@ -1,4 +1,5 @@
 import { showSetupScreen } from './app.js';
+import { toggleCrt } from './power.js';
 import { playConfiguredSound, sfxGuideToggle } from './audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, getChannel, guideSlots, sortedChannels } from './channels.js';
 import {
@@ -723,6 +724,13 @@ export function handleGuideGridKey(e) {
     case 'S':
       closeGuideGrid();
       showSetupScreen();
+      break;
+    case 'c':
+    case 'C':
+      // Same shortcut as on the TV screen — CRT effects toggle should
+      // work regardless of whether the guide is open, so you don't have
+      // to close the guide just to flip the effect on or off.
+      toggleCrt();
       break;
     default:
       return;

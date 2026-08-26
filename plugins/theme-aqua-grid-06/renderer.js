@@ -13,7 +13,6 @@ window.RCBPlugins.registerThemePack('aqua-grid-06', {
   powerSfx(isOn) {
     playTone({ freq: isOn ? 420 : 1100, endFreq: isOn ? 1100 : 360, duration: 180, type: 'square', gain: 0.055 });
   },
-  ambientTexture: { type: 'tone', freq: 7800, gain: 0.003 },
   captionStyle: {
     background: 'rgba(0, 20, 45, .9)', color: '#fff',
     fontFamily: "'Archivo Narrow', sans-serif", fontSize: '4.4cqw', padding: '.12em .3em',

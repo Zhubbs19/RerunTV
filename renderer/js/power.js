@@ -227,8 +227,14 @@ export function applyCrtState() {
   // Setup screen's own live picture-preview swatch (DISPLAY > PICTURE) —
   // same custom properties, mirrored onto a second element so dragging a
   // slider (or switching themes) is visible without leaving setup to check
-  // the real screen.
-  if (crtPreviewEl) applyTo(crtPreviewEl);
+  // the real screen. Also mirrors the crt-off toggle so the swatch goes
+  // dark (no effects) when CRT is globally disabled — it would be confusing
+  // if the preview still showed scanlines/vignette while the real screen
+  // had them turned off.
+  if (crtPreviewEl) {
+    applyTo(crtPreviewEl);
+    crtPreviewEl.classList.toggle('crt-off', S.config.crtEnabled === false);
+  }
   // Whole-screen CRT overlay (DISPLAY > CRT EFFECT INTENSITY > "overlay
   // whole screen") — same custom properties mirrored a third time so its
   // own copy of the effect layers (index.html) matches whatever the

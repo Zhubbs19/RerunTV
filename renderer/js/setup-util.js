@@ -460,7 +460,13 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
         resolution: context.resolution,
         x: base.x,
         y: base.y,
-        ...(activeTarget === 'logo-bug' ? { size: base.size } : { scale: base.scale || 1 }),
+        ...(activeTarget === 'logo-bug' ? (() => {
+          const { width, height } = channels.logoBugProfileDimensions(base);
+          const dim = { size: base.size };
+          if (width !== base.size) dim.width = width;
+          if (height !== base.size) dim.height = height;
+          return dim;
+        })() : { scale: base.scale || 1 }),
       };
       setTargetProfiles([...profiles, exact]);
     }
@@ -475,11 +481,14 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     selection.style.left = `${profile.x}%`;
     selection.style.top = `${profile.y}%`;
     if (activeTarget === 'logo-bug') {
-      selection.style.width = `${profile.size}px`;
-      selection.style.height = `${profile.size}px`;
+      const { width, height } = channels.logoBugProfileDimensions(profile);
+      selection.style.width = `${width}px`;
+      selection.style.height = `${height}px`;
       logo.style.left = `${profile.x}%`;
       logo.style.top = `${profile.y}%`;
       logo.style.setProperty('--logo-bug-size', `${profile.size}px`);
+      logo.style.setProperty('--logo-bug-width', `${width}px`);
+      logo.style.setProperty('--logo-bug-height', `${height}px`);
     } else {
       const scale = profile.scale || 1;
       selection.style.width = `${element.offsetWidth * scale}px`;
@@ -492,15 +501,27 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       element.style.transform = `scale(${scale})`;
     }
     const mode = `${profile.aspect} + ${profile.resolution === 'native' ? 'NATIVE' : profile.resolution.toUpperCase()}`;
-    const size = activeTarget === 'logo-bug' ? `${profile.size}px` : `${Math.round((profile.scale || 1) * 100)}%`;
     const snap = snapIncrement();
-    status.textContent = `${mode}  •  X ${profile.x.toFixed(1)}%  Y ${profile.y.toFixed(1)}%  •  ${size}  •  SNAP ${snap ? `${snap}%` : 'OFF'}`;
+    let sizeStr;
+    if (activeTarget === 'logo-bug') {
+      const { width, height } = channels.logoBugProfileDimensions(profile);
+      sizeStr = width === height ? `${width}px` : `${width}×${height}px`;
+    } else {
+      sizeStr = `${Math.round((profile.scale || 1) * 100)}%`;
+    }
+    status.textContent = `${mode}  •  X ${profile.x.toFixed(1)}%  Y ${profile.y.toFixed(1)}%  •  ${sizeStr}  •  SNAP ${snap ? `${snap}%` : 'OFF'}`;
   }
 
+  const DELETE = Symbol('DELETE');
   function updateProfile(patch) {
-    setTargetProfiles(targetProfiles().map((profile) => (
-      profile.id === activeId ? { ...profile, ...patch } : profile
-    )));
+    setTargetProfiles(targetProfiles().map((profile) => {
+      if (profile.id !== activeId) return profile;
+      const next = { ...profile, ...patch };
+      // Keys set to the DELETE sentinel are removed from the stored profile
+      // (e.g. width/height when the logo bug is resized back to a square).
+      Object.keys(next).forEach((k) => { if (next[k] === DELETE) delete next[k]; });
+      return next;
+    }));
     renderProfile();
   }
 
@@ -548,39 +569,82 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       const scaleX = overlay.clientWidth / overlayRect.width;
       const scaleY = overlay.clientHeight / overlayRect.height;
       const startPointer = { x: event.clientX, y: event.clientY };
-      const startSize = activeTarget === 'logo-bug' ? profile.size : targetElement().offsetWidth * (profile.scale || 1);
-      const startHeight = activeTarget === 'logo-bug' ? profile.size : targetElement().offsetHeight * (profile.scale || 1);
       const startLeft = profile.x / 100 * overlay.clientWidth;
       const startTop = profile.y / 100 * overlay.clientHeight;
-      trackDrag(event, (nextEvent) => {
-        const dx = (nextEvent.clientX - startPointer.x) * scaleX;
-        const dy = (nextEvent.clientY - startPointer.y) * scaleY;
-        const widthDeltas = [];
-        if (edge.includes('e')) widthDeltas.push(dx / startSize);
-        if (edge.includes('w')) widthDeltas.push(-dx / startSize);
-        if (edge.includes('s')) widthDeltas.push(dy / startHeight);
-        if (edge.includes('n')) widthDeltas.push(-dy / startHeight);
-        const ratio = 1 + widthDeltas.reduce((sum, value) => sum + value, 0) / widthDeltas.length;
-        const size = activeTarget === 'logo-bug'
-          ? Math.min(240, overlay.clientWidth, overlay.clientHeight,
-            Math.max(28, snapLogoSize(startSize * ratio, nextEvent.altKey)))
-          : Math.min(3, Math.max(0.5, snapScale((profile.scale || 1) * ratio, nextEvent.altKey)));
-        const nextWidth = activeTarget === 'logo-bug' ? size : targetElement().offsetWidth * size;
-        const nextHeight = activeTarget === 'logo-bug' ? size : targetElement().offsetHeight * size;
-        let left = startLeft;
-        let top = startTop;
-        if (edge.includes('w')) left = startLeft + startSize - nextWidth;
-        if (edge.includes('n')) top = startTop + startHeight - nextHeight;
-        left = Math.min(overlay.clientWidth - nextWidth, Math.max(0, left));
-        top = Math.min(overlay.clientHeight - nextHeight, Math.max(0, top));
-        updateProfile({
-          ...(activeTarget === 'logo-bug' ? { size } : { scale: Math.round(size * 100) / 100 }),
-          x: Math.round(snapPercent(left / overlay.clientWidth * 100,
-            Math.max(0, 100 - nextWidth / overlay.clientWidth * 100), nextEvent.altKey) * 10) / 10,
-          y: Math.round(snapPercent(top / overlay.clientHeight * 100,
-            Math.max(0, 100 - nextHeight / overlay.clientHeight * 100), nextEvent.altKey) * 10) / 10,
+
+      if (activeTarget === 'logo-bug') {
+        // Width and height are tracked independently so E/W handles only
+        // affect width, N/S handles only affect height, and corner handles
+        // affect both. Hold Shift on a corner to lock the original aspect ratio.
+        const { width: startW, height: startH } = channels.logoBugProfileDimensions(profile);
+        const clampW = (v, bypass) => Math.min(400, overlay.clientWidth, Math.max(14, snapLogoSize(v, bypass)));
+        const clampH = (v, bypass) => Math.min(400, overlay.clientHeight, Math.max(14, snapLogoSize(v, bypass)));
+        trackDrag(event, (nextEvent) => {
+          const dx = (nextEvent.clientX - startPointer.x) * scaleX;
+          const dy = (nextEvent.clientY - startPointer.y) * scaleY;
+          const affectsW = edge.includes('e') || edge.includes('w');
+          const affectsH = edge.includes('n') || edge.includes('s');
+          let rawW = startW + (edge.includes('e') ? dx : edge.includes('w') ? -dx : 0);
+          let rawH = startH + (edge.includes('s') ? dy : edge.includes('n') ? -dy : 0);
+          // Shift on a corner = lock aspect ratio
+          if (nextEvent.shiftKey && affectsW && affectsH) {
+            const ratio = Math.max(Math.abs(rawW / startW), Math.abs(rawH / startH));
+            rawW = startW * ratio;
+            rawH = startH * ratio;
+          }
+          const nextW = affectsW ? clampW(rawW, nextEvent.altKey) : startW;
+          const nextH = affectsH ? clampH(rawH, nextEvent.altKey) : startH;
+          let left = startLeft;
+          let top = startTop;
+          if (edge.includes('w')) left = startLeft + startW - nextW;
+          if (edge.includes('n')) top = startTop + startH - nextH;
+          left = Math.min(overlay.clientWidth - nextW, Math.max(0, left));
+          top = Math.min(overlay.clientHeight - nextH, Math.max(0, top));
+          // Only write width/height into the profile when they differ from
+          // size (keeps old configs compact; square remains size-only).
+          // Pass DELETE sentinel for keys that should be removed.
+          const newSize = Math.round(Math.min(nextW, nextH));
+          const patch = {
+            size: newSize,
+            x: Math.round(snapPercent(left / overlay.clientWidth * 100,
+              Math.max(0, 100 - nextW / overlay.clientWidth * 100), nextEvent.altKey) * 10) / 10,
+            y: Math.round(snapPercent(top / overlay.clientHeight * 100,
+              Math.max(0, 100 - nextH / overlay.clientHeight * 100), nextEvent.altKey) * 10) / 10,
+            width: Math.round(nextW) !== newSize ? Math.round(nextW) : DELETE,
+            height: Math.round(nextH) !== newSize ? Math.round(nextH) : DELETE,
+          };
+          updateProfile(patch);
         });
-      });
+      } else {
+        const startSize = targetElement().offsetWidth * (profile.scale || 1);
+        const startHeight2 = targetElement().offsetHeight * (profile.scale || 1);
+        trackDrag(event, (nextEvent) => {
+          const dx = (nextEvent.clientX - startPointer.x) * scaleX;
+          const dy = (nextEvent.clientY - startPointer.y) * scaleY;
+          const widthDeltas = [];
+          if (edge.includes('e')) widthDeltas.push(dx / startSize);
+          if (edge.includes('w')) widthDeltas.push(-dx / startSize);
+          if (edge.includes('s')) widthDeltas.push(dy / startHeight2);
+          if (edge.includes('n')) widthDeltas.push(-dy / startHeight2);
+          const ratio = 1 + widthDeltas.reduce((sum, value) => sum + value, 0) / widthDeltas.length;
+          const size = Math.min(3, Math.max(0.5, snapScale((profile.scale || 1) * ratio, nextEvent.altKey)));
+          const nextWidth = targetElement().offsetWidth * size;
+          const nextHeight = targetElement().offsetHeight * size;
+          let left = startLeft;
+          let top = startTop;
+          if (edge.includes('w')) left = startLeft + startSize - nextWidth;
+          if (edge.includes('n')) top = startTop + startHeight2 - nextHeight;
+          left = Math.min(overlay.clientWidth - nextWidth, Math.max(0, left));
+          top = Math.min(overlay.clientHeight - nextHeight, Math.max(0, top));
+          updateProfile({
+            scale: Math.round(size * 100) / 100,
+            x: Math.round(snapPercent(left / overlay.clientWidth * 100,
+              Math.max(0, 100 - nextWidth / overlay.clientWidth * 100), nextEvent.altKey) * 10) / 10,
+            y: Math.round(snapPercent(top / overlay.clientHeight * 100,
+              Math.max(0, 100 - nextHeight / overlay.clientHeight * 100), nextEvent.altKey) * 10) / 10,
+          });
+        });
+      }
     });
   });
 

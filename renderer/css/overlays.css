@@ -1,4 +1,4 @@
-﻿/* Power, virtual channels, EAS, time machine, up-next, logo bug */
+/* Power, virtual channels, EAS, time machine, up-next, logo bug */
 
 /* ---------- Power on/off ---------- */
 
@@ -429,8 +429,8 @@
 
 .logo-bug {
   position: absolute;
-  width: var(--logo-bug-size, 46px);
-  height: var(--logo-bug-size, 46px);
+  width: var(--logo-bug-width, var(--logo-bug-size, 46px));
+  height: var(--logo-bug-height, var(--logo-bug-size, 46px));
   opacity: 0.55;
   pointer-events: none;
   z-index: 2;
@@ -444,7 +444,8 @@
   color: #fff;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
 }
-.logo-bug img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* contain so non-square images are never centre-cropped */
+.logo-bug img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
 /* Small always-on channel-number chip, pinned over a custom icon wherever a
    compact square channel badge would otherwise show only the icon (this

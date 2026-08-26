@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
@@ -355,6 +355,20 @@
         </div>
 
         <div class="panel">
+          <div class="panel-toggle">NO SIGNAL SCREEN</div>
+          <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
+          <div class="panel-body no-signal-copy-settings">
+            <label class="panel-interval">HEADING
+              <input id="no-signal-title-input" class="title-row-input" type="text" maxlength="48" placeholder="NO SIGNAL">
+            </label>
+            <label class="panel-interval">DETAIL LINE
+              <input id="no-signal-message-input" class="title-row-input" type="text" maxlength="120" placeholder="CH {channel}">
+            </label>
+            <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
+          </div>
+        </div>
+
+        <div class="panel">
           <div class="panel-toggle">GUIDE GENRE COLORS</div>
           <span class="panel-status">Optionally color program cells by their first GENRE facet. Each theme keeps its own palette; the active selection color always remains theme-controlled.</span>
           <div class="panel-body guide-genre-settings">
@@ -380,20 +394,6 @@
           <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
           <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
           <div id="logobug-editor"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-toggle">NO SIGNAL SCREEN</div>
-          <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
-          <div class="panel-body no-signal-copy-settings">
-            <label class="panel-interval">HEADING
-              <input id="no-signal-title-input" class="title-row-input" type="text" maxlength="48" placeholder="NO SIGNAL">
-            </label>
-            <label class="panel-interval">DETAIL LINE
-              <input id="no-signal-message-input" class="title-row-input" type="text" maxlength="120" placeholder="CH {channel}">
-            </label>
-            <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
-          </div>
         </div>
 
         </div>
