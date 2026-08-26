@@ -619,9 +619,21 @@ export function computeSourcePosition(source, atMs, opts) {
 
 // Compute { file, fileIndex, offset, ... } for a channel at this instant,
 // as if it has been broadcasting continuously since its anchor — routed
-// through whichever block (or the default folder) is active now.
+// through whichever block (or the default folder) is active now. Pure by
+// contract (per this comment) — ignoreContentLost is required to keep that
+// promise: without it, computeSourcePosition would silently subtract
+// S.contentLostMs/breakEnteredAtMs, a *global*, single-channel value that
+// playback.js's own computeLiveContentPosition owns and correctly key-scopes
+// to whichever channel/source is actually live-tuned right now. This
+// function is called for channels that AREN'T the tuned one (every row of
+// setup-channels.js's CHANNELS list) and for timestamps that AREN'T real
+// "now" (the time machine's VCR OSD readout and shuttle content-preview,
+// at whatever instant is being scrubbed to) — applying the tuned channel's
+// currently-accumulated ad-break lag to a different channel or a different
+// moment in time was wrong in both cases, and broke the "pure function of
+// (channel, timestamp)" contract every other schedule.js resolver relies on.
 export function computeLivePosition(ch) {
-  return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow());
+  return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow(), { ignoreContentLost: true });
 }
 
 export function walkSourceSchedule(source, segStart, segEnd) {

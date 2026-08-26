@@ -567,7 +567,7 @@ function computeEpisodesUntilWrap(ch) {
 // SpongeBob-"Truth or Square"-style escalating countdown campaign work: the
 // same promo entry's on-screen number counts down day by day as the
 // premiere approaches, rather than being a static copy authored once.
-function renderDynamicText(template, ch, entry) {
+export function renderDynamicText(template, ch, entry) {
   if (!template) return '';
   return template
     .replace(/\{channel\}/g, (ch.name || `CHANNEL ${ch.number}`).toUpperCase())
