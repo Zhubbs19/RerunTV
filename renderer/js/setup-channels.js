@@ -21,7 +21,7 @@ import { tuneToChannel } from './playback.js';
 import { CHANNEL_ASPECT_OPTIONS } from './power.js';
 import {
   buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildDynamicOverlaysPanel, buildFoldersPanel,
-  buildLogoBugPanel, buildTitlesPanel,
+  buildLogoBugPanel, buildTickerLayoutPanel, buildTitlesPanel,
 } from './setup-panels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
@@ -319,6 +319,7 @@ export function renderChannelList() {
       editTabs.push({ id: 'ads', label: 'ADS', build: (c, p) => buildChannelAdsPanel(c, p) });
       editTabs.push({ id: 'logo', label: 'LOGO', build: buildLogoBugPanel });
       editTabs.push({ id: 'overlays', label: ch.dynamicOverlays ? 'OVERLAYS ✓' : 'OVERLAYS', build: buildDynamicOverlaysPanel });
+      editTabs.push({ id: 'ticker', label: ch.tickerLayout ? 'TICKER ✓' : 'TICKER', build: buildTickerLayoutPanel });
       editTabs.push({ id: 'identity', label: ch.broadcastIdentity && Object.keys(ch.broadcastIdentity).length ? 'IDENTITY ✓' : 'IDENTITY', build: buildChannelIdentityPanel });
 
       const editPanel = document.createElement('div');

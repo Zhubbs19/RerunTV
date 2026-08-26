@@ -234,7 +234,15 @@ export function buildBreakpointTrack(getPoints, setPoints, syncTextInput) {
 let logoBugProfileIdCounter = 0;
 function newLogoBugProfileId() { return `p${Date.now().toString(36)}${(logoBugProfileIdCounter++).toString(36)}`; }
 
-async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange }) {
+// perChannelOverlay (optional): { targetId, getProfiles, setProfiles } —
+// redirects targetProfiles()/setTargetProfiles() below to a per-channel
+// store (e.g. ch.tickerLayout, channels.js) whenever activeTarget equals
+// targetId, instead of the box-wide S.config.display.overlayLayouts[id]
+// every other non-logo-bug target uses. The session opens with that target
+// already selected. Used by setup-panels.js's buildTickerLayoutPanel so the
+// ticker bar can be edited per-channel with the exact same drag/resize UI
+// every other HUD overlay already uses.
+export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange, perChannelOverlay }) {
   const profileSnapshot = (getProfiles() || []).map((profile) => ({ ...profile }));
   const displayModeSnapshot = { ...(S.config.displayMode || {}) };
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
@@ -299,6 +307,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   });
   targetField.appendChild(targetSelect);
   toolbar.appendChild(targetField);
+  if (perChannelOverlay) targetSelect.value = perChannelOverlay.targetId;
 
   function addSelect(label, key, options) {
     const field = document.createElement('label');
@@ -374,7 +383,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
   const logoWasHidden = logo.classList.contains('hidden');
   logo.classList.remove('hidden');
   let activeId = null;
-  let activeTarget = 'logo-bug';
+  let activeTarget = perChannelOverlay ? perChannelOverlay.targetId : 'logo-bug';
 
   function snapIncrement() {
     return Number(snapSelect.value) || 0;
@@ -422,6 +431,9 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
 
   function targetProfiles() {
     if (activeTarget === 'logo-bug') return channels.normalizeLogoBugProfiles(getProfiles());
+    if (perChannelOverlay && activeTarget === perChannelOverlay.targetId) {
+      return (perChannelOverlay.getProfiles() || []).map((profile) => ({ ...profile }));
+    }
     return (((S.config.display || {}).overlayLayouts || {})[activeTarget] || []).map((profile) => ({ ...profile }));
   }
 
@@ -430,7 +442,15 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       setProfiles(profiles);
       return;
     }
+    if (perChannelOverlay && activeTarget === perChannelOverlay.targetId) {
+      perChannelOverlay.setProfiles(profiles);
+      return;
+    }
     S.config.display.overlayLayouts = { ...(S.config.display.overlayLayouts || {}), [activeTarget]: profiles };
+  }
+
+  function isBarTarget() {
+    return activeTarget === 'ticker-bar';
   }
 
   function restorePreviewElement(id) {
@@ -467,11 +487,16 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       const base = activeTarget === 'logo-bug'
         ? channels.pickLogoBugProfile(profiles, context) || channels.foldLogoBugCorner(null, null)[0]
         : profiles.find((profile) => (!profile.aspect || profile.aspect === context.aspect)
-          && (!profile.resolution || profile.resolution === context.resolution)) || {
+          && (!profile.resolution || profile.resolution === context.resolution)) || (isBarTarget() ? {
+          x: Math.max(0, (elementRect.left - overlayRect.left) / overlayRect.width * 100),
+          y: Math.max(0, (elementRect.top - overlayRect.top) / overlayRect.height * 100),
+          width: elementRect.width / overlayRect.width * 100,
+          height: elementRect.height / overlayRect.height * 100,
+        } : {
           x: Math.max(0, (elementRect.left - overlayRect.left) / overlayRect.width * 100),
           y: Math.max(0, (elementRect.top - overlayRect.top) / overlayRect.height * 100),
           scale: 1,
-        };
+        });
       exact = {
         id: newLogoBugProfileId(),
         aspect: context.aspect,
@@ -484,7 +509,7 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
           if (width !== base.size) dim.width = width;
           if (height !== base.size) dim.height = height;
           return dim;
-        })() : { scale: base.scale || 1 }),
+        })() : isBarTarget() ? { width: base.width, height: base.height } : { scale: base.scale || 1 }),
       };
       setTargetProfiles([...profiles, exact]);
     }
@@ -511,6 +536,18 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
       const opacity = Number.isFinite(profile.opacity) ? profile.opacity : 55;
       opacitySlider.value = String(opacity);
       logo.style.setProperty('--logo-bug-opacity', opacity / 100);
+    } else if (isBarTarget()) {
+      const width = profile.width != null ? profile.width : 100;
+      const height = profile.height != null ? profile.height : 12;
+      selection.style.width = `${width}%`;
+      selection.style.height = `${height}%`;
+      element.style.left = `${profile.x}%`;
+      element.style.top = `${profile.y}%`;
+      element.style.right = 'auto';
+      element.style.bottom = 'auto';
+      element.style.transform = 'none';
+      element.style.width = `${width}%`;
+      element.style.height = `${height}%`;
     } else {
       const scale = profile.scale || 1;
       selection.style.width = `${element.offsetWidth * scale}px`;
@@ -528,6 +565,10 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
     if (activeTarget === 'logo-bug') {
       const { width, height } = channels.logoBugProfileDimensions(profile);
       sizeStr = width === height ? `${width}px` : `${width}×${height}px`;
+    } else if (isBarTarget()) {
+      const width = profile.width != null ? profile.width : 100;
+      const height = profile.height != null ? profile.height : 12;
+      sizeStr = `${width.toFixed(1)}% × ${height.toFixed(1)}%`;
     } else {
       sizeStr = `${Math.round((profile.scale || 1) * 100)}%`;
     }
@@ -636,6 +677,38 @@ async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange })
             height: Math.round(nextH) !== newSize ? Math.round(nextH) : DELETE,
           };
           updateProfile(patch);
+        });
+      } else if (isBarTarget()) {
+        // Independent width/height resize in screen percentages, same edge
+        // semantics as the logo-bug branch above but without the px-based
+        // size/aspect-lock machinery (a bar has no meaningful aspect ratio).
+        const startW = (profile.width != null ? profile.width : 100) / 100 * overlay.clientWidth;
+        const startH = (profile.height != null ? profile.height : 12) / 100 * overlay.clientHeight;
+        const clampW = (v, bypass) => Math.min(overlay.clientWidth, Math.max(20, snapLogoSize(v, bypass)));
+        const clampH = (v, bypass) => Math.min(overlay.clientHeight, Math.max(10, snapLogoSize(v, bypass)));
+        trackDrag(event, (nextEvent) => {
+          const dx = (nextEvent.clientX - startPointer.x) * scaleX;
+          const dy = (nextEvent.clientY - startPointer.y) * scaleY;
+          const affectsW = edge.includes('e') || edge.includes('w');
+          const affectsH = edge.includes('n') || edge.includes('s');
+          const rawW = startW + (edge.includes('e') ? dx : edge.includes('w') ? -dx : 0);
+          const rawH = startH + (edge.includes('s') ? dy : edge.includes('n') ? -dy : 0);
+          const nextW = affectsW ? clampW(rawW, nextEvent.altKey) : startW;
+          const nextH = affectsH ? clampH(rawH, nextEvent.altKey) : startH;
+          let left = startLeft;
+          let top = startTop;
+          if (edge.includes('w')) left = startLeft + startW - nextW;
+          if (edge.includes('n')) top = startTop + startH - nextH;
+          left = Math.min(overlay.clientWidth - nextW, Math.max(0, left));
+          top = Math.min(overlay.clientHeight - nextH, Math.max(0, top));
+          updateProfile({
+            width: Math.round(nextW / overlay.clientWidth * 1000) / 10,
+            height: Math.round(nextH / overlay.clientHeight * 1000) / 10,
+            x: Math.round(snapPercent(left / overlay.clientWidth * 100,
+              Math.max(0, 100 - nextW / overlay.clientWidth * 100), nextEvent.altKey) * 10) / 10,
+            y: Math.round(snapPercent(top / overlay.clientHeight * 100,
+              Math.max(0, 100 - nextH / overlay.clientHeight * 100), nextEvent.altKey) * 10) / 10,
+          });
         });
       } else {
         const startSize = targetElement().offsetWidth * (profile.scale || 1);

@@ -282,7 +282,14 @@ export const OVERLAY_LAYOUT_TARGETS = [
   { id: 'volume-indicator', label: 'VOLUME POP-UP' },
   { id: 'timeshift-badge', label: 'TIME SHIFT BADGE' },
   { id: 'vcr-osd', label: 'VCR / TIME MACHINE CARD' },
+  { id: 'ticker-bar', label: 'TEXT TICKER' },
 ];
+
+// ticker-bar is the only target in the list above that can also be
+// customized per-channel (ch.tickerLayout, channels.js) — every other
+// target is box-wide only (S.config.display.overlayLayouts[id]). Kept as an
+// explicit set rather than a per-target flag since it's a single entry today.
+const PER_CHANNEL_OVERLAY_TARGET_IDS = new Set(['ticker-bar']);
 
 function pickOverlayLayout(profiles, context) {
   return (profiles || [])
@@ -301,16 +308,28 @@ export function resolveOverlayLayoutContext() {
 export function applyOverlayLayouts() {
   const layouts = (S.config.display && S.config.display.overlayLayouts) || {};
   const context = resolveOverlayLayoutContext();
+  const ch = getChannel(S.currentNumber);
   OVERLAY_LAYOUT_TARGETS.forEach(({ id }) => {
     const element = document.getElementById(id);
-    const profile = pickOverlayLayout(layouts[id], context);
+    const perChannel = ch && PER_CHANNEL_OVERLAY_TARGET_IDS.has(id) ? ch.tickerLayout : null;
+    const profile = pickOverlayLayout(perChannel != null ? perChannel : layouts[id], context);
     if (!element || !profile) return;
     element.style.left = `${profile.x}%`;
     element.style.top = `${profile.y}%`;
     element.style.right = 'auto';
     element.style.bottom = 'auto';
-    element.style.transformOrigin = 'top left';
-    element.style.transform = `scale(${profile.scale || 1})`;
+    if (id === 'ticker-bar') {
+      // width/height profile (percentages of the screen), not the generic
+      // scale-factor model the other targets use — see
+      // normalizeOverlayLayoutProfiles (channels.js) for why: the ticker bar
+      // has no natural intrinsic size to scale from.
+      element.style.transform = 'none';
+      element.style.width = `${profile.width}%`;
+      element.style.height = `${profile.height}%`;
+    } else {
+      element.style.transformOrigin = 'top left';
+      element.style.transform = `scale(${profile.scale || 1})`;
+    }
   });
 }
 

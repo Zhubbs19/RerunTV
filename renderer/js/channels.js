@@ -146,7 +146,7 @@ export function freshChannel() {
     number: nextChannelNumber(), name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
     adsEnabled: true, favorite: false, rating: null, vhsQuality: false,
     logoBugProfiles: null, volume: null, broadcastHours: freshBroadcastHours(),
-    quickAccess: false, dynamicOverlays: null,
+    quickAccess: false, dynamicOverlays: null, tickerLayout: null, tickerContent: null,
   };
 }
 
@@ -279,6 +279,43 @@ export const DYNAMIC_OVERLAY_TRIGGERS = [
 ];
 export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'];
 export const DEFAULT_OVERLAY_DURATION_MS = 8000;
+
+// ---------- Generic x/y/width/height overlay-layout profiles (ticker bar) ----------
+// Shape shared with display-mode.js's OVERLAY_LAYOUT_TARGETS placement
+// system: a list of { id, aspect, resolution, x, y, width, height } — x/y are
+// 0-100 percentages of the screen (the element's top-left corner, same
+// convention as logoBugProfiles above); width/height are 0-100 percentages
+// of the screen rather than a fixed scale factor, since the ticker bar
+// (unlike the fixed-size HUD cards the scale-based targets are used for) has
+// no natural intrinsic size to scale from. null aspect/resolution are
+// wildcards, same matching precedence as pickLogoBugProfile.
+export function normalizeOverlayLayoutProfiles(profiles) {
+  if (!Array.isArray(profiles)) return [];
+  return profiles.filter((p) => p && typeof p === 'object').map((p, index) => ({
+    id: p.id || `ov${index}`,
+    aspect: p.aspect === '4:3' || p.aspect === '16:9' ? p.aspect : null,
+    resolution: ['native', 'sd480', 'sd240'].includes(p.resolution) ? p.resolution : null,
+    x: Number.isFinite(Number(p.x)) ? Number(p.x) : 0,
+    y: Number.isFinite(Number(p.y)) ? Number(p.y) : 0,
+    width: Math.min(100, Math.max(5, Number.isFinite(Number(p.width)) ? Number(p.width) : 100)),
+    height: Math.min(100, Math.max(2, Number.isFinite(Number(p.height)) ? Number(p.height) : 12)),
+  }));
+}
+
+// Per-channel override for the ticker plugin's content (plugins/ticker) —
+// null = inherit the box-wide S.config.ticker (enabled/text/speed), same
+// inherit convention as tickerLayout/logoBugProfiles/dynamicOverlays above.
+// A present object overrides all three fields for this channel (e.g. a
+// channel that wants its own crawl text, or none at all, regardless of the
+// box-wide ticker).
+export function normalizeTickerContent(content) {
+  if (!content || typeof content !== 'object') return null;
+  return {
+    enabled: !!content.enabled,
+    text: typeof content.text === 'string' ? content.text : '',
+    speed: Math.min(120, Math.max(5, Number(content.speed) || 30)),
+  };
+}
 
 let dynamicOverlayIdCounter = 0;
 export function newDynamicOverlayId() {
@@ -442,6 +479,16 @@ export function normalizeChannel(ch) {
   // convention as logoBugProfiles above); a present array overrides it.
   if (ch.dynamicOverlays === undefined) ch.dynamicOverlays = null;
   if (ch.dynamicOverlays) ch.dynamicOverlays = normalizeDynamicOverlays(ch.dynamicOverlays);
+  // null = inherit the box-wide ticker placement
+  // (S.config.display.overlayLayouts['ticker-bar']); a present array
+  // overrides it for this channel — same inherit convention as
+  // logoBugProfiles/dynamicOverlays above.
+  if (ch.tickerLayout === undefined) ch.tickerLayout = null;
+  if (ch.tickerLayout) ch.tickerLayout = normalizeOverlayLayoutProfiles(ch.tickerLayout);
+  // null = inherit the box-wide ticker content (S.config.ticker); a present
+  // object overrides enabled/text/speed for this channel.
+  if (ch.tickerContent === undefined) ch.tickerContent = null;
+  if (ch.tickerContent) ch.tickerContent = normalizeTickerContent(ch.tickerContent);
   // null = inherit the box-wide master volume; a number 0-1 overrides it for
   // this channel (e.g. a channel of old/quiet recordings that always needs
   // to run louder than everything else).
