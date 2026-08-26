@@ -480,22 +480,42 @@ function computeActiveCommercials(ch, atMs, fileTags) {
 
     const adPodSteps = steps.filter((s) => s.type === 'adPod');
 
-    // hasMid + percentage breakpoints only when there are NO contentSegment markers —
-    // a flow defined purely by adPod steps (single-file breakpoint model). When
-    // contentSegments are present the file boundaries serve as breakpoints via hasPost.
-    let breakpoints = [];
+    // Legacy auto-derived percentage breakpoints from bare adPod steps when a
+    // flow has no contentSegment markers at all (single-file breakpoint
+    // model) — unchanged from before the explicit cadence panel (below)
+    // existed, so old flows built this way keep behaving identically.
+    let legacyBreakpoints = [];
     if (segmentCount === 0 && adPodSteps.length > 0) {
       for (let i = 1; i <= adPodSteps.length; i++) {
-        breakpoints.push(Math.round((i / (adPodSteps.length + 1)) * 100 * 10) / 10);
+        legacyBreakpoints.push(Math.round((i / (adPodSteps.length + 1)) * 100 * 10) / 10);
       }
     }
+
+    // Explicit mid-show ad cadence (flow.cadence — setup-interstitials-
+    // flowbuilder.js's "MID-SHOW AD CADENCE" panel): the cadence-preset
+    // functionality (a fixed "every N minutes" timer, or breaks "at set %
+    // points") folded directly into the flow itself, so a flow no longer has
+    // to give up per-show/per-movie cadence in exchange for its own bumper/
+    // pod sequence — preSteps/postSteps/cycleEndSteps above still fire at
+    // episode/file boundaries exactly as before; this additionally fires
+    // *within* whichever content segment (or bare file, for a segment-less
+    // flow) is currently airing, mirroring what resolveActiveCommercials'
+    // own 'everyNMinutes'/'breakpoints' timing modes gave a channel/block/
+    // preset before flows existed.
+    const cadence = flow.cadence && flow.cadence.enabled ? flow.cadence : null;
+    const midTiming = cadence ? (cadence.timing === 'everyNMinutes' ? 'everyNMinutes' : 'breakpoints') : 'breakpoints';
+    const midBreakpoints = cadence ? (cadence.breakpoints || []) : legacyBreakpoints;
+    const midIntervalMinutes = cadence ? cadence.intervalMinutes : null;
+    const hasMid = cadence
+      ? (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0)
+      : midBreakpoints.length > 0;
 
     const podStep = adPodSteps[0] || {};
     return {
       commercials: {
         timing: 'flow',
         flowId: flow.id,
-        breakpoints,
+        breakpoints: midBreakpoints,
         segmentCount,
         podMin: podStep.podMin || 1,
         podMax: podStep.podMax || 3,
@@ -509,7 +529,14 @@ function computeActiveCommercials(ch, atMs, fileTags) {
         hasPre: preSteps.length > 0,
         hasPost: postSteps.length > 0,
         hasCycleEnd: cycleEndSteps.length > 0,
-        hasMid: breakpoints.length > 0
+        hasMid,
+        midTiming,
+        midIntervalMinutes,
+        midPodMin: cadence ? (cadence.podMin || 1) : null,
+        midPodMax: cadence ? (cadence.podMax || cadence.podMin || 1) : null,
+        midBumpInTags: cadence ? cadence.bumpInTags : null,
+        midCommercialTags: cadence ? cadence.commercialTags : null,
+        midBumpOutTags: cadence ? cadence.bumpOutTags : null,
       },
       key: `flow:${flow.id}`
     };
