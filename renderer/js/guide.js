@@ -541,7 +541,22 @@ export function renderGuideGrid() {
   // virtual-channel rows.
   const virtualRowCount = S.guideFilterQuery.trim() ? 0 : virtualChannelNumbers().length;
   const activeRowEl = guideRowsEl.children[S.guideSelRowIdx + 2 + virtualRowCount];
-  if (activeRowEl) activeRowEl.scrollIntoView({ block: 'nearest' });
+  if (activeRowEl) {
+    activeRowEl.scrollIntoView({ block: 'nearest' });
+    // 'nearest' only guarantees activeRowEl itself ends up fully visible —
+    // it does nothing to prevent the row directly above it from landing
+    // half-cut at the scroll container's top edge (a sliver of the next
+    // channel's title peeking in above the timeline header), which reads
+    // as a broken/glitched row rather than an intentional partial scroll.
+    // Rows use min-height (a wrapped program title can make one taller
+    // than --guide-row-height's 52px default), so this walks real offsets
+    // rather than assuming a fixed row-height step — correct at any window
+    // size, not just the one this was noticed at.
+    const rows = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
+    const top = guideRowsEl.scrollTop;
+    const straddling = rows.find((row) => row.offsetTop < top && row.offsetTop + row.offsetHeight > top);
+    if (straddling) guideRowsEl.scrollTop = straddling.offsetTop + straddling.offsetHeight;
+  }
 
   positionNowLine(windowEnd);
   updateGuideInfoPanel(list[S.guideSelRowIdx], selRef.info);
