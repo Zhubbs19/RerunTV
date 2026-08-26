@@ -18,6 +18,17 @@ const { parseMediaRef, callMediaService, MEDIA_READRANGE_TIMEOUT_MS } = require(
 let pluginServicesRef = {};
 function setMediaDispatchServices(services) { pluginServicesRef = services || {}; }
 
+// Set once by main.js, right after loadMainPlugins() resolves — the loopback
+// ports a currently-activated plugin declared under manifest.json's
+// capabilities.net (the same list already shown in the capability-approval
+// prompt), plus core's own REMOTE_PORT/VIEWER_PORT. serveFile() below turns
+// this into index.html's dynamic media-src CSP allowance, so a plugin that
+// declares a port (and gets approved for it) just works — no hand-editing
+// the static <meta> CSP in index.html the way this used to require. See
+// that file's CSP comment for the full history.
+let allowedMediaSrcPortsRef = [];
+function setAllowedMediaSrcPorts(ports) { allowedMediaSrcPortsRef = Array.isArray(ports) ? ports : []; }
+
 // The renderer is served over a custom app:// scheme rather than file://
 // because Chromium refuses to load ES modules from a file:// origin. That
 // choice cascades: a non-file:// page also can't load file:// media, so
@@ -59,6 +70,14 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   // "am I seeing stale code" risk for a file the user picked themselves.
   const cacheHeaders = noCache ? { 'Cache-Control': 'no-store' } : {};
   const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
+  // Only this one directive — a header CSP that omitted default-src leaves
+  // every other resource type unrestricted *by this policy*, so it can only
+  // narrow (never widen) index.html's static <meta> CSP, which is what lets
+  // this stay dynamic without duplicating/drifting from that tag's other
+  // directives. See setAllowedMediaSrcPorts's doc comment above.
+  const cspHeaders = path.basename(filePath) === 'index.html'
+    ? { 'Content-Security-Policy': `media-src 'self' app: ${allowedMediaSrcPortsRef.map((p) => `http://127.0.0.1:${p}`).join(' ')}` }
+    : {};
   let stat;
   try {
     stat = await fs.promises.stat(filePath);
@@ -80,6 +99,7 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
       headers: {
         ...corsHeaders,
         ...cacheHeaders,
+        ...cspHeaders,
         'Content-Type': type,
         'Content-Length': String(end - start + 1),
         'Content-Range': `bytes ${start}-${end}/${stat.size}`,
@@ -93,6 +113,7 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
     headers: {
       ...corsHeaders,
       ...cacheHeaders,
+      ...cspHeaders,
       'Content-Type': type,
       'Content-Length': String(stat.size),
       'Accept-Ranges': 'bytes',
@@ -325,5 +346,6 @@ async function pipeWebResponse(response, res) {
 }
 
 module.exports = {
-  registerAppSchemePrivileges, registerAppProtocol, serveFile, serveMediaRef, setMediaDispatchServices, pipeWebResponse, mimeFor, MIME_TYPES,
+  registerAppSchemePrivileges, registerAppProtocol, serveFile, serveMediaRef, setMediaDispatchServices,
+  setAllowedMediaSrcPorts, pipeWebResponse, mimeFor, MIME_TYPES,
 };

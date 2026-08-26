@@ -14,31 +14,31 @@
      inline event-handler attributes anywhere in this app, so that stays
      tight. object-src/base-uri/form-action are locked to 'none' since
      nothing here uses <object>/<embed>, a <base> tag, or an HTML <form>. -->
-<!-- media-src also allows a handful of hardcoded 127.0.0.1 ports (hardcoded
-     here since this is a static meta tag, not something the main process
-     can inject) that a local http.Server streams live audio/video through
-     instead of app://<protocol>: without its own origin explicitly allowed,
-     the CSP silently blocks that <video>/<audio> src outright before any
-     request is even attempted, which reads as "instant failure" with no
-     visible live attempt at all, not a CSP violation, unless you check the
-     console.
-       - 8724 — main-lan.js's VIEWER_PORT (core). A media-source plugin's
-         still-live (not yet locally cached) file is routed through the LAN
-         viewer server's own /media route (a genuine http.Server) instead of
-         app://media (main.js's path:toFileUrl), since Electron's
+<!-- media-src also allows any 127.0.0.1 port (wildcarded, not a fixed list)
+     that a local http.Server streams live audio/video through instead of
+     app://<protocol>: without loopback explicitly allowed, the CSP silently
+     blocks that <video>/<audio> src outright before any request is even
+     attempted, which reads as "instant failure" with no visible live attempt
+     at all, not a CSP violation, unless you check the console.
+       - main-lan.js's VIEWER_PORT (core, currently 8724): a media-source
+         plugin's still-live (not yet locally cached) file is routed through
+         the LAN viewer server's own /media route (a genuine http.Server)
+         instead of app://media (main.js's path:toFileUrl), since Electron's
          custom-protocol protocol.handle Response never prompted Chromium's
          <video> element to make more than one Range request for a
          plugin-backed resource — found live.
-       - 8723, 8725 — locally-installed (gitignored, not part of this repo)
-         channel plugins that each run their own loopback-only streaming
-         server and hand the renderer a plain http://127.0.0.1:<port>/...
-         URL to play — same reasoning as 8724 above, just plugin-owned
-         instead of core's. Declared here (rather than generated from each
-         plugin's own manifest.json capabilities.net entries) for the same
-         "static meta tag" reason as 8724. If you add a plugin like this,
-         add its port here too, or its stream will silently fail exactly
-         the way this comment describes. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8721 http://127.0.0.1:8724 http://127.0.0.1:8723 http://127.0.0.1:8725; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+       - any plugin (core or third-party) that runs its own loopback-only
+         streaming server and hands the renderer a plain
+         http://127.0.0.1:<port>/... URL to play, per its manifest.json's
+         capabilities.net entry — same reasoning as VIEWER_PORT above, just
+         plugin-owned instead of core's.
+     A fixed port list here used to require hand-editing this static meta
+     tag for every such plugin (and silently breaking playback if you
+     forgot) — 127.0.0.1:* covers any of them, present or future, with no
+     per-plugin registration. It's still scoped to loopback only, and a LAN
+     viewer client's own 127.0.0.1 refers to itself, not this host, so this
+     doesn't widen what a LAN browser can reach either. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:*; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales

@@ -127,6 +127,14 @@ actually checking — don't bypass it with a raw `require()`, since that
 defeats the whole point for whoever's deciding whether to trust your
 plugin. See `plugins/party-channel/main.js` for a real, larger worked example.
 
+If your plugin's local server streams audio/video and you hand the renderer
+a plain `http://127.0.0.1:<port>/...` URL to play (rather than routing it
+through `app://media`), every `net` port you declare above is automatically
+allowed in the renderer's media-src Content Security Policy once your plugin
+is approved and activates — no separate CSP configuration needed. That
+wiring lives in `setAllowedMediaSrcPorts` (`main-protocol.js`), fed from
+`loadMainPlugins()`'s `activatedNetPorts` (`main-plugins.js`).
+
 Unlike `ipc`/`spawn`/`net`, `mediaSource` isn't checked against a runtime
 wrapper — it's declarative: it's what shows in the approval prompt so a user
 consciously accepts "this plugin can supply channel media," and it's what

@@ -48,7 +48,7 @@ let interactiveBootInProgress = !HEADLESS;
 // entirely in that plugin's own main.js, not here. What's left in main.js
 // itself is app lifecycle, window creation, and the ipcMain registrations
 // that tie all of the above to the renderer.
-const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, mimeFor } = require('./main-protocol');
+const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./main-protocol');
 const {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath, backupPathFor, recoverPendingSwap, scanFolderForVideos, transcodeVideo,
 } = require('./main-media');
@@ -236,6 +236,11 @@ app.whenReady().then(async () => {
   setFfmpegPath(pluginServices.ffmpegPath || null);
   activatedMediaSourceProviders = loadResult.activatedMediaSourceProviders;
   setApprovedMediaSourceProviders(loadResult.activatedMediaSourceProviders);
+  // Every port a plugin actually needs approved (capabilities.net) is now
+  // known — turn that into index.html's dynamic media-src CSP allowance
+  // (see setAllowedMediaSrcPorts's doc comment, main-protocol.js) instead of
+  // requiring a hand-maintained port list in that static <meta> tag.
+  setAllowedMediaSrcPorts([REMOTE_PORT, VIEWER_PORT, ...loadResult.activatedNetPorts]);
   const remoteEnabled = Array.isArray(pluginServices.remoteAccessUrls) && pluginServices.remoteAccessUrls.length > 0;
   if (viewerAccessUrls.length || remoteEnabled) {
     startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, remoteEnabled });

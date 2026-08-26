@@ -440,6 +440,13 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   // approved (defense in depth — see main-plugin-capabilities.js's
   // mediaSource doc comment for the full rationale).
   const activatedMediaSourceProviders = {};
+  // Every port a successfully activated plugin declared in its manifest's
+  // capabilities.net (the same list the approval prompt already showed the
+  // user, with the "why" for each) — collected so main.js can build the
+  // renderer's media-src CSP allowance dynamically instead of the static
+  // meta-tag port list this used to require hand-maintaining (see
+  // index.html's CSP comment and main-protocol.js's setAllowedMediaSrcPorts).
+  const activatedNetPorts = [];
   const baseCtx = { ipcMain, app, shell, desktopCapturer, ...extraCtx };
   const appRootDir = path.join(__dirname, '..');
   for (const plugin of plugins) {
@@ -477,10 +484,11 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
     if (activated) {
       recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
       (plugin.capabilities.mediaSource || []).forEach((e) => { activatedMediaSourceProviders[e.providerId] = plugin.id; });
+      (plugin.capabilities.net || []).forEach((e) => { activatedNetPorts.push(e.port); });
     }
   }
   return {
-    loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders,
+    loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders, activatedNetPorts,
   };
 }
 
