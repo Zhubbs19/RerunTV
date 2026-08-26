@@ -311,27 +311,41 @@ code,
 }
 
 /* Whole-screen CRT texture (DISPLAY > CRT EFFECT INTENSITY, applyCrtState
-   power.js) — opt-in; hidden (class hidden) unless the setting is on. Sits
-   above BOTH #setup-screen and #tv-screen (siblings under #display-frame),
-   which is the whole point: a real tube's scanline/vignette/grain
-   character is a property of the glass, so it should show over the guide
-   and setup screen too, not just the video. isolation:isolate keeps its
-   own internal effect layers' implicit z-index stacking (same classes/
-   markup as .crt's copy, tv.css) self-contained instead of interacting
-   with #tv-screen's separate copy or anything else in the tree. */
+   power.js) — opt-in; hidden (class hidden) unless the setting is on. A
+   plain #app child (index.html), not nested inside #display-frame, so its
+   z-index is compared directly against literally everything else in the
+   app instead of being trapped inside #display-frame's own stacking
+   context (created by its `transform`) — which is what a real tube's
+   scanline/vignette/grain character calls for: it's a property of the
+   glass, so it should show over every screen, dialog, and menu drawn on
+   top of it, not just the video. z-index is set far above every other
+   value used anywhere in the app (the next-highest today is 1000, the
+   logobug-live-toolbar) specifically so nothing new can end up above it by
+   accident — if something legitimately needs to sit above the CRT glass
+   (there isn't one today), it needs a deliberately higher number here, not
+   the other way around. isolation:isolate keeps its own internal effect
+   layers' implicit z-index stacking (same classes/markup as .crt's copy,
+   tv.css) self-contained instead of interacting with #tv-screen's separate
+   copy or anything else in the tree. */
 #screen-crt-overlay {
   position: absolute;
   inset: 0;
-  z-index: 50;
+  z-index: 100000;
   pointer-events: none;
   isolation: isolate;
 }
 
 /* Text-heavy surfaces stay readable even when the user chooses an intense
    whole-glass CRT treatment. The TV picture still receives the full chosen
-   effect; setup and guide cap the overlay as a usability safeguard. */
+   effect; setup and any open dialog/menu cap the overlay as a usability
+   safeguard. [role="dialog"] covers the guide (docked and full-page alike
+   — #guide-grid carries the role itself), the theme browser, command
+   palette, details/shortcuts overlays, the post-update changelog, and
+   setup-dialogs.js's confirm/alert/prompt boxes alike, so a newly added
+   dialog is covered automatically as long as it's marked up the same way
+   instead of needing its own selector added here. */
 body:has(#setup-screen:not(.hidden)) #screen-crt-overlay,
-body:has(#guide-grid:not(.hidden)) #screen-crt-overlay {
+body:has([role="dialog"]:not(.hidden)) #screen-crt-overlay {
   opacity: .32;
 }
 

@@ -1402,16 +1402,29 @@
       <a href="#" id="viewer-party-link" class="viewer-party-link hidden" target="_blank" rel="noopener">🎉 JOIN THE PARTY</a>
     </div>
 
+    </div><!-- /#display-frame -->
+
     <!-- Whole-screen CRT texture (DISPLAY > CRT EFFECT INTENSITY >
          "overlay whole screen" toggle, applyCrtState, power.js) — a real
          tube's phosphor/scanline character isn't a property of the video
-         signal, it's a property of the GLASS, so it should show over the
-         guide and setup screen too, not just #tv-screen's own #player. A
-         second copy of the same effect layers/classes (not a move of the
-         originals) since #setup-screen and #tv-screen are separate
-         subtrees with no shared ancestor below #display-frame to layer a
-         single copy over both from. Hidden by default (opt-in setting);
-         pointer-events:none throughout so it never blocks clicks. -->
+         signal, it's a property of the GLASS, so it should show over every
+         screen and every dialog/menu drawn on top of it, not just
+         #tv-screen's own #player. Deliberately a sibling of #display-frame
+         (a direct #app child), not nested inside it: #display-frame has its
+         own `transform` (tokens.css), which creates a stacking context that
+         nothing inside it can paint above — and setup-dialogs.js's
+         confirm/alert/prompt overlays, plus #update-toast/#update-changelog
+         above, are appended outside #display-frame entirely (some straight
+         to document.body), so they were structurally unreachable from
+         inside it regardless of z-index. Living here as a plain #app child
+         (#app has no transform/z-index of its own, so it doesn't wall off
+         its children into a separate stacking context either) lets its
+         very high z-index (tokens.css) win against literally everything
+         else in the app. A second copy of the same effect layers/classes
+         (not a move of the originals) since #tv-screen's own #crt keeps its
+         separate always-on copy for the video-only intensity setting.
+         Hidden by default (opt-in setting); pointer-events:none throughout
+         so it never blocks clicks. -->
     <div id="screen-crt-overlay" class="screen-crt-overlay hidden">
       <div class="crt-scanlines"></div>
       <div class="crt-vignette"></div>
@@ -1420,7 +1433,7 @@
       <div class="crt-grain"></div>
     </div>
 
-    </div><!-- /#display-frame -->
+  </div><!-- /#app -->
 
   <!-- Classic script, must run before the module script below — see
        browser-api-shim.js's header comment for why. No-ops entirely inside
