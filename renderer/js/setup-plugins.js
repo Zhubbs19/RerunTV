@@ -12,6 +12,7 @@ import {
   applyCustomCss,
   getPluginChannelType,
   getPluginSettingsSections,
+  reloadPlugin,
 } from './plugins.js';
 import { S, saveConfigDebounced } from './state.js';
 import { renderPluginSettings } from './setup-plugin-settings.js';
@@ -508,6 +509,37 @@ export async function renderPluginsList() {
     }
 
     row.appendChild(info);
+
+    // Live reload — re-fetches this plugin's style/renderer/settings from
+    // disk and re-registers them without an app restart (see
+    // reloadPlugin(), plugins.js, for exactly what it does and doesn't
+    // clean up). Only offered where it can mean something: a plugin with no
+    // style/renderer/settings entry point has nothing for it to reload, and
+    // one that's disabled/errored/unapproved isn't active in this window to
+    // begin with. A plugin whose only entry point is main.js (SYSTEM) still
+    // needs a real restart to pick up changes — that limitation is called
+    // out in the button's own title tooltip rather than hiding the button,
+    // since most plugins with a main.js also have at least a style/renderer.
+    if (!p.error && !p.needsIntegrityApproval && permissionState(p) !== 'needs-approval'
+      && !disabledIdsAtRender.includes(p.id) && (p.style || p.renderer || p.settings)) {
+      const reloadBtn = document.createElement('button');
+      reloadBtn.type = 'button';
+      reloadBtn.className = 'btn plugin-reload-btn';
+      reloadBtn.textContent = 'RELOAD';
+      reloadBtn.title = 'Reload this plugin’s style/UI/settings live, no restart needed. Changes to its main.js (SYSTEM) code still need a full restart.';
+      reloadBtn.addEventListener('click', async () => {
+        reloadBtn.disabled = true;
+        const prevLabel = reloadBtn.textContent;
+        reloadBtn.textContent = 'RELOADING…';
+        const result = await reloadPlugin(p.id);
+        reloadBtn.disabled = false;
+        reloadBtn.textContent = prevLabel;
+        if (!result.ok) {
+          alertDialog(`Failed to reload ${p.name}:\n\n${result.error}`, { variant: 'error', title: 'RELOAD FAILED' });
+        }
+      });
+      row.appendChild(reloadBtn);
+    }
 
     // Settings are composed from core-provided sections (currently channel
     // display overrides) plus any sections the plugin registered itself.

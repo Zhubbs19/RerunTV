@@ -640,6 +640,79 @@ export async function loadPlugins() {
   window.dispatchEvent(new Event('rcb:plugins-loaded'));
 }
 
+// Re-fetches and re-registers a single plugin's renderer-side assets
+// (style.css, renderer.js, settings.js) without restarting the app —
+// cache-busts every URL with a fresh timestamp so an on-disk edit is
+// actually picked up (app://plugins/... otherwise resolves to the exact
+// same specifier Chromium already has cached, both as an HTTP response and,
+// for the JS files, as an already-evaluated ES module record). Deliberately
+// does NOT touch this plugin's main.js — a same-process main-process plugin
+// has no deactivate() hook yet, so cleanly unregistering its ipcMain
+// handlers/spawned processes isn't possible without a real architecture
+// change (see PLUGIN_DEVELOPMENT.md); a plugin with system-level changes
+// still needs a full app restart, same as before this existed.
+// Most registries here are plain id-keyed Maps, so re-running a plugin's
+// top-level register*() calls naturally replaces its old entry. The one
+// exception is settingsSectionRegistry, which *appends* (registerPluginSettings
+// supports being called more than once per plugin for a different section
+// each time) — cleared explicitly first so a reload doesn't duplicate every
+// section it already registered. registerThemePack keys off the theme id,
+// not the plugin id (a "theme-x" plugin registers theme id "x" — see that
+// function's doc comment above), so it's cleared the same way when the
+// naming convention holds.
+// Known limitation: this only cleans up what a plugin declares through the
+// register*() contract. A plugin whose top-level code has side effects
+// beyond that — a running setInterval, an <audio> element it created and
+// kept its only reference to locally, a registerCoreHook subscription (no
+// registry here tracks which plugin owns which hook handler) — can still
+// leak a stale instance across a reload. Fine for the common styling/UI/
+// settings-panel iteration loop this exists for; not a guaranteed-clean
+// unload for every possible plugin.
+export async function reloadPlugin(id) {
+  let manifests;
+  try {
+    manifests = await window.api.pluginsList();
+  } catch (e) {
+    return { ok: false, error: `couldn't refresh plugin list: ${e.message}` };
+  }
+  const p = manifests.find((m) => m.id === id);
+  if (!p) return { ok: false, error: 'plugin no longer found' };
+  if (p.error) return { ok: false, error: p.error };
+  if (p.needsIntegrityApproval) return { ok: false, error: 'plugin needs integrity approval before it can be reloaded' };
+  const disabledIds = (S.config.plugins && S.config.plugins.disabled) || [];
+  if (disabledIds.includes(id)) return { ok: false, error: 'plugin is disabled' };
+
+  const base = window.__isViewer ? '/plugins' : 'app://plugins';
+  const bust = Date.now();
+
+  if (p.style) {
+    const existing = document.querySelector(`link[data-plugin-id="${CSS.escape(id)}"]`);
+    if (existing) existing.remove();
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `${base}/${encodeURIComponent(p.dir)}/${p.style}?t=${bust}`;
+    link.dataset.pluginId = p.id;
+    document.head.appendChild(link);
+  }
+
+  settingsSectionRegistry.delete(id);
+  if (id.startsWith('theme-')) themePackRegistry.delete(id.slice('theme-'.length));
+
+  const errors = [];
+  for (const [kind, entry] of [['renderer', p.renderer], ['settings', p.settings]]) {
+    if (!entry) continue;
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await import(/* webpackIgnore: true */ `${base}/${encodeURIComponent(p.dir)}/${entry}?t=${bust}`);
+    } catch (e) {
+      errors.push(`(${kind}) ${e.message}`);
+    }
+  }
+
+  window.dispatchEvent(new Event('rcb:plugins-loaded'));
+  return errors.length ? { ok: false, error: errors.join('; ') } : { ok: true };
+}
+
 // A single user stylesheet, loaded dead last (appended to <head> after every
 // built-in <link>/<style>, including plugin styles from loadPlugins() above)
 // so anything in it wins the cascade without needing !important. Served over

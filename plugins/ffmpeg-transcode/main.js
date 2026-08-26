@@ -11,7 +11,12 @@
 // only job is deciding whether to actually publish it, which is what makes
 // disabling this plugin a real, meaningful toggle rather than a fake one.
 function activate(ctx) {
-  const resolvedPath = ctx.ffmpegStaticPath;
+  // A user-configured path (settings.js's FFMPEG PATH field, config.ffmpeg.ffmpegPath)
+  // wins over the bundled/system path core resolved, if it actually exists.
+  const configuredPath = (ctx.loadConfig().ffmpeg || {}).ffmpegPath;
+  const resolvedPath = (configuredPath && ctx.fs.existsSync(configuredPath))
+    ? configuredPath
+    : ctx.ffmpegStaticPath;
   if (!resolvedPath || !ctx.fs.existsSync(resolvedPath)) {
     throw new Error(`bundled ffmpeg binary not found at ${resolvedPath || '(unresolved)'}`);
   }

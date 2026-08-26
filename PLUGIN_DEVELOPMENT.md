@@ -371,7 +371,19 @@ my-plugin/
    hand to someone else to install your plugin.
 
 Either way, enabling/disabling and newly added plugins take effect on the
-next app restart — nothing is loaded live while the setup screen is open.
+next app restart. Once a plugin is already active, though, the PLUGINS tab's
+RELOAD button re-fetches and re-registers its `style.css`/`renderer.js`/
+`settings.js` live, no restart needed — the fast path for iterating on
+styling, UI, and settings-panel code. It does NOT re-run `main.js`: a
+same-process plugin has no deactivate() hook to cleanly unregister its
+`ipcMain` handlers or spawned processes, so a change to `main.js` still needs
+a real restart. It also only cleans up what your code declares through the
+`register*()` calls documented below — a `setInterval`/`setTimeout` your
+renderer.js starts, an `<audio>` element it creates and keeps the only
+reference to locally, or a `registerCoreHook` subscription can leak a stale
+instance across a reload, since nothing tracks which plugin owns those. Keep
+that in mind if your plugin does anything at module scope beyond calling a
+`register*()` function.
 
 ## The main-process side: `main.js`
 
