@@ -1,4 +1,4 @@
-import { applyThemeAudio } from './renderer.js';
+import { applyThemeAudio, applySpeakerCutoff } from './renderer.js';
 
 window.RCBPlugins.registerPluginSettings('vintage-audio', {
   sections: [{
@@ -33,6 +33,7 @@ window.RCBPlugins.registerPluginSettings('vintage-audio', {
     cutoffEl.addEventListener('input', () => {
       cfg.cutoffHz = parseInt(cutoffEl.value, 10);
       ctx.saveConfigDebounced();
+      applySpeakerCutoff();
     });
     ambientEl.addEventListener('change', () => {
       cfg.themeAmbient = ambientEl.checked;

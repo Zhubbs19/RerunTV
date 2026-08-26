@@ -438,6 +438,18 @@
 
 .channel-row .folder-btn {
   white-space: nowrap;
+  /* .btn (above) sets `background` as a shorthand, which implicitly resets
+     background-repeat to its initial `repeat` — beating the plain `select`
+     rule's explicit `no-repeat` (tokens.css) on specificity even though
+     that rule comes later, since `.channel-row .folder-btn` here has to
+     re-assert it at equal-or-higher specificity for the fix to stick. Left
+     unset, the small dropdown-arrow SVG background-image (still won by the
+     theme's own `[data-theme] select` override, which only touches
+     background-image) tiles across the entire control instead of sitting
+     once in the corner — barely visible on a dark button fill, glaring on
+     a light one (frutiger-aero, neo-brutalist) where it reads as an
+     illegible chevron/hatch texture over the label. */
+  background-repeat: no-repeat;
 }
 
 .channel-row .folder-status {

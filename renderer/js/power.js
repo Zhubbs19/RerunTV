@@ -189,6 +189,11 @@ export function toggleHintBar() {
 // uhf-public-access-80s (the one era that should look faintly curved/warped
 // even before the user touches the slider) needs a floor instead.
 function crtBias() {
+  // DISPLAY > PICTURE > "IGNORE THEME BIAS" opts out of every pack's
+  // passive crtBias shift, falling back to the sliders' own raw 0-100
+  // values with no per-theme multiplier — a user override for a theme
+  // pack field that was previously entirely fixed by the pack.
+  if (S.config.display?.ignoreThemeCrtBias) return null;
   const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
   return (pack && pack.crtBias) || null;
 }
@@ -432,7 +437,18 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
   // Content auto-shrinks/repositions to clear the border's safe area only
   // while a border is actually shown — with no pack/border, or in
   // fill/stretch mode, the video uses the full screen exactly as before.
-  const safeAreaPct = borderImage ? (pack.safeAreaPct || DEFAULT_SAFE_AREA_PCT) : ZERO_SAFE_AREA;
+  // DISPLAY > PICTURE MODE & ASPECT > "BEZEL SAFE AREA" scales whichever
+  // safe-area percentages are in play (the pack's own, or the DEFAULT_SAFE_
+  // AREA_PCT fallback) — 100 (default) reproduces exactly what the theme
+  // pack declares, unchanged from before this override existed.
+  const insetScale = (S.config.display.bezelInsetScale != null ? S.config.display.bezelInsetScale : 100) / 100;
+  const basePct = borderImage ? (pack.safeAreaPct || DEFAULT_SAFE_AREA_PCT) : ZERO_SAFE_AREA;
+  const safeAreaPct = insetScale === 1 ? basePct : {
+    top: basePct.top * insetScale,
+    right: basePct.right * insetScale,
+    bottom: basePct.bottom * insetScale,
+    left: basePct.left * insetScale,
+  };
   const availableRect = {
     left: containerW * safeAreaPct.left,
     top: containerH * safeAreaPct.top,

@@ -13,6 +13,7 @@ function landingConfig(ctx) {
     label: typeof cfg.label === 'string' && cfg.label.trim() ? cfg.label.trim().slice(0, 28) : 'RERUNTV PROGRAM GUIDE',
     scrollPace: ['slow', 'classic', 'fast'].includes(cfg.scrollPace) ? cfg.scrollPace : 'classic',
     rotateSpotlight: cfg.rotateSpotlight !== false,
+    spotlightSeconds: (Number.isFinite(cfg.spotlightSeconds) && cfg.spotlightSeconds >= 3) ? cfg.spotlightSeconds : 8,
     audio: cfg.audio || null,
   };
 }
@@ -218,7 +219,7 @@ window.RCBPlugins.registerChannelType('prevue', {
     rebuildLandingScroll(ctx);
     clockTimer = setInterval(() => updateClock(ctx), 1000);
     rebuildTimer = setInterval(() => rebuildLandingScroll(ctx), 30000);
-    spotlightTimer = setInterval(() => advanceSpotlight(ctx), 8000);
+    spotlightTimer = setInterval(() => advanceSpotlight(ctx), cfg.spotlightSeconds * 1000);
 
     if (cfg.audio) {
       window.api.toFileUrl(cfg.audio).then((url) => {

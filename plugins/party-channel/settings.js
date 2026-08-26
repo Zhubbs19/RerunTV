@@ -180,6 +180,10 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
       <div data-el="caption-status" class="panel-status">No image captured yet — tune to a channel first, then capture.</div>
 
       <label class="panel-toggle" style="cursor:default; margin-top:16px;">TRIVIA QUESTION BANK</label>
+      <div class="panel-interval">
+        ANSWER WINDOW (SEC)
+        <input type="number" data-el="trivia-window-input" min="5" max="120" style="width:70px">
+      </div>
       <div data-el="trivia-questions" class="titles-list"></div>
       <div class="panel-body">
         <button type="button" data-el="trivia-add-btn" class="btn">+ ADD QUESTION</button>
@@ -208,6 +212,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     const captionCaptureBtn = q('caption-capture-btn');
     const captionStatusEl = q('caption-status');
     const triviaQuestionsEl = q('trivia-questions');
+    const triviaWindowInputEl = q('trivia-window-input');
     const triviaAddBtn = q('trivia-add-btn');
     const triviaStartBtn = q('trivia-start-btn');
     enabledEl.checked = !!cfg.enabled;
@@ -220,6 +225,7 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
     countdownLabelInputEl.value = cfg.countdown.label || '';
     voteEnabledEl.checked = !!cfg.voteEnabled;
     voteWindowInputEl.value = cfg.voteWindowSec || 90;
+    triviaWindowInputEl.value = cfg.triviaAnswerWindowSec || 20;
     soundboardStatusEl.textContent = cfg.soundboardFolder ? `Folder: ${cfg.soundboardFolder}` : 'No soundboard folder assigned';
 
     const rerenderTrivia = () => renderTriviaQuestions(triviaQuestionsEl, cfg, rerenderTrivia, ctx.saveConfigDebounced);
@@ -300,6 +306,10 @@ window.RCBPlugins.registerPluginSettings('party-channel', {
       }
       ctx.S.partyCaptionImagePath = savedPath;
       captionStatusEl.textContent = `Captured! Guests can now submit captions for it on the party page — captured ${new Date().toLocaleTimeString()}.`;
+    });
+    triviaWindowInputEl.addEventListener('change', () => {
+      cfg.triviaAnswerWindowSec = parsePositiveInt(triviaWindowInputEl.value, 20);
+      ctx.saveConfigDebounced();
     });
     triviaAddBtn.addEventListener('click', () => {
       cfg.triviaQuestions.push({ question: '', options: ['', '', '', ''], correctIndex: 0 });

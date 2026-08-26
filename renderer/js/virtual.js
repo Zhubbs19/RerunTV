@@ -140,7 +140,8 @@ export function showVirtualGuideOverlay(number) {
 
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
-  S.guideHideTimer = autoHideAfter(S.guideHideTimer, 4000, () => guideOverlay.classList.add('hidden'));
+  const cardDuration = S.config.display?.guideCardDuration ?? 4000;
+  S.guideHideTimer = autoHideAfter(S.guideHideTimer, cardDuration, () => guideOverlay.classList.add('hidden'));
 }
 
 export function showVirtualChannel(number) {

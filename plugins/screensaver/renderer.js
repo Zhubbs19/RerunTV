@@ -7,7 +7,22 @@
 // signal-diagnostics readout.
 // This plugin's own config namespace, seeded here (not by core) — see
 // [[retro_cable_box_plugin_system]].
-if (!S.config.screensaver) S.config.screensaver = { enabled: false, intervalMinutes: 5 };
+if (!S.config.screensaver) S.config.screensaver = { enabled: false, intervalMinutes: 5, variant: 'auto' };
+if (!S.config.screensaver.variant) S.config.screensaver.variant = 'auto';
+
+const VALID_VARIANTS = ['bounce', 'testcard', 'standby', 'lineup', 'diagnostics'];
+
+// Called on show() (so a freshly-armed screensaver always reflects the
+// current setting) and by settings.js whenever the VARIANT picker changes,
+// so switching it while the screensaver's already up updates immediately
+// instead of waiting for the next idle cycle.
+export function applyScreensaverVariant() {
+  const variant = S.config.screensaver && S.config.screensaver.variant;
+  VALID_VARIANTS.forEach((v) => screensaverEl.classList.remove(`ss-force-${v}`));
+  if (variant && variant !== 'auto' && VALID_VARIANTS.includes(variant)) {
+    screensaverEl.classList.add(`ss-force-${variant}`);
+  }
+}
 
 const screensaverEl = document.createElement('div');
 screensaverEl.id = 'screensaver';
@@ -67,6 +82,7 @@ function show() {
     scheduleTimer();
     return;
   }
+  applyScreensaverVariant();
   screensaverEl.classList.remove('hidden');
 }
 

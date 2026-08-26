@@ -219,6 +219,9 @@
             <label class="shuffle-toggle" title="On: the scanline/vignette/grain/flicker texture above also covers the guide and this settings screen, like a real tube's phosphor covers everything shown on the glass, not just the video. Off (default): today's behavior, texture only over the video.">
               <input type="checkbox" id="crt-overlay-wholescreen-enabled">OVERLAY WHOLE SCREEN (NOT JUST VIDEO)
             </label>
+            <label class="shuffle-toggle" title="Some theme packs passively bias the sliders above (e.g. a period-accurate theme reads as more curved/grainy at the same slider settings). On: ignore that bias and use the sliders' own raw values on every theme, unbiased. Off (default): today's per-theme behavior, unchanged.">
+              <input type="checkbox" id="ignore-theme-crt-bias-enabled">IGNORE THEME BIAS (RAW SLIDER VALUES ON EVERY THEME)
+            </label>
             <label class="shuffle-toggle" title="Plays the same powering-on CRT animation used by the manual power button when the app first boots to the TV screen, instead of appearing instantly.">
               <input type="checkbox" id="boot-power-anim-enabled" checked>BOOT POWER-ON ANIMATION
             </label>
@@ -251,6 +254,7 @@
             <label class="shuffle-toggle" title="Keeps STANDARD's safe letterbox/pillarbox math, but shows plain black bars instead of the active theme pack's decorative border, and silences its ambient hiss/hum/tone too — for when you're watching a lot of widescreen movies and don't want the theme immersion getting in the way.">
               <input type="checkbox" id="movie-mode-enabled">MOVIE MODE (PLAIN BARS, NO BORDER OR AMBIENT HUM)
             </label>
+            <label class="crt-slider" title="Scales how far the video shrinks to clear the active theme's decorative border art. 100% (default) uses the theme's own inset exactly. 0% fills all the way to the border's edge (risks the video peeking under thin frame art); 200% doubles the inset for a border whose frame art is unusually thin. Only matters while a themed border is actually shown.">BEZEL SAFE AREA <input type="range" id="bezel-inset-scale-slider" min="0" max="200" step="10" value="100"></label>
           </div>
         </div>
 
@@ -327,6 +331,8 @@
                 <option value="4">4 (2 HR)</option>
               </select>
             </div>
+            <label class="crt-slider" title="How long the channel card (name, logo, now-playing bar shown on every channel change) stays on screen before auto-hiding.">CHANNEL CARD DURATION <input type="range" id="guide-card-duration-slider" min="1000" max="8000" step="250" value="4000"></label>
+            <label class="crt-slider" title="How far ahead of a REMIND ME program's start (set from the guide's search results) the reminder toast pops up.">REMINDER LEAD TIME <input type="range" id="reminder-lead-minutes-slider" min="1" max="30" step="1" value="1"></label>
             <div class="panel-interval">
               GUIDE THEME
               <!-- Options are built at runtime from installed "pack" plugins
@@ -601,8 +607,9 @@
             <input type="checkbox" id="upnext-enabled" checked>
             UP NEXT BANNER
           </label>
-          <div class="panel-body">
-            <span class="panel-status">Shows "UP NEXT: [title]" for ~8s starting ~45s before the current show ends.</span>
+          <div class="panel-body crt-sliders">
+            <span class="panel-status">Shows "UP NEXT: [title]" starting ~45s before the current show ends.</span>
+            <label class="crt-slider">ON-SCREEN DURATION <input type="range" id="upnext-duration-slider" min="3000" max="15000" step="500" value="8000"></label>
           </div>
         </div>
 

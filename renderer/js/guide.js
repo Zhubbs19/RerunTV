@@ -54,7 +54,8 @@ export function showGuideOverlay(number, ch) {
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
   playConfiguredSound('card', number);
-  S.guideHideTimer = autoHideAfter(S.guideHideTimer, 4000, () => guideOverlay.classList.add('hidden'));
+  const cardDuration = S.config.display?.guideCardDuration ?? 4000;
+  S.guideHideTimer = autoHideAfter(S.guideHideTimer, cardDuration, () => guideOverlay.classList.add('hidden'));
 }
 
 export function updateGuideNowPlaying(ch) {
@@ -172,7 +173,8 @@ function checkProgramReminders() {
   });
   if (changed) saveConfigDebounced();
   if (activeReminder) return;
-  const due = (S.config.reminders || []).find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - 60000 && now <= reminder.end);
+  const leadMs = (S.config.reminderLeadMinutes || 1) * 60000;
+  const due = (S.config.reminders || []).find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);
   if (!due) return;
   activeReminder = due;
   notifiedReminders.add(due.id);

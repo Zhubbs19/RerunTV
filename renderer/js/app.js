@@ -661,9 +661,18 @@ export function applyConfigDefaults(config) {
   if (config.eas.lat === undefined) config.eas.lat = null;
   if (config.eas.lon === undefined) config.eas.lon = null;
   if (!config.upNext) config.upNext = { enabled: true };
+  // On-screen duration of the "UP NEXT: <title>" banner — 8000ms matches the
+  // original hardcoded value (scheduleUpNextBar, playback.js) exactly.
+  const upNextDuration = Number(config.upNext.duration);
+  config.upNext.duration = Number.isFinite(upNextDuration) ? Math.min(15000, Math.max(3000, upNextDuration)) : 8000;
   if (!config.details) config.details = { enabled: true };
   if (!config.timeMachine) config.timeMachine = { enabled: false };
   if (!Array.isArray(config.reminders)) config.reminders = [];
+  // How many minutes before a REMIND ME program's start the toast fires
+  // (checkProgramReminders, guide.js) — 1 matches the original hardcoded
+  // 60000ms lead exactly, so an existing config keeps today's timing.
+  const reminderLeadMinutes = Number(config.reminderLeadMinutes);
+  config.reminderLeadMinutes = Number.isFinite(reminderLeadMinutes) ? Math.min(30, Math.max(1, reminderLeadMinutes)) : 1;
   if (!config.librarySync) config.librarySync = { enabled: false, runAtStartup: true, intervalMinutes: 30, removeMissing: false };
   if (config.librarySync.runAtStartup == null) config.librarySync.runAtStartup = true;
   if (!config.librarySync.intervalMinutes) config.librarySync.intervalMinutes = 30;
@@ -733,6 +742,24 @@ export function applyConfigDefaults(config) {
   if (!Array.isArray(config.display.hintBarHidden)) config.display.hintBarHidden = [];
   if (config.display.customCssPath === undefined) config.display.customCssPath = null;
   if (config.display.bootPowerOnAnim === undefined) config.display.bootPowerOnAnim = true;
+  // How long the small "channel card" (name/logo/now-playing bar, F to
+  // reopen the full guide) stays up after a channel change before
+  // auto-hiding — see showGuideOverlay (guide.js) / virtual.js's own copy.
+  // 4000ms matches the original hardcoded value exactly, so a config that
+  // never touches this slider keeps today's timing.
+  const guideCardDuration = Number(config.display.guideCardDuration);
+  config.display.guideCardDuration = Number.isFinite(guideCardDuration) ? Math.min(8000, Math.max(1000, guideCardDuration)) : 4000;
+  // Scales the theme border's safe-area inset (how much the video shrinks
+  // to clear the decorative bezel art) — 100 (default) reproduces each
+  // theme's own safeAreaPct (or the DEFAULT_SAFE_AREA_PCT fallback,
+  // power.js) exactly unchanged; 0 fills to the border's edge, 200 doubles
+  // the inset for a border with unusually thin frame art.
+  const bezelInsetScale = Number(config.display.bezelInsetScale);
+  config.display.bezelInsetScale = Number.isFinite(bezelInsetScale) ? Math.min(200, Math.max(0, bezelInsetScale)) : 100;
+  // Opts out of a theme pack's own crtBias (registerThemePack, plugins.js)
+  // passively shifting the CRT sliders' effective intensity — off (default)
+  // preserves every existing theme's current passive look exactly.
+  if (config.display.ignoreThemeCrtBias == null) config.display.ignoreThemeCrtBias = false;
   if (!config.plugins) config.plugins = { disabled: [] };
   if (!Array.isArray(config.plugins.disabled)) config.plugins.disabled = [];
   // {pluginId: capabilitiesSignature} — a plugin the user has approved the

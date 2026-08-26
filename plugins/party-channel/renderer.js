@@ -38,6 +38,9 @@ if (!S.config.party.countdown) S.config.party.countdown = { enabled: false, targ
 if (S.config.party.checkinEnabled == null) S.config.party.checkinEnabled = false;
 // Live trivia question bank — each {question, options: [4 strings], correctIndex}.
 if (!S.config.party.triviaQuestions) S.config.party.triviaQuestions = [];
+// How long a round stays open for guest answers before revealTrivia() locks
+// it and shows the correct one, in seconds.
+if (S.config.party.triviaAnswerWindowSec == null) S.config.party.triviaAnswerWindowSec = 20;
 // This plugin's own runtime state on the shared S object — used to be
 // declared in core state.js even though core never reads any of it. Ephemeral,
 // never persisted — guest-submitted content only lasts the session, same as
@@ -460,11 +463,11 @@ function renderCurrentPartyItem() {
     };
     renderTriviaCard();
     pushTriviaState();
-    S.partyItemTimer = setTimeout(revealTrivia, TRIVIA_ANSWER_WINDOW_MS);
+    const answerWindowMs = Math.max(5, S.config.party.triviaAnswerWindowSec || 20) * 1000;
+    S.partyItemTimer = setTimeout(revealTrivia, answerWindowMs);
   }
 }
 
-const TRIVIA_ANSWER_WINDOW_MS = 20000;
 const TRIVIA_REVEAL_DWELL_MS = 6000;
 const OPTION_LETTERS = ['A', 'B', 'C', 'D'];
 

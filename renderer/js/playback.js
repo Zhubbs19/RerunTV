@@ -1224,7 +1224,8 @@ export function scheduleUpNextBar(ch, pos) {
     upNextTitleEl.textContent = getDisplayTitle(nextFile);
     upNextBarEl.classList.add('show');
     playConfiguredSound('card', ch.number);
-    S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, 8000, () => upNextBarEl.classList.remove('show'));
+    const duration = (S.config.upNext && S.config.upNext.duration) || 8000;
+    S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, duration, () => upNextBarEl.classList.remove('show'));
   }, remainingMs - 45000);
 }
 

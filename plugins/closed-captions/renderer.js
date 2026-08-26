@@ -96,9 +96,14 @@ const DEFAULT_CAPTION_STYLE = {
   textShadow: 'none',
 };
 
-function applyCaptionStyle() {
+// User-chosen size multiplier on top of whatever the active theme's own
+// captionStyle.fontSize specifies — theme picks the *look*, this scales the
+// *legibility* independent of it, applied via calc() so it works regardless
+// of what unit the theme's fontSize happens to use.
+export function applyCaptionStyle() {
   const pack = window.RCBPlugins.getThemePack ? window.RCBPlugins.getThemePack(S.config.theme) : null;
   const style = (pack && pack.captionStyle) || DEFAULT_CAPTION_STYLE;
+  const sizeScale = cfg().sizeScale || 1;
   let styleEl = document.getElementById('cc-style');
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -110,7 +115,7 @@ function applyCaptionStyle() {
       background: ${style.background || DEFAULT_CAPTION_STYLE.background};
       color: ${style.color || DEFAULT_CAPTION_STYLE.color};
       font-family: ${style.fontFamily || DEFAULT_CAPTION_STYLE.fontFamily};
-      font-size: ${style.fontSize || DEFAULT_CAPTION_STYLE.fontSize};
+      font-size: calc(${style.fontSize || DEFAULT_CAPTION_STYLE.fontSize} * ${sizeScale});
       text-transform: ${style.textTransform || DEFAULT_CAPTION_STYLE.textTransform};
       padding: ${style.padding || DEFAULT_CAPTION_STYLE.padding};
       text-shadow: ${style.textShadow || DEFAULT_CAPTION_STYLE.textShadow};

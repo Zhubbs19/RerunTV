@@ -29,10 +29,11 @@ import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
   clock24El, detailsEnabledEl,
-  guideSlotsSelect, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
+  guideSlotsSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
-  aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
-  logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect,
+  aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, ignoreThemeCrtBiasEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
+  logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
+  upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
@@ -61,7 +62,9 @@ const sliderReadouts = [
   crtScanlinesSlider, crtVignetteSlider, crtGrainSlider, crtFlickerSlider, crtCurvatureSlider, crtBurninSlider, staticIntensitySlider,
   adVolumeSlider, contentVolumeSlider,
 ].map((s) => attachSliderReadout(s, { suffix: '%' }))
-  .concat([attachSliderReadout(guideAnimSpeedSlider, { suffix: 'ms' })]);
+  .concat([bezelInsetScaleSlider].map((s) => attachSliderReadout(s, { suffix: '%' })))
+  .concat([guideAnimSpeedSlider, guideCardDurationSlider, upNextDurationSlider].map((s) => attachSliderReadout(s, { suffix: 'ms' })))
+  .concat([reminderLeadMinutesSlider].map((s) => attachSliderReadout(s, { suffix: ' MIN' })));
 
 function setDependentControlState(control, enabled) {
   if (!control) return;
@@ -278,9 +281,17 @@ export function renderSettingsPanels() {
   displayModeResolutionSelect.value = S.config.displayMode.resolution || 'native';
   displayModeAutoPrioritySelect.value = S.config.displayMode.autoPriority || 'metadata';
   crtOverlayWholeScreenEnabledEl.checked = S.config.crtIntensity.overlayScope === 'wholeScreen';
+  ignoreThemeCrtBiasEnabledEl.checked = !!S.config.display.ignoreThemeCrtBias;
+  if (bezelInsetScaleSlider) bezelInsetScaleSlider.value = S.config.display.bezelInsetScale != null ? S.config.display.bezelInsetScale : 100;
   bootPowerAnimEnabledEl.checked = S.config.display.bootPowerOnAnim !== false;
   guideOpenCloseAnimEnabledEl.checked = !!S.config.display.guideOpenCloseAnim;
   guideAnimSpeedSlider.value = S.config.display.guideOpenCloseAnimMs || 180;
+  if (guideCardDurationSlider) {
+    guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
+  }
+  if (reminderLeadMinutesSlider) {
+    reminderLeadMinutesSlider.value = S.config.reminderLeadMinutes != null ? S.config.reminderLeadMinutes : 1;
+  }
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
   noSignalMessageInput.value = S.config.display.noSignalMessage || '';
   renderThemeSelectOptions();
@@ -288,6 +299,9 @@ export function renderSettingsPanels() {
   renderThemeBrowser();
   renderGuideGenreSettings();
   upNextEnabledEl.checked = S.config.upNext.enabled !== false;
+  if (upNextDurationSlider) {
+    upNextDurationSlider.value = S.config.upNext.duration != null ? S.config.upNext.duration : 8000;
+  }
   detailsEnabledEl.checked = S.config.details.enabled !== false;
   timeMachineEnabledEl.checked = !!S.config.timeMachine.enabled;
   stationIdEnabledEl.checked = S.config.stationId.enabled !== false;
@@ -1619,6 +1633,16 @@ crtOverlayWholeScreenEnabledEl.addEventListener('change', () => {
   applyCrtState();
   saveConfigDebounced();
 });
+ignoreThemeCrtBiasEnabledEl.addEventListener('change', () => {
+  S.config.display.ignoreThemeCrtBias = ignoreThemeCrtBiasEnabledEl.checked;
+  applyCrtState();
+  saveConfigDebounced();
+});
+bezelInsetScaleSlider?.addEventListener('input', () => {
+  S.config.display.bezelInsetScale = parseInt(bezelInsetScaleSlider.value, 10);
+  if (player.videoWidth && player.videoHeight) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
+  saveConfigDebounced();
+});
 bootPowerAnimEnabledEl.addEventListener('change', () => {
   S.config.display.bootPowerOnAnim = bootPowerAnimEnabledEl.checked;
   saveConfigDebounced();
@@ -1630,6 +1654,14 @@ guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
 });
 guideAnimSpeedSlider.addEventListener('input', () => {
   S.config.display.guideOpenCloseAnimMs = parseInt(guideAnimSpeedSlider.value, 10);
+  saveConfigDebounced();
+});
+guideCardDurationSlider?.addEventListener('input', () => {
+  S.config.display.guideCardDuration = parseInt(guideCardDurationSlider.value, 10) || 4000;
+  saveConfigDebounced();
+});
+reminderLeadMinutesSlider?.addEventListener('input', () => {
+  S.config.reminderLeadMinutes = parseInt(reminderLeadMinutesSlider.value, 10) || 1;
   saveConfigDebounced();
 });
 hintBarSlideEnabledEl.addEventListener('change', () => {
@@ -1733,6 +1765,10 @@ timeMachineEnabledEl.addEventListener('change', () => {
 });
 upNextEnabledEl.addEventListener('change', () => {
   S.config.upNext.enabled = upNextEnabledEl.checked;
+  saveConfigDebounced();
+});
+upNextDurationSlider?.addEventListener('input', () => {
+  S.config.upNext.duration = parseInt(upNextDurationSlider.value, 10) || 8000;
   saveConfigDebounced();
 });
 detailsEnabledEl.addEventListener('change', () => {

@@ -19,12 +19,33 @@
 // (`type: 'tone'`, for the satellite era's carrier hum — noise would read
 // as static, wrong for a clean digital theme). `crackle` is optional.
 //
-// Note: S.config.vintageAudio's `cutoffHz` field is exposed in the
-// settings panel below but not actually read by applyThemeAudio() — this is
-// a pre-existing gap inherited from the old core implementation, not
-// introduced by this migration. Only `clicks` (read by core audio.js's
-// playChannelClickSound, which stays core-owned as a general SFX helper) is
-// live.
+// S.config.vintageAudio's `cutoffHz` field drives a shared lowpass stage
+// (`getSpeakerFilter()` below) that every generator in this file routes
+// through instead of connecting to window.S.sfxGain directly — simulating a
+// vintage speaker's limited high end on top of the hiss/hum/tone texture and
+// this plugin's own noise bursts. It deliberately only touches this
+// plugin's own generated nodes, not the shared sfxGain bus itself (still
+// never touching `player`/other plugins' SFX — see the top-of-file note on
+// blast radius).
+let speakerFilter = null;
+
+export function applySpeakerCutoff() {
+  getSpeakerFilter();
+}
+
+function getSpeakerFilter() {
+  const ctx = window.getAudioCtx();
+  if (!speakerFilter) {
+    speakerFilter = ctx.createBiquadFilter();
+    speakerFilter.type = 'lowpass';
+    speakerFilter.connect(window.S.sfxGain);
+  }
+  const cfg = window.S.config.vintageAudio;
+  const cutoffHz = (cfg && cfg.cutoffHz) || 3500;
+  speakerFilter.frequency.setTargetAtTime(cutoffHz, ctx.currentTime, 0.01);
+  return speakerFilter;
+}
+
 function playNoiseBurst(opts) {
   const ctx = window.getAudioCtx();
   const bufferSize = ctx.sampleRate * (opts.duration / 1000);
@@ -38,7 +59,7 @@ function playNoiseBurst(opts) {
   filter.frequency.value = opts.filterFreq;
   const gain = ctx.createGain();
   gain.gain.value = opts.gain;
-  src.connect(filter).connect(gain).connect(window.S.sfxGain);
+  src.connect(filter).connect(gain).connect(getSpeakerFilter());
   src.start();
 }
 
@@ -63,7 +84,7 @@ function ensureThemeHiss(profile) {
   filter.frequency.value = profile.filterFreq;
   themeHissGain = ctx.createGain();
   themeHissGain.gain.value = 0;
-  src.connect(filter).connect(themeHissGain).connect(window.S.sfxGain);
+  src.connect(filter).connect(themeHissGain).connect(getSpeakerFilter());
   src.start();
 }
 
@@ -75,7 +96,7 @@ function ensureThemeTone(profile) {
   themeToneOsc.frequency.value = profile.freq;
   themeToneGain = ctx.createGain();
   themeToneGain.gain.value = 0;
-  themeToneOsc.connect(themeToneGain).connect(window.S.sfxGain);
+  themeToneOsc.connect(themeToneGain).connect(getSpeakerFilter());
   themeToneOsc.start();
 }
 

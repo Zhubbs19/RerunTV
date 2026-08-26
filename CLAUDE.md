@@ -126,7 +126,16 @@ config/window/filter/selection are all unchanged, just moving the live line and
   path instead (`Get-CimInstance Win32_Process`), and wait for them to actually exit before
   touching `userData` again. Don't assume this capability exists in a fresh/different
   environment — verify `node_modules` and a working CDP handshake before relying on it, and
-  never run the test suite's `.mjs` directly without its `.ps1` safety wrapper.
+  never run the test suite's `.mjs` directly without its `.ps1` safety wrapper. For "screenshot
+  every theme visually with real data" specifically (not the synthetic-fixture suite above), use
+  `test\theme-visual-sweep.ps1` (`-Theme <id>` for just one) — see `test/README.md`'s "Full-theme
+  visual sweep" section for what it does and two more gotchas specific to using a **real**
+  (non-fresh) `userData` copy: the startup update-check gate delays the real window by up to 12s
+  when `config.updates.strategy === "startup-auto"` (poll for the page, don't grab it once), and
+  setting `S.currentNumber` directly does not tune a channel — use `tuneToChannel()` from
+  `playback.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
+  spawning multiple overlapping agents at it — that happened once, produced three redundant
+  partial runs, and was slower overall than just running the script directly.
   `package.json`'s `"test"` script (`node --experimental-vm-modules --test test/*.test.js`)
   still references a `node:test`-based suite that existed during an earlier audit pass and was
   deliberately deleted (see prior note below) — that's unrelated to the `test/` folder above and

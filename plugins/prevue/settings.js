@@ -11,6 +11,7 @@ window.RCBPlugins.registerPluginSettings('prevue', {
       const cfg = ctx.S.config.landing;
       if (!['slow', 'classic', 'fast'].includes(cfg.scrollPace)) cfg.scrollPace = 'classic';
       if (cfg.rotateSpotlight == null) cfg.rotateSpotlight = true;
+      if (!Number.isFinite(cfg.spotlightSeconds) || cfg.spotlightSeconds < 3) cfg.spotlightSeconds = 8;
       container.innerHTML = `
         <label class="plugin-settings-field">
           <span>GUIDE STATION LABEL</span>
@@ -29,7 +30,12 @@ window.RCBPlugins.registerPluginSettings('prevue', {
         <label class="plugin-settings-field plugin-settings-checkbox">
           <input type="checkbox" data-el="rotate">
           <span>ROTATE THE NOW-PLAYING SPOTLIGHT</span>
-          <small>Cycles the upper program card through configured channels every eight seconds.</small>
+          <small>Cycles the upper program card through configured channels.</small>
+        </label>
+        <label class="plugin-settings-field">
+          <span>SPOTLIGHT DURATION</span>
+          <input type="number" data-el="spotlight-seconds" min="3" max="60">
+          <small>Seconds each channel's spotlight card stays up before rotating to the next.</small>
         </label>
         <div class="plugin-settings-field">
           <span>BACKGROUND AUDIO</span>
@@ -44,10 +50,12 @@ window.RCBPlugins.registerPluginSettings('prevue', {
       const label = q('label');
       const pace = q('pace');
       const rotate = q('rotate');
+      const spotlightSeconds = q('spotlight-seconds');
       const audioStatus = q('audio-status');
       label.value = typeof cfg.label === 'string' ? cfg.label : '';
       pace.value = cfg.scrollPace;
       rotate.checked = cfg.rotateSpotlight !== false;
+      spotlightSeconds.value = cfg.spotlightSeconds;
 
       const renderAudioStatus = () => {
         audioStatus.textContent = cfg.audio
@@ -66,6 +74,11 @@ window.RCBPlugins.registerPluginSettings('prevue', {
       });
       rotate.addEventListener('change', () => {
         cfg.rotateSpotlight = rotate.checked;
+        ctx.saveConfigDebounced();
+      });
+      spotlightSeconds.addEventListener('change', () => {
+        const n = parseInt(spotlightSeconds.value, 10);
+        cfg.spotlightSeconds = (Number.isFinite(n) && n >= 3) ? n : 8;
         ctx.saveConfigDebounced();
       });
       q('audio-btn').addEventListener('click', async () => {

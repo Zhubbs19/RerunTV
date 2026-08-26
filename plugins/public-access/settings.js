@@ -14,12 +14,16 @@ window.RCBPlugins.registerPluginSettings('public-access', {
         <button type="button" data-el="audio-clear-btn" class="btn remove-btn">CLEAR</button>
       </div>
       <span data-el="audio-status" class="panel-status">No audio assigned</span>
+      <div class="panel-interval">
+        SLIDE ROTATION <input type="number" min="3" max="120" data-el="slide-interval" style="width:70px"> SEC
+      </div>
       <div data-el="slides" class="titles-list"></div>
       <button type="button" data-el="add-slide-btn" class="btn">+ ADD BULLETIN SLIDE</button>
     `;
     const q = (sel) => container.querySelector(`[data-el="${sel}"]`);
     const enabledEl = q('enabled');
     const audioStatusEl = q('audio-status');
+    const slideIntervalEl = q('slide-interval');
     const slidesEl = q('slides');
 
     const renderAudioStatus = () => {
@@ -59,11 +63,17 @@ window.RCBPlugins.registerPluginSettings('public-access', {
     };
 
     enabledEl.checked = !!cfg.enabled;
+    slideIntervalEl.value = cfg.slideIntervalSec || 15;
     renderAudioStatus();
     renderSlides();
 
     enabledEl.addEventListener('change', () => {
       cfg.enabled = enabledEl.checked;
+      ctx.saveConfigDebounced();
+    });
+    slideIntervalEl.addEventListener('change', () => {
+      const n = parseInt(slideIntervalEl.value, 10);
+      cfg.slideIntervalSec = (Number.isFinite(n) && n >= 3) ? n : 15;
       ctx.saveConfigDebounced();
     });
     q('audio-btn').addEventListener('click', async () => {

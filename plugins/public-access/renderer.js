@@ -57,10 +57,11 @@ window.RCBPlugins.registerChannelType('public-access', {
     updateClock(ctx);
     clockTimer = setInterval(() => updateClock(ctx), 1000);
     showSlide(ctx);
+    const rotateSec = (ctx.S.config.publicAccess && ctx.S.config.publicAccess.slideIntervalSec) || 15;
     slideTimer = setInterval(() => {
       slideIdx++;
       showSlide(ctx);
-    }, 15000);
+    }, Math.max(3, rotateSec) * 1000);
 
     // Background audio loop — same "resolve the file URL, bail if tuned
     // away before it resolves" pattern core's old playVirtualAudio used.

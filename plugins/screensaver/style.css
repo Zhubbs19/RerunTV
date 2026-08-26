@@ -195,3 +195,27 @@ html[data-theme="network-primetime-90s"] #screensaver .screensaver-lineup { disp
 
 html[data-theme="digital-satellite-2000s"] #screensaver .screensaver-bounce { display: none; }
 html[data-theme="digital-satellite-2000s"] #screensaver .screensaver-diagnostics { display: flex; }
+
+/* User-forced variant (screensaver settings panel's VARIANT picker)
+   overrides whatever the active theme would otherwise pick above — !important
+   rather than higher specificity so it wins regardless of which theme rule
+   would otherwise apply. "auto" (the default) adds none of these classes,
+   leaving the theme-driven rules above in full control. */
+#screensaver.ss-force-bounce .screensaver-variant { display: none !important; }
+#screensaver.ss-force-bounce .screensaver-bounce { display: block !important; }
+
+#screensaver.ss-force-testcard .screensaver-bounce { display: none !important; }
+#screensaver.ss-force-testcard .screensaver-variant { display: none !important; }
+#screensaver.ss-force-testcard .screensaver-testcard { display: flex !important; }
+
+#screensaver.ss-force-standby .screensaver-bounce { display: none !important; }
+#screensaver.ss-force-standby .screensaver-variant { display: none !important; }
+#screensaver.ss-force-standby .screensaver-standby { display: flex !important; }
+
+#screensaver.ss-force-lineup .screensaver-bounce { display: none !important; }
+#screensaver.ss-force-lineup .screensaver-variant { display: none !important; }
+#screensaver.ss-force-lineup .screensaver-lineup { display: flex !important; }
+
+#screensaver.ss-force-diagnostics .screensaver-bounce { display: none !important; }
+#screensaver.ss-force-diagnostics .screensaver-variant { display: none !important; }
+#screensaver.ss-force-diagnostics .screensaver-diagnostics { display: flex !important; }

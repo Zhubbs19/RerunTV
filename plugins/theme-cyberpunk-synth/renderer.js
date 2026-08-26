@@ -2,6 +2,8 @@
 // cyberpunk-synth was always one of the "pre-existing color-only" themes,
 // unchanged by this migration. See plugins.js's registerThemePack doc
 // comment for the full field contract.
+const { playTone } = window.RCBPlugins.ctx;
+
 window.RCBPlugins.registerThemePack('cyberpunk-synth', {
   group: 'STYLIZED',
   label: '80s NEON CYBERPUNK (SYNTHWAVE PINK/CYAN)',
