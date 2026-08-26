@@ -11,6 +11,9 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
   preview: { background: '#050f0a', accent: '#b5893a', secondary: '#e8dcae' },
   group: 'ERA (BY DECADE)',
 
+  // 1978 — no such thing as picture-in-picture yet.
+  guidePreviewDefault: false,
+
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
 
   // Rolling-band static — an older, less coherent tube's tuning noise.

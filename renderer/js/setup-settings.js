@@ -11,7 +11,9 @@ import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue } from './util.js';
 import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
-import { runCoreHooks, themePackEntries } from './plugins.js';
+import { runCoreHooks, themePackEntries, getThemePack } from './plugins.js';
+import { effectiveThemeId } from './broadcast-identity.js';
+import { applyGuideDockMode } from './guide.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { initBackups, renderBackupsList as renderBackupsListFeature } from './setup-backups.js';
 import {
@@ -32,6 +34,7 @@ import {
   guideSlotsSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, ignoreThemeCrtBiasEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
+  guideLivePreviewEnabledEl,
   logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
@@ -65,6 +68,19 @@ const sliderReadouts = [
   .concat([bezelInsetScaleSlider].map((s) => attachSliderReadout(s, { suffix: '%' })))
   .concat([guideAnimSpeedSlider, guideCardDurationSlider, upNextDurationSlider].map((s) => attachSliderReadout(s, { suffix: 'ms' })))
   .concat([reminderLeadMinutesSlider].map((s) => attachSliderReadout(s, { suffix: ' MIN' })));
+
+// Mirrors guide.js's own guideLivePreviewEnabled() (not exported/shared —
+// this one only needs the box-wide default, not the per-channel theme
+// override guide.js also has to account for) so the checkbox reflects the
+// theme-provided default until the user explicitly sets a value of their
+// own, at which point that explicit choice always wins. See
+// registerThemePack's guidePreviewDefault field (plugins.js).
+function effectiveGuideLivePreview() {
+  const display = S.config.display || {};
+  if (Object.prototype.hasOwnProperty.call(display, 'guideLivePreview')) return !!display.guideLivePreview;
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
+  return !(pack && pack.guidePreviewDefault === false);
+}
 
 function setDependentControlState(control, enabled) {
   if (!control) return;
@@ -286,6 +302,7 @@ export function renderSettingsPanels() {
   bootPowerAnimEnabledEl.checked = S.config.display.bootPowerOnAnim !== false;
   guideOpenCloseAnimEnabledEl.checked = !!S.config.display.guideOpenCloseAnim;
   guideAnimSpeedSlider.value = S.config.display.guideOpenCloseAnimMs || 180;
+  guideLivePreviewEnabledEl.checked = effectiveGuideLivePreview();
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }
@@ -1650,6 +1667,11 @@ bootPowerAnimEnabledEl.addEventListener('change', () => {
 guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
   S.config.display.guideOpenCloseAnim = guideOpenCloseAnimEnabledEl.checked;
   refreshDependentControls();
+  saveConfigDebounced();
+});
+guideLivePreviewEnabledEl.addEventListener('change', () => {
+  S.config.display.guideLivePreview = guideLivePreviewEnabledEl.checked;
+  applyGuideDockMode();
   saveConfigDebounced();
 });
 guideAnimSpeedSlider.addEventListener('input', () => {

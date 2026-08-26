@@ -14,19 +14,31 @@
      inline event-handler attributes anywhere in this app, so that stays
      tight. object-src/base-uri/form-action are locked to 'none' since
      nothing here uses <object>/<embed>, a <base> tag, or an HTML <form>. -->
-<!-- media-src also allows http://127.0.0.1:8724 (main-lan.js's VIEWER_PORT,
-     hardcoded here since this is a static meta tag, not something the main
-     process can inject) — a media-source plugin's still-live (not yet
-     locally cached) file is routed through the LAN viewer server's own
-     /media route (a genuine http.Server) instead of app://media
-     (main.js's path:toFileUrl), since Electron's custom-protocol
-     protocol.handle Response never prompted Chromium's <video> element to
-     make more than one Range request for a plugin-backed resource — found
-     live. Without this origin explicitly allowed, the CSP silently blocks
-     that <video src> outright before any request is even attempted, which
-     read as "instant failure, straight to the caching fallback" with no
-     visible live attempt at all. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8724; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<!-- media-src also allows a handful of hardcoded 127.0.0.1 ports (hardcoded
+     here since this is a static meta tag, not something the main process
+     can inject) that a local http.Server streams live audio/video through
+     instead of app://<protocol>: without its own origin explicitly allowed,
+     the CSP silently blocks that <video>/<audio> src outright before any
+     request is even attempted, which reads as "instant failure" with no
+     visible live attempt at all, not a CSP violation, unless you check the
+     console.
+       - 8724 — main-lan.js's VIEWER_PORT (core). A media-source plugin's
+         still-live (not yet locally cached) file is routed through the LAN
+         viewer server's own /media route (a genuine http.Server) instead of
+         app://media (main.js's path:toFileUrl), since Electron's
+         custom-protocol protocol.handle Response never prompted Chromium's
+         <video> element to make more than one Range request for a
+         plugin-backed resource — found live.
+       - 8723, 8725 — locally-installed (gitignored, not part of this repo)
+         channel plugins that each run their own loopback-only streaming
+         server and hand the renderer a plain http://127.0.0.1:<port>/...
+         URL to play — same reasoning as 8724 above, just plugin-owned
+         instead of core's. Declared here (rather than generated from each
+         plugin's own manifest.json capabilities.net entries) for the same
+         "static meta tag" reason as 8724. If you add a plugin like this,
+         add its port here too, or its stream will silently fail exactly
+         the way this comment describes. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8724 http://127.0.0.1:8723 http://127.0.0.1:8725; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales
@@ -331,6 +343,9 @@
                 <option value="4">4 (2 HR)</option>
               </select>
             </div>
+            <label class="shuffle-toggle" title="Full-page guide mode shrinks the live picture into a small preview box, top-right. Off: the live picture stays full-size behind the grid instead. Defaults to whatever the active theme prefers (some pre-digital-era themes default this off, since a live picture-in-picture box is anachronistic for them) until you set it explicitly here, which then always wins over the theme.">
+              <input type="checkbox" id="guide-live-preview-enabled" checked>LIVE PICTURE PREVIEW IN FULL-PAGE GUIDE
+            </label>
             <label class="crt-slider" title="How long the channel card (name, logo, now-playing bar shown on every channel change) stays on screen before auto-hiding.">CHANNEL CARD DURATION <input type="range" id="guide-card-duration-slider" min="1000" max="8000" step="250" value="4000"></label>
             <label class="crt-slider" title="How far ahead of a REMIND ME program's start (set from the guide's search results) the reminder toast pops up.">REMINDER LEAD TIME <input type="range" id="reminder-lead-minutes-slider" min="1" max="30" step="1" value="1"></label>
             <div class="panel-interval">

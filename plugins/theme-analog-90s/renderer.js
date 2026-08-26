@@ -11,4 +11,7 @@ window.RCBPlugins.registerThemePack('analog-90s', {
   group: 'ERA (BY DECADE)',
   preview: { background: '#000000', accent: '#ffb000', secondary: '#4be37a' },
   borderImage: new URL('./border.svg', import.meta.url).href,
+  // Early 90s — picture-in-picture was still a rare high-end feature, not
+  // something a barker-channel box like this one would have.
+  guidePreviewDefault: false,
 });

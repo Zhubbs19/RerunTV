@@ -18,6 +18,8 @@ import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
 } from './util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from './virtual.js';
+import { effectiveThemeId } from './broadcast-identity.js';
+import { getThemePack } from './plugins.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -195,6 +197,21 @@ function guideAnimEnabled() {
     && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
+// Full-page guide mode (see guide.css's .guide-full rules) shrinks the live
+// #player into a top-right preview box by default — an anachronistic look
+// for a theme predating picture-in-picture. Once the user explicitly sets
+// DISPLAY > GUIDE LIVE PREVIEW themselves, that choice always wins over
+// whatever the active theme pack prefers (same "explicit user choice beats
+// theme default" pattern as getPluginChannelDisplaySettings's INHERIT
+// semantics, plugins.js) — hasOwnProperty, not a truthiness check, is what
+// lets an explicit `false` be distinguished from "never set".
+function guideLivePreviewEnabled() {
+  const display = S.config.display || {};
+  if (Object.prototype.hasOwnProperty.call(display, 'guideLivePreview')) return !!display.guideLivePreview;
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
+  return !(pack && pack.guidePreviewDefault === false);
+}
+
 export function openGuideGrid() {
   if (sortedChannels().length === 0) return;
   if (guideGrid.classList.contains('hidden')) guidePreviouslyFocused = document.activeElement;
@@ -292,13 +309,14 @@ export function closeGuideGrid() {
 // Docked (default): the grid hugs the bottom of the screen and the live
 // picture keeps playing full-size above it. Full: the grid covers the whole
 // screen and the picture shrinks into a preview box — see guide.css.
-function applyGuideDockMode() {
+export function applyGuideDockMode() {
   const dockedClass = S.guideDocked ? 'docked' : 'full';
   const undockedClass = S.guideDocked ? 'full' : 'docked';
   guideGrid.classList.remove(undockedClass);
   guideGrid.classList.add(dockedClass);
   crtContainer.classList.remove(`guide-${undockedClass}`);
   crtContainer.classList.add(`guide-${dockedClass}`);
+  crtContainer.classList.toggle('guide-preview-hidden', !guideLivePreviewEnabled());
 }
 
 export function toggleGuideDockMode() {
