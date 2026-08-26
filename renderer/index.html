@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8" />
@@ -38,7 +38,7 @@
          "static meta tag" reason as 8724. If you add a plugin like this,
          add its port here too, or its stream will silently fail exactly
          the way this comment describes. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8724 http://127.0.0.1:8723 http://127.0.0.1:8725; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:8721 http://127.0.0.1:8724 http://127.0.0.1:8723 http://127.0.0.1:8725; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales
@@ -102,7 +102,7 @@
          simulates the fixed aspect/resolution a real box's own display would
          have had, independent of the video-only ASPECT RATIO setting. Wraps
          both screens (not migration-toast, real UI chrome) so setup and TV
-         both letterbox/pillarbox and pixelate identically. Sized/scaled by
+         both letterbox/pillarbox and pixelate identically. Sized/scaled by 
          applyDisplayMode(), called on boot and whenever the setting changes. -->
     <div id="display-frame">
 
