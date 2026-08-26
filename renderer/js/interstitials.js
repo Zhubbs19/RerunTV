@@ -467,11 +467,17 @@ export function resolveBreakAt(ch, atMs) {
               const slotStart = bs.fileStartMs + (pts[i] / 100) * fileDurMs;
               if (slotStart <= bs.fileStartMs || slotStart >= bs.fileEndMs) continue;
               // A legacy auto-derived breakpoint (no explicit cadence panel
-              // set) has a same-index adPodSteps entry with its own pod
-              // settings; a cadence-panel breakpoint doesn't, so it falls
-              // back to the cadence panel's own mid* settings first, then
-              // the flow's general pod defaults.
-              const podStep = (cc.adPodSteps && cc.adPodSteps[i]) || {};
+              // set, cc.segmentCount === 0 — see schedule.js's legacyBreakpoints)
+              // has a same-index adPodSteps entry with its own pod settings,
+              // built 1:1 from that same array. An explicit cadence-panel
+              // breakpoint (segmentCount > 0) has no such correspondence —
+              // cc.adPodSteps there is whichever adPod-type steps the flow's
+              // own authored sequence happens to contain (e.g. the between-
+              // episode pod), completely unrelated to the cadence panel's own
+              // % list — so indexing into it by breakpoint position would
+              // silently borrow that unrelated step's tags/pod-size instead
+              // of falling through to the cadence panel's own mid* settings.
+              const podStep = (!cc.segmentCount && cc.adPodSteps && cc.adPodSteps[i]) || {};
               const podMin = podStep.podMin != null ? podStep.podMin : (cc.midPodMin || cc.podMin);
               const podMax = podStep.podMax != null ? podStep.podMax : (cc.midPodMax || cc.podMax);
               const inTags = firstNonEmpty(podStep.bumpInTags, cc.midBumpInTags, cc.bumpInTags);

@@ -427,13 +427,22 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   const flows = (S.config.interstitials && S.config.interstitials.flows) || [];
   const tags = fileTags || [];
   
+  // Channel and content-tag constraints are independent gates, both applied
+  // whenever set (AND, not "tags only matter if there's no channel scope") —
+  // matching flowStepPreviewPaths' own channel+tag filtering (setup-
+  // interstitials-flowbuilder.js) and the flow status banner's "FLOW ACTIVE
+  // FOR CH X // SHOWS: #tag" wording, both of which already treat the two as
+  // independently AND'd. Every flow's editor always shows both a channel
+  // picker and a contentTags field, so a flow scoped to specific channels
+  // that ALSO sets contentTags needs the tags enforced too — otherwise two
+  // different show-specific flows aimed at the same channel would collapse
+  // to "whichever comes first in the array wins for all of that channel's
+  // content," with contentTags silently doing nothing.
   const flow = flows.find((f) => {
     if (f.enabled === false) return false;
-    const hasChannelConstraint = f.channels && f.channels.length > 0;
-    if (hasChannelConstraint && !f.channels.includes(ch.number)) return false;
+    if (f.channels && f.channels.length > 0 && !f.channels.includes(ch.number)) return false;
 
-    const hasTagConstraint = f.contentTags && f.contentTags.length > 0;
-    if (hasTagConstraint && !hasChannelConstraint) {
+    if (f.contentTags && f.contentTags.length > 0) {
       if (!tags.length || !f.contentTags.some((t) => tags.includes(t))) return false;
     }
 
