@@ -442,20 +442,45 @@ export function resolveBreakAt(ch, atMs) {
         }
 
         if (cc.hasMid) {
-          const fileDurMs = bs.fileEndMs - bs.fileStartMs;
-          const pts = (cc.breakpoints || []).filter((p) => p > 0 && p < 100).sort((a, b) => a - b);
-          for (let i = 0; i < pts.length; i++) {
-            const slotStart = bs.fileStartMs + (pts[i] / 100) * fileDurMs;
-            if (slotStart <= bs.fileStartMs || slotStart >= bs.fileEndMs) continue;
-            const podStep = (cc.adPodSteps && cc.adPodSteps[i]) || cc;
-            const podMin = podStep.podMin != null ? podStep.podMin : cc.podMin;
-            const podMax = podStep.podMax != null ? podStep.podMax : cc.podMax;
-            const inTags = firstNonEmpty(podStep.bumpInTags, cc.bumpInTags);
-            const commTags = firstNonEmpty(podStep.commercialTags, cc.commercialTags);
-            const outTags = firstNonEmpty(podStep.bumpOutTags, cc.bumpOutTags);
-            const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, { inTags, commTags, outTags });
-            const seg = segmentAt(pod, atMs);
-            if (seg) return { type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
+          if (cc.midTiming === 'everyNMinutes' && cc.midIntervalMinutes) {
+            // "Every N minutes" mid-show cadence — same slot math as the
+            // top-level 'everyNMinutes' commercial timing mode above, just
+            // scoped to whatever content segment/file is airing right now
+            // instead of being the channel's only ad cadence.
+            const intervalMs = Math.max(1, cc.midIntervalMinutes) * 60000;
+            const slotIndexInFile = Math.floor((atMs - bs.fileStartMs) / intervalMs);
+            const slotStart = bs.fileStartMs + slotIndexInFile * intervalMs;
+            if (slotStart > bs.fileStartMs && slotStart < bs.fileEndMs) {
+              const podMin = cc.midPodMin || cc.podMin;
+              const podMax = cc.midPodMax || cc.podMax;
+              const inTags = firstNonEmpty(cc.midBumpInTags, cc.bumpInTags);
+              const commTags = firstNonEmpty(cc.midCommercialTags, cc.commercialTags);
+              const outTags = firstNonEmpty(cc.midBumpOutTags, cc.bumpOutTags);
+              const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + slotIndexInFile, slotStart, podMin, podMax, fileTags, { inTags, commTags, outTags });
+              const seg = segmentAt(pod, atMs);
+              if (seg) return { type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
+            }
+          } else {
+            const fileDurMs = bs.fileEndMs - bs.fileStartMs;
+            const pts = (cc.breakpoints || []).filter((p) => p > 0 && p < 100).sort((a, b) => a - b);
+            for (let i = 0; i < pts.length; i++) {
+              const slotStart = bs.fileStartMs + (pts[i] / 100) * fileDurMs;
+              if (slotStart <= bs.fileStartMs || slotStart >= bs.fileEndMs) continue;
+              // A legacy auto-derived breakpoint (no explicit cadence panel
+              // set) has a same-index adPodSteps entry with its own pod
+              // settings; a cadence-panel breakpoint doesn't, so it falls
+              // back to the cadence panel's own mid* settings first, then
+              // the flow's general pod defaults.
+              const podStep = (cc.adPodSteps && cc.adPodSteps[i]) || {};
+              const podMin = podStep.podMin != null ? podStep.podMin : (cc.midPodMin || cc.podMin);
+              const podMax = podStep.podMax != null ? podStep.podMax : (cc.midPodMax || cc.podMax);
+              const inTags = firstNonEmpty(podStep.bumpInTags, cc.midBumpInTags, cc.bumpInTags);
+              const commTags = firstNonEmpty(podStep.commercialTags, cc.midCommercialTags, cc.commercialTags);
+              const outTags = firstNonEmpty(podStep.bumpOutTags, cc.midBumpOutTags, cc.bumpOutTags);
+              const pod = buildPod(pool, ch, block, seedKey, bs.ordinal * 1000 + i, slotStart, podMin, podMax, fileTags, { inTags, commTags, outTags });
+              const seg = segmentAt(pod, atMs);
+              if (seg) return { type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd };
+            }
           }
         }
       }
@@ -711,7 +736,12 @@ function nextCandidateBoundary(ch, fromMs) {
         // below and the timer fires at the wrong instant (end of the whole file instead
         // of the intermediate adPod slot), causing in-show pod breaks to be missed or
         // heavily delayed when nextBreakBoundary's scan loop must brute-force past them.
-        if (cc.hasMid) {
+        if (cc.hasMid && cc.midTiming === 'everyNMinutes' && cc.midIntervalMinutes) {
+          const intervalMs = Math.max(1, cc.midIntervalMinutes) * 60000;
+          const slotIndexInFile = Math.floor((fromMs - bs.fileStartMs) / intervalMs);
+          const nextSlotStart = bs.fileStartMs + (slotIndexInFile + 1) * intervalMs;
+          candidates.push(nextSlotStart < bs.fileEndMs ? nextSlotStart : bs.fileEndMs + BOUNDARY_EPSILON_MS);
+        } else if (cc.hasMid) {
           const fileDurMs = bs.fileEndMs - bs.fileStartMs;
           const pts = (cc.breakpoints || []).filter((p) => p > 0 && p < 100).sort((a, b) => a - b);
           const next = pts.map((p) => bs.fileStartMs + (p / 100) * fileDurMs).find((t) => t > fromMs);
@@ -800,6 +830,32 @@ export function nextBreakStart(ch, fromMs) {
   return Infinity;
 }
 
+// The latest break start strictly before `beforeMs`, within the single file
+// bs describes — needed because 'interval'/'everyNMinutes'/'breakpoints'
+// timing (and the flow mid-show cadence panel built on the same mechanism)
+// can land a break anywhere inside a file, not just at its start/end, unlike
+// every other break type prevBreakStart otherwise only has to anchor to file
+// boundaries for. Rather than re-deriving each timing mode's slot math
+// backward (error-prone to keep in sync with the forward math in
+// resolveBreakAt/nextCandidateBoundary above), this just re-walks forward
+// with the already-correct nextBreakStart, one break at a time, and keeps
+// the last one found before beforeMs — cheap since a single file only ever
+// holds a handful of breaks. Bounded by BOUNDARY_SAFETY_CAP as a backstop,
+// though a real file's break count within itself will never come close.
+function latestBreakStartInFile(ch, bs, beforeMs) {
+  let latest = null;
+  let t = bs.fileStartMs;
+  let guard = 0;
+  while (t < beforeMs && t < bs.fileEndMs && guard < BOUNDARY_SAFETY_CAP) {
+    const start = nextBreakStart(ch, t);
+    if (!isFinite(start) || start >= bs.fileEndMs || start >= beforeMs) break;
+    latest = start;
+    t = start + 1;
+    guard++;
+  }
+  return latest;
+}
+
 // Start of the previous break at or before fromMs — the time machine's
 // "jump to previous break" control. No cheap analytical form exists walking
 // backward (candidates are naturally derived forward from a source's
@@ -808,11 +864,13 @@ export function nextBreakStart(ch, fromMs) {
 // (bs.fileStartMs - 1 lands 1ms into the previous file) and checks whether
 // a break is showing anywhere from a bit before that boundary (a 'pre'/
 // signOff-style break, which ends AT the boundary) through a bit after it
-// (a 'post'/flow/interval-style break, which starts AT the boundary) —
-// bs.fileEndMs itself needs the same BOUNDARY_EPSILON_MS nudge nextBreakStart
-// relies on, for the same float-precision reason (see BOUNDARY_EPSILON_MS).
-// Bounded to BOUNDARY_SAFETY_CAP files back so a channel with no breaks
-// configured at all can't spin forever.
+// (a 'post'/flow/interval-style break, which starts AT the boundary), plus
+// anywhere strictly inside the file itself (latestBreakStartInFile, for the
+// timing modes that aren't boundary-anchored at all) — bs.fileEndMs itself
+// needs the same BOUNDARY_EPSILON_MS nudge nextBreakStart relies on, for the
+// same float-precision reason (see BOUNDARY_EPSILON_MS). Bounded to
+// BOUNDARY_SAFETY_CAP files back so a channel with no breaks configured at
+// all can't spin forever.
 export function prevBreakStart(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
   let probeMs = current ? current.windowStart : fromMs;
@@ -825,12 +883,15 @@ export function prevBreakStart(ch, fromMs) {
     if (!source.anchor) return -Infinity;
     const bs = boundarySlot(source, probeMs - 1);
     if (!bs) return -Infinity;
-    // This file's own end (a 'post'/flow-interstep break anchors there) and
-    // its own start (a 'pre'-timing break, or the previous cycle's
-    // cycle-end step, anchors there) are both real candidate boundaries —
-    // checked nearest-to-probeMs first so the *closest* prior break wins.
-    const candidates = [bs.fileEndMs + BOUNDARY_EPSILON_MS, bs.fileStartMs + BOUNDARY_EPSILON_MS]
-      .filter((c) => c < probeMs)
+    // This file's own end (a 'post'/flow-interstep break anchors there), its
+    // own start (a 'pre'-timing break, or the previous cycle's cycle-end
+    // step, anchors there), and any interior mid-file break (interval/
+    // everyNMinutes/breakpoints/flow-mid-cadence) are all real candidate
+    // boundaries — checked nearest-to-probeMs first so the *closest* prior
+    // break wins.
+    const interior = latestBreakStartInFile(ch, bs, probeMs);
+    const candidates = [interior, bs.fileEndMs + BOUNDARY_EPSILON_MS, bs.fileStartMs + BOUNDARY_EPSILON_MS]
+      .filter((c) => c != null && c < probeMs)
       .sort((a, b) => b - a);
     for (const candidate of candidates) {
       // Returns the nudged candidate itself, not hit.windowStart — that raw

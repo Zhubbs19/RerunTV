@@ -13,7 +13,7 @@ import { getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { labeledField } from './setup-interstitials.js';
-import { attachTagAutocomplete, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
+import { attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 
 export function ensureFlowsConfig() {
@@ -182,7 +182,188 @@ export function renderFlowsList() {
   }
 
   updateFlowStatusBanner(activeFlow);
+  renderFlowCadencePanel(activeFlow);
   renderFlowTimelineCanvas(activeFlow);
+}
+
+// MID-SHOW AD CADENCE — the cadence-preset functionality (a fixed "every N
+// minutes" timer, or breaks "at set % points" through whatever's airing)
+// folded directly into the flow itself (flow.cadence), rather than living
+// only in the separate CADENCE & PRESETS tab where a matching flow would
+// always win and the preset would silently never fire (computeActiveCommercials,
+// schedule.js, checks flows before presets). This panel's breaks fire
+// *within* the currently-airing content segment/file, layered underneath the
+// flow's own bumper/pod step sequence (which still governs episode/file
+// boundaries via the timeline canvas above) — so a flow can now do both: an
+// authored intro/outro/mid-roll-pod structure AND a plain wall-clock or
+// percentage-based ad cadence, instead of having to pick one.
+function ensureFlowCadence(flow) {
+  if (!flow.cadence) {
+    flow.cadence = {
+      enabled: false, timing: 'everyNMinutes', intervalMinutes: 10, breakpoints: [],
+      podMin: 1, podMax: 1, bumpInTags: [], commercialTags: [], bumpOutTags: [],
+    };
+  }
+  return flow.cadence;
+}
+
+function renderFlowCadencePanel(flow) {
+  const container = document.getElementById('flow-cadence-container');
+  if (!container) return;
+  container.innerHTML = '';
+  const cadence = ensureFlowCadence(flow);
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'flow-cadence-header-row';
+
+  const enabledLabel = document.createElement('label');
+  enabledLabel.className = 'shuffle-toggle';
+  const enabledCheckbox = document.createElement('input');
+  enabledCheckbox.type = 'checkbox';
+  enabledCheckbox.checked = cadence.enabled === true;
+  enabledCheckbox.addEventListener('change', () => {
+    cadence.enabled = enabledCheckbox.checked;
+    renderFlowCadencePanel(flow);
+    saveConfigDebounced();
+  });
+  enabledLabel.appendChild(enabledCheckbox);
+  enabledLabel.appendChild(document.createTextNode(' ENABLE MID-SHOW AD CADENCE'));
+  headerRow.appendChild(enabledLabel);
+
+  const hint = document.createElement('span');
+  hint.className = 'panel-status';
+  hint.textContent = 'Runs breaks inside whatever content this flow is airing right now — every N minutes, or at set % points through a show/movie — on top of this flow\'s own step sequence above.';
+  headerRow.appendChild(hint);
+
+  container.appendChild(headerRow);
+
+  if (!cadence.enabled) return;
+
+  const grid = document.createElement('div');
+  grid.className = 'field-grid';
+
+  const timingSelect = document.createElement('select');
+  timingSelect.className = 'block-hour-select';
+  [
+    ['everyNMinutes', 'EVERY N MINUTES'],
+    ['breakpoints', 'AT SET POINTS (%)'],
+  ].forEach(([value, label]) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    timingSelect.appendChild(opt);
+  });
+  timingSelect.value = cadence.timing || 'everyNMinutes';
+  timingSelect.addEventListener('change', () => {
+    cadence.timing = timingSelect.value;
+    renderFlowCadencePanel(flow);
+    saveConfigDebounced();
+  });
+  grid.appendChild(labeledField('TIMING', timingSelect));
+
+  if (cadence.timing === 'breakpoints') {
+    const bpInput = document.createElement('input');
+    bpInput.type = 'text';
+    bpInput.className = 'title-row-input';
+    bpInput.placeholder = 'e.g. 20, 45, 70';
+    bpInput.value = (cadence.breakpoints || []).join(', ');
+    bpInput.addEventListener('change', () => {
+      const pts = bpInput.value.split(',')
+        .map((v) => parseFloat(v.trim()))
+        .filter((v) => Number.isFinite(v) && v > 0 && v < 100);
+      cadence.breakpoints = pts;
+      saveConfigDebounced();
+      renderFlowCadencePanel(flow);
+    });
+    grid.appendChild(labeledField('BREAK POINTS (%)', bpInput));
+    const track = buildBreakpointTrack(
+      () => cadence.breakpoints,
+      (pts) => { cadence.breakpoints = pts; saveConfigDebounced(); },
+      bpInput,
+    );
+    grid.appendChild(labeledField('DRAG TO SET', track, { wide: true }));
+  } else {
+    const intervalInput = document.createElement('input');
+    intervalInput.type = 'number';
+    intervalInput.min = 1;
+    intervalInput.className = 'block-priority-input';
+    intervalInput.value = cadence.intervalMinutes || '';
+    intervalInput.placeholder = '10';
+    intervalInput.addEventListener('change', () => {
+      cadence.intervalMinutes = parsePositiveInt(intervalInput.value, 10);
+      saveConfigDebounced();
+    });
+    grid.appendChild(labeledField('EVERY (MIN)', intervalInput));
+  }
+
+  const podRow = document.createElement('div');
+  podRow.className = 'block-card-row';
+  const podMinInput = document.createElement('input');
+  podMinInput.type = 'number';
+  podMinInput.min = 1;
+  podMinInput.className = 'block-priority-input';
+  podMinInput.value = cadence.podMin || 1;
+  podMinInput.addEventListener('change', () => {
+    cadence.podMin = parsePositiveInt(podMinInput.value, 1);
+    if ((cadence.podMax || 1) < cadence.podMin) {
+      cadence.podMax = cadence.podMin;
+      podMaxInput.value = cadence.podMax;
+    }
+    podMaxInput.min = cadence.podMin;
+    saveConfigDebounced();
+  });
+  podRow.appendChild(podMinInput);
+  const podSep = document.createElement('span');
+  podSep.className = 'block-count';
+  podSep.textContent = 'TO';
+  podRow.appendChild(podSep);
+  const podMaxInput = document.createElement('input');
+  podMaxInput.type = 'number';
+  podMaxInput.min = cadence.podMin || 1;
+  podMaxInput.className = 'block-priority-input';
+  podMaxInput.value = cadence.podMax || 1;
+  podMaxInput.addEventListener('change', () => {
+    cadence.podMax = Math.max(parsePositiveInt(podMaxInput.value, 1), cadence.podMin || 1);
+    podMaxInput.value = cadence.podMax;
+    saveConfigDebounced();
+  });
+  podRow.appendChild(podMaxInput);
+  grid.appendChild(labeledField('SPOTS PER BREAK', podRow));
+
+  const bumpInInput = document.createElement('input');
+  bumpInInput.type = 'text';
+  bumpInInput.className = 'title-row-input';
+  bumpInInput.placeholder = 'e.g. network';
+  bumpInInput.value = (cadence.bumpInTags || []).join(', ');
+  bumpInInput.addEventListener('change', () => {
+    cadence.bumpInTags = bumpInInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    saveConfigDebounced();
+  });
+  grid.appendChild(labeledField('BUMP-IN TAGS', attachTagAutocomplete(bumpInInput)));
+
+  const commTagsInput = document.createElement('input');
+  commTagsInput.type = 'text';
+  commTagsInput.className = 'title-row-input';
+  commTagsInput.placeholder = 'e.g. 90s-ads, toys';
+  commTagsInput.value = (cadence.commercialTags || []).join(', ');
+  commTagsInput.addEventListener('change', () => {
+    cadence.commercialTags = commTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    saveConfigDebounced();
+  });
+  grid.appendChild(labeledField('COMMERCIAL TAGS', attachTagAutocomplete(commTagsInput)));
+
+  const bumpOutInput = document.createElement('input');
+  bumpOutInput.type = 'text';
+  bumpOutInput.className = 'title-row-input';
+  bumpOutInput.placeholder = 'e.g. show';
+  bumpOutInput.value = (cadence.bumpOutTags || []).join(', ');
+  bumpOutInput.addEventListener('change', () => {
+    cadence.bumpOutTags = bumpOutInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    saveConfigDebounced();
+  });
+  grid.appendChild(labeledField('BUMP-OUT TAGS', attachTagAutocomplete(bumpOutInput)));
+
+  container.appendChild(grid);
 }
 
 export function normalizePoolType(type) {
