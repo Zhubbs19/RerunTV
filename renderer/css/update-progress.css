@@ -2,24 +2,23 @@
 @font-face { font-family: 'Archivo Black'; src: url('../fonts/archivo-black-900.woff2') format('woff2'); font-weight: 900; }
 
 :root {
-  /* Fallback palette — used until update-progress.js applies a reported
-     theme (--theme-bg/--theme-accent/--theme-secondary, from the active
-     theme pack's `preview` swatch, see themes.js/main-updater.js) or when
-     no pack defines one at all. The --ink/--panel/etc. below are always
-     color-mix()ed off the --theme-* trio (never hardcoded directly) so one
-     reported swatch reskins the whole window consistently. */
-  --theme-bg: #131c58;
-  --theme-accent: #f5d327;
-  --theme-secondary: #6fe0f2;
-
-  --ink: var(--theme-bg);
-  --ink-deep: color-mix(in srgb, var(--theme-bg) 75%, black);
-  --panel: color-mix(in srgb, var(--theme-bg) 80%, white);
-  --line: color-mix(in srgb, var(--theme-accent) 45%, var(--theme-bg));
-  --gold: var(--theme-accent);
-  --cyan: var(--theme-secondary);
+  /* Fallback palette — same names and values as core's tokens.css :root,
+     used until update-progress.js applies a reported theme. themes.js reads
+     these exact custom properties straight off the live <html> element (the
+     same ones every theme pack's `html[data-theme="X"]` block overrides —
+     see e.g. plugins/theme-analog-90s/style.css) and forwards their resolved
+     values here, so this window matches whatever's actually active instead
+     of only the subset of packs that happen to also declare an optional
+     theme-browser preview swatch. */
+  --ink: #131c58;
+  --ink-deep: #0a1040;
+  --gold: #f5d327;
+  --cyan: #6fe0f2;
   --paper: #ffffff;
-  --paper-dim: color-mix(in srgb, var(--paper) 80%, var(--theme-bg));
+  --paper-dim: #c9d2f2;
+  --line: #5163b8;
+  --gradient-page: linear-gradient(180deg, #131c58 0%, #1a2570 45%, #0d1348 100%);
+  --gradient-panel: linear-gradient(180deg, #3346a0 0%, #222e7c 60%, #182060 100%);
 }
 
 * { box-sizing: border-box; }
@@ -31,7 +30,7 @@ body { padding: 1px; font-family: 'Archivo Narrow', system-ui, sans-serif; color
   height: 100%;
   padding: 22px 24px 18px;
   overflow: hidden;
-  background: linear-gradient(180deg, var(--panel) 0%, var(--ink) 68%, var(--ink-deep) 100%);
+  background: var(--gradient-panel);
   border: 1px solid var(--line);
   border-left: 6px solid var(--gold);
   border-radius: 10px;

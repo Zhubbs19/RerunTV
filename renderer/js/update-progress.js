@@ -18,19 +18,24 @@
     if (state.indeterminate) track.removeAttribute('aria-valuenow');
   }
 
-  // Reskins the window to the app's active theme pack (themes.js reports its
-  // `preview` swatch on every theme change; main-updater.js caches the latest
-  // report and resends it as soon as this window finishes loading). `colors`
-  // is null when no pack is active or the pack defines no preview, in which
-  // case the CSS fallback palette (update-progress.css :root) stands.
+  // Reskins the window to the app's active theme (themes.js reports the
+  // resolved --ink/--gold/--cyan/etc custom properties — core's palette
+  // contract every theme pack overrides — on every theme change;
+  // main-updater.js caches the latest report and resends it as soon as this
+  // window finishes loading). `colors` is a plain {cssVarName: value} map;
+  // any name it omits falls back to the CSS default (update-progress.css
+  // :root), same names so no translation is needed here.
+  const THEME_VARS = [
+    '--ink', '--ink-deep', '--gold', '--cyan', '--paper', '--paper-dim', '--line',
+    '--gradient-page', '--gradient-panel',
+  ];
   function applyTheme(colors) {
     const root = document.documentElement.style;
-    if (colors && colors.background) root.setProperty('--theme-bg', colors.background);
-    else root.removeProperty('--theme-bg');
-    if (colors && colors.accent) root.setProperty('--theme-accent', colors.accent);
-    else root.removeProperty('--theme-accent');
-    if (colors && colors.secondary) root.setProperty('--theme-secondary', colors.secondary);
-    else root.removeProperty('--theme-secondary');
+    THEME_VARS.forEach((name) => {
+      const value = colors && colors[name];
+      if (value) root.setProperty(name, value);
+      else root.removeProperty(name);
+    });
   }
 
   window.updateProgress.onState(apply);

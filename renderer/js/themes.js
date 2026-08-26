@@ -3,24 +3,39 @@
 // override block there. Set on <html> (not just #tv-screen) so the setup
 // screen re-skins along with the TV screen.
 import { applyCrtState, applyTvBezel } from './power.js';
-import { getThemePack, runCoreHooks } from './plugins.js';
+import { runCoreHooks } from './plugins.js';
 import { S } from './state.js';
 import { player } from './dom.js';
 import { getChannel } from './channels.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 
+// The exact custom properties every theme pack's `html[data-theme="X"]`
+// block overrides (see e.g. plugins/theme-analog-90s/style.css) — core's
+// own palette contract, not the separate/optional `preview` swatch
+// (registerThemePack, plugins.js) that only feeds the theme browser's card
+// art and most packs never bother declaring.
+const REPORTED_THEME_VARS = [
+  '--ink', '--ink-deep', '--gold', '--cyan', '--paper', '--paper-dim', '--line',
+  '--gradient-page', '--gradient-panel',
+];
+
 export function applyTheme({ boxOnly = false } = {}) {
   const themeId = effectiveThemeId(S.config, S.currentNumber, boxOnly);
   document.documentElement.dataset.theme = themeId;
-  // Lets main-process-owned windows that can't reach the plugin registry
-  // themselves (the frameless auto-update progress popup, main-updater.js)
-  // re-skin to match instead of always showing their hardcoded fallback
-  // palette. Same three-color swatch the theme browser already uses for its
-  // preview cards (setup-settings.js) — packs that don't define one report
-  // null, and the progress window just keeps its default colors.
+  // Lets main-process-owned windows that can't reach the renderer's CSS at
+  // all (the frameless auto-update progress popup, main-updater.js) re-skin
+  // to match instead of always showing their hardcoded fallback palette —
+  // reads the SAME resolved custom properties every theme pack already
+  // overrides for the real screens, so this works for every pack, not just
+  // ones that also declare a theme-browser preview swatch.
   if (window.api && window.api.reportThemeColors) {
-    const pack = getThemePack(themeId);
-    window.api.reportThemeColors((pack && pack.preview) || null);
+    const computed = getComputedStyle(document.documentElement);
+    const colors = {};
+    REPORTED_THEME_VARS.forEach((name) => {
+      const value = computed.getPropertyValue(name).trim();
+      if (value) colors[name] = value;
+    });
+    window.api.reportThemeColors(colors);
   }
   const fontOverrides = S.config.display && S.config.display.themeFontOverrides
     ? S.config.display.themeFontOverrides[themeId] || {}
