@@ -46,7 +46,12 @@ let autoUpdater = null;
 let progressWindow = null;
 let progressWindowReady = false;
 let latestProgressState = null;
-let latestThemeColors = null;
+// Seeded from last session's persisted report (see setThemeColors below) —
+// the "CHECKING FOR UPDATES" progress window can show at startup-auto boot
+// before the renderer has loaded at all, let alone run applyTheme() once to
+// report a theme live, so without this it would always show the hardcoded
+// fallback palette on that very first box every launch.
+let latestThemeColors = (readUpdateState().themeColors) || null;
 let progressCloseTimer = null;
 let startupUpdateActive = false;
 let startupUpdateResolve = null;
@@ -119,9 +124,15 @@ function sendThemeColors() {
 // Called from main.js's 'theme:colors' listener whenever the renderer's
 // active theme pack changes (themes.js's applyTheme) — cached here (not just
 // forwarded) so a progress window created later, or already open, always has
-// the latest report to draw from, same as latestProgressState above.
+// the latest report to draw from, same as latestProgressState above. Also
+// persisted to update-state.json so the NEXT launch's startup-auto "CHECKING
+// FOR UPDATES" box (shown before the renderer has loaded) has something
+// besides the hardcoded fallback to start from — see latestThemeColors above.
 function setThemeColors(colors) {
   latestThemeColors = colors && typeof colors === 'object' ? colors : null;
+  const state = readUpdateState();
+  state.themeColors = latestThemeColors;
+  writeUpdateState(state);
   sendThemeColors();
 }
 
