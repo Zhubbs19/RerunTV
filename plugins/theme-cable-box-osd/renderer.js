@@ -9,6 +9,8 @@ window.RCBPlugins.registerThemePack('cable-box-osd', {
   // A real TV displaying an overlay menu — moderate CRT character, a touch
   // of curvature since consumer sets of this era were rarely flat.
   crtBias: { scanlines: 1.1, vignette: 1.1, grain: 1.1, flicker: 1.0, curvatureFloor: 10 },
+  // Analog teletext-era OSD — no picture-in-picture.
+  guidePreviewDefault: false,
   channelChangeSfx() { playTone({ freq: 540, duration: 55, type: 'square', gain: .06 }); },
   powerSfx(isOn) { playTone({ freq: isOn ? 180 : 620, endFreq: isOn ? 620 : 150, duration: 190, type: 'square', gain: .055 }); },
 });

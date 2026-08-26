@@ -192,6 +192,7 @@ export const ignoreThemeCrtBiasEnabledEl = document.getElementById('ignore-theme
 export const bootPowerAnimEnabledEl = document.getElementById('boot-power-anim-enabled');
 export const guideOpenCloseAnimEnabledEl = document.getElementById('guide-open-close-anim-enabled');
 export const guideAnimSpeedSlider = document.getElementById('guide-anim-speed-slider');
+export const guideLivePreviewEnabledEl = document.getElementById('guide-live-preview-enabled');
 export const noSignalTitleInput = document.getElementById('no-signal-title-input');
 export const noSignalMessageInput = document.getElementById('no-signal-message-input');
 export const noSignalCopyReset = document.getElementById('no-signal-copy-reset');

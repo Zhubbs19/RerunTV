@@ -573,6 +573,11 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
   },
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
   staticStyle: 'roll',
+  guidePreviewDefault: false,  // optional — default the full-page guide's
+                               // live-picture preview box off for this theme
+                               // (e.g. a pre-PIP era); the user's own DISPLAY
+                               // > GUIDE LIVE PREVIEW choice, once set, always
+                               // wins over this. Omit for today's default (on).
   channelChangeSfx() { /* build a click with window.RCBPlugins.ctx's playTone/playNoiseBurst */ },
   powerSfx(isOn) { /* same, for power on/off */ },
   ambientTexture: { /* read by the vintage-audio plugin, not core */ },

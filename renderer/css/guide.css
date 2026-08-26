@@ -228,7 +228,18 @@
   --guide-preview-top: clamp(6px, 3%, 20px);
   --guide-preview-right: clamp(8px, 4%, 28px);
 }
-.crt.guide-active.guide-full #player {
+/* DISPLAY > GUIDE LIVE PREVIEW off (or a theme pack's guidePreviewDefault:
+   false, e.g. a pre-PIP era — see guide.js's guideLivePreviewEnabled and
+   registerThemePack's doc comment, plugins.js): the live picture stays
+   full-size behind the grid instead of shrinking into a corner box. Zeroing
+   the shared vars (not just skipping the sizing rule below) also collapses
+   .guide-topbar's clearance padding, which calc()s against these same vars. */
+.crt.guide-active.guide-full.guide-preview-hidden {
+  --guide-preview-w: 0px;
+  --guide-preview-top: 0px;
+  --guide-preview-right: 0px;
+}
+.crt.guide-active.guide-full:not(.guide-preview-hidden) #player {
   width: var(--guide-preview-w) !important;
   aspect-ratio: 260 / 146;
   height: auto !important;
@@ -241,9 +252,9 @@
   box-shadow: var(--bevel-raised), 0 6px 22px rgba(0, 0, 0, 0.65);
   z-index: 10;
 }
-.crt.guide-active.guide-full .crt-scanlines,
-.crt.guide-active.guide-full .crt-vignette,
-.crt.guide-active.guide-full .crt-flicker {
+.crt.guide-active.guide-full:not(.guide-preview-hidden) .crt-scanlines,
+.crt.guide-active.guide-full:not(.guide-preview-hidden) .crt-vignette,
+.crt.guide-active.guide-full:not(.guide-preview-hidden) .crt-flicker {
   display: none;
 }
 

@@ -303,6 +303,17 @@ export function getMediaSourcePicker(providerId) {
 // three-color swatch without applying the theme. Use CSS color strings for
 // `background`, `accent`, and `secondary`. Packs that omit it receive a
 // neutral preview so third-party themes remain selectable.
+// `guidePreviewDefault` (optional, boolean) sets the *default* for whether
+// the full-page program guide (DOCKED/FULL, guide.js's toggleGuideDockMode)
+// shrinks the live picture into a top-right preview box while this theme is
+// active — a look that's anachronistic for a pre-picture-in-picture era.
+// Read by guide.js's guideLivePreviewEnabled, same lookup shape as crtBias
+// above. Omitted (or any value other than `false`) keeps today's behavior,
+// the preview box on. This is only ever a *default* — DISPLAY > GUIDE LIVE
+// PREVIEW (S.config.display.guideLivePreview) lets the user set an explicit
+// value that always overrides it, the same "explicit user choice beats
+// theme default" rule getPluginChannelDisplaySettings's INHERIT semantics
+// already use for per-channel overrides.
 export function registerThemePack(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerThemePack: id must be a non-empty string');
   if (!definition || typeof definition.label !== 'string') {

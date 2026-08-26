@@ -11,6 +11,9 @@ window.RCBPlugins.registerThemePack('uhf-public-access-80s', {
   preview: { background: '#02000a', accent: '#ff2bd6', secondary: '#00e5ff' },
   group: 'ERA (BY DECADE)',
 
+  // 1988 UHF set — no picture-in-picture.
+  guidePreviewDefault: false,
+
   crtBias: { scanlines: 1.15, vignette: 1.2, grain: 1.5, flicker: 1.3, curvatureFloor: 15 },
 
   // Bad-tracking horizontal tear bands — "a signal that can't quite hold."
