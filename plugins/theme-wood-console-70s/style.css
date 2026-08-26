@@ -27,6 +27,16 @@ html[data-theme="wood-console-70s"] {
   --danger-rgb: 205, 110, 81;
   --cyan-rgb: 232, 220, 174;
 
+  /* Flow builder's ad-pod/station-ID badges (setup.css's .type-pod/
+     .type-stationid) default to a fixed magenta/green that clashes against
+     this theme's brown/tan/forest palette — a warm burnt-orange and an
+     avocado green instead, era-appropriate and distinct from --gold/--cyan/
+     --danger, legible against --ink (6.5:1 / 5.5:1). */
+  --accent-pod: #e08a3c;
+  --accent-pod-rgb: 224, 138, 60;
+  --accent-stationid: #6b9e5e;
+  --accent-stationid-rgb: 107, 158, 94;
+
   --font-display: 'Barlow Condensed', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   --font-body: 'Barlow', system-ui, sans-serif;

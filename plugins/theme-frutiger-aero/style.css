@@ -34,6 +34,19 @@ html[data-theme="frutiger-aero"] {
   --danger-rgb: 161, 82, 27;
   --cyan-rgb: 14, 111, 128;
 
+  /* Flow builder's ad-pod/station-ID badges (setup.css's .type-pod/
+     .type-stationid) default to a fixed magenta/green — same light-panel
+     legibility problem as --gold/--danger above (these are also used as
+     text on --ink/--cell, not just glows over a dark screen), plus the
+     magenta clashed against this theme's teal/aqua glass palette. A dark
+     rose and a dark violet-blue instead, distinct from the teal-family
+     --gold/--cyan and the rust-family --danger, legible against --ink
+     (5.2:1 / 6.1:1). */
+  --accent-pod: #a13a6b;
+  --accent-pod-rgb: 161, 58, 107;
+  --accent-stationid: #3a4fa1;
+  --accent-stationid-rgb: 58, 79, 161;
+
   /* Comfortaa's rounded bubbliness at display scale is the period-correct
      Y2K "tech is friendly" note; body text stays a plain readable Barlow. */
   --font-display: 'Comfortaa', 'Barlow', system-ui, sans-serif;

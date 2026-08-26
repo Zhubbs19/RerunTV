@@ -126,6 +126,17 @@
   --danger-rgb: 255, 107, 91;
   --cyan-rgb: 111, 224, 242;
 
+  /* Two more categorical accents, used by the interstitials flow builder's
+     ad-pod/station-ID step badges (setup.css's .type-pod/.type-stationid)
+     alongside --cyan (bumper) and --gold (segment) — kept as plain
+     universal tokens defaulting to the flow builder's original hardcoded
+     colors (unchanged look for any theme that doesn't override them) rather
+     than forcing every theme file to pick a value immediately. */
+  --accent-pod: #f0abfc;
+  --accent-pod-rgb: 240, 171, 252;
+  --accent-stationid: #4ade80;
+  --accent-stationid-rgb: 34, 197, 94;
+
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   --font-body: 'Barlow', system-ui, sans-serif;

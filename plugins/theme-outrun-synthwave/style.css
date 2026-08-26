@@ -45,7 +45,21 @@ html[data-theme="outrun-synthwave"] {
   --gradient-page: linear-gradient(180deg, #170826 0%, #0d0221 100%);
   --gradient-panel: linear-gradient(180deg, #1a0a2e 0%, #150723 100%);
   --gradient-cell: linear-gradient(180deg, #241040 0%, #1a0a2e 100%);
-  --gradient-btn: linear-gradient(135deg, #ff2ec4 0%, #8b5cf6 100%);
+  /* Darkened from the original #ff2ec4/#8b5cf6 (both stops were only
+     2.5:1-3.2:1 against any plausible light button text, including plain
+     white) — tokens.css's --button-fg/--button-hover-fg default to
+     --paper-dim/--gold respectively, neither of which is redefined here, so
+     every default-state AND hover-state button label in this theme (not
+     just the setup tabs a visual sweep happened to catch) was under AA.
+     --gold itself is unchanged (still used correctly elsewhere as an
+     accent), so --button-fg/--button-hover-fg are explicitly overridden
+     below to a color that actually passes against this stop pair, rather
+     than darkening the gradient the ~70% it'd take for --gold text to
+     survive on its own, which would have crushed the theme's signature
+     vividness. */
+  --gradient-btn: linear-gradient(135deg, #d126a1 0%, #724bca 100%);
+  --button-fg: #fff;
+  --button-hover-fg: #fff;
   --gradient-gold: linear-gradient(135deg, #ff6fdb 0%, #ff2ec4 55%, #c91ea0 100%);
   --gloss-strong: linear-gradient(180deg, rgba(46, 230, 255, 0.18) 0%, rgba(46, 230, 255, 0) 50%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 46, 196, 0.12) 0%, rgba(255, 46, 196, 0) 55%);
@@ -59,6 +73,20 @@ html[data-theme="outrun-synthwave"] {
   --shadow-hard-sm: 0 0 6px rgba(46, 230, 255, 0.45);
   --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.12);
   --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* setup.css's .setup-tab-btn:hover hardcodes color: var(--gold) rather than
+   the themeable --button-hover-fg token .btn:hover uses — harmless for
+   every other theme (--button-hover-fg defaults to --gold anyway, so it's
+   the same color either way), but this theme's --gold (#ff2ec4) is nearly
+   identical in hue/luminance to its own --gradient-btn background even
+   after darkening that gradient above for the default/hover states of
+   plain .btn — hovering an inactive top tab would still show
+   near-invisible text. Overridden here to match the --button-hover-fg fix
+   above rather than touching the shared core rule (which other themes rely
+   on defaulting to --gold). */
+html[data-theme="outrun-synthwave"] .setup-tab-btn:hover {
+  color: #fff;
 }
 
 /* A slower, more dramatic neon power surge instead of a plain CRT sweep —

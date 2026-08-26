@@ -22,6 +22,16 @@ html[data-theme="emerald-matrix"] {
   --danger-rgb: 255, 51, 68;
   --cyan-rgb: 0, 255, 102;
 
+  /* Flow builder's ad-pod/station-ID badges (setup.css's .type-pod/
+     .type-stationid) default to a fixed magenta/green that clashes hard
+     against an all-green palette — amber/blue terminal-alert-style accents
+     instead, distinct from --gold/--cyan (both already green) and still
+     legible against --ink (10.8:1 / 11.2:1). */
+  --accent-pod: #ffb020;
+  --accent-pod-rgb: 255, 176, 32;
+  --accent-stationid: #00d4ff;
+  --accent-stationid-rgb: 0, 212, 255;
+
   --font-display: 'IBM Plex Mono', monospace;
   --font-ui: 'IBM Plex Mono', monospace;
   --font-body: 'IBM Plex Mono', monospace;
