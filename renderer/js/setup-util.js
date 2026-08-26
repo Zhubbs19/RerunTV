@@ -2,7 +2,11 @@
 // setup-schedule.js, setup-channels.js, setup-interstitials.js,
 // setup-settings.js) — split out of the old monolithic setup.js so none of
 // those modules need to import from each other just to get these.
+import {
+  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays,
+} from './channels.js';
 import { S, saveConfigDebounced } from './state.js';
+import { basenameNoExt } from './util.js';
 
 const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
@@ -744,6 +748,170 @@ export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange
     getProfiles, setProfiles, onLiveChange,
   }));
   wrap.append(explanation, liveBtn);
+  return wrap;
+}
+
+// Repeatable rule-row list for dynamicOverlays (channels.js) — box-wide
+// (S.config.display.dynamicOverlays, setup-settings.js) and per-channel
+// (ch.dynamicOverlays, setup-panels.js) both call this with their own
+// get/set pair, same reuse pattern as buildLogoBugProfileEditor above. Each
+// rule fires a user-picked image/video in one screen corner when its
+// trigger condition happens (channel tune-in, program start, or a specific
+// break type) — see dynamic-overlays.js for the actual runtime side.
+export function buildDynamicOverlaysEditor(getRules, setRules) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dynamic-overlays-editor';
+  const list = document.createElement('div');
+  list.className = 'dynamic-overlays-list';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn';
+  addBtn.textContent = 'ADD OVERLAY RULE';
+
+  function render() {
+    list.innerHTML = '';
+    const rules = normalizeDynamicOverlays(getRules());
+    if (!rules.length) {
+      const empty = document.createElement('p');
+      empty.className = 'panel-status';
+      empty.textContent = 'No overlay rules yet — add one below.';
+      list.appendChild(empty);
+    }
+    rules.forEach((rule) => {
+      const row = document.createElement('div');
+      row.className = 'dynamic-overlay-rule-row';
+
+      const triggerSelect = document.createElement('select');
+      DYNAMIC_OVERLAY_TRIGGERS.forEach(({ id, label }) => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = label;
+        triggerSelect.appendChild(opt);
+      });
+      triggerSelect.value = rule.trigger;
+      triggerSelect.addEventListener('change', () => {
+        rule.trigger = triggerSelect.value;
+        setRules(rules);
+        saveConfigDebounced();
+      });
+
+      const mediaField = document.createElement('div');
+      mediaField.className = 'dynamic-overlay-rule-media';
+      const thumb = buildMediaThumbnail(rule.mediaPath, { label: 'MEDIA' });
+      const mediaBtnRow = document.createElement('div');
+      mediaBtnRow.className = 'dynamic-overlay-rule-media-buttons';
+      const imgBtn = document.createElement('button');
+      imgBtn.type = 'button';
+      imgBtn.className = 'btn';
+      imgBtn.textContent = 'IMAGE…';
+      imgBtn.addEventListener('click', async () => {
+        const path = await window.api.selectImage();
+        if (!path) return;
+        rule.mediaPath = path;
+        setRules(rules);
+        saveConfigDebounced();
+        render();
+      });
+      const vidBtn = document.createElement('button');
+      vidBtn.type = 'button';
+      vidBtn.className = 'btn';
+      vidBtn.textContent = 'VIDEO…';
+      vidBtn.addEventListener('click', async () => {
+        const path = await window.api.selectVideo();
+        if (!path) return;
+        rule.mediaPath = path;
+        setRules(rules);
+        saveConfigDebounced();
+        render();
+      });
+      mediaBtnRow.append(imgBtn, vidBtn);
+      const mediaName = document.createElement('span');
+      mediaName.className = 'dynamic-overlay-rule-media-name';
+      mediaName.textContent = rule.mediaPath ? basenameNoExt(rule.mediaPath) : '(no file chosen)';
+      mediaField.append(thumb, mediaBtnRow, mediaName);
+
+      const cornerSelect = document.createElement('select');
+      DYNAMIC_OVERLAY_CORNERS.forEach((corner) => {
+        const opt = document.createElement('option');
+        opt.value = corner;
+        opt.textContent = corner.replace('-', ' ').toUpperCase();
+        cornerSelect.appendChild(opt);
+      });
+      cornerSelect.value = rule.corner;
+      cornerSelect.addEventListener('change', () => {
+        rule.corner = cornerSelect.value;
+        setRules(rules);
+        saveConfigDebounced();
+      });
+
+      const sizeInput = document.createElement('input');
+      sizeInput.type = 'number';
+      sizeInput.min = 40;
+      sizeInput.max = 600;
+      sizeInput.className = 'block-priority-input';
+      sizeInput.title = 'Overlay size in pixels (longest side)';
+      sizeInput.value = rule.size;
+      sizeInput.addEventListener('change', () => {
+        rule.size = parsePositiveInt(sizeInput.value, 160);
+        setRules(rules);
+        saveConfigDebounced();
+      });
+
+      const durationInput = document.createElement('input');
+      durationInput.type = 'number';
+      durationInput.min = 0;
+      durationInput.className = 'block-priority-input';
+      durationInput.title = 'How long the overlay stays up, in seconds. 0 = auto: the rest of the break for a break-type trigger, or a short default for tune-in/program-start.';
+      durationInput.value = Math.round(rule.durationMs / 1000);
+      durationInput.addEventListener('change', () => {
+        rule.durationMs = Math.max(0, parsePositiveInt(durationInput.value, 0) * 1000);
+        setRules(rules);
+        saveConfigDebounced();
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn remove-btn';
+      removeBtn.textContent = 'X';
+      removeBtn.title = 'REMOVE';
+      removeBtn.setAttribute('aria-label', 'Remove overlay rule');
+      removeBtn.addEventListener('click', () => {
+        setRules(getRules().filter((r) => r.id !== rule.id));
+        saveConfigDebounced();
+        render();
+      });
+
+      row.append(
+        labeledMini('TRIGGER', triggerSelect),
+        mediaField,
+        labeledMini('CORNER', cornerSelect),
+        labeledMini('SIZE (PX)', sizeInput),
+        labeledMini('DURATION (S)', durationInput),
+        removeBtn,
+      );
+      list.appendChild(row);
+    });
+  }
+
+  function labeledMini(text, control) {
+    const field = document.createElement('label');
+    field.className = 'dynamic-overlay-rule-field';
+    field.appendChild(document.createTextNode(text));
+    field.appendChild(control);
+    return field;
+  }
+
+  addBtn.addEventListener('click', () => {
+    const rules = getRules() || [];
+    setRules([...rules, {
+      id: newDynamicOverlayId(), trigger: 'tuneIn', mediaPath: '', corner: 'bottom-right', size: 160, durationMs: 0,
+    }]);
+    saveConfigDebounced();
+    render();
+  });
+
+  render();
+  wrap.append(list, addBtn);
   return wrap;
 }
 

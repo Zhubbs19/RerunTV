@@ -10,7 +10,10 @@ import { showDetailsForCurrentChannel, hideDetailsOverlay } from './details.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { showOnboarding } from './onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
-import { foldLogoBugCorner, freshChannel, normalizeChannel, normalizeLogoBugProfiles, sortedChannels, getChannel } from './channels.js';
+import {
+  foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays,
+  normalizeLogoBugProfiles, sortedChannels, getChannel,
+} from './channels.js';
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
@@ -710,6 +713,13 @@ export function applyConfigDefaults(config) {
     config.display.guideGenreStyles = {};
   }
   if (!config.display.overlayLayouts || typeof config.display.overlayLayouts !== 'object') config.display.overlayLayouts = {};
+  // Box-wide default rule list — unlike logoBugProfiles above, an empty
+  // array is a perfectly valid "no dynamic overlays configured" state, not
+  // something that needs a folded-forward DEFAULT entry.
+  config.display.dynamicOverlays = normalizeDynamicOverlays(config.display.dynamicOverlays);
+  // 'none' (default) = today's static logo bug, unchanged. See LOGO_MOTION_
+  // PRESETS (channels.js) for the rest.
+  if (!LOGO_MOTION_PRESETS.includes(config.display.logoBugMotion)) config.display.logoBugMotion = 'none';
   if (!config.customSounds || typeof config.customSounds !== 'object') config.customSounds = {};
   delete config.display.logoBugPosition;
   delete config.display.logoBugSize;

@@ -393,7 +393,22 @@
         <div class="panel">
           <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
           <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
+          <div class="panel-interval">
+            LOGO MOTION
+            <select id="logo-bug-motion-select">
+              <option value="none">NONE (STATIC)</option>
+              <option value="pulse">PULSE</option>
+              <option value="glow">GLOW</option>
+              <option value="slide-in">SLIDE IN ON TUNE</option>
+            </select>
+          </div>
           <div id="logobug-editor"></div>
+        </div>
+
+        <div class="panel span-full">
+          <div class="panel-toggle">DYNAMIC OVERLAYS</div>
+          <span class="panel-status">Show an animated image or video clip in a screen corner at a specific moment — channel tune-in, a program starting, or a commercial/up-next/station-ID/trivia break. Box-wide default; a channel can override its own list from CHANNELS &gt; edit &gt; OVERLAYS.</span>
+          <div id="dynamic-overlays-editor"></div>
         </div>
 
         </div>
@@ -1144,6 +1159,11 @@
              hidden (breaks, virtual channels) — that's the actual phenomenon
              being imitated. Never receives clicks/hover. -->
         <div id="logo-bug-ghost" class="logo-bug logo-bug-ghost hidden"></div>
+
+        <!-- User-defined animated overlay (image or video), shown on a
+             configured trigger (channel tune-in, program start, or a
+             specific break type) — see dynamic-overlays.js. -->
+        <div id="dynamic-overlay" class="dynamic-overlay hidden"></div>
 
         <!-- TV content-rating bug, flashed briefly at the start of a program -->
         <div id="rating-bug" class="rating-bug"></div>

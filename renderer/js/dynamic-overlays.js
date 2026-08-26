@@ -1,0 +1,91 @@
+// User-defined animated overlays (image or video) shown on a schedule/break
+// trigger — box-wide default rules (S.config.display.dynamicOverlays) or a
+// per-channel override list (ch.dynamicOverlays, null = inherit box-wide),
+// same convention as logoBugProfiles (channels.js). One overlay slot at a
+// time: the first rule in the effective list matching the fired trigger
+// wins: see [[dynamic_overlays_rule_shape]] in channels.js's
+// normalizeDynamicOverlays comment.
+import { DEFAULT_OVERLAY_DURATION_MS, isVideoMediaPath } from './channels.js';
+import { dynamicOverlayEl } from './dom.js';
+import { S } from './state.js';
+
+const CORNER_STYLE = {
+  'top-left': { top: '4%', left: '4%', right: 'auto', bottom: 'auto', transform: 'none' },
+  'top-right': { top: '4%', right: '4%', left: 'auto', bottom: 'auto', transform: 'none' },
+  'bottom-left': { bottom: '4%', left: '4%', top: 'auto', right: 'auto', transform: 'none' },
+  'bottom-right': { bottom: '4%', right: '4%', top: 'auto', left: 'auto', transform: 'none' },
+  center: { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
+};
+
+// Break-type triggers (see DYNAMIC_OVERLAY_TRIGGERS, channels.js) — an
+// overlay shown for one of these stays up until clearDynamicOverlaysForBreak
+// fires (rule.durationMs === 0, the "auto" default for these) instead of a
+// fixed timer, so it naturally tracks however long the actual break runs.
+const BREAK_TRIGGERS = new Set(['commercial', 'upNext', 'channelId', 'trivia']);
+
+let hideTimer = null;
+let activeTrigger = null;
+
+function effectiveDynamicOverlays(ch) {
+  return (ch && ch.dynamicOverlays) || (S.config.display && S.config.display.dynamicOverlays) || [];
+}
+
+export function hideDynamicOverlay() {
+  clearTimeout(hideTimer);
+  hideTimer = null;
+  activeTrigger = null;
+  dynamicOverlayEl.classList.add('hidden');
+  dynamicOverlayEl.innerHTML = '';
+}
+
+// Called on every break-end (endBreak, playback.js) — only actually hides
+// the overlay if what's showing was shown FOR a break, so an unrelated
+// tuneIn/contentStart overlay mid-way through its own auto-hide timer isn't
+// cut short by a break elsewhere ending.
+export function clearDynamicOverlaysForBreak() {
+  if (activeTrigger && BREAK_TRIGGERS.has(activeTrigger)) hideDynamicOverlay();
+}
+
+export function triggerDynamicOverlays(ch, trigger) {
+  const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath);
+  if (!rule) return;
+  clearTimeout(hideTimer);
+  hideTimer = null;
+  activeTrigger = trigger;
+  dynamicOverlayEl.innerHTML = '';
+  dynamicOverlayEl.style.setProperty('--dynamic-overlay-size', `${rule.size}px`);
+  Object.entries(CORNER_STYLE[rule.corner] || CORNER_STYLE['bottom-right']).forEach(([prop, value]) => {
+    dynamicOverlayEl.style[prop] = value;
+  });
+
+  const isVideo = isVideoMediaPath(rule.mediaPath);
+  const media = document.createElement(isVideo ? 'video' : 'img');
+  if (isVideo) {
+    media.muted = true;
+    media.loop = true;
+    media.autoplay = true;
+    media.playsInline = true;
+  }
+  window.api.toFileUrl(rule.mediaPath).then((url) => {
+    media.src = url;
+    if (isVideo) media.play().catch(() => {});
+  });
+  dynamicOverlayEl.appendChild(media);
+  dynamicOverlayEl.classList.remove('hidden');
+  // Force a reflow so a rapid re-trigger of the same corner/entrance
+  // animation replays instead of the browser coalescing it away — same
+  // trick attachSliderReadout's pulse uses (setup-util.js).
+  dynamicOverlayEl.classList.remove('show');
+  void dynamicOverlayEl.offsetWidth;
+  dynamicOverlayEl.classList.add('show');
+
+  if (!BREAK_TRIGGERS.has(trigger)) {
+    const durationMs = rule.durationMs || DEFAULT_OVERLAY_DURATION_MS;
+    hideTimer = setTimeout(hideDynamicOverlay, durationMs);
+  } else if (rule.durationMs) {
+    // A break rule can still opt into a fixed duration shorter than the
+    // break itself (e.g. flash a bug for the first 5s of a commercial break
+    // rather than the whole thing).
+    hideTimer = setTimeout(hideDynamicOverlay, rule.durationMs);
+  }
+}

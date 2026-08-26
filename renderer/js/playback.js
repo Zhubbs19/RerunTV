@@ -1,5 +1,9 @@
 import { playChannelClickSound, playConfiguredSound, sfxChannelChange } from './audio.js';
-import { channelColor, getChannel, logoBugProfileDimensions, parseMediaRef, pickLogoBugProfile, sortedChannels } from './channels.js';
+import {
+  channelColor, getChannel, isVideoMediaPath, logoBugProfileDimensions, LOGO_MOTION_PRESETS,
+  parseMediaRef, pickLogoBugProfile, sortedChannels,
+} from './channels.js';
+import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
@@ -293,6 +297,7 @@ export async function playChannelLive(ch, opts) {
   // below) — lets a captions plugin know a new file is about to play without
   // core knowing captions exist at all (registerCoreHook, plugins.js).
   runCoreHooks('content-playing', { file, ch });
+  triggerDynamicOverlays(ch, 'contentStart');
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} src set +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
   const onMeta = () => {
@@ -568,6 +573,10 @@ function renderDynamicText(template, ch, entry) {
 function startBreak(ch, resolved, key) {
   const { type, entry, label, windowStart } = resolved;
   const isTextOnlyChannelId = type === 'channelId' && !(entry && entry.file);
+  // Unrecognized types (adBreakIn/adBreakOut/premiereJingle/promo/signOff/
+  // signOn — see interstitials.js) simply match no configured rule, a safe
+  // no-op — see DYNAMIC_OVERLAY_TRIGGERS, channels.js.
+  triggerDynamicOverlays(ch, type);
   // How far into the break window the current moment already is. During
   // normal live playback this is ~0 (the timer fired right at windowStart).
   // In time machine mode, shuttlePlay can commit to a time mid-window, so
@@ -738,6 +747,7 @@ function endBreak(ch) {
   triviaCardEl.classList.add('hidden');
   crtToggleFlash.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
+  clearDynamicOverlaysForBreak();
   player.loop = false;
   applyVolume();
   // Credits back exactly how long content was actually off-screen for this
@@ -1009,6 +1019,7 @@ export async function tuneToChannel(number, opts) {
   crtToggleFlash.classList.remove('show');
   ratingBugEl.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
+  hideDynamicOverlay();
   testPatternCanvasEl.classList.add('hidden');
   noSignalEl.classList.add('hidden');
   guideOverlay.classList.add('hidden');
@@ -1148,6 +1159,7 @@ export async function tuneToChannel(number, opts) {
 
   await playChannelLive(ch);
   if (tuneTimingEnabled()) console.log(`[tune] CH${number} playChannelLive returned +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+  triggerDynamicOverlays(ch, 'tuneIn');
   showGuideOverlay(number, ch);
   checkBreakState(ch);
   scheduleBlockBoundaryRetune(ch);
@@ -1265,10 +1277,21 @@ export function updateLogoBug(ch) {
   if (!ch) {
     logoBugEl.classList.add('hidden');
   } else if (ch.icon) {
-    const img = document.createElement('img');
-    img.alt = String(ch.number);
-    window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
-    logoBugEl.appendChild(img);
+    // A GIF/APNG icon already animates for free through a plain <img> — only
+    // an actual video file (mp4/webm/etc) needs the <video> element instead.
+    if (isVideoMediaPath(ch.icon)) {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.loop = true;
+      video.playsInline = true;
+      window.api.toFileUrl(ch.icon).then((url) => { video.src = url; video.play().catch(() => {}); });
+      logoBugEl.appendChild(video);
+    } else {
+      const img = document.createElement('img');
+      img.alt = String(ch.number);
+      window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
+      logoBugEl.appendChild(img);
+    }
     // See buildChannelBadge (channels.js) — same "icon otherwise hides the
     // number entirely" fix, same shared .badge-num chip (overlays.css).
     const numChip = document.createElement('span');
@@ -1282,6 +1305,22 @@ export function updateLogoBug(ch) {
     logoBugEl.classList.remove('hidden');
   }
   applyLogoBugGhost(ch);
+  applyLogoBugMotion();
+}
+
+// Box-wide only (S.config.display.logoBugMotion) — a CSS animation preset
+// applied to the real logo bug (never the burn-in ghost, which has its own
+// separate fade-based animation already). 'slide-in' is one-shot and needs
+// to replay on every call (a fresh tune, or any other updateLogoBug trigger)
+// — forcing a reflow between remove and add is the same trick
+// attachSliderReadout's pulse uses (setup-util.js); 'pulse'/'glow' are
+// persistent CSS @keyframes loops that don't need replaying.
+export function applyLogoBugMotion() {
+  const preset = (S.config.display && S.config.display.logoBugMotion) || 'none';
+  LOGO_MOTION_PRESETS.forEach((p) => logoBugEl.classList.remove(`logo-motion-${p}`));
+  if (preset === 'none') return;
+  void logoBugEl.offsetWidth;
+  logoBugEl.classList.add(`logo-motion-${preset}`);
 }
 
 // Full ghost strength (the crtIntensity.burnIn slider's own cap, applied on

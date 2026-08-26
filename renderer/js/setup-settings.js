@@ -3,14 +3,14 @@
 import { applyConfigDefaults } from './app.js';
 import { CUSTOM_SOUND_SLOTS } from './audio.js';
 import { applyDisplayMode } from './display-mode.js';
-import { applyLogoBugPlacement, refreshLogoBugGhost } from './playback.js';
+import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, saveConfigDebounced, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue } from './util.js';
-import { buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
+import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
 import { runCoreHooks, themePackEntries } from './plugins.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { initBackups, renderBackupsList as renderBackupsListFeature } from './setup-backups.js';
@@ -31,7 +31,8 @@ import {
   clock24El, detailsEnabledEl,
   guideSlotsSelect, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
-  aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider, logoBugEditorEl, movieModeEnabledEl, pictureModeSelect,
+  aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
+  logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
@@ -195,6 +196,16 @@ function renderLogoBugEditor() {
   ));
 }
 
+// Box-wide default dynamic-overlay rules — same rebuild-on-show reasoning as
+// renderLogoBugEditor above.
+function renderDynamicOverlaysEditor() {
+  dynamicOverlaysEditorEl.innerHTML = '';
+  dynamicOverlaysEditorEl.appendChild(buildDynamicOverlaysEditor(
+    () => S.config.display.dynamicOverlays,
+    (rules) => { S.config.display.dynamicOverlays = rules; saveConfigDebounced(); },
+  ));
+}
+
 function renderCustomSoundSettings() {
   const root = document.getElementById('custom-sounds-list');
   if (!root) return;
@@ -255,7 +266,9 @@ export function renderSettingsPanels() {
   adVolumeSlider.value = Math.round((typeof S.config.adVolume === 'number' ? S.config.adVolume : 1) * 100);
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
+  logoBugMotionSelect.value = S.config.display.logoBugMotion || 'none';
   renderLogoBugEditor();
+  renderDynamicOverlaysEditor();
   renderCustomSoundSettings();
   pictureModeSelect.value = S.config.pictureMode || 'standard';
   aspectModeSelect.value = S.config.aspectMode || 'contain';
@@ -1594,6 +1607,11 @@ displayModeResolutionSelect.addEventListener('change', () => {
 displayModeAutoPrioritySelect.addEventListener('change', () => {
   S.config.displayMode.autoPriority = displayModeAutoPrioritySelect.value;
   applyDisplayMode();
+  saveConfigDebounced();
+});
+logoBugMotionSelect.addEventListener('change', () => {
+  S.config.display.logoBugMotion = logoBugMotionSelect.value;
+  applyLogoBugMotion();
   saveConfigDebounced();
 });
 crtOverlayWholeScreenEnabledEl.addEventListener('change', () => {

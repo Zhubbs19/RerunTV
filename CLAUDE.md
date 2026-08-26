@@ -102,15 +102,36 @@ config/window/filter/selection are all unchanged, just moving the live line and
 
 ## Working conventions
 
-- **No test suite and no way to run the Electron app in most sandboxes** (no display,
-  `node_modules` often not installed). After every edit, verify syntax with
-  `node --check <file>`. For anything UI-facing, say explicitly that it's unverified rather
-  than claiming it works. Note: a real `test/` suite (`node:test`-based, plus Playwright-driven
-  UI audit scripts) was added and used during the hardening/audit pass below, then deliberately
-  deleted and `test/` added to `.gitignore` — it's not coming back as tracked content. `package.json`'s
-  `"test"` script (`node --experimental-vm-modules --test test/*.test.js`) still references that
-  now-nonexistent directory; don't assume `npm test` works, and don't "fix" this by resurrecting
-  the old test files from git history without checking with the user first.
+- **No sandboxed test suite, but this specific dev machine can actually run the real app.**
+  Most sandboxes have no display and no `node_modules`, so the old default here was "verify
+  syntax with `node --check <file>` and say UI changes are unverified." On Zhubbs19's own
+  Windows dev machine, though, `node_modules` is installed and there's a real display — `electron
+  . --remote-debugging-port=9222` launches an actual window with a working CDP endpoint (Electron
+  supports `Page.captureScreenshot`/`Runtime.evaluate`/`Input.*`, but NOT the `Browser.*`
+  window-management methods — no `Browser.setWindowBounds`; to start maximized, pre-seed
+  `<userData>/window-state.json` with `{"isMaximized":true}` before launch instead, since
+  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`test/`, gitignored,
+  see `test/README.md`) was built and verified working end-to-end this way — full tab/subtab
+  screenshot sweep plus targeted functional checks via `Runtime.evaluate` calling real exported
+  functions (`S.config` mutations, dynamic `import()` of renderer modules, computed-style
+  assertions), not just DOM presence checks. Two hard-won lessons if you rebuild or extend it:
+  (1) **`main-config.js`'s `portableUserDataDir()` hardcodes config to `<repo>/userData` and
+  ignores Electron's `--user-data-dir` switch entirely** — that's the developer's real live
+  channel library, so any automated run MUST back it up (rename it aside) before launching and
+  restore it after, in a `finally`/try-finally that also runs on a crash. (2) **`Start-Process`
+  against `electron.cmd` returns the `cmd.exe` wrapper's PID, not any real `electron.exe`
+  process** — killing "the" PID from `Start-Process` does not reliably kill anything and leaves
+  orphaned processes holding file locks on `userData` (this actually happened and stalled a
+  cleanup mid-session); find and kill every `electron.exe` whose command line mentions the repo
+  path instead (`Get-CimInstance Win32_Process`), and wait for them to actually exit before
+  touching `userData` again. Don't assume this capability exists in a fresh/different
+  environment — verify `node_modules` and a working CDP handshake before relying on it, and
+  never run the test suite's `.mjs` directly without its `.ps1` safety wrapper.
+  `package.json`'s `"test"` script (`node --experimental-vm-modules --test test/*.test.js`)
+  still references a `node:test`-based suite that existed during an earlier audit pass and was
+  deliberately deleted (see prior note below) — that's unrelated to the `test/` folder above and
+  still doesn't work; don't "fix" it by resurrecting old test files from git history without
+  checking with the user first.
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
   renderer-wide helpers, a plugin's own file for plugin-local ones) rather than introducing a
   new shared module for a single use.

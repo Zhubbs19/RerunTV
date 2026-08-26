@@ -2612,6 +2612,44 @@ html[data-theme] .btn[aria-disabled="true"] {
 .logobug-live-opacity input[type="range"] { width: 100%; }
 .logobug-live-auto { align-self: center; color: var(--paper); font-family: var(--font-ui); font-size: 11px; white-space: nowrap; }
 .logobug-live-actions { display: flex; gap: 7px; }
+
+/* buildDynamicOverlaysEditor's rule-row list (setup-util.js) — box-wide
+   (DISPLAY tab) and per-channel (CHANNELS > edit > OVERLAYS tab) both reuse
+   this same markup/styling. */
+.dynamic-overlays-list { display: grid; gap: 8px; margin-bottom: 10px; }
+.dynamic-overlay-rule-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+}
+.dynamic-overlay-rule-field {
+  display: grid;
+  gap: 3px;
+  color: var(--paper-dim);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.dynamic-overlay-rule-field select,
+.dynamic-overlay-rule-field input { min-width: 0; }
+.dynamic-overlay-rule-field .block-priority-input { width: 70px; }
+.dynamic-overlay-rule-media { display: flex; align-items: center; gap: 8px; }
+.dynamic-overlay-rule-media .media-thumbnail { width: 40px; height: 40px; }
+.dynamic-overlay-rule-media-buttons { display: flex; flex-direction: column; gap: 3px; }
+.dynamic-overlay-rule-media-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--paper-dim);
+  font-size: 11px;
+}
+.dynamic-overlay-rule-row .remove-btn { margin-left: auto; }
 .no-signal-copy-settings { display: grid; gap: 10px; }
 .no-signal-copy-settings .panel-interval { display: grid; gap: 5px; }
 .no-signal-copy-settings .title-row-input { width: 100%; min-width: 0; }

@@ -9,7 +9,10 @@ import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, stripReleaseTags, suggestFacetsFromPath } from './util.js';
-import { attachTagAutocomplete, buildBreakpointTrack, buildLogoBugProfileEditor, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
+import {
+  attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildLogoBugProfileEditor, buildMediaThumbnail,
+  parsePositiveInt,
+} from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
 
@@ -938,6 +941,51 @@ export function buildLogoBugPanel(ch, panelEl) {
       () => ch.logoBugProfiles,
       (profiles) => { ch.logoBugProfiles = profiles; saveConfigDebounced(); },
       () => applyLogoBugPlacement(ch),
+    ));
+  }
+
+  render();
+}
+
+// Per-channel override for dynamic-overlay rules, same inherit/override
+// convention as buildLogoBugPanel above — null means "use the box-wide
+// DISPLAY-tab default list."
+export function buildDynamicOverlaysPanel(ch, panelEl) {
+  function render() {
+    panelEl.innerHTML = '';
+
+    const inheritLabel = document.createElement('label');
+    inheritLabel.className = 'shuffle-toggle';
+    const inheritCheckbox = document.createElement('input');
+    inheritCheckbox.type = 'checkbox';
+    inheritCheckbox.checked = ch.dynamicOverlays != null;
+    inheritCheckbox.addEventListener('change', () => {
+      if (inheritCheckbox.checked) {
+        // Seed from the box-wide default (a plain copy) so the channel's
+        // effective rules don't silently change the instant OVERRIDE is
+        // checked — same reasoning as buildLogoBugPanel above.
+        ch.dynamicOverlays = ((S.config.display && S.config.display.dynamicOverlays) || []).map((r) => ({ ...r }));
+      } else {
+        ch.dynamicOverlays = null;
+      }
+      render();
+      saveConfigDebounced();
+    });
+    inheritLabel.appendChild(inheritCheckbox);
+    inheritLabel.appendChild(document.createTextNode('OVERRIDE DYNAMIC OVERLAYS FOR THIS CHANNEL'));
+    panelEl.appendChild(inheritLabel);
+
+    if (ch.dynamicOverlays == null) {
+      const hint = document.createElement('div');
+      hint.className = 'titles-empty';
+      hint.textContent = 'USES THE BOX-WIDE DYNAMIC OVERLAYS (DISPLAY TAB)';
+      panelEl.appendChild(hint);
+      return;
+    }
+
+    panelEl.appendChild(buildDynamicOverlaysEditor(
+      () => ch.dynamicOverlays,
+      (rules) => { ch.dynamicOverlays = rules; saveConfigDebounced(); },
     ));
   }
 

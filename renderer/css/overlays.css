@@ -444,8 +444,34 @@
   color: #fff;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
 }
-/* contain so non-square images are never centre-cropped */
-.logo-bug img { width: 100%; height: 100%; object-fit: contain; display: block; }
+/* contain so non-square images (or a video logo — isVideoMediaPath,
+   channels.js/playback.js) are never centre-cropped */
+.logo-bug img, .logo-bug video { width: 100%; height: 100%; object-fit: contain; display: block; }
+
+/* Box-wide logo motion presets (S.config.display.logoBugMotion —
+   applyLogoBugMotion, playback.js). 'pulse'/'glow' are persistent loops;
+   'slide-in' is one-shot, replayed on every tune (see applyLogoBugMotion's
+   reflow trick) — its own transform, not scaleY/scaleX, so it doesn't fight
+   the placement editor's inline left/top. Never applied to .logo-bug-ghost
+   (the burn-in afterimage already has its own separate fade animation). */
+.logo-bug-motion-pulse { animation: logo-bug-pulse 2.2s ease-in-out infinite; }
+@keyframes logo-bug-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.logo-bug-motion-glow { animation: logo-bug-glow 2.6s ease-in-out infinite; }
+@keyframes logo-bug-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 transparent); }
+  50% { filter: drop-shadow(0 0 8px var(--gold)); }
+}
+.logo-bug-motion-slide-in { animation: logo-bug-slide-in 550ms cubic-bezier(.2, .8, .3, 1) both; }
+@keyframes logo-bug-slide-in {
+  0% { opacity: 0; transform: translateX(18px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-bug-motion-pulse, .logo-bug-motion-glow, .logo-bug-motion-slide-in { animation: none; }
+}
 
 /* Small always-on channel-number chip, pinned over a custom icon wherever a
    compact square channel badge would otherwise show only the icon (this
@@ -497,6 +523,28 @@
   filter: grayscale(0.6) blur(0.5px);
   transition: opacity 4s linear;
 }
+
+/* User-defined animated overlay, shown on a configured trigger (see
+   dynamic-overlays.js) — image or video, sized/positioned per the active
+   rule's corner+size (set inline by dynamic-overlays.js, same --size-var
+   pattern as the logo bug). z-index 16: above the VCR OSD/shortcuts tier
+   (12/15) since this is meant to be noticed, below the now-playing channel
+   card (20) and the CRT glass texture (25) so neither ever renders under it. */
+.dynamic-overlay {
+  position: absolute;
+  width: var(--dynamic-overlay-size, 160px);
+  height: var(--dynamic-overlay-size, 160px);
+  z-index: 16;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.92);
+  transition: opacity 220ms ease, transform 220ms ease;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
+}
+.dynamic-overlay.show { opacity: 1; transform: scale(1); }
+.dynamic-overlay img, .dynamic-overlay video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.crt.guide-active .dynamic-overlay,
+.crt.power-off .dynamic-overlay { display: none; }
 
 .rating-bug {
   position: absolute;

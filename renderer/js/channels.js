@@ -146,7 +146,7 @@ export function freshChannel() {
     number: nextChannelNumber(), name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
     adsEnabled: true, favorite: false, rating: null, vhsQuality: false,
     logoBugProfiles: null, volume: null, broadcastHours: freshBroadcastHours(),
-    quickAccess: false,
+    quickAccess: false, dynamicOverlays: null,
   };
 }
 
@@ -239,6 +239,70 @@ export function pickLogoBugProfile(profiles, context = {}) {
       - Number(Boolean(a.aspect)) - Number(Boolean(a.resolution)))[0]
     || normalized.find((profile) => !profile.aspect && !profile.resolution)
     || normalized[0];
+}
+
+// Mirrors main-media.js's VIDEO_EXTENSIONS (same reasoning as
+// setup-dragdrop.js's own small copy) — used to decide whether a logo/
+// overlay media path should render as a looping <video> instead of a plain
+// <img> (updateLogoBug/renderDynamicOverlay, playback.js). Animated GIF/APNG
+// need no special-casing — an <img> already plays those natively.
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mpg', '.mpeg']);
+export function isVideoMediaPath(mediaPath) {
+  if (!mediaPath) return false;
+  const match = /\.[a-z0-9]+$/i.exec(mediaPath);
+  return !!match && VIDEO_EXTENSIONS.has(match[0].toLowerCase());
+}
+
+// ---------- Logo bug motion (box-wide only — applyLogoBugPlacement, playback.js) ----------
+// A CSS animation preset applied to #logo-bug (overlays.css's
+// .logo-bug-motion-<preset> classes). 'slide-in' is one-shot, replayed on
+// every tune (see the classList remove/reflow/add trick, playback.js);
+// 'pulse'/'glow' are persistent CSS @keyframes loops.
+export const LOGO_MOTION_PRESETS = ['none', 'pulse', 'glow', 'slide-in'];
+
+// ---------- Dynamic overlays (animated logo/image/video, shown on trigger) ----------
+// A dynamicOverlays array (box-wide: S.config.display.dynamicOverlays;
+// per-channel override: ch.dynamicOverlays, null = inherit box-wide — same
+// inherit convention as logoBugProfiles above) is a list of
+// { id, trigger, mediaPath, corner, size, durationMs }. `trigger` fires the
+// overlay at a specific schedule/break moment (see DYNAMIC_OVERLAY_TRIGGERS
+// below); `corner` is one of the four screen corners or 'center';
+// `durationMs` of 0 means "auto" — resolveActiveBreakEnd for a break
+// trigger, DEFAULT_OVERLAY_DURATION_MS for tuneIn/contentStart.
+export const DYNAMIC_OVERLAY_TRIGGERS = [
+  { id: 'tuneIn', label: 'CHANNEL TUNE-IN' },
+  { id: 'contentStart', label: 'PROGRAM START' },
+  { id: 'commercial', label: 'COMMERCIAL BREAK' },
+  { id: 'upNext', label: 'UP NEXT PROMO' },
+  { id: 'channelId', label: 'STATION ID' },
+  { id: 'trivia', label: 'TRIVIA CARD' },
+];
+export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'];
+export const DEFAULT_OVERLAY_DURATION_MS = 8000;
+
+let dynamicOverlayIdCounter = 0;
+export function newDynamicOverlayId() {
+  return `ov${Date.now().toString(36)}${(dynamicOverlayIdCounter++).toString(36)}`;
+}
+
+// A rule with no mediaPath yet (just added, media not chosen) is still kept
+// — the setup-screen list needs it to survive re-render so the user has a
+// row to pick a file into (see buildDynamicOverlaysEditor, setup-util.js).
+// The runtime side (triggerDynamicOverlays, dynamic-overlays.js) is what
+// actually skips a mediaPath-less rule when deciding what to show.
+export function normalizeDynamicOverlays(rules) {
+  if (!Array.isArray(rules)) return [];
+  const triggerIds = new Set(DYNAMIC_OVERLAY_TRIGGERS.map((t) => t.id));
+  return rules
+    .filter((rule) => rule && triggerIds.has(rule.trigger))
+    .map((rule) => ({
+      id: rule.id || newDynamicOverlayId(),
+      trigger: rule.trigger,
+      mediaPath: typeof rule.mediaPath === 'string' ? rule.mediaPath : '',
+      corner: DYNAMIC_OVERLAY_CORNERS.includes(rule.corner) ? rule.corner : 'bottom-right',
+      size: Math.min(600, Math.max(40, Number(rule.size) || 160)),
+      durationMs: Math.min(120000, Math.max(0, Number(rule.durationMs) || 0)),
+    }));
 }
 
 // A folder/file's `source` names which media-source provider it came from —
@@ -374,6 +438,10 @@ export function normalizeChannel(ch) {
   if (ch.logoBugProfiles) ch.logoBugProfiles = normalizeLogoBugProfiles(ch.logoBugProfiles);
   delete ch.logoBugPosition;
   delete ch.logoBugSize;
+  // null = inherit the box-wide default dynamic-overlay rules (same
+  // convention as logoBugProfiles above); a present array overrides it.
+  if (ch.dynamicOverlays === undefined) ch.dynamicOverlays = null;
+  if (ch.dynamicOverlays) ch.dynamicOverlays = normalizeDynamicOverlays(ch.dynamicOverlays);
   // null = inherit the box-wide master volume; a number 0-1 overrides it for
   // this channel (e.g. a channel of old/quiet recordings that always needs
   // to run louder than everything else).
