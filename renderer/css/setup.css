@@ -3500,6 +3500,27 @@ html[data-theme] .btn[aria-disabled="true"] {
   border-radius: 4px;
 }
 
+.flow-cadence-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(var(--gold-rgb, 212, 175, 55), 0.06);
+  border: 1px dashed rgba(var(--gold-rgb, 212, 175, 55), 0.35);
+  border-radius: 4px;
+  padding: 10px 12px;
+}
+
+.flow-cadence-header-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.flow-cadence-header-row .panel-status {
+  flex: 1 1 320px;
+}
+
 .flow-timeline-header {
   display: flex;
   justify-content: space-between;
