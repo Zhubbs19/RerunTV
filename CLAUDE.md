@@ -29,7 +29,11 @@ Schedule resolution is a pure function of `(channel, timestamp)` — `resolveAct
 `computeSourcePosition`, `boundarySlot`, `resolveActiveCommercials`, `resolveBreakAt`
 (`renderer/js/schedule.js`, `renderer/js/interstitials.js`). This is what makes the
 time-machine possible: no separate playback log, just re-evaluating the same functions at a
-different timestamp.
+different timestamp. A channel file's `path` can now be a plain local path (unchanged) or a
+`mediasource:<providerId>:<opaque-ref>` string routed to a plugin (`main/main-media-dispatch.js`,
+`PLUGIN_DEVELOPMENT.md`'s `mediaSource` capability) — that abstraction lives entirely below
+this layer (parsing/fetching a ref), so schedule.js's scheduling math never had to change to
+support it.
 
 ## Config mutation — read before caching anything
 
@@ -59,23 +63,40 @@ config/window/filter/selection are all unchanged, just moving the live line and
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by
   `// ---------- Section ----------` divider comments — keep that convention when adding
   handlers).
-- `main/main-*.js` — focused modules split out of `main.js`: config/backups (`main-config.js`),
-  plugin discovery/loading (`main-plugins.js`), plugin capability-checking
-  (`main-plugin-capabilities.js`), isolated-plugin process management
-  (`main-plugin-isolation.js`), LAN servers (`main-viewer-server.js`,
-  `main-discovery-server.js`), media/transcode (`main-media.js`), etc. Each has a header
-  comment explaining its scope.
+- `main/main-*.js` — focused modules split out of `main.js`: config/backups (`main-config.js`,
+  also where `backupUserDataForUpdate()`/`restoreUserDataIfWiped()` protect the portable
+  userData folder across an auto-update install), plugin discovery/loading (`main-plugins.js`),
+  plugin capability-checking (`main-plugin-capabilities.js`), isolated-plugin process
+  management (`main-plugin-isolation.js`), LAN servers (`main-viewer-server.js`,
+  `main-discovery-server.js`) plus their shared pairing/session auth (`main-lan-security.js`)
+  and viewer-config redaction (`main-viewer-projection.js`), media/transcode (`main-media.js`),
+  the local-vs-plugin media-ref dispatch layer (`main-media-dispatch.js`), auto-update via
+  electron-updater (`main-updater.js`, plus pure history/version-transition helpers in
+  `main-updater-state.js`), bounded/redacted logging for the support-bundle export
+  (`main-diagnostics.js`), and pure config-summary/diffing for diagnostics (`config-diff.js`).
+  Each has a header comment explaining its scope.
 - `renderer/js/` — one file per concern (`playback.js`, `schedule.js`, `interstitials.js`,
   `guide.js`, `timemachine.js`, `power.js`, the `setup-*.js` files for the Channel Setup
   screen). `state.js` holds the single shared `S` object; `util.js` holds small pure helpers
   used across files (`formatClock`, `autoHideAfter`, `isEnabledByDefault`, etc.) — check there
-  before writing a new one-off helper.
+  before writing a new one-off helper. Recent additions worth knowing about:
+  `plugin-settings-schema.js`/`setup-plugin-settings.js` (the declarative plugin-settings
+  contract and the PLUGINS-tab renderer that composes core + plugin sections, isolating one
+  broken section from the rest of the tab), `update-notice.js`/`update-progress.js` (the
+  update-ready toast and the separate `update-progress.html` window), `library-sync.js`/
+  `library-sync-core.js`/`library-relink.js` (opt-in folder resync and the channel-health
+  relink workflow), `channel-package.js` (portable single-channel export/import), and
+  `api-contract.js` (the canonical `window.api` surface list that `test/contracts.test.js`
+  used to check the sandboxed preload against — see the test-suite note below).
 - `plugins/<id>/` — each plugin is self-contained: `manifest.json`, optional `style.css`,
   `renderer.js` (ES module, dynamic-imported from `app://plugins/`), optional `main.js`
-  (main-process code). Plugins cannot `import` core JS or each other's files directly
-  (different origins) — shared core helpers are exposed via `window.RCBPlugins.ctx`
-  (`renderer/js/plugins.js`'s `installGlobalApi()`). If two plugins need the same logic,
-  expose it through `ctx` rather than duplicating it or having one plugin depend on another.
+  (main-process code), optional `settings.js` (manifest's `"settings"` field) for a plugin's
+  PLUGINS-tab settings UI — kept separate from `renderer.js` so channel-render logic and
+  settings-panel logic don't have to share a file; every first-party plugin now uses this
+  split. Plugins cannot `import` core JS or each other's files directly (different origins) —
+  shared core helpers are exposed via `window.RCBPlugins.ctx` (`renderer/js/plugins.js`'s
+  `installGlobalApi()`). If two plugins need the same logic, expose it through `ctx` rather
+  than duplicating it or having one plugin depend on another.
 - `PLUGIN_DEVELOPMENT.md` — the plugin author's guide; keep it in sync with `ctx`'s actual
   shape when you add/remove something from `installGlobalApi()`.
 
@@ -84,7 +105,12 @@ config/window/filter/selection are all unchanged, just moving the live line and
 - **No test suite and no way to run the Electron app in most sandboxes** (no display,
   `node_modules` often not installed). After every edit, verify syntax with
   `node --check <file>`. For anything UI-facing, say explicitly that it's unverified rather
-  than claiming it works.
+  than claiming it works. Note: a real `test/` suite (`node:test`-based, plus Playwright-driven
+  UI audit scripts) was added and used during the hardening/audit pass below, then deliberately
+  deleted and `test/` added to `.gitignore` — it's not coming back as tracked content. `package.json`'s
+  `"test"` script (`node --experimental-vm-modules --test test/*.test.js`) still references that
+  now-nonexistent directory; don't assume `npm test` works, and don't "fix" this by resurrecting
+  the old test files from git history without checking with the user first.
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
   renderer-wide helpers, a plugin's own file for plugin-local ones) rather than introducing a
   new shared module for a single use.
@@ -107,3 +133,20 @@ fast path — were deferred twice for the config-mutation reason above before fi
 gated on the `S.configGeneration` counter described there. Any future cache derived from
 config must key on that same counter (or extend it) rather than inventing its own
 invalidation story.
+
+A second, larger pass followed (still on `master`, all after the audit above): auto-update via
+electron-updater (background checks, a settings panel, a guided/silent install flow, and the
+userData-preservation fix in `main-config.js` after a real update wiped a user's channel
+lineup — see `main-updater.js`/`main-updater-state.js`); the media-source abstraction letting a
+plugin supply channel content from somewhere other than local disk (`main-media-dispatch.js`,
+the `mediaSource` plugin capability, `library-sync*.js`, `playback-recovery.js` for
+provider-backed fetch/recovery); a plugin-settings split (every first-party plugin's UI moved
+from `renderer.js` into its own `settings.js`, formalized by `plugin-settings-schema.js` and
+composed by `setup-plugin-settings.js`); LAN hardening (`main-lan-security.js`'s per-service
+pairing-code + session-cookie auth, `main-viewer-projection.js`'s config redaction for the LAN
+viewer); several new plugins and theme packs; and a UI/UX polish pass across `setup.css`/
+`tokens.css`/`overlays.css`. This pass also produced (and later removed) a `test/` suite,
+`AGENTS.md`, and an `AUDIT_2026-08-24.md` — see the test-suite note above; check git history on
+`master` rather than the working tree if you need that audit's original findings. As with the
+first pass, no new invalidation scheme was invented for config-derived state — the
+`S.configGeneration` counter above is still the one to extend.
