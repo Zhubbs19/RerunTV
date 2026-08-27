@@ -438,12 +438,24 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // different show-specific flows aimed at the same channel would collapse
   // to "whichever comes first in the array wins for all of that channel's
   // content," with contentTags silently doing nothing.
+  //
+  // A file carrying NO tags at all is treated as "unknown," not "known
+  // mismatch" — only rejected when it DOES carry tags and none of them
+  // overlap with f.contentTags. Tagging every single file is real, optional
+  // manual work (TITLES tab, setup-panels.js) that most libraries never
+  // fully do; both of ensureFlowsConfig's own seeded default flows ship with
+  // contentTags set (['cartoon','cartoon-30'], ['prime-show','drama-1h']),
+  // so treating an untagged file as an automatic reject made mid-show
+  // cadence (and every other flow-driven break) silently never fire for
+  // untagged libraries — this is what "mid-show cadence never plays" turned
+  // out to be. A flow's contentTags still fully differentiates once files
+  // ARE tagged; it just no longer excludes content nobody has tagged yet.
   const flow = flows.find((f) => {
     if (f.enabled === false) return false;
     if (f.channels && f.channels.length > 0 && !f.channels.includes(ch.number)) return false;
 
-    if (f.contentTags && f.contentTags.length > 0) {
-      if (!tags.length || !f.contentTags.some((t) => tags.includes(t))) return false;
+    if (f.contentTags && f.contentTags.length > 0 && tags.length > 0) {
+      if (!f.contentTags.some((t) => tags.includes(t))) return false;
     }
 
     return true;
@@ -524,9 +536,12 @@ function computeActiveCommercials(ch, atMs, fileTags) {
     // match above). Gated on `tags` (the CURRENTLY AIRING file's tags, passed
     // in by the caller), not the flow's own contentTags, so two differently-
     // tagged pieces of content under the same flow can get different cadence
-    // treatment from tick to tick.
+    // treatment from tick to tick. An untagged file is "unknown," not a known
+    // mismatch — same reasoning as the flow's own contentTags match above —
+    // so it still gets cadence rather than silently losing it just because
+    // nobody has tagged that particular file yet.
     const midTagsMatch = !cadence || !cadence.contentTags || !cadence.contentTags.length ||
-      (tags.length > 0 && cadence.contentTags.some((t) => tags.includes(t)));
+      tags.length === 0 || cadence.contentTags.some((t) => tags.includes(t));
     const hasMid = cadence
       ? (midTagsMatch && (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0))
       : midBreakpoints.length > 0;
