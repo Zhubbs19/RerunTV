@@ -839,34 +839,60 @@ export function nextBreakBoundary(ch, fromMs) {
   return Infinity;
 }
 
+// A text-only "YOU'RE WATCHING <channel>" station-ID bar (channelId with no
+// real pool entry file — see startBreak's isTextOnlyChannelId, playback.js)
+// never interrupts content or changes anything on screen: startBreak skips
+// swapping player.src for it entirely, it's just an overlay bar on top of
+// whatever's already playing. nextBreakStart/prevBreakStart below exist
+// specifically for the time machine's "jump to break" control (the VCR
+// OSD's [ / ] keys, timemachine.js) — landing on a station-ID instant is a
+// no-op from the viewer's perspective ("the clock jumped but nothing
+// visibly happened"), and since it fires far more often than real ad
+// content (every 15 min by default, wall-clock-aligned), it was winning
+// almost every jump. Everything else (commercial, adBreakIn/Out, trivia,
+// upNext, promo, signOff/signOn, premiereJingle, localAvail, or a channelId
+// that DOES have a real video entry) is a real, visible interruption and
+// stays a valid jump target.
+function isJumpableBreak(brk) {
+  return !(brk.type === 'channelId' && !(brk.entry && brk.entry.file));
+}
+
 // Start of the next break strictly after fromMs — for the time machine's
 // "jump to next break" control (timemachine.js), not live scheduling.
 // Deliberately distinct from nextBreakBoundary: that function answers "when
 // does the break STATE next change" (so if fromMs is already inside a break,
 // it returns that break's *end*); this one always answers "where's the next
-// break's *start*," skipping past whatever's currently playing first so
-// repeated presses walk forward through consecutive breaks instead of
-// bouncing between one break's start and end.
+// (jumpable) break's *start*," skipping past whatever's currently playing —
+// and past any non-interrupting station-ID bars in between — so repeated
+// presses walk forward through consecutive REAL breaks instead of bouncing
+// between one break's start and end, or stalling on a station ID.
 export function nextBreakStart(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
   let t = current ? current.windowEnd : fromMs;
-  // t itself can already be inside a break — most commonly the very next
-  // segment of the same multi-segment pod we just stepped out of (e.g. an
-  // adBreakIn bumper's end is exactly where the commercial that follows it
-  // in the same pod begins). nextCandidateBoundary below only knows about
-  // file/interval-anchored boundaries, with no notion of "the next segment
-  // in an already-active pod" — without this check, the search would skip
-  // straight past that segment to the pod's outer file boundary, silently
-  // skipping the commercial itself. This is why "jump to next commercial"
-  // sometimes did nothing useful: it depended on exactly where within a pod
-  // the previous jump had landed.
-  if (resolveBreakAt(ch, t)) return t;
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
+    // t itself can already be inside a break — most commonly the very next
+    // segment of the same multi-segment pod we just stepped out of (e.g. an
+    // adBreakIn bumper's end is exactly where the commercial that follows it
+    // in the same pod begins). nextCandidateBoundary below only knows about
+    // file/interval-anchored boundaries, with no notion of "the next segment
+    // in an already-active pod" — without this check, the search would skip
+    // straight past that segment to the pod's outer file boundary, silently
+    // skipping the commercial itself. This is why "jump to next commercial"
+    // sometimes did nothing useful: it depended on exactly where within a pod
+    // the previous jump had landed.
+    const atT = resolveBreakAt(ch, t);
+    if (atT) {
+      if (isJumpableBreak(atT)) return t;
+      t = atT.windowEnd;
+      safety++;
+      continue;
+    }
     const candidate = nextCandidateBoundary(ch, t);
     if (candidate == null) return Infinity;
-    if (resolveBreakAt(ch, candidate)) return candidate;
-    t = candidate + 1;
+    const atCandidate = resolveBreakAt(ch, candidate);
+    if (atCandidate && isJumpableBreak(atCandidate)) return candidate;
+    t = atCandidate ? atCandidate.windowEnd : candidate + 1;
     safety++;
   }
   return Infinity;
@@ -943,7 +969,13 @@ export function prevBreakStart(ch, fromMs) {
       // machine reads viewNow() a moment after this jump) can hit that same
       // ambiguity again. candidate is already past it and safely inside the
       // break's window, at most BOUNDARY_EPSILON_MS later than the true start.
-      if (resolveBreakAt(ch, candidate)) return candidate;
+      // isJumpableBreak (see nextBreakStart above) skips a non-interrupting
+      // station-ID bar the same way forward jumps do — `interior` already
+      // comes pre-filtered via latestBreakStartInFile's own nextBreakStart
+      // call, but these other two candidates (file end/start) are checked
+      // directly against resolveBreakAt and need the same filter here.
+      const hit = resolveBreakAt(ch, candidate);
+      if (hit && isJumpableBreak(hit)) return candidate;
     }
     probeMs = bs.fileStartMs;
     safety++;
