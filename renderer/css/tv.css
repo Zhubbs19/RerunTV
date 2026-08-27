@@ -41,7 +41,13 @@
   background: #000;
   filter: brightness(var(--pic-brightness, 1)) contrast(var(--pic-contrast, 1)) saturate(var(--pic-saturate, 1));
   opacity: 1;
-  transition: opacity 220ms linear;
+  /* Duration is per-entry (fadeInMs/fadeOutMs, setup-interstitials.js) —
+     playback.js's fadeInPlayer/fadeOutPlayer set transition-duration inline
+     before each fade, overriding this 220ms fallback used whenever there's
+     no specific entry to read a duration from (ordinary content cuts). */
+  transition-property: opacity;
+  transition-timing-function: linear;
+  transition-duration: 220ms;
   /* Recessed-screen depth cue where content meets a bezel/border (only
      visible then — at the normal full-bleed inset:0 size, .crt's own
      overflow:hidden clips it away entirely, so this is a no-op the rest of
@@ -54,7 +60,8 @@
    transition instead of an abrupt frame cut. */
 #player.screen-fade-out {
   opacity: 0;
-  transition: opacity 180ms linear;
+  /* Fallback only — see the base #player rule's comment above. */
+  transition-duration: 180ms;
 }
 
 /* Aspect ratio toggle: 'stretch' badly distorts a mismatched-aspect signal

@@ -166,21 +166,37 @@ function entryDurationS(entry, fallbackDurationS) {
   return entry.file ? entry.file.duration : fallbackDurationS;
 }
 
+// An optional held beat on black AFTER this entry finishes (setup-
+// interstitials.js's WAIT AFTER field) — unlike fadeInMs/fadeOutMs (purely
+// visual, read only by playback.js, never touches window math), a wait has
+// no content to show during it, so it can't be a sub-range of the entry's
+// own dur — it has to extend the window itself. Folded directly into
+// windowFor/windowEndingAt/buildPod's own windowEnd (not a separate
+// synthetic segment) so segmentAt keeps resolving to this same entry
+// throughout the hold, keeping every window a pure function of
+// (channel, timestamp) exactly as before this existed.
+export function entryWaitMs(entry) {
+  return (entry && entry.waitMs) || 0;
+}
+
 function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags) {
   const entry = pickDeterministic(poolFor(pool, type, ch, block, fileTags), seedKey, slotIndex);
   if (!entry) return null;
   const durationS = entryDurationS(entry, fallbackDurationS);
-  return { entry, windowStart, windowEnd: windowStart + durationS * 1000 };
+  return { entry, windowStart, windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry) };
 }
 
 // Same as windowFor but anchored to when the window *ends* rather than
 // starts — used for the sign-off bumper, which needs to finish exactly at
-// the broadcast-hours boundary rather than start there.
+// the broadcast-hours boundary rather than start there. The wait (if any)
+// still trails the entry's own content, so it's the CONTENT that's pulled
+// earlier to make room, not the wait itself shifted before windowEnd.
 function windowEndingAt(pool, type, ch, block, seedKey, slotIndex, windowEnd, fallbackDurationS, fileTags) {
   const entry = pickDeterministic(poolFor(pool, type, ch, block, fileTags), seedKey, slotIndex);
   if (!entry) return null;
   const durationS = entryDurationS(entry, fallbackDurationS);
-  return { entry, windowStart: windowEnd - durationS * 1000, windowEnd };
+  const waitMs = entryWaitMs(entry);
+  return { entry, windowStart: windowEnd - durationS * 1000 - waitMs, windowEnd };
 }
 
 // Generous upper bound on any realistic podMax — keeps each pod's N
@@ -240,23 +256,26 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   const inEntry = pickDeterministic(poolFor(pool, 'adBreakIn', ch, block, inTags, targetTiming), `${seedKey}:in`, slotIndex);
   if (inEntry) {
     const dur = entryDurationS(inEntry, 0);
-    segments.push({ type: 'adBreakIn', entry: inEntry, windowStart: cursor, windowEnd: cursor + dur * 1000 });
-    cursor += dur * 1000;
+    const windowEnd = cursor + dur * 1000 + entryWaitMs(inEntry);
+    segments.push({ type: 'adBreakIn', entry: inEntry, windowStart: cursor, windowEnd });
+    cursor = windowEnd;
   }
 
   for (let i = 0; i < podSize; i++) {
     const entry = pickDeterministic(poolFor(pool, 'commercial', ch, block, commTags, targetTiming), seedKey, slotIndex * POD_SLOT_STRIDE + i);
     if (!entry) break;
     const dur = entryDurationS(entry, 0);
-    segments.push({ type: 'commercial', entry, windowStart: cursor, windowEnd: cursor + dur * 1000 });
-    cursor += dur * 1000;
+    const windowEnd = cursor + dur * 1000 + entryWaitMs(entry);
+    segments.push({ type: 'commercial', entry, windowStart: cursor, windowEnd });
+    cursor = windowEnd;
   }
 
   const outEntry = pickDeterministic(poolFor(pool, 'adBreakOut', ch, block, outTags, targetTiming), `${seedKey}:out`, slotIndex);
   if (outEntry) {
     const dur = entryDurationS(outEntry, 0);
-    segments.push({ type: 'adBreakOut', entry: outEntry, windowStart: cursor, windowEnd: cursor + dur * 1000 });
-    cursor += dur * 1000;
+    const windowEnd = cursor + dur * 1000 + entryWaitMs(outEntry);
+    segments.push({ type: 'adBreakOut', entry: outEntry, windowStart: cursor, windowEnd });
+    cursor = windowEnd;
   }
 
   if (!segments.length) return null;
@@ -315,7 +334,7 @@ export function resolveBreakAt(ch, atMs) {
       if (entry) {
         const durationS = entryDurationS(entry, PREMIERE_JINGLE_DURATION_S);
         const windowStart = source.anchor;
-        const windowEnd = windowStart + durationS * 1000;
+        const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
         if (atMs >= windowStart && atMs < windowEnd) return { type: 'premiereJingle', entry, windowStart, windowEnd };
       }
     }
@@ -620,7 +639,7 @@ export function resolveBreakAt(ch, atMs) {
         const entry = pickDeterministic(postEntries, `tagPost:${ch.number}`, bs2.ordinal);
         if (entry) {
           const durationS = entryDurationS(entry, 0);
-          const windowStart = cursor, windowEnd = cursor + durationS * 1000;
+          const windowStart = cursor, windowEnd = cursor + durationS * 1000 + entryWaitMs(entry);
           if (atMs >= windowStart && atMs < windowEnd) return { type: 'commercial', label: 'post', entry, windowStart, windowEnd };
           cursor = windowEnd;
         }
@@ -629,7 +648,7 @@ export function resolveBreakAt(ch, atMs) {
         const entry = pickDeterministic(preEntries, `tagPre:${ch.number}`, bs2.ordinal);
         if (entry) {
           const durationS = entryDurationS(entry, 0);
-          const windowStart = cursor, windowEnd = cursor + durationS * 1000;
+          const windowStart = cursor, windowEnd = cursor + durationS * 1000 + entryWaitMs(entry);
           if (atMs >= windowStart && atMs < windowEnd) return { type: 'commercial', label: 'pre', entry, windowStart, windowEnd };
         }
       }
@@ -647,7 +666,7 @@ export function resolveBreakAt(ch, atMs) {
       if (entry) {
         const durationS = entryDurationS(entry, 0);
         const windowStart = bs2.fileStartMs;
-        const windowEnd = windowStart + durationS * 1000;
+        const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
         if (atMs >= windowStart && atMs < windowEnd) return { type: 'promo', entry, windowStart, windowEnd };
       }
     }
