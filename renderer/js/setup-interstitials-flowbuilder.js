@@ -201,9 +201,13 @@ function ensureFlowCadence(flow) {
   if (!flow.cadence) {
     flow.cadence = {
       enabled: false, timing: 'everyNMinutes', intervalMinutes: 10, breakpoints: [],
-      podMin: 1, podMax: 1, bumpInTags: [], commercialTags: [], bumpOutTags: [],
+      podMin: 1, podMax: 1, bumpInTags: [], commercialTags: [], bumpOutTags: [], contentTags: [],
     };
   }
+  // A cadence object saved before contentTags existed lacks the field
+  // entirely (undefined, not []) — normalize so every read site can treat
+  // "no scoping" uniformly rather than checking for both.
+  if (!Array.isArray(flow.cadence.contentTags)) flow.cadence.contentTags = [];
   return flow.cadence;
 }
 
@@ -232,7 +236,7 @@ function renderFlowCadencePanel(flow) {
 
   const hint = document.createElement('span');
   hint.className = 'panel-status';
-  hint.textContent = 'Runs breaks inside whatever content this flow is airing right now — every N minutes, or at set % points through a show/movie — on top of this flow\'s own step sequence above.';
+  hint.textContent = 'Runs breaks inside whatever content this flow is airing right now — every N minutes, or at set % points through a show/movie — on top of this flow\'s own step sequence above. Optionally limit it to specific tagged content below.';
   headerRow.appendChild(hint);
 
   container.appendChild(headerRow);
@@ -260,6 +264,25 @@ function renderFlowCadencePanel(flow) {
     saveConfigDebounced();
   });
   grid.appendChild(labeledField('TIMING', timingSelect));
+
+  // Scopes mid-show cadence to only the currently-airing file's own tags
+  // (setup-panels.js TITLES tab) — blank/unset (the default) applies it to
+  // any content this flow already governs, same as before this field
+  // existed. Lets one flow cover, say, both a tagged 'movie' and a tagged
+  // 'short' without giving the short the same mid-show break cadence a
+  // feature-length movie wants — the flow's own bumper/pod step sequence
+  // above still applies to both either way; only these extra in-content
+  // breaks are gated by this.
+  const contentTagsInput = document.createElement('input');
+  contentTagsInput.type = 'text';
+  contentTagsInput.className = 'title-row-input';
+  contentTagsInput.placeholder = 'e.g. movie, long-form';
+  contentTagsInput.value = (cadence.contentTags || []).join(', ');
+  contentTagsInput.addEventListener('change', () => {
+    cadence.contentTags = contentTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    saveConfigDebounced();
+  });
+  grid.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(contentTagsInput), { wide: true }));
 
   if (cadence.timing === 'breakpoints') {
     const bpInput = document.createElement('input');
@@ -789,7 +812,10 @@ function runFlowSimulator(flow) {
     const desc = cadence.timing === 'everyNMinutes'
       ? `every ${cadence.intervalMinutes || 10} min`
       : `at ${(cadence.breakpoints || []).join('%, ')}% points`;
-    log(`[SIMULATOR] Mid-show ad cadence: ENABLED (${desc}, ${cadence.podMin || 1}-${cadence.podMax || cadence.podMin || 1} spots per break)`);
+    const scopeDesc = (cadence.contentTags && cadence.contentTags.length)
+      ? `, only for content tagged #${cadence.contentTags.join(', #')}`
+      : '';
+    log(`[SIMULATOR] Mid-show ad cadence: ENABLED (${desc}, ${cadence.podMin || 1}-${cadence.podMax || cadence.podMin || 1} spots per break${scopeDesc})`);
   } else {
     log(`[SIMULATOR] Mid-show ad cadence: disabled`);
   }
@@ -803,8 +829,22 @@ function runFlowSimulator(flow) {
   // duration long enough to demonstrate the configured cadence.
   const ASSUMED_SEGMENT_MIN = 11;
 
-  function logCadenceBreaksForSegment() {
+  // Mirrors computeActiveCommercials' own midTagsMatch gating (schedule.js):
+  // an empty/unset cadence.contentTags applies to any segment, otherwise the
+  // segment's own effective tags (step.tags, falling back to the flow's own
+  // contentTags — same resolution the SHOW SEGMENT log line above uses) must
+  // share at least one tag with cadence.contentTags.
+  function cadenceAppliesToSegment(segmentTags) {
+    if (!cadence.contentTags || !cadence.contentTags.length) return true;
+    return segmentTags.length > 0 && cadence.contentTags.some((t) => segmentTags.includes(t));
+  }
+
+  function logCadenceBreaksForSegment(segmentTags) {
     if (!cadence) return;
+    if (!cadenceAppliesToSegment(segmentTags)) {
+      log(`  ⊘ MID-SHOW CADENCE: skipped — this segment's tags (#${segmentTags.join(', #') || 'none'}) don't match the cadence's own scope (#${cadence.contentTags.join(', #')})`);
+      return;
+    }
     let breakTimesMin;
     if (cadence.timing === 'everyNMinutes') {
       const step = Math.max(1, cadence.intervalMinutes || 10);
@@ -856,8 +896,9 @@ function runFlowSimulator(flow) {
     chips.forEach((c, i) => c.classList.toggle('active', i === currentStepIdx));
 
     if (step.type === 'contentSegment') {
-      log(`▶ STEP ${currentStepIdx + 1} [SHOW SEGMENT]: "${step.name}" -> Airing show episode matching #${(step.tags || flow.contentTags).join(', #')} (~${ASSUMED_SEGMENT_MIN}:00)`);
-      logCadenceBreaksForSegment();
+      const segmentTags = (step.tags && step.tags.length ? step.tags : flow.contentTags) || [];
+      log(`▶ STEP ${currentStepIdx + 1} [SHOW SEGMENT]: "${step.name}" -> Airing show episode matching #${segmentTags.join(', #')} (~${ASSUMED_SEGMENT_MIN}:00)`);
+      logCadenceBreaksForSegment(segmentTags);
     } else if (step.type === 'adPod') {
       log(`▶ STEP ${currentStepIdx + 1} [AD POD BREAK]: "${step.name}" (${step.podMin}-${step.podMax} spots)`);
       const bumpInMatches = pool.filter((e) => e.type === 'adBreakIn' && (!step.bumpInTags?.length || (e.contentTags && e.contentTags.some((t) => step.bumpInTags.includes(t)))));
