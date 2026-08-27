@@ -515,8 +515,20 @@ function computeActiveCommercials(ch, atMs, fileTags) {
     const midTiming = cadence ? (cadence.timing === 'everyNMinutes' ? 'everyNMinutes' : 'breakpoints') : 'breakpoints';
     const midBreakpoints = cadence ? (cadence.breakpoints || []) : legacyBreakpoints;
     const midIntervalMinutes = cadence ? cadence.intervalMinutes : null;
+    // The cadence panel can additionally be scoped to only fire for certain
+    // tagged content (cadence.contentTags — e.g. run mid-show breaks for
+    // movies/specials but not shorts, within one flow that otherwise applies
+    // to all of them) — unset/empty means "any content this flow already
+    // applies to", the same wildcard convention every other contentTags gate
+    // in the app uses (poolFor, interstitials.js; the flow's own contentTags
+    // match above). Gated on `tags` (the CURRENTLY AIRING file's tags, passed
+    // in by the caller), not the flow's own contentTags, so two differently-
+    // tagged pieces of content under the same flow can get different cadence
+    // treatment from tick to tick.
+    const midTagsMatch = !cadence || !cadence.contentTags || !cadence.contentTags.length ||
+      (tags.length > 0 && cadence.contentTags.some((t) => tags.includes(t)));
     const hasMid = cadence
-      ? (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0)
+      ? (midTagsMatch && (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0))
       : midBreakpoints.length > 0;
 
     const podStep = adPodSteps[0] || {};
