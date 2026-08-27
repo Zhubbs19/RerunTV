@@ -1139,6 +1139,11 @@
           <div class="credits-squeeze-eyebrow">UP NEXT</div>
           <div class="credits-squeeze-channel" id="credits-squeeze-channel"></div>
           <div class="credits-squeeze-title" id="credits-squeeze-title"></div>
+          <!-- VIDEO mode (ch.creditsSpeedup.squeezeMode === 'video') swaps
+               to a real, audible upNext-pool promo instead of the text trio
+               above - both live in the same panel/frame, toggled by the
+               panel's own .video-mode class. -->
+          <video id="credits-squeeze-video" class="credits-squeeze-video hidden"></video>
         </div>
 
         <!-- Retro TV bezel/border — behind the CRT texture layers (a real

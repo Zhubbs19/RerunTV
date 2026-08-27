@@ -1028,7 +1028,7 @@ export function buildLogoBugPanel(ch, panelEl) {
 export function buildCreditsSpeedupPanel(ch, panelEl) {
   function render() {
     panelEl.innerHTML = '';
-    if (!ch.creditsSpeedup) ch.creditsSpeedup = { enabled: false, leadSeconds: 90, rate: 3, squeezeBgImage: null };
+    if (!ch.creditsSpeedup) ch.creditsSpeedup = { enabled: false, leadSeconds: 90, rate: 3, squeezeMode: 'text', squeezeBgImage: null };
     const cfg = ch.creditsSpeedup;
 
     const enabledLabel = document.createElement('label');
@@ -1090,33 +1090,60 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
 
     panelEl.appendChild(grid);
 
-    // Channel-wide default backdrop for the squeeze panel — a specific
-    // title can override this from the TITLES tab; blank at both levels
-    // falls back to a plain card tinted with this channel's own accent
-    // color (startCreditsSpeedup, playback.js).
-    const bgBtn = document.createElement('button');
-    bgBtn.type = 'button';
-    bgBtn.className = 'btn';
-    bgBtn.textContent = cfg.squeezeBgImage ? basenameNoExt(cfg.squeezeBgImage) : 'UP NEXT CARD BACKDROP…';
-    bgBtn.addEventListener('click', async () => {
-      const path = await window.api.selectImage();
-      if (!path) return;
-      cfg.squeezeBgImage = path;
+    // What fills the space #player's squeeze transform frees up. 'text' (the
+    // original, still the default) is a static UP NEXT card; 'video' plays a
+    // real, audible upNext-pool promo instead (startCreditsSpeedup falls
+    // back to the text card if nothing eligible resolves in the pool for
+    // this channel, so switching to VIDEO is never a silent no-op).
+    const modeLabel = document.createElement('span');
+    modeLabel.className = 'option-label';
+    modeLabel.textContent = 'UP NEXT PANEL';
+    panelEl.appendChild(modeLabel);
+    const modeSelect = document.createElement('select');
+    modeSelect.className = 'block-hour-select';
+    [['text', 'TEXT CARD'], ['video', 'REAL PROMO VIDEO (FROM POOL)']].forEach(([value, label]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      modeSelect.appendChild(opt);
+    });
+    modeSelect.value = cfg.squeezeMode === 'video' ? 'video' : 'text';
+    modeSelect.addEventListener('change', () => {
+      cfg.squeezeMode = modeSelect.value;
       render();
       saveConfigDebounced();
     });
-    panelEl.appendChild(bgBtn);
-    if (cfg.squeezeBgImage) {
-      const clearBtn = document.createElement('button');
-      clearBtn.type = 'button';
-      clearBtn.className = 'btn remove-btn';
-      clearBtn.textContent = 'CLEAR BACKDROP';
-      clearBtn.addEventListener('click', () => {
-        cfg.squeezeBgImage = null;
+    panelEl.appendChild(modeSelect);
+
+    // Channel-wide default backdrop for the squeeze panel — a specific
+    // title can override this from the TITLES tab; blank at both levels
+    // falls back to a plain card tinted with this channel's own accent
+    // color (startCreditsSpeedup, playback.js). Only relevant in TEXT mode.
+    if (cfg.squeezeMode !== 'video') {
+      const bgBtn = document.createElement('button');
+      bgBtn.type = 'button';
+      bgBtn.className = 'btn';
+      bgBtn.textContent = cfg.squeezeBgImage ? basenameNoExt(cfg.squeezeBgImage) : 'UP NEXT CARD BACKDROP…';
+      bgBtn.addEventListener('click', async () => {
+        const path = await window.api.selectImage();
+        if (!path) return;
+        cfg.squeezeBgImage = path;
         render();
         saveConfigDebounced();
       });
-      panelEl.appendChild(clearBtn);
+      panelEl.appendChild(bgBtn);
+      if (cfg.squeezeBgImage) {
+        const clearBtn = document.createElement('button');
+        clearBtn.type = 'button';
+        clearBtn.className = 'btn remove-btn';
+        clearBtn.textContent = 'CLEAR BACKDROP';
+        clearBtn.addEventListener('click', () => {
+          cfg.squeezeBgImage = null;
+          render();
+          saveConfigDebounced();
+        });
+        panelEl.appendChild(clearBtn);
+      }
     }
   }
 

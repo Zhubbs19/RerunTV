@@ -5,16 +5,16 @@ import {
 } from './channels.js';
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
-  creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl,
+  creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl, creditsSqueezeVideoEl,
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from './display-mode.js';
 import { showGuideOverlay } from './guide.js';
-import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from './interstitials.js';
+import { entryWaitMs, nextBreakBoundary, pickDeterministic, poolFor, resolveBreakAt } from './interstitials.js';
 import { tuneTimingEnabled } from './perf.js';
-import { applyBlockTheme, applyChannelIdentity, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
+import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
 import { cancelAllInterrupts, getThemePack, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from './plugins.js';
 import {
   computeSourcePosition, isWithinBroadcastHours, nextBlockStartMs, nextBroadcastHoursBoundary, nextSourceBoundary,
@@ -1325,7 +1325,14 @@ export function resetCreditsSpeedup() {
   player.muted = S.creditsSpeedupPrevMuted;
   S.creditsSpeedupActive = false;
   creditsSqueezePanelEl.classList.add('hidden');
+  creditsSqueezePanelEl.classList.remove('video-mode');
   document.querySelector('.crt')?.classList.remove('credits-squeeze');
+  // Video mode only: stop the promo and release its decode handle rather
+  // than leaving it paused mid-file — it gets a fresh pick next time
+  // (startCreditsSpeedup below), not resumed from where it left off.
+  if (!creditsSqueezeVideoEl.paused) creditsSqueezeVideoEl.pause();
+  creditsSqueezeVideoEl.removeAttribute('src');
+  creditsSqueezeVideoEl.load();
 }
 
 // Old syndicated stations routinely fast-forwarded a movie's end credits to
@@ -1380,6 +1387,33 @@ export function startCreditsSpeedup(ch, file, rate, leadS) {
   }
   creditsSqueezeChannelEl.textContent = (ch.name || `CHANNEL ${ch.number}`).toUpperCase();
   creditsSqueezeTitleEl.textContent = computeNextTitle(ch);
+
+  // VIDEO mode: a real, audible upNext-pool promo fills the panel instead
+  // of the text trio above. Reuses the exact same pool-resolution machinery
+  // every other bumper uses (poolFor/pickDeterministic, interstitials.js) —
+  // seeded by the airing file's own path so the same movie always shows the
+  // same promo, rotating naturally as different movies air. Falls back to
+  // the text card (already populated above) when nothing eligible resolves
+  // or the entry has no real file — never a blank panel.
+  let usedVideoMode = false;
+  if (ch.creditsSpeedup && ch.creditsSpeedup.squeezeMode === 'video') {
+    const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
+    const candidates = poolFor(pool, 'upNext', ch, null, file.tags || []);
+    const promoEntry = candidates.length ? pickDeterministic(candidates, `creditsSqueeze:${ch.number}:${file.path}`, 0) : null;
+    if (promoEntry && promoEntry.file) {
+      usedVideoMode = true;
+      window.api.resolvePlayablePath('local', promoEntry.file.path).then((resolved) => window.api.toFileUrl(resolved.path)).then((url) => {
+        if (!S.creditsSpeedupActive) return; // interrupted while the IPC round-trip was in flight
+        creditsSqueezeVideoEl.loop = true;
+        creditsSqueezeVideoEl.src = url;
+        applyVolume();
+        applyMuteState(); // respects the box's current mute state, doesn't force-unmute
+        creditsSqueezeVideoEl.play().catch(() => {});
+      }).catch(() => {});
+    }
+  }
+  creditsSqueezePanelEl.classList.toggle('video-mode', usedVideoMode);
+
   document.querySelector('.crt')?.classList.add('credits-squeeze');
   creditsSqueezePanelEl.classList.remove('hidden');
 }

@@ -1,7 +1,7 @@
 import { refreshSfxGainLevel, sfxPowerOff, sfxPowerOn, sfxVolumeTick } from './audio.js';
 import { getChannel } from './channels.js';
 import {
-  channelEntryEl, crtContainer, crtPreviewEl, crtToggleFlash, guideGrid, guideMuteEl, guideOverlay, hintBarEl, logoBugEl, player,
+  channelEntryEl, creditsSqueezeVideoEl, crtContainer, crtPreviewEl, crtToggleFlash, guideGrid, guideMuteEl, guideOverlay, hintBarEl, logoBugEl, player,
   screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
   vhsTimestampEl, volumeBarFillEl, volumeIndicatorEl,
 } from './dom.js';
@@ -53,6 +53,17 @@ export function applyVolume() {
     : (typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1);
   player.volume = Math.min(1, Math.max(0, master * chMult * kindMult));
 
+  // Credits-squeeze video mode (playback.js's startCreditsSpeedup) plays a
+  // real upNext-pool promo with its own audio while #player is force-muted
+  // for the sped-up credits — gets the same ad-kind layering `player`
+  // itself would get for an upNext bumper (upNext is already one of the
+  // isAdKind types above), applied here since applyVolume already re-runs
+  // on every volume-relevant event (+/-, mute, channel change) rather than
+  // needing its own separate event wiring.
+  if (S.creditsSpeedupActive) {
+    creditsSqueezeVideoEl.volume = Math.min(1, Math.max(0, master * chMult * (typeof S.config.adVolume === 'number' ? S.config.adVolume : 1)));
+  }
+
   // A registered overlay audio source (registerOverlayAudioSource,
   // plugins.js) sits outside the channel/break-kind layering above — it's a
   // background source, not whatever's on screen — so it only ever gets
@@ -70,6 +81,11 @@ export function applyMuteState() {
   player.muted = forceMuted ? true : !!S.config.muted;
   guideMuteEl.classList.toggle('hidden', !player.muted);
   overlayAudioEntries().forEach((src) => { src.el.muted = player.muted; });
+  // Same reasoning as applyVolume's own credits-squeeze-video handling
+  // above — the promo is the one thing actually making sound while
+  // #player is force-muted for the sped-up credits, so the box's own mute
+  // toggle (M key) needs to reach it too, not just #player/overlay sources.
+  if (S.creditsSpeedupActive) creditsSqueezeVideoEl.muted = player.muted;
   refreshSfxGainLevel();
 }
 

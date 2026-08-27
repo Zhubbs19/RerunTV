@@ -53,7 +53,11 @@ function seededShuffle(arr, seed) {
 // they don't participate in ordinary cadence-driven breaks at all, only in
 // the dedicated forced-pre/post-roll resolution below, so they never get
 // double-counted between the two mechanisms.
-function poolFor(pool, type, ch, block, fileTags, targetTiming) {
+// Exported so a one-off consumer that just needs "which pool entries are
+// eligible, pick one" (e.g. playback.js's credits-squeeze video mode) can
+// reuse this exact filter/pick pair instead of re-deriving channel-
+// affinity/block-affinity/content-tag matching by hand.
+export function poolFor(pool, type, ch, block, fileTags, targetTiming) {
   return pool.filter((e) => {
     if (e.type !== type) return false;
     if (targetTiming) {
@@ -121,7 +125,7 @@ function eligiblePremiereJingleEntries(pool, ch, block) {
 // every cycle after that for variety over the long run. Same (pool, seedKey,
 // slotIndex) always produces the same result, whether slotIndex is in the
 // past or the future.
-function pickDeterministic(pool, seedKey, slotIndex) {
+export function pickDeterministic(pool, seedKey, slotIndex) {
   if (!pool.length) return null;
   const expanded = [];
   pool.forEach((e) => { for (let i = 0; i < Math.max(1, e.weight || 1); i++) expanded.push(e); });
