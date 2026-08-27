@@ -781,9 +781,67 @@ function runFlowSimulator(flow) {
     output.scrollTop = output.scrollHeight;
   }
 
+  const cadence = flow.cadence && flow.cadence.enabled ? flow.cadence : null;
+
   log(`[SIMULATOR] Starting flow simulation: "${flow.name}"`);
   log(`[SIMULATOR] Target content tags: #${(flow.contentTags || []).join(', #')}`);
+  if (cadence) {
+    const desc = cadence.timing === 'everyNMinutes'
+      ? `every ${cadence.intervalMinutes || 10} min`
+      : `at ${(cadence.breakpoints || []).join('%, ')}% points`;
+    log(`[SIMULATOR] Mid-show ad cadence: ENABLED (${desc}, ${cadence.podMin || 1}-${cadence.podMax || cadence.podMin || 1} spots per break)`);
+  } else {
+    log(`[SIMULATOR] Mid-show ad cadence: disabled`);
+  }
   log(`------------------------------------------------------------`);
+
+  // Assumed per-segment runtime for simulation purposes only, matching the
+  // "(~11:00)" placeholder already shown on the SHOW SEGMENT log line below —
+  // real playback uses the actual file duration (see resolveActiveCommercials/
+  // resolveBreakAt's hasMid handling in schedule.js/interstitials.js), but the
+  // simulator has no real media file to measure, so it picks a stand-in
+  // duration long enough to demonstrate the configured cadence.
+  const ASSUMED_SEGMENT_MIN = 11;
+
+  function logCadenceBreaksForSegment() {
+    if (!cadence) return;
+    let breakTimesMin;
+    if (cadence.timing === 'everyNMinutes') {
+      const step = Math.max(1, cadence.intervalMinutes || 10);
+      breakTimesMin = [];
+      for (let t = step; t < ASSUMED_SEGMENT_MIN; t += step) breakTimesMin.push(t);
+    } else {
+      breakTimesMin = (cadence.breakpoints || [])
+        .filter((p) => p > 0 && p < 100)
+        .sort((a, b) => a - b)
+        .map((p) => Math.round((p / 100) * ASSUMED_SEGMENT_MIN * 10) / 10);
+    }
+    if (!breakTimesMin.length) {
+      log(`  ⚠ MID-SHOW CADENCE: no break falls within this segment's assumed runtime`);
+      return;
+    }
+    const podMin = cadence.podMin || 1;
+    const podMax = cadence.podMax || podMin;
+    breakTimesMin.forEach((t) => {
+      log(`  ┊ MID-SHOW AD BREAK @ ~${t}:00 into segment (${podMin}-${podMax} spots)`);
+      const bumpInMatches = pool.filter((e) => e.type === 'adBreakIn' && (!cadence.bumpInTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.bumpInTags.includes(tag)))));
+      const bumpIn = bumpInMatches[0];
+      if (bumpIn) log(`  ┊  ├─ BUMP-IN: "${bumpIn.text || (bumpIn.file && bumpIn.file.path) || 'Network Bump-In'}" (Tags: #${(cadence.bumpInTags || []).join(', #')})`);
+      else log(`  ┊  ├─ BUMP-IN: [Synthetic Ident] "You're Watching Network" (Default)`);
+
+      const commMatches = pool.filter((e) => e.type === 'commercial' && (!cadence.commercialTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.commercialTags.includes(tag)))));
+      for (let s = 0; s < podMin; s++) {
+        const comm = commMatches[s % Math.max(1, commMatches.length)];
+        if (comm) log(`  ┊  ├─ COMMERCIAL ${s + 1}: "${comm.text || (comm.file && comm.file.path) || 'Retro Commercial'}" (30s)`);
+        else log(`  ┊  ├─ COMMERCIAL ${s + 1}: [Default Commercial Spot ${s + 1}] (30s)`);
+      }
+
+      const bumpOutMatches = pool.filter((e) => e.type === 'adBreakOut' && (!cadence.bumpOutTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.bumpOutTags.includes(tag)))));
+      const bumpOut = bumpOutMatches[0];
+      if (bumpOut) log(`  ┊  └─ BUMP-OUT: "${bumpOut.text || (bumpOut.file && bumpOut.file.path) || 'Back to Show Bumper'}" (Tags: #${(cadence.bumpOutTags || []).join(', #')})`);
+      else log(`  ┊  └─ BUMP-OUT: [Synthetic Ident] "Back to the Show" (Default)`);
+    });
+  }
 
   let currentStepIdx = 0;
   function stepTick() {
@@ -798,7 +856,8 @@ function runFlowSimulator(flow) {
     chips.forEach((c, i) => c.classList.toggle('active', i === currentStepIdx));
 
     if (step.type === 'contentSegment') {
-      log(`▶ STEP ${currentStepIdx + 1} [SHOW SEGMENT]: "${step.name}" -> Airing show episode matching #${(step.tags || flow.contentTags).join(', #')} (~11:00)`);
+      log(`▶ STEP ${currentStepIdx + 1} [SHOW SEGMENT]: "${step.name}" -> Airing show episode matching #${(step.tags || flow.contentTags).join(', #')} (~${ASSUMED_SEGMENT_MIN}:00)`);
+      logCadenceBreaksForSegment();
     } else if (step.type === 'adPod') {
       log(`▶ STEP ${currentStepIdx + 1} [AD POD BREAK]: "${step.name}" (${step.podMin}-${step.podMax} spots)`);
       const bumpInMatches = pool.filter((e) => e.type === 'adBreakIn' && (!step.bumpInTags?.length || (e.contentTags && e.contentTags.some((t) => step.bumpInTags.includes(t)))));

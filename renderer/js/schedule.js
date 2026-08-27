@@ -427,13 +427,22 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   const flows = (S.config.interstitials && S.config.interstitials.flows) || [];
   const tags = fileTags || [];
   
+  // Channel and content-tag constraints are independent gates, both applied
+  // whenever set (AND, not "tags only matter if there's no channel scope") —
+  // matching flowStepPreviewPaths' own channel+tag filtering (setup-
+  // interstitials-flowbuilder.js) and the flow status banner's "FLOW ACTIVE
+  // FOR CH X // SHOWS: #tag" wording, both of which already treat the two as
+  // independently AND'd. Every flow's editor always shows both a channel
+  // picker and a contentTags field, so a flow scoped to specific channels
+  // that ALSO sets contentTags needs the tags enforced too — otherwise two
+  // different show-specific flows aimed at the same channel would collapse
+  // to "whichever comes first in the array wins for all of that channel's
+  // content," with contentTags silently doing nothing.
   const flow = flows.find((f) => {
     if (f.enabled === false) return false;
-    const hasChannelConstraint = f.channels && f.channels.length > 0;
-    if (hasChannelConstraint && !f.channels.includes(ch.number)) return false;
+    if (f.channels && f.channels.length > 0 && !f.channels.includes(ch.number)) return false;
 
-    const hasTagConstraint = f.contentTags && f.contentTags.length > 0;
-    if (hasTagConstraint && !hasChannelConstraint) {
+    if (f.contentTags && f.contentTags.length > 0) {
       if (!tags.length || !f.contentTags.some((t) => tags.includes(t))) return false;
     }
 
@@ -610,9 +619,21 @@ export function computeSourcePosition(source, atMs, opts) {
 
 // Compute { file, fileIndex, offset, ... } for a channel at this instant,
 // as if it has been broadcasting continuously since its anchor — routed
-// through whichever block (or the default folder) is active now.
+// through whichever block (or the default folder) is active now. Pure by
+// contract (per this comment) — ignoreContentLost is required to keep that
+// promise: without it, computeSourcePosition would silently subtract
+// S.contentLostMs/breakEnteredAtMs, a *global*, single-channel value that
+// playback.js's own computeLiveContentPosition owns and correctly key-scopes
+// to whichever channel/source is actually live-tuned right now. This
+// function is called for channels that AREN'T the tuned one (every row of
+// setup-channels.js's CHANNELS list) and for timestamps that AREN'T real
+// "now" (the time machine's VCR OSD readout and shuttle content-preview,
+// at whatever instant is being scrubbed to) — applying the tuned channel's
+// currently-accumulated ad-break lag to a different channel or a different
+// moment in time was wrong in both cases, and broke the "pure function of
+// (channel, timestamp)" contract every other schedule.js resolver relies on.
 export function computeLivePosition(ch) {
-  return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow());
+  return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow(), { ignoreContentLost: true });
 }
 
 export function walkSourceSchedule(source, segStart, segEnd) {
