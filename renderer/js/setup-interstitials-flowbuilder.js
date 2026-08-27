@@ -830,19 +830,22 @@ function runFlowSimulator(flow) {
   const ASSUMED_SEGMENT_MIN = 11;
 
   // Mirrors computeActiveCommercials' own midTagsMatch gating (schedule.js):
-  // an empty/unset cadence.contentTags applies to any segment, otherwise the
-  // segment's own effective tags (step.tags, falling back to the flow's own
-  // contentTags — same resolution the SHOW SEGMENT log line above uses) must
-  // share at least one tag with cadence.contentTags.
+  // an empty/unset cadence.contentTags applies to any segment; an UNTAGGED
+  // segment (segmentTags.length === 0) is "unknown," not a known mismatch,
+  // so it still gets cadence rather than silently losing it — only a
+  // segment with real tags that share none with cadence.contentTags is
+  // actually skipped.
   function cadenceAppliesToSegment(segmentTags) {
     if (!cadence.contentTags || !cadence.contentTags.length) return true;
-    return segmentTags.length > 0 && cadence.contentTags.some((t) => segmentTags.includes(t));
+    return segmentTags.length === 0 || cadence.contentTags.some((t) => segmentTags.includes(t));
   }
 
   function logCadenceBreaksForSegment(segmentTags) {
     if (!cadence) return;
     if (!cadenceAppliesToSegment(segmentTags)) {
-      log(`  ⊘ MID-SHOW CADENCE: skipped — this segment's tags (#${segmentTags.join(', #') || 'none'}) don't match the cadence's own scope (#${cadence.contentTags.join(', #')})`);
+      // Only reachable with real, non-overlapping tags — an untagged segment
+      // always passes (see cadenceAppliesToSegment above).
+      log(`  ⊘ MID-SHOW CADENCE: skipped — this segment's tags (#${segmentTags.join(', #')}) don't match the cadence's own scope (#${cadence.contentTags.join(', #')})`);
       return;
     }
     let breakTimesMin;
