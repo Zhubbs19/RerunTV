@@ -11,7 +11,7 @@ import {
 } from './dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from './display-mode.js';
 import { showGuideOverlay } from './guide.js';
-import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
+import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from './interstitials.js';
 import { tuneTimingEnabled } from './perf.js';
 import { applyBlockTheme, applyChannelIdentity, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
 import { cancelAllInterrupts, getThemePack, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from './plugins.js';
@@ -508,19 +508,30 @@ const BREAK_LABELS = {
 
 // Fade-to-black around a break bumper cut (entering or leaving) — resolves
 // once the CSS opacity transition has had time to run, so callers can await
-// it before swapping player.src and cutting over.
-const BREAK_FADE_MS = 180;
+// it before swapping player.src and cutting over. These are the fallback
+// durations used whenever a call site has no specific pool entry to read
+// fadeOutMs/fadeInMs from (endBreak's own fade back to content, ordinary
+// content-to-content cuts) — matches tv.css's own fallback transition-
+// duration, so behavior is unchanged for anyone who never touches the new
+// per-entry fields (setup-interstitials.js).
+const DEFAULT_FADE_OUT_MS = 180;
+const DEFAULT_FADE_IN_MS = 220;
 // How long checkBreakState will keep deferring a boundary-timer cutoff for a
 // real-file bumper whose probed duration undershot its actual length, before
 // giving up and cutting it anyway (see S.awaitingBumperEnd above).
 const BUMPER_OVERRUN_GRACE_MS = 8000;
-function fadeOutPlayer() {
+function fadeOutPlayer(ms = DEFAULT_FADE_OUT_MS) {
   return new Promise((resolve) => {
+    // Inline style wins over tv.css's class-based transition-duration,
+    // letting a per-entry fadeOutMs (startBreak) override the fallback
+    // without needing a matching CSS rule per possible value.
+    player.style.transitionDuration = `${ms}ms`;
     player.classList.add('screen-fade-out');
-    setTimeout(resolve, BREAK_FADE_MS);
+    setTimeout(resolve, ms);
   });
 }
-function fadeInPlayer() {
+function fadeInPlayer(ms = DEFAULT_FADE_IN_MS) {
+  player.style.transitionDuration = `${ms}ms`;
   requestAnimationFrame(() => player.classList.remove('screen-fade-out'));
 }
 
@@ -630,12 +641,20 @@ function startBreak(ch, resolved, key) {
   else crtToggleFlash.textContent = BREAK_LABELS[type] || 'COMMERCIAL BREAK';
   crtToggleFlash.classList.add('show');
 
+  // Per-entry transition timing (setup-interstitials.js's FADE IN/FADE OUT/
+  // WAIT AFTER fields) — null/unset falls back to the same defaults every
+  // entry used before these fields existed, so an untouched entry's on-air
+  // look doesn't change at all.
+  const entryFadeOutMs = entry.fadeOutMs != null ? entry.fadeOutMs : DEFAULT_FADE_OUT_MS;
+  const entryFadeInMs = entry.fadeInMs != null ? entry.fadeInMs : DEFAULT_FADE_IN_MS;
+  const entryWaitAfterMs = entryWaitMs(entry);
+
   if (entry.dynamic) {
     (async () => {
       try {
         const filePath = (entry.bgFile && entry.bgFile.path) || '';
         const resolved = await window.api.resolvePlayablePath('local', filePath);
-        const [, url] = await Promise.all([fadeOutPlayer(), window.api.toFileUrl(resolved.path)]);
+        const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
         if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
         player.loop = true;
         player.src = url;
@@ -662,7 +681,7 @@ function startBreak(ch, resolved, key) {
           cacheVideoSize(filePath, player.videoWidth, player.videoHeight);
           applyDisplayMode();
           applyTvBezel(player.videoWidth, player.videoHeight, ch);
-          fadeInPlayer();
+          fadeInPlayer(entryFadeInMs);
         };
         S.metaHandler = onMeta;
         player.addEventListener('loadedmetadata', onMeta);
@@ -682,7 +701,7 @@ function startBreak(ch, resolved, key) {
     try {
       const filePath = (entry.file && entry.file.path) || '';
       const resolved = await window.api.resolvePlayablePath('local', filePath);
-      const [, url] = await Promise.all([fadeOutPlayer(), window.api.toFileUrl(resolved.path)]);
+      const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
       if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
       player.src = url;
       S.awaitingBumperEnd = true;
@@ -703,17 +722,28 @@ function startBreak(ch, resolved, key) {
         cacheVideoSize(filePath, player.videoWidth, player.videoHeight);
         applyDisplayMode();
         applyTvBezel(player.videoWidth, player.videoHeight, ch);
-        fadeInPlayer();
+        fadeInPlayer(entryFadeInMs);
       };
       S.metaHandler = onMeta;
       player.addEventListener('loadedmetadata', onMeta);
 
+      // The video itself ends the instant its own content runs out — a
+      // configured WAIT AFTER (entryWaitAfterMs) holds on the now-ended
+      // frame for that much longer before actually resuming, matching the
+      // extended windowEnd buildPod/windowFor compute for this same entry
+      // (interstitials.js) so live playback and the pure schedule-window
+      // model (time machine, other channels) agree on when this break
+      // really ends.
       const resume = () => {
         player.removeEventListener('ended', resume);
         player.removeEventListener('error', resume);
-        S.awaitingBumperEnd = false;
-        if (key) markBreakCompleted(key);
-        endBreak(ch);
+        const finish = () => {
+          S.awaitingBumperEnd = false;
+          if (key) markBreakCompleted(key);
+          endBreak(ch);
+        };
+        if (entryWaitAfterMs > 0) setTimeout(finish, entryWaitAfterMs);
+        else finish();
       };
       S.endedHandler = resume;
       S.errorHandler = resume;
@@ -739,7 +769,7 @@ export function forceInterstitialPreview(ch, entry) {
   const windowStart = viewNow();
   startBreak(ch, {
     type: entry.type, entry, label: 'preview', windowStart,
-    windowEnd: windowStart + durationS * 1000,
+    windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry),
   }, null);
   return true;
 }

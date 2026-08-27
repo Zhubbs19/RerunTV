@@ -500,6 +500,54 @@ function buildInterstitialCard(entry, idx, pool) {
       secondGridUsed = true;
     }
 
+    // Transition timing, all optional and all types — left blank, an entry
+    // behaves exactly as before this existed (fadeOutPlayer/fadeInPlayer's
+    // own defaults, playback.js). Explicitly setting a field, including 0,
+    // opts into a different look (0 = instant hard cut, a real network-style
+    // choice, not "unset"). Placeholders show what a real broadcast network
+    // cut typically looks like: a snappy fade to black into the break, a
+    // slightly slower fade back to content, and a brief held beat between
+    // segments rather than an abrupt jump-cut.
+    const fadeInInput = document.createElement('input');
+    fadeInInput.type = 'number';
+    fadeInInput.min = 0;
+    fadeInInput.className = 'block-priority-input';
+    fadeInInput.title = 'How long this entry fades in from black when it starts. Blank = default.';
+    fadeInInput.placeholder = '220';
+    fadeInInput.value = entry.fadeInMs != null ? entry.fadeInMs : '';
+    fadeInInput.addEventListener('change', () => {
+      entry.fadeInMs = fadeInInput.value.trim() === '' ? null : parsePositiveInt(fadeInInput.value, 0);
+      saveConfigDebounced();
+    });
+    secondGrid.appendChild(labeledField('FADE IN (MS, BLANK = DEFAULT)', fadeInInput));
+
+    const fadeOutInput = document.createElement('input');
+    fadeOutInput.type = 'number';
+    fadeOutInput.min = 0;
+    fadeOutInput.className = 'block-priority-input';
+    fadeOutInput.title = 'How long this entry fades to black when it ends. Blank = default.';
+    fadeOutInput.placeholder = '180';
+    fadeOutInput.value = entry.fadeOutMs != null ? entry.fadeOutMs : '';
+    fadeOutInput.addEventListener('change', () => {
+      entry.fadeOutMs = fadeOutInput.value.trim() === '' ? null : parsePositiveInt(fadeOutInput.value, 0);
+      saveConfigDebounced();
+    });
+    secondGrid.appendChild(labeledField('FADE OUT (MS, BLANK = DEFAULT)', fadeOutInput));
+
+    const waitInput = document.createElement('input');
+    waitInput.type = 'number';
+    waitInput.min = 0;
+    waitInput.className = 'block-priority-input';
+    waitInput.title = 'A brief held beat on black after this entry ends, before the next thing starts. Blank = none.';
+    waitInput.placeholder = '0';
+    waitInput.value = entry.waitMs || '';
+    waitInput.addEventListener('change', () => {
+      entry.waitMs = parsePositiveInt(waitInput.value, 0);
+      saveConfigDebounced();
+    });
+    secondGrid.appendChild(labeledField('WAIT AFTER (MS, BLANK = NONE)', waitInput));
+    secondGridUsed = true;
+
     if (typeDef.contentKind === 'video') {
       // Orthogonal to type — any video-kind entry can loop a background
       // clip with live templated text instead of playing a fixed file. See
