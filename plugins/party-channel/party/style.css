@@ -14,7 +14,8 @@
   --line: #5b3d99;
   --danger: #ff6b5b;
   --ok: #4ee08a;
-  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -28,43 +29,87 @@ html, body {
   min-height: 100vh;
 }
 
+/* Faint fixed scanline texture, tying this guest page back to the app's own
+   CRT/broadcast look elsewhere. Kept subtle enough to never fight legibility. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.03) 0px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: overlay;
+}
+
 .header {
-  padding: 16px 16px 12px;
+  position: relative;
+  padding: 20px 16px 14px;
   text-align: center;
   border-bottom: 1px solid var(--line);
+  background: radial-gradient(120% 100% at 50% 0%, rgba(122, 79, 214, 0.35) 0%, transparent 70%);
+}
+.header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold) 20%, var(--pink) 50%, var(--cyan) 80%, transparent);
+  opacity: 0.85;
 }
 .title {
   font-family: 'Archivo Black', system-ui, sans-serif;
-  font-size: 16px;
-  letter-spacing: 1px;
+  font-size: 19px;
+  letter-spacing: 1.5px;
   color: var(--gold);
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 .queue-status {
-  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--paper-dim);
   letter-spacing: 0.5px;
 }
+.queue-status::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+  flex: 0 0 auto;
+}
 .watch-live-link {
-  display: inline-block;
-  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  color: var(--gold);
+  color: var(--gold-ink);
   text-decoration: none;
-  border: 1px solid var(--gold);
-  border-radius: var(--radius-sm);
-  padding: 4px 10px;
+  background: linear-gradient(180deg, #ffe073 0%, var(--gold) 55%, #e0ac10 100%);
+  border: 1px solid #b8860b;
+  border-radius: 999px;
+  padding: 6px 14px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 2px 2px 0 rgba(0, 0, 0, 0.35);
 }
-.watch-live-link.hidden { display: none; }
-
 .activity-picker-label {
   display: none;
   max-width: 480px;
-  margin: 12px auto 5px;
+  margin: 14px auto 5px;
   padding: 0 16px;
   color: var(--cyan);
   font-size: 10px;
@@ -77,7 +122,7 @@ html, body {
   max-width: 448px;
   margin: 0 auto;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--ink-deep);
   color: var(--paper);
   font: 700 14px 'Barlow', system-ui, sans-serif;
@@ -87,15 +132,20 @@ html, body {
 
 /* Horizontally scrollable, not equal-width flex — this page grew past the
    handful of tabs a single-row equal-width layout can comfortably fit on a
-   phone (BULLETIN/ANNOUNCE/SOUNDBOARD/EFFECTS/VOTE/CHECK IN/CAPTION/TRIVIA). */
+   phone (BULLETIN/ANNOUNCE/SOUNDBOARD/EFFECTS/VOTE/CHECK IN/CAPTION/TRIVIA).
+   Masked edges hint that there's more to scroll to. */
 .tabs {
+  position: relative;
+  z-index: 1;
   display: flex;
   gap: 8px;
-  padding: 12px 14px 0;
+  padding: 14px 14px 0;
   max-width: 480px;
   margin: 0 auto;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 20px), transparent 100%);
 }
 .tab-btn {
   flex: 0 0 auto;
@@ -109,6 +159,7 @@ html, body {
   font-size: 13px;
   letter-spacing: 1px;
   padding: 10px 12px;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 .tab-btn.active {
   background: var(--ink-deep);
@@ -126,12 +177,21 @@ textarea:focus-visible {
 }
 
 .content {
+  position: relative;
+  z-index: 1;
   max-width: 480px;
   margin: 0 auto;
   padding: 18px 16px 60px;
 }
-.panel.hidden { display: none; }
-.tab-btn.hidden { display: none; }
+.hidden { display: none !important; }
+.panel { animation: panel-in 0.18s ease; }
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .panel { animation: none; }
+}
 
 .section-label {
   font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
@@ -156,13 +216,14 @@ form, .panel { display: flex; flex-direction: column; gap: 12px; }
   align-items: center;
   justify-content: center;
   border: 2px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 22px 12px;
   text-align: center;
   font-weight: 700;
   font-size: 14px;
   color: var(--paper-dim);
   cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
 }
 .file-picker input[type="file"] {
   position: absolute;
@@ -179,19 +240,21 @@ form, .panel { display: flex; flex-direction: column; gap: 12px; }
 input[type="text"], textarea {
   background: var(--ink-deep);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--paper);
   font-family: 'Barlow', system-ui, sans-serif;
   font-size: 14px;
   padding: 12px;
   resize: vertical;
+  transition: border-color 0.15s ease;
 }
+input[type="text"]:focus-visible, textarea:focus-visible { border-color: var(--cyan); }
 input[type="text"]::placeholder, textarea::placeholder { color: #b6aad7; }
 
 .btn {
   background: linear-gradient(180deg, #7a4fd6 0%, #5b3d99 55%, #452e75 100%);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--paper);
   font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   font-weight: 700;
@@ -225,8 +288,9 @@ input[type="text"]::placeholder, textarea::placeholder { color: #b6aad7; }
   min-height: 140px;
   background: var(--ink-deep);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 .caption-image {
   width: 100%;
@@ -242,15 +306,38 @@ input[type="text"]::placeholder, textarea::placeholder { color: #b6aad7; }
 .sound-btn {
   background: linear-gradient(180deg, #ff8ecb 0%, var(--pink) 55%, #d43e82 100%);
   border: 1px solid #a02e63;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: #2a0518;
   font-family: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   font-weight: 700;
   font-size: 13px;
   padding: 18px 8px;
   text-align: center;
+  touch-action: manipulation;
 }
 .sound-btn:active { transform: translate(1px, 1px); }
+
+/* Bingo tiles reuse .sound-btn but toggle .active on tap — this state was
+   previously untracked in CSS, so tapping a tile gave no visible feedback. */
+.bingo-tile.active {
+  background: linear-gradient(180deg, #8effc4 0%, var(--ok) 55%, #22a15e 100%);
+  border-color: #1c7a49;
+  color: #06341c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 2px 2px 0 rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(78, 224, 138, 0.35);
+}
+
+.reaction-btn {
+  font-size: 30px;
+  padding: 14px 8px;
+  line-height: 1;
+}
+
+@media (hover: hover) {
+  .btn:not(:disabled):hover,
+  .sound-btn:hover {
+    filter: brightness(1.08);
+  }
+}
 
 @media (min-width: 480px) {
   .soundboard-grid { grid-template-columns: repeat(3, 1fr); }
@@ -262,36 +349,3 @@ input[type="text"]::placeholder, textarea::placeholder { color: #b6aad7; }
   .tabs { display: none; }
   .content { padding-top: 14px; }
 }
-
-.jukebox-search-row {
-  display: flex;
-  gap: 8px;
-}
-.jukebox-search-row input { flex: 1; }
-
-.jukebox-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  margin-top: 8px;
-  background: var(--ink-deep);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.jukebox-row-meta { flex: 1; min-width: 0; }
-.jukebox-row-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--paper);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.jukebox-row-sub {
-  margin-top: 2px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--paper-dim);
-}
-.jukebox-row .btn { flex: 0 0 auto; padding: 8px 12px; font-size: 12px; }
