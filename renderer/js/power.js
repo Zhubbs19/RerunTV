@@ -5,7 +5,7 @@ import {
   screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
   vhsTimestampEl, volumeBarFillEl, volumeIndicatorEl,
 } from './dom.js';
-import { cancelUpNextBar, resetActiveBreakState, tuneToChannel } from './playback.js';
+import { cancelUpNextBar, resetActiveBreakState, resetCreditsSpeedup, tuneToChannel } from './playback.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from './plugins.js';
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, saveConfigDebounced, viewNow } from './state.js';
 import { stopShuttle } from './timemachine.js';
@@ -597,6 +597,7 @@ export function powerOff() {
   stationIdBarEl.classList.remove('show');
   crtToggleFlash.classList.remove('show');
   cancelUpNextBar();
+  resetCreditsSpeedup();
   cancelAllInterrupts();
   resetActiveBreakState();
   stopShuttle();

@@ -64,6 +64,63 @@
   transition-duration: 180ms;
 }
 
+/* End-credits squeeze-back (ch.creditsSpeedup, playback.js's
+   startCreditsSpeedup) — shrinks #player into the left side of the screen,
+   opening up the right side for #credits-squeeze-panel's "up next" card.
+   Re-declares the opacity transition alongside the new `right` one rather
+   than just adding a second rule, since #player's base transition-property
+   is `opacity` only — needs both listed together to animate at once. */
+.crt.credits-squeeze #player {
+  right: 35%;
+  transition: opacity 220ms linear, right 500ms ease-in-out;
+}
+
+.credits-squeeze-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 35%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  box-sizing: border-box;
+  text-align: center;
+  font-family: var(--font-ui);
+  color: var(--paper);
+  background: var(--credits-squeeze-bg, var(--gradient-panel));
+  background-size: cover;
+  background-position: center;
+  border-left: 2px solid var(--line);
+}
+
+.credits-squeeze-panel.hidden {
+  display: none !important;
+}
+
+.credits-squeeze-eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--gold);
+}
+
+.credits-squeeze-channel {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  opacity: 0.85;
+}
+
+.credits-squeeze-title {
+  font-size: 22px;
+  font-weight: 700;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+}
+
 /* Aspect ratio toggle: 'stretch' badly distorts a mismatched-aspect signal
    to fill the tube edge-to-edge, the retro cable-box counterpart to
    'contain' (default, safe pillarbox/letterbox). 'fill' is the real-TV

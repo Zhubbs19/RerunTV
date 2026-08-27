@@ -560,11 +560,43 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         saveConfigDebounced();
       });
 
+      // End-credits speedup override (ch.creditsSpeedup's channel-wide
+      // default, setup-panels.js's buildCreditsSpeedupPanel) — blank
+      // inherits that default; 0 explicitly opts THIS file out even when
+      // the channel has speedup enabled, same "explicit value always wins,
+      // blank inherits" shape as rating's 'NONE' sentinel above.
+      const creditsLeadInput = document.createElement('input');
+      creditsLeadInput.type = 'number';
+      creditsLeadInput.min = 0;
+      creditsLeadInput.className = 'title-row-input';
+      creditsLeadInput.placeholder = 'CREDITS LEAD (SEC, BLANK = CHANNEL DEFAULT)';
+      creditsLeadInput.title = 'Seconds before this file ends where its credits start — overrides the channel\'s default lead time. 0 disables the speedup for this file specifically.';
+      creditsLeadInput.value = file.creditsLeadS != null ? file.creditsLeadS : '';
+      creditsLeadInput.addEventListener('change', () => {
+        file.creditsLeadS = creditsLeadInput.value.trim() === '' ? null : parsePositiveInt(creditsLeadInput.value, 0);
+        saveConfigDebounced();
+      });
+
+      const creditsBgBtn = document.createElement('button');
+      creditsBgBtn.type = 'button';
+      creditsBgBtn.className = 'btn';
+      creditsBgBtn.title = 'This title\'s own UP NEXT card backdrop during the credits squeeze, instead of the channel\'s default.';
+      creditsBgBtn.textContent = file.creditsSqueezeBgImage ? basenameNoExt(file.creditsSqueezeBgImage) : 'CREDITS BACKDROP…';
+      creditsBgBtn.addEventListener('click', async () => {
+        const path = await window.api.selectImage();
+        if (!path) return;
+        file.creditsSqueezeBgImage = path;
+        creditsBgBtn.textContent = basenameNoExt(path);
+        saveConfigDebounced();
+      });
+
       facetsRow.appendChild(genreWrap);
       facetsRow.appendChild(moodWrap);
       facetsRow.appendChild(eraInput);
       facetsRow.appendChild(contentTypeSelect);
       facetsRow.appendChild(ratingSelect);
+      facetsRow.appendChild(creditsLeadInput);
+      facetsRow.appendChild(creditsBgBtn);
 
       facetsToggleBtn.addEventListener('click', () => {
         const nowHidden = facetsRow.classList.toggle('hidden');
@@ -981,6 +1013,111 @@ export function buildLogoBugPanel(ch, panelEl) {
       (profiles) => { ch.logoBugProfiles = profiles; saveConfigDebounced(); },
       () => applyLogoBugPlacement(ch),
     ));
+  }
+
+  render();
+}
+
+// End-credits speedup — a real syndicated-TV trick: fast-forward (muted)
+// through a movie's last stretch once its credits begin, squeezing the
+// picture over to make room for an "UP NEXT" card, then resume normal speed
+// for whatever airs next (playback.js's scheduleCreditsSpeedup/
+// startCreditsSpeedup). Per-file overrides (creditsLeadS, 0 = never for
+// that file) live in the TITLES tab's facets row instead, next to `rating` —
+// this panel is only the channel-wide default.
+export function buildCreditsSpeedupPanel(ch, panelEl) {
+  function render() {
+    panelEl.innerHTML = '';
+    if (!ch.creditsSpeedup) ch.creditsSpeedup = { enabled: false, leadSeconds: 90, rate: 3, squeezeBgImage: null };
+    const cfg = ch.creditsSpeedup;
+
+    const enabledLabel = document.createElement('label');
+    enabledLabel.className = 'shuffle-toggle';
+    const enabledCheckbox = document.createElement('input');
+    enabledCheckbox.type = 'checkbox';
+    enabledCheckbox.checked = !!cfg.enabled;
+    enabledCheckbox.addEventListener('change', () => {
+      cfg.enabled = enabledCheckbox.checked;
+      render();
+      saveConfigDebounced();
+    });
+    enabledLabel.appendChild(enabledCheckbox);
+    enabledLabel.appendChild(document.createTextNode('SPEED UP END CREDITS'));
+    panelEl.appendChild(enabledLabel);
+
+    const hint = document.createElement('span');
+    hint.className = 'panel-status';
+    hint.textContent = 'Fast-forwards (muted) through the last stretch of a file once its credits begin, squeezing the picture aside for an UP NEXT card, then resumes normal speed for whatever airs next. A specific title can opt out (or set its own lead time) from the TITLES tab.';
+    panelEl.appendChild(hint);
+
+    if (!cfg.enabled) return;
+
+    const grid = document.createElement('div');
+    grid.className = 'field-grid';
+
+    const leadInput = document.createElement('input');
+    leadInput.type = 'number';
+    leadInput.min = 1;
+    leadInput.className = 'block-priority-input';
+    leadInput.title = 'How many seconds before a file ends its credits are assumed to start, by default — a specific title can override this.';
+    leadInput.value = cfg.leadSeconds || 90;
+    leadInput.addEventListener('change', () => {
+      cfg.leadSeconds = parsePositiveInt(leadInput.value, 90);
+      saveConfigDebounced();
+    });
+    grid.appendChild(leadInput);
+    const leadLabel = document.createElement('span');
+    leadLabel.className = 'option-label';
+    leadLabel.textContent = 'DEFAULT LEAD TIME (SEC BEFORE END)';
+    grid.insertBefore(leadLabel, leadInput);
+
+    const rateInput = document.createElement('input');
+    rateInput.type = 'number';
+    rateInput.min = 2;
+    rateInput.max = 8;
+    rateInput.className = 'block-priority-input';
+    rateInput.title = 'Playback speed multiplier during the sped-up stretch.';
+    rateInput.value = cfg.rate || 3;
+    rateInput.addEventListener('change', () => {
+      cfg.rate = Math.max(2, parsePositiveInt(rateInput.value, 3));
+      saveConfigDebounced();
+    });
+    grid.appendChild(rateInput);
+    const rateLabel = document.createElement('span');
+    rateLabel.className = 'option-label';
+    rateLabel.textContent = 'SPEED (×)';
+    grid.insertBefore(rateLabel, rateInput);
+
+    panelEl.appendChild(grid);
+
+    // Channel-wide default backdrop for the squeeze panel — a specific
+    // title can override this from the TITLES tab; blank at both levels
+    // falls back to a plain card tinted with this channel's own accent
+    // color (startCreditsSpeedup, playback.js).
+    const bgBtn = document.createElement('button');
+    bgBtn.type = 'button';
+    bgBtn.className = 'btn';
+    bgBtn.textContent = cfg.squeezeBgImage ? basenameNoExt(cfg.squeezeBgImage) : 'UP NEXT CARD BACKDROP…';
+    bgBtn.addEventListener('click', async () => {
+      const path = await window.api.selectImage();
+      if (!path) return;
+      cfg.squeezeBgImage = path;
+      render();
+      saveConfigDebounced();
+    });
+    panelEl.appendChild(bgBtn);
+    if (cfg.squeezeBgImage) {
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'btn remove-btn';
+      clearBtn.textContent = 'CLEAR BACKDROP';
+      clearBtn.addEventListener('click', () => {
+        cfg.squeezeBgImage = null;
+        render();
+        saveConfigDebounced();
+      });
+      panelEl.appendChild(clearBtn);
+    }
   }
 
   render();
