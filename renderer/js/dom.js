@@ -255,6 +255,7 @@ export const localAvailTextEl = document.getElementById('local-avail-text');
 export const creditsSqueezePanelEl = document.getElementById('credits-squeeze-panel');
 export const creditsSqueezeChannelEl = document.getElementById('credits-squeeze-channel');
 export const creditsSqueezeTitleEl = document.getElementById('credits-squeeze-title');
+export const creditsSqueezeVideoEl = document.getElementById('credits-squeeze-video');
 export const tapeFxEl = document.getElementById('tape-fx');
 export const vcrOsdEl = document.getElementById('vcr-osd');
 export const vcrModeEl = document.getElementById('vcr-mode');

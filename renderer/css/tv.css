@@ -121,6 +121,30 @@
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
 }
 
+.credits-squeeze-video {
+  display: none;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* VIDEO mode (ch.creditsSpeedup.squeezeMode === 'video', startCreditsSpeedup
+   in playback.js) - same outer frame as the text-card mode, just swaps
+   which content fills it: the text trio hides, the real promo video shows
+   and fills the whole panel (no padding/gap, unlike the text layout). */
+.credits-squeeze-panel.video-mode {
+  padding: 0;
+  gap: 0;
+}
+.credits-squeeze-panel.video-mode .credits-squeeze-eyebrow,
+.credits-squeeze-panel.video-mode .credits-squeeze-channel,
+.credits-squeeze-panel.video-mode .credits-squeeze-title {
+  display: none;
+}
+.credits-squeeze-panel.video-mode .credits-squeeze-video {
+  display: block;
+}
+
 /* Aspect ratio toggle: 'stretch' badly distorts a mismatched-aspect signal
    to fill the tube edge-to-edge, the retro cable-box counterpart to
    'contain' (default, safe pillarbox/letterbox). 'fill' is the real-TV
