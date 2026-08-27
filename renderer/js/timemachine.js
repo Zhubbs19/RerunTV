@@ -1,12 +1,13 @@
 import { sfxGuideToggle, sfxVolumeTick } from './audio.js';
 import { getChannel } from './channels.js';
 import {
-  crtToggleFlash, player, stationIdBarEl, stationIdNameEl, tapeFxEl, timeShiftBadgeEl, triviaCardEl,
-  triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
+  crtToggleFlash, dynamicBumperTextEl, player, stationIdBarEl, stationIdNameEl, tapeFxEl, timeShiftBadgeEl,
+  triviaCardEl, triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
 } from './dom.js';
 import { nextBreakStart, prevBreakStart, resolveBreakAt } from './interstitials.js';
 import {
-  cancelUpNextBar, checkBreakState, playChannelLive, resetActiveBreakState, scheduleBlockBoundaryRetune,
+  cancelUpNextBar, checkBreakState, playChannelLive, renderDynamicText, resetActiveBreakState,
+  scheduleBlockBoundaryRetune,
 } from './playback.js';
 import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
@@ -67,6 +68,7 @@ export function updateVcrOsd() {
 function hideShuttleBreakOverlays() {
   triviaCardEl.classList.add('hidden');
   stationIdBarEl.classList.remove('show');
+  dynamicBumperTextEl.classList.add('hidden');
 }
 
 // While shuttling the player is paused and scrubbed like a tape: seek
@@ -79,18 +81,36 @@ export async function updateShuttlePreview() {
   if (!ch) return;
 
   const brk = resolveBreakAt(ch, viewNow());
-  if (brk && brk.entry && brk.entry.file) {
+  // A dynamic entry (looping background clip + templated text — see the
+  // DYNAMIC checkbox, setup-interstitials.js) has no entry.file of its own
+  // (its content lives in entry.bgFile instead — see entryDurationS,
+  // interstitials.js), but startBreak's own dynamic branch (playback.js)
+  // still swaps player.src to that background clip just like an ordinary
+  // video bumper. Without also matching it here, scrubbing across a dynamic
+  // break used to fall through to the plain-content preview below, showing
+  // the underlying show instead of any indication a bumper is airing there.
+  const previewFile = brk && brk.entry && (brk.entry.dynamic ? brk.entry.bgFile : brk.entry.file);
+  if (brk && previewFile) {
     // Video-kind break — preview the bumper itself, seeked to the same
     // point within it the scrubbed instant falls at.
     hideShuttleBreakOverlays();
     const offsetS = (viewNow() - brk.windowStart) / 1000;
-    const previewKey = `break:${brk.entry.file.path}`;
+    const previewKey = `break:${previewFile.path}`;
+    // {time}/{daysUntil}-style placeholders keep advancing while scrubbing
+    // stays inside the same dynamic entry (previewKey, keyed on the bg clip's
+    // path alone, doesn't change tick to tick the way offsetS does) — so this
+    // refreshes every tick regardless of whether the src reload below runs.
+    if (brk.entry.dynamic) {
+      dynamicBumperTextEl.textContent = renderDynamicText(brk.entry.text, ch, brk.entry);
+      dynamicBumperTextEl.classList.remove('hidden');
+    }
     if (previewKey !== S.shuttlePreviewPath) {
       S.shuttlePreviewPath = previewKey;
       try {
-        const resolved = await window.api.resolvePlayablePath('local', brk.entry.file.path);
+        const resolved = await window.api.resolvePlayablePath('local', previewFile.path);
         const url = await window.api.toFileUrl(resolved.path);
         if (!S.timeMachineOn || S.shuttlePreviewPath !== previewKey) return;
+        player.loop = !!brk.entry.dynamic;
         player.src = url;
       } catch (err) {
         return;
@@ -277,13 +297,15 @@ export async function shuttlePlay() {
     // (interstitials.js) always land here; an ordinary shuttle-then-commit
     // only sometimes does, and behaves exactly as before otherwise.
     // Only video-kind breaks (entry.file — commercial/adBreakIn/adBreakOut/
-    // signOff/signOn/a video upNext or promo) actually compete for
-    // player.src/screen-fade-out, so only those need the content load
+    // signOff/signOn/a video upNext or promo — OR entry.dynamic, a looping
+    // background clip: startBreak's dynamic branch swaps player.src to
+    // entry.bgFile exactly like an ordinary video bumper) actually compete
+    // for player.src/screen-fade-out, so only those need the content load
     // skipped; text-only breaks (channelId's station-id bar, trivia) never
     // touch either, so loading content first is harmless there and keeps
     // it correctly positioned underneath the overlay as before.
     const dueBreak = resolveBreakAt(ch, viewNow());
-    const dueVideoBreak = dueBreak && dueBreak.entry && dueBreak.entry.file;
+    const dueVideoBreak = dueBreak && dueBreak.entry && (dueBreak.entry.file || dueBreak.entry.dynamic);
     if (!dueVideoBreak) {
       await playChannelLive(ch, { fadeInOnReady: true });
     }
@@ -299,6 +321,13 @@ export async function returnToLive() {
   S.timeOffsetMs = 0;
   stopShuttle();
   S.shuttlePreviewPath = null;
+  // Same reasoning as shuttlePlay's own reset above — jumping back to live
+  // "now" is itself a jump to a (potentially already-visited) point in time,
+  // most concretely after previewing forward into an upcoming break: without
+  // this, real wall-clock time later catching up to that same break window
+  // would find its key already "completed" from the earlier preview and
+  // silently skip it, even though it was never actually watched live.
+  S.completedBreakKeys = null;
   updateTimeShiftBadge();
   const ch = getChannel(S.currentNumber);
   if (ch) {
@@ -338,7 +367,9 @@ export async function exitTimeMachine(opts) {
   // scrub preview last seeked to (updateShuttlePreview never calls play())
   // — without this, nothing else ever resumes it. Same commit shuttlePlay
   // does, just without forcing the VCR OSD back open or resetting the
-  // shifted time.
+  // shifted time — including the same completedBreakKeys reset, for the
+  // same "resuming at a possibly already-visited instant" reason.
+  S.completedBreakKeys = null;
   const ch = getChannel(S.currentNumber);
   if (ch) {
     await playChannelLive(ch, { fadeInOnReady: true });

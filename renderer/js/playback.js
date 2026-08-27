@@ -381,8 +381,15 @@ function handleContentEnded(ch) {
   checkBreakState(ch, { contentJustEnded: true });
 }
 
-function breakKeyFor(resolved) {
-  return `${resolved.type}:${resolved.windowStart}`;
+// Scoped by channel number — two channels can otherwise resolve identical
+// (type, windowStart) pairs, most reliably right after using a channel's own
+// DUPLICATE action (setup-channels.js), which deep-clones ch.anchor verbatim
+// along with its commercials/flow config: the clone's break windows then land
+// at the exact same timestamps as the original. Without the channel number
+// here, watching a break through to completion on one channel would mark the
+// other's identical window "already completed" too, silently skipping it.
+function breakKeyFor(ch, resolved) {
+  return `${ch.number}:${resolved.type}:${resolved.windowStart}`;
 }
 
 // completedBreakKeys is reset to null on any time-machine jump (see
@@ -449,7 +456,7 @@ export function checkBreakState(ch, opts) {
   }
   const resolved = resolveBreakAt(ch, viewNow());
   if (resolved) {
-    const key = breakKeyFor(resolved);
+    const key = breakKeyFor(ch, resolved);
     if (S.completedBreakKeys && S.completedBreakKeys.has(key) && S.activeBreakKey !== key) {
       if (S.activeBreakKey) endBreak(ch);
       scheduleNextBreak(ch);
@@ -560,7 +567,7 @@ function computeEpisodesUntilWrap(ch) {
 // SpongeBob-"Truth or Square"-style escalating countdown campaign work: the
 // same promo entry's on-screen number counts down day by day as the
 // premiere approaches, rather than being a static copy authored once.
-function renderDynamicText(template, ch, entry) {
+export function renderDynamicText(template, ch, entry) {
   if (!template) return '';
   return template
     .replace(/\{channel\}/g, (ch.name || `CHANNEL ${ch.number}`).toUpperCase())
