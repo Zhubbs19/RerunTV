@@ -29,7 +29,6 @@ run-server.bat
 
 
 plugins/*
-plugins/eas-alerts/
 plugins/hbo/
 plugins/party-jukebox/
 plugins/youtube-music/
@@ -39,6 +38,7 @@ plugins/spotify-connect/
 !plugins/breaking-news/
 !plugins/area-51/
 !plugins/closed-captions/
+!plugins/eas-alerts/
 !plugins/ffmpeg-transcode/
 !plugins/local-weather/
 !plugins/noaa-weather/
@@ -46,6 +46,7 @@ plugins/spotify-connect/
 !plugins/pay-per-view/
 !plugins/prevue/
 !plugins/public-access/
+!plugins/sap-audio/
 !plugins/screensaver/
 !plugins/shopping-network/
 !plugins/smpte-test-pattern/

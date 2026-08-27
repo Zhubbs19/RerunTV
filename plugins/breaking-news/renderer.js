@@ -173,7 +173,11 @@ export function runBreakingNewsAlert(opts) {
   const isOff = !S.isPoweredOn;
   const onVirtualOrNoChannel = window.isVirtualChannel(S.currentNumber) || !window.getChannel(S.currentNumber);
   const guideIsOpen = !guideGrid.classList.contains('hidden');
-  const anotherOverlayIsUp = !!S.activeBreakKey || S.easActive || S.breakingNewsActive;
+  // anyOtherInterruptActive (plugins.js) generically covers any other
+  // registered interrupt plugin (eas-alerts, or a future one) that declares
+  // its own isActive() - this plugin never has to know another plugin's
+  // name or private state field by heart.
+  const anotherOverlayIsUp = !!S.activeBreakKey || S.breakingNewsActive || window.RCBPlugins.anyOtherInterruptActive('breaking-news');
   const blocked = isOff || onVirtualOrNoChannel || guideIsOpen || anotherOverlayIsUp;
 
   if (blocked || (!opts.manual && (!S.config.breakingNews || !S.config.breakingNews.enabled))) {
@@ -264,6 +268,7 @@ window.RCBPlugins.registerInterrupt('breaking-news', {
   label: 'NEWS ALERT', hintKey: 'news-alert', hotkey: 'b',
   run: runBreakingNewsAlert, cancel: cancelNewsAlert, scheduleNext: scheduleNextNewsAlert,
   cancelScheduled: () => clearTimeout(window.S.newsScheduleTimer),
+  isActive: () => window.S.breakingNewsActive,
 });
 
 // Starts the random-alert schedule once per session (S.config is already

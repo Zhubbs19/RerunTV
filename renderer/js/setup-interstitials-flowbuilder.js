@@ -768,6 +768,7 @@ function renderFlowTimelineCanvas(flow) {
         ['ident', 'IDENT / BUMPER (BUMP-IN OR BUMP-OUT, EITHER)'],
         ['stationId', 'STATION ID'],
         ['promo', 'PROMO'],
+        ['localAvail', 'LOCAL AVAIL / SPONSOR CARD'],
       ].forEach(([v, l]) => {
         const opt = document.createElement('option');
         opt.value = v;

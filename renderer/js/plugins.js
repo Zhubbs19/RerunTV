@@ -372,6 +372,12 @@ export function themePackEntries() {
 //                   without touching an in-progress alert (distinct from
 //                   cancel()) — called when entering setup, so a random
 //                   test doesn't fire while there's no live TV to interrupt.
+//   isActive()    — optional; returns whether THIS interrupt is currently
+//                   showing. Lets one interrupt plugin (e.g. eas-alerts)
+//                   politely defer to another (e.g. breaking-news) via
+//                   anyOtherInterruptActive() below without either plugin
+//                   hardcoding the other's name or private state field —
+//                   each plugin only ever describes itself.
 export function registerInterrupt(id, definition) {
   if (!id || typeof id !== 'string') throw new Error('registerInterrupt: id must be a non-empty string');
   if (!definition || typeof definition.run !== 'function') {
@@ -386,6 +392,20 @@ export function getInterrupt(id) {
 
 export function interruptEntries() {
   return Array.from(interruptRegistry.entries()).map(([id, def]) => ({ id, ...def }));
+}
+
+// True if any REGISTERED interrupt other than excludeId reports itself
+// active via its own optional isActive() — generic stand-in for a plugin
+// that would otherwise have to hardcode another specific plugin's id/state
+// field (e.g. "don't fire if breaking-news happens to be up") to avoid two
+// full-screen/overlay interrupts colliding. A plugin that never defines
+// isActive() simply never blocks anything this way, exactly as if it didn't
+// exist for this check.
+export function anyOtherInterruptActive(excludeId) {
+  for (const [id, def] of interruptRegistry) {
+    if (id !== excludeId && typeof def.isActive === 'function' && def.isActive()) return true;
+  }
+  return false;
 }
 
 export function cancelAllInterrupts() {
@@ -540,6 +560,7 @@ function installGlobalApi() {
     getThemePack,
     registerInterrupt,
     getInterrupt,
+    anyOtherInterruptActive,
     registerTuneGate,
     registerOverlayAudioSource,
     registerTitleRowAction,

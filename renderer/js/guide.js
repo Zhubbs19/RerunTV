@@ -9,6 +9,7 @@ import {
 } from './dom.js';
 import { showDetailsOverlay } from './details.js';
 import { tuneToChannel } from './playback.js';
+import { breakEntriesInWindow } from './interstitials.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
 import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
 import { searchUpcomingPrograms } from './program-search.js';
@@ -327,6 +328,15 @@ export function toggleGuideDockMode() {
 
 // How many real-channel rows to render per pass once the initial
 // visible-rows batch is done — small enough that each pass stays cheap.
+// Display copy for a break overlay block (buildChannelRow below) — mirrors
+// real guides' "Paid Programming"/local-avail labeling rather than naming
+// the app's own internal type ids.
+const GUIDE_BREAK_LABELS = {
+  commercial: 'PAID PROGRAMMING', adBreakIn: 'PAID PROGRAMMING', adBreakOut: 'PAID PROGRAMMING',
+  channelId: 'STATION ID', trivia: 'LOCAL PROGRAMMING', upNext: 'UP NEXT', promo: 'PROMO',
+  signOff: 'SIGN-OFF', signOn: 'SIGN-ON', premiereJingle: 'SPECIAL PRESENTATION', localAvail: 'LOCAL AVAIL',
+};
+
 const GUIDE_ROW_CHUNK_SIZE = 12;
 
 // Below this many channels, rendering the whole list synchronously is cheap
@@ -390,6 +400,40 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
     const displayTitle = getDisplayTitle(entry.file);
     block.textContent = displayTitle;
     block.title = displayTitle;
+    block.addEventListener('click', () => {
+      S.guideSelRowIdx = rowIdx;
+      S.guideSelTime = entry.start + 1;
+      jumpToGuideEntry(ch, entry);
+      closeGuideGrid();
+    });
+    track.appendChild(block);
+  });
+
+  // Ad-break overlays — schedule.js's content entries above are the pure
+  // "as if nothing ever interrupted it" file timeline (breaks are overlaid
+  // on top of content time, never carving out their own slot — see
+  // interstitials.js's own top-of-file comment on this), so these are drawn
+  // AFTER the content blocks, on top of whatever program they interrupt,
+  // rather than trying to splice a gap into the content entries themselves.
+  // Real guides vary on this (some blank the avail, some don't show it at
+  // all) — this at least makes an active cadence visible instead of
+  // silently invisible.
+  breakEntriesInWindow(ch, S.guideWindowStart, windowEnd).forEach((entry) => {
+    const clampedStart = Math.max(entry.start, S.guideWindowStart);
+    const clampedEnd = Math.min(entry.end, windowEnd);
+    if (clampedEnd <= clampedStart) return;
+    const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
+    const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
+    const isSel = rowIdx === S.guideSelRowIdx && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
+
+    const block = document.createElement('div');
+    block.className = 'guide-entry guide-entry-break' + (isSel ? ' sel' : '') + (entry.end <= viewNow() ? ' past' : '');
+    block.style.left = leftPct + '%';
+    block.style.width = Math.max(widthPct, 2) + '%';
+    block.dataset.end = String(entry.end);
+    const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
+    block.textContent = label;
+    block.title = label;
     block.addEventListener('click', () => {
       S.guideSelRowIdx = rowIdx;
       S.guideSelTime = entry.start + 1;
