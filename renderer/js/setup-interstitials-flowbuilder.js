@@ -12,7 +12,7 @@
 import { getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
-import { labeledField } from './setup-interstitials.js';
+import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 
@@ -360,9 +360,10 @@ function renderFlowCadencePanel(flow) {
   bumpInInput.value = (cadence.bumpInTags || []).join(', ');
   bumpInInput.addEventListener('change', () => {
     cadence.bumpInTags = bumpInInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    updateCadenceMatchBadge();
     saveConfigDebounced();
   });
-  grid.appendChild(labeledField('BUMP-IN TAGS', attachTagAutocomplete(bumpInInput)));
+  grid.appendChild(labeledField(`BUMP-IN TAGS (matches pool: ${interstitialTypeDef('adBreakIn').label})`, attachTagAutocomplete(bumpInInput)));
 
   const commTagsInput = document.createElement('input');
   commTagsInput.type = 'text';
@@ -371,9 +372,10 @@ function renderFlowCadencePanel(flow) {
   commTagsInput.value = (cadence.commercialTags || []).join(', ');
   commTagsInput.addEventListener('change', () => {
     cadence.commercialTags = commTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    updateCadenceMatchBadge();
     saveConfigDebounced();
   });
-  grid.appendChild(labeledField('COMMERCIAL TAGS', attachTagAutocomplete(commTagsInput)));
+  grid.appendChild(labeledField(`COMMERCIAL TAGS (matches pool: ${interstitialTypeDef('commercial').label})`, attachTagAutocomplete(commTagsInput)));
 
   const bumpOutInput = document.createElement('input');
   bumpOutInput.type = 'text';
@@ -382,9 +384,27 @@ function renderFlowCadencePanel(flow) {
   bumpOutInput.value = (cadence.bumpOutTags || []).join(', ');
   bumpOutInput.addEventListener('change', () => {
     cadence.bumpOutTags = bumpOutInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    updateCadenceMatchBadge();
     saveConfigDebounced();
   });
-  grid.appendChild(labeledField('BUMP-OUT TAGS', attachTagAutocomplete(bumpOutInput)));
+  grid.appendChild(labeledField(`BUMP-OUT TAGS (matches pool: ${interstitialTypeDef('adBreakOut').label})`, attachTagAutocomplete(bumpOutInput)));
+
+  // No badge at all here used to mean a cadence could be fully enabled with
+  // tags that match zero real pool entries — hasMid computes true, the pod
+  // silently builds empty, and nothing ever airs. This is the exact failure
+  // a real live config hit (bump-in tag pointed at a pool entry that was
+  // actually typed as a bump-OUT, and the commercial/bump-out tags fell back
+  // to a content tag with no matching pool entries either).
+  const cadenceMatchBadge = document.createElement('div');
+  function updateCadenceMatchBadge() {
+    renderPoolMatchBadge(cadenceMatchBadge, [
+      { label: 'Bump-In', tags: cadence.bumpInTags, type: 'adBreakIn' },
+      { label: 'Ads', tags: cadence.commercialTags, type: 'commercial' },
+      { label: 'Bump-Out', tags: cadence.bumpOutTags, type: 'adBreakOut' },
+    ], flow);
+  }
+  updateCadenceMatchBadge();
+  grid.appendChild(labeledField('POOL COVERAGE', cadenceMatchBadge, { wide: true }));
 
   container.appendChild(grid);
 }
@@ -421,7 +441,17 @@ function updateFlowStatusBanner(flow) {
   banner.textContent = `⚡ FLOW ACTIVE FOR ${chsStr} // SHOWS: ${tagsStr} — ${stepCount} STEP${stepCount === 1 ? '' : 'S'} IN SEQUENCE`;
 }
 
-function matchingPoolEntries(tags, type) {
+// `channels` (a flow's own flow.channels array) additionally narrows to
+// entries this flow could actually use on one of its own channels — mirrors
+// poolFor's own channelAffinity check (interstitials.js) so this editor-time
+// "will this resolve to something?" preview agrees with what real playback
+// will actually do. An empty/unset channels list means the flow applies to
+// ALL channels, so there's no single affinity to check against — left
+// unrestricted in that case (same as before this param existed). Without
+// this, a pool entry locked to a channel this flow doesn't even cover could
+// still count as a "match" here while poolFor rejects it for real — exactly
+// the kind of false-positive ✓ that hid a real broken cadence setup once.
+function matchingPoolEntries(tags, type, channels) {
   if (!tags || !tags.length) return [];
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   const targetType = normalizePoolType(type);
@@ -429,13 +459,30 @@ function matchingPoolEntries(tags, type) {
   const matchTypes = targetType === 'ident' ? ['adBreakIn', 'adBreakOut'] : [targetType];
   return pool.filter((e) => {
     if (!matchTypes.includes(e.type)) return false;
+    if (channels && channels.length && e.channelAffinity !== 'any' && !channels.includes(e.channelAffinity)) return false;
     return !tags.length || (e.contentTags && e.contentTags.some((t) => tags.includes(t)));
   });
 }
 
-function countMatchingPoolEntries(tags, type) {
-  const matches = matchingPoolEntries(tags, type);
+function countMatchingPoolEntries(tags, type, channels) {
+  const matches = matchingPoolEntries(tags, type, channels);
   return Array.isArray(matches) ? matches.length : 0;
+}
+
+// Shared match-count badge for any group of tag fields that resolve against
+// the pool (an adPod step's bump-in/commercial/bump-out, the mid-show
+// cadence panel's own three tag fields, or a single-type bumper step's tags)
+// — factored out of what used to be two near-identical inline
+// updateMatchBadge closures so the cadence panel (which previously had none
+// at all) gets the same live feedback for free. `fields` is an array of
+// { label, tags, type } — one row's worth of tags to check against one pool
+// type each; `flow` supplies the channel-affinity scope (see
+// matchingPoolEntries above).
+function renderPoolMatchBadge(container, fields, flow) {
+  const counts = fields.map((f) => ({ ...f, count: countMatchingPoolEntries(f.tags, f.type, flow && flow.channels) }));
+  const good = counts.every((f) => f.count > 0 || !f.tags || !f.tags.length);
+  container.className = `flow-match-badge ${good ? 'good' : 'warn'}`;
+  container.textContent = `${good ? '✓' : '⚠️'} POOL MATCHES: ${counts.map((f) => `${f.label} (${f.count})`).join(' · ')}`;
 }
 
 function flowStepPreviewPaths(flow, step) {
@@ -455,12 +502,12 @@ function flowStepPreviewPaths(flow, step) {
   let entries;
   if (step.type === 'adPod') {
     entries = [
-      ...matchingPoolEntries(step.bumpInTags, 'adBreakIn'),
-      ...matchingPoolEntries(step.commercialTags, 'commercial'),
-      ...matchingPoolEntries(step.bumpOutTags, 'adBreakOut'),
+      ...matchingPoolEntries(step.bumpInTags, 'adBreakIn', flow.channels),
+      ...matchingPoolEntries(step.commercialTags, 'commercial', flow.channels),
+      ...matchingPoolEntries(step.bumpOutTags, 'adBreakOut', flow.channels),
     ];
   } else {
-    entries = matchingPoolEntries(step.tags, step.type);
+    entries = matchingPoolEntries(step.tags, step.type, flow.channels);
   }
   return entries
     .map((entry) => (entry.file && entry.file.path) || (entry.bgFile && entry.bgFile.path))
@@ -639,7 +686,7 @@ function renderFlowTimelineCanvas(flow) {
         renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
-      body.appendChild(labeledField('BUMP-IN IDENT TAGS (e.g. "Network Ident")', attachTagAutocomplete(bumpInInput)));
+      body.appendChild(labeledField(`BUMP-IN IDENT TAGS (matches pool: ${interstitialTypeDef('adBreakIn').label})`, attachTagAutocomplete(bumpInInput)));
 
       const podRow = document.createElement('div');
       podRow.className = 'block-card-row';
@@ -688,7 +735,7 @@ function renderFlowTimelineCanvas(flow) {
         renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
-      body.appendChild(labeledField('COMMERCIAL SPOTS TAGS', attachTagAutocomplete(commTagsIn)));
+      body.appendChild(labeledField(`COMMERCIAL SPOTS TAGS (matches pool: ${interstitialTypeDef('commercial').label})`, attachTagAutocomplete(commTagsIn)));
 
       const bumpOutInput = document.createElement('input');
       bumpOutInput.type = 'text';
@@ -701,16 +748,15 @@ function renderFlowTimelineCanvas(flow) {
         renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
-      body.appendChild(labeledField('BUMP-OUT IDENT TAGS (e.g. "Back to the Show")', attachTagAutocomplete(bumpOutInput)));
+      body.appendChild(labeledField(`BUMP-OUT IDENT TAGS (matches pool: ${interstitialTypeDef('adBreakOut').label})`, attachTagAutocomplete(bumpOutInput)));
 
       const matchBadge = document.createElement('div');
       function updateMatchBadge() {
-        const inCnt = countMatchingPoolEntries(step.bumpInTags, 'adBreakIn');
-        const commCnt = countMatchingPoolEntries(step.commercialTags, 'commercial');
-        const outCnt = countMatchingPoolEntries(step.bumpOutTags, 'adBreakOut');
-        const good = (inCnt > 0 || !step.bumpInTags?.length) && (commCnt > 0 || !step.commercialTags?.length) && (outCnt > 0 || !step.bumpOutTags?.length);
-        matchBadge.className = `flow-match-badge ${good ? 'good' : 'warn'}`;
-        matchBadge.textContent = `${good ? '✓' : '⚠️'} POOL MATCHES: Bump-In (${inCnt}) · Ads (${commCnt}) · Bump-Out (${outCnt})`;
+        renderPoolMatchBadge(matchBadge, [
+          { label: 'Bump-In', tags: step.bumpInTags, type: 'adBreakIn' },
+          { label: 'Ads', tags: step.commercialTags, type: 'commercial' },
+          { label: 'Bump-Out', tags: step.bumpOutTags, type: 'adBreakOut' },
+        ], flow);
       }
       updateMatchBadge();
       body.appendChild(matchBadge);
@@ -719,12 +765,9 @@ function renderFlowTimelineCanvas(flow) {
       typeSel.className = 'block-hour-select';
       [
         ['upNext', 'UP NEXT IDENT'],
-        ['ident', 'IDENT / BUMPER'],
+        ['ident', 'IDENT / BUMPER (BUMP-IN OR BUMP-OUT, EITHER)'],
         ['stationId', 'STATION ID'],
         ['promo', 'PROMO'],
-        ['timeMachine', 'TIME MACHINE'],
-        ['eas', 'EAS ALERT'],
-        ['weather', 'WEATHER']
       ].forEach(([v, l]) => {
         const opt = document.createElement('option');
         opt.value = v;
@@ -750,17 +793,14 @@ function renderFlowTimelineCanvas(flow) {
         renderFlowStepPreviews(previews, flow, step);
         saveConfigDebounced();
       });
-      body.appendChild(labeledField('BUMPER TAGS', attachTagAutocomplete(tagInput)));
+      body.appendChild(labeledField('BUMPER TAGS (matches the pool type selected above)', attachTagAutocomplete(tagInput)));
 
       const matchBadge = document.createElement('div');
       function updateMatchBadge() {
-        // ident searches both bump pools combined
-        const cnt = step.type === 'ident'
-          ? countMatchingPoolEntries(step.tags, 'adBreakIn') + countMatchingPoolEntries(step.tags, 'adBreakOut')
-          : countMatchingPoolEntries(step.tags, step.type);
-        const good = cnt > 0 || !step.tags?.length;
-        matchBadge.className = `flow-match-badge ${good ? 'good' : 'warn'}`;
-        matchBadge.textContent = `${good ? '✓' : '⚠️'} BUMPER POOL: ${cnt} matching entr${cnt === 1 ? 'y' : 'ies'} found`;
+        // 'ident' already resolves against both adBreakIn+adBreakOut combined
+        // via matchingPoolEntries' own normalizePoolType handling.
+        const poolLabel = step.type === 'ident' ? 'Ident (bump-in or bump-out)' : interstitialTypeDef(normalizePoolType(step.type)).label;
+        renderPoolMatchBadge(matchBadge, [{ label: poolLabel, tags: step.tags, type: step.type }], flow);
       }
       updateMatchBadge();
       body.appendChild(matchBadge);
@@ -787,8 +827,6 @@ function runFlowSimulator(flow) {
   drawer.classList.remove('hidden');
   progress.innerHTML = '';
   output.innerHTML = '';
-
-  const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
 
   flow.steps.forEach((s, idx) => {
     const chip = document.createElement('div');
@@ -864,22 +902,26 @@ function runFlowSimulator(flow) {
     const podMax = cadence.podMax || podMin;
     breakTimesMin.forEach((t) => {
       log(`  ┊ MID-SHOW AD BREAK @ ~${t}:00 into segment (${podMin}-${podMax} spots)`);
-      const bumpInMatches = pool.filter((e) => e.type === 'adBreakIn' && (!cadence.bumpInTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.bumpInTags.includes(tag)))));
-      const bumpIn = bumpInMatches[0];
+      // Uses matchingPoolEntries (same helper the live match badges use, and
+      // channel-affinity-aware) instead of a bare pool.filter, so the
+      // simulator's fallback lines below actually agree with whether a real
+      // break would air — this is what let a real cadence "simulate clean"
+      // while silently airing nothing (wrong pool type + no channel-eligible
+      // commercials at all).
+      const bumpIn = matchingPoolEntries(cadence.bumpInTags, 'adBreakIn', flow.channels)[0];
       if (bumpIn) log(`  ┊  ├─ BUMP-IN: "${bumpIn.text || (bumpIn.file && bumpIn.file.path) || 'Network Bump-In'}" (Tags: #${(cadence.bumpInTags || []).join(', #')})`);
-      else log(`  ┊  ├─ BUMP-IN: [Synthetic Ident] "You're Watching Network" (Default)`);
+      else log(`  ┊  ├─ BUMP-IN: [Synthetic Ident] "You're Watching Network" (Default — 0 pool matches for tag(s) #${(cadence.bumpInTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('adBreakIn').label} — check the pool editor)`);
 
-      const commMatches = pool.filter((e) => e.type === 'commercial' && (!cadence.commercialTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.commercialTags.includes(tag)))));
+      const commMatches = matchingPoolEntries(cadence.commercialTags, 'commercial', flow.channels);
       for (let s = 0; s < podMin; s++) {
         const comm = commMatches[s % Math.max(1, commMatches.length)];
         if (comm) log(`  ┊  ├─ COMMERCIAL ${s + 1}: "${comm.text || (comm.file && comm.file.path) || 'Retro Commercial'}" (30s)`);
-        else log(`  ┊  ├─ COMMERCIAL ${s + 1}: [Default Commercial Spot ${s + 1}] (30s)`);
+        else log(`  ┊  ├─ COMMERCIAL ${s + 1}: [Default Commercial Spot ${s + 1}] (30s — 0 pool matches for tag(s) #${(cadence.commercialTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('commercial').label} — check the pool editor)`);
       }
 
-      const bumpOutMatches = pool.filter((e) => e.type === 'adBreakOut' && (!cadence.bumpOutTags?.length || (e.contentTags && e.contentTags.some((tag) => cadence.bumpOutTags.includes(tag)))));
-      const bumpOut = bumpOutMatches[0];
+      const bumpOut = matchingPoolEntries(cadence.bumpOutTags, 'adBreakOut', flow.channels)[0];
       if (bumpOut) log(`  ┊  └─ BUMP-OUT: "${bumpOut.text || (bumpOut.file && bumpOut.file.path) || 'Back to Show Bumper'}" (Tags: #${(cadence.bumpOutTags || []).join(', #')})`);
-      else log(`  ┊  └─ BUMP-OUT: [Synthetic Ident] "Back to the Show" (Default)`);
+      else log(`  ┊  └─ BUMP-OUT: [Synthetic Ident] "Back to the Show" (Default — 0 pool matches for tag(s) #${(cadence.bumpOutTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('adBreakOut').label} — check the pool editor)`);
     });
   }
 
@@ -901,32 +943,26 @@ function runFlowSimulator(flow) {
       logCadenceBreaksForSegment(segmentTags);
     } else if (step.type === 'adPod') {
       log(`▶ STEP ${currentStepIdx + 1} [AD POD BREAK]: "${step.name}" (${step.podMin}-${step.podMax} spots)`);
-      const bumpInMatches = pool.filter((e) => e.type === 'adBreakIn' && (!step.bumpInTags?.length || (e.contentTags && e.contentTags.some((t) => step.bumpInTags.includes(t)))));
-      const bumpIn = bumpInMatches[0];
+      const bumpIn = matchingPoolEntries(step.bumpInTags, 'adBreakIn', flow.channels)[0];
       if (bumpIn) log(`  ├─ BUMP-IN: "${bumpIn.text || (bumpIn.file && bumpIn.file.path) || 'Network Bump-In'}" (Tags: #${(step.bumpInTags || []).join(', #')})`);
-      else log(`  ├─ BUMP-IN: [Synthetic Ident] "You're Watching Network" (Default)`);
+      else log(`  ├─ BUMP-IN: [Synthetic Ident] "You're Watching Network" (Default — 0 pool matches for tag(s) #${(step.bumpInTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('adBreakIn').label} — check the pool editor)`);
 
       const spotCount = step.podMin || 3;
-      const commMatches = pool.filter((e) => e.type === 'commercial' && (!step.commercialTags?.length || (e.contentTags && e.contentTags.some((t) => step.commercialTags.includes(t)))));
+      const commMatches = matchingPoolEntries(step.commercialTags, 'commercial', flow.channels);
       for (let i = 0; i < spotCount; i++) {
         const comm = commMatches[i % Math.max(1, commMatches.length)];
         if (comm) log(`  ├─ COMMERCIAL ${i + 1}: "${comm.text || (comm.file && comm.file.path) || 'Retro Commercial'}" (30s)`);
-        else log(`  ├─ COMMERCIAL ${i + 1}: [Default Commercial Spot ${i + 1}] (30s)`);
+        else log(`  ├─ COMMERCIAL ${i + 1}: [Default Commercial Spot ${i + 1}] (30s — 0 pool matches for tag(s) #${(step.commercialTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('commercial').label} — check the pool editor)`);
       }
 
-      const bumpOutMatches = pool.filter((e) => e.type === 'adBreakOut' && (!step.bumpOutTags?.length || (e.contentTags && e.contentTags.some((t) => step.bumpOutTags.includes(t)))));
-      const bumpOut = bumpOutMatches[0];
+      const bumpOut = matchingPoolEntries(step.bumpOutTags, 'adBreakOut', flow.channels)[0];
       if (bumpOut) log(`  └─ BUMP-OUT: "${bumpOut.text || (bumpOut.file && bumpOut.file.path) || 'Back to Show Bumper'}" (Tags: #${(step.bumpOutTags || []).join(', #')})`);
-      else log(`  └─ BUMP-OUT: [Synthetic Ident] "Back to the Show" (Default)`);
+      else log(`  └─ BUMP-OUT: [Synthetic Ident] "Back to the Show" (Default — 0 pool matches for tag(s) #${(step.bumpOutTags || []).join(', #') || '(none)'}, type ${interstitialTypeDef('adBreakOut').label} — check the pool editor)`);
     } else {
-      const targetType = normalizePoolType(step.type);
-      // 'ident' draws from both adBreakIn and adBreakOut pools combined
-      const identTypes = targetType === 'ident' ? ['adBreakIn', 'adBreakOut'] : [targetType];
-      const matches = pool.filter((e) => identTypes.includes(e.type) && (!step.tags?.length || (e.contentTags && e.contentTags.some((t) => step.tags.includes(t)))));
-      const item = matches[0];
+      const item = matchingPoolEntries(step.tags, step.type, flow.channels)[0];
       const label = step.type === 'ident' ? 'IDENT/BUMPER' : step.type.toUpperCase();
       if (item) log(`▶ STEP ${currentStepIdx + 1} [${label}]: "${step.name}" → Resolved "${item.text || (item.file && item.file.path) || 'Bumper File'}" (Tags: #${(step.tags || []).join(', #')})`);
-      else log(`▶ STEP ${currentStepIdx + 1} [${label}]: "${step.name}" → [Generated ${label} Card]`);
+      else log(`▶ STEP ${currentStepIdx + 1} [${label}]: "${step.name}" → [Generated ${label} Card] (0 pool matches for tag(s) #${(step.tags || []).join(', #') || '(none)'}, type ${step.type === 'ident' ? 'Ident (bump-in or bump-out)' : interstitialTypeDef(normalizePoolType(step.type)).label} — check the pool editor)`);
     }
 
     currentStepIdx++;

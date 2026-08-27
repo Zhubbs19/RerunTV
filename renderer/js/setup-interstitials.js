@@ -65,7 +65,10 @@ const INTERSTITIAL_TYPE_DEFS = [
   { id: 'premiereJingle', label: 'PREMIERE JINGLE', contentKind: 'video' },
 ];
 
-function interstitialTypeDef(type) {
+// Exported so setup-interstitials-flowbuilder.js can label its own tag
+// fields with the exact pool-editor label they resolve against (e.g. "matches
+// pool: AD POD — BUMP IN") instead of duplicating this lookup table.
+export function interstitialTypeDef(type) {
   return INTERSTITIAL_TYPE_DEFS.find((t) => t.id === type) || INTERSTITIAL_TYPE_DEFS[0];
 }
 
