@@ -1,0 +1,10 @@
+{
+  "id": "eas-alerts",
+  "name": "Emergency Alert System",
+  "version": "1.0.0",
+  "description": "A full-screen Emergency Alert System interrupt — attention tone, alert slate, optional text-to-speech readout, then auto-resume. Press E to test, or trigger one on demand.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "style": "style.css"
+}

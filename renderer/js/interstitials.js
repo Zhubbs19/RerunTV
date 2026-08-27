@@ -22,6 +22,12 @@ const CHANNELID_TEXT_DURATION_S = 5;
 const SIGNOFF_DURATION_S = 20;
 const SIGNON_DURATION_S = 20;
 const PREMIERE_JINGLE_DURATION_S = 8;
+// A LOCAL AVAIL / SPONSOR CARD entry stands in for a real ad slot (unlike
+// upNext/stationId/promo/ident, which are quick bumpers a text-only entry
+// rarely needs — those keep the generic bumper branch's 0-fallback below),
+// so it needs a real ad-length default when the entry itself has no
+// file/dynamic duration to fall back on.
+const LOCAL_AVAIL_DURATION_S = 15;
 const BOUNDARY_SAFETY_CAP = 500;
 const DAY_MS = 86400000;
 
@@ -445,9 +451,10 @@ export function resolveBreakAt(ch, atMs) {
               const stepTags = step.tags && step.tags.length ? step.tags : fileTags;
               // 'ident' tries adBreakIn first, falls back to adBreakOut — unified bump pool
               const typesToTry = poolType === 'ident' ? ['adBreakIn', 'adBreakOut'] : [poolType];
+              const fallbackDurationS = poolType === 'localAvail' ? LOCAL_AVAIL_DURATION_S : 0;
               let win = null;
               for (const t of typesToTry) {
-                win = windowFor(pool, t, ch, block, `${seedKey}:${segMeta.label}:${si}`, segMeta.slotIndex * 100 + si, cursor, 0, stepTags);
+                win = windowFor(pool, t, ch, block, `${seedKey}:${segMeta.label}:${si}`, segMeta.slotIndex * 100 + si, cursor, fallbackDurationS, stepTags);
                 if (win) break;
               }
               if (win) {
@@ -572,9 +579,15 @@ export function resolveBreakAt(ch, atMs) {
   const sid = S.config.stationId; // box-wide station-id bumper config ("sid" as in "station ID")
   if (sid && sid.enabled !== false) {
     const intervalMs = Math.max(1, sid.intervalMinutes || 15) * 60000;
-    const { slotStart } = intervalSlot(source.anchor, atMs, intervalMs);
+    // Real US stations legally ID at/near the top of the clock hour — anchor
+    // this slot to the wall-clock hour (NOT source.anchor, the content
+    // loop's own arbitrary start time, which every other intervalSlot call
+    // in this file correctly keeps using) so IDs land on :00/:15/:30/:45
+    // instead of drifting to whatever offset the channel happened to start
+    // looping at.
+    const hourAnchorMs = Math.floor(atMs / 3600000) * 3600000;
+    const { slotIndex, slotStart } = intervalSlot(hourAnchorMs, atMs, intervalMs);
     const seedKey = `channelId:${ch.number}`;
-    const { slotIndex } = intervalSlot(source.anchor, atMs, intervalMs);
     const win = windowFor(pool, 'channelId', ch, block, seedKey, slotIndex, slotStart, CHANNELID_TEXT_DURATION_S, fileTags);
     if (win) {
       if (atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'channelId', ...win };
@@ -783,7 +796,11 @@ function nextCandidateBoundary(ch, fromMs) {
   const sid = S.config.stationId;
   if (sid && sid.enabled !== false) {
     const intervalMs = Math.max(1, sid.intervalMinutes || 15) * 60000;
-    const { slotStart } = intervalSlot(source.anchor, fromMs, intervalMs);
+    // Same wall-clock-hour anchor as the real resolution above (not
+    // source.anchor) so this candidate boundary agrees with what
+    // resolveBreakAt will actually find there.
+    const hourAnchorMs = Math.floor(fromMs / 3600000) * 3600000;
+    const { slotStart } = intervalSlot(hourAnchorMs, fromMs, intervalMs);
     candidates.push(slotStart + intervalMs);
   }
   const tv = S.config.trivia;
@@ -932,4 +949,40 @@ export function prevBreakStart(ch, fromMs) {
     safety++;
   }
   return -Infinity;
+}
+
+// Generous upper bound on breaks enumerated in one guide window — a busy
+// channel might show a dozen or so across several hours; this is just a
+// runaway-loop backstop, not a realistic ceiling.
+const GUIDE_BREAK_SCAN_CAP = 200;
+
+// Every break's [start, end) inside [windowStart, windowEnd) — for the
+// on-screen guide (guide.js), which otherwise only ever shows real content
+// entries (getChannelSchedule, schedule.js) and silently absorbs any ad
+// break into whichever program it interrupts. Deliberately NOT folded into
+// getChannelSchedule itself, since that function has other callers
+// (program-search.js, the prevue plugin, setup-channels-diagnostics.js)
+// that want content-only entries — this is guide.js's own concern. Reuses
+// nextBreakStart/resolveBreakAt (both already boundary-driven/analytic —
+// see their own comments — not a per-second scan), so this costs one call
+// per actual break in the window, not one per second of it.
+export function breakEntriesInWindow(ch, windowStart, windowEnd) {
+  const entries = [];
+  const current = resolveBreakAt(ch, windowStart);
+  let t = windowStart;
+  if (current) {
+    entries.push({ start: Math.max(current.windowStart, windowStart), end: Math.min(current.windowEnd, windowEnd), isBreak: true, breakType: current.type });
+    t = current.windowEnd;
+  }
+  let safety = 0;
+  while (t < windowEnd && safety < GUIDE_BREAK_SCAN_CAP) {
+    const start = nextBreakStart(ch, t);
+    if (!isFinite(start) || start >= windowEnd) break;
+    const brk = resolveBreakAt(ch, start);
+    if (!brk) break; // shouldn't happen given nextBreakStart's own contract, but avoid ever looping forever
+    entries.push({ start: Math.max(brk.windowStart, windowStart), end: Math.min(brk.windowEnd, windowEnd), isBreak: true, breakType: brk.type });
+    t = brk.windowEnd;
+    safety++;
+  }
+  return entries;
 }

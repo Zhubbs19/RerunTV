@@ -76,7 +76,10 @@ function show() {
   const tvScreen = document.getElementById('tv-screen');
   const guideGrid = document.getElementById('guide-grid');
   if (!S.isPoweredOn || tvScreen.classList.contains('hidden')) return;
-  if (!guideGrid.classList.contains('hidden') || S.easActive || S.activeBreakKey || S.timeMachineOn) {
+  // anyOtherInterruptActive (plugins.js) covers eas-alerts/breaking-news/any
+  // future interrupt plugin generically - screensaver never hardcodes
+  // another plugin's name or private state field.
+  if (!guideGrid.classList.contains('hidden') || S.activeBreakKey || S.timeMachineOn || window.RCBPlugins.anyOtherInterruptActive('screensaver')) {
     // Any of these count as "in use" — check again next interval instead of
     // popping up mid-browse/mid-break.
     scheduleTimer();

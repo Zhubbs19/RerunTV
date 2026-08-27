@@ -2,6 +2,7 @@ import { playPinUnlockSound } from './audio.js';
 import { getChannel } from './channels.js';
 import { pinDotsEl, pinLockModalEl, pinNoticeEl } from './dom.js';
 import { registerTuneGate } from './plugins.js';
+import { computeLivePosition } from './schedule.js';
 import { S } from './state.js';
 
 export function isPinLocked(number) {
@@ -10,7 +11,15 @@ export function isPinLocked(number) {
   const lockedRatings = S.config.pinLock.ratings || [];
   const ch = getChannel(number);
   const isChannelLocked = lockedChs.includes(number);
-  const isRatingLocked = ch && ch.rating && lockedRatings.includes(ch.rating);
+  // Prefers the file actually airing right now over the channel-wide rating
+  // (setup-panels.js's per-file override) so a mixed-content channel is
+  // gated by what's really on, not a stale channel-level label — same
+  // fallback chain playback.js's rating bug uses. 'NONE' explicitly opts a
+  // file out of the channel's own rating gate.
+  const pos = ch && computeLivePosition(ch);
+  const liveRating = pos && pos.file && pos.file.rating;
+  const effectiveRating = liveRating === 'NONE' ? null : (liveRating || (ch && ch.rating));
+  const isRatingLocked = effectiveRating && lockedRatings.includes(effectiveRating);
   if (!isChannelLocked && !isRatingLocked) return false;
   return !S.unlockedPinChannels.has(number);
 }

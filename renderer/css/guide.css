@@ -525,6 +525,28 @@
    the THEME panel (setup-schedule.js), so an untouched schedule looks
    exactly like it did before block theming existed. */
 .guide-entry-themed { border-left: 3px solid; }
+/* Ad-break overlay (buildChannelRow, guide.js) — drawn on top of whatever
+   program it interrupts (breaks don't carve their own slot out of the
+   content timeline, see interstitials.js), so it needs to read as a
+   distinct interruption at a glance: a diagonal hatch over a darker field,
+   the way some real guides mark a local avail, rather than looking like
+   just another program block. z-index sits above ordinary entries but
+   below .sel so keyboard/click selection still highlights correctly. */
+.guide-entry.guide-entry-break {
+  z-index: 1;
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.55) 0px, rgba(0, 0, 0, 0.55) 6px,
+    rgba(0, 0, 0, 0.75) 6px, rgba(0, 0, 0, 0.75) 12px
+  );
+  color: var(--paper-dim, #aab4cf);
+  font-style: italic;
+}
+.guide-entry.guide-entry-break.sel {
+  background: var(--guide-selection-bg, var(--gradient-gold));
+  color: var(--guide-selection-fg, #000);
+  font-style: normal;
+}
 /* Already finished airing — still visible for context, visibly spent. */
 .guide-entry.past { opacity: 0.45; }
 

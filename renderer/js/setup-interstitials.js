@@ -63,6 +63,13 @@ const INTERSTITIAL_TYPE_DEFS = [
   // rather than counting down to it. No leadDays field: this doesn't count
   // down, it fires at the moment itself.
   { id: 'premiereJingle', label: 'PREMIERE JINGLE', contentKind: 'video' },
+  // A real network's filler for an ad slot with no sold spot — a house PSA
+  // or sponsor card, not silently dead air. Opt-in like every other pool
+  // entry: it only ever airs where a curator explicitly places one (a flow
+  // step, standalone cadence, etc.) — an empty pool still just skips a
+  // break entirely (see the mid-show cadence's own "commercials optional"
+  // behavior), this is never auto-synthesized.
+  { id: 'localAvail', label: 'LOCAL AVAIL / SPONSOR CARD', contentKind: 'text', textPlaceholder: 'THIS TIME PERIOD MADE POSSIBLE BY... (BLANK = AUTO)' },
 ];
 
 // Exported so setup-interstitials-flowbuilder.js can label its own tag
@@ -78,7 +85,7 @@ export function interstitialTypeDef(type) {
 const TYPE_COLORS = {
   commercial: '#f0b429', channelId: '#6fe0f2', trivia: '#8b93f5', upNext: '#5fd68a',
   adBreakIn: '#e0895f', adBreakOut: '#e0895f', signOff: '#ff6b5b', signOn: '#ff6b5b',
-  promo: '#ff9fd6', premiereJingle: '#a3e635',
+  promo: '#ff9fd6', premiereJingle: '#a3e635', localAvail: '#94a3b8',
 };
 
 // A <label>+control pair, stacked — see the .field/.field-label CSS rule's

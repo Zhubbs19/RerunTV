@@ -1,0 +1,9 @@
+{
+  "id": "sap-audio",
+  "name": "SAP / Alternate Audio",
+  "version": "1.0.0",
+  "description": "Switch between a file's embedded audio tracks (e.g. a dubbed language track) with U, when a file actually has more than one. Generic track numbers only (\"AUDIO 1\"/\"AUDIO 2\") — real per-track language labels would need ffprobe metadata this app doesn't bundle.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

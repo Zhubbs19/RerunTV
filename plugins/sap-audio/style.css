@@ -1,0 +1,24 @@
+/* SAP / alternate audio - brief on-screen confirmation toast, own DOM,
+   same "own your DOM" pattern as eas-alerts/breaking-news. */
+.sap-toast {
+  position: absolute;
+  bottom: 60px;
+  right: 30px;
+  z-index: 10;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+  background: var(--gradient-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  padding: 8px 14px;
+  pointer-events: none;
+  transition: opacity 200ms linear;
+}
+
+.sap-toast.hidden {
+  display: none !important;
+}

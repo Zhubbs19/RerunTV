@@ -1382,6 +1382,16 @@
           <div class="trivia-body" id="trivia-text"></div>
         </div>
 
+        <!-- Local avail / sponsor card interstitial (LOCAL AVAIL / SPONSOR
+             CARD pool type, setup-interstitials.js) - a real network's
+             filler for an ad slot with no sold spot. Reuses the trivia
+             card's own CSS chrome (same look-and-feel family of "paused
+             text card" interstitials), just a different header/body. -->
+        <div id="local-avail-card" class="trivia-card hidden">
+          <div class="trivia-header">A MESSAGE FROM THIS STATION</div>
+          <div class="trivia-body" id="local-avail-text"></div>
+        </div>
+
         <!-- Program details card, toggled with I — the live-playing show, or
              whichever show is highlighted in the guide if it's open. -->
         <div id="details-overlay" class="details-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="details-title" tabindex="-1">
@@ -1433,7 +1443,9 @@
         <span data-hint-key="power" data-hint-secondary="true">P POWER</span>
         <span data-hint-key="time-machine">T TIME MACHINE / PLAY</span>
         <span data-hint-key="news-alert" data-plugin-hint="true" data-hint-secondary="true">B NEWS ALERT</span>
+        <span data-hint-key="alert-test" data-plugin-hint="true" data-hint-secondary="true">E EAS ALERT</span>
         <span data-hint-key="closed-captions" data-plugin-hint="true" data-hint-secondary="true">K CAPTIONS</span>
+        <span data-hint-key="sap-audio" data-plugin-hint="true" data-hint-secondary="true">U AUDIO TRACK</span>
         <span data-hint-key="tv-menu">? TV MENU</span>
         <span data-hint-key="hide-hints">H HIDE HINTS</span>
       </div>

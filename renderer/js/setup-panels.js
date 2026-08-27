@@ -539,10 +539,32 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         commitFacet((f) => { f.contentType = contentTypeSelect.value || null; });
       });
 
+      // Per-file rating override (channels.js's ch.rating is channel-wide;
+      // this lets a mixed-content channel, e.g. a movie channel airing both
+      // PG and PG-13 titles, show the right rating bug per title — see the
+      // fallback chain in playback.js's tune-time rating check and
+      // pin-lock.js's parental lock, both of which prefer this over
+      // ch.rating when set). Blank = inherit the channel-wide rating,
+      // exactly today's behavior.
+      const ratingSelect = document.createElement('select');
+      ratingSelect.className = 'rating-select';
+      ['INHERIT CHANNEL RATING', 'NONE', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'].forEach((label) => {
+        const opt = document.createElement('option');
+        opt.value = label === 'INHERIT CHANNEL RATING' ? '' : (label === 'NONE' ? 'NONE' : label);
+        opt.textContent = label;
+        ratingSelect.appendChild(opt);
+      });
+      ratingSelect.value = file.rating || '';
+      ratingSelect.addEventListener('change', () => {
+        file.rating = ratingSelect.value || null;
+        saveConfigDebounced();
+      });
+
       facetsRow.appendChild(genreWrap);
       facetsRow.appendChild(moodWrap);
       facetsRow.appendChild(eraInput);
       facetsRow.appendChild(contentTypeSelect);
+      facetsRow.appendChild(ratingSelect);
 
       facetsToggleBtn.addEventListener('click', () => {
         const nowHidden = facetsRow.classList.toggle('hidden');
@@ -928,6 +950,23 @@ export function buildLogoBugPanel(ch, panelEl) {
     inheritLabel.appendChild(inheritCheckbox);
     inheritLabel.appendChild(document.createTextNode('OVERRIDE LOGO BUG FOR THIS CHANNEL'));
     panelEl.appendChild(inheritLabel);
+
+    // Some real networks drop their corner bug during commercial/bumper
+    // breaks, some keep it up through them — independent of placement
+    // override above, so it works whether or not this channel overrides the
+    // box-wide profile. Default off (today's "always visible" behavior).
+    const hideOnBreakLabel = document.createElement('label');
+    hideOnBreakLabel.className = 'shuffle-toggle';
+    const hideOnBreakCheckbox = document.createElement('input');
+    hideOnBreakCheckbox.type = 'checkbox';
+    hideOnBreakCheckbox.checked = !!ch.logoBugHidesOnBreak;
+    hideOnBreakCheckbox.addEventListener('change', () => {
+      ch.logoBugHidesOnBreak = hideOnBreakCheckbox.checked;
+      saveConfigDebounced();
+    });
+    hideOnBreakLabel.appendChild(hideOnBreakCheckbox);
+    hideOnBreakLabel.appendChild(document.createTextNode('HIDE LOGO BUG DURING BREAKS'));
+    panelEl.appendChild(hideOnBreakLabel);
 
     if (ch.logoBugProfiles == null) {
       const hint = document.createElement('div');

@@ -105,7 +105,7 @@ function refreshDependentControls() {
 // power.js — this is just the matching UI-side note, not a second source of
 // truth for the behavior itself). Flagged here so unchecking one that's
 // already invisible because the plugin is off isn't mistaken for broken.
-const PLUGIN_DEPENDENT_HINT_NAMES = { 'alert-test': 'EAS Alerts', 'news-alert': 'Breaking News Alerts' };
+const PLUGIN_DEPENDENT_HINT_NAMES = { 'alert-test': 'EAS Alerts', 'news-alert': 'Breaking News Alerts', 'sap-audio': 'SAP / Alternate Audio' };
 
 function renderHintBarItemsList() {
   if (!hintBarItemsListEl || !hintBarEl) return;

@@ -5,7 +5,7 @@ import {
 } from './channels.js';
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
-  crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
+  crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
@@ -327,7 +327,12 @@ export async function playChannelLive(ch, opts) {
     if (!opts.fadeInOnReady) player.classList.remove('screen-fade-out');
     noSignalEl.classList.add('hidden');
     S.channelFailStreak[ch.number] = 0;
-    if (ch.rating) flashRatingBug(ch);
+    // A per-file rating (setup-panels.js's TITLES tab) overrides the
+    // channel-wide one for mixed-content channels (e.g. a movie channel
+    // airing both PG and PG-13 titles) - 'NONE' is an explicit "no bug for
+    // this file" distinct from unset (which falls back to ch.rating).
+    const effectiveRating = file.rating === 'NONE' ? null : (file.rating || ch.rating);
+    if (effectiveRating) flashRatingBug(ch, effectiveRating);
     // AUTO aspect/resolution's real-video-size signal (display-mode.js) is
     // only trustworthy from here on — player.videoWidth/videoHeight are
     // real now, and confirmed to actually belong to this channel (not a
@@ -607,6 +612,12 @@ function startBreak(ch, resolved, key) {
   S.activeBreakKind = type;
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
+  // Some real networks drop their corner bug during breaks, some keep it up
+  // through them — a per-channel opt-in (default off, today's "always
+  // visible" behavior unchanged). Only for breaks that actually take over
+  // the screen — not the text-only "you're watching" station-ID bar, which
+  // doesn't interrupt content and coexists with the bug in real practice.
+  if (ch.logoBugHidesOnBreak && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
   // Marks when content stopped airing so endBreak can credit exactly this
   // much back (see S.contentLostMs) — a text-only station ID never stops
   // content, so it has nothing to credit.
@@ -626,6 +637,17 @@ function startBreak(ch, resolved, key) {
     player.pause();
     triviaTextEl.textContent = entry.text;
     triviaCardEl.classList.remove('hidden');
+    return;
+  }
+  if (type === 'localAvail') {
+    // Same boundary-driven (not 'ended'-event-driven) resume model as
+    // trivia above — nothing plays on `player`, so checkBreakState's own
+    // periodic boundary check is what ends this once viewNow() passes
+    // windowEnd (which already includes this entry's waitMs, if any).
+    cancelUpNextBar();
+    player.pause();
+    localAvailTextEl.textContent = (entry && entry.text) || 'ONE MOMENT, PLEASE.';
+    localAvailCardEl.classList.remove('hidden');
     return;
   }
 
@@ -782,6 +804,7 @@ function endBreak(ch) {
   S.breakOverrunSince = null;
   stationIdBarEl.classList.remove('show');
   triviaCardEl.classList.add('hidden');
+  localAvailCardEl.classList.add('hidden');
   crtToggleFlash.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
   clearDynamicOverlaysForBreak();
@@ -795,6 +818,7 @@ function endBreak(ch) {
     S.breakEnteredAtMs = 0;
   }
   if (shouldResume && S.currentNumber === ch.number && S.isPoweredOn) {
+    if (ch.logoBugHidesOnBreak) updateLogoBug(ch);
     (async () => {
       await fadeOutPlayer();
       // fadeInOnReady: reveal only once the resumed show has actually
@@ -1468,11 +1492,16 @@ function applyLogoBugGhost(ch) {
 
 // TV content-rating bug — flashed briefly whenever a program starts, mirrors
 // the logo bug's show/hide but auto-hides on a timer like the up-next bar.
-export function flashRatingBug(ch) {
-  ratingBugEl.textContent = ch.rating;
+// `rating` is resolved by the caller (currently-airing file's own rating,
+// falling back to the channel-wide one — see playChannelLive's onMeta) so
+// this stays a dumb renderer, not a second place that re-derives the
+// fallback chain. Real US ratings bugs hold ~15-17s at program start; 6s was
+// an arbitrary compression from before per-file ratings existed.
+export function flashRatingBug(ch, rating) {
+  ratingBugEl.textContent = rating;
   ratingBugEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 6000, () => ratingBugEl.classList.remove('show'));
+  S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 16000, () => ratingBugEl.classList.remove('show'));
 }
 
 export function scheduleBlockBoundaryRetune(ch) {

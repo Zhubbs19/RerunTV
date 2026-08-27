@@ -1,0 +1,65 @@
+/* Emergency Alert System — full-screen interrupt slate, modeled on the real
+   US EAS look: solid black field, a bold header bar, and a scrolling text
+   crawl along the bottom third. */
+.eas-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #000;
+  font-family: var(--font-ui);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.eas-overlay.hidden {
+  display: none !important;
+}
+
+.eas-header {
+  position: absolute;
+  top: 8%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.eas-badge {
+  color: #ffb400;
+  font-weight: 700;
+  font-size: 28px;
+  letter-spacing: 3px;
+  text-shadow: 0 0 12px rgba(255, 180, 0, 0.6);
+  animation: eas-badge-pulse 1s steps(2, jump-none) infinite;
+}
+
+@keyframes eas-badge-pulse {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.55; }
+}
+
+.eas-crawl-track {
+  width: 100%;
+  overflow: hidden;
+  background: #000;
+  border-top: 3px solid #ffb400;
+  border-bottom: 3px solid #ffb400;
+  padding: 14px 0;
+}
+
+.eas-crawl {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+  padding-left: 100%;
+  display: inline-block;
+  animation: eas-crawl-scroll 18s linear infinite;
+}
+
+@keyframes eas-crawl-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
+}
