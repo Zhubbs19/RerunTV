@@ -1131,6 +1131,16 @@
       <div class="crt">
         <video id="player" muted></video>
 
+        <!-- End-credits squeeze-back panel (ch.creditsSpeedup/
+             file.creditsLeadS, playback.js's startCreditsSpeedup) - fills
+             the space #player's own .credits-squeeze transform frees up,
+             styled like a real network's "up next" promo card. -->
+        <div id="credits-squeeze-panel" class="credits-squeeze-panel hidden">
+          <div class="credits-squeeze-eyebrow">UP NEXT</div>
+          <div class="credits-squeeze-channel" id="credits-squeeze-channel"></div>
+          <div class="credits-squeeze-title" id="credits-squeeze-title"></div>
+        </div>
+
         <!-- Retro TV bezel/border — behind the CRT texture layers (a real
              bezel is outside the tube glass, unaffected by scanlines/
              vignette/curvature), shown only when the active theme pack has

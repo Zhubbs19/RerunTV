@@ -111,6 +111,20 @@ export const S = {
   easActive: false,
   upNextTimer: null,
   upNextHideTimer: null,
+  // End-credits speedup (ch.creditsSpeedup/file.creditsLeadS, playback.js's
+  // scheduleCreditsSpeedup/startCreditsSpeedup) — a sibling of the upNext
+  // timer above, armed the same way (once per tune/file-load) but its own
+  // slot since the two features are independent and can both be armed for
+  // the same file at once.
+  creditsSpeedupTimer: null,
+  // Set only while player.playbackRate is actually elevated for the current
+  // file's credits — checked by handleContentEnded to know whether to
+  // credit time back to S.contentLostMs, and by the defensive resets in
+  // tuneToChannel/powerOff to know whether there's anything to undo.
+  creditsSpeedupActive: false,
+  creditsSpeedupPrevMuted: false,
+  creditsSpeedupRealStartMs: 0,
+  creditsSpeedupScheduledRemainingMs: 0,
   blockBoundaryTimer: null,
   broadcastHoursTimer: null,
   breakTimer: null,

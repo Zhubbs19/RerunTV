@@ -5,6 +5,7 @@ import {
 } from './channels.js';
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
+  creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl,
   crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
@@ -366,6 +367,7 @@ export async function playChannelLive(ch, opts) {
     // Schedule "UP NEXT" bar based on fresh position (post-IPC), not the
     // stale pre-IPC pos — remainingMs depends on current offset accuracy.
     scheduleUpNextBar(ch, freshPos || pos);
+    scheduleCreditsSpeedup(ch, freshPos || pos);
   };
   S.metaHandler = onMeta;
   player.addEventListener('loadedmetadata', onMeta);
@@ -383,6 +385,12 @@ export async function playChannelLive(ch, opts) {
 // checkBreakState() the boundary timer uses so both triggers agree.
 function handleContentEnded(ch) {
   if (!S.isPoweredOn) return;
+  // Before anything else - if credits speedup was running for the file that
+  // just ended, it finished for real (this IS the file's own 'ended' event,
+  // just fired earlier than the pure schedule expected) - credit the time
+  // saved back so computeLiveContentPosition's schedule position catches up
+  // to what actually aired, then clear the squeeze visual/audio state.
+  finishCreditsSpeedupIfActive();
   checkBreakState(ch, { contentJustEnded: true });
 }
 
@@ -1071,6 +1079,7 @@ export async function tuneToChannel(number, opts) {
   clearTimeout(S.blockBoundaryTimer);
   clearTimeout(S.broadcastHoursTimer);
   cancelUpNextBar();
+  resetCreditsSpeedup();
   cancelAllInterrupts();
   resetActiveBreakState();
   S.awaitingBumperEnd = false;
@@ -1294,6 +1303,100 @@ export function scheduleUpNextBar(ch, pos) {
     const duration = (S.config.upNext && S.config.upNext.duration) || 8000;
     S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, duration, () => upNextBarEl.classList.remove('show'));
   }, remainingMs - 45000);
+}
+
+export function cancelCreditsSpeedup() {
+  clearTimeout(S.creditsSpeedupTimer);
+  S.creditsSpeedupTimer = null;
+}
+
+// Undoes whatever startCreditsSpeedup below changed, WITHOUT crediting any
+// time to S.contentLostMs — used when the sped-up file is interrupted
+// (tune-away, power-off) rather than allowed to run to its own natural
+// 'ended'. An interrupted speedup has no well-defined "how much did we
+// actually save," so this just restores normal playback/audio state and
+// leaves the schedule to read as very slightly behind until the next
+// natural boundary reconciles it — the same class of harmless drift breaks
+// already cause elsewhere.
+export function resetCreditsSpeedup() {
+  cancelCreditsSpeedup();
+  if (!S.creditsSpeedupActive) return;
+  player.playbackRate = 1;
+  player.muted = S.creditsSpeedupPrevMuted;
+  S.creditsSpeedupActive = false;
+  creditsSqueezePanelEl.classList.add('hidden');
+  document.querySelector('.crt')?.classList.remove('credits-squeeze');
+}
+
+// Old syndicated stations routinely fast-forwarded a movie's end credits to
+// hit a hard time slot. `leadS` (seconds-before-file-end where credits
+// begin) resolves per-file first (file.creditsLeadS — 0 explicitly opts a
+// single file out even when the channel default is on), else the channel's
+// own default when ch.creditsSpeedup.enabled. Armed the same one-shot way
+// scheduleUpNextBar is (once per tune/file-load, not a continuous poll) —
+// a sibling timer, not sharing that one's slot, since both can be armed for
+// the same file at once.
+export function scheduleCreditsSpeedup(ch, pos) {
+  cancelCreditsSpeedup();
+  const file = pos.file;
+  const cfg = ch.creditsSpeedup;
+  const leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? cfg.leadSeconds : null);
+  if (!leadS) return;
+  const remainingMs = (file.duration - pos.offset) * 1000;
+  if (remainingMs <= leadS * 1000) return;
+  const rate = (cfg && cfg.rate) || 3;
+  S.creditsSpeedupTimer = setTimeout(() => {
+    if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    startCreditsSpeedup(ch, file, rate, leadS);
+  }, remainingMs - leadS * 1000);
+}
+
+// Exported (alongside the timer-arming/reset functions above) so both real
+// call sites and tests can invoke start/finish directly without needing to
+// wait out a real setTimeout — see test/verify-credits-speedup.mjs.
+export function startCreditsSpeedup(ch, file, rate, leadS) {
+  S.creditsSpeedupPrevMuted = player.muted;
+  player.muted = true;
+  player.playbackRate = rate;
+  S.creditsSpeedupActive = true;
+  S.creditsSpeedupRealStartMs = viewNow();
+  // What the pure schedule (which always assumes normal speed) still thinks
+  // is left in this file — compared against real elapsed time once the
+  // video actually ends, in finishCreditsSpeedupIfActive below, to credit
+  // exactly the difference back to S.contentLostMs.
+  S.creditsSpeedupScheduledRemainingMs = leadS * 1000;
+
+  const bgImage = file.creditsSqueezeBgImage || (ch.creditsSpeedup && ch.creditsSpeedup.squeezeBgImage);
+  if (bgImage) {
+    window.api.toFileUrl(bgImage).then((url) => {
+      if (S.creditsSpeedupActive) creditsSqueezePanelEl.style.setProperty('--credits-squeeze-bg', `url("${url}")`);
+    });
+  } else {
+    // No custom backdrop set at either level — fall back to a plain card
+    // tinted with the channel's own accent color rather than a blank panel,
+    // same "zero-config still looks intentional" idea channelColor already
+    // serves elsewhere (guide row theming, etc.).
+    creditsSqueezePanelEl.style.setProperty('--credits-squeeze-bg', `linear-gradient(160deg, ${channelColor(ch.number)}33, var(--ink-deep, #080b12))`);
+  }
+  creditsSqueezeChannelEl.textContent = (ch.name || `CHANNEL ${ch.number}`).toUpperCase();
+  creditsSqueezeTitleEl.textContent = computeNextTitle(ch);
+  document.querySelector('.crt')?.classList.add('credits-squeeze');
+  creditsSqueezePanelEl.classList.remove('hidden');
+}
+
+// Called from handleContentEnded, BEFORE it checks for the next break/file —
+// if a speedup was actually running for the file that just ended naturally,
+// credit the time it saved back to S.contentLostMs (the same accumulator
+// breaks use to credit time LOST, just the opposite sign — see this file's
+// top-of-function comments on computeLiveContentPosition) so the live-tuned
+// channel's position catches back up to what the pure schedule says should
+// be airing next, then restores normal playback/audio + the squeeze visual.
+export function finishCreditsSpeedupIfActive() {
+  if (!S.creditsSpeedupActive) return;
+  const realElapsedMs = viewNow() - S.creditsSpeedupRealStartMs;
+  const creditMs = S.creditsSpeedupScheduledRemainingMs - realElapsedMs;
+  S.contentLostMs -= creditMs;
+  resetCreditsSpeedup();
 }
 
 // Fallback used only if a config somehow has no profiles at all (shouldn't
