@@ -300,6 +300,20 @@ export async function playChannelLive(ch, opts) {
     // the actual short decode watchdog once the player has settled at the
     // target position.
     let seekSettled = false;
+    // A media-source-plugin file (file.source !== 'local', e.g. Google
+    // Drive) is streamed live via a real network round-trip per Range
+    // request (readRange), not a local disk read — and the very first
+    // decode often needs two sequential ones (moov atom, then the mdat
+    // bytes it points at, especially for a non-"faststart" file where moov
+    // sits at the end) before Chromium can produce anything. 4s was tuned
+    // for a local disk seek and routinely lost that race for a remote
+    // source, so live streaming looked "unplayable" on nearly every tune
+    // and fell straight through to the full-download cache fallback
+    // (waitForMediaSourceReady above) even though nothing was actually
+    // wrong — found live: "google drive always having to retrieve from
+    // cache" when live streaming should have worked. Local files keep the
+    // original tight budget; only remote sources get the longer one.
+    const decodeTimeoutMs = (file.source && file.source !== 'local') ? 12000 : 4000;
     function startFrameWatch() {
       if (seekSettled || handled) return;
       seekSettled = true;
@@ -322,7 +336,7 @@ export async function playChannelLive(ch, opts) {
           if (opts.fadeInOnReady) fadeInPlayer(); // don't leave the screen stuck faded on failure
           handleUnplayable();
         }
-      }, 4000);
+      }, decodeTimeoutMs);
     }
     function onSeeked() { startFrameWatch(); }
 
