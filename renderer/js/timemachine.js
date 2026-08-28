@@ -279,6 +279,19 @@ export async function shuttlePlay() {
     // re-firing immediately after its bumper ends — it has no meaning across
     // a jump to a different point in time.
     S.completedBreakKeys = null;
+    // Same reasoning as completedBreakKeys above: awaitingBumperEnd/
+    // breakOverrunSince track "a real video bumper is mid-play, defer up to
+    // BUMPER_OVERRUN_GRACE_MS of REAL wall-clock time for its own 'ended'
+    // event instead of cutting it off" (checkBreakState, playback.js) — set
+    // by startBreak and normally cleared by that same bumper's natural end.
+    // A time-machine jump abandons whatever was playing before it without
+    // ever firing that event, so left alone this stale flag makes
+    // checkBreakState defer starting the NEWLY jumped-to break for up to 8
+    // real seconds, and overlapping deferrals from repeated ']'/'[' presses
+    // race each other — the visible symptom was player.src staying stuck on
+    // the previous break's bumper for one or more presses before catching up.
+    S.awaitingBumperEnd = false;
+    S.breakOverrunSince = null;
     // If a break is already due exactly where we landed, skip loading
     // content at all — starting it first (even faded) races startBreak's
     // own async chain: content's loadedmetadata/decoded-frame watchers are
@@ -328,6 +341,10 @@ export async function returnToLive() {
   // would find its key already "completed" from the earlier preview and
   // silently skip it, even though it was never actually watched live.
   S.completedBreakKeys = null;
+  // Same reasoning as shuttlePlay's own reset — see its comment. Returning
+  // to live is itself a jump away from wherever the preview left off.
+  S.awaitingBumperEnd = false;
+  S.breakOverrunSince = null;
   updateTimeShiftBadge();
   const ch = getChannel(S.currentNumber);
   if (ch) {
