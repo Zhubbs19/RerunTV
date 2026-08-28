@@ -1003,11 +1003,11 @@ const GUIDE_BREAK_SCAN_CAP = 200;
 // see their own comments — not a per-second scan), so this costs one call
 // per actual break in the window, not one per second of it.
 export function breakEntriesInWindow(ch, windowStart, windowEnd) {
-  const entries = [];
+  const raw = [];
   const current = resolveBreakAt(ch, windowStart);
   let t = windowStart;
   if (current) {
-    entries.push({ start: Math.max(current.windowStart, windowStart), end: Math.min(current.windowEnd, windowEnd), isBreak: true, breakType: current.type });
+    raw.push({ start: current.windowStart, end: current.windowEnd, breakType: current.type });
     t = current.windowEnd;
   }
   let safety = 0;
@@ -1016,9 +1016,35 @@ export function breakEntriesInWindow(ch, windowStart, windowEnd) {
     if (!isFinite(start) || start >= windowEnd) break;
     const brk = resolveBreakAt(ch, start);
     if (!brk) break; // shouldn't happen given nextBreakStart's own contract, but avoid ever looping forever
-    entries.push({ start: Math.max(brk.windowStart, windowStart), end: Math.min(brk.windowEnd, windowEnd), isBreak: true, breakType: brk.type });
+    raw.push({ start: brk.windowStart, end: brk.windowEnd, breakType: brk.type });
     t = brk.windowEnd;
     safety++;
   }
-  return entries;
+  // nextBreakStart/resolveBreakAt walk one POD SEGMENT at a time (bump-in,
+  // each commercial, bump-out are each their own entry with their own
+  // windowStart/windowEnd — see buildPod/segmentAt above), which is exactly
+  // right for the time machine's "jump to next commercial" stepping but
+  // wrong for this display: it fragmented a single ~1-2 minute ad pod into
+  // several tiny back-to-back guide blocks, each too narrow for its own
+  // label, reading as garbled overlapping text. Merge any back-to-back
+  // segments (next one starts exactly where the last one ends) into one
+  // span before clamping/returning — one "PAID PROGRAMMING" block per pod,
+  // matching how a real TV guide shows it.
+  const merged = [];
+  raw.forEach((entry) => {
+    const last = merged[merged.length - 1];
+    if (last && entry.start <= last.end) {
+      last.end = Math.max(last.end, entry.end);
+    } else {
+      merged.push({ start: entry.start, end: entry.end, breakType: entry.breakType });
+    }
+  });
+  return merged
+    .map((entry) => ({
+      start: Math.max(entry.start, windowStart),
+      end: Math.min(entry.end, windowEnd),
+      isBreak: true,
+      breakType: entry.breakType,
+    }))
+    .filter((entry) => entry.end > entry.start);
 }

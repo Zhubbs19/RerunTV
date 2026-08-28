@@ -326,6 +326,11 @@ export function toggleGuideDockMode() {
   positionNowLine(S.guideWindowStart + GUIDE_SLOT_MS * guideSlots());
 }
 
+export function toggleGuideShowBreaks() {
+  S.guideShowBreaks = !S.guideShowBreaks;
+  renderGuideGrid();
+}
+
 // How many real-channel rows to render per pass once the initial
 // visible-rows batch is done — small enough that each pass stays cheap.
 // Display copy for a break overlay block (buildChannelRow below) — mirrors
@@ -418,30 +423,32 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
   // Real guides vary on this (some blank the avail, some don't show it at
   // all) — this at least makes an active cadence visible instead of
   // silently invisible.
-  breakEntriesInWindow(ch, S.guideWindowStart, windowEnd).forEach((entry) => {
-    const clampedStart = Math.max(entry.start, S.guideWindowStart);
-    const clampedEnd = Math.min(entry.end, windowEnd);
-    if (clampedEnd <= clampedStart) return;
-    const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
-    const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
-    const isSel = rowIdx === S.guideSelRowIdx && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
+  if (S.guideShowBreaks) {
+    breakEntriesInWindow(ch, S.guideWindowStart, windowEnd).forEach((entry) => {
+      const clampedStart = Math.max(entry.start, S.guideWindowStart);
+      const clampedEnd = Math.min(entry.end, windowEnd);
+      if (clampedEnd <= clampedStart) return;
+      const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
+      const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
+      const isSel = rowIdx === S.guideSelRowIdx && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
 
-    const block = document.createElement('div');
-    block.className = 'guide-entry guide-entry-break' + (isSel ? ' sel' : '') + (entry.end <= viewNow() ? ' past' : '');
-    block.style.left = leftPct + '%';
-    block.style.width = Math.max(widthPct, 2) + '%';
-    block.dataset.end = String(entry.end);
-    const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
-    block.textContent = label;
-    block.title = label;
-    block.addEventListener('click', () => {
-      S.guideSelRowIdx = rowIdx;
-      S.guideSelTime = entry.start + 1;
-      jumpToGuideEntry(ch, entry);
-      closeGuideGrid();
+      const block = document.createElement('div');
+      block.className = 'guide-entry guide-entry-break' + (isSel ? ' sel' : '') + (entry.end <= viewNow() ? ' past' : '');
+      block.style.left = leftPct + '%';
+      block.style.width = Math.max(widthPct, 2) + '%';
+      block.dataset.end = String(entry.end);
+      const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
+      block.textContent = label;
+      block.title = label;
+      block.addEventListener('click', () => {
+        S.guideSelRowIdx = rowIdx;
+        S.guideSelTime = entry.start + 1;
+        jumpToGuideEntry(ch, entry);
+        closeGuideGrid();
+      });
+      track.appendChild(block);
     });
-    track.appendChild(block);
-  });
+  }
 
   row.appendChild(chanCell);
   row.appendChild(track);
@@ -487,7 +494,7 @@ let lastGuideRenderSig = null;
 function guideRenderSignature(list, windowEnd) {
   return [
     S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
-    S.guideDocked, guideSlots(), list.length, S.guideSelRowIdx, S.guideSelTime,
+    S.guideDocked, S.guideShowBreaks, guideSlots(), list.length, S.guideSelRowIdx, S.guideSelTime,
   ].join('|');
 }
 
@@ -794,6 +801,10 @@ export function handleGuideGridKey(e) {
     case 'd':
     case 'D':
       toggleGuideDockMode();
+      break;
+    case 'b':
+    case 'B':
+      toggleGuideShowBreaks();
       break;
     case 'i':
     case 'I':

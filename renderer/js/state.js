@@ -76,6 +76,10 @@ export const S = {
   guideTickTimer: null,
   guideFilterQuery: '',
   guideDocked: true,
+  // Ad-break overlay blocks (buildChannelRow, guide.js) are opt-in — off by
+  // default since a channel with a busy ad cadence can tile enough of them
+  // across a row to read as clutter rather than useful info.
+  guideShowBreaks: false,
   // Bumped on every renderGuideGrid() call — lets a chunked lazy-fill pass
   // (rendering rows for channels off-screen) notice it's been superseded by
   // a newer render and stop appending instead of racing it.
