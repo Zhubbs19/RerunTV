@@ -129,7 +129,7 @@ const openChannelEditTabs = new Map();
 // surfaces the rating on a collapsed row's header either way, so nothing
 // already set is ever hidden without a hint.
 function hasCustomChannelOptions(ch) {
-  return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.shuffle || ch.volume != null || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride);
+  return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride);
 }
 
 function sortedForSetup() {
@@ -185,7 +185,7 @@ export function renderChannelList() {
     .forEach((ch) => {
       const fullIdx = fullIndexOf.get(ch);
       const row = document.createElement('div');
-      row.className = 'channel-row';
+      row.className = 'channel-row' + (ch.hidden ? ' channel-row-hidden' : '');
       row.dataset.channelNumber = String(ch.number);
 
       const selectCheckbox = document.createElement('input');
@@ -562,6 +562,29 @@ export function renderChannelList() {
       notSubscribedLabel.appendChild(notSubscribedCheckbox);
       notSubscribedLabel.appendChild(document.createTextNode('NOT SUBSCRIBED'));
 
+      // Distinct from NOT SUBSCRIBED above (which still occupies its slot in
+      // the guide/surf order and only blocks playback with a gag card) — a
+      // hidden channel is pulled out of the lineup entirely: gone from the
+      // guide grid and channel-up/down surfing (filteredChannels(),
+      // changeChannel/changeFavoriteChannel, channels.js/playback.js), and
+      // tuning directly to its number falls through to NO SIGNAL exactly as
+      // if that number had never been configured (tuneToChannel, playback.js).
+      // The config entry itself, its files, and its schedule are untouched —
+      // this is purely "not in the lineup right now," reversible any time.
+      const hiddenLabel = document.createElement('label');
+      hiddenLabel.className = 'shuffle-toggle';
+      hiddenLabel.title = 'Removes this channel from the guide and channel-surfing entirely, as if it wasn\'t configured at all. Tuning directly to its number does nothing. Its schedule/files are untouched — toggle off any time to bring it back.';
+      const hiddenCheckbox = document.createElement('input');
+      hiddenCheckbox.type = 'checkbox';
+      hiddenCheckbox.checked = !!ch.hidden;
+      hiddenCheckbox.addEventListener('change', () => {
+        ch.hidden = hiddenCheckbox.checked;
+        saveConfigDebounced();
+        renderChannelList();
+      });
+      hiddenLabel.appendChild(hiddenCheckbox);
+      hiddenLabel.appendChild(document.createTextNode('HIDE FROM TUNING'));
+
       const ratingSelect = document.createElement('select');
       ratingSelect.className = 'rating-select';
       ['NONE', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'].forEach((label) => {
@@ -751,6 +774,7 @@ export function renderChannelList() {
       if (ch.displayAspectOverride) summaryParts.push(`DISPLAY ${ch.displayAspectOverride.toUpperCase()}`);
       if (ch.vhsQuality) summaryParts.push('VHS');
       if (ch.notSubscribed) summaryParts.push('NOT SUBSCRIBED');
+      if (ch.hidden) summaryParts.push('HIDDEN');
       if (ch.shuffle) summaryParts.push('SHUFFLE');
       if (ch.volume != null) summaryParts.push(`VOL ${Math.round(ch.volume * 100)}%`);
       if (summaryParts.length) {
@@ -779,6 +803,7 @@ export function renderChannelList() {
       options.appendChild(quickAccessLabel);
       options.appendChild(vhsLabel);
       options.appendChild(notSubscribedLabel);
+      options.appendChild(hiddenLabel);
       options.appendChild(ratingLabel);
       options.appendChild(ratingSelect);
       options.appendChild(aspectLabel);

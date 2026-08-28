@@ -260,6 +260,10 @@
 }
 .channel-row.dragging { opacity: 0.4; }
 .channel-row.drag-over { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(var(--cyan-rgb), 0.5); }
+/* HIDE FROM TUNING (setup-channels.js) — dimmed so a hidden channel still
+   reads clearly in this editable list (it must stay findable here to be
+   un-hidden) while looking visibly different from a normal, live channel. */
+.channel-row.channel-row-hidden { opacity: 0.55; border-style: dashed; }
 @media (prefers-reduced-motion: reduce) {
   .channel-row { transition: none; }
 }

@@ -6,11 +6,49 @@
 // the pairing URL exchanges that code for a random HttpOnly session cookie;
 // subsequent static/API/media requests must carry that cookie (or the same
 // token as an Authorization: Bearer value for native companion clients).
+//
+// The pairing CODE is still always process-lifetime (a fresh 8-digit code
+// every boot, never persisted) — but a SESSION a device already earned by
+// entering that code once can optionally survive restarts, so a phone that
+// paired yesterday doesn't have to re-enter a code every single time this
+// app reopens. Opt in per createLanAccess() call via opts.sessionsFile (an
+// absolute path the caller has write access to — main.js's own
+// app.getPath('userData') for a core service, or a plugin's own declared
+// dataDir; see plugins/companion-app/main.js and plugins/universal-remote/
+// main.js) plus opts.sessionTtlMs (how long a remembered session stays
+// valid; the module default below is intentionally short for a service that
+// doesn't opt in, since without persistence a long TTL only matters until
+// the next restart mints a new pairing code anyway). Electron-free, same as
+// every other export here — this file is require()'d unchanged from an
+// isolated plugin's own forked process (plugin-isolation-runtime.js), so it
+// can only touch the filesystem through a path the caller already resolved
+// and was granted.
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_SESSIONS = 64;
 const WINDOW_MS = 60 * 1000;
+
+function loadPersistedSessions(sessionsFile) {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(sessionsFile, 'utf-8'));
+    return new Map(Object.entries(parsed).filter(([, expiresAt]) => Number.isFinite(expiresAt)));
+  } catch (e) {
+    return new Map(); // no file yet, or corrupt — start fresh rather than fail pairing entirely
+  }
+}
+
+function savePersistedSessions(sessionsFile, sessions) {
+  try {
+    fs.mkdirSync(path.dirname(sessionsFile), { recursive: true });
+    fs.writeFileSync(sessionsFile, JSON.stringify(Object.fromEntries(sessions)));
+  } catch (e) {
+    // Best-effort — a failed write just means this session won't survive
+    // the next restart, not a broken pairing right now.
+  }
+}
 
 function isLanServiceEnabled(config, service) {
   if (service === 'party') return !!(config && config.party && config.party.enabled);
@@ -64,21 +102,26 @@ function readFormBody(req, maxBytes = 1024) {
 function createLanAccess(service, opts = {}) {
   const pairingCode = String(crypto.randomInt(0, 100000000)).padStart(8, '0');
   const cookieName = `reruntv_${service.replace(/[^a-z0-9_-]/gi, '_')}`;
-  const sessions = new Map(); // token -> expiresAt
+  const sessionsFile = opts.sessionsFile || null;
+  const sessionTtlMs = opts.sessionTtlMs || SESSION_TTL_MS;
+  const sessions = sessionsFile ? loadPersistedSessions(sessionsFile) : new Map(); // token -> expiresAt
   const rateWindows = new Map(); // `${kind}:${ip}` -> {start, count}
   const readLimit = opts.readLimit || 600;
   const writeLimit = opts.writeLimit || 90;
 
   function pruneSessions() {
     const now = Date.now();
-    sessions.forEach((expiresAt, token) => { if (expiresAt <= now) sessions.delete(token); });
-    while (sessions.size > MAX_SESSIONS) sessions.delete(sessions.keys().next().value);
+    let removed = false;
+    sessions.forEach((expiresAt, token) => { if (expiresAt <= now) { sessions.delete(token); removed = true; } });
+    while (sessions.size > MAX_SESSIONS) { sessions.delete(sessions.keys().next().value); removed = true; }
+    if (removed && sessionsFile) savePersistedSessions(sessionsFile, sessions);
   }
 
   function issueSession() {
     pruneSessions();
     const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, Date.now() + SESSION_TTL_MS);
+    sessions.set(token, Date.now() + sessionTtlMs);
+    if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     return token;
   }
 

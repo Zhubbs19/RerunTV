@@ -1,17 +1,17 @@
 // ---------- LAN viewer auto-discovery (UDP) ----------
 // A tiny custom broadcast/reply protocol (Node's built-in dgram, no new
 // dependency) so neither the Android TV client (android-tv-client/) nor the
-// Android companion remote (android-remote-client/) require typing in this
+// Android companion app (android-companion-client/) require typing in this
 // machine's IP address by hand. A client broadcasts DISCOVERY_MAGIC to
 // DISCOVERY_PORT on the LAN; this listens on that same port and replies
 // directly (unicast, to the sender's own address) with this machine's
-// viewer and remote-control ports — the client already knows the sender's
-// IP from the UDP packet's own source address, so the reply only needs to
-// carry the ports. Deliberately not real mDNS/Bonjour: that would need a new
+// viewer/companion ports — the client already knows the sender's IP from
+// the UDP packet's own source address, so the reply only needs to carry the
+// ports. Deliberately not real mDNS/Bonjour: that would need a new
 // dependency on both the Node and Android sides for a single-purpose LAN
 // tool that only ever has one kind of thing to discover.
 const os = require('os');
-const { VIEWER_PORT, REMOTE_PORT } = require('./main-lan');
+const { VIEWER_PORT } = require('./main-lan');
 
 // Not sourced from main-lan.js — plugins/companion-app/main.js hardcodes
 // this same value itself (a plugin can't reliably require() core files by
@@ -36,7 +36,6 @@ function startDiscoveryServer(options = {}) {
     const reply = Buffer.from(JSON.stringify({
       magic: DISCOVERY_REPLY_MAGIC,
       viewerPort: options.viewerEnabled ? VIEWER_PORT : null,
-      remotePort: options.remoteEnabled ? REMOTE_PORT : null,
       companionPort: options.companionEnabled ? COMPANION_PORT : null,
       name: os.hostname(),
     }));

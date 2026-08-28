@@ -144,7 +144,6 @@
         try { window.AndroidRemoteBridge.reportState(JSON.stringify(state)); } catch (e) {}
       }
     },
-    getRemoteUrl: () => Promise.resolve([]),
     // Host-only visibility readout — a viewer has no LAN servers of its own
     // to report connections for.
     getConnectedDevices: () => Promise.resolve([]),

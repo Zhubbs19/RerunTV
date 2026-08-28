@@ -1,8 +1,12 @@
 const os = require('os');
 
 // LAN-facing server ports — the single source of truth, imported by main.js
-// for the actual server.listen() calls as well as the URL getters below.
-const REMOTE_PORT = 8721;
+// for the actual server.listen() call as well as the URL getter below.
+// Companion App's own port (8725, covering remote control + settings +
+// files) is NOT here — a plugin can't reliably require() core files by
+// relative path once packaged, so plugins/companion-app/main.js hardcodes
+// it itself (see that file's isPathContained comment for why), same as
+// main-discovery-server.js's own COMPANION_PORT constant.
 const VIEWER_PORT = 8724;
 
 // A real machine commonly has several non-internal IPv4 adapters at once —
@@ -29,14 +33,11 @@ function getLanAddresses() {
   }
   return candidates;
 }
-function getLanUrls() {
-  return getLanAddresses().map((c) => ({ name: c.name, url: `http://${c.address}:${REMOTE_PORT}` }));
-}
 function getViewerUrls() {
   return getLanAddresses().map((c) => ({ name: c.name, url: `http://${c.address}:${VIEWER_PORT}` }));
 }
 
 module.exports = {
-  REMOTE_PORT, VIEWER_PORT,
-  getLanAddresses, getLanUrls, getViewerUrls,
+  VIEWER_PORT,
+  getLanAddresses, getViewerUrls,
 };

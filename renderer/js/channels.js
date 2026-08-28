@@ -600,12 +600,16 @@ export function sortedChannels() {
   return [...S.config.channels].sort((a, b) => a.number - b.number);
 }
 
-// Channels shown in the time-grid guide, narrowed by S.guideFilterQuery.
-// Surfing (changeChannel) deliberately ignores this — a search filter in
-// the guide shouldn't change what channel-up/down cycles through.
+// Channels shown in the time-grid guide, narrowed by S.guideFilterQuery, and
+// always excluding ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) —
+// a hidden channel is meant to read as "not in the lineup," not just
+// filtered out of a search. Surfing (changeChannel) applies the same
+// ch.hidden exclusion itself (playback.js), but deliberately ignores
+// S.guideFilterQuery — a search filter in the guide shouldn't change what
+// channel-up/down cycles through.
 export function filteredChannels() {
   const q = S.guideFilterQuery.trim().toLowerCase();
-  const list = sortedChannels();
+  const list = sortedChannels().filter((ch) => !ch.hidden);
   if (!q) return list;
   return list.filter((ch) => (ch.name || '').toLowerCase().includes(q) || String(ch.number).includes(q));
 }
