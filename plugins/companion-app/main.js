@@ -32,18 +32,24 @@ function isPathContained(base, resolved) {
   return resolved === base || resolved.startsWith(base + path.sep);
 }
 
-// One root per distinct channel folder — the parent directory of each local
-// (non mediasource:) channel.path, deduped so multiple channels pointing at
-// the same folder collapse into a single browsable root. This is the whole
-// access-control model for the Files tab: only directories the user already
-// pointed a channel at are reachable, nothing else on disk.
+// One root per distinct local channel folder — ch.folders[] entries are
+// {id, source, ref, label} (see normalizeChannel, renderer/js/channels.js);
+// `ref` IS the folder's real filesystem path for a source: 'local' entry
+// (a plugin-sourced folder's ref is an opaque provider reference, not a
+// path on this disk at all, so those are skipped). Deduped by resolved path
+// so multiple channels sharing a folder collapse into one browsable root.
+// This is the whole access-control model for the Files tab: only
+// directories the user already pointed a channel at are reachable, nothing
+// else on disk.
 function buildRoots(config) {
   const seen = new Map(); // resolved dir -> {id, label, path}
   (config.channels || []).forEach((ch) => {
-    if (!ch || typeof ch.path !== 'string' || ch.path.startsWith('mediasource:')) return;
-    const dir = path.resolve(path.dirname(ch.path));
-    if (seen.has(dir)) return;
-    seen.set(dir, { id: String(seen.size), label: ch.name || path.basename(dir), path: dir });
+    (ch && ch.folders || []).forEach((entry) => {
+      if (!entry || entry.source !== 'local' || typeof entry.ref !== 'string') return;
+      const dir = path.resolve(entry.ref);
+      if (seen.has(dir)) return;
+      seen.set(dir, { id: String(seen.size), label: entry.label || path.basename(dir) || dir, path: dir });
+    });
   });
   return [...seen.values()];
 }

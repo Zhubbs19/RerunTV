@@ -380,14 +380,39 @@ window.api.onRemoteSetChannelFlag((data) => {
   ch[data.field] = !!data.value;
   saveConfigDebounced();
 });
+// Recursively merges `patch` into `target` in place, at any depth, but only
+// ever assigns a leaf onto a key that already exists on `target` — never
+// invents a new key at any level. Used below so a companion-app edit to one
+// deeply-nested leaf (e.g. display.overlayLayouts['ticker-bar'].x) can't
+// wipe out sibling keys the way a plain Object.assign one level deep would
+// (that would replace the whole nested object with just the edited leaf).
+// Returns whether anything was actually changed.
+function deepMergeExistingKeys(target, patch) {
+  let changed = false;
+  for (const [key, value] of Object.entries(patch)) {
+    if (!(key in target)) continue;
+    const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    if (isPlainObject(value) && isPlainObject(target[key])) {
+      if (deepMergeExistingKeys(target[key], value)) changed = true;
+    } else {
+      target[key] = value;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 // Companion app's Settings tab (plugins/companion-app/main.js's POST
-// /api/settings) — a patch is {sectionKey: {...values}}. Only shallow-merges
-// into a top-level section that already exists in S.config (display, theme,
-// network, party, timeMachine, updates, ...), one level deep, same as every
-// desktop setup-screen checkbox/field edit — never creates a new section and
-// never touches channels/plugins (those need their own dedicated, validated
-// flows, not a blanket merge), so a malformed or unexpected key is silently
-// dropped rather than corrupting config shape.
+// /api/settings) — a patch is {sectionKey: {...nested values...}}, arbitrarily
+// deep (the phone app's settings tree mirrors the full config JSON, not just
+// its top-level fields). Merged into a top-level section that already exists
+// in S.config (display, theme, network, party, timeMachine, updates, ...) via
+// deepMergeExistingKeys above, same as every desktop setup-screen checkbox/
+// field edit funnels into S.config before an autosave — never creates a new
+// section, key, or array entry, and never touches channels/plugins (those
+// need their own dedicated, validated flows, not a blanket merge), so a
+// malformed or unexpected key is silently dropped rather than corrupting
+// config shape.
 window.api.onCompanionApplySettings((patch) => {
   if (!patch || typeof patch !== 'object') return;
   const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
@@ -396,8 +421,7 @@ window.api.onCompanionApplySettings((patch) => {
     if (BLOCKED_SECTIONS.has(section)) continue;
     const target = S.config[section];
     if (!target || typeof target !== 'object' || !values || typeof values !== 'object') continue;
-    Object.assign(target, values);
-    changed = true;
+    if (deepMergeExistingKeys(target, values)) changed = true;
   }
   if (changed) saveConfigDebounced();
 });
