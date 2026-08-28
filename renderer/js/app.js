@@ -787,6 +787,7 @@ export function applyConfigDefaults(config) {
   if (!Array.isArray(config.display.hintBarHidden)) config.display.hintBarHidden = [];
   if (config.display.customCssPath === undefined) config.display.customCssPath = null;
   if (config.display.bootPowerOnAnim === undefined) config.display.bootPowerOnAnim = true;
+  if (config.display.hideTitleBar == null) config.display.hideTitleBar = false;
   // How long the small "channel card" (name/logo/now-playing bar, F to
   // reopen the full guide) stays up after a channel change before
   // auto-hiding — see showGuideOverlay (guide.js) / virtual.js's own copy.
@@ -876,6 +877,13 @@ async function init() {
   if (!loaded._configLoadError && beforeMigration !== JSON.stringify(S.config)) {
     showMigrationToast();
   }
+  // Drives the drag-strip CSS below (tv.css) so a frameless/borderless
+  // window (main.js's window:setTitleBarHidden) can still be moved with no
+  // native title bar to grab. Only ever needs setting once here at boot —
+  // toggling the setting itself closes and reopens this whole renderer (see
+  // setup-settings.js's hideTitleBarEnabledEl handler), so there's no live
+  // in-page case to also update.
+  document.documentElement.classList.toggle('titlebar-hidden', !!S.config.display.hideTitleBar);
   applyCustomCss();
   // Plugin registration is part of boot correctness, not background polish:
   // a LAN viewer can legitimately reopen while tuned to a plugin channel,

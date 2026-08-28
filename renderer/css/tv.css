@@ -1,5 +1,27 @@
 /* TV screen: CRT layers, no-signal, volume, channel entry */
 
+/* Frameless-window drag handle (DISPLAY > APP DISPLAY MODE > HIDE TITLE BAR,
+   index.html/app.js) — invisible and inert everywhere else; only occupies
+   space once html.titlebar-hidden is set, since a normal framed window
+   already gets this from its real OS title bar. Sits above every screen
+   (#tv-screen and #setup-screen alike) so the drag handle works regardless
+   of which one is active. Deliberately thin (matches a slim native title
+   bar) and starts a few px in from each edge so it doesn't swallow the OS's
+   own edge-resize hit-testing on a frameless window. */
+#titlebar-drag-strip {
+  display: none;
+}
+html.titlebar-hidden #titlebar-drag-strip {
+  display: block;
+  position: fixed;
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 10px;
+  z-index: 100000;
+  -webkit-app-region: drag;
+}
+
 /* ---------- TV SCREEN ---------- */
 
 #tv-screen {

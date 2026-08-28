@@ -26,6 +26,7 @@
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
+    'setTitleBarHidden',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),
