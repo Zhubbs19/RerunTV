@@ -1,6 +1,6 @@
 {
   "name": "retro-cable-box-foss",
-  "version": "0.1.0-alpha.57",
+  "version": "0.1.0",
   "description": "A retro broadcast cable box simulator with custom channels pulled from your own media library.",
   "main": "main/main.js",
   "scripts": {

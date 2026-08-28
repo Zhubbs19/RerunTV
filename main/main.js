@@ -102,6 +102,15 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // This app's whole point is to keep "broadcasting" while the user
+      // works in another window — Chromium's default background throttling
+      // (timers clamped, rendering/video-decode deprioritized once the
+      // window loses focus or is occluded) reads to playback.js's
+      // decode-frame watchdog as a stalled/unplayable file and was
+      // triggering unnecessary real ffmpeg transcodes purely from being
+      // backgrounded (found live: reported as "happens often when I leave
+      // the app and work in another window").
+      backgroundThrottling: false,
     },
   });
   setMainWindow(mainWindow);
