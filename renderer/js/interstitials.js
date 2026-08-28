@@ -861,34 +861,64 @@ function isJumpableBreak(brk) {
   return !(brk.type === 'channelId' && !(brk.entry && brk.entry.file));
 }
 
+// Walks forward from the end of an already-found break through every
+// directly back-to-back segment that follows it (e.g. an adBreakIn bumper's
+// end is exactly where the next commercial in the same pod begins, chained
+// straight through to the bump-out — see buildPod above), stopping at the
+// first real gap. Used by nextBreakStart/prevBreakStart so "jump to next/
+// prev break" treats a whole multi-segment ad pod as ONE break to land on,
+// not a chain of individually-jumpable segments — without it, repeated ']'
+// presses just stepped commercial-by-commercial through the pod you're
+// already in instead of ever reaching a break meaningfully later in time.
+// Also used directly by breakEntriesInWindow below to size a pod's guide
+// block to its real full span.
+export function endOfBreakRun(ch, brk) {
+  let end = brk.windowEnd;
+  let safety = 0;
+  while (safety < BOUNDARY_SAFETY_CAP) {
+    const next = resolveBreakAt(ch, end);
+    if (!next) return end;
+    end = next.windowEnd;
+    safety++;
+  }
+  return end;
+}
+
+// Symmetric counterpart for prevBreakStart — walks backward through every
+// segment directly preceding an already-found break to the start of the
+// whole run, so probing "just before this break" lands ahead of the entire
+// pod instead of ahead of just its current segment.
+export function startOfBreakRun(ch, brk) {
+  let start = brk.windowStart;
+  let safety = 0;
+  while (safety < BOUNDARY_SAFETY_CAP) {
+    const prev = resolveBreakAt(ch, start - 1);
+    if (!prev) return start;
+    start = prev.windowStart;
+    safety++;
+  }
+  return start;
+}
+
 // Start of the next break strictly after fromMs — for the time machine's
 // "jump to next break" control (timemachine.js), not live scheduling.
 // Deliberately distinct from nextBreakBoundary: that function answers "when
 // does the break STATE next change" (so if fromMs is already inside a break,
 // it returns that break's *end*); this one always answers "where's the next
-// (jumpable) break's *start*," skipping past whatever's currently playing —
-// and past any non-interrupting station-ID bars in between — so repeated
-// presses walk forward through consecutive REAL breaks instead of bouncing
-// between one break's start and end, or stalling on a station ID.
+// (jumpable) break's *start*," skipping past the ENTIRE pod currently
+// playing (endOfBreakRun, above — not just its current segment) — and past
+// any non-interrupting station-ID bars in between — so repeated presses
+// keep landing meaningfully further ahead in time instead of stepping
+// segment-by-segment through the pod they're already in.
 export function nextBreakStart(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
-  let t = current ? current.windowEnd : fromMs;
+  let t = current ? endOfBreakRun(ch, current) : fromMs;
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
-    // t itself can already be inside a break — most commonly the very next
-    // segment of the same multi-segment pod we just stepped out of (e.g. an
-    // adBreakIn bumper's end is exactly where the commercial that follows it
-    // in the same pod begins). nextCandidateBoundary below only knows about
-    // file/interval-anchored boundaries, with no notion of "the next segment
-    // in an already-active pod" — without this check, the search would skip
-    // straight past that segment to the pod's outer file boundary, silently
-    // skipping the commercial itself. This is why "jump to next commercial"
-    // sometimes did nothing useful: it depended on exactly where within a pod
-    // the previous jump had landed.
     const atT = resolveBreakAt(ch, t);
     if (atT) {
       if (isJumpableBreak(atT)) return t;
-      t = atT.windowEnd;
+      t = endOfBreakRun(ch, atT);
       safety++;
       continue;
     }
@@ -896,7 +926,7 @@ export function nextBreakStart(ch, fromMs) {
     if (candidate == null) return Infinity;
     const atCandidate = resolveBreakAt(ch, candidate);
     if (atCandidate && isJumpableBreak(atCandidate)) return candidate;
-    t = atCandidate ? atCandidate.windowEnd : candidate + 1;
+    t = atCandidate ? endOfBreakRun(ch, atCandidate) : candidate + 1;
     safety++;
   }
   return Infinity;
@@ -945,7 +975,12 @@ function latestBreakStartInFile(ch, bs, beforeMs) {
 // all can't spin forever.
 export function prevBreakStart(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
-  let probeMs = current ? current.windowStart : fromMs;
+  // startOfBreakRun (see nextBreakStart above): if fromMs lands inside a
+  // multi-segment pod, probe from ahead of the WHOLE pod, not just whatever
+  // segment fromMs happens to be in — otherwise probing "1ms before" would
+  // land inside the pod's own previous segment and this would just walk
+  // backward through the same pod one segment at a time.
+  let probeMs = current ? startOfBreakRun(ch, current) : fromMs;
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
     // Querying at probeMs - 1 (not probeMs) guarantees landing inside the
@@ -1003,12 +1038,22 @@ const GUIDE_BREAK_SCAN_CAP = 200;
 // see their own comments — not a per-second scan), so this costs one call
 // per actual break in the window, not one per second of it.
 export function breakEntriesInWindow(ch, windowStart, windowEnd) {
-  const raw = [];
+  const entries = [];
   const current = resolveBreakAt(ch, windowStart);
   let t = windowStart;
   if (current) {
-    raw.push({ start: current.windowStart, end: current.windowEnd, breakType: current.type });
-    t = current.windowEnd;
+    // windowStart can land anywhere inside a pod (it's an arbitrary guide-
+    // window boundary, not break-aware) — startOfBreakRun/endOfBreakRun
+    // (above) give the WHOLE pod's true bounds so this shows one block per
+    // pod (bump-in through bump-out), not just whichever segment happened
+    // to be sitting at windowStart.
+    entries.push({
+      start: Math.max(startOfBreakRun(ch, current), windowStart),
+      end: Math.min(endOfBreakRun(ch, current), windowEnd),
+      isBreak: true,
+      breakType: current.type,
+    });
+    t = endOfBreakRun(ch, current);
   }
   let safety = 0;
   while (t < windowEnd && safety < GUIDE_BREAK_SCAN_CAP) {
@@ -1016,35 +1061,15 @@ export function breakEntriesInWindow(ch, windowStart, windowEnd) {
     if (!isFinite(start) || start >= windowEnd) break;
     const brk = resolveBreakAt(ch, start);
     if (!brk) break; // shouldn't happen given nextBreakStart's own contract, but avoid ever looping forever
-    raw.push({ start: brk.windowStart, end: brk.windowEnd, breakType: brk.type });
-    t = brk.windowEnd;
+    const runEnd = endOfBreakRun(ch, brk);
+    entries.push({
+      start: Math.max(brk.windowStart, windowStart),
+      end: Math.min(runEnd, windowEnd),
+      isBreak: true,
+      breakType: brk.type,
+    });
+    t = runEnd;
     safety++;
   }
-  // nextBreakStart/resolveBreakAt walk one POD SEGMENT at a time (bump-in,
-  // each commercial, bump-out are each their own entry with their own
-  // windowStart/windowEnd — see buildPod/segmentAt above), which is exactly
-  // right for the time machine's "jump to next commercial" stepping but
-  // wrong for this display: it fragmented a single ~1-2 minute ad pod into
-  // several tiny back-to-back guide blocks, each too narrow for its own
-  // label, reading as garbled overlapping text. Merge any back-to-back
-  // segments (next one starts exactly where the last one ends) into one
-  // span before clamping/returning — one "PAID PROGRAMMING" block per pod,
-  // matching how a real TV guide shows it.
-  const merged = [];
-  raw.forEach((entry) => {
-    const last = merged[merged.length - 1];
-    if (last && entry.start <= last.end) {
-      last.end = Math.max(last.end, entry.end);
-    } else {
-      merged.push({ start: entry.start, end: entry.end, breakType: entry.breakType });
-    }
-  });
-  return merged
-    .map((entry) => ({
-      start: Math.max(entry.start, windowStart),
-      end: Math.min(entry.end, windowEnd),
-      isBreak: true,
-      breakType: entry.breakType,
-    }))
-    .filter((entry) => entry.end > entry.start);
+  return entries.filter((entry) => entry.end > entry.start);
 }
