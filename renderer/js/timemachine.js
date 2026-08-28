@@ -292,6 +292,23 @@ export async function shuttlePlay() {
     // the previous break's bumper for one or more presses before catching up.
     S.awaitingBumperEnd = false;
     S.breakOverrunSince = null;
+    // S.activeBreakKey/S.breakEnteredAtMs describe whatever break was
+    // showing BEFORE this jump. checkBreakState/endBreak (playback.js) both
+    // credit `viewNow() - S.breakEnteredAtMs` into S.contentLostMs when
+    // moving off an active break — correct for live playback (both
+    // timestamps advance together in real time), but after a time-machine
+    // jump viewNow() has just moved by however far the jump went while
+    // breakEnteredAtMs is still stamped from the OLD position, so that
+    // credit becomes a huge bogus delta. That corrupted S.contentLostMs is
+    // shared, global state, so it then throws off the LIVE position too —
+    // "the LIVE button doesn't return to what the guide says is playing,"
+    // worse the further repeated ']'/'[' presses had jumped beforehand.
+    // resetActiveBreakState() clears the two fields both credit sites gate
+    // on, the same protection startShuttle() already gives ordinary
+    // scrubbing — jumpToNextBreak/jumpToPrevBreak/returnToLive need it too
+    // since they commit straight to shuttlePlay without going through
+    // startShuttle first.
+    resetActiveBreakState();
     // If a break is already due exactly where we landed, skip loading
     // content at all — starting it first (even faded) races startBreak's
     // own async chain: content's loadedmetadata/decoded-frame watchers are
@@ -345,6 +362,9 @@ export async function returnToLive() {
   // to live is itself a jump away from wherever the preview left off.
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
+  // See shuttlePlay's own resetActiveBreakState() call above — same
+  // S.contentLostMs corruption risk applies here.
+  resetActiveBreakState();
   updateTimeShiftBadge();
   const ch = getChannel(S.currentNumber);
   if (ch) {
