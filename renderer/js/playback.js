@@ -213,6 +213,21 @@ export async function playChannelLive(ch, opts) {
       return;
     }
 
+    // A single failed decode attempt can be a transient stall — a slow disk
+    // or network/NAS drive, especially on a mid-file seek (this app's whole
+    // point is tuning in partway through a show) — rather than a genuine
+    // codec problem. Retry the tune fresh exactly once (same idea as
+    // opts.cacheRetried above, just for local files) before reaching for a
+    // real, expensive, multi-second ffmpeg transcode. Found live: normal,
+    // perfectly playable files on a slow drive were getting transcoded on
+    // nearly every tune-in because the very first stall was treated as
+    // conclusive. resolved.alreadyFixed skips this — a file whose transcode
+    // swap already happened isn't going to start working via a bare retry.
+    if (!opts.playRetried && !resolved.alreadyFixed) {
+      playChannelLive(ch, { ...opts, playRetried: true });
+      return;
+    }
+
     showNoSignal('TRANSCODING…', `CH ${ch.number} — ${base.toUpperCase()} (ONE-TIME FIX, PLEASE WAIT)`, 'transcoding');
 
     // player.src still points at this exact file — Chromium's media pipeline
@@ -271,25 +286,55 @@ export async function playChannelLive(ch, opts) {
       markStaticReady();
       return;
     }
-    let gotFrame = false;
-    const cbId = player.requestVideoFrameCallback(() => {
-      gotFrame = true;
-      if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} first decoded frame +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
-      // First real decoded frame of the resumed content — the actual
-      // "ready" signal fadeInOnReady callers (endBreak) want, instead of
-      // revealing as soon as src is set while the video is still seeking.
-      // Also the tuning static's own "ready" signal — this is the earliest
-      // point a channel change actually has something to show.
-      if (opts.fadeInOnReady) fadeInPlayer();
-      markStaticReady();
-    });
-    setTimeout(() => {
-      if (!gotFrame) {
-        try { player.cancelVideoFrameCallback(cbId); } catch (e) {}
-        if (opts.fadeInOnReady) fadeInPlayer(); // don't leave the screen stuck faded on failure
-        handleUnplayable();
-      }
-    }, 4000);
+
+    // Started right after `player.currentTime = seekOffset` (onMeta below),
+    // so on a large mid-file seek — the common case here, since tuning in is
+    // always "resume wherever this would really be right now" — the seek
+    // itself can eat multiple seconds on a slow disk or network/NAS drive
+    // before decoding even begins. That used to count directly against the
+    // decode-detection window below, so a file with a completely fine codec
+    // read as "unplayable" purely because the seek was slow, and got sent
+    // through a real ffmpeg transcode for no reason (found live). Wait out
+    // the seek itself first — on its own, generous timer, since a slow seek
+    // isn't a codec problem no transcode would fix anyway — then only start
+    // the actual short decode watchdog once the player has settled at the
+    // target position.
+    let seekSettled = false;
+    function startFrameWatch() {
+      if (seekSettled || handled) return;
+      seekSettled = true;
+      player.removeEventListener('seeked', onSeeked);
+      let gotFrame = false;
+      const cbId = player.requestVideoFrameCallback(() => {
+        gotFrame = true;
+        if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} first decoded frame +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+        // First real decoded frame of the resumed content — the actual
+        // "ready" signal fadeInOnReady callers (endBreak) want, instead of
+        // revealing as soon as src is set while the video is still seeking.
+        // Also the tuning static's own "ready" signal — this is the earliest
+        // point a channel change actually has something to show.
+        if (opts.fadeInOnReady) fadeInPlayer();
+        markStaticReady();
+      });
+      setTimeout(() => {
+        if (!gotFrame) {
+          try { player.cancelVideoFrameCallback(cbId); } catch (e) {}
+          if (opts.fadeInOnReady) fadeInPlayer(); // don't leave the screen stuck faded on failure
+          handleUnplayable();
+        }
+      }, 4000);
+    }
+    function onSeeked() { startFrameWatch(); }
+
+    if (player.seeking) {
+      player.addEventListener('seeked', onSeeked);
+      // If the seek somehow never resolves, still fall through to the normal
+      // decode watch rather than waiting forever — a genuinely wedged player
+      // needs to reach handleUnplayable eventually too.
+      setTimeout(() => { player.removeEventListener('seeked', onSeeked); startFrameWatch(); }, 10000);
+    } else {
+      startFrameWatch();
+    }
   }
 
   player.loop = false; // clears any loop left set by a virtual channel's background audio
