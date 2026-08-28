@@ -1,0 +1,14 @@
+{
+  "id": "companion-app",
+  "name": "Companion App",
+  "version": "1.0.0",
+  "description": "LAN API for the Android companion app's Settings and Files tabs — edit box-wide settings (display, theme, network, party, time machine, updates) and browse/download files from your channel folders, from your phone. Pairing-code + session auth, same as the other LAN services. Runs same-process (not isolated) because file browsing needs real filesystem access to wherever your channel folders actually live, which the isolated-plugin sandbox can't grant. Works standalone; independent of Universal Remote.",
+  "category": "system",
+  "main": "main.js",
+  "settings": "settings.js",
+  "capabilities": {
+    "net": [
+      { "port": 8725, "why": "the Android companion app's Settings and Files tabs connect to this from the LAN" }
+    ]
+  }
+}

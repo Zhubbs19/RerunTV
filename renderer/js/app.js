@@ -380,6 +380,27 @@ window.api.onRemoteSetChannelFlag((data) => {
   ch[data.field] = !!data.value;
   saveConfigDebounced();
 });
+// Companion app's Settings tab (plugins/companion-app/main.js's POST
+// /api/settings) — a patch is {sectionKey: {...values}}. Only shallow-merges
+// into a top-level section that already exists in S.config (display, theme,
+// network, party, timeMachine, updates, ...), one level deep, same as every
+// desktop setup-screen checkbox/field edit — never creates a new section and
+// never touches channels/plugins (those need their own dedicated, validated
+// flows, not a blanket merge), so a malformed or unexpected key is silently
+// dropped rather than corrupting config shape.
+window.api.onCompanionApplySettings((patch) => {
+  if (!patch || typeof patch !== 'object') return;
+  const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
+  let changed = false;
+  for (const [section, values] of Object.entries(patch)) {
+    if (BLOCKED_SECTIONS.has(section)) continue;
+    const target = S.config[section];
+    if (!target || typeof target !== 'object' || !values || typeof values !== 'object') continue;
+    Object.assign(target, values);
+    changed = true;
+  }
+  if (changed) saveConfigDebounced();
+});
 
 const pinCancelBtnEl = document.getElementById('pin-cancel-btn');
 if (pinCancelBtnEl) pinCancelBtnEl.addEventListener('click', hidePinLockScreen);

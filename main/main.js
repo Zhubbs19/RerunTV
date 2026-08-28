@@ -302,6 +302,12 @@ ipcMain.handle('viewer:getUrl', async () => {
   return viewerAccessUrls;
 });
 
+// Companion app (Settings + Files tabs) — see plugins/companion-app/main.js,
+// same pattern as remote:getUrl/viewer:getUrl above.
+ipcMain.handle('companion:getUrl', async () => {
+  return pluginServicesRef.companionAccessUrls || [];
+});
+
 ipcMain.handle('window:toggleFullscreen', async () => {
   const mainWindow = getMainWindow();
   if (!mainWindow) return false;

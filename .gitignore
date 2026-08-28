@@ -19,6 +19,7 @@ android-remote-client/**/local.properties
 android-tv-client/**/.gradle/
 android-tv-client/**/build/
 android-tv-client/**/local.properties
+android-companion-client/
 *.iml
 run-app.bat
 run-server.bat
@@ -36,6 +37,7 @@ plugins/video-splicer/
 plugins/spotify-connect/
 
 !plugins/breaking-news/
+!plugins/companion-app/
 !plugins/area-51/
 !plugins/closed-captions/
 !plugins/eas-alerts/
