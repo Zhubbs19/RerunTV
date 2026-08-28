@@ -54,14 +54,25 @@ const {
 } = require('./main-media');
 const { loadConfig, saveConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned, backupCurrentConfig } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
-const { getLanUrls, getViewerUrls, getLanAddresses, REMOTE_PORT, VIEWER_PORT } = require('./main-lan');
+const { getViewerUrls, getLanAddresses, VIEWER_PORT } = require('./main-lan');
 const { getConnectedDevices, trackConnection } = require('./main-connections');
 const { fetchJsonCached } = require('./main-api-cache');
 const { readJsonBody, serveStaticFile } = require('./main-http-util');
 const { setMainWindow, getMainWindow } = require('./main-window-ref');
 const { startViewerServer } = require('./main-viewer-server');
 const { startDiscoveryServer } = require('./main-discovery-server');
-const { isLanServiceEnabled } = require('./main-lan-security');
+const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
+
+// A device that's already entered a LAN service's pairing code once stays
+// paired across restarts (createLanAccess's opts.sessionsFile/
+// sessionTtlMs) — 90 days, not the module's short un-persisted default,
+// since the whole point of persisting is not asking again for as long as
+// the device still has the box on its LAN. Shared by every core-owned LAN
+// service (currently just the viewer); plugin-owned ones (universal-remote,
+// companion-app, party-channel) keep their own copy of this constant since
+// they can't import a core main-*.js file by path once packaged (see
+// plugins/companion-app/main.js's isPathContained comment for why).
+const LAN_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip, uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity } = require('./main-plugins');
 const { wireAppQuitPropagation } = require('./main-plugin-isolation');
 const {
@@ -218,6 +229,11 @@ app.whenReady().then(async () => {
   if (isLanServiceEnabled(bootConfig, 'viewer')) {
     const viewerRuntime = startViewerServer(pluginServices, {
       pluginsDir: getPluginsDir(),
+      access: createLanAccess('viewer', {
+        readLimit: 1200, writeLimit: 30,
+        sessionsFile: path.join(app.getPath('userData'), 'lan-sessions', 'viewer.json'),
+        sessionTtlMs: LAN_SESSION_TTL_MS,
+      }),
       listPlugins: () => discoverPlugins().map((plugin) => (
         plugin.error ? plugin : {
           ...plugin,
@@ -235,7 +251,7 @@ app.whenReady().then(async () => {
     fetchJsonCached, getMainWindow, getLanAddresses, readJsonBody,
     serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
-    getViewerUrls: () => viewerAccessUrls, remotePort: REMOTE_PORT,
+    getViewerUrls: () => viewerAccessUrls,
     ffmpegStaticPath: FFMPEG_STATIC_PATH, services: pluginServices,
   }, approvedCapabilities);
   pluginMainLoadErrors = loadResult.loadErrors;
@@ -249,11 +265,10 @@ app.whenReady().then(async () => {
   // known — turn that into index.html's dynamic media-src CSP allowance
   // (see setAllowedMediaSrcPorts's doc comment, main-protocol.js) instead of
   // requiring a hand-maintained port list in that static <meta> tag.
-  setAllowedMediaSrcPorts([REMOTE_PORT, VIEWER_PORT, ...loadResult.activatedNetPorts]);
-  const remoteEnabled = Array.isArray(pluginServices.remoteAccessUrls) && pluginServices.remoteAccessUrls.length > 0;
+  setAllowedMediaSrcPorts([VIEWER_PORT, ...loadResult.activatedNetPorts]);
   const companionEnabled = Array.isArray(pluginServices.companionAccessUrls) && pluginServices.companionAccessUrls.length > 0;
-  if (viewerAccessUrls.length || remoteEnabled || companionEnabled) {
-    startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, remoteEnabled, companionEnabled });
+  if (viewerAccessUrls.length || companionEnabled) {
+    startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, companionEnabled });
   }
 
   if (HEADLESS) {
@@ -266,7 +281,7 @@ app.whenReady().then(async () => {
     console.log('RerunTV is running in SERVER mode — no window on this machine.');
     console.log('Enabled LAN services are available to paired devices:');
     viewerAccessUrls.forEach((u) => console.log(`  Watch at ${u.url}  (${u.name})`));
-    (pluginServices.remoteAccessUrls || []).forEach((u) => console.log(`  Remote at ${u.url}  (${u.name})`));
+    (pluginServices.companionAccessUrls || []).forEach((u) => console.log(`  Companion/remote at ${u.url}  (${u.name})`));
     console.log('Press Ctrl+C to stop.');
     return;
   }
@@ -300,10 +315,6 @@ ipcMain.on('theme:colors', (event, colors) => {
   setThemeColors(colors);
 });
 
-ipcMain.handle('remote:getUrl', async () => {
-  return pluginServicesRef.remoteAccessUrls || [];
-});
-
 ipcMain.handle('network:getConnections', async () => {
   return getConnectedDevices();
 });
@@ -312,8 +323,9 @@ ipcMain.handle('viewer:getUrl', async () => {
   return viewerAccessUrls;
 });
 
-// Companion app (Settings + Files tabs) — see plugins/companion-app/main.js,
-// same pattern as remote:getUrl/viewer:getUrl above.
+// Companion app (remote control + Settings + Files, all merged into one
+// plugin/port — see plugins/companion-app/main.js), same pattern as
+// viewer:getUrl above.
 ipcMain.handle('companion:getUrl', async () => {
   return pluginServicesRef.companionAccessUrls || [];
 });

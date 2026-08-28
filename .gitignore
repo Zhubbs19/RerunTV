@@ -12,10 +12,6 @@ Thumbs.db
 *.swp
 *.bak
 android-tv-client/
-android-remote-client/
-android-remote-client/**/.gradle/
-android-remote-client/**/build/
-android-remote-client/**/local.properties
 android-tv-client/**/.gradle/
 android-tv-client/**/build/
 android-tv-client/**/local.properties
@@ -77,7 +73,6 @@ plugins/spotify-connect/
 !plugins/theme-wood-console-70s/
 !plugins/ticker/
 !plugins/tmdb-metadata/
-!plugins/universal-remote/
 !plugins/video-in/
 !plugins/vintage-audio/
 

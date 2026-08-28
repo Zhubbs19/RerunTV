@@ -4,11 +4,11 @@ window.RCBPlugins.registerPluginSettings('companion-app', {
     render(container, ctx) {
       if (!ctx.S.config.network) ctx.S.config.network = {};
       container.innerHTML = `
-        <label class="panel-toggle"><input type="checkbox" data-el="enabled"> COMPANION APP LAN ACCESS (SETTINGS + FILES)</label>
+        <label class="panel-toggle"><input type="checkbox" data-el="enabled"> COMPANION APP LAN ACCESS (REMOTE + SETTINGS + FILES)</label>
         <div class="panel-body">
           <span data-el="status" class="panel-status">Checking for a network connection…</span>
           <div data-el="pairing" class="hidden">
-            <span class="panel-status">Pairing code (enter this in the Android app's SETTINGS tab, or open the link on a phone browser):</span>
+            <span class="panel-status">Pairing code (enter this in the Android app's CONNECT tab, or open the link on any phone browser for the plain remote — one pairing covers both):</span>
             <div data-el="code" style="font-size:28px;font-weight:700;letter-spacing:.2em;text-align:center;margin:8px 0;"></div>
             <span data-el="urls" class="panel-status"></span>
           </div>

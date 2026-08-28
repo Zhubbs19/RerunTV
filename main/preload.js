@@ -78,29 +78,29 @@ contextBridge.exposeInMainWorld('api', {
   // renderer's hint-bar-hiding stays correct even when fullscreen is
   // triggered by an OS-level control instead of the app's own shortcut.
   onFullscreenChange: (cb) => ipcRenderer.on('window:fullscreenChanged', (event, isFullscreen) => cb(isFullscreen)),
-  // Universal remote (phone browser) — see plugins/universal-remote/main.js's startRemoteServer.
-  // onRemoteCommand fires for every button press relayed from the phone;
-  // sendRemoteState/getRemoteUrl are the renderer's two halves of talking
-  // back (current-channel readout, and the LAN URL shown in setup).
+  // Companion app (phone-browser remote + Android app; remote control,
+  // Settings, Files, all one plugin/port now — see plugins/companion-app/
+  // main.js). onRemoteCommand fires for every button press relayed from the
+  // phone; sendRemoteState is the renderer's other half, talking back
+  // (current-channel readout).
   onRemoteCommand: (cb) => ipcRenderer.on('remote:command', (event, cmd) => cb(cmd)),
   sendRemoteState: (state) => ipcRenderer.send('remote:state', state),
-  getRemoteUrl: () => ipcRenderer.invoke('remote:getUrl'),
-  // Host-visibility readout of who's currently polling the remote/viewer/
+  // Host-visibility readout of who's currently polling the companion/viewer/
   // party LAN servers — see main.js's trackConnection/getConnectedDevices.
   getConnectedDevices: () => ipcRenderer.invoke('network:getConnections'),
-  // Android companion remote's direct-tune and channel-flag-editor actions
-  // (see plugins/universal-remote/main.js's startRemoteServer POST /tune and POST /channel/flag).
+  // Companion app's direct-tune and channel-flag-editor actions (see
+  // plugins/companion-app/main.js's POST /tune and POST /channel/flag).
   onRemoteTune: (cb) => ipcRenderer.on('remote:tune', (event, data) => cb(data)),
   onRemoteSetChannelFlag: (cb) => ipcRenderer.on('remote:setChannelFlag', (event, data) => cb(data)),
-  // Android companion remote's TRIGGER TRIVIA button (see
-  // plugins/universal-remote/main.js's POST /party/trivia/start) — same
-  // relay pattern as the other onRemote*/onParty* listeners above.
+  // Companion app's TRIGGER TRIVIA button (see plugins/companion-app/
+  // main.js's POST /party/trivia/start) — same relay pattern as the other
+  // onRemote*/onParty* listeners above.
   onPartyTriggerTrivia: (cb) => ipcRenderer.on('party:triggerTrivia', () => cb()),
-  // Companion app (Settings + Files tabs) — see plugins/companion-app/main.js's
+  // Companion app's Settings tab — see plugins/companion-app/main.js's
   // POST /api/settings. onCompanionApplySettings fires with a
-  // {sectionKey: {...}} patch to shallow-merge into matching S.config
-  // sections (app.js); getCompanionUrl is the setup panel's half, mirroring
-  // getRemoteUrl/getViewerUrl above.
+  // {sectionKey: {...nested values...}} patch, recursively merged into
+  // matching S.config keys (app.js's deepMergeExistingKeys);
+  // getCompanionUrl is the setup panel's half, mirroring getViewerUrl.
   onCompanionApplySettings: (cb) => ipcRenderer.on('companion:applySettings', (event, patch) => cb(patch)),
   getCompanionUrl: () => ipcRenderer.invoke('companion:getUrl'),
   // Party channel (party.js) — the LAN party page's guest actions (see

@@ -123,7 +123,11 @@ function addProgramReminder(result) {
 
 function renderProgramResults(query) {
   if (!programResultsEl || query.trim().length < 2) { hideProgramResults(); return; }
-  const results = searchUpcomingPrograms(sortedChannels(), query, viewNow());
+  // Excludes ch.hidden directly rather than reusing filteredChannels() (that
+  // would also apply S.guideFilterQuery, an unrelated filter, to this
+  // separate program-title search) — a hidden channel shouldn't be
+  // discoverable/tunable-to from search results either.
+  const results = searchUpcomingPrograms(sortedChannels().filter((c) => !c.hidden), query, viewNow());
   programResultsEl.innerHTML = '';
   programResultsEl.classList.remove('hidden');
   const heading = document.createElement('div');

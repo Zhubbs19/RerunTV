@@ -1123,7 +1123,17 @@ export async function tuneToChannel(number, opts) {
     }
   }
   playChannelClickSound();
-  const ch = getChannel(number);
+  // A hidden channel (setup-channels.js's HIDE FROM TUNING toggle) is
+  // treated as if `number` were never configured at all — same NO SIGNAL
+  // fallback every branch below already takes for an unknown number, not a
+  // separate blocked/gated state. This is the one place that needs to know
+  // about ch.hidden for direct/explicit tunes (a typed number, a quick-tap
+  // button, a deep link) — filteredChannels()/changeChannel/
+  // changeFavoriteChannel (channels.js, playback.js) already keep hidden
+  // channels out of the guide and channel-surfing, so this is only ever
+  // reached by something bypassing those.
+  const rawCh = getChannel(number);
+  const ch = (rawCh && rawCh.hidden) ? null : rawCh;
   const prevNumber = S.currentNumber;
   if (prevNumber != null && prevNumber !== number) S.previousNumber = prevNumber;
   S.currentNumber = number;
@@ -1713,7 +1723,7 @@ export function scheduleBlockBoundaryRetune(ch) {
 
 export function changeChannel(direction) {
   const numbers = virtualChannelNumbers()
-    .concat(sortedChannels().map((c) => c.number))
+    .concat(sortedChannels().filter((c) => !c.hidden).map((c) => c.number))
     .sort((a, b) => a - b);
   if (numbers.length === 0) return;
   let idx = numbers.indexOf(S.currentNumber);
@@ -1726,7 +1736,7 @@ export function changeChannel(direction) {
 // fallback to the full channel list) when none are set, since silently
 // surfing everything would defeat the point of a dedicated favorites key.
 export function changeFavoriteChannel(direction) {
-  const favs = sortedChannels().filter((c) => c.favorite).map((c) => c.number);
+  const favs = sortedChannels().filter((c) => c.favorite && !c.hidden).map((c) => c.number);
   if (favs.length === 0) return;
   let idx = favs.indexOf(S.currentNumber);
   if (idx === -1) idx = 0;

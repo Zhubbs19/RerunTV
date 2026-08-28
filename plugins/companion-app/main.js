@@ -1,7 +1,16 @@
-// ---------- Companion app (Settings + Files tabs, LAN-only) ----------
-// Backend for the Android companion app's remote-settings editor and file
-// browser. Same pairing-code + session-cookie auth as every other LAN
-// service (universal-remote, the LAN viewer, party-channel) — see
+// ---------- Companion app (Settings + Files + Remote, LAN-only) ----------
+// Single backend for the Android companion app AND a plain phone-browser
+// remote (remote/, no app install needed) — formerly two separate plugins
+// (this one, and universal-remote) with two ports and two pairings; merged
+// into one so a device only ever has to pair once. Everything below
+// /command, /tune, /channel/flag, /party/trivia/start, /reaction, /state,
+// GET /channels, and the remote/ static page is migrated near-verbatim from
+// universal-remote/main.js (now deleted) — same routes, same IPC channels
+// ('remote:command'/'remote:tune'/'remote:setChannelFlag'/
+// 'party:triggerTrivia'/'party:reaction'/'remote:state'), so app.js's
+// existing onRemoteCommand/onRemoteTune/onRemoteSetChannelFlag/
+// onPartyTriggerTrivia listeners needed no changes at all.
+// Same pairing-code + session-cookie auth as every other LAN service — see
 // main-lan-security.js's createLanAccess, which also serves the pairing page
 // itself, so this file only has to handle already-authenticated requests.
 //
@@ -20,6 +29,11 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8725;
+const REMOTE_DIR = path.join(__dirname, 'remote');
+// Cached, not persisted — just enough for the remote page's "NOW WATCHING"
+// readout, pushed from the renderer whenever it tunes (see tuneToChannel,
+// playback.js).
+let latestRemoteState = { number: null, name: null };
 
 // Same one-liner as core's main-path-safety.js, duplicated rather than
 // require()'d — a plugin's on-disk location isn't stable relative to the
@@ -109,9 +123,16 @@ function streamFile(absPath, req, res, mimeFor) {
   fs.createReadStream(absPath).pipe(res);
 }
 
+// A device that's already entered the pairing code once stays paired across
+// restarts (see main-lan-security.js's opts.sessionsFile/opts.sessionTtlMs)
+// — 90 days, not the module's short un-persisted default, since the whole
+// point of persisting is not asking again for as long as the phone still
+// has the box on its LAN.
+const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
 async function activate(ctx) {
   const {
-    createServer, getMainWindow, trackConnection, readJsonBody, loadConfig, mimeFor,
+    ipcMain, createServer, getMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, mimeFor,
     getLanAddresses, createLanAccess, isLanServiceEnabled,
   } = ctx;
   // Same-process plugin, so unlike an isolated plugin's proxied
@@ -121,13 +142,28 @@ async function activate(ctx) {
     const mainWindow = getMainWindow();
     if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
   }
+  // Not a hard dependency (this plugin works fully without it) — just
+  // published by the party-channel plugin onto ctx.services if that one's
+  // also installed+enabled, so /reaction's allowlist matches the party
+  // page's own. manifest.json's dependsOn only affects load *order* (so
+  // this read sees it if present), not whether this plugin can activate
+  // without it.
+  const partyReactionEmoji = ctx.services.partyReactionEmoji || null;
+
+  ipcMain.on('remote:state', (event, state) => {
+    latestRemoteState = state && typeof state === 'object' ? state : { number: null, name: null };
+  });
 
   const config = await loadConfig();
   if (!isLanServiceEnabled(config, 'companion')) {
     ctx.services.companionAccessUrls = [];
     return;
   }
-  const access = createLanAccess('companion', { readLimit: 600, writeLimit: 60 });
+  const access = createLanAccess('companion', {
+    readLimit: 600, writeLimit: 60,
+    sessionsFile: path.join(ctx.fs.dataDir, 'sessions.json'),
+    sessionTtlMs: SESSION_TTL_MS,
+  });
   ctx.services.companionAccessUrls = getLanAddresses().map((entry) => ({
     name: entry.name, url: access.pairingUrl(`http://${entry.address}:${PORT}`),
   }));
@@ -198,7 +234,110 @@ async function activate(ctx) {
       return;
     }
 
-    res.writeHead(404).end('Not found');
+    // ---- Remote control (migrated from universal-remote/main.js) ----
+
+    if (req.method === 'POST' && url.pathname === '/command') {
+      try {
+        const body = await readJsonBody(req);
+        if (body && typeof body.key === 'string') {
+          sendToMainWindow('remote:command', { key: body.key, shift: !!body.shift });
+        }
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    if (req.method === 'GET' && url.pathname === '/state') {
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(latestRemoteState));
+      return;
+    }
+
+    // Direct channel jump for the companion app's quick-tap grid (party
+    // channel, public-access channel, etc.) — unlike /command's digit keys,
+    // this tunes immediately with no entry-buffer debounce, since the app
+    // already knows the exact channel number.
+    if (req.method === 'POST' && url.pathname === '/tune') {
+      try {
+        const body = await readJsonBody(req);
+        if (body && Number.isFinite(body.number)) {
+          sendToMainWindow('remote:tune', { number: body.number });
+        }
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && url.pathname === '/reaction') {
+      try {
+        const body = await readJsonBody(req);
+        const emoji = body && body.emoji;
+        if (!partyReactionEmoji || typeof emoji !== 'string' || !partyReactionEmoji.includes(emoji)) {
+          res.writeHead(400).end('Bad request');
+          return;
+        }
+        sendToMainWindow('party:reaction', { emoji });
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    // Channel list for the companion app's quick-tap grid and channel
+    // editor — read straight from disk (same tradeoff as GET /api/config
+    // above: a snapshot that can be briefly stale relative to unsaved
+    // in-renderer edits, acceptable for a read-only list view). Excludes
+    // ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) — same rule
+    // the guide/channel-surf already apply (channels.js/playback.js).
+    if (req.method === 'GET' && url.pathname === '/channels') {
+      const cfg = await loadConfig();
+      const channels = (cfg.channels || []).filter((ch) => !ch.hidden).map((ch) => ({
+        number: ch.number, name: ch.name, favorite: !!ch.favorite, quickAccess: !!ch.quickAccess,
+      })).sort((a, b) => a.number - b.number);
+      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(channels));
+      return;
+    }
+
+    // Toggle a channel's FAVORITE/quickAccess flag from the companion app —
+    // relayed through the renderer (which owns the live, unsaved config in
+    // memory) rather than written to disk directly here, so it goes through
+    // the same debounced-autosave path as every other in-app edit instead of
+    // risking a stale in-memory renderer state overwriting this write on its
+    // next save.
+    if (req.method === 'POST' && url.pathname === '/channel/flag') {
+      try {
+        const body = await readJsonBody(req);
+        const validField = body && (body.field === 'favorite' || body.field === 'quickAccess');
+        if (validField && Number.isFinite(body.number)) {
+          sendToMainWindow('remote:setChannelFlag', {
+            number: body.number, field: body.field, value: !!body.value,
+          });
+        }
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    // Host-side party control from the companion app — mirrors the desktop
+    // setup screen's own TRIGGER TRIVIA button (startTriviaRound, party.js),
+    // relayed the same way /command already relays a keypress: this server
+    // has no party-state of its own, it just tells the renderer (which owns
+    // S.partyQueue/S.config.party) to act. Works even without the
+    // party-channel plugin installed — party.js itself just won't be
+    // showing anything for it to affect.
+    if (req.method === 'POST' && url.pathname === '/party/trivia/start') {
+      sendToMainWindow('party:triggerTrivia');
+      res.writeHead(204).end();
+      return;
+    }
+
+    serveStatic(REMOTE_DIR, url.pathname, req, res);
   });
 
   server.on('error', (err) => {
