@@ -13,6 +13,12 @@
 const os = require('os');
 const { VIEWER_PORT, REMOTE_PORT } = require('./main-lan');
 
+// Not sourced from main-lan.js — plugins/companion-app/main.js hardcodes
+// this same value itself (a plugin can't reliably require() core files by
+// relative path once packaged; see that file's isPathContained comment for
+// why). Keep the two in sync by hand if this ever changes.
+const COMPANION_PORT = 8725;
+
 const DISCOVERY_PORT = 41234;
 const DISCOVERY_MAGIC = 'RETRO_CABLE_BOX_DISCOVER';
 const DISCOVERY_REPLY_MAGIC = 'RETRO_CABLE_BOX_HELLO';
@@ -31,6 +37,7 @@ function startDiscoveryServer(options = {}) {
       magic: DISCOVERY_REPLY_MAGIC,
       viewerPort: options.viewerEnabled ? VIEWER_PORT : null,
       remotePort: options.remoteEnabled ? REMOTE_PORT : null,
+      companionPort: options.companionEnabled ? COMPANION_PORT : null,
       name: os.hostname(),
     }));
     socket.send(reply, rinfo.port, rinfo.address);

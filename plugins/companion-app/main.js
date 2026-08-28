@@ -18,9 +18,19 @@
 // see buildRoots() below.
 const fs = require('fs');
 const path = require('path');
-const { isPathContained } = require('../../main/main-path-safety');
 
 const PORT = 8725;
+
+// Same one-liner as core's main-path-safety.js, duplicated rather than
+// require()'d — a plugin's on-disk location isn't stable relative to the
+// app root (a packaged install seeds plugins under userData/plugins, not
+// alongside main/), so a relative require('../../main/main-path-safety')
+// resolves at dev time but throws "Cannot find module" once packaged. True
+// if `resolved` is `base` itself or somewhere inside it; caller must pass
+// already path.resolve()'d/normalize()'d paths.
+function isPathContained(base, resolved) {
+  return resolved === base || resolved.startsWith(base + path.sep);
+}
 
 // One root per distinct channel folder — the parent directory of each local
 // (non mediasource:) channel.path, deduped so multiple channels pointing at

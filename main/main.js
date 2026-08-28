@@ -242,8 +242,9 @@ app.whenReady().then(async () => {
   // requiring a hand-maintained port list in that static <meta> tag.
   setAllowedMediaSrcPorts([REMOTE_PORT, VIEWER_PORT, ...loadResult.activatedNetPorts]);
   const remoteEnabled = Array.isArray(pluginServices.remoteAccessUrls) && pluginServices.remoteAccessUrls.length > 0;
-  if (viewerAccessUrls.length || remoteEnabled) {
-    startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, remoteEnabled });
+  const companionEnabled = Array.isArray(pluginServices.companionAccessUrls) && pluginServices.companionAccessUrls.length > 0;
+  if (viewerAccessUrls.length || remoteEnabled || companionEnabled) {
+    startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, remoteEnabled, companionEnabled });
   }
 
   if (HEADLESS) {
