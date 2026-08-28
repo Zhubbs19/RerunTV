@@ -96,6 +96,13 @@ contextBridge.exposeInMainWorld('api', {
   // plugins/universal-remote/main.js's POST /party/trivia/start) — same
   // relay pattern as the other onRemote*/onParty* listeners above.
   onPartyTriggerTrivia: (cb) => ipcRenderer.on('party:triggerTrivia', () => cb()),
+  // Companion app (Settings + Files tabs) — see plugins/companion-app/main.js's
+  // POST /api/settings. onCompanionApplySettings fires with a
+  // {sectionKey: {...}} patch to shallow-merge into matching S.config
+  // sections (app.js); getCompanionUrl is the setup panel's half, mirroring
+  // getRemoteUrl/getViewerUrl above.
+  onCompanionApplySettings: (cb) => ipcRenderer.on('companion:applySettings', (event, patch) => cb(patch)),
+  getCompanionUrl: () => ipcRenderer.invoke('companion:getUrl'),
   // Party channel (party.js) — the LAN party page's guest actions (see
   // plugins/party-channel/main.js's startPartyServer) arrive here the same way remote commands do.
   // getPartyJoinInfo returns {url, qrDataUrl, pairingCode} for the idle screen/setup
