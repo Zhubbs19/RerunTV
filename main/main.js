@@ -241,17 +241,24 @@ app.whenReady().then(async () => {
   // plugins:list round-trip. Runs in headless/server mode too — an
   // integration plugin may have nothing to do with the on-screen UI at all.
   const bootConfig = loadConfig();
-  seedBundledPlugins();
   if (!HEADLESS) {
     // The updater's small pre-launch window is served through app:// too,
     // so the protocol must exist before the startup gate. A genuinely fresh
     // install skips the gate once; renderer onboarding explains and saves
     // the user's update policy before later launches enforce it.
     registerAppProtocol(path.join(__dirname, '..'), getPluginsDir());
-    const installingUpdate = await initAutoUpdater(getMainWindow, {
-      skipStartupCheck: !!bootConfig._isFirstRun,
-    });
+    // seedBundledPlugins() is synchronous fs work with no dependency on the
+    // update check (or vice versa) — running them via Promise.all overlaps
+    // the updater's network round-trip with the seeding pass instead of
+    // paying for both in sequence (the updater's own startup-check can take
+    // up to 12s on the "startup-auto" strategy; see CLAUDE.md's test notes).
+    const [installingUpdate] = await Promise.all([
+      initAutoUpdater(getMainWindow, { skipStartupCheck: !!bootConfig._isFirstRun }),
+      Promise.resolve().then(seedBundledPlugins),
+    ]);
     if (installingUpdate) return;
+  } else {
+    seedBundledPlugins();
   }
   if (isLanServiceEnabled(bootConfig, 'viewer')) {
     const viewerRuntime = startViewerServer(pluginServices, {
