@@ -185,6 +185,7 @@ export const movieModeEnabledEl = document.getElementById('movie-mode-enabled');
 export const bezelInsetScaleSlider = document.getElementById('bezel-inset-scale-slider');
 export const displayModeAspectSelect = document.getElementById('display-mode-aspect-select');
 export const displayModeWindowSelect = document.getElementById('display-mode-window-select');
+export const hideTitleBarEnabledEl = document.getElementById('hide-titlebar-enabled');
 export const displayModeResolutionSelect = document.getElementById('display-mode-resolution-select');
 export const displayModeAutoPrioritySelect = document.getElementById('display-mode-auto-priority-select');
 export const crtOverlayWholeScreenEnabledEl = document.getElementById('crt-overlay-wholescreen-enabled');

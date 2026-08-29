@@ -97,9 +97,18 @@ const QRCode = require('qrcode');
 // single-file version.
 registerAppSchemePrivileges();
 
-function createWindow() {
+// overrides.hideTitleBar lets window:setTitleBarHidden (below) pass the
+// just-requested value straight through when it recreates the window —
+// frame is a BrowserWindow constructor-only option, so toggling it live has
+// no other way in than tearing down and rebuilding. Every other caller
+// (initial boot, macOS 'activate' with no windows open) omits it and falls
+// back to whatever's already saved in config, same as before this existed.
+function createWindow(overrides = {}) {
   const saved = loadWindowState();
   const bounds = saved && boundsOnScreen(saved) ? saved : {};
+  const hideTitleBar = overrides.hideTitleBar !== undefined
+    ? overrides.hideTitleBar
+    : !!((loadConfig().display || {}).hideTitleBar);
 
   const mainWindow = new BrowserWindow({
     width: bounds.width || 1280,
@@ -109,6 +118,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#060606',
+    frame: !hideTitleBar,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -156,6 +166,13 @@ function createWindow() {
   mainWindow.on('enter-full-screen', sendFullscreenState);
   mainWindow.on('leave-full-screen', sendFullscreenState);
 }
+
+// Set for the duration of window:setTitleBarHidden's own close()->createWindow()
+// swap below, so the momentary zero-window gap that recreate requires doesn't
+// trip the window-all-closed handler's app.quit() the same way
+// interactiveBootInProgress already guards the pre-launch updater window's
+// own zero-window interval.
+let intentionalWindowRecreate = false;
 
 app.on('second-instance', () => {
   const mainWindow = getMainWindow();
@@ -297,7 +314,7 @@ app.on('window-all-closed', () => {
   // The pre-launch updater window can close after an up-to-date/error
   // result while plugin boot is still finishing and before createWindow().
   // That transient zero-window interval is not a user quit.
-  if (interactiveBootInProgress) return;
+  if (interactiveBootInProgress || intentionalWindowRecreate) return;
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -335,6 +352,35 @@ ipcMain.handle('window:toggleFullscreen', async () => {
   if (!mainWindow) return false;
   mainWindow.setFullScreen(!mainWindow.isFullScreen());
   return mainWindow.isFullScreen();
+});
+
+// DISPLAY tab's "hide title bar" option (config.display.hideTitleBar) — a
+// borderless window that still behaves like a normal windowed app (movable,
+// resizable, coexists with the taskbar/other windows), unlike the real OS
+// fullscreen toggleFullscreen above. `frame` only takes effect at
+// BrowserWindow construction, so there's no live way to strip/restore the
+// title bar on the existing window — this closes it and opens a replacement
+// with the new frame setting, reusing the same bounds-persistence the normal
+// close path already writes (persistWindowState, above) so the replacement
+// opens at the same size/position instead of resetting to a default.
+ipcMain.handle('window:setTitleBarHidden', async (event, hidden) => {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed()) return !!hidden;
+  // The actual close+recreate is deferred to the next tick rather than
+  // awaited here — this handler's reply goes back to the very webContents
+  // that's about to be destroyed by mainWindow.close(), and closing it before
+  // this promise resolves risks the reply never reaching a renderer that no
+  // longer exists to receive it. Returning first lets that reply flush.
+  setImmediate(() => {
+    if (mainWindow.isDestroyed()) return;
+    intentionalWindowRecreate = true;
+    mainWindow.once('closed', () => {
+      intentionalWindowRecreate = false;
+      createWindow({ hideTitleBar: !!hidden });
+    });
+    mainWindow.close();
+  });
+  return !!hidden;
 });
 
 // App-wide display mode's "lock window" mode (DISPLAY > APP DISPLAY MODE,

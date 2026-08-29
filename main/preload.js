@@ -73,6 +73,12 @@ contextBridge.exposeInMainWorld('api', {
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.
   setAspectLock: (aspect) => ipcRenderer.invoke('window:setAspectLock', { aspect }),
+  // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
+  // reopens the real OS window with/without its frame, since that's a
+  // BrowserWindow constructor-only option (see main.js's
+  // window:setTitleBarHidden). Host-only: meaningless for a LAN viewer's
+  // browser tab, which has no OS window of its own to reframe.
+  setTitleBarHidden: (hidden) => ipcRenderer.invoke('window:setTitleBarHidden', hidden),
   // Fires for every fullscreen enter/exit, not just the F-key toggle above —
   // see main.js's enter-full-screen/leave-full-screen listeners — so the
   // renderer's hint-bar-hiding stays correct even when fullscreen is
