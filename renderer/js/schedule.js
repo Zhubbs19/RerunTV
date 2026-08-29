@@ -341,20 +341,31 @@ export function isWithinBroadcastHours(ch, atMs) {
 }
 
 // Next wall-clock instant the broadcast-hours gate flips (sign-on or
-// sign-off) — same hourly-scan shape as nextCommercialsBoundary, since a
-// wrap-safe hour window has no single fast-path formula worth special-casing
-// the way a daily/weekly block's calendar-date rollover does.
+// sign-off). Unlike nextSourceBoundary/nextCommercialsBoundary above, this
+// gate is a single flat hour-range check with no per-block priority
+// interactions to reconcile — it flips at exactly two local wall-clock
+// instants per day (startHour:00 and endHour:00), so the next flip is
+// computed directly instead of scanned, same "exact instant, not scanned"
+// treatment nextSourceBoundary already gives a daily/weekly block's unlock
+// time above. Using Date#setHours (not raw ms arithmetic) for the candidate
+// instants means this self-handles DST the same way that fast path does.
 export function nextBroadcastHoursBoundary(ch, fromMs) {
   const bh = ch.broadcastHours;
   if (!bh || !bh.enabled) return Infinity;
+  if (bh.startHour === bh.endHour) return Infinity; // full-day (hourInRange always true) — never flips
   const fromState = isWithinBroadcastHours(ch, fromMs);
-  const d = new Date(fromMs);
-  d.setMinutes(0, 0, 0);
-  for (let i = 1; i <= BOUNDARY_SCAN_HOURS; i++) {
-    const hourStart = d.getTime() + i * 3600000;
-    if (isWithinBroadcastHours(ch, hourStart) !== fromState) return hourStart;
+  const dayStart = startOfLocalDay(fromMs);
+  for (let day = 0; day <= 1; day++) {
+    const base = new Date(dayStart + day * DAY_MS);
+    const candidates = [bh.startHour, bh.endHour]
+      .map((h) => { const d = new Date(base); d.setHours(h, 0, 0, 0); return d.getTime(); })
+      .filter((t) => t > fromMs)
+      .sort((a, b) => a - b);
+    for (const t of candidates) {
+      if (isWithinBroadcastHours(ch, t) !== fromState) return t;
+    }
   }
-  return Infinity;
+  return Infinity; // unreachable in practice (a non-degenerate gate always flips within 24h) — same "never found" contract as the scan it replaces
 }
 
 // Backward counterpart of nextBroadcastHoursBoundary — the most recent

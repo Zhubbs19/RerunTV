@@ -34,4 +34,10 @@ function getConnectedDevices() {
   return out.sort((a, b) => b.lastSeenMs - a.lastSeenMs);
 }
 
-module.exports = { trackConnection, recordConnection, getConnectedDevices };
+function registerConnectionsIpc(ipcMain) {
+  ipcMain.handle('network:getConnections', async () => getConnectedDevices());
+}
+
+module.exports = {
+  trackConnection, recordConnection, getConnectedDevices, registerConnectionsIpc,
+};

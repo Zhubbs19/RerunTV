@@ -1,4 +1,5 @@
 import { S, viewNow, saveConfigDebounced, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
+import { runConfigMigrations } from './config-schema.js';
 import { randomInterstitialId } from './util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
@@ -17,9 +18,10 @@ import {
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
-  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, cancelUpNextBar, showNoSignal,
-  applyLogoBugPlacement, checkBreakState, playChannelLive, resetActiveBreakState,
-} from './playback.js';
+  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, playChannelLive,
+} from './playback-core.js';
+import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback-breaks.js';
+import { applyLogoBugPlacement, showNoSignal } from './playback-broadcast-fx.js';
 import {
   showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
@@ -664,6 +666,7 @@ function normalizeUpdateStrategy(updates) {
 // imported file goes through the exact same schema-migration pass a config
 // loaded from disk would.
 export function applyConfigDefaults(config) {
+  config = runConfigMigrations(config);
   if (!config.channels) config.channels = [];
   config.channels.forEach(normalizeChannel);
 

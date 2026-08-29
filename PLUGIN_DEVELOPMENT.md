@@ -11,6 +11,46 @@ built with exactly this API, no special first-party privileges. If you want
 a worked example beyond the starter kit, read any folder under
 [`plugins/`](plugins/).
 
+## New plugin checklist
+
+Before writing any code, decide these up front — each is cheap to get right
+at the start and annoying to change later:
+
+- **Isolated or not, and why?** Any real capability beyond a single
+  `ipcMain` handler — spawning a process, network access, filesystem writes
+  outside your own `dataDir` — means `"isolated": true` (see "Trust model"
+  below). Every first-party plugin with real capabilities uses it now;
+  same-process mode is for genuinely light plugins only.
+- **Which `category`?** `"channel"` (registers a real channel number),
+  `"theme"` (a `registerThemePack` entry), `"onscreen"` (an overlay/effect,
+  not tuned to), or `"system"` (background service, remote control,
+  integration, no on-screen presence). This is only a grouping hint for the
+  PLUGINS tab's category tabs, but pick one deliberately — "OTHER" is what
+  you get for skipping it.
+- **Does it need a `dataDir`?** Only if you keep real data (a cache, guest
+  uploads, anything beyond your own plugin folder) at the top level of
+  `userData/`. Declaring it lets the app's own userData migration carry it
+  along; if you don't need one, don't declare one.
+- **Renderer entry point or not?** `renderer.js`/`settings.js` share the
+  same document and DOM as core and every other plugin — no isolation at
+  all, unlike `main.js`. If your UI doesn't need direct DOM integration,
+  prefer a sandboxed iframe or Worker instead of a renderer entry point (see
+  "Trust model" below).
+- **Does settings UI belong in its own `settings.js`?** Every first-party
+  plugin now splits its PLUGINS-tab settings panel out of `renderer.js` into
+  its own `settings.js` (declared via manifest `"settings"`) so channel-
+  render logic and settings-panel logic don't share a file. Do this from the
+  start rather than retrofitting it later.
+- **Does it need a cross-plugin service?** If another plugin (or core) needs
+  to call into yours, publish it via `ctx.services` / `claimServiceKey`
+  rather than having one plugin `import` another directly — plugins can't
+  import each other's files across origins anyway (see "Cross-plugin
+  services" below).
+- **Read a similar existing plugin first.** `plugins/` has a first-party
+  example for nearly every shape (channel, theme pack, system/isolated,
+  media source) — copying the closest match's manifest/folder layout beats
+  re-deriving these conventions from scratch.
+
 ## Trust model — read this first
 
 By default, a plugin's `main.js` runs via `require()` in the Electron **main
@@ -87,6 +127,7 @@ make that call.
 | `dataDir` | no | Name of a folder your plugin keeps at the top level of `userData/` (sibling to `userData/plugins/`) for real data beyond your own plugin folder — a download cache, guest uploads, whatever. Declaring it here means the app's own userData migration (moving to a new install layout) knows to carry it along; skip this field if your plugin has no such folder. |
 | `capabilities` | no, but required if your `main.js` needs `ctx.ipcMain`/`ctx.spawn`/`ctx.createServer` | What your `main.js` needs to touch beyond reading files — see "Declaring capabilities" below. Shown to the user as a permission-approval prompt before your plugin is allowed to activate. |
 | `isolated` | no | `true` runs your `main.js` in its own real OS process instead of the same-process default — see "Isolated plugins" below. Recommended for any plugin with real `spawn`/`net`/filesystem-write capabilities. |
+| `minCtxVersion` | no | Integer. Declare this if your `renderer`/`settings` code depends on a `window.RCBPlugins.ctx` shape newer than the app's current `ctx.version` — see "renderer-process side" below. An app build whose `ctx.version` is lower refuses to import your entry with a clear error instead of letting it crash on a missing property. |
 
 At least one of `style`/`renderer`/`settings`/`main` should be present, or your plugin
 does nothing.
@@ -557,6 +598,25 @@ the config schema:
   for a plugin without mutating config when no settings exist yet.
 - `ctx.updatePluginSettings(id, patch)` — shallow-merges generic settings and
   saves through the app's normal config-generation/undo funnel.
+
+`ctx` also groups everything above by concern, so you can destructure just
+the piece you need instead of pulling every key off the flat object:
+
+- `ctx.core` — `{ S, viewNow, player, saveConfigDebounced }`
+- `ctx.audio` — `{ playTone, playNoiseBurst, getAudioCtx }`
+- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry }`
+- `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
+- `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
+
+The flat top-level keys (`ctx.S`, `ctx.player`, `ctx.sortedChannels`, …) stay
+available too — nothing existing breaks — but new code should prefer the
+grouped form. `ctx.version` is a plain integer, bumped whenever this shape
+changes in a way a plugin might depend on. If your plugin needs a ctx
+feature newer than some installed base of the app, declare
+`"minCtxVersion": <n>` in `manifest.json` — an app version whose `ctx.version`
+is lower refuses to load your `renderer`/`settings` entry with a clear
+one-line error instead of crashing partway through your own top-level code
+on a property that doesn't exist yet.
 
 ### `registerThemePack(id, definition)`
 

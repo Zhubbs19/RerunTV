@@ -37,7 +37,22 @@ function getViewerUrls() {
   return getLanAddresses().map((c) => ({ name: c.name, url: `http://${c.address}:${VIEWER_PORT}` }));
 }
 
+// viewer:getUrl and companion:getUrl both just expose a boot-populated URL
+// list back to the renderer — the lists themselves (viewerAccessUrls,
+// pluginServicesRef.companionAccessUrls) live as reassignable `let`s in
+// main.js, populated inside app.whenReady() well after this handler is
+// registered, so accessor functions (not the current value) are what main.js
+// hands over here — see CLAUDE.md's registerXIpc note on stale closures.
+function registerLanIpc(ipcMain, { getViewerAccessUrls, getCompanionAccessUrls }) {
+  ipcMain.handle('viewer:getUrl', async () => getViewerAccessUrls());
+
+  // Companion app (remote control + Settings + Files, all merged into one
+  // plugin/port — see plugins/companion-app/main.js), same pattern as
+  // viewer:getUrl above.
+  ipcMain.handle('companion:getUrl', async () => getCompanionAccessUrls());
+}
+
 module.exports = {
   VIEWER_PORT,
-  getLanAddresses, getViewerUrls,
+  getLanAddresses, getViewerUrls, registerLanIpc,
 };

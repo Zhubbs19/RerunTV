@@ -550,7 +550,29 @@ export function pluginDiagnosticsSnapshot() {
   };
 }
 
+// ctx started as one flat object of ~15 unrelated keys (state access, audio
+// primitives, channel helpers, settings helpers) and was calcifying that way
+// as more got bolted on. CTX_VERSION/minCtxVersion below exist so a FUTURE
+// breaking reshape (e.g. actually removing the flat top-level aliases) can
+// fail a too-old plugin with a clear message at load time instead of an
+// undefined-property crash deep inside its render(). This pass only adds the
+// grouped namespaces (ctx.audio/ctx.channels/ctx.settings) alongside the
+// existing flat keys — every flat key stays exactly as it was, so no
+// existing plugin's renderer.js needs to change. New plugin code should
+// prefer the grouped form; the flat aliases are the deprecated-but-supported
+// path until a version bump actually retires them.
+const CTX_VERSION = 2;
+
 function installGlobalApi() {
+  const core = { S, viewNow, player, saveConfigDebounced };
+  const audio = { playTone, playNoiseBurst, getAudioCtx };
+  const channels = {
+    sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel,
+    addFilesToChannel, addInterstitialPoolEntry,
+  };
+  const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
+  const util = { formatClock, WEEKDAYS, MONTHS };
+
   window.RCBPlugins = {
     registerChannelType,
     registerSettingsPanel,
@@ -597,16 +619,19 @@ function installGlobalApi() {
     // clock-formatting/day-name/month-name logic — same can't-import-core-
     // directly reason as everything else on this object.
     ctx: {
-      S, viewNow, player, playTone, playNoiseBurst, getAudioCtx,
-      sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, saveConfigDebounced,
-      addFilesToChannel, addInterstitialPoolEntry, formatClock, WEEKDAYS, MONTHS,
-      getPluginSettings, updatePluginSettings,
-      getRedactedPluginSettings,
+      ...core, ...audio, ...channels, ...settings, ...util,
+      // Grouped namespaces — the shape new plugin code should read from.
+      // Each group is its own object (not just a re-export of the flat
+      // keys) so a plugin can destructure `const { channels } = ctx`
+      // without pulling in everything else.
+      core, audio, channels, settings, util,
     },
-    // Read-only escape hatch for plugins that need something not covered by
-    // registerChannelType/registerSettingsPanel yet — kept intentionally
-    // tiny for v1 rather than exposing internal app state wholesale.
-    version: 1,
+    // Bumped whenever ctx's shape changes in a way a plugin might care
+    // about (see CTX_VERSION above) — a plugin can declare manifest.json's
+    // optional `minCtxVersion` and loadPlugins() (below) will refuse to
+    // import it with a clear error instead of letting it crash on a
+    // property that doesn't exist yet in this app version.
+    version: CTX_VERSION,
   };
 }
 
@@ -645,23 +670,45 @@ export async function loadPlugins() {
     }
   });
 
-  // Renderer/settings entries are imported sequentially (not Promise.all) so one
-  // plugin's top-level throw can't interleave with another's registration
-  // calls in a confusing order — plugin count is small enough that this
-  // isn't a meaningful boot-time cost.
-  for (const p of manifests) {
-    if (p.error || p.loadError || p.needsIntegrityApproval || isDisabled(p)) continue;
-    for (const [kind, entry] of [['renderer', p.renderer], ['settings', p.settings]]) {
-      if (!entry) continue;
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const base = window.__isViewer ? '/plugins' : 'app://plugins';
-        await import(/* webpackIgnore: true */ `${base}/${encodeURIComponent(p.dir)}/${entry}`);
-      } catch (e) {
-        loadErrors.push({ id: p.id, name: p.name, error: `(${kind}) ${e.message}` });
-      }
+  // Renderer/settings entries used to be imported one at a time (~96
+  // sequential awaits across ~50 plugins) to keep one plugin's top-level
+  // throw from interleaving with another's registration calls in a confusing
+  // order. That ordering was never load-bearing for correctness though —
+  // every registry a plugin's top-level code writes into (channelType,
+  // settings sections, theme packs, etc.) is a plain id-keyed Map, so which
+  // plugin registers first doesn't matter. Main-process activate() order
+  // (which DOES matter, for ctx.services dependencies) is unaffected — that
+  // sequencing lives entirely in loadMainPlugins (main-plugins.js), not here.
+  // Firing every import() in the same tick lets their underlying fetches
+  // overlap instead of paying for each one's latency in series; errors are
+  // still collected back in manifest order for a stable-looking report.
+  const importJobs = [];
+  manifests.forEach((p) => {
+    if (p.error || p.loadError || p.needsIntegrityApproval || isDisabled(p)) return;
+    // Optional manifest field — a plugin built against a newer ctx shape
+    // than this app version provides. Caught here, before import(), so the
+    // failure is a clear one-line PLUGIN ERROR instead of an undefined-
+    // property crash somewhere inside the plugin's own top-level code.
+    if (Number.isInteger(p.minCtxVersion) && p.minCtxVersion > CTX_VERSION) {
+      loadErrors.push({
+        id: p.id, name: p.name,
+        error: `requires plugin ctx v${p.minCtxVersion}, this app provides v${CTX_VERSION} — update RerunTV or use an older build of this plugin`,
+      });
+      return;
     }
-  }
+    [['renderer', p.renderer], ['settings', p.settings]].forEach(([kind, entry]) => {
+      if (!entry) return;
+      const base = window.__isViewer ? '/plugins' : 'app://plugins';
+      const url = `${base}/${encodeURIComponent(p.dir)}/${entry}`;
+      importJobs.push({ p, kind, promise: import(/* webpackIgnore: true */ url) });
+    });
+  });
+  const importResults = await Promise.allSettled(importJobs.map((job) => job.promise));
+  importResults.forEach((result, i) => {
+    if (result.status !== 'rejected') return;
+    const { p, kind } = importJobs[i];
+    loadErrors.push({ id: p.id, name: p.name, error: `(${kind}) ${result.reason.message}` });
+  });
 
   if (loadErrors.length) {
     const lines = loadErrors.map((e) => `${e.name}: ${e.error}`).join('\n');

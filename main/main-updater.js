@@ -58,6 +58,15 @@ let startupUpdateActive = false;
 let startupUpdateResolve = null;
 let startupCheckTimer = null;
 let manualCheckRequested = false;
+// The renderer-only theme-pack registry (registerThemePack, plugins.js),
+// pushed here after every plugin (re)load — see preload.js's
+// reportInstalledThemes. Read by companion-app/main.js's GET /api/themes
+// via ctx.getInstalledThemes (main.js hands getLatestThemeList itself, not a
+// snapshot, into loadMainPlugins' extraCtx for exactly that reason). Owned
+// here rather than in main.js since setThemeColors (the sibling "renderer
+// reported something live" report) already lives in this file.
+let latestThemeList = [];
+function getLatestThemeList() { return latestThemeList; }
 
 function updateStatePath() {
   return path.join(app.getPath('userData'), 'update-state.json');
@@ -552,4 +561,23 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   return false;
 }
 
-module.exports = { initAutoUpdater, setThemeColors };
+// Fire-and-forget report of the renderer's active theme pack preview colors
+// (themes.js's applyTheme) — cached here (setThemeColors) so the frameless
+// update-progress popup, a separate BrowserWindow with no access to the
+// renderer's plugin registry, can re-skin to match instead of always
+// showing its hardcoded fallback palette. themes:list is the sibling report
+// of which theme packs are currently installed at all (see latestThemeList
+// above).
+function registerThemeIpc(ipcMain) {
+  ipcMain.on('theme:colors', (event, colors) => {
+    setThemeColors(colors);
+  });
+
+  ipcMain.on('themes:list', (event, list) => {
+    latestThemeList = Array.isArray(list) ? list : [];
+  });
+}
+
+module.exports = {
+  initAutoUpdater, setThemeColors, registerThemeIpc, getLatestThemeList,
+};

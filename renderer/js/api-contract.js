@@ -26,7 +26,9 @@
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
-    'setTitleBarHidden',
+    'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
+    'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
+    'onCompanionSetTicker',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),

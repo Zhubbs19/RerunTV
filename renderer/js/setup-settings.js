@@ -3,7 +3,7 @@
 import { applyConfigDefaults } from './app.js';
 import { CUSTOM_SOUND_SLOTS } from './audio.js';
 import { applyDisplayMode } from './display-mode.js';
-import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback.js';
+import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback-broadcast-fx.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, saveConfigDebounced, pushUndoSnapshot } from './state.js';

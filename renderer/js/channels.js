@@ -1,4 +1,4 @@
-import { changeChannel } from './playback.js';
+import { changeChannel } from './playback-core.js';
 import { renderChannelList } from './setup.js';
 import { BADGE_COLORS, S, saveConfigDebounced } from './state.js';
 import {
@@ -653,8 +653,26 @@ export function guideSlots() {
   return (S.config.display && S.config.display.guideSlots) || 3;
 }
 
+// Memoized on S.configGeneration (same invalidation as resolveActiveCommercials
+// in schedule.js — see CLAUDE.md's "Config mutation" section): both the sorted
+// array and a number->channel Map are rebuilt only when config has actually
+// changed, since this is called from the guide's 1-second tick among dozens of
+// other call sites.
+let sortedChannelsCache = null;
+let sortedChannelsCacheGen = -1;
+let channelByNumberCache = null;
+
+function ensureChannelCaches() {
+  if (S.configGeneration !== sortedChannelsCacheGen) {
+    sortedChannelsCache = [...S.config.channels].sort((a, b) => a.number - b.number);
+    channelByNumberCache = new Map(sortedChannelsCache.map((ch) => [ch.number, ch]));
+    sortedChannelsCacheGen = S.configGeneration;
+  }
+}
+
 export function sortedChannels() {
-  return [...S.config.channels].sort((a, b) => a.number - b.number);
+  ensureChannelCaches();
+  return sortedChannelsCache;
 }
 
 // Channels shown in the time-grid guide, narrowed by S.guideFilterQuery, and
@@ -672,7 +690,8 @@ export function filteredChannels() {
 }
 
 export function getChannel(number) {
-  return S.config.channels.find((c) => c.number === number) || null;
+  ensureChannelCaches();
+  return channelByNumberCache.get(number) || null;
 }
 
 // Appends already-probed files to a channel's playlist — dedupes by path
