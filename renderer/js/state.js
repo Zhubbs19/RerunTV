@@ -164,6 +164,7 @@ export const S = {
   sleepMinutes: 0,
   channelFailStreak: {},
   ratingBugTimer: null,
+  movieRatingCardTimer: null,
   hintBarFlashTimer: null,
   pictureModeFlashTimer: null,
   aspectModeFlashTimer: null,

@@ -179,3 +179,8 @@ html[data-theme="analog-90s"] .crt.guide-anim-enabled .guide-grid {
     transition: none;
   }
 }
+
+/* TV parental guidelines didn't exist before 1997 — this early-90s analog
+   era shows no rating bug at all, same reasoning as
+   theme-wood-console-70s/style.css. */
+html[data-theme="analog-90s"] .rating-bug { display: none !important; }

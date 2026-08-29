@@ -15,6 +15,13 @@ const CORNER_STYLE = {
   'bottom-left': { bottom: '4%', left: '4%', top: 'auto', right: 'auto', transform: 'none' },
   'bottom-right': { bottom: '4%', right: '4%', top: 'auto', left: 'auto', transform: 'none' },
   center: { top: '50%', left: '50%', right: 'auto', bottom: 'auto', transform: 'translate(-50%, -50%)' },
+  // Overrides the --dynamic-overlay-size-driven square sizing (overlays.css)
+  // with explicit width/height — the generic style-prop loop in
+  // triggerDynamicOverlays below applies whatever keys are present here, so
+  // this is the only change needed to support a full-screen custom overlay
+  // (e.g. a user-supplied movie rating card image/video) alongside the
+  // corner-bug-sized presets above.
+  fullscreen: { top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', transform: 'none' },
 };
 
 // Break-type triggers (see DYNAMIC_OVERLAY_TRIGGERS, channels.js) — an
@@ -46,9 +53,13 @@ export function clearDynamicOverlaysForBreak() {
   if (activeTrigger && BREAK_TRIGGERS.has(activeTrigger)) hideDynamicOverlay();
 }
 
+// Returns true when a matching custom-media rule was actually found and
+// shown, false otherwise — callers that have their own built-in fallback
+// rendering (e.g. flashRatingBug/showMovieRatingCard, playback.js) use this
+// to know whether they still need to render that fallback themselves.
 export function triggerDynamicOverlays(ch, trigger) {
   const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath);
-  if (!rule) return;
+  if (!rule) return false;
   clearTimeout(hideTimer);
   hideTimer = null;
   activeTrigger = trigger;
@@ -88,4 +99,5 @@ export function triggerDynamicOverlays(ch, trigger) {
     // rather than the whole thing).
     hideTimer = setTimeout(hideDynamicOverlay, rule.durationMs);
   }
+  return true;
 }

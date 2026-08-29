@@ -94,3 +94,8 @@ html[data-theme="prevue-guide-94"] #tv-screen .crt.powering-on .crt-power-fx-lin
     animation: none;
   }
 }
+
+/* TV parental guidelines didn't exist before 1997 — 1994 predates them, so
+   this era shows no rating bug at all, same reasoning as
+   theme-wood-console-70s/style.css. */
+html[data-theme="prevue-guide-94"] .rating-bug { display: none !important; }

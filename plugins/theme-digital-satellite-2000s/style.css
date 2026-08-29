@@ -174,3 +174,13 @@ html[data-theme="digital-satellite-2000s"] .crt.guide-anim-enabled .guide-grid {
     transition: none;
   }
 }
+
+/* This era's rating bug: a crisp digital-appliance look instead of core's
+   plain flat black box — a thin bright keyline and a subtle vertical
+   gradient, matching this pack's other "clean, geometric, digital"
+   overrides above rather than an analog/broadcast flat card. */
+html[data-theme="digital-satellite-2000s"] .rating-bug {
+  background: linear-gradient(180deg, var(--cell) 0%, var(--ink) 100%);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+}

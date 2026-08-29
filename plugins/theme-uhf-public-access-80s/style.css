@@ -219,3 +219,9 @@ html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
     transition: none;
   }
 }
+
+/* TV parental guidelines didn't exist before 1997 — this 1988 late-night
+   UHF era shows no rating bug at all, same reasoning as
+   theme-wood-console-70s/style.css. The movie-rating-card full-screen
+   overlay is untouched: MPAA film ratings (a separate system) predate this. */
+html[data-theme="uhf-public-access-80s"] .rating-bug { display: none !important; }

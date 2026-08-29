@@ -276,8 +276,14 @@ export const DYNAMIC_OVERLAY_TRIGGERS = [
   { id: 'upNext', label: 'UP NEXT PROMO' },
   { id: 'channelId', label: 'STATION ID' },
   { id: 'trivia', label: 'TRIVIA CARD' },
+  { id: 'contentRating', label: 'CONTENT RATING BUG' },
+  { id: 'movieRatingCard', label: 'MOVIE RATING CARD (FULL SCREEN)' },
 ];
-export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center'];
+// 'fullscreen' is meant for the movieRatingCard trigger above (a corner
+// bug replacement wouldn't use it) but is offered for every trigger rather
+// than gated per-trigger, matching how corner/size/duration are already
+// generic across all triggers.
+export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'fullscreen'];
 export const DEFAULT_OVERLAY_DURATION_MS = 8000;
 
 // ---------- Generic x/y/width/height overlay-layout profiles (ticker bar) ----------

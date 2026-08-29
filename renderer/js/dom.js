@@ -245,6 +245,7 @@ export const logoBugEl = document.getElementById('logo-bug');
 export const logoBugGhostEl = document.getElementById('logo-bug-ghost');
 export const dynamicOverlayEl = document.getElementById('dynamic-overlay');
 export const ratingBugEl = document.getElementById('rating-bug');
+export const movieRatingCardEl = document.getElementById('movie-rating-card');
 export const upNextBarEl = document.getElementById('upnext-bar');
 export const upNextTitleEl = document.getElementById('upnext-title');
 export const stationIdBarEl = document.getElementById('station-id-bar');

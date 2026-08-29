@@ -6,7 +6,7 @@ import {
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl, creditsSqueezeVideoEl,
-  crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
+  crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
@@ -392,7 +392,22 @@ export async function playChannelLive(ch, opts) {
     // airing both PG and PG-13 titles) - 'NONE' is an explicit "no bug for
     // this file" distinct from unset (which falls back to ch.rating).
     const effectiveRating = file.rating === 'NONE' ? null : (file.rating || ch.rating);
-    if (effectiveRating) flashRatingBug(ch, effectiveRating);
+    // Real rating bugs/cards only reappear for roughly the first 15 minutes
+    // of a program (start + the first few commercial breaks) — a 2-hour
+    // movie's later breaks don't re-pop it. onMeta runs on every break
+    // resume (endBreak -> playChannelLive), so without this cap the bug
+    // would flash on every single return from break for the whole runtime.
+    const isEarlyInProgram = seekOffset < 900;
+    if (effectiveRating && isEarlyInProgram) {
+      // Movies got a distinct full-screen "rated X for..." card before the
+      // film started on broadcast TV, rather than the small TV Parental
+      // Guidelines corner bug regular programs use.
+      if (file.facets && file.facets.contentType === 'movie') {
+        if (!triggerDynamicOverlays(ch, 'movieRatingCard')) showMovieRatingCard(ch, effectiveRating);
+      } else if (!triggerDynamicOverlays(ch, 'contentRating')) {
+        flashRatingBug(ch, effectiveRating);
+      }
+    }
     // AUTO aspect/resolution's real-video-size signal (display-mode.js) is
     // only trustworthy from here on — player.videoWidth/videoHeight are
     // real now, and confirmed to actually belong to this channel (not a
@@ -1708,6 +1723,26 @@ export function flashRatingBug(ch, rating) {
   ratingBugEl.classList.add('show');
   playConfiguredSound('card', ch.number);
   S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 16000, () => ratingBugEl.classList.remove('show'));
+}
+
+// Full-screen movie-rating-card analogue of flashRatingBug above — real
+// broadcast movies got a plain black "the following program is rated..."
+// slide before the film started rather than a small corner bug. Shown
+// instead of (not alongside) flashRatingBug when the caller has already
+// determined the airing file is a movie (see playChannelLive's onMeta).
+export function showMovieRatingCard(ch, rating) {
+  movieRatingCardEl.innerHTML = '';
+  const line = document.createElement('div');
+  line.className = 'movie-rating-card-line';
+  line.textContent = 'THE FOLLOWING PROGRAM IS RATED';
+  const value = document.createElement('div');
+  value.className = 'movie-rating-card-value';
+  value.textContent = rating;
+  movieRatingCardEl.appendChild(line);
+  movieRatingCardEl.appendChild(value);
+  movieRatingCardEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
+  S.movieRatingCardTimer = autoHideAfter(S.movieRatingCardTimer, 16000, () => movieRatingCardEl.classList.remove('show'));
 }
 
 export function scheduleBlockBoundaryRetune(ch) {
