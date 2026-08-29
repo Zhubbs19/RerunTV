@@ -110,6 +110,23 @@ function saveSeededManifest(entries) {
   } catch (e) { /* best-effort — worst case, next boot re-derives from scratch */ }
 }
 
+// Per-file content hash, cached on (mtime, size) so a discovery pass that
+// finds nothing changed (the common case — boot, every PLUGINS-tab rescan,
+// every LAN /api/plugins request) never re-reads file bytes it already
+// hashed. Keyed on absolute path; the cache lives for the process lifetime
+// since the plugin file set is small and stable.
+const fileHashCache = new Map();
+function hashFileCached(absolute) {
+  const stat = fs.statSync(absolute);
+  const cached = fileHashCache.get(absolute);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) {
+    return cached.hash;
+  }
+  const hash = crypto.createHash('sha256').update(fs.readFileSync(absolute)).digest('hex');
+  fileHashCache.set(absolute, { mtimeMs: stat.mtimeMs, size: stat.size, hash });
+  return hash;
+}
+
 function hashDirectory(dir) {
   const hash = crypto.createHash('sha256');
   function visit(current, relative = '') {
@@ -120,7 +137,7 @@ function hashDirectory(dir) {
         hash.update(rel.replace(/\\/g, '/'));
         const absolute = path.join(current, entry.name);
         if (entry.isDirectory()) visit(absolute, rel);
-        else if (entry.isFile()) hash.update(fs.readFileSync(absolute));
+        else if (entry.isFile()) hash.update(hashFileCached(absolute));
       });
   }
   visit(dir);
