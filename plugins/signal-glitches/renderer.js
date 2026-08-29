@@ -93,9 +93,13 @@ function fireStaticGlitch(intensity) {
   }, GLITCH_DURATION_MS);
 }
 
-function firePictureRoll() {
+function firePictureRoll(intensity) {
   const crt = document.querySelector('.crt');
   if (!crt) { scheduleNext(); return; }
+  // Scales the keyframe's translateY/hue-rotate amounts (style.css) via a
+  // CSS custom property — same shared INTENSITY slider the static effect
+  // uses, just applied to a transform instead of canvas opacity.
+  crt.style.setProperty('--glitch-roll-intensity', String(Math.max(0, Math.min(1, intensity / 100))));
   crt.classList.add('signal-glitch-rolling');
   setTimeout(() => {
     crt.classList.remove('signal-glitch-rolling');
@@ -111,16 +115,17 @@ function firePictureRoll() {
 // that restore, same acceptable trade-off scheduleCreditsSpeedup already
 // makes with playbackRate — isEligibleNow's creditsSpeedupActive check
 // keeps the two features from ever fighting over it at the same time.
-function fireAudioDropout() {
+function fireAudioDropout(intensity) {
   const { player } = window.RCBPlugins.ctx;
   if (!player) { scheduleNext(); return; }
+  const scale = Math.max(0, Math.min(1, intensity / 100));
   const originalRate = player.playbackRate;
   const originalVolume = player.volume;
   let elapsed = 0;
   const wobbleTimer = setInterval(() => {
     elapsed += DROPOUT_STEP_MS;
-    player.playbackRate = Math.max(0.5, originalRate + (Math.random() - 0.5) * 0.12);
-    player.volume = Math.random() < 0.15 ? originalVolume * 0.2 : originalVolume;
+    player.playbackRate = Math.max(0.5, originalRate + (Math.random() - 0.5) * 0.12 * scale);
+    player.volume = Math.random() < 0.15 * scale ? originalVolume * (1 - 0.8 * scale) : originalVolume;
     if (elapsed >= DROPOUT_DURATION_MS) {
       clearInterval(wobbleTimer);
       player.playbackRate = originalRate;
@@ -135,8 +140,8 @@ function fireGlitch() {
   if (!isEligibleNow()) { scheduleNext(); return; }
   const available = [];
   if (c.effectStatic) available.push(() => fireStaticGlitch(c.intensity));
-  if (c.effectRoll) available.push(firePictureRoll);
-  if (c.effectDropout) available.push(fireAudioDropout);
+  if (c.effectRoll) available.push(() => firePictureRoll(c.intensity));
+  if (c.effectDropout) available.push(() => fireAudioDropout(c.intensity));
   if (!available.length) { scheduleNext(); return; }
   available[Math.floor(Math.random() * available.length)]();
 }

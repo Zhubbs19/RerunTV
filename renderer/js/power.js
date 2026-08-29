@@ -586,7 +586,13 @@ export function applyVhsQuality(ch) {
     const source = resolveActiveSource(ch, viewNow());
     const pos = computeSourcePosition(source, viewNow(), { ignoreContentLost: true });
     const loopCount = (pos && pos.loopCount) || 0;
-    const degradation = Math.min(1, loopCount / 7);
+    // Loop count at which the tape reads as maximally worn — configurable
+    // per channel (ch.vhsWearLoops, setup-channels.js) since a channel
+    // that's been running for months and one that just started shouldn't
+    // necessarily degrade on the same fixed curve. Defaults to the
+    // original fixed constant (7) when unset.
+    const wearLoops = Math.max(1, ch.vhsWearLoops || 7);
+    const degradation = Math.min(1, loopCount / wearLoops);
     crtContainer.style.setProperty('--vhs-degradation', String(degradation));
   } else {
     crtContainer.style.removeProperty('--vhs-degradation');

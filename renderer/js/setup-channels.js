@@ -132,7 +132,8 @@ function hasCustomChannelOptions(ch) {
   return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null
     || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride
     || ch.hideFormatDisclaimer || ch.hideRatingBug || ch.hideEpisodeStatus || ch.hideDaypartChime
-    || ch.hideLocalAvailGlitch || ch.hideContentAdvisory || ch.hideCapabilityBadge);
+    || ch.hideLocalAvailGlitch || ch.hideContentAdvisory || ch.hideCapabilityBadge
+    || ch.defaultHasCC || ch.defaultHasSAP || ch.defaultHasStereo || ch.vhsWearLoops);
 }
 
 function sortedForSetup() {
@@ -555,6 +556,22 @@ export function renderChannelList() {
       vhsLabel.appendChild(vhsCheckbox);
       vhsLabel.appendChild(document.createTextNode('VHS'));
 
+      // How many loops of this channel's content pool it takes to reach
+      // maximum tape wear (--vhs-degradation, power.js's applyVhsQuality) —
+      // only matters while VHS above is checked. Blank/0 falls back to the
+      // original fixed default (7 loops).
+      const vhsWearInput = document.createElement('input');
+      vhsWearInput.type = 'number';
+      vhsWearInput.min = 1;
+      vhsWearInput.className = 'block-priority-input';
+      vhsWearInput.title = 'How many loops of this channel\'s content it takes to reach maximum tape wear. Blank = default (7 loops).';
+      vhsWearInput.placeholder = 'WEAR LOOPS (DEFAULT 7)';
+      vhsWearInput.value = ch.vhsWearLoops || '';
+      vhsWearInput.addEventListener('change', () => {
+        ch.vhsWearLoops = vhsWearInput.value.trim() === '' ? null : Math.max(1, parseInt(vhsWearInput.value, 10) || 7);
+        saveConfigDebounced();
+      });
+
       const hideFormatDisclaimerLabel = document.createElement('label');
       hideFormatDisclaimerLabel.className = 'shuffle-toggle';
       hideFormatDisclaimerLabel.title = 'Never show the "formatted to fit your screen"/widescreen disclaimer card on this channel, even if a file\'s real aspect doesn\'t match the currently-applied one.';
@@ -652,6 +669,28 @@ export function renderChannelList() {
       });
       hideCapabilityBadgeLabel.appendChild(hideCapabilityBadgeCheckbox);
       hideCapabilityBadgeLabel.appendChild(document.createTextNode('HIDE CAPABILITY BADGE'));
+
+      // Channel-wide default for the CC/SAP/STEREO badge — most channels
+      // share the same audio/caption setup across their whole library, so
+      // this saves tagging every file individually. A file's own TITLES-tab
+      // selection (INHERIT/YES/NO, setup-panels.js) overrides this when set
+      // to YES/NO; INHERIT (the default) falls back to these.
+      const defaultCapabilityLabels = [['defaultHasCC', 'DEFAULT CC'], ['defaultHasSAP', 'DEFAULT SAP'], ['defaultHasStereo', 'DEFAULT STEREO']]
+        .map(([field, text]) => {
+          const label = document.createElement('label');
+          label.className = 'shuffle-toggle';
+          label.title = 'Default for every file on this channel that doesn\'t explicitly override it (TITLES tab).';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.checked = !!ch[field];
+          checkbox.addEventListener('change', () => {
+            ch[field] = checkbox.checked;
+            saveConfigDebounced();
+          });
+          label.appendChild(checkbox);
+          label.appendChild(document.createTextNode(text));
+          return label;
+        });
 
       const notSubscribedLabel = document.createElement('label');
       notSubscribedLabel.className = 'shuffle-toggle';
@@ -903,6 +942,7 @@ export function renderChannelList() {
       options.appendChild(favoriteLabel);
       options.appendChild(quickAccessLabel);
       options.appendChild(vhsLabel);
+      options.appendChild(vhsWearInput);
       options.appendChild(hideFormatDisclaimerLabel);
       options.appendChild(hideRatingBugLabel);
       options.appendChild(hideEpisodeStatusLabel);
@@ -910,6 +950,7 @@ export function renderChannelList() {
       options.appendChild(hideLocalAvailGlitchLabel);
       options.appendChild(hideContentAdvisoryLabel);
       options.appendChild(hideCapabilityBadgeLabel);
+      defaultCapabilityLabels.forEach((label) => options.appendChild(label));
       options.appendChild(notSubscribedLabel);
       options.appendChild(hiddenLabel);
       options.appendChild(ratingLabel);

@@ -802,8 +802,17 @@ export function applyConfigDefaults(config) {
     id: w.id || `preempt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     label: typeof w.label === 'string' ? w.label.slice(0, 60) : '',
     channelNumber: Number.isFinite(Number(w.channelNumber)) ? Number(w.channelNumber) : null,
+    // 'once' (default): absolute real-clock startMs/endMs, unchanged from
+    // before recurring windows existed. 'weekly': a standing weekday/time
+    // slot (weekday/startHour/startMinute/durationMin) instead — see
+    // matchesWeeklyPreemptionWindow, interstitials.js.
+    kind: w.kind === 'weekly' ? 'weekly' : 'once',
     startMs: Number.isFinite(Number(w.startMs)) ? Number(w.startMs) : Date.now(),
     endMs: Number.isFinite(Number(w.endMs)) ? Number(w.endMs) : Date.now(),
+    weekday: Math.min(6, Math.max(0, Number.isFinite(Number(w.weekday)) ? Number(w.weekday) : 0)),
+    startHour: Math.min(23, Math.max(0, Number.isFinite(Number(w.startHour)) ? Number(w.startHour) : 13)),
+    startMinute: Math.min(59, Math.max(0, Number.isFinite(Number(w.startMinute)) ? Number(w.startMinute) : 0)),
+    durationMin: Math.max(1, Number.isFinite(Number(w.durationMin)) ? Number(w.durationMin) : 30),
   }));
   // 'none' (default) = today's static logo bug, unchanged. See LOGO_MOTION_
   // PRESETS (channels.js) for the rest.

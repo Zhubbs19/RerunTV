@@ -26,11 +26,23 @@
   font-weight: 700;
   letter-spacing: 1px;
 }
+.sponsor-billboard-media {
+  margin-top: 8px;
+}
+.sponsor-billboard-media.hidden { display: none; }
+.sponsor-billboard-media img,
+.sponsor-billboard-media video {
+  max-width: 220px;
+  max-height: 90px;
+  display: block;
+  margin: 0 auto;
+}
 .sponsor-billboard-name {
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 1px;
   margin-top: 4px;
 }
+.sponsor-billboard-name.hidden { display: none; }
 .crt.guide-active .sponsor-billboard-card,
 .crt.power-off .sponsor-billboard-card { display: none; }
