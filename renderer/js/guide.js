@@ -8,7 +8,7 @@ import {
   guideRowsEl, guideSearchEl, guideTimeHeaderEl, player,
 } from './dom.js';
 import { showDetailsOverlay } from './details.js';
-import { tuneToChannel } from './playback.js';
+import { tuneToChannel } from './playback-core.js';
 import { breakEntriesInWindow } from './interstitials.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
 import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';

@@ -4,7 +4,8 @@
 import { showTvScreen } from './app.js';
 import { getChannel, sortedChannels } from './channels.js';
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
-import { forceInterstitialPreview, tuneToChannel } from './playback.js';
+import { tuneToChannel } from './playback-core.js';
+import { forceInterstitialPreview } from './playback-breaks.js';
 import { computeSourcePosition, isWithinBroadcastHours, resolveActiveCommercials, resolveActiveSource } from './schedule.js';
 import { S, viewNow } from './state.js';
 import { getDisplayTitle, toDatetimeLocalValue } from './util.js';

@@ -17,7 +17,7 @@ import {
   previewModalEl, previewModalGoBtn, previewModalNowBtn, previewModalQuickEl, rescanAllBtn, scanProgressEl,
 } from './dom.js';
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from './display-mode.js';
-import { tuneToChannel } from './playback.js';
+import { tuneToChannel } from './playback-core.js';
 import { CHANNEL_ASPECT_OPTIONS } from './power.js';
 import {
   buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildCreditsSpeedupPanel, buildDynamicOverlaysPanel, buildFoldersPanel,

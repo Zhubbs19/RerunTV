@@ -18,9 +18,10 @@ import {
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
-  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, cancelUpNextBar, showNoSignal,
-  applyLogoBugPlacement, checkBreakState, playChannelLive, resetActiveBreakState,
-} from './playback.js';
+  tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, playChannelLive,
+} from './playback-core.js';
+import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback-breaks.js';
+import { applyLogoBugPlacement, showNoSignal } from './playback-broadcast-fx.js';
 import {
   showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
