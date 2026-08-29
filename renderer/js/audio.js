@@ -8,6 +8,7 @@ export const CUSTOM_SOUND_SLOTS = [
   ['guideOpen', 'GUIDE OPEN'], ['guideClose', 'GUIDE CLOSE'], ['volumeUp', 'VOLUME UP'], ['volumeDown', 'VOLUME DOWN'],
   ['powerOn', 'POWER ON'], ['powerOff', 'POWER OFF'], ['card', 'POP-UP / VIEWER CARD'],
   ['notification', 'NOTIFICATION'], ['unlock', 'UNLOCK / SUCCESS'], ['purchase', 'PURCHASE CONFIRMATION'],
+  ['daypart', 'DAYPART TRANSITION CHIME'],
 ];
 
 const customAudioBySlot = new Map();
@@ -130,6 +131,17 @@ export function sfxVolumeTick(up) {
 export function sfxGuideToggle(opening) {
   if (playConfiguredSound(opening ? 'guideOpen' : 'guideClose')) return;
   playTone({ freq: opening ? 650 : 480, duration: 55, type: 'sine', gain: 0.1 });
+}
+
+// Dayparting transition chime — a short two-note sting when the schedule
+// crosses into a genuinely different block (see scheduleBlockBoundaryRetune,
+// playback.js, for the "genuinely different" check). Same
+// playConfiguredSound-first-then-synthesized-fallback shape as every other
+// SFX here.
+export function playDaypartChime() {
+  if (playConfiguredSound('daypart')) return;
+  playTone({ freq: 520, duration: 90, type: 'sine', gain: 0.14 });
+  setTimeout(() => playTone({ freq: 780, duration: 140, type: 'sine', gain: 0.14 }), 90);
 }
 
 function themePowerSfx(isOn) {

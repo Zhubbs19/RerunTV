@@ -3,7 +3,8 @@
 // setup-settings.js) — split out of the old monolithic setup.js so none of
 // those modules need to import from each other just to get these.
 import {
-  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays, sortedChannels,
+  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays,
+  normalizeIconOverrides, sortedChannels,
 } from './channels.js';
 import { S, saveConfigDebounced } from './state.js';
 import { basenameNoExt, randomId, toDatetimeLocalValue } from './util.js';
@@ -978,6 +979,118 @@ export function buildDynamicOverlaysEditor(getRules, setRules) {
     const rules = getRules() || [];
     setRules([...rules, {
       id: newDynamicOverlayId(), trigger: 'tuneIn', mediaPath: '', corner: 'bottom-right', size: 160, durationMs: 0,
+    }]);
+    saveConfigDebounced();
+    render();
+  });
+
+  render();
+  wrap.append(list, addBtn);
+  return wrap;
+}
+
+// Editor for ch.iconOverrides — same getRules/setRules + rebuild-on-change
+// shape as buildDynamicOverlaysEditor above. Month/day fields are plain
+// 1-12/1-31 number inputs rather than a date picker since these are
+// recurring-every-year calendar ranges, not specific dates.
+export function buildIconOverridesEditor(getOverrides, setOverrides) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dynamic-overlays-editor';
+  const list = document.createElement('div');
+  list.className = 'dynamic-overlays-list';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn';
+  addBtn.textContent = 'ADD SEASONAL ICON';
+
+  function render() {
+    list.innerHTML = '';
+    const overrides = normalizeIconOverrides(getOverrides());
+    if (!overrides.length) {
+      const empty = document.createElement('p');
+      empty.className = 'panel-status';
+      empty.textContent = 'No seasonal icons yet — add one below to swap the logo bug during a date range (e.g. Dec 1-25).';
+      list.appendChild(empty);
+    }
+    overrides.forEach((o) => {
+      const row = document.createElement('div');
+      row.className = 'dynamic-overlay-rule-row';
+
+      function monthDayInput(value, onChange) {
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = 1;
+        input.className = 'block-priority-input';
+        input.value = value;
+        input.addEventListener('change', () => {
+          onChange(parsePositiveInt(input.value, 1));
+          setOverrides(overrides);
+          saveConfigDebounced();
+        });
+        return input;
+      }
+
+      const startMonthInput = monthDayInput(o.startMonth, (v) => { o.startMonth = Math.min(12, v); });
+      const startDayInput = monthDayInput(o.startDay, (v) => { o.startDay = Math.min(31, v); });
+      const endMonthInput = monthDayInput(o.endMonth, (v) => { o.endMonth = Math.min(12, v); });
+      const endDayInput = monthDayInput(o.endDay, (v) => { o.endDay = Math.min(31, v); });
+
+      const mediaField = document.createElement('div');
+      mediaField.className = 'dynamic-overlay-rule-media';
+      const thumb = buildMediaThumbnail(o.icon, { label: 'ICON' });
+      const imgBtn = document.createElement('button');
+      imgBtn.type = 'button';
+      imgBtn.className = 'btn';
+      imgBtn.textContent = 'IMAGE…';
+      imgBtn.addEventListener('click', async () => {
+        const path = await window.api.selectImage();
+        if (!path) return;
+        o.icon = path;
+        setOverrides(overrides);
+        saveConfigDebounced();
+        render();
+      });
+      const mediaName = document.createElement('span');
+      mediaName.className = 'dynamic-overlay-rule-media-name';
+      mediaName.textContent = o.icon ? basenameNoExt(o.icon) : '(no icon chosen)';
+      mediaField.append(thumb, imgBtn, mediaName);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn remove-btn';
+      removeBtn.textContent = 'X';
+      removeBtn.title = 'REMOVE';
+      removeBtn.setAttribute('aria-label', 'Remove seasonal icon');
+      removeBtn.addEventListener('click', () => {
+        setOverrides((getOverrides() || []).filter((x) => x.id !== o.id));
+        saveConfigDebounced();
+        render();
+      });
+
+      row.append(
+        labeledMiniIcon('FROM (MM)', startMonthInput),
+        labeledMiniIcon('(DD)', startDayInput),
+        labeledMiniIcon('TO (MM)', endMonthInput),
+        labeledMiniIcon('(DD)', endDayInput),
+        mediaField,
+        removeBtn,
+      );
+      list.appendChild(row);
+    });
+  }
+
+  function labeledMiniIcon(text, control) {
+    const field = document.createElement('label');
+    field.className = 'dynamic-overlay-rule-field';
+    field.appendChild(document.createTextNode(text));
+    field.appendChild(control);
+    return field;
+  }
+
+  addBtn.addEventListener('click', () => {
+    const overrides = getOverrides() || [];
+    setOverrides([...overrides, {
+      id: newDynamicOverlayId(), startMonth: 12, startDay: 1, endMonth: 12, endDay: 25, icon: '',
     }]);
     saveConfigDebounced();
     render();

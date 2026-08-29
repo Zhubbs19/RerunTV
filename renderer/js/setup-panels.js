@@ -8,10 +8,10 @@ import { applyLogoBugPlacement } from './playback.js';
 import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
-import { basenameNoExt, formatDuration, guessCleanTitle, stripReleaseTags, suggestFacetsFromPath } from './util.js';
+import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from './util.js';
 import {
-  attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildLogoBugProfileEditor, buildMediaThumbnail,
-  openLiveLogoBugEditor, parsePositiveInt,
+  attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor,
+  buildMediaThumbnail, openLiveLogoBugEditor, parsePositiveInt,
 } from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
@@ -577,6 +577,31 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         saveConfigDebounced();
       });
 
+      // Mid-program scene-specific cues — same disclaimer card as
+      // ADVISORY above (flashContentAdvisory, playback.js), just fired at
+      // specific timestamps within this file instead of once at start. One
+      // "TIME TEXT" pair per line rather than a full add/remove row list —
+      // this row is already dense and can render for every file in a
+      // channel, so a single compact textarea keeps the per-file DOM cost
+      // flat regardless of how many files have cues.
+      const cuesInput = document.createElement('textarea');
+      cuesInput.className = 'title-row-input';
+      cuesInput.rows = 2;
+      cuesInput.placeholder = 'SCENE CUES, ONE PER LINE: "12:30 CONTAINS FLASHING LIGHTS"';
+      cuesInput.title = 'Mid-program content warnings at specific timestamps ("M:SS text" or "H:MM:SS text" per line), shown via the same disclaimer card as ADVISORY above.';
+      cuesInput.value = (file.advisoryCues || []).map((c) => `${formatDuration(c.offsetS)} ${c.text}`).join('\n');
+      cuesInput.addEventListener('change', () => {
+        file.advisoryCues = cuesInput.value.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+          const m = line.match(/^(\d+):(\d{2})(?::(\d{2}))?\s+(.+)$/);
+          if (!m) return null;
+          const offsetS = m[3]
+            ? parseInt(m[1], 10) * 3600 + parseInt(m[2], 10) * 60 + parseInt(m[3], 10)
+            : parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+          return { id: randomId('cue'), offsetS, text: m[4] };
+        }).filter(Boolean);
+        saveConfigDebounced();
+      });
+
       // End-credits speedup override (ch.creditsSpeedup's channel-wide
       // default, setup-panels.js's buildCreditsSpeedupPanel) — blank
       // inherits that default; 0 explicitly opts THIS file out even when
@@ -611,8 +636,33 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       facetsRow.appendChild(moodWrap);
       facetsRow.appendChild(eraInput);
       facetsRow.appendChild(contentTypeSelect);
+      // CC/SAP/STEREO capability badge — manually curator-tagged, same as
+      // rating/contentType/advisory, rather than auto-detected: neither the
+      // closed-captions nor sap-audio plugin exposes queryable per-file
+      // state today, and nothing classifies mono/stereo at all, so building
+      // this on native track auto-detection would mean adding unreliable
+      // new plumbing to two already-shipped plugins for one small badge.
+      const capabilityWrap = document.createElement('span');
+      capabilityWrap.className = 'title-row-capabilities';
+      [['hasCC', 'CC'], ['hasSAP', 'SAP'], ['hasStereo', 'STEREO']].forEach(([field, label]) => {
+        const capLabel = document.createElement('label');
+        capLabel.className = 'shuffle-toggle';
+        const capCheckbox = document.createElement('input');
+        capCheckbox.type = 'checkbox';
+        capCheckbox.checked = !!file[field];
+        capCheckbox.addEventListener('change', () => {
+          file[field] = capCheckbox.checked;
+          saveConfigDebounced();
+        });
+        capLabel.appendChild(capCheckbox);
+        capLabel.appendChild(document.createTextNode(label));
+        capabilityWrap.appendChild(capLabel);
+      });
+
       facetsRow.appendChild(ratingSelect);
       facetsRow.appendChild(advisoryInput);
+      facetsRow.appendChild(cuesInput);
+      facetsRow.appendChild(capabilityWrap);
       facetsRow.appendChild(creditsLeadInput);
       facetsRow.appendChild(creditsBgBtn);
 
@@ -1017,6 +1067,18 @@ export function buildLogoBugPanel(ch, panelEl) {
     hideOnBreakLabel.appendChild(hideOnBreakCheckbox);
     hideOnBreakLabel.appendChild(document.createTextNode('HIDE LOGO BUG DURING BREAKS'));
     panelEl.appendChild(hideOnBreakLabel);
+
+    // Seasonal icon overrides (ch.iconOverrides, channels.js) — independent
+    // of the placement-override checkbox above, since the icon is always
+    // per-channel to begin with (no box-wide default icon to inherit from).
+    const seasonalHeading = document.createElement('div');
+    seasonalHeading.className = 'panel-toggle';
+    seasonalHeading.textContent = 'SEASONAL ICON OVERRIDES';
+    panelEl.appendChild(seasonalHeading);
+    panelEl.appendChild(buildIconOverridesEditor(
+      () => ch.iconOverrides,
+      (overrides) => { ch.iconOverrides = overrides; saveConfigDebounced(); applyLogoBugPlacement(ch); },
+    ));
 
     if (ch.logoBugProfiles == null) {
       const hint = document.createElement('div');

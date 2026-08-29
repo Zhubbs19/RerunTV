@@ -17,6 +17,13 @@ import {
 import { S } from './state.js';
 import { hashString, mulberry32 } from './util.js';
 
+// The real US TV sweeps months — a pure function of atMs, no per-channel
+// config needed for "which months" (see resolveBreakAt's sweepsPromo gate).
+const SWEEPS_MONTHS = new Set([1, 4, 6, 10]); // Feb, May, Jul, Nov (0-indexed)
+function isSweepsMonth(atMs) {
+  return SWEEPS_MONTHS.has(new Date(atMs).getMonth());
+}
+
 const TRIVIA_DURATION_S = 8;
 const CHANNELID_TEXT_DURATION_S = 5;
 const SIGNOFF_DURATION_S = 20;
@@ -714,6 +721,27 @@ export function resolveBreakAt(ch, atMs) {
         const windowStart = bs2.fileStartMs;
         const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
         if (atMs >= windowStart && atMs < windowEnd) return { type: 'promo', entry, windowStart, windowEnd };
+      }
+    }
+  }
+
+  // Nielsen sweeps stunt bumper — Feb/May/Jul/Nov are the real US TV sweeps
+  // months, a pure function of atMs (isSweepsMonth below), same shape as
+  // isWithinBroadcastHours gating signOff/signOn further down. Fires at
+  // ordinary content boundaries like promo/upNext, using the plain
+  // channel/block/tag pool targeting every other type uses (not promo's
+  // special "names the block being promoted" semantics) — a curator opts a
+  // channel in simply by adding a sweepsPromo pool entry; an empty pool for
+  // this type is just "off," same as every other opt-in type here.
+  if (bs2 && isSweepsMonth(atMs)) {
+    const eligible = poolFor(pool, 'sweepsPromo', ch, block, fileTags);
+    if (eligible.length) {
+      const entry = pickDeterministic(eligible, `sweepsPromo:${ch.number}`, bs2.ordinal);
+      if (entry) {
+        const durationS = entryDurationS(entry, 0);
+        const windowStart = bs2.fileStartMs;
+        const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
+        if (atMs >= windowStart && atMs < windowEnd) return { type: 'sweepsPromo', entry, windowStart, windowEnd };
       }
     }
   }

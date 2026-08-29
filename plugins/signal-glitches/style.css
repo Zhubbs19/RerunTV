@@ -21,3 +21,21 @@
   opacity: var(--glitch-opacity, 0.5);
   mix-blend-mode: overlay;
 }
+
+/* Picture roll effect (renderer.js's firePictureRoll) — a brief vertical
+   roll and snap-back, mimicking lost vertical hold / color-sync drift.
+   Applied to .crt itself (not a separate overlay element) since it needs
+   to move the actual picture, not layer something on top of it. */
+.crt.signal-glitch-rolling {
+  animation: signal-glitch-roll 700ms ease-in-out;
+}
+@keyframes signal-glitch-roll {
+  0% { transform: translateY(0); filter: none; }
+  15% { transform: translateY(-6%); filter: hue-rotate(8deg); }
+  35% { transform: translateY(4%); filter: hue-rotate(-6deg); }
+  55% { transform: translateY(-2%); filter: hue-rotate(4deg); }
+  100% { transform: translateY(0); filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crt.signal-glitch-rolling { animation: none; }
+}

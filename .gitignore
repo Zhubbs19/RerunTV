@@ -38,6 +38,7 @@ plugins/spotify-connect/
 !plugins/closed-captions/
 !plugins/eas-alerts/
 !plugins/ffmpeg-transcode/
+!plugins/film-reel-marks/
 !plugins/local-weather/
 !plugins/noaa-weather/
 !plugins/party-channel/

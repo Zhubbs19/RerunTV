@@ -1,12 +1,14 @@
-import { playChannelClickSound, playConfiguredSound, sfxChannelChange, startHoldMusicLoop, stopHoldMusicLoop } from './audio.js';
+import {
+  playChannelClickSound, playConfiguredSound, playDaypartChime, sfxChannelChange, startHoldMusicLoop, stopHoldMusicLoop,
+} from './audio.js';
 import {
   channelColor, getChannel, isVideoMediaPath, logoBugProfileDimensions, LOGO_MOTION_PRESETS,
-  parseMediaRef, pickLogoBugProfile, sortedChannels,
+  parseMediaRef, pickLogoBugProfile, resolveEffectiveIcon, sortedChannels,
 } from './channels.js';
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl, creditsSqueezeVideoEl,
-  contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
+  capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
@@ -423,8 +425,27 @@ export async function playChannelLive(ch, opts) {
     // Content advisory — distinct from the rating value, a free-text
     // disclaimer set per file (setup-panels.js's TITLES tab), never
     // auto-generated from anything else.
-    if (isEarlyInProgram && file.advisory) {
+    if (isEarlyInProgram && file.advisory && !ch.hideContentAdvisory) {
       if (!triggerDynamicOverlays(ch, 'contentAdvisory')) flashContentAdvisory(ch, file.advisory);
+    }
+    // Mid-program scene-specific cues (file.advisoryCues) — same card as
+    // the start-of-program advisory above, just fired at specific offsets
+    // instead of once at start. Scheduled fresh on every onMeta (a new
+    // file, or a break-resume of the same one), each cue's own setTimeout
+    // guards against having fired after a tune-away, same pattern
+    // scheduleUpNextBar/scheduleCreditsSpeedup already use instead of
+    // needing an explicit cancel wired into every tune-away call site.
+    scheduleContentAdvisoryCues(ch, file, seekOffset);
+    // CC/SAP/STEREO capability badge — manually curator-tagged per file
+    // (file.hasCC/hasSAP/hasStereo, TITLES tab), same "isEarlyInProgram"
+    // gate as every other corner bug above.
+    if (isEarlyInProgram && !ch.hideCapabilityBadge) {
+      const capabilityLabels = [
+        file.hasCC && 'CC', file.hasSAP && 'SAP', file.hasStereo && 'STEREO',
+      ].filter(Boolean);
+      if (capabilityLabels.length) {
+        if (!triggerDynamicOverlays(ch, 'capabilityBadge')) flashCapabilityBadge(ch, capabilityLabels);
+      }
     }
     // AUTO aspect/resolution's real-video-size signal (display-mode.js) is
     // only trustworthy from here on — player.videoWidth/videoHeight are
@@ -631,6 +652,7 @@ const BREAK_LABELS = {
   adBreakIn: 'COMMERCIAL BREAK', adBreakOut: 'AND NOW, BACK TO THE SHOW',
   signOff: 'SIGNING OFF', signOn: 'SIGNING ON', promo: 'COMING SOON', premiereJingle: 'PREMIERING NOW',
   preemption: 'SPECIAL REPORT',
+  sweepsPromo: 'A SPECIAL EVENT',
 };
 
 // Fade-to-black around a break bumper cut (entering or leaving) — resolves
@@ -770,6 +792,12 @@ function startBreak(ch, resolved, key) {
     // windowEnd (which already includes this entry's waitMs, if any).
     cancelUpNextBar();
     player.pause();
+    // A brief noise-flash right at the cut, mimicking real cable head-end
+    // equipment switching feeds for a local ad insertion — distinct from a
+    // national commercial's clean cut. Shown by default; ch.hideLocalAvailGlitch
+    // opts a channel out, same "hideX" convention as the rating/episode-
+    // status/format-disclaimer toggles above.
+    if (!ch.hideLocalAvailGlitch) flashLocalAvailCut();
     localAvailTextEl.textContent = (entry && entry.text) || 'ONE MOMENT, PLEASE.';
     localAvailCardEl.classList.remove('hidden');
     return;
@@ -1091,6 +1119,29 @@ function markStaticReady() {
 // plugins.js) so each era's "something's happening while it tunes" moment
 // reads differently, not only its colors. A color-only pack simply omits
 // it — their static behavior stays the plain default 'noise' burst.
+// One-shot local-ad-insertion glitch (startBreak's localAvail branch above)
+// — a brief noise flash on the same staticCanvas/staticCtx showStaticBurst
+// uses, but a plain fixed-duration blip rather than that function's whole
+// fade-in/hold-for-a-decoded-frame/fade-out state machine, since there's no
+// player reveal to gate on here (nothing plays on `player` for localAvail).
+const LOCAL_AVAIL_GLITCH_MS = 150;
+function flashLocalAvailCut() {
+  staticCanvas.width = staticCanvas.clientWidth;
+  staticCanvas.height = staticCanvas.clientHeight;
+  if (staticCanvas.width < 1 || staticCanvas.height < 1) return;
+  const w = staticCanvas.width;
+  const h = staticCanvas.height;
+  const imgData = staticCtx.createImageData(w, h);
+  const buf = imgData.data;
+  for (let i = 0; i < buf.length; i += 4) {
+    const v = (Math.random() * 255) | 0;
+    buf[i] = v; buf[i + 1] = v; buf[i + 2] = v; buf[i + 3] = 255;
+  }
+  staticCtx.putImageData(imgData, 0, 0);
+  staticCanvas.style.opacity = '0.9';
+  setTimeout(() => { staticCanvas.style.opacity = '0'; }, LOCAL_AVAIL_GLITCH_MS);
+}
+
 export function showStaticBurst(durationMs, tintHex) {
   sfxChannelChange();
   staticCanvas.width = staticCanvas.clientWidth;
@@ -1457,6 +1508,27 @@ export function scheduleBroadcastHoursRetune(ch) {
   }, Math.max(0, boundary - viewNow()) + 500);
 }
 
+// Schedules file.advisoryCues (array of { offsetS, text }, setup-panels.js's
+// TITLES tab) — one setTimeout per cue still ahead of the current position,
+// each guarded the same way scheduleUpNextBar's callback is (bails if the
+// user tuned away or powered off before it fired). Re-scheduling on every
+// onMeta call clears the previous file's cues automatically, same
+// self-cleanup shape as scheduleUpNextBar/scheduleCreditsSpeedup.
+function scheduleContentAdvisoryCues(ch, file, seekOffsetS) {
+  (S.contentAdvisoryCueTimers || []).forEach((t) => clearTimeout(t));
+  S.contentAdvisoryCueTimers = [];
+  if (ch.hideContentAdvisory || !file.advisoryCues || !file.advisoryCues.length) return;
+  file.advisoryCues.forEach((cue) => {
+    const delayMs = (cue.offsetS - seekOffsetS) * 1000;
+    if (delayMs < 0) return; // already past this cue's point in the file
+    const timer = setTimeout(() => {
+      if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+      if (!triggerDynamicOverlays(ch, 'contentAdvisory')) flashContentAdvisory(ch, cue.text);
+    }, delayMs);
+    S.contentAdvisoryCueTimers.push(timer);
+  });
+}
+
 export function cancelUpNextBar() {
   clearTimeout(S.upNextTimer); S.upNextTimer = null;
   clearTimeout(S.upNextHideTimer); S.upNextHideTimer = null;
@@ -1660,22 +1732,23 @@ export function updateLogoBug(ch) {
   logoBugEl.innerHTML = '';
   logoBugEl.style.background = '';
   applyLogoBugPlacement(ch);
+  const effectiveIcon = ch && resolveEffectiveIcon(ch, viewNow());
   if (!ch) {
     logoBugEl.classList.add('hidden');
-  } else if (ch.icon) {
+  } else if (effectiveIcon) {
     // A GIF/APNG icon already animates for free through a plain <img> — only
     // an actual video file (mp4/webm/etc) needs the <video> element instead.
-    if (isVideoMediaPath(ch.icon)) {
+    if (isVideoMediaPath(effectiveIcon)) {
       const video = document.createElement('video');
       video.muted = true;
       video.loop = true;
       video.playsInline = true;
-      window.api.toFileUrl(ch.icon).then((url) => { video.src = url; video.play().catch(() => {}); });
+      window.api.toFileUrl(effectiveIcon).then((url) => { video.src = url; video.play().catch(() => {}); });
       logoBugEl.appendChild(video);
     } else {
       const img = document.createElement('img');
       img.alt = String(ch.number);
-      window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
+      window.api.toFileUrl(effectiveIcon).then((url) => { img.src = url; });
       logoBugEl.appendChild(img);
     }
     // See buildChannelBadge (channels.js) — same "icon otherwise hides the
@@ -1719,7 +1792,10 @@ const BURN_IN_FULL_MS = 30 * 60000;
 function logoBugBurnKeyFor(ch) {
   if (!ch) return null;
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
-  return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}`;
+  // Includes the effective icon so a seasonal swap (resolveEffectiveIcon,
+  // channels.js) re-renders the ghost's own content immediately instead of
+  // it staying stale until the next channel/profile change.
+  return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}:${resolveEffectiveIcon(ch, viewNow()) || ''}`;
 }
 
 function tickLogoBugGhost() {
@@ -1779,10 +1855,11 @@ function applyLogoBugGhost(ch) {
       logoBugGhostEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
       logoBugGhostEl.style.setProperty('--logo-bug-width', `${width}px`);
       logoBugGhostEl.style.setProperty('--logo-bug-height', `${height}px`);
-      if (ch.icon) {
+      const effectiveIcon = resolveEffectiveIcon(ch, viewNow());
+      if (effectiveIcon) {
         const img = document.createElement('img');
         img.alt = String(ch.number);
-        window.api.toFileUrl(ch.icon).then((url) => { img.src = url; });
+        window.api.toFileUrl(effectiveIcon).then((url) => { img.src = url; });
         logoBugGhostEl.appendChild(img);
         // Mirrors the real logo bug (updateLogoBug above) — the ghost should
         // show the same content it's an afterimage of, chip included.
@@ -1871,12 +1948,40 @@ export function flashContentAdvisory(ch, text) {
   S.contentAdvisoryCardTimer = autoHideAfter(S.contentAdvisoryCardTimer, 16000, () => contentAdvisoryCardEl.classList.remove('show'));
 }
 
+// CC/SAP/STEREO capability badge — same show/hide shape as the bugs above.
+// `labels` is whichever of ['CC','SAP','STEREO'] apply to this file
+// (file.hasCC/hasSAP/hasStereo, setup-panels.js's TITLES tab).
+export function flashCapabilityBadge(ch, labels) {
+  capabilityBadgeEl.textContent = labels.join(' · ');
+  capabilityBadgeEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
+  S.capabilityBadgeTimer = autoHideAfter(S.capabilityBadgeTimer, 16000, () => capabilityBadgeEl.classList.remove('show'));
+}
+
 export function scheduleBlockBoundaryRetune(ch) {
   clearTimeout(S.blockBoundaryTimer);
   const boundary = nextSourceBoundary(ch, viewNow());
   if (!isFinite(boundary)) return;
+  // Captured now (before the boundary) so the timer callback below has
+  // something to diff the post-boundary block identity against — see the
+  // dayparting-chime comment inside the callback.
+  const beforeSource = resolveActiveSource(ch, viewNow());
+  const beforeBlockId = beforeSource && beforeSource.block && beforeSource.block.id;
   S.blockBoundaryTimer = setTimeout(() => {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    // Dayparting transition chime — a short sting when the schedule crosses
+    // into a genuinely DIFFERENT block (morning cartoons -> primetime),
+    // not on a daily/weekly block's own re-airing of itself the next day
+    // (resolveActiveSource's `key` changes on every daily occurrence, but
+    // `.block.id` only changes when a different block actually takes over
+    // — see resolveActiveSource's own key-suffix comment, schedule.js).
+    // Opt-in (box-wide off by default) since it's a new ambient sound;
+    // ch.hideDaypartChime lets one channel opt back out even when it's on.
+    if (S.config.display && S.config.display.daypartChimeEnabled && !ch.hideDaypartChime) {
+      const afterSource = resolveActiveSource(ch, viewNow());
+      const afterBlockId = afterSource && afterSource.block && afterSource.block.id;
+      if (beforeBlockId !== afterBlockId) playDaypartChime();
+    }
     playChannelLive(ch);
     scheduleBlockBoundaryRetune(ch);
   }, boundary - viewNow() + 500);

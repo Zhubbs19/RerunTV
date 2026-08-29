@@ -663,7 +663,14 @@ export function powerOn() {
   clearTimeout(S.powerAnimTimer);
   crtContainer.classList.remove('power-off', 'powering-off');
   crtContainer.classList.add('powering-on');
-  S.powerAnimTimer = setTimeout(() => crtContainer.classList.remove('powering-on'), POWER_ON_ANIM_MS);
+  // A theme with its own sluggish tube-warm-up CSS animation (e.g.
+  // wood-console-70s's crt-fx-on-line override) can run longer than the
+  // default POWER_ON_ANIM_MS via registerThemePack's optional `powerOnMs`
+  // field — otherwise the .powering-on class would be removed mid-animation,
+  // cutting the theme's own warm-up look short.
+  const pack = getThemePack(effectiveThemeId(S.config, S.currentNumber, S.isSetupOpen));
+  const powerOnMs = (pack && pack.powerOnMs) || POWER_ON_ANIM_MS;
+  S.powerAnimTimer = setTimeout(() => crtContainer.classList.remove('powering-on'), powerOnMs);
 
   sfxPowerOn();
   runCoreHooks('power-on');

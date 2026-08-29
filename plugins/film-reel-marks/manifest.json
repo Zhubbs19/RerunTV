@@ -1,0 +1,10 @@
+{
+  "id": "film-reel-marks",
+  "name": "Film Reel-Change Cue Marks",
+  "version": "1.0.0",
+  "description": "The real projectionist's reel-change dot that flashed in a movie's top-right corner every ~20 minutes — for movies only.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "style": "style.css"
+}

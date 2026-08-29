@@ -16,6 +16,13 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
 
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
 
+  // Oldest tube in the lineup — its own warm-up (style.css's crt-fx-on-line-
+  // wood override) deliberately runs longer than every other theme's, so the
+  // JS side needs to hold '.powering-on' this long instead of the shared
+  // default (POWER_ON_ANIM_MS, power.js) or the class would be removed
+  // mid-animation, cutting the sluggish warm-up short.
+  powerOnMs: 900,
+
   // Rolling-band static — an older, less coherent tube's tuning noise.
   staticStyle: 'roll',
 
