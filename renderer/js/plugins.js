@@ -645,23 +645,34 @@ export async function loadPlugins() {
     }
   });
 
-  // Renderer/settings entries are imported sequentially (not Promise.all) so one
-  // plugin's top-level throw can't interleave with another's registration
-  // calls in a confusing order — plugin count is small enough that this
-  // isn't a meaningful boot-time cost.
-  for (const p of manifests) {
-    if (p.error || p.loadError || p.needsIntegrityApproval || isDisabled(p)) continue;
-    for (const [kind, entry] of [['renderer', p.renderer], ['settings', p.settings]]) {
-      if (!entry) continue;
-      try {
-        // eslint-disable-next-line no-await-in-loop
-        const base = window.__isViewer ? '/plugins' : 'app://plugins';
-        await import(/* webpackIgnore: true */ `${base}/${encodeURIComponent(p.dir)}/${entry}`);
-      } catch (e) {
-        loadErrors.push({ id: p.id, name: p.name, error: `(${kind}) ${e.message}` });
-      }
-    }
-  }
+  // Renderer/settings entries used to be imported one at a time (~96
+  // sequential awaits across ~50 plugins) to keep one plugin's top-level
+  // throw from interleaving with another's registration calls in a confusing
+  // order. That ordering was never load-bearing for correctness though —
+  // every registry a plugin's top-level code writes into (channelType,
+  // settings sections, theme packs, etc.) is a plain id-keyed Map, so which
+  // plugin registers first doesn't matter. Main-process activate() order
+  // (which DOES matter, for ctx.services dependencies) is unaffected — that
+  // sequencing lives entirely in loadMainPlugins (main-plugins.js), not here.
+  // Firing every import() in the same tick lets their underlying fetches
+  // overlap instead of paying for each one's latency in series; errors are
+  // still collected back in manifest order for a stable-looking report.
+  const importJobs = [];
+  manifests.forEach((p) => {
+    if (p.error || p.loadError || p.needsIntegrityApproval || isDisabled(p)) return;
+    [['renderer', p.renderer], ['settings', p.settings]].forEach(([kind, entry]) => {
+      if (!entry) return;
+      const base = window.__isViewer ? '/plugins' : 'app://plugins';
+      const url = `${base}/${encodeURIComponent(p.dir)}/${entry}`;
+      importJobs.push({ p, kind, promise: import(/* webpackIgnore: true */ url) });
+    });
+  });
+  const importResults = await Promise.allSettled(importJobs.map((job) => job.promise));
+  importResults.forEach((result, i) => {
+    if (result.status !== 'rejected') return;
+    const { p, kind } = importJobs[i];
+    loadErrors.push({ id: p.id, name: p.name, error: `(${kind}) ${result.reason.message}` });
+  });
 
   if (loadErrors.length) {
     const lines = loadErrors.map((e) => `${e.name}: ${e.error}`).join('\n');
