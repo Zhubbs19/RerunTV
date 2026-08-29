@@ -398,7 +398,7 @@ export async function playChannelLive(ch, opts) {
     // resume (endBreak -> playChannelLive), so without this cap the bug
     // would flash on every single return from break for the whole runtime.
     const isEarlyInProgram = seekOffset < 900;
-    if (effectiveRating && isEarlyInProgram) {
+    if (effectiveRating && isEarlyInProgram && !ch.hideRatingBug) {
       // Movies got a distinct full-screen "rated X for..." card before the
       // film started on broadcast TV, rather than the small TV Parental
       // Guidelines corner bug regular programs use.
@@ -415,7 +415,7 @@ export async function playChannelLive(ch, opts) {
     // for why one isn't kept). Skipped for movies/promos/bumpers, which
     // aren't "episodic" content real syndication bugs apply to.
     const contentType = file.facets && file.facets.contentType;
-    if (isEarlyInProgram && typeof pos.loopCount === 'number'
+    if (isEarlyInProgram && !ch.hideEpisodeStatus && typeof pos.loopCount === 'number'
       && contentType !== 'movie' && contentType !== 'promo' && contentType !== 'bumper') {
       const episodeStatus = pos.loopCount > 0 ? 'REPEAT' : 'NEW EPISODE';
       if (!triggerDynamicOverlays(ch, 'episodeStatus')) flashEpisodeStatusBug(ch, episodeStatus);
@@ -450,7 +450,7 @@ export async function playChannelLive(ch, opts) {
     // only trustworthy here, same as the AUTO-resolution comment above,
     // since player.videoWidth/videoHeight are now real and confirmed to
     // belong to this channel.
-    if (isEarlyInProgram) {
+    if (isEarlyInProgram && !ch.hideFormatDisclaimer) {
       const contentAspect = resolveContentDisplayMode().aspect;
       const effectiveAspect = resolveEffectiveDisplayMode().aspect;
       if (contentAspect !== effectiveAspect) {
