@@ -69,3 +69,13 @@ html[data-theme="network-primetime-90s"] {
    opt-in guide open/close animation (guide.css's .guide-anim-enabled
    block) — this era uses the base slide/fade with no offset/easing
    override, same reasoning. */
+
+/* This era's rating bug: plain and flat like the real 1996-97 debut of TV
+   Parental Guidelines, just picking up this pack's own rounded-corner
+   identity (--radius-sm above) instead of core's hard-edged default —
+   no gradient/gloss, a solid card rather than core's translucent one. */
+html[data-theme="network-primetime-90s"] .rating-bug {
+  background: var(--ink);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+}
