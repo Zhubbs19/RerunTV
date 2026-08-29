@@ -1,7 +1,8 @@
-const { app } = require('electron');
+const { app, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { compareConfigs, configSummary } = require('./config-diff');
+const { getMainWindow } = require('./main-window-ref');
 
 // ---------- Portable-install userData migration ----------
 // All per-user data (channels.json, backups, plugins, window state, any
@@ -466,7 +467,59 @@ function saveConfig(config) {
   return true;
 }
 
+function registerBackupsIpc(ipcMain) {
+  ipcMain.handle('backups:list', async () => listBackups());
+  ipcMain.handle('backups:preview', async (event, file) => previewBackup(file));
+  ipcMain.handle('backups:restore', async (event, file) => restoreBackup(file));
+  ipcMain.handle('backups:delete', async (event, file) => deleteBackup(file));
+  ipcMain.handle('backups:setLabel', async (event, file, label) => setBackupLabel(file, label));
+  ipcMain.handle('backups:setPinned', async (event, file, pinned) => setBackupPinned(file, pinned));
+
+  // Forces a snapshot right now, bypassing the normal 15-min rate limit —
+  // "before I do something risky" is a real, deliberate moment, not the
+  // steady-state autosave case that limit exists to throttle. Returns the
+  // created filename (or null if there's nothing to snapshot yet) so the
+  // caller can immediately attach the user's label to the exact file just
+  // written, not "whichever is newest" a moment later.
+  ipcMain.handle('backups:createNow', async () => backupCurrentConfig(true, 'manual'));
+}
+
+function registerConfigIpc(ipcMain) {
+  ipcMain.handle('config:load', async () => loadConfig());
+  ipcMain.handle('config:save', async (event, config) => saveConfig(config));
+
+  ipcMain.handle('config:export', async (event, config, suggestedName) => {
+    const safeName = typeof suggestedName === 'string' && suggestedName.trim()
+      ? suggestedName.replace(/[\\/:*?"<>|]/g, '_').trim()
+      : `retro-cable-box-config-${new Date().toISOString().slice(0, 10)}`;
+    const result = await dialog.showSaveDialog(getMainWindow(), {
+      defaultPath: `${safeName}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    fs.writeFileSync(result.filePath, JSON.stringify(config, null, 2), 'utf-8');
+    return result.filePath;
+  });
+
+  ipcMain.handle('config:import', async () => {
+    const result = await dialog.showOpenDialog(getMainWindow(), {
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+    const parsed = JSON.parse(raw);
+    const isConfig = parsed && typeof parsed === 'object' && Array.isArray(parsed.channels);
+    const isChannelPackage = parsed && parsed.kind === 'reruntv-channel-package' && parsed.channel;
+    if (!isConfig && !isChannelPackage) {
+      throw new Error('That file doesn\'t look like a RerunTV config or channel package.');
+    }
+    return parsed;
+  });
+}
+
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
+  registerBackupsIpc, registerConfigIpc,
 };

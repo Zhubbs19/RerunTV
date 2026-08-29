@@ -19,7 +19,7 @@
 // what it declared — a genuine boundary, not just a same-process check. Only
 // install plugins you trust regardless of which mode they use; see
 // PLUGIN_DEVELOPMENT.md's "Trust model" section for the full picture.
-const { app, ipcMain, shell, desktopCapturer } = require('electron');
+const { app, ipcMain, dialog, shell, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -32,6 +32,9 @@ const {
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./main-plugin-capabilities');
 const { recordDiagnostic } = require('./main-diagnostics');
+const { loadConfig, saveConfig } = require('./main-config');
+const { getMainWindow } = require('./main-window-ref');
+const { callMediaService } = require('./main-media-dispatch');
 
 function getPluginsDir() {
   return path.join(app.getPath('userData'), 'plugins');
@@ -683,7 +686,184 @@ function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   });
 }
 
+// `deps` carries accessors (not raw values) for everything main.js populates
+// inside app.whenReady() AFTER this is called — pluginMainLoadErrors,
+// pluginsNeedingApproval, activatedMediaSourceProviders, and pluginServicesRef
+// are all `let`s in main.js reassigned once loadMainPlugins() itself resolves,
+// so capturing their current (still-initial) value here instead of a getter
+// would silently freeze every one of these handlers on stale boot-time data.
+function registerPluginsIpc(ipcMain, deps) {
+  const {
+    getPluginMainLoadErrors, getPluginsNeedingApproval, getActivatedMediaSourceProviders, getPluginServicesRef,
+  } = deps;
+
+  // See this file's own header comment for the discovery/loading model, the
+  // declared-capabilities check (buildCheckedCtx above) a plugin's fs/spawn/
+  // http/ipcMain access is run through, and the trust-model note (this is a
+  // same-process check, not a hard sandbox — see that comment for why).
+  // Enabling/disabling here only edits config.plugins.disabled — actually
+  // starting/stopping a main-process plugin's activate() side effects
+  // (spawned processes, registered ipcMain handlers) requires a restart,
+  // which the PLUGINS setup panel says explicitly.
+  ipcMain.handle('plugins:list', async () => {
+    const pluginMainLoadErrors = getPluginMainLoadErrors();
+    const pluginsNeedingApproval = getPluginsNeedingApproval();
+    return discoverPlugins().map((p) => (
+      p.error ? p : {
+        ...p,
+        loadError: pluginMainLoadErrors[p.id] || null,
+        needsApproval: pluginsNeedingApproval.includes(p.id),
+        needsIntegrityApproval: p.integrityStatus === 'unverified' || p.integrityStatus === 'modified',
+      }
+    ));
+  });
+
+  // Generic passthrough to any of a media-source provider's own registered
+  // EXTRA service verbs — pickFolder, getFetchProgress, getLocalCachePath,
+  // getDisplayName, and any plugin-invented verb (configure/signIn/status/
+  // listFolders/...), reached from setup-channels.js's CHOOSE SOURCE flow and
+  // a plugin's own settings-panel renderer.js. Gated by callMediaService's
+  // own assertKnownProvider check, same defense-in-depth as every other
+  // media-source dispatch call — but that alone isn't enough here: the four
+  // RESERVED core verbs (list/probe/readRange/checkAvailable) must stay
+  // unreachable through this generic door. In particular, readRange is only
+  // ever meant to be called by serveFileViaPlugin (main-protocol.js), which
+  // wraps it in a chunk-size cap specifically because an uncapped Range
+  // crossing the plugin-process RPC boundary risks a multi-gigabyte
+  // structured-clone payload — calling it directly through this passthrough
+  // would bypass that cap entirely (found in review, never actually
+  // exploited, but a real gap: nothing else in the dispatch chain enforces
+  // the cap, only this call site's own choice of arguments does).
+  const RESERVED_MEDIA_SOURCE_VERBS = new Set(['list', 'probe', 'readRange', 'checkAvailable']);
+  ipcMain.handle('mediaSource:callHook', async (event, providerId, verb, args) => {
+    if (RESERVED_MEDIA_SOURCE_VERBS.has(verb)) {
+      throw new Error(`"${verb}" is a reserved media-source verb and can't be called via mediaSource:callHook — it's only ever invoked internally by core's own dispatch layer.`);
+    }
+    recordDiagnostic('plugin-capability', 'log', `${providerId} called media-source hook ${verb}`);
+    return callMediaService(getPluginServicesRef(), providerId, verb, args || []);
+  });
+
+  // A filtered projection of the same discoverPlugins() data plugins:list
+  // already exposes — no new discovery mechanism, just narrowed to
+  // {providerId, displayName, pluginId} for every mediaSource capability
+  // entry belonging to a plugin that's actually activated right now
+  // (activatedMediaSourceProviders, populated once at boot — see
+  // loadMainPlugins()'s doc comment above). A provider a plugin merely
+  // *declares* but that's disabled/errored/awaiting approval doesn't show up
+  // here — the CHANNELS tab's CHOOSE SOURCE picker (setup-channels.js) should
+  // never offer something it can't actually call.
+  ipcMain.handle('plugins:listMediaSourceProviders', async () => {
+    const activatedMediaSourceProviders = getActivatedMediaSourceProviders();
+    const providers = [];
+    discoverPlugins().forEach((p) => {
+      if (p.error || !p.capabilities || !p.capabilities.mediaSource) return;
+      p.capabilities.mediaSource.forEach((entry) => {
+        if (activatedMediaSourceProviders[entry.providerId] !== p.id) return;
+        providers.push({ providerId: entry.providerId, displayName: entry.displayName || entry.providerId, pluginId: p.id });
+      });
+    });
+    return providers;
+  });
+
+  // Persists the user's approval of exactly this plugin's *current* declared
+  // capabilities (setup-plugins.js's approval prompt) — keyed by a signature
+  // of the capabilities themselves (capabilitiesSignature, above), not just
+  // the plugin id, so a later update that adds a new port/channel/binary
+  // re-prompts instead of silently inheriting a stale approval. Takes effect
+  // on next launch, same "restart to activate" convention as installing or
+  // enabling a plugin already uses.
+  ipcMain.handle('plugins:approveCapabilities', async (event, id, signature) => {
+    const config = loadConfig();
+    if (!config.plugins) config.plugins = { disabled: [] };
+    if (!config.plugins.approvedCapabilities) config.plugins.approvedCapabilities = {};
+    config.plugins.approvedCapabilities[id] = signature;
+    saveConfig(config);
+    return true;
+  });
+
+  // The undo-approval counterpart to plugins:approveCapabilities above —
+  // drops the stored signature so the plugin reverts to needing a fresh
+  // approval (same inactive treatment as never having approved it at all, or
+  // as being disabled) until re-approved. Also takes effect on next launch.
+  ipcMain.handle('plugins:revokeCapabilities', async (event, id) => {
+    const config = loadConfig();
+    if (config.plugins && config.plugins.approvedCapabilities) {
+      delete config.plugins.approvedCapabilities[id];
+      saveConfig(config);
+    }
+    return true;
+  });
+
+  ipcMain.handle('plugins:approveIntegrity', async (event, id, hash) => {
+    const plugin = discoverPlugins().find((entry) => !entry.error && entry.id === id);
+    if (!plugin || plugin.integrityHash !== hash) {
+      throw new Error('Plugin files changed again before integrity approval could be saved.');
+    }
+    recordPluginIntegrity(id, hash);
+    return true;
+  });
+
+  // Permanently deletes a plugin's own folder (setup-plugins.js's FULLY
+  // UNINSTALL action, behind its own themed danger-confirm dialog since this
+  // can't be undone) — see uninstallPlugin() above for why a bundled plugin
+  // refuses this. Also clears any config.plugins state referencing the
+  // now-gone id so a stale disabled/approved entry doesn't linger forever.
+  ipcMain.handle('plugins:uninstall', async (event, id) => {
+    const result = uninstallPlugin(id);
+    if (result.success) {
+      const config = loadConfig();
+      if (config.plugins) {
+        if (Array.isArray(config.plugins.disabled)) {
+          const idx = config.plugins.disabled.indexOf(id);
+          if (idx !== -1) config.plugins.disabled.splice(idx, 1);
+        }
+        if (config.plugins.approvedCapabilities) delete config.plugins.approvedCapabilities[id];
+      }
+      saveConfig(config);
+    }
+    return result;
+  });
+
+  ipcMain.handle('plugins:openFolder', async () => {
+    await shell.openPath(getPluginsDir());
+    return true;
+  });
+
+  // opts: { zipPath, overwrite }. Without zipPath, opens the file picker
+  // first (the normal first call from the renderer's INSTALL FROM ZIP…
+  // button) — the response always echoes back whichever zipPath was used, so
+  // if the result comes back { alreadyExists: true } the renderer can show
+  // its own themed confirm dialog and call again with { zipPath, overwrite:
+  // true } to actually overwrite, without re-prompting the file picker a
+  // second time for the same file. Main-process code has no themed-dialog
+  // access of its own, so the confirm step has to happen in the renderer.
+  ipcMain.handle('plugins:installFromZip', async (event, opts) => {
+    opts = opts || {};
+    let zipPath = opts.zipPath;
+    if (!zipPath) {
+      const result = await dialog.showOpenDialog(getMainWindow(), {
+        properties: ['openFile'],
+        filters: [{ name: 'Plugin (zip)', extensions: ['zip'] }],
+      });
+      if (result.canceled || result.filePaths.length === 0) return { cancelled: true };
+      [zipPath] = result.filePaths;
+    }
+    return { zipPath, ...installPluginFromZip(zipPath, { overwrite: opts.overwrite }) };
+  });
+
+  ipcMain.handle('plugins:setEnabled', async (event, id, enabled) => {
+    const config = loadConfig();
+    if (!config.plugins) config.plugins = { disabled: [] };
+    if (!Array.isArray(config.plugins.disabled)) config.plugins.disabled = [];
+    const idx = config.plugins.disabled.indexOf(id);
+    if (enabled && idx !== -1) config.plugins.disabled.splice(idx, 1);
+    if (!enabled && idx === -1) config.plugins.disabled.push(id);
+    saveConfig(config);
+    return config.plugins.disabled;
+  });
+}
+
 module.exports = {
   getPluginsDir, ensurePluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip,
-  uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity,
+  uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity, registerPluginsIpc,
 };
