@@ -9,7 +9,7 @@ import {
 import { showDetailsForCurrentChannel, hideDetailsOverlay } from './details.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { showOnboarding } from './onboarding.js';
-import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
+import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
 import {
   foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays,
   normalizeLogoBugProfiles, sortedChannels, getChannel,
@@ -424,6 +424,27 @@ window.api.onCompanionApplySettings((patch) => {
     if (deepMergeExistingKeys(target, values)) changed = true;
   }
   if (changed) saveConfigDebounced();
+});
+
+// Companion app's ALERTS section (REMOTE tab) — dedicated relays rather than
+// routing through onCompanionApplySettings above, because both of these need
+// to actually DO something live (fire an interrupt, refresh a visible bar),
+// not just mutate config for the next natural re-render.
+window.api.onCompanionTriggerNews((data) => {
+  const interrupt = getInterrupt('breaking-news');
+  if (!interrupt) return; // plugin not installed — button just does nothing, same as a missing hotkey
+  interrupt.run({ manual: true, headline: data && typeof data.headline === 'string' && data.headline.trim() ? data.headline.trim() : undefined });
+});
+
+window.api.onCompanionSetTicker((data) => {
+  if (!data || typeof data !== 'object') return;
+  // Same lazy-seed guard as the ticker plugin's own settings.js — this can
+  // arrive before that plugin's SETTINGS panel has ever been opened once.
+  if (!S.config.ticker) S.config.ticker = { enabled: false, text: '', speed: 30 };
+  if (typeof data.text === 'string') S.config.ticker.text = data.text;
+  if (typeof data.enabled === 'boolean') S.config.ticker.enabled = data.enabled;
+  saveConfigDebounced();
+  if (window.applyTickerState) window.applyTickerState();
 });
 
 const pinCancelBtnEl = document.getElementById('pin-cancel-btn');

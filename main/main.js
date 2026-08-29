@@ -209,6 +209,11 @@ let activatedMediaSourceProviders = {};
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
 let pluginDisabledAtBoot = [];
+// The renderer-only theme-pack registry (registerThemePack, plugins.js),
+// pushed here after every plugin (re)load — see preload.js's
+// reportInstalledThemes. Read by companion-app/main.js's GET /api/themes
+// via ctx.getInstalledThemes.
+let latestThemeList = [];
 
 app.whenReady().then(async () => {
   // `services` is a single shared object, mutated in place by whichever
@@ -269,6 +274,7 @@ app.whenReady().then(async () => {
     serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
     getViewerUrls: () => viewerAccessUrls,
+    getInstalledThemes: () => latestThemeList,
     ffmpegStaticPath: FFMPEG_STATIC_PATH, services: pluginServices,
   }, approvedCapabilities);
   pluginMainLoadErrors = loadResult.loadErrors;
@@ -330,6 +336,10 @@ ipcMain.handle('app:getVersion', async () => {
 // showing its hardcoded fallback palette.
 ipcMain.on('theme:colors', (event, colors) => {
   setThemeColors(colors);
+});
+
+ipcMain.on('themes:list', (event, list) => {
+  latestThemeList = Array.isArray(list) ? list : [];
 });
 
 ipcMain.handle('network:getConnections', async () => {

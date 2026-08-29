@@ -34,6 +34,12 @@ contextBridge.exposeInMainWorld('api', {
   // palette custom properties (--ink/--gold/--cyan/etc, resolved live off
   // <html>) — see themes.js.
   reportThemeColors: (colors) => ipcRenderer.send('theme:colors', colors),
+  // Pushes the current theme-pack registry (plugins.js's themePackEntries())
+  // to main after every plugin (re)load — companion-app/main.js's
+  // GET /api/themes reads it back via ctx.getInstalledThemes, so the
+  // Android app's theme dropdown has a real, install-accurate option list
+  // instead of free text. See plugins.js's reportInstalledThemes.
+  reportInstalledThemes: (themes) => ipcRenderer.send('themes:list', themes),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),
@@ -109,6 +115,10 @@ contextBridge.exposeInMainWorld('api', {
   // getCompanionUrl is the setup panel's half, mirroring getViewerUrl.
   onCompanionApplySettings: (cb) => ipcRenderer.on('companion:applySettings', (event, patch) => cb(patch)),
   getCompanionUrl: () => ipcRenderer.invoke('companion:getUrl'),
+  // Companion app's ALERTS section (REMOTE tab) — see plugins/companion-app/
+  // main.js's POST /news/trigger and POST /ticker/set.
+  onCompanionTriggerNews: (cb) => ipcRenderer.on('companion:triggerNews', (event, data) => cb(data)),
+  onCompanionSetTicker: (cb) => ipcRenderer.on('companion:setTicker', (event, data) => cb(data)),
   // Party channel (party.js) — the LAN party page's guest actions (see
   // plugins/party-channel/main.js's startPartyServer) arrive here the same way remote commands do.
   // getPartyJoinInfo returns {url, qrDataUrl, pairingCode} for the idle screen/setup

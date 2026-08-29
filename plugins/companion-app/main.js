@@ -133,7 +133,7 @@ const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 async function activate(ctx) {
   const {
     ipcMain, createServer, getMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, mimeFor,
-    getLanAddresses, createLanAccess, isLanServiceEnabled,
+    getLanAddresses, createLanAccess, isLanServiceEnabled, getInstalledThemes,
   } = ctx;
   // Same-process plugin, so unlike an isolated plugin's proxied
   // ctx.sendToMainWindow (main-plugin-isolation.js), this talks to the real
@@ -177,6 +177,18 @@ async function activate(ctx) {
     if (req.method === 'GET' && url.pathname === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
         .end(JSON.stringify(await loadConfig()));
+      return;
+    }
+
+    // Installed theme-pack ids/labels, for the companion app's theme picker
+    // to render a real dropdown instead of free text — see
+    // preload.js's reportInstalledThemes / renderer/js/plugins.js's
+    // reportInstalledThemes for how this gets kept current. Can be empty
+    // (nothing pushed yet — e.g. the renderer hasn't finished its first
+    // plugin load), in which case the app falls back to a text field.
+    if (req.method === 'GET' && url.pathname === '/api/themes') {
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(getInstalledThemes ? getInstalledThemes() : []));
       return;
     }
 
@@ -334,6 +346,41 @@ async function activate(ctx) {
     if (req.method === 'POST' && url.pathname === '/party/trivia/start') {
       sendToMainWindow('party:triggerTrivia');
       res.writeHead(204).end();
+      return;
+    }
+
+    // Fires the breaking-news plugin's interrupt (same as pressing its
+    // hotkey — see REMOTE tab's FUNCTIONS grid — but as a dedicated action
+    // that also accepts an optional custom headline, which a raw keypress
+    // can't carry). No-ops on the renderer side if that plugin isn't
+    // installed (app.js's onCompanionTriggerNews).
+    if (req.method === 'POST' && url.pathname === '/news/trigger') {
+      try {
+        const body = await readJsonBody(req);
+        sendToMainWindow('companion:triggerNews', { headline: typeof body?.headline === 'string' ? body.headline : undefined });
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    // Sets the box-wide static ticker message live (renderer's
+    // onCompanionSetTicker both saves it and immediately refreshes the
+    // visible bar) — distinct from a generic /api/settings edit, which
+    // would only take effect on the ticker plugin's own next natural
+    // re-render, not right away.
+    if (req.method === 'POST' && url.pathname === '/ticker/set') {
+      try {
+        const body = await readJsonBody(req);
+        sendToMainWindow('companion:setTicker', {
+          text: typeof body?.text === 'string' ? body.text : undefined,
+          enabled: typeof body?.enabled === 'boolean' ? body.enabled : undefined,
+        });
+        res.writeHead(204).end();
+      } catch (e) {
+        res.writeHead(400).end('Bad request');
+      }
       return;
     }
 
