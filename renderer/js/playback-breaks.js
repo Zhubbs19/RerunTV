@@ -192,7 +192,7 @@ export function fadeInPlayer(ms = DEFAULT_FADE_IN_MS) {
 
 const DAY_MS = 86400000;
 
-function computeNextTitle(ch) {
+export function computeNextTitle(ch) {
   const source = resolveActiveSource(ch, viewNow());
   const pos = computeSourcePosition(source, viewNow());
   if (!pos || !pos.files.length) return '';
