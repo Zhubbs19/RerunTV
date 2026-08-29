@@ -331,10 +331,39 @@ export function resolveBreakAt(ch, atMs) {
   if (!source.anchor) return null;
   const block = source.block;
 
-  // Premiere jingle — checked first (ahead of the ordinary commercial
-  // cadence below) since it's a rare, one-day-per-block-lifetime moment
-  // that shouldn't lose out to a commercial pod that happens to also start
-  // at the same instant. source.anchor for a daily/weekly block is exactly
+  // Special-event preemption — checked before everything else below,
+  // including the premiere jingle: a real special report cuts in regardless
+  // of whatever else would otherwise be airing. Unlike every other break
+  // type here, its window is an absolute real-clock range configured by the
+  // user (S.config.preemptionWindows, setup-interstitials.js), not derived
+  // from source.anchor/cadence — still a pure function of atMs, just against
+  // a fixed window instead of a recurring one. See checkBreakState/
+  // startBreak (playback.js) for the other half: this type must NOT set
+  // S.activeBreakInterruptsContent, so content resumes via the plain,
+  // un-lagged schedule position afterward instead of picking up where it
+  // was paused — exactly like real broadcast TV, where the rest of the
+  // world's schedule didn't wait for the preemption to end.
+  const preemptionWindows = Array.isArray(S.config.preemptionWindows) ? S.config.preemptionWindows : [];
+  for (const w of preemptionWindows) {
+    if (!w || !isFinite(w.startMs) || !isFinite(w.endMs) || w.endMs <= w.startMs) continue;
+    if (w.channelNumber != null && w.channelNumber !== ch.number) continue;
+    if (atMs < w.startMs || atMs >= w.endMs) continue;
+    // No matching pool entry (nothing configured, or none targets this
+    // channel/block yet) — skip this window entirely rather than starting a
+    // break with nothing to show, same "opt-in, no auto-synthesized content"
+    // policy as localAvail above.
+    const entry = pickDeterministic(poolFor(pool, 'preemption', ch, block, []), `preemption:${w.id}`, 0);
+    if (!entry) continue;
+    return {
+      type: 'preemption', entry, windowStart: w.startMs, windowEnd: w.endMs, preemptionLabel: w.label || 'SPECIAL REPORT',
+    };
+  }
+
+  // Premiere jingle — checked next (ahead of the ordinary commercial
+  // cadence below, after preemption above) since it's a rare,
+  // one-day-per-block-lifetime moment that shouldn't lose out to a
+  // commercial pod that happens to also start at the same instant.
+  // source.anchor for a daily/weekly block is exactly
   // that day's own unlock instant (resolveDailySource, schedule.js), so it
   // doubles as this window's start with no extra lookup needed.
   if (block && isBlockPremiereDay(block, source.anchor)) {
@@ -705,13 +734,22 @@ export function resolveBreakAt(ch, atMs) {
   if (ch.broadcastHours && ch.broadcastHours.enabled && isWithinBroadcastHours(ch, atMs)) {
     const nextB = nextBroadcastHoursBoundary(ch, atMs);
     if (isFinite(nextB)) {
-      const win = windowEndingAt(pool, 'signOff', ch, block, `signOff:${ch.number}`, nextB, nextB, SIGNOFF_DURATION_S);
-      if (win && atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'signOff', ...win };
+      // No custom sign-off bumper configured (windowEndingAt returns null
+      // with no matching pool entry) still gets a window — a built-in
+      // default test-pattern-into-static sequence renders in startBreak
+      // (playback.js) when entry is null, instead of the channel silently
+      // jumping straight from content to the static SIGN-OFF card below.
+      const win = windowEndingAt(pool, 'signOff', ch, block, `signOff:${ch.number}`, nextB, nextB, SIGNOFF_DURATION_S)
+        || { entry: null, windowStart: nextB - SIGNOFF_DURATION_S * 1000, windowEnd: nextB };
+      if (atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'signOff', ...win };
     }
     const prevB = prevBroadcastHoursBoundary(ch, atMs);
     if (isFinite(prevB)) {
-      const win = windowFor(pool, 'signOn', ch, block, `signOn:${ch.number}`, prevB, prevB, SIGNON_DURATION_S);
-      if (win && atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'signOn', ...win };
+      // Same built-in-default reasoning as signOff above, for the opening
+      // seconds just after sign-on.
+      const win = windowFor(pool, 'signOn', ch, block, `signOn:${ch.number}`, prevB, prevB, SIGNON_DURATION_S)
+        || { entry: null, windowStart: prevB, windowEnd: prevB + SIGNON_DURATION_S * 1000 };
+      if (atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'signOn', ...win };
     }
   }
 

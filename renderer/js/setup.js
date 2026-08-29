@@ -33,5 +33,5 @@ import './setup-keyboard.js';
 import './setup-dragdrop.js';
 
 export { renderChannelList } from './setup-channels.js';
-export { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
+export { renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel } from './setup-interstitials.js';
 export { renderSettingsPanels, resetSetupTabs } from './setup-settings.js';

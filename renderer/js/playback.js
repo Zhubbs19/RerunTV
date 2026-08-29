@@ -1,4 +1,4 @@
-import { playChannelClickSound, playConfiguredSound, sfxChannelChange } from './audio.js';
+import { playChannelClickSound, playConfiguredSound, sfxChannelChange, startHoldMusicLoop, stopHoldMusicLoop } from './audio.js';
 import {
   channelColor, getChannel, isVideoMediaPath, logoBugProfileDimensions, LOGO_MOTION_PRESETS,
   parseMediaRef, pickLogoBugProfile, sortedChannels,
@@ -6,7 +6,7 @@ import {
 import { clearDynamicOverlaysForBreak, hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   creditsSqueezeChannelEl, creditsSqueezePanelEl, creditsSqueezeTitleEl, creditsSqueezeVideoEl,
-  crtToggleFlash, dynamicBumperTextEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
+  contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl, guideGrid, guideOverlay, localAvailCardEl, localAvailTextEl, logoBugEl, logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player,
   ratingBugEl, staticCanvas, staticCtx, stationIdBarEl, stationIdNameEl, testPatternCanvasEl,
   triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from './dom.js';
@@ -94,7 +94,7 @@ async function waitForMediaSourceReady(ch, file) {
     isActive: () => S.currentNumber === ch.number && S.isPoweredOn,
     markVisualReady: markStaticReady,
     showStatus: showNoSignal,
-    clearStatus: () => noSignalEl.classList.add('hidden'),
+    clearStatus: () => hideNoSignal(),
   });
 }
 
@@ -268,7 +268,7 @@ export async function playChannelLive(ch, opts) {
       return;
     }
 
-    noSignalEl.classList.add('hidden');
+    hideNoSignal();
     // Propagate the original opts (fadeInOnReady in particular) — found in
     // review: this retry used to call playChannelLive(ch) bare, silently
     // dropping whatever gate the ORIGINAL tune was called with. A tune that
@@ -385,7 +385,7 @@ export async function playChannelLive(ch, opts) {
     // front for every other tune-away case, so nothing else depends on it
     // firing here.
     if (!opts.fadeInOnReady) player.classList.remove('screen-fade-out');
-    noSignalEl.classList.add('hidden');
+    hideNoSignal();
     S.channelFailStreak[ch.number] = 0;
     // A per-file rating (setup-panels.js's TITLES tab) overrides the
     // channel-wide one for mixed-content channels (e.g. a movie channel
@@ -408,6 +408,24 @@ export async function playChannelLive(ch, opts) {
         flashRatingBug(ch, effectiveRating);
       }
     }
+    // "NEW EPISODE"/rerun bug — pos.loopCount (computeSourcePosition,
+    // schedule.js) is 0 the first time this content pool has played through
+    // since its source's anchor, 1+ once it has looped — a pure derivation
+    // from anchor+duration, not a stored play-count log (see that comment
+    // for why one isn't kept). Skipped for movies/promos/bumpers, which
+    // aren't "episodic" content real syndication bugs apply to.
+    const contentType = file.facets && file.facets.contentType;
+    if (isEarlyInProgram && typeof pos.loopCount === 'number'
+      && contentType !== 'movie' && contentType !== 'promo' && contentType !== 'bumper') {
+      const episodeStatus = pos.loopCount > 0 ? 'REPEAT' : 'NEW EPISODE';
+      if (!triggerDynamicOverlays(ch, 'episodeStatus')) flashEpisodeStatusBug(ch, episodeStatus);
+    }
+    // Content advisory — distinct from the rating value, a free-text
+    // disclaimer set per file (setup-panels.js's TITLES tab), never
+    // auto-generated from anything else.
+    if (isEarlyInProgram && file.advisory) {
+      if (!triggerDynamicOverlays(ch, 'contentAdvisory')) flashContentAdvisory(ch, file.advisory);
+    }
     // AUTO aspect/resolution's real-video-size signal (display-mode.js) is
     // only trustworthy from here on — player.videoWidth/videoHeight are
     // real now, and confirmed to actually belong to this channel (not a
@@ -424,6 +442,24 @@ export async function playChannelLive(ch, opts) {
     S.currentPlayerChannelNumber = ch.number;
     cacheVideoSize((freshPos && freshPos.file && freshPos.file.path) || posFile.path, player.videoWidth, player.videoHeight);
     applyDisplayMode();
+    // "Formatted to fit your screen" disclaimer — real syndicated reruns
+    // flash this once when a file's native aspect doesn't match the box's
+    // currently-applied one (e.g. a 4:3 pan-and-scan print airing on a
+    // 16:9-configured channel, or vice versa). Both sides are pure
+    // functions already computed for AUTO display mode (display-mode.js);
+    // only trustworthy here, same as the AUTO-resolution comment above,
+    // since player.videoWidth/videoHeight are now real and confirmed to
+    // belong to this channel.
+    if (isEarlyInProgram) {
+      const contentAspect = resolveContentDisplayMode().aspect;
+      const effectiveAspect = resolveEffectiveDisplayMode().aspect;
+      if (contentAspect !== effectiveAspect) {
+        const disclaimer = contentAspect === '4:3'
+          ? 'THIS PROGRAM HAS BEEN FORMATTED TO FIT YOUR SCREEN'
+          : 'THIS PROGRAM IS PRESENTED IN WIDESCREEN';
+        if (!triggerDynamicOverlays(ch, 'formatDisclaimer')) flashFormatDisclaimer(ch, disclaimer);
+      }
+    }
     // Re-apply now that player.videoWidth is real (it read 0 at the earlier
     // updateLogoBug call, before src was even set) — lets a resolution-
     // specific logoBugProfiles breakpoint take effect within this same tune
@@ -560,7 +596,10 @@ export function checkBreakState(ch, opts) {
           return;
         }
       }
-      if (S.activeBreakKey && S.activeBreakInterruptsContent) {
+      // Same preemption exception as endBreak below — a break-to-break
+      // transition straight out of a preemption must not credit its time
+      // back either.
+      if (S.activeBreakKey && S.activeBreakInterruptsContent && S.activeBreakKind !== 'preemption') {
         S.contentLostMs += viewNow() - S.breakEnteredAtMs;
       }
       startBreak(ch, resolved, key);
@@ -591,6 +630,7 @@ const BREAK_LABELS = {
   commercial: 'COMMERCIAL BREAK', upNext: 'UP NEXT', channelId: 'STATION ID',
   adBreakIn: 'COMMERCIAL BREAK', adBreakOut: 'AND NOW, BACK TO THE SHOW',
   signOff: 'SIGNING OFF', signOn: 'SIGNING ON', promo: 'COMING SOON', premiereJingle: 'PREMIERING NOW',
+  preemption: 'SPECIAL REPORT',
 };
 
 // Fade-to-black around a break bumper cut (entering or leaving) — resolves
@@ -676,7 +716,9 @@ export function renderDynamicText(template, ch, entry) {
 }
 
 function startBreak(ch, resolved, key) {
-  const { type, entry, label, windowStart } = resolved;
+  const {
+    type, entry, label, windowStart, preemptionLabel,
+  } = resolved;
   const isTextOnlyChannelId = type === 'channelId' && !(entry && entry.file);
   // Unrecognized types (adBreakIn/adBreakOut/premiereJingle/promo/signOff/
   // signOn — see interstitials.js) simply match no configured rule, a safe
@@ -733,6 +775,22 @@ function startBreak(ch, resolved, key) {
     return;
   }
 
+  // Built-in default sign-off/sign-on visual — a real station's test
+  // pattern, for the slot's whole window, rather than a silent cut straight
+  // from content to the persistent SIGN-OFF card (showSignOffCard). Only
+  // reached when no custom bumper media is configured for this slot (see
+  // resolveBreakAt's synthetic-window fallback, interstitials.js) — a
+  // configured video always wins via the normal video-kind path below.
+  if ((type === 'signOff' || type === 'signOn') && !entry) {
+    cancelUpNextBar();
+    player.pause();
+    runCoreHooks('draw-test-pattern');
+    testPatternCanvasEl.classList.remove('hidden');
+    crtToggleFlash.textContent = BREAK_LABELS[type];
+    crtToggleFlash.classList.add('show');
+    return;
+  }
+
   // Video-kind (commercial, upNext, channelId-with-video): swap the player
   // to the bumper, at the ad-volume multiplier rather than the channel's own.
   cancelUpNextBar();
@@ -742,6 +800,7 @@ function startBreak(ch, resolved, key) {
 
   if (label === 'post') crtToggleFlash.textContent = 'END OF PROGRAM';
   else if (label === 'pre') crtToggleFlash.textContent = 'UP NEXT';
+  else if (type === 'preemption') crtToggleFlash.textContent = preemptionLabel;
   else crtToggleFlash.textContent = BREAK_LABELS[type] || 'COMMERCIAL BREAK';
   crtToggleFlash.classList.add('show');
 
@@ -880,6 +939,11 @@ export function forceInterstitialPreview(ch, entry) {
 
 function endBreak(ch) {
   const shouldResume = S.activeBreakInterruptsContent;
+  // Preemption is the one break type that must NOT credit its time back —
+  // see resolveBreakAt's comment (interstitials.js). Captured before
+  // resetActiveBreakState() clears S.activeBreakKind below, same as
+  // shouldResume above.
+  const skipResumeLag = S.activeBreakKind === 'preemption';
   if (S.activeBreakKey) markBreakCompleted(S.activeBreakKey);
   resetActiveBreakState();
   S.awaitingBumperEnd = false;
@@ -889,14 +953,22 @@ function endBreak(ch) {
   localAvailCardEl.classList.add('hidden');
   crtToggleFlash.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
+  // Cleans up the default sign-off/sign-on test-pattern visual (above) if
+  // that's what was showing — a no-op otherwise, since every other break
+  // path already hides this itself once its own content is ready.
+  testPatternCanvasEl.classList.add('hidden');
   clearDynamicOverlaysForBreak();
   player.loop = false;
   applyVolume();
   // Credits back exactly how long content was actually off-screen for this
   // break, so the next computeLiveContentPosition() call resumes right
   // where it left off instead of having skipped ahead by the break length.
+  // Preemption deliberately skips this: content resumes via the plain,
+  // un-lagged live schedule position instead, matching real broadcast TV
+  // where the rest of the world's schedule didn't wait for the interruption
+  // to end.
   if (shouldResume && S.breakEnteredAtMs) {
-    S.contentLostMs += viewNow() - S.breakEnteredAtMs;
+    if (!skipResumeLag) S.contentLostMs += viewNow() - S.breakEnteredAtMs;
     S.breakEnteredAtMs = 0;
   }
   if (shouldResume && S.currentNumber === ch.number && S.isPoweredOn) {
@@ -920,6 +992,21 @@ export function showNoSignal(main, sub, variant) {
   noSignalMainEl.className = 'no-signal-main' + (variant ? ` is-${variant}` : '');
   noSignalChannelEl.textContent = sub;
   noSignalEl.classList.remove('hidden');
+  // 'offair' is the persistent technical-difficulties state (3+ failed
+  // retries, playback.js's handleUnplayable) — real dead-air broadcasts
+  // played hold music during it. Any other variant (comingsoon/nosignal/
+  // signoff/error/transcoding) stops it, same as hideNoSignal below, in
+  // case a call transitions directly between variants without going
+  // through a hide first.
+  if (variant === 'offair') startHoldMusicLoop();
+  else stopHoldMusicLoop();
+}
+
+// Shared hide path for noSignalEl so hold music always stops alongside it —
+// see showNoSignal's 'offair' comment above.
+export function hideNoSignal() {
+  noSignalEl.classList.add('hidden');
+  stopHoldMusicLoop();
 }
 
 function configuredNoSignalText(value) {
@@ -1175,7 +1262,7 @@ export async function tuneToChannel(number, opts) {
   dynamicBumperTextEl.classList.add('hidden');
   hideDynamicOverlay();
   testPatternCanvasEl.classList.add('hidden');
-  noSignalEl.classList.add('hidden');
+  hideNoSignal();
   guideOverlay.classList.add('hidden');
   if (S.endedHandler) { player.removeEventListener('ended', S.endedHandler); S.endedHandler = null; }
   if (S.errorHandler) { player.removeEventListener('error', S.errorHandler); S.errorHandler = null; }
@@ -1743,6 +1830,35 @@ export function showMovieRatingCard(ch, rating) {
   movieRatingCardEl.classList.add('show');
   playConfiguredSound('card', ch.number);
   S.movieRatingCardTimer = autoHideAfter(S.movieRatingCardTimer, 16000, () => movieRatingCardEl.classList.remove('show'));
+}
+
+// "NEW EPISODE"/"REPEAT" bug — same show/hide shape as flashRatingBug,
+// separate element/timer so it can coexist with the rating bug (opposite
+// screen corner by default, see .episode-status-bug in overlays.css).
+export function flashEpisodeStatusBug(ch, status) {
+  episodeStatusBugEl.textContent = status;
+  episodeStatusBugEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
+  S.episodeStatusBugTimer = autoHideAfter(S.episodeStatusBugTimer, 16000, () => episodeStatusBugEl.classList.remove('show'));
+}
+
+// "Formatted to fit your screen"/widescreen disclaimer card — same
+// show/hide shape as the bugs above, own element/timer.
+export function flashFormatDisclaimer(ch, text) {
+  formatDisclaimerCardEl.textContent = text;
+  formatDisclaimerCardEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
+  S.formatDisclaimerCardTimer = autoHideAfter(S.formatDisclaimerCardTimer, 16000, () => formatDisclaimerCardEl.classList.remove('show'));
+}
+
+// Content advisory disclaimer card — same show/hide shape as the bugs
+// above, own element/timer. `text` is the file's own free-text advisory
+// (file.advisory, setup-panels.js's TITLES tab), never auto-generated.
+export function flashContentAdvisory(ch, text) {
+  contentAdvisoryCardEl.textContent = text;
+  contentAdvisoryCardEl.classList.add('show');
+  playConfiguredSound('card', ch.number);
+  S.contentAdvisoryCardTimer = autoHideAfter(S.contentAdvisoryCardTimer, 16000, () => contentAdvisoryCardEl.classList.remove('show'));
 }
 
 export function scheduleBlockBoundaryRetune(ch) {

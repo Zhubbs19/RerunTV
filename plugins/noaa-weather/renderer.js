@@ -170,6 +170,29 @@ export function sdStopPreview() {
   updateSignalDegradation();
 }
 
+// ---------- Routine weather crawl ----------
+// A plain informational lower-third crawl of whatever's in S.noaaLastAlerts
+// (the same real-alert poll signal degradation and the EAS interrupt above
+// already consume — no extra network call), regardless of severity. Own DOM
+// element, NOT core's #ticker-bar (a true singleton with one content
+// string, plugins/ticker) — same "own your DOM" idiom as the signal-
+// degradation overlay above, just a marquee instead of a canvas.
+if (!S.config.eas.routineCrawl) S.config.eas.routineCrawl = { enabled: false };
+
+const crawlRootEl = document.createElement('div');
+crawlRootEl.className = 'weather-crawl-bar hidden';
+crawlRootEl.innerHTML = '<div class="weather-crawl-text"></div>';
+document.querySelector('.crt').appendChild(crawlRootEl);
+const crawlTextEl = crawlRootEl.querySelector('.weather-crawl-text');
+
+export function updateRoutineCrawl() {
+  const cfg = S.config.eas.routineCrawl;
+  const alerts = S.noaaLastAlerts || [];
+  const on = !!(cfg && cfg.enabled) && alerts.length > 0;
+  crawlRootEl.classList.toggle('hidden', !on);
+  if (on) crawlTextEl.textContent = alerts.map((a) => a.headline).filter(Boolean).join('          •          ');
+}
+
 async function pollNoaaAlerts() {
   const S = window.RCBPlugins.ctx.S;
   clearTimeout(S.noaaPollTimer);
@@ -177,6 +200,7 @@ async function pollNoaaAlerts() {
   if (!cfg || !cfg.noaaEnabled || cfg.lat == null || cfg.lon == null) {
     S.noaaLastAlerts = [];
     updateSignalDegradation();
+    updateRoutineCrawl();
     return;
   }
 
@@ -189,6 +213,7 @@ async function pollNoaaAlerts() {
     if (!error) {
       S.noaaLastAlerts = alerts;
       updateSignalDegradation();
+      updateRoutineCrawl();
     }
 
     if (!S.noaaSeenAlertIds) S.noaaSeenAlertIds = new Set();

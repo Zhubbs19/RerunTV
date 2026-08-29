@@ -614,6 +614,61 @@
 .crt.guide-active .movie-rating-card,
 .crt.power-off .movie-rating-card { display: none; }
 
+/* "NEW EPISODE"/"REPEAT" bug — same plain corner-badge treatment as
+   .rating-bug, opposite corner by default so the two can coexist without
+   overlap when both apply to the same airing. */
+.episode-status-bug {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  z-index: 2;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.92);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--paper);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms linear;
+}
+.episode-status-bug.show { opacity: 1; }
+.crt.guide-active .episode-status-bug,
+.crt.power-off .episode-status-bug { display: none; }
+
+/* "Formatted to fit your screen"/widescreen disclaimer card — a lower-third
+   text bar rather than a corner badge, matching how real syndicated reruns
+   present this specific disclaimer (a full-width strip, not a small bug). */
+.format-disclaimer-card {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 8px 20px;
+  background: rgba(0, 0, 0, 0.92);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--paper);
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms linear;
+}
+.format-disclaimer-card.show { opacity: 1; }
+.crt.guide-active .format-disclaimer-card,
+.crt.power-off .format-disclaimer-card { display: none; }
+
+/* Sits higher than the format-disclaimer-card default so the two don't
+   visually stack if both happen to fire for the same airing. */
+#content-advisory-card { bottom: 24%; }
+
 .station-id-bar {
   position: absolute;
   left: 40px;

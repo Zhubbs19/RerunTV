@@ -60,3 +60,41 @@
   border: 1px solid rgba(255, 92, 92, 0.6);
 }
 .signal-degrade-caption.hidden { display: none; }
+
+/* Routine weather crawl — same scrolling-marquee technique as core's own
+   ticker (plugins/ticker/style.css's ticker-crawl-anim), but a fully
+   independent element/animation name so this plugin never touches or
+   conflicts with that singleton. Sits just above where the core ticker bar
+   would be, so both can be visible at once without overlapping. */
+.weather-crawl-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 44px;
+  z-index: 1;
+  background: rgba(6, 10, 32, 0.82);
+  border-top: 2px solid #6fe0f2;
+  overflow: hidden;
+  padding: 6px 0;
+}
+.weather-crawl-bar.hidden { display: none; }
+.weather-crawl-text {
+  display: inline-block;
+  white-space: nowrap;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: #6fe0f2;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  padding-left: 100%;
+  animation: weather-crawl-anim 40s linear infinite;
+}
+@keyframes weather-crawl-anim {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .weather-crawl-text { animation: none; padding-left: 20px; }
+}
+.crt.power-off .weather-crawl-bar { display: none; }

@@ -149,6 +149,51 @@ export function sfxPowerOn() {
   playNoiseBurst({ duration: 25, gain: 0.25 });
   playTone({ freq: 120, endFreq: 880, duration: 380, type: 'sine', gain: 0.12 });
 }
+// Looping "please stand by" hold music — a persistent node like the
+// analog-90s tape hiss (see getAudioCtx's comment above), started when
+// showNoSignal's 'offair' technical-difficulties variant fires
+// (playback.js) and stopped the moment it clears. Two soft sustained tones
+// (a minor third apart) with a slow shared tremolo, deliberately calmer
+// than playEasTone's harsh sustained alert pair — this is dead-air filler
+// music, not an emergency signal.
+export function startHoldMusicLoop() {
+  if (S.holdMusicNodes) return; // already looping
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+  const tremolo = ctx.createOscillator();
+  tremolo.type = 'sine';
+  tremolo.frequency.value = 0.15;
+  const tremoloGain = ctx.createGain();
+  tremoloGain.gain.value = 0.03;
+  const masterGain = ctx.createGain();
+  masterGain.gain.value = 0.05;
+  tremolo.connect(tremoloGain).connect(masterGain.gain);
+  masterGain.connect(S.sfxGain);
+  tremolo.start(now);
+  const oscillators = [220, 277.18].map((freq) => {
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    osc.connect(masterGain);
+    osc.start(now);
+    return osc;
+  });
+  S.holdMusicNodes = { tremolo, masterGain, oscillators };
+}
+
+export function stopHoldMusicLoop() {
+  if (!S.holdMusicNodes) return;
+  const { tremolo, masterGain, oscillators } = S.holdMusicNodes;
+  const ctx = getAudioCtx();
+  const now = ctx.currentTime;
+  masterGain.gain.setTargetAtTime(0, now, 0.05);
+  setTimeout(() => {
+    tremolo.stop();
+    oscillators.forEach((osc) => osc.stop());
+  }, 150);
+  S.holdMusicNodes = null;
+}
+
 export function playEasTone(durationMs) {
   const ctx = getAudioCtx();
   const now = ctx.currentTime;

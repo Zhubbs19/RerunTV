@@ -42,7 +42,7 @@ import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
 import { initLibrarySync } from './library-sync.js';
 import {
-  renderChannelList, renderCommercialsPanel, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
+  renderChannelList, renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
 } from './setup.js';
 
 window.addEventListener('error', (e) => {
@@ -538,6 +538,7 @@ export async function showSetupScreen() {
   channelFilterEl.value = '';
   renderChannelList();
   renderCommercialsPanel();
+  renderPreemptionWindowsEditor();
   renderStandbyPanel();
   renderSettingsPanels();
 }
@@ -792,6 +793,18 @@ export function applyConfigDefaults(config) {
   // array is a perfectly valid "no dynamic overlays configured" state, not
   // something that needs a folded-forward DEFAULT entry.
   config.display.dynamicOverlays = normalizeDynamicOverlays(config.display.dynamicOverlays);
+  // Box-wide (or per-channel, via channelNumber) special-event preemption
+  // windows — absolute real-clock ranges resolveBreakAt (interstitials.js)
+  // checks ahead of everything else. Same "empty array is valid" reasoning
+  // as dynamicOverlays above.
+  if (!Array.isArray(config.preemptionWindows)) config.preemptionWindows = [];
+  config.preemptionWindows = config.preemptionWindows.filter((w) => w && typeof w === 'object').map((w) => ({
+    id: w.id || `preempt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    label: typeof w.label === 'string' ? w.label.slice(0, 60) : '',
+    channelNumber: Number.isFinite(Number(w.channelNumber)) ? Number(w.channelNumber) : null,
+    startMs: Number.isFinite(Number(w.startMs)) ? Number(w.startMs) : Date.now(),
+    endMs: Number.isFinite(Number(w.endMs)) ? Number(w.endMs) : Date.now(),
+  }));
   // 'none' (default) = today's static logo bug, unchanged. See LOGO_MOTION_
   // PRESETS (channels.js) for the rest.
   if (!LOGO_MOTION_PRESETS.includes(config.display.logoBugMotion)) config.display.logoBugMotion = 'none';

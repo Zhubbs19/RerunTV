@@ -278,6 +278,9 @@ export const DYNAMIC_OVERLAY_TRIGGERS = [
   { id: 'trivia', label: 'TRIVIA CARD' },
   { id: 'contentRating', label: 'CONTENT RATING BUG' },
   { id: 'movieRatingCard', label: 'MOVIE RATING CARD (FULL SCREEN)' },
+  { id: 'episodeStatus', label: 'NEW EPISODE / REPEAT BUG' },
+  { id: 'formatDisclaimer', label: 'FORMATTED-FOR-YOUR-SCREEN CARD' },
+  { id: 'contentAdvisory', label: 'CONTENT ADVISORY CARD' },
 ];
 // 'fullscreen' is meant for the movieRatingCard trigger above (a corner
 // bug replacement wouldn't use it) but is offered for every trigger rather

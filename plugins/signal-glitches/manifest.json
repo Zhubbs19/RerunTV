@@ -1,0 +1,10 @@
+{
+  "id": "signal-glitches",
+  "name": "Ambient Signal Glitches",
+  "version": "1.0.0",
+  "description": "Rare, brief static/tearing bursts with no real-world trigger — the antenna having a bad day, not tied to weather or anything else.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "style": "style.css"
+}

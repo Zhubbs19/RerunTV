@@ -240,7 +240,10 @@ html.titlebar-hidden #titlebar-drag-strip {
   );
   mix-blend-mode: overlay;
   animation: vhs-tracking-drift 6s linear infinite;
-  opacity: 0.5;
+  /* Baseline 0.35 (freshly toggled on, --vhs-degradation unset/0) rising to
+     0.7 as the tape wears — see applyVhsQuality's progressive-tape-wear
+     comment, power.js. */
+  opacity: calc(0.35 + var(--vhs-degradation, 0) * 0.35);
 }
 @keyframes vhs-tracking-drift {
   0% { background-position-y: 0; }
@@ -253,7 +256,8 @@ html.titlebar-hidden #titlebar-drag-strip {
   position: absolute;
   inset: 0;
   mix-blend-mode: screen;
-  opacity: 0.12;
+  /* Same wear scaling as .vhs-tracking above: 0.1 baseline rising to 0.22. */
+  opacity: calc(0.1 + var(--vhs-degradation, 0) * 0.12);
 }
 .vhs-chroma::before {
   background: #ff2b4d;

@@ -47,7 +47,9 @@ plugins/spotify-connect/
 !plugins/sap-audio/
 !plugins/screensaver/
 !plugins/shopping-network/
+!plugins/signal-glitches/
 !plugins/smpte-test-pattern/
+!plugins/sponsor-billboard/
 !plugins/teletext-arcade/
 !plugins/theme-analog-90s/
 !plugins/theme-cable-box-osd/

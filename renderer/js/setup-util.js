@@ -3,10 +3,10 @@
 // setup-settings.js) — split out of the old monolithic setup.js so none of
 // those modules need to import from each other just to get these.
 import {
-  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays,
+  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays, sortedChannels,
 } from './channels.js';
 import { S, saveConfigDebounced } from './state.js';
-import { basenameNoExt } from './util.js';
+import { basenameNoExt, randomId, toDatetimeLocalValue } from './util.js';
 
 const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
@@ -978,6 +978,130 @@ export function buildDynamicOverlaysEditor(getRules, setRules) {
     const rules = getRules() || [];
     setRules([...rules, {
       id: newDynamicOverlayId(), trigger: 'tuneIn', mediaPath: '', corner: 'bottom-right', size: 160, durationMs: 0,
+    }]);
+    saveConfigDebounced();
+    render();
+  });
+
+  render();
+  wrap.append(list, addBtn);
+  return wrap;
+}
+
+// Editor for S.config.preemptionWindows — absolute real-clock ranges
+// (start/end, not a recurring cadence) that resolveBreakAt (interstitials.js)
+// checks ahead of every other break type. Same getRules/setRules +
+// rebuild-the-whole-list-on-any-change shape as buildDynamicOverlaysEditor
+// above, since the underlying data is the same "array of small config
+// objects with a remove button" shape.
+export function buildPreemptionWindowsEditor(getWindows, setWindows) {
+  const wrap = document.createElement('div');
+  wrap.className = 'dynamic-overlays-editor';
+  const list = document.createElement('div');
+  list.className = 'dynamic-overlays-list';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn';
+  addBtn.textContent = 'ADD PREEMPTION WINDOW';
+
+  function render() {
+    list.innerHTML = '';
+    const windows = getWindows() || [];
+    if (!windows.length) {
+      const empty = document.createElement('p');
+      empty.className = 'panel-status';
+      empty.textContent = 'No preemption windows scheduled — add one below.';
+      list.appendChild(empty);
+    }
+    windows.forEach((w) => {
+      const row = document.createElement('div');
+      row.className = 'dynamic-overlay-rule-row';
+
+      const labelInput = document.createElement('input');
+      labelInput.type = 'text';
+      labelInput.className = 'title-row-input';
+      labelInput.placeholder = 'SPECIAL REPORT';
+      labelInput.value = w.label || '';
+      labelInput.addEventListener('change', () => {
+        w.label = labelInput.value.trim();
+        setWindows(windows);
+        saveConfigDebounced();
+      });
+
+      const channelSelect = document.createElement('select');
+      const anyOpt = document.createElement('option');
+      anyOpt.value = '';
+      anyOpt.textContent = 'ALL CHANNELS';
+      channelSelect.appendChild(anyOpt);
+      sortedChannels().forEach((ch) => {
+        const opt = document.createElement('option');
+        opt.value = String(ch.number);
+        opt.textContent = `CH ${ch.number} — ${ch.name || 'UNNAMED'}`;
+        channelSelect.appendChild(opt);
+      });
+      channelSelect.value = w.channelNumber != null ? String(w.channelNumber) : '';
+      channelSelect.addEventListener('change', () => {
+        w.channelNumber = channelSelect.value === '' ? null : Number(channelSelect.value);
+        setWindows(windows);
+        saveConfigDebounced();
+      });
+
+      const startInput = document.createElement('input');
+      startInput.type = 'datetime-local';
+      startInput.value = w.startMs ? toDatetimeLocalValue(new Date(w.startMs)) : '';
+      startInput.addEventListener('change', () => {
+        const ms = new Date(startInput.value).getTime();
+        if (!isNaN(ms)) w.startMs = ms;
+        setWindows(windows);
+        saveConfigDebounced();
+      });
+
+      const endInput = document.createElement('input');
+      endInput.type = 'datetime-local';
+      endInput.value = w.endMs ? toDatetimeLocalValue(new Date(w.endMs)) : '';
+      endInput.addEventListener('change', () => {
+        const ms = new Date(endInput.value).getTime();
+        if (!isNaN(ms)) w.endMs = ms;
+        setWindows(windows);
+        saveConfigDebounced();
+      });
+
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn remove-btn';
+      removeBtn.textContent = 'X';
+      removeBtn.title = 'REMOVE';
+      removeBtn.setAttribute('aria-label', 'Remove preemption window');
+      removeBtn.addEventListener('click', () => {
+        setWindows((getWindows() || []).filter((x) => x.id !== w.id));
+        saveConfigDebounced();
+        render();
+      });
+
+      row.append(
+        labeledMiniPreemption('LABEL', labelInput),
+        labeledMiniPreemption('CHANNEL', channelSelect),
+        labeledMiniPreemption('START', startInput),
+        labeledMiniPreemption('END', endInput),
+        removeBtn,
+      );
+      list.appendChild(row);
+    });
+  }
+
+  function labeledMiniPreemption(text, control) {
+    const field = document.createElement('label');
+    field.className = 'dynamic-overlay-rule-field';
+    field.appendChild(document.createTextNode(text));
+    field.appendChild(control);
+    return field;
+  }
+
+  addBtn.addEventListener('click', () => {
+    const windows = getWindows() || [];
+    const now = Date.now();
+    setWindows([...windows, {
+      id: randomId('preempt'), label: '', channelNumber: null, startMs: now, endMs: now + 15 * 60000,
     }]);
     saveConfigDebounced();
     render();

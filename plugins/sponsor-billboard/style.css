@@ -1,0 +1,36 @@
+/* Own DOM appended into .crt (see renderer.js) — plain black card, matching
+   the flat "TV Parental Guidelines" look core's own rating-bug/format-
+   disclaimer cards use, positioned lower-third center like a real
+   single-sponsor-era title card. */
+.sponsor-billboard-card {
+  position: absolute;
+  left: 50%;
+  bottom: 30%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 10px 24px;
+  background: rgba(0, 0, 0, 0.92);
+  font-family: var(--font-ui, sans-serif);
+  color: var(--paper, #fff);
+  text-align: center;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms linear;
+}
+.sponsor-billboard-card.hidden { display: none; }
+.sponsor-billboard-card.show { opacity: 1; }
+.sponsor-billboard-line {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.sponsor-billboard-name {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.crt.guide-active .sponsor-billboard-card,
+.crt.power-off .sponsor-billboard-card { display: none; }
