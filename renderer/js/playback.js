@@ -903,7 +903,17 @@ function startBreak(ch, resolved, key) {
         const finish = () => {
           S.awaitingBumperEnd = false;
           if (key) markBreakCompleted(key);
-          endBreak(ch);
+          // Re-resolve instead of unconditionally calling endBreak: a
+          // multi-segment pod (bumpIn -> commercial -> bumpOut) has this
+          // same entry-ended event fire at every segment boundary, not just
+          // the pod's real end. Calling endBreak here unconditionally used
+          // to resume real content for a frame or two before checkBreakState's
+          // own next tick corrected course into the next segment — a visible
+          // flash of the show between commercials. checkBreakState resolves
+          // fresh: if another segment is due right now it transitions
+          // straight into it (no content in between); only when nothing's
+          // due does it fall through to endBreak, exactly as before.
+          checkBreakState(ch);
         };
         if (entryWaitAfterMs > 0) setTimeout(finish, entryWaitAfterMs);
         else finish();
