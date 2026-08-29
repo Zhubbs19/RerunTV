@@ -129,7 +129,9 @@ const openChannelEditTabs = new Map();
 // surfaces the rating on a collapsed row's header either way, so nothing
 // already set is ever hidden without a hint.
 function hasCustomChannelOptions(ch) {
-  return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride);
+  return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null
+    || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride
+    || ch.hideFormatDisclaimer || ch.hideRatingBug || ch.hideEpisodeStatus);
 }
 
 function sortedForSetup() {
@@ -552,6 +554,49 @@ export function renderChannelList() {
       vhsLabel.appendChild(vhsCheckbox);
       vhsLabel.appendChild(document.createTextNode('VHS'));
 
+      const hideFormatDisclaimerLabel = document.createElement('label');
+      hideFormatDisclaimerLabel.className = 'shuffle-toggle';
+      hideFormatDisclaimerLabel.title = 'Never show the "formatted to fit your screen"/widescreen disclaimer card on this channel, even if a file\'s real aspect doesn\'t match the currently-applied one.';
+      const hideFormatDisclaimerCheckbox = document.createElement('input');
+      hideFormatDisclaimerCheckbox.type = 'checkbox';
+      hideFormatDisclaimerCheckbox.checked = !!ch.hideFormatDisclaimer;
+      hideFormatDisclaimerCheckbox.addEventListener('change', () => {
+        ch.hideFormatDisclaimer = hideFormatDisclaimerCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideFormatDisclaimerLabel.appendChild(hideFormatDisclaimerCheckbox);
+      hideFormatDisclaimerLabel.appendChild(document.createTextNode('HIDE FORMAT DISCLAIMER'));
+
+      // Hides the on-screen rating bug/full-screen movie card without
+      // touching ch.rating/file.rating themselves — the rating value keeps
+      // working for the parental lock (pin-lock.js), this only ever
+      // suppresses the on-screen icon.
+      const hideRatingBugLabel = document.createElement('label');
+      hideRatingBugLabel.className = 'shuffle-toggle';
+      hideRatingBugLabel.title = 'Never show the content-rating bug/movie rating card on this channel, even when a rating is set. The rating value itself is untouched — still used by the parental lock.';
+      const hideRatingBugCheckbox = document.createElement('input');
+      hideRatingBugCheckbox.type = 'checkbox';
+      hideRatingBugCheckbox.checked = !!ch.hideRatingBug;
+      hideRatingBugCheckbox.addEventListener('change', () => {
+        ch.hideRatingBug = hideRatingBugCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideRatingBugLabel.appendChild(hideRatingBugCheckbox);
+      hideRatingBugLabel.appendChild(document.createTextNode('HIDE RATING ICON'));
+
+      const hideEpisodeStatusLabel = document.createElement('label');
+      hideEpisodeStatusLabel.className = 'shuffle-toggle';
+      hideEpisodeStatusLabel.title = 'Never show the "NEW EPISODE"/"REPEAT" bug on this channel.';
+      const hideEpisodeStatusCheckbox = document.createElement('input');
+      hideEpisodeStatusCheckbox.type = 'checkbox';
+      hideEpisodeStatusCheckbox.checked = !!ch.hideEpisodeStatus;
+      hideEpisodeStatusCheckbox.addEventListener('change', () => {
+        ch.hideEpisodeStatus = hideEpisodeStatusCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideEpisodeStatusLabel.appendChild(hideEpisodeStatusCheckbox);
+      hideEpisodeStatusLabel.appendChild(document.createTextNode('HIDE REPEAT ICON'));
+
       const notSubscribedLabel = document.createElement('label');
       notSubscribedLabel.className = 'shuffle-toggle';
       notSubscribedLabel.title = 'Tuning to this channel shows a "please call your cable company to subscribe" card instead of playing anything — a simpler sibling to the scrambled PPV gag for a channel you just want blocked';
@@ -802,6 +847,9 @@ export function renderChannelList() {
       options.appendChild(favoriteLabel);
       options.appendChild(quickAccessLabel);
       options.appendChild(vhsLabel);
+      options.appendChild(hideFormatDisclaimerLabel);
+      options.appendChild(hideRatingBugLabel);
+      options.appendChild(hideEpisodeStatusLabel);
       options.appendChild(notSubscribedLabel);
       options.appendChild(hiddenLabel);
       options.appendChild(ratingLabel);
