@@ -5,10 +5,8 @@ import {
   triviaCardEl, triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
 } from './dom.js';
 import { nextBreakStart, prevBreakStart, resolveBreakAt } from './interstitials.js';
-import {
-  cancelUpNextBar, checkBreakState, playChannelLive, renderDynamicText, resetActiveBreakState,
-  scheduleBlockBoundaryRetune,
-} from './playback.js';
+import { playChannelLive, scheduleBlockBoundaryRetune } from './playback-core.js';
+import { cancelUpNextBar, checkBreakState, renderDynamicText, resetActiveBreakState } from './playback-breaks.js';
 import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, viewNow } from './state.js';

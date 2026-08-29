@@ -9,7 +9,7 @@
 // controls, since all of those already just dispatch a 'keydown' that
 // lands here the same way.
 import { shortcutsOverlayEl } from './dom.js';
-import { changeChannel, jumpToLastChannel } from './playback.js';
+import { changeChannel, jumpToLastChannel } from './playback-core.js';
 import { showDetailsForCurrentChannel } from './details.js';
 import { openGuideGrid } from './guide.js';
 import { interruptEntries } from './plugins.js';

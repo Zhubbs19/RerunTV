@@ -1,4 +1,4 @@
-import { changeChannel } from './playback.js';
+import { changeChannel } from './playback-core.js';
 import { renderChannelList } from './setup.js';
 import { BADGE_COLORS, S, saveConfigDebounced } from './state.js';
 import {

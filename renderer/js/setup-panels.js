@@ -4,7 +4,7 @@
 // row-editing code); channel-list/bulk-action rendering lives in
 // setup-channels.js.
 import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags } from './channels.js';
-import { applyLogoBugPlacement } from './playback.js';
+import { applyLogoBugPlacement } from './playback-broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
