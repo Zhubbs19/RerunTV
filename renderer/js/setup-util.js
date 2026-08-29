@@ -7,7 +7,7 @@ import {
   normalizeIconOverrides, sortedChannels,
 } from './channels.js';
 import { S, saveConfigDebounced } from './state.js';
-import { basenameNoExt, randomId, toDatetimeLocalValue } from './util.js';
+import { basenameNoExt, randomId, toDatetimeLocalValue, deepClone } from './util.js';
 
 const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
@@ -248,7 +248,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const displayModeSnapshot = { ...(S.config.displayMode || {}) };
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
   const snapIncrementSnapshot = Number(S.config.display && S.config.display.overlaySnapIncrement) || 0;
-  const overlayLayoutsSnapshot = JSON.parse(JSON.stringify((S.config.display && S.config.display.overlayLayouts) || {}));
+  const overlayLayoutsSnapshot = deepClone((S.config.display && S.config.display.overlayLayouts) || {});
   const [{ showSetupScreen, showTvScreen }, displayMode, channels] = await Promise.all([
     import('./app.js'), import('./display-mode.js'), import('./channels.js'),
   ]);

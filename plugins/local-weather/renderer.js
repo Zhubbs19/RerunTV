@@ -6,20 +6,6 @@
 // already core-exposed window.api.noaaGetForecast and swaps the display
 // over to it if it resolves before the user tunes away. Migrated as-is
 // from the old core weather.js/virtual.js.
-const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
-function formatClock(d, cfg) {
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (cfg.display && cfg.display.clock24) {
-    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-  }
-  let hr = h % 12;
-  if (hr === 0) hr = 12;
-  return `${hr}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-}
-
 function hashString(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -140,6 +126,7 @@ function mapNoaaPeriods(periods) {
 }
 
 let currentContainer = null;
+let currentCtx = null; // set in render() — applyData() has no ctx param of its own, needs ctx.WEEKDAYS
 let clockTimer = null;
 
 // Sets the header location line — called with the free-text config value up
@@ -178,7 +165,7 @@ function applyData(w, isLive) {
     card.className = 'weather-forecast-day';
     const day = document.createElement('div');
     day.className = 'wfd-day';
-    day.textContent = WEEKDAYS[f.date.getDay()].slice(0, 3);
+    day.textContent = currentCtx.WEEKDAYS[f.date.getDay()].slice(0, 3);
     const cond = document.createElement('div');
     cond.className = 'wfd-cond';
     cond.textContent = f.condition;
@@ -201,8 +188,8 @@ function applyData(w, isLive) {
 function updateClock(ctx) {
   if (!currentContainer) return;
   const d = new Date(ctx.viewNow());
-  currentContainer.querySelector('[data-el="clock"]').textContent = formatClock(d, ctx.S.config);
-  currentContainer.querySelector('[data-el="date"]').textContent = `${WEEKDAYS[d.getDay()]} · ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  currentContainer.querySelector('[data-el="clock"]').textContent = ctx.formatClock(d);
+  currentContainer.querySelector('[data-el="date"]').textContent = `${ctx.WEEKDAYS[d.getDay()]} · ${ctx.MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 
 window.RCBPlugins.registerChannelType('local-weather', {
@@ -212,6 +199,7 @@ window.RCBPlugins.registerChannelType('local-weather', {
   badge: { bg: '#38bdf8', label: 'WX' },
   render(container, ctx) {
     currentContainer = container;
+    currentCtx = ctx;
     const location = (ctx.S.config.weather && ctx.S.config.weather.location) || 'ANYTOWN, USA';
     container.innerHTML = `
       <div class="weather-channel">
@@ -274,5 +262,6 @@ window.RCBPlugins.registerChannelType('local-weather', {
   stop() {
     if (clockTimer) { clearInterval(clockTimer); clockTimer = null; }
     currentContainer = null;
+    currentCtx = null;
   },
 });

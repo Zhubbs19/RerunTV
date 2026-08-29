@@ -23,9 +23,22 @@ const DISCOVERY_PORT = 41234;
 const DISCOVERY_MAGIC = 'RETRO_CABLE_BOX_DISCOVER';
 const DISCOVERY_REPLY_MAGIC = 'RETRO_CABLE_BOX_HELLO';
 
+// UDP has no handshake, so rinfo.address can be spoofed to any victim IP —
+// with no throttling, this server is a small reflection/amplification
+// primitive (a short fixed-string request, a larger JSON reply) that also
+// discloses os.hostname() and service ports with zero authentication. A
+// genuine client only ever needs to discover this machine a handful of
+// times around app launch, so capping replies per destination address to a
+// low rate costs real clients nothing while bounding how much reflected
+// traffic — and how many free hostname/port disclosures — one spoofed
+// address can draw.
+const MIN_REPLY_INTERVAL_MS = 2000;
+const MAX_TRACKED_ADDRESSES = 500;
+
 function startDiscoveryServer(options = {}) {
   const dgram = require('dgram');
   const socket = dgram.createSocket('udp4');
+  const lastReplyAt = new Map(); // address -> timestamp
 
   socket.on('error', (err) => {
     console.error(`Discovery server failed on port ${DISCOVERY_PORT}:`, err.message);
@@ -33,6 +46,13 @@ function startDiscoveryServer(options = {}) {
 
   socket.on('message', (msg, rinfo) => {
     if (msg.toString('utf-8') !== DISCOVERY_MAGIC) return;
+    const now = Date.now();
+    const last = lastReplyAt.get(rinfo.address);
+    if (last && now - last < MIN_REPLY_INTERVAL_MS) return;
+    if (lastReplyAt.size >= MAX_TRACKED_ADDRESSES && !lastReplyAt.has(rinfo.address)) {
+      lastReplyAt.delete(lastReplyAt.keys().next().value); // oldest-inserted first, keeps this bounded
+    }
+    lastReplyAt.set(rinfo.address, now);
     const reply = Buffer.from(JSON.stringify({
       magic: DISCOVERY_REPLY_MAGIC,
       viewerPort: options.viewerEnabled ? VIEWER_PORT : null,

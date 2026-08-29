@@ -836,10 +836,16 @@ function runFlowSimulator(flow) {
     progress.appendChild(chip);
   });
 
-  let logLines = [];
+  // Every log line interpolates user-editable strings (flow/step names, pool
+  // item text, tag lists) — building the log via innerHTML made those
+  // injectable HTML. A shared channel-package/config file with a crafted
+  // flow name (e.g. containing <img onerror=...>) would execute the moment
+  // its simulator was run. One <div> per line via textContent sidesteps the
+  // whole class of issue without needing to escape every call site above.
   function log(msg) {
-    logLines.push(msg);
-    output.innerHTML = logLines.join('<br>');
+    const line = document.createElement('div');
+    line.textContent = msg;
+    output.appendChild(line);
     output.scrollTop = output.scrollHeight;
   }
 

@@ -24,7 +24,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
-const { activateIsolatedPlugin, callAnyService } = require('./main-plugin-isolation');
+const { activateIsolatedPlugin, callAnyService, claimServiceKey } = require('./main-plugin-isolation');
 const { isPathContained } = require('./main-path-safety');
 const { createLanAccess, isLanServiceEnabled } = require('./main-lan-security');
 const {
@@ -367,6 +367,26 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     },
   };
 
+  // ctx.services itself (not just ctx.registerService) has to be gated — a
+  // plugin's own convention (e.g. ffmpeg-transcode) is to publish with a
+  // plain `ctx.services.ffmpegPath = ...` property assignment, which
+  // bypasses registerService() entirely on the non-isolated path. Wrapping
+  // the shared object in a Proxy per plugin, same idea as the isolated
+  // runtime's own services Proxy (plugin-isolation-runtime.js), closes that
+  // for direct assignment too while still reading/writing through to the
+  // one real shared object every other consumer (main.js, media-dispatch)
+  // already holds a direct reference to.
+  const checkedServices = new Proxy(baseCtx.services, {
+    set(target, prop, value) {
+      if (!claimServiceKey(manifest.id, prop)) {
+        recordDiagnostic('plugin-capability', 'error', `Plugin "${manifest.id}" tried to publish services key "${String(prop)}", already owned by another plugin — write ignored.`);
+        return true;
+      }
+      target[prop] = value;
+      return true;
+    },
+  });
+
   return {
     ...baseCtx, pluginDir,
     ipcMain: checkedIpcMain,
@@ -375,13 +395,14 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     fs: createCheckedFs(manifest.id, dataDir),
     createLanAccess,
     isLanServiceEnabled,
+    services: checkedServices,
     // Symmetric with the isolated runtime's ctx.registerService/callService
     // (plugin-isolation-runtime.js) — same shared baseCtx.services object
     // and the same cross-process-aware resolution (callAnyService,
     // main-plugin-isolation.js), so a plugin author (e.g. a media-source
     // provider) writes identical activate(ctx) code whether or not its
     // manifest sets "isolated": true.
-    registerService: (key, fn) => { baseCtx.services[key] = fn; },
+    registerService: (key, fn) => { checkedServices[key] = fn; },
     callService: (key, ...args) => callAnyService(baseCtx.services, key, args),
   };
 }

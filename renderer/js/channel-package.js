@@ -1,10 +1,7 @@
 // Portable single-channel packages. A package carries the channel plus only
 // the flows/presets/pool entries it directly depends on; merge keeps the
 // receiving box's unrelated settings intact and remaps collisions.
-
-function clone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
+import { deepClone as clone } from './util.js';
 
 function fileTags(channel) {
   const tags = new Set();

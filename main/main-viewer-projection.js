@@ -1,7 +1,11 @@
 const path = require('path');
 const crypto = require('crypto');
 
-const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|authorization)/i;
+// Was `authorization` (the literal word) instead of `auth` — missed a key
+// named plain "auth" entirely, even though it's exactly what this regex
+// exists to catch. `auth` as a substring still matches "authorization" too,
+// so this is strictly broader, not a behavior change for the existing case.
+const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth)/i;
 
 function sanitizeViewerConfig(value) {
   if (Array.isArray(value)) return value.map(sanitizeViewerConfig);
@@ -9,6 +13,24 @@ function sanitizeViewerConfig(value) {
   return Object.fromEntries(Object.entries(value)
     .filter(([key]) => !SENSITIVE_CONFIG_KEY.test(key))
     .map(([key, child]) => [key, sanitizeViewerConfig(child)]));
+}
+
+// Key-name filtering above only catches a secret stored as its own
+// key/value pair. A credential embedded INSIDE a string value — most
+// commonly a webhook/callback URL's own query string (?token=..., ?key=...)
+// — isn't a key at all, so it sails through untouched. Since this is the
+// projection every paired LAN viewer receives over the network, redact any
+// query parameter on a URL-shaped string value whose own name looks
+// sensitive, the same way a key would be dropped.
+function redactSensitiveUrlValue(value) {
+  if (typeof value !== 'string' || !/^https?:\/\//i.test(value)) return value;
+  let url;
+  try { url = new URL(value); } catch (e) { return value; }
+  let changed = false;
+  Array.from(url.searchParams.keys()).forEach((param) => {
+    if (SENSITIVE_CONFIG_KEY.test(param)) { url.searchParams.set(param, '[redacted]'); changed = true; }
+  });
+  return changed ? url.toString() : value;
 }
 
 function createViewerProjection(secret = crypto.randomBytes(32)) {
@@ -26,7 +48,7 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
       const looksLikePrivateRef = key === 'path' || key === 'ref' || key === 'file'
         || /(?:Path|File|Folder)$/.test(key) || looksLikePathValue;
       if (typeof value === 'string' && looksLikePrivateRef) return opaqueRef(value);
-      return value;
+      return redactSensitiveUrlValue(value);
     }
     const out = {};
     Object.entries(value).forEach(([childKey, child]) => {
@@ -41,6 +63,11 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
   }
   return {
     project: (config) => project(sanitizeViewerConfig(config)),
+    // Registers a single ref (e.g. a mediasource: ref the host window itself
+    // needs to play, not one encountered while projecting a full config) and
+    // returns its opaque viewer: id, so callers outside project() can still
+    // hand /media a client-suppliable id rather than a raw path/ref.
+    registerRef: (ref) => opaqueRef(ref),
     resolve: (opaque) => {
       const match = /^viewer:([A-Za-z0-9_-]+)$/.exec(String(opaque || ''));
       const entry = match ? refs.get(match[1]) : null;

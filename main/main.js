@@ -208,6 +208,11 @@ let activatedMediaSourceProviders = {};
 // a wider scope than before this existed.
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
+// Only set when the LAN viewer service is enabled (startViewerServer() runs
+// in that same branch, below) — path:toFileUrl falls back to the old,
+// broken ?p= form when this is null, since there's no /media listener to
+// hit either way in that case.
+let viewerProjectionRef = null;
 let pluginDisabledAtBoot = [];
 // The renderer-only theme-pack registry (registerThemePack, plugins.js),
 // pushed here after every plugin (re)load — see preload.js's
@@ -265,6 +270,7 @@ app.whenReady().then(async () => {
       )),
     });
     viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+    viewerProjectionRef = viewerRuntime.projection;
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   pluginDisabledAtBoot = [...disabledPluginIds];
@@ -849,7 +855,13 @@ ipcMain.handle('path:toFileUrl', async (event, filePath) => {
   // custom-protocol dispatch. Local refs are untouched — zero behavior
   // change, same app://media path proven reliable for every local channel.
   if (parseMediaRef(filePath).source !== 'local') {
-    return `http://127.0.0.1:${VIEWER_PORT}/media?p=${encodeURIComponent(filePath)}`;
+    // The /media route only recognizes opaque viewer: ids minted via the
+    // projection map (main-viewer-projection.js) — it does not accept a raw
+    // path/ref under ?p=. Register this ref the same way project()ing a
+    // config for a LAN viewer would, so the host window's own request
+    // resolves instead of always 400ing.
+    const id = viewerProjectionRef ? viewerProjectionRef.registerRef(filePath) : filePath;
+    return `http://127.0.0.1:${VIEWER_PORT}/media?id=${encodeURIComponent(id)}`;
   }
   return `app://media/?p=${encodeURIComponent(filePath)}`;
 });
