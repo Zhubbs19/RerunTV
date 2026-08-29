@@ -274,6 +274,9 @@
             <label class="shuffle-toggle" title="Keeps STANDARD's safe letterbox/pillarbox math, but shows plain black bars instead of the active theme pack's decorative border, and silences its ambient hiss/hum/tone too — for when you're watching a lot of widescreen movies and don't want the theme immersion getting in the way.">
               <input type="checkbox" id="movie-mode-enabled">MOVIE MODE (PLAIN BARS, NO BORDER OR AMBIENT HUM)
             </label>
+            <label class="shuffle-toggle" title="Plays a short chime when the schedule crosses into a genuinely different programming block (morning cartoons -> primetime), not on a daily/weekly block's own re-airing of itself the next day. A channel can opt back out individually from its LOGO tab.">
+              <input type="checkbox" id="daypart-chime-enabled">DAYPARTING TRANSITION CHIME
+            </label>
             <label class="crt-slider" title="Scales how far the video shrinks to clear the active theme's decorative border art. 100% (default) uses the theme's own inset exactly. 0% fills all the way to the border's edge (risks the video peeking under thin frame art); 200% doubles the inset for a border whose frame art is unusually thin. Only matters while a themed border is actually shown.">BEZEL SAFE AREA <input type="range" id="bezel-inset-scale-slider" min="0" max="200" step="10" value="100"></label>
           </div>
         </div>
@@ -1243,6 +1246,10 @@
         <!-- Content advisory disclaimer card ("CONTAINS SCENES OF A GRAPHIC
              NATURE", etc.) — see flashContentAdvisory, playback.js. -->
         <div id="content-advisory-card" class="format-disclaimer-card"></div>
+
+        <!-- CC/SAP/STEREO capability badge, flashed briefly at program
+             start — see flashCapabilityBadge, playback.js. -->
+        <div id="capability-badge" class="capability-badge"></div>
 
         <!-- Volume level indicator -->
         <div id="volume-indicator" class="volume-indicator">

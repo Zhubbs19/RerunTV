@@ -1,0 +1,21 @@
+/* Own DOM appended into .crt (see renderer.js) — a small plain white/cream
+   circle in the corner real reel-change dots used, easy to miss unless
+   you're watching for it, same as the real thing. */
+.film-reel-mark {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(240, 235, 220, 0.85);
+  box-shadow: 0 0 4px rgba(240, 235, 220, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms linear;
+}
+.film-reel-mark.hidden { display: none; }
+.film-reel-mark.show { opacity: 1; }
+.crt.guide-active .film-reel-mark,
+.crt.power-off .film-reel-mark { display: none; }

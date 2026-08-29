@@ -581,6 +581,13 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
   },
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.3, flicker: 1.2, curvatureFloor: 0 },
   staticStyle: 'roll',
+  powerOnMs: 900, // optional — how long core holds '.powering-on' before
+                  // removing it (default: POWER_ON_ANIM_MS, power.js).
+                  // Only needed if your theme's own CSS override of
+                  // .crt.powering-on .crt-power-fx-line also overrides
+                  // animation-duration to run longer than the shared
+                  // default — otherwise the class removal would cut your
+                  // animation short.
   guidePreviewDefault: false,  // optional — default the full-page guide's
                                // live-picture preview box off for this theme
                                // (e.g. a pre-PIP era); the user's own DISPLAY

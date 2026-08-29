@@ -669,6 +669,30 @@
    visually stack if both happen to fire for the same airing. */
 #content-advisory-card { bottom: 24%; }
 
+/* CC/SAP/STEREO capability badge — a plain corner badge like .rating-bug,
+   bottom-left so it doesn't compete with the rating bug (top-left),
+   episode-status bug (top-right), or the lower-third cards above. */
+.capability-badge {
+  position: absolute;
+  left: 28px;
+  bottom: 24px;
+  z-index: 2;
+  padding: 5px 10px;
+  background: rgba(0, 0, 0, 0.92);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--paper);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms linear;
+}
+.capability-badge.show { opacity: 1; }
+.crt.guide-active .capability-badge,
+.crt.power-off .capability-badge { display: none; }
+
 .station-id-bar {
   position: absolute;
   left: 40px;

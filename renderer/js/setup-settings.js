@@ -35,7 +35,7 @@ import {
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, ignoreThemeCrtBiasEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
   guideLivePreviewEnabledEl,
-  logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
+  logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, daypartChimeEnabledEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect, hideTitleBarEnabledEl,
@@ -292,6 +292,7 @@ export function renderSettingsPanels() {
   pictureModeSelect.value = S.config.pictureMode || 'standard';
   aspectModeSelect.value = S.config.aspectMode || 'contain';
   movieModeEnabledEl.checked = !!S.config.display.movieMode;
+  daypartChimeEnabledEl.checked = !!S.config.display.daypartChimeEnabled;
   displayModeAspectSelect.value = S.config.displayMode.aspect || '16:9';
   displayModeWindowSelect.value = S.config.displayMode.windowMode || 'letterbox';
   hideTitleBarEnabledEl.checked = !!S.config.display.hideTitleBar;
@@ -1619,6 +1620,10 @@ movieModeEnabledEl.addEventListener('change', () => {
   S.config.display.movieMode = movieModeEnabledEl.checked;
   if (player.videoWidth && player.videoHeight) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
   runCoreHooks('theme-audio-refresh');
+  saveConfigDebounced();
+});
+daypartChimeEnabledEl.addEventListener('change', () => {
+  S.config.display.daypartChimeEnabled = daypartChimeEnabledEl.checked;
   saveConfigDebounced();
 });
 displayModeAspectSelect.addEventListener('change', () => {

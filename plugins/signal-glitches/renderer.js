@@ -1,14 +1,27 @@
-// Rare, brief static/tearing bursts with no real-world trigger — "the
-// antenna having a bad day," unlike plugins/noaa-weather's signal
-// degradation (which is a persistent, real-severe-weather-triggered
-// effect). This plugin is deliberately independent of noaa-weather: no
-// shared state, no import between them — just the same canvas-noise
-// rendering technique (see noaa-weather/renderer.js's sdDrawNoise) applied
-// to a random ambient timer instead of real alert data.
+// Rare, brief glitches with no real-world trigger — "the antenna having a
+// bad day," unlike plugins/noaa-weather's signal degradation (a persistent,
+// real-severe-weather-triggered effect). Deliberately independent of
+// noaa-weather: no shared state, no import between them. Three independent
+// effect types share one random scheduler, picking randomly among whichever
+// are enabled each time it fires (see cfg()/fireGlitch below) rather than
+// three separate timers:
+//  - static: the original canvas-noise tear burst (same technique as
+//    noaa-weather's sdDrawNoise).
+//  - roll: a brief vertical picture-roll/color-sync drift (a CSS transform
+//    on .crt, not a canvas effect).
+//  - dropout: a brief audio wow-and-flutter pitch-wobble plus a couple of
+//    volume dips, applied directly to the real <video> element's own
+//    playbackRate/volume — this was scoped down from a literal "desync
+//    audio from video" idea (confirmed infeasible: no API separates a
+//    single <video> element's own audio/video timing) to this achievable,
+//    still-convincing "something's wrong with the feed" substitute.
 const GLITCH_CANVAS_W = 160;
 const GLITCH_CANVAS_H = 90;
 const GLITCH_DRAW_INTERVAL_MS = 90;
 const GLITCH_DURATION_MS = 900;
+const ROLL_DURATION_MS = 700;
+const DROPOUT_DURATION_MS = 1200;
+const DROPOUT_STEP_MS = 60;
 
 const rootEl = document.createElement('div');
 rootEl.className = 'signal-glitch-overlay hidden';
@@ -42,25 +55,30 @@ function drawNoise() {
 
 function cfg() {
   const settings = window.RCBPlugins.ctx.getPluginSettings('signal-glitches');
+  const effects = settings.effects || {};
   return {
     enabled: !!settings.enabled,
     minIntervalMin: settings.minIntervalMin || 20,
     maxIntervalMin: settings.maxIntervalMin || 60,
     intensity: settings.intensity != null ? settings.intensity : 100,
+    // 'static' defaults on (it's the original, already-shipped effect);
+    // the two new ones default off so an existing user's behavior doesn't
+    // silently change just from upgrading this plugin.
+    effectStatic: effects.static !== false,
+    effectRoll: !!effects.roll,
+    effectDropout: !!effects.dropout,
   };
 }
 
 function isEligibleNow() {
   const S = window.RCBPlugins.ctx.S;
-  if (!S.isPoweredOn || S.easActive) return false;
+  if (!S.isPoweredOn || S.easActive || S.creditsSpeedupActive) return false;
   const guideGrid = document.getElementById('guide-grid');
   if (guideGrid && !guideGrid.classList.contains('hidden')) return false;
   return true;
 }
 
-function fireGlitch() {
-  const { intensity } = cfg();
-  if (!isEligibleNow()) { scheduleNext(); return; }
+function fireStaticGlitch(intensity) {
   rootEl.classList.remove('hidden');
   canvas.style.setProperty('--glitch-opacity', String(Math.max(0, Math.min(1, intensity / 100)) * 0.7));
   drawNoise();
@@ -75,6 +93,54 @@ function fireGlitch() {
   }, GLITCH_DURATION_MS);
 }
 
+function firePictureRoll() {
+  const crt = document.querySelector('.crt');
+  if (!crt) { scheduleNext(); return; }
+  crt.classList.add('signal-glitch-rolling');
+  setTimeout(() => {
+    crt.classList.remove('signal-glitch-rolling');
+    scheduleNext();
+  }, ROLL_DURATION_MS);
+}
+
+// Directly modulates the real <video> element's own playbackRate/volume —
+// affects whatever's actually playing (content or a bumper), not a
+// synthesized SFX layered on top. Restores both to whatever they were
+// immediately before this fired; a real volume/rate change made by the
+// user mid-wobble (rare, ~1.2s window) could get momentarily overwritten by
+// that restore, same acceptable trade-off scheduleCreditsSpeedup already
+// makes with playbackRate — isEligibleNow's creditsSpeedupActive check
+// keeps the two features from ever fighting over it at the same time.
+function fireAudioDropout() {
+  const { player } = window.RCBPlugins.ctx;
+  if (!player) { scheduleNext(); return; }
+  const originalRate = player.playbackRate;
+  const originalVolume = player.volume;
+  let elapsed = 0;
+  const wobbleTimer = setInterval(() => {
+    elapsed += DROPOUT_STEP_MS;
+    player.playbackRate = Math.max(0.5, originalRate + (Math.random() - 0.5) * 0.12);
+    player.volume = Math.random() < 0.15 ? originalVolume * 0.2 : originalVolume;
+    if (elapsed >= DROPOUT_DURATION_MS) {
+      clearInterval(wobbleTimer);
+      player.playbackRate = originalRate;
+      player.volume = originalVolume;
+      scheduleNext();
+    }
+  }, DROPOUT_STEP_MS);
+}
+
+function fireGlitch() {
+  const c = cfg();
+  if (!isEligibleNow()) { scheduleNext(); return; }
+  const available = [];
+  if (c.effectStatic) available.push(() => fireStaticGlitch(c.intensity));
+  if (c.effectRoll) available.push(firePictureRoll);
+  if (c.effectDropout) available.push(fireAudioDropout);
+  if (!available.length) { scheduleNext(); return; }
+  available[Math.floor(Math.random() * available.length)]();
+}
+
 function scheduleNext() {
   clearTimeout(scheduleTimer);
   const { enabled, minIntervalMin, maxIntervalMin } = cfg();
@@ -86,8 +152,8 @@ function scheduleNext() {
 }
 
 // Exported so the settings panel can re-arm the timer immediately after the
-// enabled/interval fields change, instead of waiting for whatever delay was
-// already in flight from before the edit.
+// enabled/interval/effect fields change, instead of waiting for whatever
+// delay was already in flight from before the edit.
 export function rearmSignalGlitches() {
   scheduleNext();
 }

@@ -281,6 +281,7 @@ export const DYNAMIC_OVERLAY_TRIGGERS = [
   { id: 'episodeStatus', label: 'NEW EPISODE / REPEAT BUG' },
   { id: 'formatDisclaimer', label: 'FORMATTED-FOR-YOUR-SCREEN CARD' },
   { id: 'contentAdvisory', label: 'CONTENT ADVISORY CARD' },
+  { id: 'capabilityBadge', label: 'CC/SAP/STEREO BADGE' },
 ];
 // 'fullscreen' is meant for the movieRatingCard trigger above (a corner
 // bug replacement wouldn't use it) but is offered for every trigger rather
@@ -329,6 +330,50 @@ export function normalizeTickerContent(content) {
 let dynamicOverlayIdCounter = 0;
 export function newDynamicOverlayId() {
   return `ov${Date.now().toString(36)}${(dynamicOverlayIdCounter++).toString(36)}`;
+}
+
+// ---------- Seasonal/holiday logo bug icon overrides ----------
+// A ch.iconOverrides array (list of { id, startMonth, startDay, endMonth,
+// endDay, icon }) lets a channel's logo bug swap to a different icon during
+// a calendar date range (a snowflake variant in December, etc.) — resolved
+// purely from (ch, atMs), same "no separate state to maintain" shape as
+// everything else in this file. Empty/absent = today's unchanged behavior
+// (always ch.icon), same "empty array is off" convention as dynamicOverlays.
+function inMonthDayRange(atMs, o) {
+  const d = new Date(atMs);
+  const md = (d.getMonth() + 1) * 100 + d.getDate();
+  const start = o.startMonth * 100 + o.startDay;
+  const end = o.endMonth * 100 + o.endDay;
+  // Same wrap-safe shape as hourInRange (schedule.js) — lets a range span
+  // the new year (e.g. Dec 20 -> Jan 5) without special-casing it.
+  if (start <= end) return md >= start && md <= end;
+  return md >= start || md <= end;
+}
+
+export function normalizeIconOverrides(overrides) {
+  if (!Array.isArray(overrides)) return [];
+  return overrides.filter((o) => o && typeof o === 'object').map((o) => ({
+    id: o.id || randomId('iconov'),
+    startMonth: Math.min(12, Math.max(1, Number(o.startMonth) || 1)),
+    startDay: Math.min(31, Math.max(1, Number(o.startDay) || 1)),
+    endMonth: Math.min(12, Math.max(1, Number(o.endMonth) || 1)),
+    endDay: Math.min(31, Math.max(1, Number(o.endDay) || 1)),
+    icon: typeof o.icon === 'string' ? o.icon : '',
+  }));
+}
+
+// The logo bug's actual effective icon at a given instant — first matching
+// date-range override wins, falling back to the channel's plain ch.icon.
+// Both updateLogoBug and applyLogoBugGhost (playback.js) call this instead
+// of reading ch.icon directly, so the seasonal swap applies to the real bug
+// and its burn-in ghost alike. buildChannelBadge (below) deliberately does
+// NOT use this — the channel-list badge represents the channel's base
+// identity for editing, not whatever's seasonally active right now.
+export function resolveEffectiveIcon(ch, atMs) {
+  if (!ch) return null;
+  const overrides = ch.iconOverrides || [];
+  const match = overrides.find((o) => o.icon && inMonthDayRange(atMs, o));
+  return (match && match.icon) || ch.icon || null;
 }
 
 // A rule with no mediaPath yet (just added, media not chosen) is still kept
@@ -488,6 +533,9 @@ export function normalizeChannel(ch) {
   // convention as logoBugProfiles above); a present array overrides it.
   if (ch.dynamicOverlays === undefined) ch.dynamicOverlays = null;
   if (ch.dynamicOverlays) ch.dynamicOverlays = normalizeDynamicOverlays(ch.dynamicOverlays);
+  // Always a plain array (no inherit concept — icons are per-channel to
+  // begin with, unlike dynamicOverlays' box-wide default).
+  ch.iconOverrides = normalizeIconOverrides(ch.iconOverrides);
   // null = inherit the box-wide ticker placement
   // (S.config.display.overlayLayouts['ticker-bar']); a present array
   // overrides it for this channel — same inherit convention as

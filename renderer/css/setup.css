@@ -1229,6 +1229,12 @@ input[type="checkbox"].shuffle-toggle:active {
   flex: 1 1 140px;
   min-width: 120px;
 }
+.title-row-capabilities {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
 
 .daypart-slot-list {
   display: flex;

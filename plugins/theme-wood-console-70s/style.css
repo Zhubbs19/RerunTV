@@ -89,14 +89,18 @@ html[data-theme="wood-console-70s"] .grc-num {
 
 /* Oldest tube in the lineup (1978) — a sluggish, uneven warm-up with more
    dips than analog-90s's own override, plus a slower final settle instead of
-   a clean snap to full brightness. Same animation-duration/timing-function/
-   fill-mode as the base rule (overlays.css) — only animation-name differs,
-   so POWER_ON_ANIM_MS/POWER_OFF_ANIM_MS in state.js need no theme awareness. */
+   a clean snap to full brightness. Power-OFF keeps the base rule's
+   animation-duration/timing-function/fill-mode (only animation-name
+   differs) — power-ON overrides animation-duration too, genuinely running
+   longer than every other theme's warm-up, which is why this is the one
+   theme that also sets registerThemePack's `powerOnMs` (renderer.js) so the
+   JS side holds '.powering-on' long enough not to cut it short. */
 html[data-theme="wood-console-70s"] #tv-screen .crt.powering-off .crt-power-fx-line {
   animation-name: crt-fx-off-line-wood;
 }
 html[data-theme="wood-console-70s"] #tv-screen .crt.powering-on .crt-power-fx-line {
   animation-name: crt-fx-on-line-wood;
+  animation-duration: 900ms;
 }
 @keyframes crt-fx-off-line-wood {
   0% { transform: scaleY(80); opacity: 0; }

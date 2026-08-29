@@ -131,7 +131,8 @@ const openChannelEditTabs = new Map();
 function hasCustomChannelOptions(ch) {
   return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null
     || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride
-    || ch.hideFormatDisclaimer || ch.hideRatingBug || ch.hideEpisodeStatus);
+    || ch.hideFormatDisclaimer || ch.hideRatingBug || ch.hideEpisodeStatus || ch.hideDaypartChime
+    || ch.hideLocalAvailGlitch || ch.hideContentAdvisory || ch.hideCapabilityBadge);
 }
 
 function sortedForSetup() {
@@ -597,6 +598,61 @@ export function renderChannelList() {
       hideEpisodeStatusLabel.appendChild(hideEpisodeStatusCheckbox);
       hideEpisodeStatusLabel.appendChild(document.createTextNode('HIDE REPEAT ICON'));
 
+      const hideDaypartChimeLabel = document.createElement('label');
+      hideDaypartChimeLabel.className = 'shuffle-toggle';
+      hideDaypartChimeLabel.title = 'Never play the dayparting transition chime on this channel, even when it\'s enabled box-wide (DISPLAY tab).';
+      const hideDaypartChimeCheckbox = document.createElement('input');
+      hideDaypartChimeCheckbox.type = 'checkbox';
+      hideDaypartChimeCheckbox.checked = !!ch.hideDaypartChime;
+      hideDaypartChimeCheckbox.addEventListener('change', () => {
+        ch.hideDaypartChime = hideDaypartChimeCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideDaypartChimeLabel.appendChild(hideDaypartChimeCheckbox);
+      hideDaypartChimeLabel.appendChild(document.createTextNode('HIDE DAYPART CHIME'));
+
+      const hideLocalAvailGlitchLabel = document.createElement('label');
+      hideLocalAvailGlitchLabel.className = 'shuffle-toggle';
+      hideLocalAvailGlitchLabel.title = 'Never flash the head-end-switch noise glitch when cutting into a local avail slot on this channel.';
+      const hideLocalAvailGlitchCheckbox = document.createElement('input');
+      hideLocalAvailGlitchCheckbox.type = 'checkbox';
+      hideLocalAvailGlitchCheckbox.checked = !!ch.hideLocalAvailGlitch;
+      hideLocalAvailGlitchCheckbox.addEventListener('change', () => {
+        ch.hideLocalAvailGlitch = hideLocalAvailGlitchCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideLocalAvailGlitchLabel.appendChild(hideLocalAvailGlitchCheckbox);
+      hideLocalAvailGlitchLabel.appendChild(document.createTextNode('HIDE LOCAL AVAIL GLITCH'));
+
+      // Covers both the start-of-program advisory and the mid-program cue
+      // cards (file.advisory/file.advisoryCues, TITLES tab) — one switch
+      // for "content advisories on this channel."
+      const hideContentAdvisoryLabel = document.createElement('label');
+      hideContentAdvisoryLabel.className = 'shuffle-toggle';
+      hideContentAdvisoryLabel.title = 'Never show content advisory cards on this channel, whether set at program start or as a mid-program scene cue.';
+      const hideContentAdvisoryCheckbox = document.createElement('input');
+      hideContentAdvisoryCheckbox.type = 'checkbox';
+      hideContentAdvisoryCheckbox.checked = !!ch.hideContentAdvisory;
+      hideContentAdvisoryCheckbox.addEventListener('change', () => {
+        ch.hideContentAdvisory = hideContentAdvisoryCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideContentAdvisoryLabel.appendChild(hideContentAdvisoryCheckbox);
+      hideContentAdvisoryLabel.appendChild(document.createTextNode('HIDE CONTENT ADVISORY'));
+
+      const hideCapabilityBadgeLabel = document.createElement('label');
+      hideCapabilityBadgeLabel.className = 'shuffle-toggle';
+      hideCapabilityBadgeLabel.title = 'Never show the CC/SAP/STEREO capability badge on this channel.';
+      const hideCapabilityBadgeCheckbox = document.createElement('input');
+      hideCapabilityBadgeCheckbox.type = 'checkbox';
+      hideCapabilityBadgeCheckbox.checked = !!ch.hideCapabilityBadge;
+      hideCapabilityBadgeCheckbox.addEventListener('change', () => {
+        ch.hideCapabilityBadge = hideCapabilityBadgeCheckbox.checked;
+        saveConfigDebounced();
+      });
+      hideCapabilityBadgeLabel.appendChild(hideCapabilityBadgeCheckbox);
+      hideCapabilityBadgeLabel.appendChild(document.createTextNode('HIDE CAPABILITY BADGE'));
+
       const notSubscribedLabel = document.createElement('label');
       notSubscribedLabel.className = 'shuffle-toggle';
       notSubscribedLabel.title = 'Tuning to this channel shows a "please call your cable company to subscribe" card instead of playing anything — a simpler sibling to the scrambled PPV gag for a channel you just want blocked';
@@ -850,6 +906,10 @@ export function renderChannelList() {
       options.appendChild(hideFormatDisclaimerLabel);
       options.appendChild(hideRatingBugLabel);
       options.appendChild(hideEpisodeStatusLabel);
+      options.appendChild(hideDaypartChimeLabel);
+      options.appendChild(hideLocalAvailGlitchLabel);
+      options.appendChild(hideContentAdvisoryLabel);
+      options.appendChild(hideCapabilityBadgeLabel);
       options.appendChild(notSubscribedLabel);
       options.appendChild(hiddenLabel);
       options.appendChild(ratingLabel);
