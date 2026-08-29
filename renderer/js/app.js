@@ -1,4 +1,5 @@
 import { S, viewNow, saveConfigDebounced, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
+import { runConfigMigrations } from './config-schema.js';
 import { randomInterstitialId } from './util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
@@ -664,6 +665,7 @@ function normalizeUpdateStrategy(updates) {
 // imported file goes through the exact same schema-migration pass a config
 // loaded from disk would.
 export function applyConfigDefaults(config) {
+  config = runConfigMigrations(config);
   if (!config.channels) config.channels = [];
   config.channels.forEach(normalizeChannel);
 
