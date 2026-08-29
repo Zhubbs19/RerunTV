@@ -670,6 +670,18 @@ export async function loadPlugins() {
   // Also notify any future caller that deliberately reloads/rebuilds plugin
   // UI outside the initial awaited boot sequence.
   window.dispatchEvent(new Event('rcb:plugins-loaded'));
+  reportInstalledThemes();
+}
+
+// Pushes the current theme-pack registry to main (companion-app/main.js's
+// GET /api/themes reads it back via ctx.getInstalledThemes) — the registry
+// only ever exists here, populated by whichever pack plugins' renderer.js
+// modules happened to call registerThemePack, so main has no way to know
+// the list on its own. Called after every plugin (re)load, boot included,
+// same as renderThemeSelectOptions' own "rebuilt on every visit" comment
+// explains — the installed-pack set can change between calls.
+function reportInstalledThemes() {
+  if (window.api.reportInstalledThemes) window.api.reportInstalledThemes(themePackEntries());
 }
 
 // Re-fetches and re-registers a single plugin's renderer-side assets
@@ -742,6 +754,7 @@ export async function reloadPlugin(id) {
   }
 
   window.dispatchEvent(new Event('rcb:plugins-loaded'));
+  reportInstalledThemes();
   return errors.length ? { ok: false, error: errors.join('; ') } : { ok: true };
 }
 
