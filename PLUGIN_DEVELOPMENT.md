@@ -127,6 +127,7 @@ make that call.
 | `dataDir` | no | Name of a folder your plugin keeps at the top level of `userData/` (sibling to `userData/plugins/`) for real data beyond your own plugin folder — a download cache, guest uploads, whatever. Declaring it here means the app's own userData migration (moving to a new install layout) knows to carry it along; skip this field if your plugin has no such folder. |
 | `capabilities` | no, but required if your `main.js` needs `ctx.ipcMain`/`ctx.spawn`/`ctx.createServer` | What your `main.js` needs to touch beyond reading files — see "Declaring capabilities" below. Shown to the user as a permission-approval prompt before your plugin is allowed to activate. |
 | `isolated` | no | `true` runs your `main.js` in its own real OS process instead of the same-process default — see "Isolated plugins" below. Recommended for any plugin with real `spawn`/`net`/filesystem-write capabilities. |
+| `minCtxVersion` | no | Integer. Declare this if your `renderer`/`settings` code depends on a `window.RCBPlugins.ctx` shape newer than the app's current `ctx.version` — see "renderer-process side" below. An app build whose `ctx.version` is lower refuses to import your entry with a clear error instead of letting it crash on a missing property. |
 
 At least one of `style`/`renderer`/`settings`/`main` should be present, or your plugin
 does nothing.
@@ -597,6 +598,25 @@ the config schema:
   for a plugin without mutating config when no settings exist yet.
 - `ctx.updatePluginSettings(id, patch)` — shallow-merges generic settings and
   saves through the app's normal config-generation/undo funnel.
+
+`ctx` also groups everything above by concern, so you can destructure just
+the piece you need instead of pulling every key off the flat object:
+
+- `ctx.core` — `{ S, viewNow, player, saveConfigDebounced }`
+- `ctx.audio` — `{ playTone, playNoiseBurst, getAudioCtx }`
+- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry }`
+- `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
+- `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
+
+The flat top-level keys (`ctx.S`, `ctx.player`, `ctx.sortedChannels`, …) stay
+available too — nothing existing breaks — but new code should prefer the
+grouped form. `ctx.version` is a plain integer, bumped whenever this shape
+changes in a way a plugin might depend on. If your plugin needs a ctx
+feature newer than some installed base of the app, declare
+`"minCtxVersion": <n>` in `manifest.json` — an app version whose `ctx.version`
+is lower refuses to load your `renderer`/`settings` entry with a clear
+one-line error instead of crashing partway through your own top-level code
+on a property that doesn't exist yet.
 
 ### `registerThemePack(id, definition)`
 

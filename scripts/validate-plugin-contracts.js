@@ -95,6 +95,7 @@ function validateManifest(dir, manifestPath) {
     }
   }
   if (m.isolated !== undefined && typeof m.isolated !== 'boolean') errors.push(`${tag}: "isolated" must be a boolean`);
+  if (m.minCtxVersion !== undefined && !Number.isInteger(m.minCtxVersion)) errors.push(`${tag}: "minCtxVersion" must be an integer`);
   validateCapabilities(m.capabilities, tag);
   if (!m.style && !m.renderer && !m.settings && !m.main) {
     errors.push(`${tag}: none of style/renderer/settings/main is set — this plugin does nothing`);
