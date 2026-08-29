@@ -24,6 +24,19 @@ function isSweepsMonth(atMs) {
   return SWEEPS_MONTHS.has(new Date(atMs).getMonth());
 }
 
+// The start of the local wall-clock hour containing atMs, for the station-ID
+// bumper's :00/:15/:30/:45 anchor below. Math.floor(atMs / 3600000) * 3600000
+// floors to a UTC hour boundary, which only equals the LOCAL hour boundary
+// when the machine's UTC offset is a whole number of hours — in a
+// half/quarter-hour-offset timezone (UTC+5:30, +9:30, +5:45) it drifts off
+// the advertised top-of-hour alignment. setMinutes/etc. use the Date's local
+// getters/setters, so this holds regardless of the offset's fractional part.
+function localHourAnchorMs(atMs) {
+  const d = new Date(atMs);
+  d.setMinutes(0, 0, 0);
+  return d.getTime();
+}
+
 // A recurring weekly preemption window (S.config.preemptionWindows entries
 // with kind:'weekly') — matches atMs's own weekday/time-of-day against
 // { weekday (0=Sun), startHour, startMinute, durationMin }, returning that
@@ -662,7 +675,7 @@ export function resolveBreakAt(ch, atMs) {
     // in this file correctly keeps using) so IDs land on :00/:15/:30/:45
     // instead of drifting to whatever offset the channel happened to start
     // looping at.
-    const hourAnchorMs = Math.floor(atMs / 3600000) * 3600000;
+    const hourAnchorMs = localHourAnchorMs(atMs);
     const { slotIndex, slotStart } = intervalSlot(hourAnchorMs, atMs, intervalMs);
     const seedKey = `channelId:${ch.number}`;
     const win = windowFor(pool, 'channelId', ch, block, seedKey, slotIndex, slotStart, CHANNELID_TEXT_DURATION_S, fileTags);
@@ -847,7 +860,12 @@ function nextCandidateBoundary(ch, fromMs) {
   const source = resolveActiveSource(ch, fromMs);
   if (!source.anchor) return null;
   const candidates = [];
-  const posNow = computeSourcePosition(source, fromMs);
+  // ignoreContentLost: true — same as boundarySlot/resolveBreakAt's own
+  // posNow lookups in this file. Without it, this folds in S.contentLostMs,
+  // a global value scoped to whichever channel is currently live-tuned;
+  // applied here it would leak the tuned channel's accumulated ad-break lag
+  // into every other channel's candidate-boundary computation too.
+  const posNow = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
   const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
 
   const cc = resolveActiveCommercials(ch, fromMs, fileTags).commercials;
@@ -906,7 +924,7 @@ function nextCandidateBoundary(ch, fromMs) {
     // Same wall-clock-hour anchor as the real resolution above (not
     // source.anchor) so this candidate boundary agrees with what
     // resolveBreakAt will actually find there.
-    const hourAnchorMs = Math.floor(fromMs / 3600000) * 3600000;
+    const hourAnchorMs = localHourAnchorMs(fromMs);
     const { slotStart } = intervalSlot(hourAnchorMs, fromMs, intervalMs);
     candidates.push(slotStart + intervalMs);
   }

@@ -19,6 +19,7 @@ const { utilityProcess } = require('electron');
 const { createRpc } = require('./rpc-channel');
 const { recordConnection } = require('./main-connections');
 const { recordDiagnostic } = require('./main-diagnostics');
+const { allowedSetsFor, capabilityError } = require('./main-plugin-capabilities');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'plugin-isolation-runtime.js');
 
@@ -35,6 +36,16 @@ const serviceProviders = new Map(); // key -> childRpc (isolated function-valued
 const partyRouteRegistry = new Map(); // "METHOD pathname" -> childRpc
 const beforeQuitChildren = new Set(); // childRpc instances that asked for the before-quit event
 const runningChildren = new Set(); // { child, pluginId } — for teardown + diagnostics
+// First-writer-owns-it for ctx.services keys, shared with the non-isolated
+// path (main-plugins.js's registerService uses the same map). Without this,
+// any plugin — isolated or not, regardless of its own declared capabilities
+// — could overwrite a key another plugin already published (e.g.
+// ffmpeg-transcode's ffmpegPath, which callers hand straight to spawn()) and
+// have its own value trusted in that key's place. A key with no owner yet
+// is free for the first publisher to claim; after that, only the same
+// plugin id may republish it (a legitimate re-resolve, e.g. after ffmpeg's
+// static path changes) — anyone else's write is dropped.
+const serviceOwners = new Map(); // key -> pluginId
 
 // Node's --experimental-permission model is coarser than Phase 1's per-value
 // JS checks (it can't scope "may spawn ffmpeg" vs "may spawn anything" — only
@@ -84,6 +95,17 @@ function buildExecArgv(manifest, appRootDir, pluginDir, dataDir) {
 // argument; it's passed straight through to childRpc.request() for the
 // isolated-provider case — see rpc-channel.js's comment on why a
 // media-source call needs more headroom than this channel's default.
+// Shared with main-plugins.js's non-isolated registerService, so ownership
+// of a services key is enforced the same way regardless of which process
+// published it first. Returns false (write refused) if another plugin
+// already owns this key.
+function claimServiceKey(pluginId, key) {
+  const owner = serviceOwners.get(key);
+  if (owner && owner !== pluginId) return false;
+  serviceOwners.set(key, pluginId);
+  return true;
+}
+
 function callAnyService(pluginServices, key, args, timeoutMsOverride) {
   if (typeof pluginServices[key] === 'function') return pluginServices[key](...(args || []));
   const provider = serviceProviders.get(key);
@@ -98,11 +120,27 @@ function callAnyService(pluginServices, key, args, timeoutMsOverride) {
 // touches that function's own per-activation state (settle/resolve, the
 // handshake), so it was just adding to how far you had to scroll to find
 // where activation itself actually starts and ends.
-function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices) {
+function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest) {
+  // The client-side check in plugin-isolation-runtime.js's ctx.ipcMain only
+  // stops a plugin going through ctx — nothing stops its own code calling
+  // process.parentPort.postMessage() directly to emit this same RPC event
+  // for a channel it never declared. Re-checking here, on the host, against
+  // the real manifest is the only check that actually holds across that
+  // bypass, since this is the process that performs the real
+  // ipcMain.handle()/on() registration.
+  const { allowedIpc } = allowedSetsFor(manifest.capabilities);
   childRpc.on('ipc:handle-register', ({ channel }) => {
+    if (!allowedIpc.has(channel)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'register IPC channel', channel, 'ipc').message);
+      return;
+    }
     ipcMain.handle(channel, async (event, ...args) => childRpc.request('ipc:call', { channel, args }));
   });
   childRpc.on('ipc:on-register', ({ channel }) => {
+    if (!allowedIpc.has(channel)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'register IPC channel', channel, 'ipc').message);
+      return;
+    }
     ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
   });
   childRpc.handle('desktopCapturer:getSources', async ({ opts }) => {
@@ -120,7 +158,13 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices) {
   }) => baseCtx.fetchJsonCached(key, url, opts, ttlMs));
   childRpc.handle('loadConfig', async () => baseCtx.loadConfig());
   childRpc.on('trackConnection', ({ serverName, ip, userAgent }) => recordConnection(serverName, ip, userAgent));
-  childRpc.on('services:publish', ({ key, value }) => { pluginServices[key] = value; });
+  childRpc.on('services:publish', ({ key, value }) => {
+    if (!claimServiceKey(manifest.id, key)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" tried to publish services key "${key}", already owned by another plugin — write ignored.`);
+      return;
+    }
+    pluginServices[key] = value;
+  });
   childRpc.on('services:registerProvider', ({ key }) => { serviceProviders.set(key, childRpc); });
   childRpc.handle('services:call', async ({ key, args }) => callAnyService(pluginServices, key, args || []));
   childRpc.on('party:registerRoute', ({ method, pathname }) => {
@@ -198,7 +242,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
       settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
     });
 
-    registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices);
+    registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest);
 
     // ---- handshake ----
     childRpc.on('runtime-ready', () => {
@@ -231,4 +275,6 @@ function wireAppQuitPropagation() {
   });
 }
 
-module.exports = { activateIsolatedPlugin, wireAppQuitPropagation, callAnyService, buildExecArgv };
+module.exports = {
+  activateIsolatedPlugin, wireAppQuitPropagation, callAnyService, buildExecArgv, claimServiceKey,
+};

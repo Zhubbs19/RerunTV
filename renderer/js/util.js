@@ -150,6 +150,14 @@ export function formatDuration(seconds) {
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
+// Reimplemented inline as JSON.parse(JSON.stringify(...)) in several
+// call sites before this existed — config objects (channels, blocks,
+// packages) are plain JSON-shaped data, so this is a fine deep clone for
+// them specifically (no Date/Map/Set/function values to lose).
+export function deepClone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
 export function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;

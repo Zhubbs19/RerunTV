@@ -70,11 +70,48 @@ function saveCache() {
   }, SAVE_DEBOUNCE_MS);
 }
 
+// This is handed to every plugin as ctx.fetchJsonCached — unlike
+// ctx.spawn/ctx.createServer/ctx.ipcMain, it isn't gated by anything in
+// manifest.json's capabilities, so any installed plugin (isolated or not,
+// declaring nothing at all) can otherwise reach an internal LAN address or a
+// cloud metadata endpoint (169.254.169.254) with attacker-controlled
+// headers/body. This doesn't add a manifest-capability gate (that's a
+// bigger, separate schema change — see main-media-dispatch.js's own header
+// comment on the same gap for mediaSource providers), but it does close the
+// specific, most damaging targets: private/loopback/link-local destinations
+// no legitimate TMDB/NOAA-style integration ever needs to reach. A literal
+// IP check, not a DNS-resolved one — doesn't stop DNS rebinding, but that's
+// a materially harder attack than "just point at 169.254.169.254" and out of
+// scope for this pass.
+const BLOCKED_HOSTNAMES = new Set(['localhost', '0.0.0.0', '[::]', '::', '::1']);
+function isPrivateIPv4(host) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!m) return false;
+  const [a, b] = [Number(m[1]), Number(m[2])];
+  if (a === 127) return true; // loopback
+  if (a === 10) return true; // RFC1918
+  if (a === 172 && b >= 16 && b <= 31) return true; // RFC1918
+  if (a === 192 && b === 168) return true; // RFC1918
+  if (a === 169 && b === 254) return true; // link-local, incl. cloud metadata (169.254.169.254)
+  if (a === 100 && b >= 64 && b <= 127) return true; // carrier-grade NAT
+  return false;
+}
+function isBlockedFetchTarget(rawUrl) {
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch (e) { return true; } // unparseable — refuse rather than guess
+  const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (BLOCKED_HOSTNAMES.has(host)) return true;
+  if (isPrivateIPv4(host)) return true;
+  if (host === '::1' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true; // IPv6 loopback/link-local/unique-local
+  return false;
+}
+
 // Fetches `url` as JSON, using a cached response up to `ttlMs` old on
 // success. On network failure (offline, DNS, timeout, non-2xx) falls back to
 // whatever's cached regardless of age — stale metadata/alert data beats none
 // — and only throws if there's truly nothing cached yet.
 async function fetchJsonCached(key, url, opts, ttlMs) {
+  if (isBlockedFetchTarget(url)) throw new Error(`fetchJsonCached: refusing to fetch a private/internal address (${url})`);
   const store = loadCache();
   const entry = store[key];
   if (entry && Date.now() - entry.at < ttlMs) return entry.data;

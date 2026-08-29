@@ -30,7 +30,7 @@ import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './s
 import { getMediaSourcePicker } from './plugins.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
 import { BADGE_COLORS, S, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
-import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue } from './util.js';
+import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import { applyLocalFolderRelink } from './library-relink.js';
 import {
@@ -405,10 +405,10 @@ export function renderChannelList() {
         const src = S.config.channels.find((c) => c.number === srcNumber);
         if (!src) return;
         if (!(await confirmDialog(`Copy SCHEDULE, ADS, and LOGO settings from CH ${src.number} (${src.name || 'UNNAMED'}) onto CH ${ch.number} (${ch.name || 'UNNAMED'})? This overwrites this channel's current blocks, broadcast hours, ad/logo settings — its folders/files are untouched.`))) return;
-        ch.blocks = JSON.parse(JSON.stringify(src.blocks || [])).map((b) => ({ ...b, id: randomInterstitialId() }));
-        ch.broadcastHours = JSON.parse(JSON.stringify(src.broadcastHours || freshBroadcastHours()));
+        ch.blocks = deepClone(src.blocks || []).map((b) => ({ ...b, id: randomInterstitialId() }));
+        ch.broadcastHours = deepClone(src.broadcastHours || freshBroadcastHours());
         ch.adsEnabled = src.adsEnabled;
-        ch.logoBugProfiles = src.logoBugProfiles ? JSON.parse(JSON.stringify(src.logoBugProfiles)) : null;
+        ch.logoBugProfiles = src.logoBugProfiles ? deepClone(src.logoBugProfiles) : null;
         saveConfigDebounced();
         renderChannelList();
       });
@@ -808,7 +808,7 @@ export function renderChannelList() {
       duplicateBtn.textContent = 'DUPLICATE';
       duplicateBtn.title = 'Clone this channel\'s folders, schedule, and settings as a new channel';
       duplicateBtn.addEventListener('click', () => {
-        const clone = JSON.parse(JSON.stringify(ch));
+        const clone = deepClone(ch);
         clone.number = nextChannelNumber();
         clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
         S.config.channels.push(clone);
@@ -1450,6 +1450,7 @@ export async function rescanAllFolders() {
 export function removeFolderFromChannel(ch, folderEntry) {
   ch.folders = ch.folders.filter((e) => e.id !== folderEntry.id);
   ch.files = ch.files.filter((f) => f.folder !== folderEntry.id);
+  saveConfigDebounced();
   renderChannelList();
 }
 

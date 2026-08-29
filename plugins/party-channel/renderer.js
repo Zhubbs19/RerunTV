@@ -98,7 +98,7 @@ const effectConfettiEl = document.getElementById('effect-confetti');
 const effectApplauseEl = document.getElementById('effect-applause');
 const crtContainer = document.querySelector('.crt');
 
-function pad2(n) { return String(n).padStart(2, '0'); }
+export function pad2(n) { return String(n).padStart(2, '0'); }
 
 // ---------- Visual effects (guest-triggered from the party page's EFFECTS
 // tab — main.js's POST /effect -> IPC 'party:effect' -> onPartyEffect below)

@@ -145,6 +145,18 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     // LAN viewers just won't be reachable this run.
     console.error(`LAN viewer server failed to start on port ${VIEWER_PORT}:`, err.message);
   });
+  // Explicit values instead of relying on Node's built-in defaults — this is
+  // a LAN-facing server, and elsewhere in this subsystem (readFormBody's
+  // 1024-byte cap, main-lan-security.js's rate limits) request/response
+  // bounds are deliberate, not incidental. headersTimeout/requestTimeout
+  // only bound how long a client can take to SEND a request — they don't
+  // apply to how long a response takes to stream out, so a long-lived Range
+  // video stream to an actively-watching viewer is unaffected. maxConnections
+  // caps concurrent sockets against a connection-flood DoS; 200 is far more
+  // than any real home LAN's simultaneous viewer/API traffic needs.
+  server.headersTimeout = 15000;
+  server.requestTimeout = 30000;
+  server.maxConnections = 200;
   server.listen(port, host);
   return { server, access, projection };
 }

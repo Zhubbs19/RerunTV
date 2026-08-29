@@ -9,7 +9,7 @@ import { applyTheme } from './themes.js';
 import { S, saveConfigDebounced, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
-import { pad2, toDatetimeLocalValue } from './util.js';
+import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
 import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
 import { runCoreHooks, themePackEntries, getThemePack } from './plugins.js';
 import { effectiveThemeId } from './broadcast-identity.js';
@@ -750,14 +750,6 @@ function renderHelpGuide() {
 }
 
 if (helpGuideSearchEl) helpGuideSearchEl.addEventListener('input', renderHelpGuide);
-
-function escapeHtml(str) {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 // Renders the same manual-voice callout ("STEP 1:", "NOTE:", "TIP:",
 // "CAUTION:") that renderHelpGuide bolds on screen, so the printed page

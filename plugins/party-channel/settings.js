@@ -1,6 +1,4 @@
-import { startTriviaRound } from './renderer.js';
-
-function pad2(n) { return String(n).padStart(2, '0'); }
+import { startTriviaRound, pad2 } from './renderer.js';
 
 // ---------- Settings panel for the Party Channel plugin — join QR/URL,
 // bulletin & soundboard, guest-engagement toggles (ticker/checkin/countdown/

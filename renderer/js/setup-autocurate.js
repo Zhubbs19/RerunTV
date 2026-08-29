@@ -10,6 +10,7 @@
 import { freshCurationProfile, freshDayPartSlot, sortedChannels } from './channels.js';
 import { applyCurationProposal, curateChannel } from './curation.js';
 import { S, saveConfigDebounced } from './state.js';
+import { deepClone } from './util.js';
 import { attachTagAutocomplete } from './setup-util.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { autocurateRootEl } from './dom.js';
@@ -18,7 +19,8 @@ import { labeledField, renderInterstitialsList } from './setup-interstitials.js'
 
 // Ephemeral UI-only state — same lifetime as the search/filter state other
 // PROGRAMMING sub-tabs keep, resets on app restart.
-let editingProfile = null; // the profile object open in the inline editor, or null
+let editingProfile = null; // a working CLONE open in the inline editor, or null — never the live S.config object; see ensureSaved()
+let editingProfileOriginal = null; // the live S.config.curationProfiles entry editingProfile was cloned from, or null for a not-yet-saved new profile
 let isNewProfile = false; // editingProfile hasn't been pushed to S.config.curationProfiles yet
 let previewProposal = null; // last curateChannel() result for editingProfile, or null
 let previewSeed = 0;
@@ -49,10 +51,28 @@ function tagListInput(placeholder, initial, onChange) {
   return attachTagAutocomplete(input);
 }
 
+// Writes a snapshot of the (working-clone) profile into S.config, either as
+// a new entry or replacing the entry it was opened from — the only point
+// where an edit actually reaches S.config, matching this file's header
+// comment. Every field handler in buildProfileEditor() mutates `profile`
+// (editingProfile, a clone made when the editor was opened — see the EDIT
+// button and "+ NEW PROFILE" handlers below) directly and immediately, but
+// that clone is never the object stored in S.config.curationProfiles, so
+// those in-progress edits are invisible to the rest of the app — including
+// this function's own caller, still holding a live reference to
+// editingProfile — until SAVE PROFILE/APPLY calls this. Stores a fresh
+// clone rather than `profile` itself so continuing to edit afterward keeps
+// mutating only the open working copy, not the just-saved config entry.
 function ensureSaved(profile) {
-  if (!isNewProfile) return;
-  S.config.curationProfiles.push(profile);
-  isNewProfile = false;
+  const stored = deepClone(profile);
+  if (isNewProfile) {
+    S.config.curationProfiles.push(stored);
+    isNewProfile = false;
+  } else if (editingProfileOriginal) {
+    const idx = S.config.curationProfiles.indexOf(editingProfileOriginal);
+    if (idx !== -1) S.config.curationProfiles[idx] = stored;
+  }
+  editingProfileOriginal = stored;
 }
 
 function buildFolderScopeEditor(profile) {
@@ -325,7 +345,11 @@ function buildProfileEditor(profile) {
   cancelBtn.className = 'btn remove-btn';
   cancelBtn.textContent = 'CLOSE';
   cancelBtn.addEventListener('click', () => {
+    // editingProfile is only ever a working clone (see ensureSaved()'s
+    // comment) — discarding it here without saving is a real, working
+    // revert, not just clearing the editor's own reference.
     editingProfile = null;
+    editingProfileOriginal = null;
     isNewProfile = false;
     previewProposal = null;
     renderAutoCurateList();
@@ -484,9 +508,9 @@ function buildPreviewCard(profile) {
       ? `Create channel ${summary.channelNumber} with this lineup${dayPartNote}? This can be undone with Ctrl+Z.`
       : `Add ${summary.fileCount} new file(s)${dayPartNote} and ${summary.newInterstitialTypes.length} new bumper(s) to channel ${summary.channelNumber}? Existing content is never removed. This can be undone with Ctrl+Z.`;
     if (!(await confirmDialog(confirmMsg))) return;
+    profile.lastRunAt = Date.now();
     ensureSaved(profile);
     applyCurationProposal(previewProposal);
-    profile.lastRunAt = Date.now();
     previewProposal = null;
     editingProfile = null;
     saveConfigDebounced();
@@ -543,7 +567,9 @@ function buildProfileRow(profile) {
   editBtn.className = 'btn';
   editBtn.textContent = 'EDIT / PREVIEW';
   editBtn.addEventListener('click', () => {
-    editingProfile = profile;
+    // A clone, not the live S.config object — see ensureSaved()'s comment.
+    editingProfile = deepClone(profile);
+    editingProfileOriginal = profile;
     isNewProfile = false;
     previewProposal = null;
     previewSeed = 0;
@@ -558,7 +584,10 @@ function buildProfileRow(profile) {
     if (!(await confirmDialog(`Delete the "${profile.name || 'untitled'}" curation profile? This can't be undone.`))) return;
     const idx = S.config.curationProfiles.indexOf(profile);
     if (idx !== -1) S.config.curationProfiles.splice(idx, 1);
-    if (editingProfile === profile) { editingProfile = null; previewProposal = null; }
+    // editingProfile is a clone (see EDIT button above), so compare against
+    // editingProfileOriginal — the live entry it was cloned from — not
+    // editingProfile itself, which is never === the array's own object.
+    if (editingProfileOriginal === profile) { editingProfile = null; editingProfileOriginal = null; previewProposal = null; }
     saveConfigDebounced();
     renderAutoCurateList();
   });
@@ -592,6 +621,7 @@ export function renderAutoCurateList() {
   addBtn.textContent = '+ NEW PROFILE';
   addBtn.addEventListener('click', () => {
     editingProfile = freshCurationProfile();
+    editingProfileOriginal = null;
     isNewProfile = true;
     previewProposal = null;
     previewSeed = 0;

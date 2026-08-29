@@ -25,10 +25,15 @@ function matchesDayOfWeek(atMs, t) {
 
 // Calendar-date range check (month/day only, year-independent), mirroring
 // hourInRange's midnight-wrap trick but across the calendar year — so a
-// range like Dec 20 -> Jan 5 works. 2001 is just a fixed non-leap reference
-// year used purely for ordering month/day pairs.
+// range like Dec 20 -> Jan 5 works. 2000 is a fixed reference year used
+// purely for ordering month/day pairs — must be a leap year (2000 is,
+// divisible by 400) since this is also fed Feb 29 as a real calendar date
+// (both `d` above, on an actual leap-year Feb 29, and any block's own
+// startDay/endDay of 29). A non-leap reference year silently overflows
+// `new Date(year, 1, 29)` to March 1, throwing off every date-range
+// comparison on the one real day it matters.
 function dateKey(month, day) {
-  return new Date(2001, month - 1, day).getTime();
+  return new Date(2000, month - 1, day).getTime();
 }
 function inDateRange(atMs, t) {
   const d = new Date(atMs);

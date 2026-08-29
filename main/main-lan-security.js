@@ -30,6 +30,24 @@ const path = require('path');
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_SESSIONS = 64;
 const WINDOW_MS = 60 * 1000;
+// The per-IP write rate limit (checkRateLimit below) bounds one source
+// address, but the 8-digit pairing code (~26.6 bits of entropy) has no cap
+// on failed guesses spread across many source addresses — trivial for
+// anyone already on the LAN, and reachable from off-LAN too via any device
+// that loads a page making cross-origin pairing attempts (the
+// Sec-Fetch-Site check above only closes THAT delivery mechanism, not
+// distributed on-LAN guessing). This caps total wrong guesses for the
+// code's whole process lifetime, well above what a real mistyped code would
+// ever hit, but tiny next to the 10^8 code space — brute-forcing this code
+// via guessing is infeasible before the lockout trips.
+const MAX_FAILED_PAIR_ATTEMPTS = 200;
+// sessions is capped (MAX_SESSIONS, pruneSessions below) but rateWindows had
+// no equivalent — every distinct `${kind}:${ip}` key that ever made a
+// request stayed in the map forever, even long after its window expired.
+// A flood of requests from many distinct source addresses (real IP-aliasing
+// on a LAN, or spoofed source addresses on the read-only GET routes) grows
+// that unboundedly. Cap it the same way sessions already are.
+const MAX_RATE_WINDOWS = 2000;
 
 function loadPersistedSessions(sessionsFile) {
   try {
@@ -108,6 +126,8 @@ function createLanAccess(service, opts = {}) {
   const rateWindows = new Map(); // `${kind}:${ip}` -> {start, count}
   const readLimit = opts.readLimit || 600;
   const writeLimit = opts.writeLimit || 90;
+  let failedPairAttempts = 0;
+  let pairingLockedOut = false;
 
   function pruneSessions() {
     const now = Date.now();
@@ -137,6 +157,14 @@ function createLanAccess(service, opts = {}) {
     return !!token && sessions.has(token);
   }
 
+  function pruneRateWindows(now) {
+    rateWindows.forEach((state, key) => { if (now - state.start >= WINDOW_MS) rateWindows.delete(key); });
+    // Still over the cap after dropping expired entries (a burst of many
+    // distinct addresses within one window) — evict oldest-inserted first,
+    // same fallback pruneSessions uses.
+    while (rateWindows.size > MAX_RATE_WINDOWS) rateWindows.delete(rateWindows.keys().next().value);
+  }
+
   function checkRateLimit(req, res, kind = 'read') {
     const key = `${kind}:${requestIp(req)}`;
     const now = Date.now();
@@ -144,6 +172,7 @@ function createLanAccess(service, opts = {}) {
     if (!state || now - state.start >= WINDOW_MS) state = { start: now, count: 0 };
     state.count += 1;
     rateWindows.set(key, state);
+    if (rateWindows.size > MAX_RATE_WINDOWS) pruneRateWindows(now);
     const limit = kind === 'write' ? writeLimit : readLimit;
     if (state.count <= limit) return true;
     res.writeHead(429, { 'Retry-After': String(Math.ceil((WINDOW_MS - (now - state.start)) / 1000)) }).end('Too many requests');
@@ -151,11 +180,39 @@ function createLanAccess(service, opts = {}) {
   }
 
   function setSession(res, token) {
-    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}; Path=/; HttpOnly; SameSite=Strict`);
+    // Must match issueSession()'s own expiry (sessionTtlMs, not the module
+    // default) — a service that opts into a longer persisted-session TTL
+    // (the LAN viewer, companion-app: 90 days) needs the cookie the browser
+    // actually keeps to agree with how long the server-side session record
+    // stays valid, or the persisted-pairing feature silently doesn't persist.
+    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${Math.floor(sessionTtlMs / 1000)}; Path=/; HttpOnly; SameSite=Strict`);
     res.setHeader('Cache-Control', 'no-store');
   }
 
+  // A legitimate pairing attempt is either a direct top-level navigation (the
+  // user typed/pasted the pairing URL, or a QR scan opened it) or a same-
+  // origin form submit from the pairing page itself. Neither of those is
+  // "cross-site" per the Sec-Fetch-Site header modern Chromium-based
+  // browsers send on every request. A malicious page embedding
+  // <img src=".../?pair=code"> or auto-submitting a cross-origin
+  // <form action=".../_pair"> both come back "cross-site" — reject those
+  // before they can spend a guess against the pairing code. Browsers old
+  // enough to omit the header entirely fail open here (same exposure as
+  // before this check existed), but that's a shrinking minority and this
+  // still closes the hole for everything that can actually run the attack.
+  function isCrossSitePairingAttempt(req) {
+    return req.headers['sec-fetch-site'] === 'cross-site';
+  }
+
   async function handlePairing(req, res, url) {
+    if (isCrossSitePairingAttempt(req)) {
+      res.writeHead(403).end('Cross-site pairing requests are not allowed.');
+      return true;
+    }
+    if (pairingLockedOut) {
+      res.writeHead(423, { 'Content-Type': 'text/plain' }).end('Too many failed pairing attempts. Restart RerunTV to get a new pairing code.');
+      return true;
+    }
     if (!checkRateLimit(req, res, 'write')) return true;
     let supplied = url.searchParams.get('pair') || '';
     if (req.method === 'POST' && url.pathname === '/_pair') {
@@ -166,6 +223,7 @@ function createLanAccess(service, opts = {}) {
     }
     supplied = normalizePairingCode(supplied);
     if (supplied && safeEqual(supplied, pairingCode)) {
+      failedPairAttempts = 0;
       const token = issueSession();
       setSession(res, token);
       if (req.headers.accept && req.headers.accept.includes('application/json')) {
@@ -174,6 +232,10 @@ function createLanAccess(service, opts = {}) {
         res.writeHead(303, { Location: '/' }).end();
       }
       return true;
+    }
+    if (supplied) {
+      failedPairAttempts += 1;
+      if (failedPairAttempts >= MAX_FAILED_PAIR_ATTEMPTS) pairingLockedOut = true;
     }
     if (req.method === 'GET' || (req.method === 'POST' && url.pathname === '/_pair')) {
       const message = supplied ? 'That pairing code was not accepted.' : '';
