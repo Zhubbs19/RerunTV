@@ -35,7 +35,6 @@ const { callAnyService } = require('./main-plugin-isolation');
 const {
   scanFolderForVideos, recoverPendingSwap, backupPathFor, transcodeVideo,
 } = require('./main-media');
-const { VIEWER_PORT } = require('./main-lan');
 
 // providerId -> pluginId, for every mediaSource capability entry belonging
 // to a plugin that actually activated this boot (set once, right after
@@ -105,12 +104,14 @@ function callMediaService(pluginServices, providerId, verb, args, timeoutMsOverr
   return callAnyService(pluginServices, `mediaSource:${providerId}:${verb}`, args, timeoutMsOverride);
 }
 
-// `deps.getPluginServicesRef`/`deps.getViewerProjectionRef` are accessors,
-// not raw values — both are `let`s in main.js reassigned once inside
-// app.whenReady() (pluginServicesRef right away, viewerProjectionRef only if
-// the LAN viewer service is enabled), well after this is called, so a
-// snapshot taken at registration time would silently stay stale forever.
-function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProjectionRef }) {
+// `deps.getPluginServicesRef`/`deps.getViewerProjectionRef`/
+// `deps.getMediaBridgePort` are accessors, not raw values — all three are
+// `let`s in main.js reassigned inside app.whenReady() (pluginServicesRef
+// right away; viewerProjectionRef/mediaBridgePort together, once either the
+// real LAN viewer server or main-media-bridge.js's host-only fallback has
+// started), well after this is called, so a snapshot taken at registration
+// time would silently stay stale forever.
+function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProjectionRef, getMediaBridgePort }) {
   // Local stays the exact pre-existing implementation, unchanged. A
   // non-local source dispatches to that plugin's registered `list` service
   // instead — see this file's header comment for the full contract. The
@@ -168,21 +169,29 @@ function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProj
   // subresources from it.
   ipcMain.handle('path:toFileUrl', async (event, filePath) => {
     // A media-source-plugin ref (still-prefixed, i.e. not yet resolved to a
-    // real local cache path by resolvePlayablePath) is routed through the
-    // LAN viewer's own already-running, genuine http.Server
-    // (main-viewer-server.js — same /media route a LAN viewer device
-    // already uses, which happens to already dispatch through
-    // serveMediaRef the exact same way app://media does) instead of
-    // Electron's custom app:// protocol.handle. Found live: Chromium's
-    // <video> element never issues a follow-up Range request through
-    // app://media for a plugin-backed resource, no matter what's in the
-    // response — but does for a genuine local file through that same
-    // handler, and (this is what's being tested) may behave like any other
-    // ordinary HTTP video URL when the exact same data is served through a
-    // real loopback HTTP connection instead of Electron's Response-based
-    // custom-protocol dispatch. Local refs are untouched — zero behavior
-    // change, same app://media path proven reliable for every local
-    // channel.
+    // real local cache path by resolvePlayablePath) is routed through a real
+    // loopback http.Server instead of Electron's custom app:// protocol.
+    // handle. Found live: Chromium's <video> element never issues a
+    // follow-up Range request through app://media for a plugin-backed
+    // resource, no matter what's in the response — but does for a genuine
+    // local file through that same handler, and (this is what's being
+    // tested) may behave like any other ordinary HTTP video URL when the
+    // exact same data is served through a real loopback HTTP connection
+    // instead of Electron's Response-based custom-protocol dispatch. Local
+    // refs are untouched — zero behavior change, same app://media path
+    // proven reliable for every local channel.
+    //
+    // Which server that is depends on whether LAN viewer access is on: the
+    // real LAN viewer's server (main-viewer-server.js, same /media route a
+    // LAN viewer device already uses) when it's enabled, or
+    // main-media-bridge.js's host-only fallback otherwise — main.js starts
+    // exactly one of the two and hands both its projection map and its port
+    // through getViewerProjectionRef/getMediaBridgePort, so this call site
+    // doesn't need to know or care which one is actually running. Before
+    // main-media-bridge.js existed, this always assumed the LAN viewer's
+    // fixed VIEWER_PORT, which meant a mediaSource-plugin channel silently
+    // failed to play in the host window unless the user had also turned on
+    // LAN viewer access — a coupling with nothing to do with LAN viewing.
     if (parseMediaRef(filePath).source !== 'local') {
       // The /media route only recognizes opaque viewer: ids minted via the
       // projection map (main-viewer-projection.js) — it does not accept a
@@ -191,7 +200,8 @@ function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProj
       // own request resolves instead of always 400ing.
       const viewerProjectionRef = getViewerProjectionRef();
       const id = viewerProjectionRef ? viewerProjectionRef.registerRef(filePath) : filePath;
-      return `http://127.0.0.1:${VIEWER_PORT}/media?id=${encodeURIComponent(id)}`;
+      const port = getMediaBridgePort();
+      return `http://127.0.0.1:${port}/media?id=${encodeURIComponent(id)}`;
     }
     return `app://media/?p=${encodeURIComponent(filePath)}`;
   });

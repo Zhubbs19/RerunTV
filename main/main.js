@@ -58,6 +58,7 @@ const { fetchJsonCached } = require('./main-api-cache');
 const { readJsonBody, serveStaticFile } = require('./main-http-util');
 const { setMainWindow, getMainWindow } = require('./main-window-ref');
 const { startViewerServer } = require('./main-viewer-server');
+const { startMediaBridge } = require('./main-media-bridge');
 const { startDiscoveryServer } = require('./main-discovery-server');
 const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
 const { registerDialogIpc } = require('./main-dialogs');
@@ -204,11 +205,19 @@ let activatedMediaSourceProviders = {};
 // existed.
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
-// Only set when the LAN viewer service is enabled (startViewerServer() runs
-// in that same branch, below) — path:toFileUrl falls back to the old,
-// broken ?p= form when this is null, since there's no /media listener to
-// hit either way in that case.
+// Always set once app.whenReady() finishes its LAN-viewer-or-bridge branch
+// below (never null past that point) — a mediaSource-plugin ref needs some
+// real loopback http.Server's projection map to register into regardless of
+// whether the user has turned on LAN viewer access; see main-media-bridge.js
+// for why that fallback server exists and mediaBridgePort just below for the
+// port half of this pair.
 let viewerProjectionRef = null;
+// The port path:toFileUrl (main-media-dispatch.js) targets for a
+// mediaSource-plugin ref: the real LAN viewer's well-known VIEWER_PORT when
+// that service is enabled (so an already-registered id resolves the same
+// way for the host window as for any LAN viewer), or main-media-bridge.js's
+// own OS-assigned ephemeral port otherwise. Never null past whenReady().
+let mediaBridgePort = null;
 let pluginDisabledAtBoot = [];
 
 // Every IPC handler whose logic already lives in a focused main-*.js module
@@ -236,6 +245,7 @@ registerPluginsIpc(ipcMain, {
 registerMediaDispatchIpc(ipcMain, {
   getPluginServicesRef: () => pluginServicesRef,
   getViewerProjectionRef: () => viewerProjectionRef,
+  getMediaBridgePort: () => mediaBridgePort,
 });
 registerBackupsIpc(ipcMain);
 registerConfigIpc(ipcMain);
@@ -312,6 +322,15 @@ app.whenReady().then(async () => {
     });
     viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
     viewerProjectionRef = viewerRuntime.projection;
+    mediaBridgePort = VIEWER_PORT;
+  } else {
+    // LAN viewer access is off, but a mediaSource-plugin channel still needs
+    // some real loopback http.Server to route through for the reason
+    // main-media-bridge.js's header comment explains — start the host-only
+    // fallback instead of leaving path:toFileUrl with nowhere to point.
+    const bridge = await startMediaBridge();
+    viewerProjectionRef = bridge.projection;
+    mediaBridgePort = bridge.port;
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   pluginDisabledAtBoot = [...disabledPluginIds];
@@ -335,7 +354,11 @@ app.whenReady().then(async () => {
   // known — turn that into index.html's dynamic media-src CSP allowance
   // (see setAllowedMediaSrcPorts's doc comment, main-protocol.js) instead of
   // requiring a hand-maintained port list in that static <meta> tag.
-  setAllowedMediaSrcPorts([VIEWER_PORT, ...loadResult.activatedNetPorts]);
+  // mediaBridgePort is VIEWER_PORT itself when the LAN viewer is enabled
+  // (already covered) or main-media-bridge.js's own ephemeral port when it
+  // isn't — either way path:toFileUrl may point a mediaSource-plugin
+  // channel's <video src> at it, so it always needs to be CSP-allowed too.
+  setAllowedMediaSrcPorts([VIEWER_PORT, mediaBridgePort, ...loadResult.activatedNetPorts]);
   const companionEnabled = Array.isArray(pluginServices.companionAccessUrls) && pluginServices.companionAccessUrls.length > 0;
   if (viewerAccessUrls.length || companionEnabled) {
     startDiscoveryServer({ viewerEnabled: !!viewerAccessUrls.length, companionEnabled });
