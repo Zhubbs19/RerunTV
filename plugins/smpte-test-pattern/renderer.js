@@ -16,9 +16,18 @@ function draw() {
   const canvas = document.getElementById('test-pattern-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  canvas.width = canvas.clientWidth || 640;
-  canvas.height = canvas.clientHeight || 360;
-  const w = canvas.width, h = canvas.height;
+  // A flat-fillRect color-bar pattern is meant to read as sharp reference
+  // bars, not chunky/pixelated (unlike the deliberately-chunky static/noise
+  // canvases elsewhere in this app) — sizing the backing store to CSS pixels
+  // alone leaves it soft on a HiDPI/4K display once Chromium scales it back
+  // up to physical pixels. devicePixelRatio here is cheap (this canvas is
+  // solid-color rects, not per-pixel noise) so there's no perf tradeoff like
+  // there would be for the static-noise canvases.
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round((canvas.clientWidth || 640) * dpr);
+  const h = Math.round((canvas.clientHeight || 360) * dpr);
+  canvas.width = w;
+  canvas.height = h;
   const barW = w / SMPTE_TOP_COLORS.length;
   const topH = h * 0.66;
   const bottomH = h * 0.25;

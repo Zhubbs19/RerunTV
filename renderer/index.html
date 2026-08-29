@@ -57,6 +57,14 @@
 <body>
   <div id="app">
 
+    <!-- Only ever visible while html.titlebar-hidden is set (see tv.css and
+         app.js's boot-time class toggle) — a real native title bar is
+         normally what lets a window be dragged by its OS chrome; a
+         frameless window (DISPLAY > APP DISPLAY MODE > HIDE TITLE BAR,
+         main.js's window:setTitleBarHidden) has none, so this thin strip
+         stands in for it via -webkit-app-region:drag (tv.css). -->
+    <div id="titlebar-drag-strip"></div>
+
     <!-- One-time notice when applyConfigDefaults (app.js) migrates the
          loaded config on boot — visible regardless of which screen loads
          first (setup vs TV), unlike the TV-screen-only crtToggleFlash used
@@ -288,6 +296,9 @@
                 <option value="lockWindow">LOCK WINDOW TO ASPECT</option>
               </select>
             </div>
+            <label class="shuffle-toggle" title="Hides the OS window title bar (and its minimize/maximize/close buttons) for a borderless, true-fullscreen-like look while still running as a normal movable/resizable window — unlike the FULLSCREEN toggle, other windows and the taskbar stay reachable. Takes a moment to apply: the window closes and reopens at the same size/position to pick up the change. Come back to this SETUP screen to turn it back off.">
+              <input type="checkbox" id="hide-titlebar-enabled">HIDE TITLE BAR (BORDERLESS WINDOW)
+            </label>
             <div class="panel-interval">
               RESOLUTION
               <select id="display-mode-resolution-select" title="Applies to every channel by default. AUTO picks a tier from the currently-playing file's real resolution, else a guess from its ERA tag, else NATIVE. A channel's own RESOLUTION setting (its OPTIONS panel, including its own AUTO choice) overrides this for that channel only.">

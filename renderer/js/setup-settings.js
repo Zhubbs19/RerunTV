@@ -38,7 +38,7 @@ import {
   logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
-  displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
+  displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect, hideTitleBarEnabledEl,
   viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
@@ -294,6 +294,7 @@ export function renderSettingsPanels() {
   movieModeEnabledEl.checked = !!S.config.display.movieMode;
   displayModeAspectSelect.value = S.config.displayMode.aspect || '16:9';
   displayModeWindowSelect.value = S.config.displayMode.windowMode || 'letterbox';
+  hideTitleBarEnabledEl.checked = !!S.config.display.hideTitleBar;
   displayModeResolutionSelect.value = S.config.displayMode.resolution || 'native';
   displayModeAutoPrioritySelect.value = S.config.displayMode.autoPriority || 'metadata';
   crtOverlayWholeScreenEnabledEl.checked = S.config.crtIntensity.overlayScope === 'wholeScreen';
@@ -1629,6 +1630,21 @@ displayModeWindowSelect.addEventListener('change', () => {
   S.config.displayMode.windowMode = displayModeWindowSelect.value;
   applyDisplayMode();
   saveConfigDebounced();
+});
+// Unlike every other DISPLAY-tab toggle, this one needs the main process to
+// actually close and reopen the OS window (frame is a BrowserWindow
+// constructor-only option — see main.js's window:setTitleBarHidden) — so the
+// config write is flushed with an immediate saveConfig() rather than the
+// usual debounce. Debouncing here would risk the window recreating (and
+// wiping this renderer's in-memory state) before the setting even reached
+// disk, reopening with the OLD value still in config.json. Guarded the same
+// way applyDisplayMode's setAspectLock call is: the LAN viewer's window.api
+// has no host-only window:* methods at all, so this just persists the config
+// value there and lets the actual host pick it up next time it loads it.
+hideTitleBarEnabledEl.addEventListener('change', async () => {
+  S.config.display.hideTitleBar = hideTitleBarEnabledEl.checked;
+  await window.api.saveConfig(S.config);
+  if (window.api && window.api.setTitleBarHidden) window.api.setTitleBarHidden(S.config.display.hideTitleBar);
 });
 displayModeResolutionSelect.addEventListener('change', () => {
   S.config.displayMode.resolution = displayModeResolutionSelect.value;
