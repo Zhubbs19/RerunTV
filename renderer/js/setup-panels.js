@@ -642,21 +642,29 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       // state today, and nothing classifies mono/stereo at all, so building
       // this on native track auto-detection would mean adding unreliable
       // new plumbing to two already-shipped plugins for one small badge.
+      // Tri-state per field (null = inherit the channel's default*Enabled
+      // setting, true/false = explicit override for this file) — same
+      // "blank inherits, explicit value always wins" shape as rating's
+      // INHERIT/NONE/value select above, resolved at playback time in
+      // playback.js's onMeta (not displayed here, same as rating).
       const capabilityWrap = document.createElement('span');
       capabilityWrap.className = 'title-row-capabilities';
       [['hasCC', 'CC'], ['hasSAP', 'SAP'], ['hasStereo', 'STEREO']].forEach(([field, label]) => {
-        const capLabel = document.createElement('label');
-        capLabel.className = 'shuffle-toggle';
-        const capCheckbox = document.createElement('input');
-        capCheckbox.type = 'checkbox';
-        capCheckbox.checked = !!file[field];
-        capCheckbox.addEventListener('change', () => {
-          file[field] = capCheckbox.checked;
+        const capSelect = document.createElement('select');
+        capSelect.className = 'block-hour-select';
+        capSelect.title = `${label}: INHERIT uses the channel's default (its DEFAULT ${label} option toggle), YES/NO overrides it for this file specifically.`;
+        [['', `${label} (INHERIT)`], ['yes', `${label}: YES`], ['no', `${label}: NO`]].forEach(([value, text]) => {
+          const opt = document.createElement('option');
+          opt.value = value;
+          opt.textContent = text;
+          capSelect.appendChild(opt);
+        });
+        capSelect.value = file[field] === true ? 'yes' : file[field] === false ? 'no' : '';
+        capSelect.addEventListener('change', () => {
+          file[field] = capSelect.value === '' ? null : capSelect.value === 'yes';
           saveConfigDebounced();
         });
-        capLabel.appendChild(capCheckbox);
-        capLabel.appendChild(document.createTextNode(label));
-        capabilityWrap.appendChild(capLabel);
+        capabilityWrap.appendChild(capSelect);
       });
 
       facetsRow.appendChild(ratingSelect);

@@ -1159,25 +1159,106 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         saveConfigDebounced();
       });
 
-      const startInput = document.createElement('input');
-      startInput.type = 'datetime-local';
-      startInput.value = w.startMs ? toDatetimeLocalValue(new Date(w.startMs)) : '';
-      startInput.addEventListener('change', () => {
-        const ms = new Date(startInput.value).getTime();
-        if (!isNaN(ms)) w.startMs = ms;
+      // ONE-TIME (absolute start/end) vs WEEKLY (a standing weekday/time
+      // slot, e.g. a Sunday local-access hour) — resolveBreakAt
+      // (interstitials.js) branches on this same `kind` field. Switching it
+      // re-renders the whole row so only the relevant fields show.
+      const kindSelect = document.createElement('select');
+      [['once', 'ONE-TIME'], ['weekly', 'WEEKLY']].forEach(([value, text]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = text;
+        kindSelect.appendChild(opt);
+      });
+      kindSelect.value = w.kind === 'weekly' ? 'weekly' : 'once';
+      kindSelect.addEventListener('change', () => {
+        w.kind = kindSelect.value;
         setWindows(windows);
         saveConfigDebounced();
+        render();
       });
 
-      const endInput = document.createElement('input');
-      endInput.type = 'datetime-local';
-      endInput.value = w.endMs ? toDatetimeLocalValue(new Date(w.endMs)) : '';
-      endInput.addEventListener('change', () => {
-        const ms = new Date(endInput.value).getTime();
-        if (!isNaN(ms)) w.endMs = ms;
-        setWindows(windows);
-        saveConfigDebounced();
-      });
+      const fields = [labeledMiniPreemption('LABEL', labelInput), labeledMiniPreemption('CHANNEL', channelSelect), labeledMiniPreemption('KIND', kindSelect)];
+
+      if (w.kind === 'weekly') {
+        const weekdaySelect = document.createElement('select');
+        ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].forEach((day, i) => {
+          const opt = document.createElement('option');
+          opt.value = String(i);
+          opt.textContent = day;
+          weekdaySelect.appendChild(opt);
+        });
+        weekdaySelect.value = String(w.weekday || 0);
+        weekdaySelect.addEventListener('change', () => {
+          w.weekday = Number(weekdaySelect.value);
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        const hourInput = document.createElement('input');
+        hourInput.type = 'number';
+        hourInput.min = 0;
+        hourInput.max = 23;
+        hourInput.className = 'block-priority-input';
+        hourInput.value = w.startHour != null ? w.startHour : 13;
+        hourInput.addEventListener('change', () => {
+          w.startHour = Math.min(23, Math.max(0, parsePositiveInt(hourInput.value, 13)));
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        const minuteInput = document.createElement('input');
+        minuteInput.type = 'number';
+        minuteInput.min = 0;
+        minuteInput.max = 59;
+        minuteInput.className = 'block-priority-input';
+        minuteInput.value = w.startMinute != null ? w.startMinute : 0;
+        minuteInput.addEventListener('change', () => {
+          w.startMinute = Math.min(59, Math.max(0, parsePositiveInt(minuteInput.value, 0)));
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        const durationInput = document.createElement('input');
+        durationInput.type = 'number';
+        durationInput.min = 1;
+        durationInput.className = 'block-priority-input';
+        durationInput.value = w.durationMin || 30;
+        durationInput.addEventListener('change', () => {
+          w.durationMin = Math.max(1, parsePositiveInt(durationInput.value, 30));
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        fields.push(
+          labeledMiniPreemption('DAY', weekdaySelect),
+          labeledMiniPreemption('HOUR', hourInput),
+          labeledMiniPreemption('MIN', minuteInput),
+          labeledMiniPreemption('DURATION (MIN)', durationInput),
+        );
+      } else {
+        const startInput = document.createElement('input');
+        startInput.type = 'datetime-local';
+        startInput.value = w.startMs ? toDatetimeLocalValue(new Date(w.startMs)) : '';
+        startInput.addEventListener('change', () => {
+          const ms = new Date(startInput.value).getTime();
+          if (!isNaN(ms)) w.startMs = ms;
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        const endInput = document.createElement('input');
+        endInput.type = 'datetime-local';
+        endInput.value = w.endMs ? toDatetimeLocalValue(new Date(w.endMs)) : '';
+        endInput.addEventListener('change', () => {
+          const ms = new Date(endInput.value).getTime();
+          if (!isNaN(ms)) w.endMs = ms;
+          setWindows(windows);
+          saveConfigDebounced();
+        });
+
+        fields.push(labeledMiniPreemption('START', startInput), labeledMiniPreemption('END', endInput));
+      }
 
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
@@ -1191,13 +1272,7 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         render();
       });
 
-      row.append(
-        labeledMiniPreemption('LABEL', labelInput),
-        labeledMiniPreemption('CHANNEL', channelSelect),
-        labeledMiniPreemption('START', startInput),
-        labeledMiniPreemption('END', endInput),
-        removeBtn,
-      );
+      row.append(...fields, removeBtn);
       list.appendChild(row);
     });
   }
@@ -1214,7 +1289,8 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
     const windows = getWindows() || [];
     const now = Date.now();
     setWindows([...windows, {
-      id: randomId('preempt'), label: '', channelNumber: null, startMs: now, endMs: now + 15 * 60000,
+      id: randomId('preempt'), label: '', channelNumber: null, kind: 'once', startMs: now, endMs: now + 15 * 60000,
+      weekday: 0, startHour: 13, startMinute: 0, durationMin: 30,
     }]);
     saveConfigDebounced();
     render();

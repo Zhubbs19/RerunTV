@@ -24,6 +24,23 @@ function isSweepsMonth(atMs) {
   return SWEEPS_MONTHS.has(new Date(atMs).getMonth());
 }
 
+// A recurring weekly preemption window (S.config.preemptionWindows entries
+// with kind:'weekly') — matches atMs's own weekday/time-of-day against
+// { weekday (0=Sun), startHour, startMinute, durationMin }, returning that
+// day's concrete { windowStart, windowEnd } in ms when it matches, or null.
+// Deliberately doesn't handle a window crossing midnight (durationMin
+// pushing past 24:00) — real standing special-event slots don't.
+function matchesWeeklyPreemptionWindow(atMs, w) {
+  const d = new Date(atMs);
+  if (d.getDay() !== w.weekday) return null;
+  const dayStart = new Date(d);
+  dayStart.setHours(0, 0, 0, 0);
+  const windowStart = dayStart.getTime() + (w.startHour * 60 + w.startMinute) * 60000;
+  const windowEnd = windowStart + Math.max(1, w.durationMin || 15) * 60000;
+  if (atMs < windowStart || atMs >= windowEnd) return null;
+  return { windowStart, windowEnd };
+}
+
 const TRIVIA_DURATION_S = 8;
 const CHANNELID_TEXT_DURATION_S = 5;
 const SIGNOFF_DURATION_S = 20;
@@ -352,17 +369,37 @@ export function resolveBreakAt(ch, atMs) {
   // world's schedule didn't wait for the preemption to end.
   const preemptionWindows = Array.isArray(S.config.preemptionWindows) ? S.config.preemptionWindows : [];
   for (const w of preemptionWindows) {
-    if (!w || !isFinite(w.startMs) || !isFinite(w.endMs) || w.endMs <= w.startMs) continue;
+    if (!w) continue;
     if (w.channelNumber != null && w.channelNumber !== ch.number) continue;
-    if (atMs < w.startMs || atMs >= w.endMs) continue;
+    let windowStart;
+    let windowEnd;
+    let slotIndex;
+    if (w.kind === 'weekly') {
+      // A recurring standing window (e.g. a Sunday local-access hour) —
+      // still a pure function of atMs: weekday/hour/minute/duration are
+      // fixed calendar fields, no stored "which week already happened"
+      // state needed. slotIndex is the week number so pickDeterministic
+      // can vary the pick across occurrences if the pool has more than one
+      // eligible entry.
+      const match = matchesWeeklyPreemptionWindow(atMs, w);
+      if (!match) continue;
+      ({ windowStart, windowEnd } = match);
+      slotIndex = Math.floor(windowStart / (7 * DAY_MS));
+    } else {
+      if (!isFinite(w.startMs) || !isFinite(w.endMs) || w.endMs <= w.startMs) continue;
+      if (atMs < w.startMs || atMs >= w.endMs) continue;
+      windowStart = w.startMs;
+      windowEnd = w.endMs;
+      slotIndex = 0;
+    }
     // No matching pool entry (nothing configured, or none targets this
     // channel/block yet) — skip this window entirely rather than starting a
     // break with nothing to show, same "opt-in, no auto-synthesized content"
     // policy as localAvail above.
-    const entry = pickDeterministic(poolFor(pool, 'preemption', ch, block, []), `preemption:${w.id}`, 0);
+    const entry = pickDeterministic(poolFor(pool, 'preemption', ch, block, []), `preemption:${w.id}`, slotIndex);
     if (!entry) continue;
     return {
-      type: 'preemption', entry, windowStart: w.startMs, windowEnd: w.endMs, preemptionLabel: w.label || 'SPECIAL REPORT',
+      type: 'preemption', entry, windowStart, windowEnd, preemptionLabel: w.label || 'SPECIAL REPORT',
     };
   }
 

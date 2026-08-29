@@ -281,6 +281,7 @@ export const OVERLAY_LAYOUT_TARGETS = [
   { id: 'episode-status-bug', label: 'NEW EPISODE / REPEAT CARD' },
   { id: 'format-disclaimer-card', label: 'FORMATTED-FOR-YOUR-SCREEN CARD' },
   { id: 'content-advisory-card', label: 'CONTENT ADVISORY CARD' },
+  { id: 'capability-badge', label: 'CC/SAP/STEREO BADGE' },
   { id: 'channel-entry', label: 'CHANNEL NUMBER POP-UP' },
   { id: 'volume-indicator', label: 'VOLUME POP-UP' },
   { id: 'timeshift-badge', label: 'TIME SHIFT BADGE' },

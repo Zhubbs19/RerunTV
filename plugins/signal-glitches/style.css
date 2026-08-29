@@ -29,11 +29,14 @@
 .crt.signal-glitch-rolling {
   animation: signal-glitch-roll 700ms ease-in-out;
 }
+/* Amounts scaled by --glitch-roll-intensity (0-1, set by firePictureRoll
+   from the settings panel's shared INTENSITY slider, renderer.js) — at 0
+   this keyframe is a no-op, at 1 it's the original fixed amounts below. */
 @keyframes signal-glitch-roll {
   0% { transform: translateY(0); filter: none; }
-  15% { transform: translateY(-6%); filter: hue-rotate(8deg); }
-  35% { transform: translateY(4%); filter: hue-rotate(-6deg); }
-  55% { transform: translateY(-2%); filter: hue-rotate(4deg); }
+  15% { transform: translateY(calc(-6% * var(--glitch-roll-intensity, 1))); filter: hue-rotate(calc(8deg * var(--glitch-roll-intensity, 1))); }
+  35% { transform: translateY(calc(4% * var(--glitch-roll-intensity, 1))); filter: hue-rotate(calc(-6deg * var(--glitch-roll-intensity, 1))); }
+  55% { transform: translateY(calc(-2% * var(--glitch-roll-intensity, 1))); filter: hue-rotate(calc(4deg * var(--glitch-roll-intensity, 1))); }
   100% { transform: translateY(0); filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -440,8 +440,14 @@ export async function playChannelLive(ch, opts) {
     // (file.hasCC/hasSAP/hasStereo, TITLES tab), same "isEarlyInProgram"
     // gate as every other corner bug above.
     if (isEarlyInProgram && !ch.hideCapabilityBadge) {
+      // Tri-state file override (null = inherit ch.defaultHasX) — same
+      // fallback shape as effectiveRating above, just three fields instead
+      // of one value.
+      const effectiveHasCC = file.hasCC != null ? file.hasCC : !!ch.defaultHasCC;
+      const effectiveHasSAP = file.hasSAP != null ? file.hasSAP : !!ch.defaultHasSAP;
+      const effectiveHasStereo = file.hasStereo != null ? file.hasStereo : !!ch.defaultHasStereo;
       const capabilityLabels = [
-        file.hasCC && 'CC', file.hasSAP && 'SAP', file.hasStereo && 'STEREO',
+        effectiveHasCC && 'CC', effectiveHasSAP && 'SAP', effectiveHasStereo && 'STEREO',
       ].filter(Boolean);
       if (capabilityLabels.length) {
         if (!triggerDynamicOverlays(ch, 'capabilityBadge')) flashCapabilityBadge(ch, capabilityLabels);

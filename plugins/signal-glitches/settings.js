@@ -13,7 +13,7 @@ window.RCBPlugins.registerPluginSettings('signal-glitches', {
             <input type="number" data-el="max-interval" min="1" style="max-width:5em"> MIN
           </div>
           <div class="panel-interval">
-            INTENSITY (STATIC EFFECT ONLY)
+            INTENSITY (ALL EFFECTS)
             <input type="range" data-el="intensity" min="0" max="100" step="5" style="max-width:14em">
             <span data-el="intensity-value"></span>
           </div>
