@@ -1,0 +1,23 @@
+/* Same canvas-noise idiom as noaa-weather's signal-degrade-overlay (a tiny
+   internal buffer, pixelated upscale, blend-mode overlay) but a one-shot
+   brief burst rather than a persistent leveled effect — see renderer.js.
+   Sits at the same layer as that overlay: above VHS-quality (z-index 3),
+   below the guide/menus (z-index 20+). */
+.signal-glitch-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.signal-glitch-overlay.hidden { display: none; }
+.crt.power-off .signal-glitch-overlay { display: none; }
+
+.signal-glitch-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  opacity: var(--glitch-opacity, 0.5);
+  mix-blend-mode: overlay;
+}

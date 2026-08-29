@@ -7,6 +7,7 @@ import {
   sdStart,
   sdStopPreview,
   setSettingsStatusElement,
+  updateRoutineCrawl,
   updateSignalDegradation,
 } from './renderer.js';
 
@@ -26,6 +27,10 @@ window.RCBPlugins.registerPluginSettings('noaa-weather', {
         <span data-el="noaa-status" class="panel-status"></span>
       </div>
       <span class="panel-status">Real alerts use your actual location (free, keyless api.weather.gov) and are checked every few minutes. See the Emergency Alert System plugin's own settings panel for the on-demand/random test-slate settings, which don't need this plugin.</span>
+      <div class="panel-body">
+        <label class="shuffle-toggle"><input type="checkbox" data-el="crawl-enabled">ROUTINE WEATHER CRAWL (LOWER-THIRD, ANY ACTIVE ALERT)</label>
+      </div>
+      <span class="panel-status">A plain scrolling crawl of whatever's currently active for your location, regardless of severity — separate from the full-screen EAS takeover above, which only fires for a genuinely new Severe/Extreme alert.</span>
       <div class="panel-body">
         <label class="shuffle-toggle"><input type="checkbox" data-el="sd-enabled">DEGRADE PICTURE DURING SEVERE WEATHER (SIGNAL FADE)</label>
         <div class="panel-interval">
@@ -67,6 +72,14 @@ window.RCBPlugins.registerPluginSettings('noaa-weather', {
     const sdIntensityValueEl = q('sd-intensity-value');
     const sdStatusEl = q('sd-status');
     const sdCfg = cfg.signalDegradation;
+    const crawlEnabledEl = q('crawl-enabled');
+    if (!cfg.routineCrawl) cfg.routineCrawl = { enabled: false };
+    crawlEnabledEl.checked = !!cfg.routineCrawl.enabled;
+    crawlEnabledEl.addEventListener('change', () => {
+      cfg.routineCrawl.enabled = crawlEnabledEl.checked;
+      ctx.saveConfigDebounced();
+      updateRoutineCrawl();
+    });
 
     enabledEl.checked = !!cfg.noaaEnabled;
     latEl.value = cfg.lat != null ? cfg.lat : '';

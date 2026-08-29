@@ -633,15 +633,25 @@ export function computeSourcePosition(source, atMs, opts) {
   const effectiveMs = atMs - lostMs;
   const elapsedRaw = (effectiveMs - source.anchor) / 1000;
   const elapsed = ((elapsedRaw % total) + total) % total;
+  // Which pass through the content pool is airing right now — 0 for the
+  // very first loop since source.anchor, 1+ once the pool has repeated at
+  // least once. Exposed on the result (rather than a separate resolver) so
+  // it stays free with every existing caller's already-computed elapsedRaw/
+  // total, with the same purity/opts contract as the rest of this function.
+  // Used by the NEW EPISODE/REPEAT bug (playback.js) and progressive tape
+  // wear (power.js) — deliberately NOT a stored play-count: a block
+  // reassignment resets source.anchor, so pre-reassignment history is
+  // unreachable by design, same as everywhere else in this file.
+  const loopCount = Math.max(0, Math.floor(elapsedRaw / total));
   let acc = 0;
   for (let i = 0; i < files.length; i++) {
     const d = files[i].duration || 0;
     if (elapsed < acc + d) {
-      return { fileIndex: i, offset: elapsed - acc, total, elapsed, files, file: files[i] };
+      return { fileIndex: i, offset: elapsed - acc, total, elapsed, loopCount, files, file: files[i] };
     }
     acc += d;
   }
-  return { fileIndex: 0, offset: 0, total, elapsed, files, file: files[0] };
+  return { fileIndex: 0, offset: 0, total, elapsed, loopCount, files, file: files[0] };
 }
 
 // Compute { file, fileIndex, offset, ... } for a channel at this instant,

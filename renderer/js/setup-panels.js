@@ -560,6 +560,23 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         saveConfigDebounced();
       });
 
+      // Content advisory disclaimer — distinct from the rating VALUE above:
+      // free text like "CONTAINS SCENES OF A GRAPHIC NATURE" or "EDITED FOR
+      // CONTENT AND TO FIT THE TIME ALLOTTED", flashed as its own full-width
+      // card once per airing (see flashContentAdvisory, playback.js) rather
+      // than folded into the rating bug's small badge. Blank = none for this
+      // file, same "explicit opt-in per file" shape as localAvail entries.
+      const advisoryInput = document.createElement('input');
+      advisoryInput.type = 'text';
+      advisoryInput.className = 'title-row-input';
+      advisoryInput.placeholder = 'CONTENT ADVISORY (BLANK = NONE)';
+      advisoryInput.title = 'Shown as its own disclaimer card once per airing, e.g. "CONTAINS SCENES OF A GRAPHIC NATURE" or "EDITED FOR CONTENT AND TO FIT THE TIME ALLOTTED".';
+      advisoryInput.value = file.advisory || '';
+      advisoryInput.addEventListener('change', () => {
+        file.advisory = advisoryInput.value.trim() || null;
+        saveConfigDebounced();
+      });
+
       // End-credits speedup override (ch.creditsSpeedup's channel-wide
       // default, setup-panels.js's buildCreditsSpeedupPanel) — blank
       // inherits that default; 0 explicitly opts THIS file out even when
@@ -595,6 +612,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       facetsRow.appendChild(eraInput);
       facetsRow.appendChild(contentTypeSelect);
       facetsRow.appendChild(ratingSelect);
+      facetsRow.appendChild(advisoryInput);
       facetsRow.appendChild(creditsLeadInput);
       facetsRow.appendChild(creditsBgBtn);
 

@@ -1,5 +1,6 @@
 import { refreshSfxGainLevel, sfxPowerOff, sfxPowerOn, sfxVolumeTick } from './audio.js';
 import { getChannel } from './channels.js';
+import { computeSourcePosition, resolveActiveSource } from './schedule.js';
 import {
   channelEntryEl, creditsSqueezeVideoEl, crtContainer, crtPreviewEl, crtToggleFlash, guideGrid, guideMuteEl, guideOverlay, hintBarEl, logoBugEl, player,
   screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
@@ -574,6 +575,21 @@ export function applyVhsQuality(ch) {
   if (on) {
     tickVhsTimestamp();
     S.vhsTimestampTimer = setInterval(tickVhsTimestamp, 1000);
+    // Progressive tape wear — the more times this channel's current content
+    // pool has looped since its source's anchor, the worse the tracking/
+    // chroma artifacts get (tv.css scales its fixed opacities by this var).
+    // loopCount (computeSourcePosition, schedule.js) is a pure derivation
+    // from anchor+duration, not a stored play-count — same "no play-count
+    // log" reasoning as the NEW EPISODE/REPEAT bug (playback.js). Clamped
+    // to 1 (~7 loops) so a channel that's been running for months doesn't
+    // become illegibly noisy.
+    const source = resolveActiveSource(ch, viewNow());
+    const pos = computeSourcePosition(source, viewNow(), { ignoreContentLost: true });
+    const loopCount = (pos && pos.loopCount) || 0;
+    const degradation = Math.min(1, loopCount / 7);
+    crtContainer.style.setProperty('--vhs-degradation', String(degradation));
+  } else {
+    crtContainer.style.removeProperty('--vhs-degradation');
   }
 }
 

@@ -1,0 +1,10 @@
+{
+  "id": "sponsor-billboard",
+  "name": "Sponsor Billboard",
+  "version": "1.0.0",
+  "description": "Classic single-sponsor-era \"brought to you by\" card, shown once per airing on any channel with a configured sponsor.",
+  "category": "onscreen",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "style": "style.css"
+}

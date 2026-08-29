@@ -15,11 +15,14 @@ import {
   interstitialsBulkCountEl, interstitialsBulkRemoveBtn, interstitialsBulkSelectAllBtn, interstitialsBulkTagApplyBtn,
   interstitialsBulkTagInputEl, interstitialsBulkToggleBtn, interstitialsCollapseAllBtn, interstitialsExpandAllBtn,
   interstitialsFilterChannelEl, interstitialsFilterTypeEl, interstitialsListEl, interstitialsSearchEl,
-  presetsAddBtn, presetsCollapseAllBtn, presetsExpandAllBtn, presetsListEl, presetsSearchEl,
+  preemptionWindowsEditorEl, presetsAddBtn, presetsCollapseAllBtn, presetsExpandAllBtn, presetsListEl, presetsSearchEl,
   scanProgressEl, standbyEnabledEl, standbyIntervalEl, player,
 } from './dom.js';
 import { blockPickerLabel } from './setup-schedule.js';
-import { attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, parsePositiveInt, probeDuration } from './setup-util.js';
+import {
+  attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, buildPreemptionWindowsEditor,
+  parsePositiveInt, probeDuration,
+} from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 import { confirmDialog } from './setup-dialogs.js';
 import { basenameNoExt } from './util.js';
@@ -70,6 +73,12 @@ const INTERSTITIAL_TYPE_DEFS = [
   // break entirely (see the mid-show cadence's own "commercials optional"
   // behavior), this is never auto-synthesized.
   { id: 'localAvail', label: 'LOCAL AVAIL / SPONSOR CARD', contentKind: 'text', textPlaceholder: 'THIS TIME PERIOD MADE POSSIBLE BY... (BLANK = AUTO)' },
+  // Content shown during a configured preemption window (an absolute
+  // real-clock range, edited separately — see buildPreemptionWindowsEditor
+  // below — not this pool's usual cadence/affinity matching). channelAffinity/
+  // blockAffinity/contentTags still apply normally to narrow WHICH entry
+  // plays when more than one is eligible for a given window.
+  { id: 'preemption', label: 'PREEMPTION / SPECIAL REPORT', contentKind: 'video' },
 ];
 
 // Exported so setup-interstitials-flowbuilder.js can label its own tag
@@ -85,7 +94,7 @@ export function interstitialTypeDef(type) {
 const TYPE_COLORS = {
   commercial: '#f0b429', channelId: '#6fe0f2', trivia: '#8b93f5', upNext: '#5fd68a',
   adBreakIn: '#e0895f', adBreakOut: '#e0895f', signOff: '#ff6b5b', signOn: '#ff6b5b',
-  promo: '#ff9fd6', premiereJingle: '#a3e635', localAvail: '#94a3b8',
+  promo: '#ff9fd6', premiereJingle: '#a3e635', localAvail: '#94a3b8', preemption: '#ff3b3b',
 };
 
 // A <label>+control pair, stacked — see the .field/.field-label CSS rule's
@@ -1186,6 +1195,18 @@ presetsAddBtn.addEventListener('click', () => {
   renderPresetsList();
   saveConfigDebounced();
 });
+
+// Rebuilt each time the setup screen shows, same as renderLogoBugEditor/
+// renderDynamicOverlaysEditor (setup-settings.js) — this editor only
+// mutates the array it's handed, it doesn't re-read S.config on its own.
+export function renderPreemptionWindowsEditor() {
+  if (!preemptionWindowsEditorEl) return;
+  preemptionWindowsEditorEl.innerHTML = '';
+  preemptionWindowsEditorEl.appendChild(buildPreemptionWindowsEditor(
+    () => S.config.preemptionWindows,
+    (windows) => { S.config.preemptionWindows = windows; saveConfigDebounced(); },
+  ));
+}
 
 export function renderStandbyPanel() {
   const sb = S.config.autoStandby;

@@ -573,6 +573,14 @@
           </div>
         </div>
 
+        <div class="panel">
+          <div class="panel-toggle">SPECIAL EVENT PREEMPTION WINDOWS</div>
+          <div class="panel-body">
+            <div id="preemption-windows-editor"></div>
+          </div>
+          <span class="panel-status">Cut away from the regular schedule entirely for a real-clock time window (a "special report") using a PREEMPTION / SPECIAL REPORT pool entry above — unlike every other break type, the show resumes afterward wherever the schedule says it would be right now, not where it was interrupted.</span>
+        </div>
+
         </div>
         </div>
 
@@ -1221,6 +1229,20 @@
              the corner bug above when the airing file is tagged as a movie
              — see showMovieRatingCard, playback.js. -->
         <div id="movie-rating-card" class="movie-rating-card"></div>
+
+        <!-- "NEW EPISODE"/"REPEAT" bug, flashed briefly at program start —
+             see flashEpisodeStatusBug, playback.js. -->
+        <div id="episode-status-bug" class="episode-status-bug"></div>
+
+        <!-- "Formatted to fit your screen"/widescreen disclaimer card,
+             flashed once when a file's native aspect doesn't match the
+             box's currently-applied one — see flashFormatDisclaimer,
+             playback.js. -->
+        <div id="format-disclaimer-card" class="format-disclaimer-card"></div>
+
+        <!-- Content advisory disclaimer card ("CONTAINS SCENES OF A GRAPHIC
+             NATURE", etc.) — see flashContentAdvisory, playback.js. -->
+        <div id="content-advisory-card" class="format-disclaimer-card"></div>
 
         <!-- Volume level indicator -->
         <div id="volume-indicator" class="volume-indicator">
