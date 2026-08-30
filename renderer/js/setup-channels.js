@@ -7,6 +7,7 @@ import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } fro
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
   buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, mediaRefId, nextChannelNumber, parseMediaRef, sortedChannels,
+  tryGetDisplayName,
 } from './channels.js';
 import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
@@ -1318,20 +1319,9 @@ function buildChooseSourceControl(ch) {
 //   3. A plain text-input prompt (setup-dialogs.js's promptDialog) — always
 //      available, so CHOOSE SOURCE never dead-ends even for the simplest
 //      possible provider.
-// Optional per-provider verb (PLUGIN_DEVELOPMENT.md's "Media sources"
-// section) — a plugin-sourced file's `path` is that provider's opaque ref
-// (e.g. a Drive file id), which has no meaningful basename the way a local
-// path's filename does, so without this the TITLES panel/NOW-playing
-// bar/etc. all fall back to showing the raw ref (getDisplayTitle, util.js).
-// Called once per file at scan time; a provider that doesn't implement it
-// just leaves the title unset, same as today.
-async function tryGetDisplayName(providerId, rawRef) {
-  try {
-    return await window.api.callMediaSourceHook(providerId, 'getDisplayName', rawRef);
-  } catch (err) {
-    return null;
-  }
-}
+// tryGetDisplayName moved to channels.js (see its own comment there) — it's
+// pure logic setup-interstitials.js needs too, and living there avoids that
+// module and this one importing from each other.
 
 export async function addPluginSourceToChannel(ch, providerId) {
   const providerInfo = cachedMediaSourceProviders.find((p) => p.providerId === providerId);
