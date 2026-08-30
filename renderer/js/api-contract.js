@@ -28,7 +28,7 @@
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
-    'onCompanionSetTicker',
+    'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),

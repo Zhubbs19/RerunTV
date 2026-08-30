@@ -248,6 +248,7 @@ registerMediaDispatchIpc(ipcMain, {
   getPluginServicesRef: () => pluginServicesRef,
   getViewerProjectionRef: () => viewerProjectionRef,
   getMediaBridgePort: () => mediaBridgePort,
+  getMainWindow,
 });
 registerBackupsIpc(ipcMain);
 registerConfigIpc(ipcMain);

@@ -31,6 +31,7 @@
 // here since "reach an arbitrary external host to fetch binary data" is
 // this feature's entire point rather than an edge case.
 const fs = require('fs');
+const path = require('path');
 const { callAnyService } = require('./main-plugin-isolation');
 const {
   scanFolderForVideos, recoverPendingSwap, backupPathFor, transcodeVideo,
@@ -94,6 +95,12 @@ const MEDIA_PROBE_TIMEOUT_MS = 8000;
 // error for exactly the case this generous bound exists to make reliable.
 const MEDIA_READRANGE_TIMEOUT_MS = 10 * 60 * 1000;
 const MEDIA_CHECK_TIMEOUT_MS = 10000;
+// Same cap main-protocol.js's serveFileViaPlugin already enforces on a
+// bounded Range request crossing the plugin-process RPC boundary (that
+// file's own BOUNDED_CHUNK_CAP) — reused here rather than invented fresh,
+// since it's the same concern: an uncapped chunk size risks a
+// multi-gigabyte structured-clone payload for an isolated plugin.
+const DOWNLOAD_CHUNK_SIZE = 4 * 1024 * 1024;
 
 // `pluginServices` is the same shared object every other cross-process
 // plugin call already resolves against (main.js's `services`) — passed in
@@ -104,14 +111,44 @@ function callMediaService(pluginServices, providerId, verb, args, timeoutMsOverr
   return callAnyService(pluginServices, `mediaSource:${providerId}:${verb}`, args, timeoutMsOverride);
 }
 
+// Turns a ref's own trailing segment (or, for an opaque ref with no
+// path-like shape — a Drive file id, a Jellyfin item id — the caller's
+// suggested display name) into a safe local filename with a real video
+// extension. `suggestedName` already carries whatever extension a
+// path-shaped ref's basename has (setup-panels.js passes ref's own
+// basename first); this only needs to backfill one when neither has it.
+function safeDownloadFilename(ref, suggestedName) {
+  const refBase = String(ref).split('/').pop() || '';
+  const refExt = path.extname(refBase);
+  const raw = (suggestedName && String(suggestedName).trim()) || refBase || 'download';
+  // Windows-illegal filename characters — the same concern gdrive-media-
+  // source's own cacheFilePath sanitizes for, just preserving spaces/case
+  // here since this is a user-facing filename, not an internal cache key.
+  const cleaned = raw.replace(/[\\/:*?"<>|]/g, '_').trim() || 'download';
+  return /\.[a-z0-9]{2,4}$/i.test(cleaned) ? cleaned : `${cleaned}${refExt || '.mp4'}`;
+}
+
+// Never overwrites an existing file — appends " (2)", " (3)", etc. before
+// the extension, same convention a browser's own downloads folder uses.
+function uniqueDestinationPath(destDir, filename) {
+  const ext = path.extname(filename);
+  const stem = filename.slice(0, filename.length - ext.length);
+  let candidate = path.join(destDir, filename);
+  let n = 1;
+  while (fs.existsSync(candidate)) {
+    n += 1;
+    candidate = path.join(destDir, `${stem} (${n})${ext}`);
+  }
+  return candidate;
+}
+
 // `deps.getPluginServicesRef`/`deps.getViewerProjectionRef`/
-// `deps.getMediaBridgePort` are accessors, not raw values — all three are
-// `let`s in main.js reassigned inside app.whenReady() (pluginServicesRef
-// right away; viewerProjectionRef/mediaBridgePort together, once either the
-// real LAN viewer server or main-media-bridge.js's host-only fallback has
-// started), well after this is called, so a snapshot taken at registration
-// time would silently stay stale forever.
-function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProjectionRef, getMediaBridgePort }) {
+// `deps.getMediaBridgePort`/`deps.getMainWindow` are accessors, not raw
+// values — reassigned inside app.whenReady() well after this is called, so
+// a snapshot taken at registration time would silently stay stale forever.
+function registerMediaDispatchIpc(ipcMain, {
+  getPluginServicesRef, getViewerProjectionRef, getMediaBridgePort, getMainWindow,
+}) {
   // Local stays the exact pre-existing implementation, unchanged. A
   // non-local source dispatches to that plugin's registered `list` service
   // instead — see this file's header comment for the full contract. The
@@ -204,6 +241,77 @@ function registerMediaDispatchIpc(ipcMain, { getPluginServicesRef, getViewerProj
       return `http://127.0.0.1:${port}/media?id=${encodeURIComponent(id)}`;
     }
     return `app://media/?p=${encodeURIComponent(filePath)}`;
+  });
+
+  // Downloads a mediaSource-plugin file's full bytes to a real local
+  // directory, via the same readRange verb every provider already
+  // implements for live streaming — no provider-side change needed, this is
+  // purely a new core consumer of the existing four-verb contract. Loops in
+  // DOWNLOAD_CHUNK_SIZE slices (same cap serveFileViaPlugin already applies
+  // to a single readRange RPC call) rather than asking for the whole file
+  // in one shot, and reports progress after each chunk so setup-panels.js
+  // can show a percentage on a multi-minute download instead of a button
+  // that just sits there.
+  ipcMain.handle('media:downloadFile', async (event, source, ref, destDir, suggestedName) => {
+    if (!source || source === 'local') return { error: 'This file is already local.' };
+    if (!destDir) return { error: 'No destination folder given.' };
+    let destPath;
+    try {
+      destPath = uniqueDestinationPath(destDir, safeDownloadFilename(ref, suggestedName));
+    } catch (e) {
+      return { error: `Couldn't prepare a destination filename: ${e.message}` };
+    }
+    const tmpPath = `${destPath}.download`;
+    const win = getMainWindow();
+    let downloadedBytes = 0;
+    let totalBytes = null;
+    // fs.promises.open + fileHandle.write, not fs.createWriteStream —
+    // found live: a plain WriteStream's own 'error' event (e.g. ENOENT
+    // because destDir doesn't exist/was deleted, a permissions problem, a
+    // disconnected network drive) has no listener anywhere in this
+    // function, and an EventEmitter's unhandled 'error' event throws
+    // synchronously and crashes the WHOLE main process with an uncaught-
+    // exception dialog — not something this handler's own try/catch below
+    // ever gets a chance to catch, since it's a separate async event, not a
+    // rejection from anything awaited here. A FileHandle's write()/close()
+    // are plain promises instead: any failure surfaces as a normal
+    // rejection this try/catch already handles.
+    let fileHandle;
+    try {
+      fileHandle = await fs.promises.open(tmpPath, 'w');
+      for (;;) {
+        const rangeEnd = downloadedBytes + DOWNLOAD_CHUNK_SIZE - 1;
+        // eslint-disable-next-line no-await-in-loop
+        const result = await callMediaService(
+          getPluginServicesRef(), source, 'readRange', [ref, downloadedBytes, rangeEnd], MEDIA_READRANGE_TIMEOUT_MS,
+        );
+        if (!result || (result.status !== 200 && result.status !== 206) || !result.chunk) {
+          throw new Error(`The source returned status ${result && result.status} partway through the download.`);
+        }
+        const chunk = Buffer.isBuffer(result.chunk) ? result.chunk : Buffer.from(result.chunk);
+        if (totalBytes == null && result.totalSize != null) totalBytes = result.totalSize;
+        if (!chunk.length) break; // defensive: an empty chunk means nothing left to read
+        // eslint-disable-next-line no-await-in-loop
+        await fileHandle.write(chunk);
+        downloadedBytes += chunk.length;
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('media:downloadProgress', { source, ref, downloadedBytes, totalBytes });
+        }
+        if (totalBytes != null && downloadedBytes >= totalBytes) break;
+        // A short read with no known total is the only EOF signal a provider
+        // that doesn't report totalSize can give — the same ambiguity
+        // main-protocol.js's serveFileViaPlugin documents for that case.
+        if (chunk.length < DOWNLOAD_CHUNK_SIZE && totalBytes == null) break;
+      }
+      await fileHandle.close();
+      fileHandle = null;
+      await fs.promises.rename(tmpPath, destPath);
+      return { path: destPath, size: downloadedBytes };
+    } catch (e) {
+      if (fileHandle) { try { await fileHandle.close(); } catch (closeErr) { /* best-effort */ } }
+      try { await fs.promises.unlink(tmpPath); } catch (cleanupErr) { /* best-effort — nothing more to do if this fails too, e.g. the open() above never actually created it */ }
+      return { error: e.message };
+    }
   });
 
   // Cheap check only — never spawns ffmpeg. srcPath is always the path to

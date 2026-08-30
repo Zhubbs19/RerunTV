@@ -607,6 +607,27 @@ input[type="checkbox"].shuffle-toggle:active {
   gap: 6px;
 }
 
+/* Outer CONTENT/LOOK/PLAYBACK group bar sitting above the sub-tab bar
+   below — bolder/larger than a sub-tab so the two levels read as distinct
+   at a glance rather than one long undifferentiated row. */
+.edit-tab-group-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 12px 0;
+}
+.edit-tab-group-btn {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 8px 16px;
+}
+.edit-tab-group-btn.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: rgba(var(--gold-rgb), 0.12);
+}
+
 .edit-tab-bar {
   display: flex;
   flex-wrap: wrap;

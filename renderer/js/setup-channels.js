@@ -121,6 +121,36 @@ export async function fixChannelPlayback(ch, btn) {
 const channelOptionsCollapse = new Map();
 const openChannelEditTabs = new Map();
 
+// Groups the per-channel edit tabs into three top-level clusters — CONTENT
+// (what plays and when), LOOK (on-screen branding), PLAYBACK (playback-
+// behavior toggles) — added once the flat 9-tab bar (FOLDERS/SCHEDULE/
+// TITLES/ADS/LOGO/CREDITS/OVERLAYS/TICKER/IDENTITY) got too wide to scan at
+// a glance. Only the grouping is new here: every existing tab id/label/
+// build function below is untouched, so this is purely a second layer of
+// navigation on top of the same panels. `openChannelEditTabs` still stores
+// just the leaf tab id (unchanged shape) — the active group is always
+// derived from it (editTabGroupOf below) rather than tracked separately,
+// so switching channels/reopening later needs no migration of old stored
+// values and no second map to keep in sync.
+const EDIT_TAB_GROUP_DEFS = [
+  { id: 'content', label: 'CONTENT', tabIds: ['folders', 'titles', 'schedule'] },
+  { id: 'look', label: 'LOOK', tabIds: ['logo', 'overlays', 'ticker', 'identity'] },
+  { id: 'playback', label: 'PLAYBACK', tabIds: ['ads', 'credits'] },
+];
+
+// Builds this channel's actual groups from its actual editTabs (some tabs,
+// e.g. TITLES, only exist when the channel has files) — a group with no
+// surviving tabs is dropped entirely rather than shown empty.
+function buildEditTabGroups(editTabs) {
+  return EDIT_TAB_GROUP_DEFS
+    .map((g) => ({ ...g, tabs: g.tabIds.map((id) => editTabs.find((t) => t.id === id)).filter(Boolean) }))
+    .filter((g) => g.tabs.length > 0);
+}
+
+function editTabGroupOf(groups, tabId) {
+  return groups.find((g) => g.tabs.some((t) => t.id === tabId)) || groups[0];
+}
+
 // Only the genuinely uncommon overrides force a row open by default — a
 // per-channel RATING turned out to be something most real setups set on
 // nearly every channel (unlike FAVORITE/VHS/SHUFFLE/a volume override,
@@ -416,6 +446,10 @@ export function renderChannelList() {
       copyFromWrap.appendChild(copyFromBtn);
       editHeaderRow.appendChild(copyFromWrap);
 
+      const editTabGroups = buildEditTabGroups(editTabs);
+      const editGroupBar = document.createElement('div');
+      editGroupBar.className = 'edit-tab-group-bar';
+      editGroupBar.setAttribute('role', 'tablist');
       const editTabBar = document.createElement('div');
       editTabBar.className = 'edit-tab-bar';
       editTabBar.setAttribute('role', 'tablist');
@@ -425,13 +459,44 @@ export function renderChannelList() {
       editTabContent.setAttribute('role', 'tabpanel');
       editPanel.appendChild(editHeading);
       editPanel.appendChild(editHeaderRow);
+      editPanel.appendChild(editGroupBar);
       editPanel.appendChild(editTabBar);
       editPanel.appendChild(editTabContent);
 
       let activeEditTab = openChannelEditTabs.get(ch.number) || editTabs[0].id;
+      function renderEditGroupBar() {
+        editGroupBar.innerHTML = '';
+        const activeGroup = editTabGroupOf(editTabGroups, activeEditTab);
+        editTabGroups.forEach((g) => {
+          const groupBtn = document.createElement('button');
+          const groupActive = g.id === activeGroup.id;
+          groupBtn.className = 'btn edit-tab-group-btn' + (groupActive ? ' active' : '');
+          groupBtn.setAttribute('role', 'tab');
+          groupBtn.setAttribute('aria-selected', String(groupActive));
+          groupBtn.textContent = g.label;
+          groupBtn.addEventListener('click', () => {
+            if (g.id === activeGroup.id) return;
+            // Switching groups always lands on that group's first tab —
+            // same "pick a fresh default" behavior every other outer/inner
+            // tab pairing in this app already uses (e.g. SCHEDULE's own
+            // BLOCKS/CALENDAR toggle) rather than trying to remember a
+            // second, per-group "last sub-tab" on top of openChannelEditTabs'
+            // existing single leaf-tab-id shape.
+            activeEditTab = g.tabs[0].id;
+            if (openChannelEditTabs.has(ch.number)) {
+              openChannelEditTabs.set(ch.number, activeEditTab);
+            }
+            renderEditGroupBar();
+            renderEditTabBar();
+            renderEditTabContent();
+          });
+          editGroupBar.appendChild(groupBtn);
+        });
+      }
       function renderEditTabBar() {
         editTabBar.innerHTML = '';
-        editTabs.forEach((t) => {
+        const activeGroup = editTabGroupOf(editTabGroups, activeEditTab);
+        activeGroup.tabs.forEach((t) => {
           const tabBtn = document.createElement('button');
           const tabActive = t.id === activeEditTab;
           tabBtn.className = 'btn edit-tab-btn' + (tabActive ? ' active' : '') + (t.soon ? ' edit-tab-soon' : '');
@@ -465,12 +530,14 @@ export function renderChannelList() {
       if (isInitiallyOpen) {
         editBtn.classList.add('edit-btn-open');
         editPanel.classList.remove('hidden');
+        renderEditGroupBar();
         renderEditTabBar();
         renderEditTabContent();
       }
 
       editBtn.addEventListener('click', () => {
         toggleLazyPanel(editPanel, () => {
+          renderEditGroupBar();
           renderEditTabBar();
           renderEditTabContent();
         });
