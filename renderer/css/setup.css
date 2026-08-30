@@ -1695,6 +1695,16 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
 .plugin-row.is-disabled .plugin-row-name { color: var(--paper-dim); }
 .plugin-row-info { flex: 1; min-width: 0; }
 .plugin-row-name-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* Pushes the +DETAILS toggle to the far right of the name/status line
+   rather than crowding right up against the status badge. */
+.plugin-row-details-toggle { margin-left: auto; flex-shrink: 0; opacity: 0.75; }
+.plugin-row-details-toggle:hover { opacity: 1; }
+/* Collapsed by default (see setup-plugins.js's own comment on why) — the
+   description/integrity/permission/capability/dependency block that used
+   to always render inline, now shown only on demand or when the row
+   actually needs attention. */
+.plugin-row-details.collapsed { display: none; }
+.plugin-row-details { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .plugin-row-name {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -2169,6 +2179,28 @@ html[data-theme] .btn[aria-disabled="true"] {
   text-align: center;
   padding: 0 6px;
   font-variant-numeric: tabular-nums;
+}
+/* .title-row-input inside a .panel-interval row (a plugin settings panel's
+   own URL/credential/CSV field, e.g. gdrive/webdav/jellyfin/archive-media-
+   source's renderer.js) is text content, not a short number like "EVERY
+   [30] MIN" — the plain-input rule above was clobbering it down to the
+   same 56px centered numeric box (higher specificity: .panel-interval
+   input beats .title-row-input's own unset width regardless of source
+   order), truncating a URL or format list to a few visible characters.
+   Higher specificity here (class + class vs. class + tag) wins back the
+   space this content actually needs. */
+.panel-interval input.title-row-input {
+  /* flex-basis, not width:100% — .panel-interval is itself an auto-width
+     flex container (see its own comment above), so a percentage width on
+     a child has no real containing-block size to resolve against. Same
+     "let it grow, but not infinitely" shape .titles-bulk-bar's own
+     title-row-input rule already uses. */
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 420px;
+  text-align: left;
+  padding: 0 8px;
+  font-variant-numeric: normal;
 }
 
 .panel-interval select {

@@ -230,6 +230,15 @@ function needsAttention(p) {
 
 let currentPluginsForAttention = [];
 
+// Which plugin rows have been manually expanded this session — persists
+// across a renderPluginsList() rebuild (RESCAN, a checkbox toggle, an
+// approve/revoke) the same way openChannelEditTabs (setup-channels.js)
+// remembers an open channel-edit tab across re-renders, so expanding a row
+// to read its description isn't undone by the very next unrelated click.
+// Session-only (not saved to config) — this is pure UI state, not a
+// setting.
+const expandedPluginIds = new Set();
+
 async function promptIntegrityApproval(p) {
   const changed = p.integrityStatus === 'modified';
   const message = `${p.name}'s files are ${changed ? 'different from the last trusted install' : 'not from a recorded ZIP install'}.\n\nRenderer JavaScript and CSS run inside RerunTV's UI and can read or change anything visible there. Main-process isolation does not sandbox renderer code.\n\nCurrent SHA-256: ${p.integrityHash}\n\nOnly trust this exact version if you know where it came from.`;
@@ -374,15 +383,35 @@ export async function renderPluginsList() {
       name.appendChild(version);
     }
     nameLine.appendChild(name);
+    let attention = false;
     if (!p.error) {
-      const attention = needsAttention(p);
+      attention = needsAttention(p);
       const status = document.createElement('span');
       status.className = `plugin-row-status${attention ? ' needs-attention' : (disabledIdsAtRender.includes(p.id) ? ' is-off' : '')}`;
       status.textContent = attention ? 'ATTENTION' : (disabledIdsAtRender.includes(p.id) ? 'OFF' : 'ENABLED');
       nameLine.appendChild(status);
       row.dataset.attention = String(attention);
     }
+
+    // The description/integrity/permission/capability/dependency block below
+    // is collapsed by default — with 50+ plugins installed, always rendering
+    // every row's full paragraph made this tab mostly scrolling. A row that
+    // needs attention (an error, an unapproved permission/integrity change,
+    // a broken dependency) or one the user has already expanded this session
+    // (expandedPluginIds above) stays open instead — the two cases where
+    // collapsing would actually hide something worth seeing right away.
+    let detailsExpanded = !p.error && (attention || expandedPluginIds.has(p.id));
+    let detailsToggleBtn = null;
+    if (!p.error) {
+      detailsToggleBtn = document.createElement('button');
+      detailsToggleBtn.type = 'button';
+      detailsToggleBtn.className = 'btn btn-small plugin-row-details-toggle';
+      nameLine.appendChild(detailsToggleBtn);
+    }
     info.appendChild(nameLine);
+
+    const detailsTarget = p.error ? info : document.createElement('div');
+    if (!p.error) detailsTarget.className = 'plugin-row-details';
 
     if (p.error) {
       const err = document.createElement('div');
@@ -394,13 +423,13 @@ export async function renderPluginsList() {
         const desc = document.createElement('div');
         desc.className = 'plugin-row-desc';
         desc.textContent = p.description;
-        info.appendChild(desc);
+        detailsTarget.appendChild(desc);
       }
       if (p.loadError) {
         const err = document.createElement('div');
         err.className = 'plugin-row-error';
         err.textContent = `Failed to load: ${p.loadError}`;
-        info.appendChild(err);
+        detailsTarget.appendChild(err);
       }
       if (p.needsIntegrityApproval) {
         const notice = document.createElement('div');
@@ -408,13 +437,13 @@ export async function renderPluginsList() {
         notice.textContent = p.integrityStatus === 'modified'
           ? 'Plugin files changed after installation. UI, CSS, and system code are blocked.'
           : 'Plugin origin is unverified. UI, CSS, and system code are blocked.';
-        info.appendChild(notice);
+        detailsTarget.appendChild(notice);
         const trustBtn = document.createElement('button');
         trustBtn.type = 'button';
         trustBtn.className = 'btn btn-danger';
         trustBtn.textContent = 'REVIEW & TRUST THIS VERSION';
         trustBtn.addEventListener('click', () => promptIntegrityApproval(p));
-        info.appendChild(trustBtn);
+        detailsTarget.appendChild(trustBtn);
       } else {
         const integrity = document.createElement('div');
         integrity.className = 'plugin-row-approved';
@@ -423,7 +452,7 @@ export async function renderPluginsList() {
           : p.bundled
             ? 'Locally modified built-in files match the trusted SHA-256 record.'
             : 'Installed files match the trusted SHA-256 record.';
-        info.appendChild(integrity);
+        detailsTarget.appendChild(integrity);
       }
       // Declared capabilities.ipc/spawn/net that don't match what's in
       // config.plugins.approvedCapabilities yet (a first install, or an
@@ -437,18 +466,18 @@ export async function renderPluginsList() {
         const notice = document.createElement('div');
         notice.className = 'plugin-row-error';
         notice.textContent = 'Needs permission approval before it can activate.';
-        info.appendChild(notice);
+        detailsTarget.appendChild(notice);
         const approveBtn = document.createElement('button');
         approveBtn.type = 'button';
         approveBtn.className = 'btn btn-primary';
         approveBtn.textContent = 'REVIEW & APPROVE PERMISSIONS';
         approveBtn.addEventListener('click', () => promptCapabilityApproval(p));
-        info.appendChild(approveBtn);
+        detailsTarget.appendChild(approveBtn);
       } else if (permState === 'approved') {
         const notice = document.createElement('div');
         notice.className = 'plugin-row-approved';
         notice.textContent = 'Permissions approved.';
-        info.appendChild(notice);
+        detailsTarget.appendChild(notice);
         const permActions = document.createElement('div');
         permActions.className = 'plugin-row-perm-actions';
         const revokeBtn = document.createElement('button');
@@ -468,7 +497,7 @@ export async function renderPluginsList() {
           uninstallBtn.addEventListener('click', () => confirmUninstallPlugin(p));
           permActions.appendChild(uninstallBtn);
         }
-        info.appendChild(permActions);
+        detailsTarget.appendChild(permActions);
       }
       const kinds = document.createElement('div');
       kinds.className = 'plugin-row-kinds';
@@ -476,7 +505,7 @@ export async function renderPluginsList() {
       if (p.renderer) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'UI — FULL RENDERER ACCESS'; kinds.appendChild(k); }
       if (p.settings) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SETTINGS'; kinds.appendChild(k); }
       if (p.main) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SYSTEM'; kinds.appendChild(k); }
-      if (kinds.children.length) info.appendChild(kinds);
+      if (kinds.children.length) detailsTarget.appendChild(kinds);
 
       // Surfaces manifest `dependsOn` right on the row — previously only
       // enforced (via the disable-confirm above), never actually shown, so
@@ -504,11 +533,27 @@ export async function renderPluginsList() {
           }
           deps.appendChild(span);
         });
-        info.appendChild(deps);
+        detailsTarget.appendChild(deps);
       }
+      info.appendChild(detailsTarget);
     }
 
     row.appendChild(info);
+
+    if (detailsToggleBtn) {
+      const setExpanded = (expanded) => {
+        detailsExpanded = expanded;
+        detailsTarget.classList.toggle('collapsed', !expanded);
+        detailsToggleBtn.textContent = expanded ? 'DETAILS ▾' : '+ DETAILS';
+        detailsToggleBtn.setAttribute('aria-expanded', String(expanded));
+      };
+      setExpanded(detailsExpanded);
+      detailsToggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (detailsExpanded) expandedPluginIds.delete(p.id); else expandedPluginIds.add(p.id);
+        setExpanded(!detailsExpanded);
+      });
+    }
 
     // Live reload — re-fetches this plugin's style/renderer/settings from
     // disk and re-registers them without an app restart (see
