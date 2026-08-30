@@ -393,7 +393,7 @@ export function startCreditsSpeedup(ch, file, rate, leadS) {
     const promoEntry = candidates.length ? pickDeterministic(candidates, `creditsSqueeze:${ch.number}:${file.path}`, 0) : null;
     if (promoEntry && promoEntry.file) {
       usedVideoMode = true;
-      window.api.resolvePlayablePath('local', promoEntry.file.path).then((resolved) => window.api.toFileUrl(resolved.path)).then((url) => {
+      window.api.resolvePlayablePath(promoEntry.file.source || 'local', promoEntry.file.path).then((resolved) => window.api.toFileUrl(resolved.path)).then((url) => {
         if (!S.creditsSpeedupActive) return; // interrupted while the IPC round-trip was in flight
         creditsSqueezeVideoEl.loop = true;
         creditsSqueezeVideoEl.src = url;

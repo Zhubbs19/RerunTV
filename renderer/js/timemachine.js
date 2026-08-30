@@ -105,7 +105,7 @@ export async function updateShuttlePreview() {
     if (previewKey !== S.shuttlePreviewPath) {
       S.shuttlePreviewPath = previewKey;
       try {
-        const resolved = await window.api.resolvePlayablePath('local', previewFile.path);
+        const resolved = await window.api.resolvePlayablePath(previewFile.source || 'local', previewFile.path);
         const url = await window.api.toFileUrl(resolved.path);
         if (!S.timeMachineOn || S.shuttlePreviewPath !== previewKey) return;
         player.loop = !!brk.entry.dynamic;

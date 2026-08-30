@@ -350,7 +350,8 @@ function startBreak(ch, resolved, key) {
     (async () => {
       try {
         const filePath = (entry.bgFile && entry.bgFile.path) || '';
-        const resolved = await window.api.resolvePlayablePath('local', filePath);
+        const fileSource = (entry.bgFile && entry.bgFile.source) || 'local';
+        const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
         const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
         if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
         player.loop = true;
@@ -397,7 +398,8 @@ function startBreak(ch, resolved, key) {
   (async () => {
     try {
       const filePath = (entry.file && entry.file.path) || '';
-      const resolved = await window.api.resolvePlayablePath('local', filePath);
+      const fileSource = (entry.file && entry.file.source) || 'local';
+      const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
       const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
       if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
       player.src = url;

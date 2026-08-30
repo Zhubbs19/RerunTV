@@ -431,6 +431,23 @@ export function wrapMediaRef(source, rawRef) {
   return `mediasource:${source}:${rawRef}`;
 }
 
+// Optional per-provider verb (PLUGIN_DEVELOPMENT.md's "Media sources"
+// section) — a plugin-sourced file's `path` is that provider's opaque ref
+// (e.g. a Drive file id), which has no meaningful basename the way a local
+// path's filename does, so without this any UI showing a file's name falls
+// back to the raw ref (getDisplayTitle, util.js). Lives here (not in
+// setup-channels.js, where it originated, or setup-interstitials.js, which
+// also needs it) specifically to avoid those two setup-screen modules
+// importing from each other — this file is pure logic both already depend
+// on either way.
+export async function tryGetDisplayName(providerId, rawRef) {
+  try {
+    return await window.api.callMediaSourceHook(providerId, 'getDisplayName', rawRef);
+  } catch (err) {
+    return null;
+  }
+}
+
 // A saved curation profile's contentPoolScope.folders (setup-autocurate.js)
 // may still hold legacy raw path strings from before ch.folders[] entries
 // had ids — resolve each to its current entry id (matching by ref) so an
