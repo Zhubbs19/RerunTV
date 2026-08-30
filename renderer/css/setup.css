@@ -1036,6 +1036,16 @@ input[type="checkbox"].shuffle-toggle:active {
   padding: 4px 8px;
   flex-shrink: 0;
 }
+/* No margin-left:auto of its own — .interstitials-group-preview-btn above
+   already claims that (consumes all space before it in the flex row), so
+   this just sits right after it at the same far-right edge. Absent when
+   there's nothing playable in the group (no preview button either), same
+   as that button's own gating. */
+.interstitials-group-select-btn {
+  font-size: 10px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}
 
 .bulk-actions-bar {
   display: flex;

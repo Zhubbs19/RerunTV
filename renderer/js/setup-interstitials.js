@@ -165,6 +165,116 @@ async function pickSingleFileFromProvider(providerId) {
   return { path: chosenRef, source: providerId, duration, ...(title ? { title } : {}) };
 }
 
+// Asked once per bulk import (a whole folder's worth, local or plugin-
+// sourced) rather than per file — lets the whole batch land pre-tagged
+// with a channel affinity/type/tag instead of importing everything as
+// generic ANY-CHANNEL commercials and then having to bulk-select and
+// bulk-apply those same three things afterward via the SELECT ENTRIES
+// toolbar below. Returns null if cancelled, in which case the caller
+// should abort the import entirely rather than falling back to defaults —
+// cancelling here means "I didn't mean to import this batch," not "use
+// plain defaults."
+async function promptBatchImportOptions(count) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-dialog';
+    const box = document.createElement('div');
+    box.className = 'confirm-dialog-box';
+    overlay.appendChild(box);
+
+    const title = document.createElement('div');
+    title.className = 'confirm-dialog-title';
+    title.textContent = `IMPORT ${count} FILE${count === 1 ? '' : 'S'}`;
+    box.appendChild(title);
+
+    const body = document.createElement('div');
+    body.className = 'panel-body';
+    body.style.flexDirection = 'column';
+    body.style.alignItems = 'stretch';
+    box.appendChild(body);
+
+    const typeRow = document.createElement('div');
+    typeRow.className = 'panel-interval';
+    const typeLabel = document.createElement('span');
+    typeLabel.textContent = 'TYPE (APPLIED TO ALL)';
+    const typeSelect = document.createElement('select');
+    typeSelect.className = 'block-hour-select';
+    INTERSTITIAL_TYPE_DEFS.filter((d) => d.contentKind === 'video').forEach((d) => {
+      const opt = document.createElement('option');
+      opt.value = d.id;
+      opt.textContent = d.label;
+      typeSelect.appendChild(opt);
+    });
+    typeSelect.value = 'commercial';
+    typeRow.appendChild(typeLabel);
+    typeRow.appendChild(typeSelect);
+    body.appendChild(typeRow);
+
+    const chRow = document.createElement('div');
+    chRow.className = 'panel-interval';
+    const chLabel = document.createElement('span');
+    chLabel.textContent = 'CHANNEL (APPLIED TO ALL)';
+    const chSelect = document.createElement('select');
+    chSelect.className = 'block-hour-select';
+    const anyOpt = document.createElement('option');
+    anyOpt.value = 'any';
+    anyOpt.textContent = 'ANY CHANNEL';
+    chSelect.appendChild(anyOpt);
+    sortedChannels().forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = String(c.number);
+      opt.textContent = `CH ${c.number}${c.name ? ' — ' + c.name : ''}`;
+      chSelect.appendChild(opt);
+    });
+    chRow.appendChild(chLabel);
+    chRow.appendChild(chSelect);
+    body.appendChild(chRow);
+
+    const tagRow = document.createElement('div');
+    tagRow.className = 'panel-interval';
+    const tagLabel = document.createElement('span');
+    tagLabel.textContent = 'TAG (OPTIONAL, APPLIED TO ALL)';
+    const tagInput = document.createElement('input');
+    tagInput.type = 'text';
+    tagInput.className = 'title-row-input';
+    tagInput.placeholder = 'e.g. halloween';
+    tagRow.appendChild(tagLabel);
+    tagRow.appendChild(tagInput);
+    body.appendChild(tagRow);
+
+    const actions = document.createElement('div');
+    actions.className = 'confirm-dialog-actions';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn';
+    cancelBtn.textContent = 'CANCEL';
+    const importBtn = document.createElement('button');
+    importBtn.className = 'btn btn-primary';
+    importBtn.textContent = 'IMPORT';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(importBtn);
+    box.appendChild(actions);
+
+    let closed = false;
+    function close(result) {
+      if (closed) return;
+      closed = true;
+      overlay.remove();
+      resolve(result);
+    }
+    cancelBtn.addEventListener('click', () => close(null));
+    importBtn.addEventListener('click', () => {
+      const channelAffinity = chSelect.value === 'any' ? 'any' : parseInt(chSelect.value, 10);
+      const tag = tagInput.value.trim().toLowerCase();
+      close({ type: typeSelect.value, channelAffinity, contentTags: tag ? [tag] : [] });
+    });
+    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(null); });
+    overlay.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); close(null); } });
+
+    document.body.appendChild(overlay);
+    importBtn.focus();
+  });
+}
+
 // Bulk pool import — the plugin-sourced counterpart to the existing
 // interstitialsAddFolderBtn (local-only, unchanged). Adds every video file
 // in the chosen folder as its own pool entry, same as scanning a local
@@ -187,6 +297,10 @@ async function importPoolFromProvider(providerId) {
     setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
     return;
   }
+  scanProgressEl.classList.add('hidden');
+  const options = await promptBatchImportOptions(refs.length);
+  if (!options) return;
+  scanProgressEl.classList.remove('hidden');
   for (let i = 0; i < refs.length; i++) {
     scanProgressEl.textContent = `PROBING ${i + 1} / ${refs.length}…`;
     const rawRef = parseMediaRef(refs[i]).ref;
@@ -195,7 +309,12 @@ async function importPoolFromProvider(providerId) {
       probeDurationForEntry(providerId, rawRef),
       tryGetDisplayName(providerId, rawRef),
     ]);
-    addInterstitialPoolEntry({ file: { path: refs[i], source: providerId, duration, ...(title ? { title } : {}) } });
+    addInterstitialPoolEntry({
+      file: { path: refs[i], source: providerId, duration, ...(title ? { title } : {}) },
+      type: options.type,
+      channelAffinity: options.channelAffinity,
+      contentTags: options.contentTags,
+    });
   }
   scanProgressEl.classList.add('hidden');
   renderInterstitialsList();
@@ -1020,6 +1139,31 @@ export function renderInterstitialsList() {
       header.appendChild(previewBtn);
     }
 
+    // Selects (or, toggled, deselects) every entry in this one channel
+    // group at once — the direct route to "select everything for CH 5" a
+    // group header naturally invites, versus the existing global SELECT
+    // ALL (which only respects whatever the filter bar happens to be set
+    // to right now). Turns on bulk mode automatically if it wasn't already,
+    // same as clicking a single entry's own checkbox already does.
+    const groupIds = group.items.map(({ entry }) => entry.id);
+    const groupAllSelected = groupIds.every((id) => selectedInterstitialEntries.has(id));
+    const selectGroupBtn = document.createElement('button');
+    selectGroupBtn.className = 'btn interstitials-group-select-btn';
+    selectGroupBtn.textContent = groupAllSelected ? 'DESELECT ALL IN GROUP' : `SELECT ALL IN GROUP (${groupIds.length})`;
+    selectGroupBtn.title = 'Select (or deselect) every entry in this channel group for a bulk action below — channel/tag apply, remove, etc.';
+    selectGroupBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!interstitialsBulkMode) {
+        interstitialsBulkMode = true;
+        interstitialsBulkToggleBtn.classList.add('active');
+        interstitialsBulkToggleBtn.textContent = 'DONE SELECTING';
+      }
+      if (groupAllSelected) groupIds.forEach((id) => selectedInterstitialEntries.delete(id));
+      else groupIds.forEach((id) => selectedInterstitialEntries.add(id));
+      renderInterstitialsList();
+    });
+    header.appendChild(selectGroupBtn);
+
     header.addEventListener('click', () => {
       if (collapsedInterstitialGroups.has(group.key)) collapsedInterstitialGroups.delete(group.key);
       else collapsedInterstitialGroups.add(group.key);
@@ -1158,10 +1302,26 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING INTERSTITIALS FOLDER…';
   const paths = await window.api.scanFolder('local', folder);
+  scanProgressEl.classList.add('hidden');
+  if (!paths || !paths.length) {
+    scanProgressEl.classList.remove('hidden');
+    scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+    return;
+  }
+  const options = await promptBatchImportOptions(paths.length);
+  if (!options) return;
+  scanProgressEl.classList.remove('hidden');
   for (let i = 0; i < paths.length; i++) {
     scanProgressEl.textContent = `PROBING ${i + 1} / ${paths.length}…`;
+    // eslint-disable-next-line no-await-in-loop
     const duration = await probeDuration(paths[i]);
-    addInterstitialPoolEntry({ file: { path: paths[i], source: 'local', duration } });
+    addInterstitialPoolEntry({
+      file: { path: paths[i], source: 'local', duration },
+      type: options.type,
+      channelAffinity: options.channelAffinity,
+      contentTags: options.contentTags,
+    });
   }
   scanProgressEl.classList.add('hidden');
   renderInterstitialsList();
