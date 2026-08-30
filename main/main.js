@@ -205,18 +205,20 @@ let activatedMediaSourceProviders = {};
 // existed.
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
-// Always set once app.whenReady() finishes its LAN-viewer-or-bridge branch
-// below (never null past that point) — a mediaSource-plugin ref needs some
-// real loopback http.Server's projection map to register into regardless of
-// whether the user has turned on LAN viewer access; see main-media-bridge.js
-// for why that fallback server exists and mediaBridgePort just below for the
-// port half of this pair.
+// Always set once app.whenReady() starts main-media-bridge.js's host-only
+// server (never null past that point, and set unconditionally — not tied to
+// whether LAN viewer access is on). This is deliberately NOT the real LAN
+// viewer server's own projection even when that service is enabled: that
+// server's /media route sits behind main-lan-security.js's pairing/session
+// gate, which the host window's own fetch() has no way to satisfy (a
+// <video src> can't carry a session cookie/Bearer header the way a paired
+// browser tab's request does) — found live, see main.js's whenReady for the
+// full story. This bridge has no such gate, so the host window always uses
+// it instead, regardless of LAN viewer state.
 let viewerProjectionRef = null;
-// The port path:toFileUrl (main-media-dispatch.js) targets for a
-// mediaSource-plugin ref: the real LAN viewer's well-known VIEWER_PORT when
-// that service is enabled (so an already-registered id resolves the same
-// way for the host window as for any LAN viewer), or main-media-bridge.js's
-// own OS-assigned ephemeral port otherwise. Never null past whenReady().
+// main-media-bridge.js's own OS-assigned ephemeral port — the port
+// path:toFileUrl (main-media-dispatch.js) targets for every mediaSource-
+// plugin ref played in the host window. Never null past whenReady().
 let mediaBridgePort = null;
 let pluginDisabledAtBoot = [];
 
@@ -304,7 +306,26 @@ app.whenReady().then(async () => {
   } else {
     seedBundledPlugins();
   }
+  // The host window's own mediaSource-plugin playback ALWAYS goes through
+  // this bridge, never through the real LAN viewer server below, even when
+  // LAN viewer access is on. Found live: reusing the LAN viewer's own
+  // /media route for the host window (the original shape of this fix)
+  // looked right — same route, same serveMediaRef dispatch — but that
+  // route sits behind main-lan-security.js's pairing/session-cookie gate,
+  // and the host window's own fetch() never goes through the /_pair
+  // handshake a real paired browser tab does. It came back the pairing
+  // HTML page instead of media bytes, and the <video> element's request
+  // failed outright — a latent bug since LAN hardening was added, since
+  // nobody had exercised a plugin channel with LAN viewer also turned on.
+  // This bridge has no such gate (loopback-only, ephemeral port, never
+  // advertised) specifically so the host window's own use case needs none.
+  const bridge = await startMediaBridge();
+  viewerProjectionRef = bridge.projection;
+  mediaBridgePort = bridge.port;
   if (isLanServiceEnabled(bootConfig, 'viewer')) {
+    // Independent of the bridge above — this server's own /media route (and
+    // its own separate projection instance) is what an actual remote LAN
+    // device uses, gated by pairing same as everything else it serves.
     const viewerRuntime = startViewerServer(pluginServices, {
       pluginsDir: getPluginsDir(),
       access: createLanAccess('viewer', {
@@ -321,16 +342,6 @@ app.whenReady().then(async () => {
       )),
     });
     viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
-    viewerProjectionRef = viewerRuntime.projection;
-    mediaBridgePort = VIEWER_PORT;
-  } else {
-    // LAN viewer access is off, but a mediaSource-plugin channel still needs
-    // some real loopback http.Server to route through for the reason
-    // main-media-bridge.js's header comment explains — start the host-only
-    // fallback instead of leaving path:toFileUrl with nowhere to point.
-    const bridge = await startMediaBridge();
-    viewerProjectionRef = bridge.projection;
-    mediaBridgePort = bridge.port;
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   pluginDisabledAtBoot = [...disabledPluginIds];
