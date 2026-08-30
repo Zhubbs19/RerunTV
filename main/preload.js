@@ -75,6 +75,15 @@ contextBridge.exposeInMainWorld('api', {
   basename: (filePath) => ipcRenderer.invoke('path:basename', filePath),
   resolvePlayablePath: (source, filePath) => ipcRenderer.invoke('media:resolvePlayablePath', source, filePath),
   transcode: (source, filePath) => ipcRenderer.invoke('media:transcode', source, filePath),
+  // Downloads a mediaSource-plugin file to a real local folder — setup-
+  // panels.js's per-file DOWNLOAD action. Host-only: a LAN viewer can't edit
+  // channels, so it never needs this.
+  downloadMediaFile: (source, ref, destDir, suggestedName) => ipcRenderer.invoke('media:downloadFile', source, ref, destDir, suggestedName),
+  onMediaDownloadProgress: (cb) => {
+    const listener = (event, payload) => cb(payload);
+    ipcRenderer.on('media:downloadProgress', listener);
+    return () => ipcRenderer.removeListener('media:downloadProgress', listener);
+  },
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.

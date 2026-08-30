@@ -3,7 +3,7 @@
 // CALENDAR live in setup-schedule.js (they're bigger and share a lot of
 // row-editing code); channel-list/bulk-action rendering lives in
 // setup-channels.js.
-import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags } from './channels.js';
+import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags, parseMediaRef } from './channels.js';
 import { applyLogoBugPlacement } from './playback-broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
@@ -15,6 +15,77 @@ import {
 } from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from './playback-order.js';
+
+// Downloads a mediaSource-plugin file's full bytes to a local folder (via
+// main-media-dispatch.js's media:downloadFile, which loops the provider's
+// own readRange the same way live playback already does — no plugin-side
+// change needed), then repoints this one file entry to the resulting real
+// local path. From that point on it plays as a genuine local file: no more
+// network dependency, and it becomes eligible for FIX PLAYBACK the way a
+// plugin-sourced file never is (media:resolvePlayablePath's
+// transcodable:false).
+//
+// `target` is whatever the destination directory gets remembered on — same
+// "just needs a .files array" shape this whole panel already treats
+// uniformly (a channel or a block), so a block gets its own remembered
+// download directory too rather than needing special-casing here. Asked
+// once per target, not once per file: the first download on a given
+// channel/block prompts for a folder, every later one just reuses it.
+async function downloadFileToLocal(target, file, btn) {
+  if (btn.disabled) return;
+  let destDir = target.downloadDir;
+  if (!destDir) {
+    destDir = await window.api.selectFolder();
+    if (!destDir) return;
+    target.downloadDir = destDir;
+    saveConfigDebounced();
+  }
+  const { source, ref } = parseMediaRef(file.path);
+  if (!source || source === 'local') return; // the button is only ever shown for a non-local file — defensive only
+
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'DOWNLOADING…';
+
+  function formatProgress(payload) {
+    if (payload.totalBytes) return `DOWNLOADING… ${Math.min(99, Math.round((payload.downloadedBytes / payload.totalBytes) * 100))}%`;
+    return `DOWNLOADING… ${(payload.downloadedBytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  const unsubscribe = window.api.onMediaDownloadProgress((payload) => {
+    if (payload.source !== source || payload.ref !== ref) return;
+    btn.textContent = formatProgress(payload);
+  });
+
+  try {
+    const result = await window.api.downloadMediaFile(source, ref, destDir, file.title || null);
+    if (!result || result.error) {
+      await alertDialog({ title: 'DOWNLOAD FAILED', message: (result && result.error) || 'Unknown error.' });
+      btn.disabled = false;
+      btn.textContent = originalText;
+      return;
+    }
+    file.path = result.path;
+    file.source = 'local';
+    // Detach from whatever remote folder this file came from — a future
+    // library-sync rescan of that folder (library-sync.js) compares its own
+    // provider refs against tracked files' CURRENT path, and this file's
+    // path is no longer that provider's ref at all now that it's a real
+    // local copy. Leaving `folder` pointed at it would make the sync think
+    // the original ref went missing while the provider still reports it
+    // present — this file is standalone from here on, same as one added
+    // without going through any tracked folder at all.
+    file.folder = null;
+    saveConfigDebounced();
+    btn.textContent = 'DOWNLOADED ✓';
+  } catch (e) {
+    await alertDialog({ title: 'DOWNLOAD FAILED', message: e.message || 'Unknown error.' });
+    btn.disabled = false;
+    btn.textContent = originalText;
+  } finally {
+    unsubscribe();
+  }
+}
 
 // `target` just needs a `.files` array — works for a channel (ch.files) or
 // a single schedule block (block.files), since both store their file pool
@@ -700,6 +771,25 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         action.renderRowCell(cell, file, { ...titleRowActionCtx, descInput, descToggleBtn });
         row.appendChild(cell);
       });
+
+      // A core action (not plugin-contributed, hence not going through
+      // registerTitleRowAction like the cells above) — every mediaSource
+      // provider already implements the readRange verb this downloads via,
+      // so this works identically for archive/webdav/jellyfin/gdrive with
+      // no per-plugin code. Reuses the same title-row-plugin-cell styling
+      // for visual consistency with the row's other action cells.
+      if (file.source && file.source !== 'local') {
+        const downloadCell = document.createElement('div');
+        downloadCell.className = 'title-row-plugin-cell';
+        const downloadBtn = document.createElement('button');
+        downloadBtn.type = 'button';
+        downloadBtn.className = 'btn btn-small';
+        downloadBtn.textContent = 'DOWNLOAD';
+        downloadBtn.title = 'Download this file to a local folder. Once complete, it plays as a real local file — no more network dependency.';
+        downloadBtn.addEventListener('click', () => downloadFileToLocal(target, file, downloadBtn));
+        downloadCell.appendChild(downloadBtn);
+        row.appendChild(downloadCell);
+      }
 
       const wrap = document.createElement('div');
       wrap.className = 'title-row-wrap';
