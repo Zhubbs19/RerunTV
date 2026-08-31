@@ -20,6 +20,18 @@ const VIEWER_PORT = 8724;
 // VPN/virtual by convention) and return every remaining candidate so the
 // setup screen can show them all — the user recognizes their own WiFi name.
 const NON_LAN_ADAPTER_NAME = /vpn|tailscale|nordlynx|wireguard|zerotier|hyper-v|virtualbox|vmware|loopback|utun|tap\d|tun\d/i;
+// Name-based filtering above misses a virtual adapter Windows has renamed to
+// something generic ("Ethernet 2", "Ethernet 3", ...) — confirmed live: a
+// VirtualBox Host-Only Network adapter showed up as bare "Ethernet 2" (no
+// "virtualbox" in the name at all) alongside the real WiFi, which broke
+// mDNS/Zeroconf-based device discovery for a plugin that passes every
+// address this returns to its own advertising step. The MAC vendor prefix
+// (OUI) is a much more reliable signal than the adapter's display name,
+// since virtualization software can't rename that away — VirtualBox's is
+// 08:00:27 (or the locally-administered variant 0a:00:27, seen on the
+// machine that hit this), VMware's are 00:0c:29/00:50:56/00:05:69, Hyper-V's
+// default switch is 00:15:5d, Parallels' is 00:1c:42.
+const NON_LAN_MAC_OUI = /^(08:00:27|0a:00:27|00:0c:29|00:50:56|00:05:69|00:15:5d|00:1c:42)/i;
 function getLanAddresses() {
   const nets = os.networkInterfaces();
   const candidates = [];
@@ -28,6 +40,7 @@ function getLanAddresses() {
     for (const net of nets[name]) {
       if (net.family !== 'IPv4' || net.internal) continue;
       if (net.address.startsWith('169.254.')) continue; // link-local, never phone-reachable
+      if (net.mac && NON_LAN_MAC_OUI.test(net.mac)) continue;
       candidates.push({ name, address: net.address });
     }
   }
