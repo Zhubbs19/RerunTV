@@ -149,7 +149,7 @@ the guide also scrolls backward into the past.
   the setup screen
 - **Plugin developer diagnostics** — registration/capability inventory, bounded main and
   renderer logs, reload status, and redacted JSON support bundles
-- **22 theme packs** spanning six decades of TV/cable-box UI — from a 1978 wood-console
+- **23 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
   set through dense SD grids, metallic late-2000s menus, widescreen preview guides, and
   modern streaming design languages. Themes can change guide density, preview composition, focus behavior,
   palette, SFX, and (where it fits the era) a physical border/bezel image.
@@ -178,8 +178,8 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 - **Vintage audio texture** — ambient tape hiss/static/carrier hum tied to the active theme
 - **Party Channel** — an opt-in, paired LAN guest page (photo/video bulletin, TTS announcements,
   soundboard, trivia, caption contest, vote-for-next, check-in wall, visual effects)
-- **Universal Remote** — turns a paired phone on the same WiFi into a remote; also the API the
-  Android companion app uses
+- **Companion App** — turns a paired phone on the same WiFi into a remote and mobile setup
+  surface; it also provides the API used by the Android companion app
 - **TMDB metadata matching** for the TITLES tab (needs a free API key)
 - **FFmpeg Transcode** — codec-compatibility fix-up (see "About RerunTV" above); resolves
   a system-installed `ffmpeg` from PATH or a custom path you set under DISPLAY & SYSTEM →
@@ -228,9 +228,11 @@ renderer/
     dom.js                   Every element reference, resolved once
     plugins.js                     Plugin registry + the registerX() extension points
     channels.js, schedule.js       Channel lookup + the live-schedule/dayparting math
-    playback.js                    Tuning, playback, commercials, up-next, logo bug
+    playback-core.js               Tuning and primary media playback
+    playback-breaks.js             Commercial/interstitial playback state
+    playback-broadcast-fx.js       Up-next, logo bug, and broadcast presentation
     interstitials.js               Deterministic commercial/interstitial-break resolver
-                                    (resolveBreakAt) — the engine playback.js/guide.js/
+                                    (resolveBreakAt) — the engine playback modules/guide.js/
                                     timemachine.js all read to decide what's airing when
     virtual.js                     Renders/tears down the currently-tuned plugin channel
     guide.js                       Now-playing banner and the time-grid guide
@@ -259,6 +261,11 @@ into core through `plugins.js`'s extension points (`registerChannelType`,
 and a few more), so installing or removing a plugin folder is the entire surface area of
 adding or dropping a feature.
 
+The Control Center has two workspaces: **Watch & Lineup** keeps everyday channel and
+picture controls concise, while **Headend Studio** contains scheduling, automation,
+integrations, storage, and diagnostics. Global search can still jump directly to either
+workspace.
+
 The renderer is served over a custom `app://` scheme rather than `file://`, because
 Chromium refuses to load ES modules from a `file://` origin. That choice cascades: a
 non-`file://` page also can't load `file://` media, so video is streamed through the same
@@ -284,9 +291,19 @@ build as a deliberate sync pass, not automatically.
 ## Packaging
 
 ```bash
-npm run pack    # unpacked build in dist/ (fast, for testing)
+npm run pack    # reproducible unpacked release build from the tracked plugin allowlist
+npm run pack:personal # local build that also includes ignored plugins in this checkout
 npm run dist    # installer (nsis / dmg / AppImage)
 ```
+
+`npm test` runs tracked release-gating tests plus the plugin contract validator and fails
+if no tests are discovered. The larger real-Electron/CDP suite remains under the ignored
+`test/` working directory; run it with
+`powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1`.
+
+Release plugin contents are explicit in `build/bundled-plugins.json`; machine-local
+integrations cannot silently change the default artifact. The personal flavor is the
+deliberate opt-in for a private cable-box installation.
 
 No ffmpeg binary is bundled or downloaded — see "About RerunTV" above.
 

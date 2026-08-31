@@ -152,6 +152,28 @@ function editTabGroupOf(groups, tabId) {
   return groups.find((g) => g.tabs.some((t) => t.id === tabId)) || groups[0];
 }
 
+// The group and leaf bars are created with each channel row, so the static
+// setup-keyboard.js initializer never sees them. Give both bars the same
+// roving Left/Right/Home/End behavior locally; activation still delegates
+// to each button's normal click handler, keeping mouse and keyboard paths
+// identical.
+function enableDynamicBarKeyboard(bar, buttonSelector) {
+  bar.addEventListener('keydown', (event) => {
+    const buttons = Array.from(bar.querySelectorAll(buttonSelector));
+    const current = buttons.indexOf(document.activeElement);
+    if (current < 0 || !buttons.length) return;
+    let target = null;
+    if (event.key === 'ArrowRight') target = buttons[(current + 1) % buttons.length];
+    else if (event.key === 'ArrowLeft') target = buttons[(current - 1 + buttons.length) % buttons.length];
+    else if (event.key === 'Home') target = buttons[0];
+    else if (event.key === 'End') target = buttons[buttons.length - 1];
+    if (!target) return;
+    event.preventDefault();
+    target.focus();
+    target.click();
+  });
+}
+
 // Only the genuinely uncommon overrides force a row open by default — a
 // per-channel RATING turned out to be something most real setups set on
 // nearly every channel (unlike FAVORITE/VHS/SHUFFLE/a volume override,
@@ -450,10 +472,12 @@ export function renderChannelList() {
       const editTabGroups = buildEditTabGroups(editTabs);
       const editGroupBar = document.createElement('div');
       editGroupBar.className = 'edit-tab-group-bar';
-      editGroupBar.setAttribute('role', 'tablist');
+      editGroupBar.setAttribute('role', 'toolbar');
+      editGroupBar.setAttribute('aria-label', `Channel ${ch.number} edit sections`);
       const editTabBar = document.createElement('div');
       editTabBar.className = 'edit-tab-bar';
       editTabBar.setAttribute('role', 'tablist');
+      editTabBar.setAttribute('aria-label', `Channel ${ch.number} edit panels`);
       const editTabContent = document.createElement('div');
       editTabContent.className = 'edit-tab-content';
       editTabContent.id = `channel-${ch.number}-edit-panel`;
@@ -463,6 +487,8 @@ export function renderChannelList() {
       editPanel.appendChild(editGroupBar);
       editPanel.appendChild(editTabBar);
       editPanel.appendChild(editTabContent);
+      enableDynamicBarKeyboard(editGroupBar, '.edit-tab-group-btn');
+      enableDynamicBarKeyboard(editTabBar, '.edit-tab-btn');
 
       let activeEditTab = openChannelEditTabs.get(ch.number) || editTabs[0].id;
       function renderEditGroupBar() {
@@ -472,8 +498,9 @@ export function renderChannelList() {
           const groupBtn = document.createElement('button');
           const groupActive = g.id === activeGroup.id;
           groupBtn.className = 'btn edit-tab-group-btn' + (groupActive ? ' active' : '');
-          groupBtn.setAttribute('role', 'tab');
-          groupBtn.setAttribute('aria-selected', String(groupActive));
+          groupBtn.dataset.editGroup = g.id;
+          groupBtn.setAttribute('aria-pressed', String(groupActive));
+          groupBtn.tabIndex = groupActive ? 0 : -1;
           groupBtn.textContent = g.label;
           groupBtn.addEventListener('click', () => {
             if (g.id === activeGroup.id) return;
@@ -504,6 +531,7 @@ export function renderChannelList() {
           tabBtn.setAttribute('role', 'tab');
           tabBtn.setAttribute('aria-selected', String(tabActive));
           tabBtn.setAttribute('aria-controls', editTabContent.id);
+          tabBtn.tabIndex = tabActive ? 0 : -1;
           tabBtn.id = `channel-${ch.number}-edit-tab-${t.id}`;
           tabBtn.textContent = t.soon ? `${t.label} (SOON)` : t.label;
           tabBtn.addEventListener('click', () => {

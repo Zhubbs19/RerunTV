@@ -44,17 +44,18 @@ function validateCapabilityEntry(list, entry, tag, requiredKey, requiredKeyType)
 function validateCapabilities(caps, pluginTag) {
   if (caps === undefined) return;
   if (!isPlainObject(caps)) { errors.push(`${pluginTag}: "capabilities" must be an object`); return; }
-  const known = ['ipc', 'spawn', 'net', 'mediaSource'];
+  const known = ['ipc', 'spawn', 'net', 'mediaSource', 'system'];
   Object.keys(caps).forEach((k) => {
     if (!known.includes(k)) errors.push(`${pluginTag}: unknown capabilities key "${k}"`);
   });
-  ['ipc', 'spawn', 'net', 'mediaSource'].forEach((key) => {
+  ['ipc', 'spawn', 'net', 'mediaSource', 'system'].forEach((key) => {
     if (caps[key] === undefined) return;
     if (!Array.isArray(caps[key])) { errors.push(`${pluginTag}: capabilities.${key} must be an array`); return; }
     if (key === 'ipc') validateCapabilityEntry(caps, caps[key], key, 'channel', 'string');
     if (key === 'spawn') validateCapabilityEntry(caps, caps[key], key, 'bin', 'string');
     if (key === 'net') validateCapabilityEntry(caps, caps[key], key, 'port', 'number');
     if (key === 'mediaSource') validateCapabilityEntry(caps, caps[key], key, 'providerId', 'string');
+    if (key === 'system') validateCapabilityEntry(caps, caps[key], key, 'action', 'string');
   });
 }
 

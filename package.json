@@ -6,9 +6,11 @@
   "scripts": {
     "start": "electron .",
     "server": "electron . --headless",
-    "test": "node --experimental-vm-modules --test test/*.test.js",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "test": "node scripts/run-tests.js",
+    "test:contracts": "node scripts/validate-plugin-contracts.js",
+    "pack": "electron-builder --dir --config electron-builder.config.js",
+    "pack:personal": "set RERUNTV_INCLUDE_LOCAL_PLUGINS=1&& electron-builder --dir --config electron-builder.config.js",
+    "dist": "electron-builder --config electron-builder.config.js"
   },
   "devDependencies": {
     "electron": "^43.2.0",
@@ -22,45 +24,5 @@
     "busboy": "^1.6.0",
     "electron-updater": "^6.8.9",
     "qrcode": "^1.5.4"
-  },
-  "build": {
-    "appId": "com.retrocablebox.foss",
-    "productName": "RerunTV",
-    "directories": {
-      "output": "dist"
-    },
-    "artifactName": "${productName}-Setup-${version}.${ext}",
-    "files": [
-      "main/**/*.js",
-      "renderer/**/*",
-      "plugins/**/*",
-      "package.json"
-    ],
-    "asarUnpack": [
-      "plugins/**"
-    ],
-    "publish": {
-      "provider": "github",
-      "owner": "Zhubbs19",
-      "repo": "RerunTV",
-      "private": true
-    },
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "mac": {
-      "target": "dmg",
-      "category": "public.app-category.entertainment"
-    },
-    "linux": {
-      "target": "AppImage",
-      "category": "AudioVideo"
-    }
   }
 }

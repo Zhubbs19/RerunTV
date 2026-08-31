@@ -13,7 +13,10 @@ export function getDisplayTitle(file) {
 // trailing parenthetical/bracketed tags like "(1080p BluRay x265 Ghost)".
 // Falls back to the untouched basename if nothing recognizable is found.
 export function guessCleanTitle(rawBase) {
-  let s = rawBase.replace(/_/g, ' ').trim();
+  // Dots are the dominant separator in archive/release filenames; treating
+  // them as punctuation produced guide labels such as
+  // "Email.Surveillance...2CH..." even after codec tags were removed.
+  let s = rawBase.replace(/[._]+/g, ' ').trim();
 
   s = s.replace(/\s*-?\s*(?:S\d{2,4}E\d{2,4}|\d{1,2}x\d{2,3})\s*-?\s*/i, ' - ');
   s = s.replace(/^[\s-]+|[\s-]+$/g, '').trim();
@@ -38,10 +41,10 @@ export function guessCleanTitle(rawBase) {
 // string doesn't end on a closing bracket). This one strips bracket groups
 // anywhere, then a trailing release-group tag, then loose quality/codec
 // tokens that were never bracketed to begin with.
-const RELEASE_QUALITY_TOKENS = /\b(?:WEB[\s-]?DL|WEBRip|HDTV|Blu[\s-]?Ray|BDRip|DVDRip|REMUX|HDR10?|10bit|8bit|\d{3,4}p|x264|x265|h\.?264|h\.?265|hevc|AVC|AAC(?:\d(?:\.\d)?)?|EAC3|AC3|DDP?\d?(?:\.\d)?|FLAC|PROPER|REPACK|UNCUT|EXTENDED|LIMITED)\b/gi;
+const RELEASE_QUALITY_TOKENS = /\b(?:WEB[\s-]?DL|WEBRip|HDTV|Blu[\s-]?Ray|BDRip|DVDRip|REMUX|HDR10?|10bit|8bit|\d{3,4}p|x264|x265|h\.?264|h\.?265|hevc|AVC|AAC(?:\d(?:\.\d)?)?|EAC3|AC3|DDP?\d?(?:\.\d)?|\d(?:\.\d)?CH|FLAC|PROPER|REPACK|UNCUT|EXTENDED|LIMITED)\b/gi;
 
 export function stripReleaseTags(rawBase) {
-  let s = rawBase.replace(/_/g, ' ').trim();
+  let s = rawBase.replace(/[._]+/g, ' ').trim();
 
   // Bracket groups anywhere, repeated (they're often stacked back to back).
   let prev;
@@ -62,6 +65,19 @@ export function stripReleaseTags(rawBase) {
   s = s.replace(/\s+/g, ' ').replace(/^[\s\-.]+|[\s\-.]+$/g, '').trim();
 
   return s || rawBase;
+}
+
+// Health-check signal, not an automatic rewrite: explicit user/plugin
+// titles are authoritative. Only fallback filenames with strong release-
+// name signals are flagged so a normal untitled file such as "Pilot.mkv"
+// does not turn into noise in the diagnostics panel.
+export function titleNeedsMetadata(file) {
+  if (!file || (typeof file.title === 'string' && file.title.trim())) return false;
+  const base = basenameNoExt(file.path || '');
+  const separatorCount = (base.match(/[._]/g) || []).length;
+  return separatorCount >= 3
+    || /\b(?:WEB[ ._-]?DL|WEBRip|Blu[ ._-]?Ray|REMUX|\d{3,4}p|x26[45]|h[ .]?26[45]|HEVC|EAC3|DDP?\d?|\d(?:\.\d)?CH)\b/i.test(base)
+    || /\[[^\]]+\]|\([^)]*(?:codec|source|release|stream)[^)]*\)/i.test(base);
 }
 
 // A modest, honest keyword list — genre inference from a filename alone is

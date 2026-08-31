@@ -225,3 +225,9 @@ html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
    theme-wood-console-70s/style.css. The movie-rating-card full-screen
    overlay is untouched: MPAA film ratings (a separate system) predate this. */
 html[data-theme="uhf-public-access-80s"] .rating-bug { display: none !important; }
+/* Local-access character generators cut laterally rather than floating. */
+html[data-theme="uhf-public-access-80s"] {
+  --theme-guide-enter-x: -18px;
+  --theme-guide-enter-y: 0px;
+  --theme-guide-enter-ease: steps(3, end);
+}

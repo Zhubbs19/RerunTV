@@ -96,3 +96,9 @@ html[data-theme="cable-box-osd"] #tv-screen .crt.powering-on .crt-power-fx-line 
    box OSD era shows no rating bug at all, same reasoning as
    theme-wood-console-70s/style.css. */
 html[data-theme="cable-box-osd"] .rating-bug { display: none !important; }
+/* Set-top-box menus slide in from the channel-information edge. */
+html[data-theme="cable-box-osd"] {
+  --theme-guide-enter-x: 20px;
+  --theme-guide-enter-y: 0px;
+  --theme-guide-enter-ease: cubic-bezier(.2, .8, .2, 1);
+}

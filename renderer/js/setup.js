@@ -2,6 +2,7 @@
 // lives across several sibling modules (split out of a single 2200+ line
 // file — see [[retro-cable-box-code-ux-audit]]):
 //   setup-util.js          shared helpers (toggleLazyPanel, parsePositiveInt, probeDuration)
+//   setup-overlay-position-editor.js accessible live dynamic-overlay placement screen
 //   setup-panels.js        per-channel EDIT-tab panels: TITLES, FOLDERS, ADS, LOGO, THEME
 //   setup-schedule.js      the unified SCHEDULE tab (BLOCKS list + CALENDAR month view)
 //   setup-channels.js      the CHANNELS tab: channel list, bulk actions, folder scanning
