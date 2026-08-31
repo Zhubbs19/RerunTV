@@ -55,6 +55,21 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          # electron-updater's PrivateGitHubProvider (node_modules/electron-
+          # updater/out/providers/PrivateGitHubProvider.js) does not sort
+          # GitHub's releases list by version before picking one — it just
+          # takes `candidates.find(it => it.prerelease)`, trusting GitHub to
+          # return newest-first. That ordering has been observed to be
+          # unreliable for this repo (a release created hours later can
+          # still come back behind older ones), which made the app "stop
+          # auto-updating" while a valid newer release existed. Deleting
+          # every previous alpha prerelease before publishing the new one
+          # keeps exactly one prerelease in existence at all times, so
+          # whichever one the list endpoint returns first is unambiguously
+          # the current one — no dependency on GitHub's ordering at all.
+          for old_tag in $(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease -q '.[] | select(.isPrerelease) | .tagName'); do
+            gh release delete "$old_tag" --repo "${{ github.repository }}" --yes --cleanup-tag
+          done
           tag="v${{ steps.version.outputs.version }}"
           product=$(node -p "require('./electron-builder.config.js').productName")
           # Matches build.artifactName (package.json) exactly, no spaces —
