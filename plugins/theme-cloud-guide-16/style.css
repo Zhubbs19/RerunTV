@@ -32,6 +32,11 @@ html[data-theme="cloud-guide-16"] {
   --gradient-cell: linear-gradient(180deg, #1c2236 0%, #171c2b 100%);
   --gradient-btn: linear-gradient(180deg, #2f6fed 0%, #2559c4 100%);
   --gradient-gold: linear-gradient(180deg, #5c8ff2 0%, #2f6fed 60%, #2559c4 100%);
+  --button-fg: #ffffff;
+  --button-hover-fg: #ffffff;
+  --button-selected-bg: linear-gradient(180deg, #3f6fc9 0%, #315baa 60%, #274988 100%);
+  --button-selected-fg: #ffffff;
+  --button-selected-border: #7ca3ff;
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0) 50%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 55%);
 

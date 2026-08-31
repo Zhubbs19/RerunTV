@@ -268,7 +268,12 @@ async function activate(ctx) {
       try {
         const body = await readJsonBody(req);
         if (body && typeof body.key === 'string') {
-          sendToMainWindow('remote:command', { key: body.key, shift: !!body.shift });
+          sendToMainWindow('remote:command', {
+            key: body.key,
+            shift: !!body.shift,
+            ctrl: !!body.ctrl,
+            alt: !!body.alt,
+          });
         }
         res.writeHead(204).end();
       } catch (e) {

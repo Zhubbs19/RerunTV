@@ -49,8 +49,13 @@ html[data-theme="network-primetime-90s"] {
   --gradient-page: linear-gradient(180deg, #1c0f0a 0%, #2a1610 50%, #100805 100%);
   --gradient-panel: linear-gradient(180deg, #4a2a1c 0%, #3a2016 60%, #241209 100%);
   --gradient-cell: linear-gradient(180deg, #47281c 0%, #351d13 100%);
-  --gradient-btn: linear-gradient(180deg, #d14a3a 0%, #c0392b 55%, #962c20 100%);
+  --gradient-btn: linear-gradient(180deg, #b83f32 0%, #963026 55%, #762119 100%);
   --gradient-gold: linear-gradient(180deg, #f0d896 0%, #e9c46a 45%, #d1a83f 100%);
+  --button-fg: #ffffff;
+  --button-hover-fg: #ffffff;
+  --button-selected-bg: linear-gradient(180deg, #f0d896 0%, #e9c46a 45%, #d1a83f 100%);
+  --button-selected-fg: #1a0500;
+  --button-selected-border: #e9c46a;
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 45%, rgba(255, 255, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 55%);
 

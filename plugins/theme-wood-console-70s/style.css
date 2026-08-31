@@ -61,6 +61,11 @@ html[data-theme="wood-console-70s"] {
   --gradient-cell: linear-gradient(180deg, #24593a 0%, #1b4529 100%);
   --gradient-btn: linear-gradient(180deg, #6b4e22 0%, #4a3618 55%, #2e2210 100%);
   --gradient-gold: linear-gradient(180deg, #c9a15a 0%, #b5893a 45%, #96721f 100%);
+  --button-fg: #fff4d6;
+  --button-hover-fg: #fff4d6;
+  --button-selected-bg: linear-gradient(180deg, #d6b06e 0%, #c09349 50%, #a0782d 100%);
+  --button-selected-fg: #1a0f00;
+  --button-selected-border: #d6a74b;
   --gloss-strong: linear-gradient(180deg, rgba(232, 220, 174, 0.08) 0%, rgba(232, 220, 174, 0.02) 45%, rgba(232, 220, 174, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(232, 220, 174, 0.05) 0%, rgba(232, 220, 174, 0) 55%);
 

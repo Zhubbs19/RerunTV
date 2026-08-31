@@ -43,8 +43,13 @@ html[data-theme="ops-dashboard"] {
   --gradient-page: linear-gradient(180deg, #1a1e27 0%, #14171f 100%);
   --gradient-panel: linear-gradient(180deg, #212633 0%, #1c202b 100%);
   --gradient-cell: linear-gradient(180deg, #262c3b 0%, #212633 100%);
-  --gradient-btn: linear-gradient(180deg, #5b8dee 0%, #4874cf 100%);
+  --gradient-btn: linear-gradient(180deg, #3f6ab8 0%, #315492 100%);
   --gradient-gold: linear-gradient(180deg, #7aa4f2 0%, #5b8dee 60%, #4874cf 100%);
+  --button-fg: #ffffff;
+  --button-hover-fg: #ffffff;
+  --button-selected-bg: linear-gradient(180deg, #416bb5 0%, #365a9d 60%, #2c4b83 100%);
+  --button-selected-fg: #ffffff;
+  --button-selected-border: #7aa4f2;
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 50%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 55%);
 

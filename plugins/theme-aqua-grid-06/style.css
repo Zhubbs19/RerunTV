@@ -27,8 +27,14 @@ html[data-theme="aqua-grid-06"] {
   --gradient-page: linear-gradient(180deg, #087c9b 0%, #07516e 45%, #03263e 100%);
   --gradient-panel: linear-gradient(180deg, #0d7894 0%, #07516e 60%, #03263e 100%);
   --gradient-cell: linear-gradient(180deg, #136787 0%, #0b4d6c 100%);
-  --gradient-btn: linear-gradient(180deg, #168baa 0%, #08657f 58%, #06445f 100%);
+  --gradient-btn: linear-gradient(180deg, #0d6278 0%, #084f65 58%, #06384f 100%);
   --gradient-gold: linear-gradient(180deg, #f4ffb5 0%, #dff27d 70%, #b8d058 100%);
+  --button-fg: #f7ffff;
+  --button-hover-fg: #f7ffff;
+  --button-subtab-hover-fg: #13220c;
+  --button-selected-bg: linear-gradient(180deg, #f4ffb5 0%, #dff27d 70%, #b8d058 100%);
+  --button-selected-fg: #13220c;
+  --button-selected-border: #dff27d;
   --gloss-strong: linear-gradient(180deg, rgba(255,255,255,.16), transparent 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255,255,255,.09), transparent 55%);
   --radius-sm: 0;
@@ -82,5 +88,6 @@ html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn, inp
 html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn) { border-width: 2px; border-style: outset; box-shadow: none; }
 html[data-theme="aqua-grid-06"] :is(.btn, .setup-tab-btn, .setup-subtab-btn):active { border-style: inset; transform: translate(1px, 1px); }
 html[data-theme="aqua-grid-06"] :is(.setup-tab-btn, .setup-subtab-btn).active { color: #13220c; background: #e4f58a; border-color: #fff; }
+html[data-theme="aqua-grid-06"] .setup-subtab-btn:not(.active):hover { background: #dff27d; }
 html[data-theme="aqua-grid-06"] :is(input, select, textarea):focus { outline: 2px solid #e4f58a; outline-offset: 1px; }
 html[data-theme="aqua-grid-06"] .shuffle-toggle { border-radius: 0; }

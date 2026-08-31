@@ -178,8 +178,16 @@
      these aliases keep normal, confirm, destructive, and disabled states
      readable even when that chrome is square, glossy, metallic, or flat. */
   --button-fg: var(--paper-dim);
-  --button-hover-fg: var(--gold);
+  /* Hover should never make a readable label less readable. Movement,
+     border, glow, and surface changes carry the hover affordance; text
+     stays on the theme's known-readable neutral foreground by default. */
+  --button-hover-fg: var(--button-fg);
+  --button-subtab-hover-fg: var(--button-hover-fg);
   --button-primary-fg: var(--gold-ink);
+  --button-selected-bg: var(--gradient-gold);
+  --button-selected-fg: var(--gold-ink);
+  --button-selected-border: var(--gold);
+  --button-danger-bg: linear-gradient(180deg, #8f251b 0%, #65140d 100%);
   --button-danger-fg: #fff;
   --button-disabled-fg: var(--paper-dim);
 

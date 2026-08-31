@@ -6,6 +6,9 @@
    registration call. */
 html[data-theme="frutiger-aero"] {
   --button-fg: #052f34; --button-hover-fg: #052f34; --button-primary-fg: #052f34; --button-disabled-fg: #315f63;
+  --button-selected-bg: linear-gradient(180deg, #8ce8d8 0%, #69d0c0 55%, #53b6a8 100%);
+  --button-selected-fg: #052f34;
+  --button-selected-border: #117568;
   --motion-control-duration: 210ms; --motion-control-ease: cubic-bezier(.16,1,.3,1); --motion-control-hover: translateY(-2px) scale(1.015); --motion-control-active: translateY(0) scale(.97);
   --motion-card-duration: 240ms; --motion-card-ease: cubic-bezier(.16,1,.3,1); --motion-card-from-y: 10px; --motion-card-from-scale: .94; --motion-digit-duration: 180ms; --motion-digit-ease: cubic-bezier(.16,1,.3,1); --motion-digit-from-scale: 1.1;
   --setup-nav-bg: rgba(234, 249, 240, 0.98);

@@ -384,7 +384,13 @@ window.addEventListener('keydown', handleKey);
 // {key, shift} and is fed through the exact same handler real keystrokes
 // use — digit-entry buffering, guide-grid interception, wake-on-any-key,
 // time-machine shuttle, all of it, with zero duplicated logic.
-window.api.onRemoteCommand((cmd) => handleKey({ key: cmd.key, shiftKey: !!cmd.shift, preventDefault() {} }));
+window.api.onRemoteCommand((cmd) => handleKey({
+  key: cmd.key,
+  shiftKey: !!cmd.shift,
+  ctrlKey: !!cmd.ctrl,
+  altKey: !!cmd.alt,
+  preventDefault() {},
+}));
 // Direct channel jump from the Android companion remote's quick-tap grid —
 // bypasses the digit-entry buffer entirely (unlike pushDigit) since the app
 // already knows the exact channel number, no need to simulate keypresses.

@@ -16,17 +16,17 @@
   document.querySelectorAll('.btn[data-key]').forEach(function (btn) {
     btn.addEventListener('pointerdown', function (e) {
       e.preventDefault();
-      sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim());
+      sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim(), btn.dataset.ctrl === '1', btn.dataset.alt === '1');
     });
     // Keyboard/switch-control activation emits a click with detail 0 and no
     // pointerdown. Preserve that accessible path without double-sending a
     // normal touch/mouse activation.
     btn.addEventListener('click', function (e) {
-      if (e.detail === 0) sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim());
+      if (e.detail === 0) sendCommand(btn.dataset.key, btn.dataset.shift === '1', btn.textContent.trim(), btn.dataset.ctrl === '1', btn.dataset.alt === '1');
     });
   });
 
-  function sendCommand(key, shift, label) {
+  function sendCommand(key, shift, label, ctrl, alt) {
     // Fire-and-forget — the button's own :active CSS state is the feedback
     // the user sees instantly, regardless of how long the round trip to the
     // app actually takes. Awaiting the response before allowing another
@@ -40,11 +40,51 @@
     fetch('/command', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: key, shift: shift }),
+      body: JSON.stringify({ key: key, shift: shift, ctrl: !!ctrl, alt: !!alt }),
     }).catch(function () {
       commandFeedbackEl.textContent = 'REMOTE DISCONNECTED';
       commandFeedbackEl.classList.add('show', 'error');
     });
+  }
+
+  function loadQuickChannels() {
+    var grid = document.getElementById('quick-channels');
+    fetch('/channels')
+      .then(function (r) { return r.json(); })
+      .then(function (channels) {
+        var quick = Array.isArray(channels) ? channels.filter(function (channel) { return channel.quickAccess; }) : [];
+        grid.innerHTML = '';
+        if (!quick.length) {
+          grid.innerHTML = '<div class="remote-note">NO CHANNELS MARKED REMOTE QUICK-TAP</div>';
+          return;
+        }
+        quick.forEach(function (channel) {
+          var btn = document.createElement('button');
+          btn.className = 'btn quick-channel';
+          btn.textContent = 'CH ' + channel.number + (channel.name ? '\n' + String(channel.name).toUpperCase() : '');
+          function tuneChannel() {
+            commandFeedbackEl.textContent = 'CH ' + channel.number + ' SENT';
+            commandFeedbackEl.classList.remove('error');
+            commandFeedbackEl.classList.add('show');
+            clearTimeout(feedbackTimer);
+            feedbackTimer = setTimeout(function () { commandFeedbackEl.classList.remove('show'); }, 900);
+            fetch('/tune', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ number: channel.number }),
+            }).catch(function () {
+              commandFeedbackEl.textContent = 'REMOTE DISCONNECTED';
+              commandFeedbackEl.classList.add('show', 'error');
+            });
+          }
+          btn.addEventListener('pointerdown', function (e) {
+            e.preventDefault();
+            tuneChannel();
+          });
+          btn.addEventListener('click', function (e) { if (e.detail === 0) tuneChannel(); });
+          grid.appendChild(btn);
+        });
+      })
+      .catch(function () { grid.innerHTML = '<div class="remote-note">QUICK CHANNELS UNAVAILABLE</div>'; });
   }
 
   function pollState() {
@@ -52,7 +92,8 @@
       .then(function (r) { return r.json(); })
       .then(function (state) {
         if (state && state.number != null) {
-          nowWatchingEl.textContent = 'CH ' + state.number + (state.name ? ' — ' + state.name.toUpperCase() : '');
+          var mode = state.timeMachineOn ? (state.shuttleDir < 0 ? ' • REW' : state.shuttleDir > 0 ? ' • FF' : ' • TIME MACHINE') : '';
+          nowWatchingEl.textContent = 'CH ' + state.number + (state.name ? ' — ' + state.name.toUpperCase() : '') + mode;
         } else {
           nowWatchingEl.textContent = 'NO SIGNAL';
         }
@@ -62,6 +103,7 @@
       });
   }
 
+  loadQuickChannels();
   pollState();
   setInterval(pollState, 2000);
 })();

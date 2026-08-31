@@ -1928,25 +1928,99 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
 .btn:hover { border-color: var(--gold); color: var(--button-hover-fg); transform: var(--motion-control-hover); }
 .btn:active { box-shadow: var(--bevel-inset); transform: var(--motion-control-active); }
 
+/* Theme styles load after core and several intentionally restyle broad
+   control families. The doubled data-theme attribute gives semantic state
+   colors one extra specificity step so a later generic theme hover rule
+   cannot turn a selected label into the same color as its background. The
+   theme still owns shape, motion, borders, and all token values. */
+html[data-theme][data-theme] :is(.btn, .setup-tab-btn, .setup-subtab-btn)
+  :is(.setup-subtab-btn-count) { color: inherit; }
+html[data-theme][data-theme] :is(
+  .btn,
+  .setup-tab-btn,
+  .setup-subtab-btn,
+  .setup-workspace-btn,
+  .edit-tab-group-btn,
+  .edit-tab-btn,
+  .tagtaxonomy-category-badge,
+  .theme-browser-option,
+  .block-day-btn
+):not(.setup-subtab-btn):not(.btn-primary):not(.btn-danger):not(:disabled):not(.active):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
+  color: var(--button-hover-fg) !important;
+}
+html[data-theme][data-theme] .setup-subtab-btn:not(:disabled):not(.active):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
+  color: var(--button-subtab-hover-fg) !important;
+}
+html[data-theme][data-theme] :is(
+  .setup-tab-btn.active,
+  .setup-subtab-btn.active,
+  .setup-workspace-btn.active,
+  .edit-tab-group-btn.active,
+  .edit-tab-btn.active,
+  .btn.active,
+  .btn[aria-pressed="true"],
+  .btn[aria-selected="true"],
+  .tagtaxonomy-category-badge.active,
+  .theme-browser-option.active,
+  .block-day-btn.active
+):not(.edit-tab-soon) {
+  color: var(--button-selected-fg) !important;
+  background: var(--button-selected-bg) !important;
+  border-color: var(--button-selected-border) !important;
+  text-shadow: none;
+}
+html[data-theme][data-theme] :is(
+  .setup-tab-btn.active,
+  .setup-subtab-btn.active,
+  .setup-workspace-btn.active,
+  .edit-tab-group-btn.active,
+  .edit-tab-btn.active,
+  .btn.active,
+  .btn[aria-pressed="true"],
+  .btn[aria-selected="true"],
+  .tagtaxonomy-category-badge.active,
+  .theme-browser-option.active,
+  .block-day-btn.active
+):not(.edit-tab-soon):hover {
+  color: var(--button-selected-fg) !important;
+  background: var(--button-selected-bg) !important;
+}
+html[data-theme][data-theme] .setup-subtab-btn.active .setup-subtab-btn-count {
+  color: inherit !important;
+  background: transparent !important;
+}
+
 /* The html[data-theme] prefix deliberately outranks theme-pack rules that
    restyle generic .btn chrome after core CSS has loaded. */
 html[data-theme] .btn.btn-primary {
   border-color: #c98914;
-  background: var(--gradient-gold);
-  color: var(--button-primary-fg);
+  background: var(--button-selected-bg);
+  color: var(--button-selected-fg);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
   font-weight: 600;
 }
-html[data-theme] .btn.btn-primary:hover { color: var(--button-primary-fg); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--gold-rgb), 0.5); }
+html[data-theme][data-theme] .btn.btn-primary,
+html[data-theme][data-theme] .btn.btn-primary:hover {
+  color: var(--button-selected-fg) !important;
+  background: var(--button-selected-bg) !important;
+  border-color: var(--button-selected-border) !important;
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--gold-rgb), 0.5);
+}
 
 html[data-theme] .btn.btn-danger {
   border-color: var(--danger);
-  background: linear-gradient(180deg, rgba(var(--danger-rgb), 0.35), rgba(var(--danger-rgb), 0.18));
+  background: var(--button-danger-bg);
   color: var(--button-danger-fg);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   font-weight: 600;
 }
-html[data-theme] .btn.btn-danger:hover { color: var(--button-danger-fg); border-color: var(--danger); box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--danger-rgb), 0.5); }
+html[data-theme][data-theme] .btn.btn-danger,
+html[data-theme][data-theme] .btn.btn-danger:hover {
+  color: var(--button-danger-fg) !important;
+  background: var(--button-danger-bg) !important;
+  border-color: var(--danger) !important;
+  box-shadow: var(--bevel-raised), var(--shadow-hard-sm), 0 0 16px rgba(var(--danger-rgb), 0.5);
+}
 
 html[data-theme] .btn:disabled,
 html[data-theme] .btn[aria-disabled="true"] {

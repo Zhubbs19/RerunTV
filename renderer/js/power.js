@@ -41,8 +41,10 @@ export function pushRemoteState() {
     crt: S.config.crtEnabled !== false,
     pictureMode: S.config.pictureMode || 'standard',
     aspectMode: S.config.aspectMode || 'contain',
+    audioMode: S.sapMode || 'stereo',
     timeMachineOn: !!S.timeMachineOn,
     shuttleDir: S.shuttleDir || 0,
+    quickJumpSlots: { ...S.quickJumpSlots },
   });
 }
 

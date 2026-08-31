@@ -25,6 +25,10 @@ const errors = [];
 
 const CATEGORY_VALUES = new Set(['channel', 'theme', 'onscreen', 'system']);
 const ID_RE = /^[a-z][a-z0-9-]*$/;
+const netPortOwners = new Map([
+  [8724, 'core LAN viewer'],
+  [41234, 'core LAN discovery'],
+]);
 
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -98,6 +102,18 @@ function validateManifest(dir, manifestPath) {
   if (m.isolated !== undefined && typeof m.isolated !== 'boolean') errors.push(`${tag}: "isolated" must be a boolean`);
   if (m.minCtxVersion !== undefined && !Number.isInteger(m.minCtxVersion)) errors.push(`${tag}: "minCtxVersion" must be an integer`);
   validateCapabilities(m.capabilities, tag);
+  for (const entry of m.capabilities?.net || []) {
+    if (!Number.isInteger(entry.port) || entry.port < 1 || entry.port > 65535) {
+      errors.push(`${tag}: capabilities.net port ${JSON.stringify(entry.port)} must be an integer from 1 to 65535`);
+      continue;
+    }
+    const owner = netPortOwners.get(entry.port);
+    if (owner && owner !== m.id) {
+      errors.push(`${tag}: capabilities.net port ${entry.port} is already owned by ${owner}`);
+    } else {
+      netPortOwners.set(entry.port, m.id);
+    }
+  }
   if (!m.style && !m.renderer && !m.settings && !m.main) {
     errors.push(`${tag}: none of style/renderer/settings/main is set — this plugin does nothing`);
   }

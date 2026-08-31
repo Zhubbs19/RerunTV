@@ -130,6 +130,28 @@ html, body {
   gap: 8px;
 }
 
+.quick-channels,
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.quick-channel { white-space: pre-line; min-height: 58px; }
+.preset-go {
+  background: linear-gradient(180deg, #fbe969 0%, var(--gold) 45%, #e3bc12 75%, #cba408 100%);
+  color: var(--gold-ink);
+  border-color: var(--gold);
+}
+.remote-note {
+  grid-column: 1 / -1;
+  color: var(--paper-dim);
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: .7px;
+  text-align: center;
+  padding: 8px;
+}
+
 .command-feedback {
   position: fixed;
   left: 50%;

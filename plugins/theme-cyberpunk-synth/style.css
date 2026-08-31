@@ -44,8 +44,13 @@ html[data-theme="cyberpunk-synth"] {
   --gradient-page: linear-gradient(180deg, #0d061a 0%, #170a30 50%, #06020c 100%);
   --gradient-panel: linear-gradient(180deg, #2a0a4a 0%, #1e0636 60%, #120322 100%);
   --gradient-cell: linear-gradient(180deg, #370c61 0%, #240742 100%);
-  --gradient-btn: linear-gradient(180deg, #8a00e6 0%, #5d00a8 55%, #3d0070 100%);
+  --gradient-btn: linear-gradient(180deg, #6b00b3 0%, #4b008a 55%, #330060 100%);
   --gradient-gold: linear-gradient(180deg, #ff007f 0%, #d6006b 45%, #b30059 100%);
+  --button-fg: #ffffff;
+  --button-hover-fg: #ffffff;
+  --button-selected-bg: linear-gradient(180deg, #ad0057 0%, #840043 50%, #620032 100%);
+  --button-selected-fg: #ffffff;
+  --button-selected-border: #ff4aa0;
   --gloss-strong: linear-gradient(180deg, rgba(0, 240, 255, 0.3) 0%, rgba(0, 240, 255, 0.05) 45%, rgba(0, 240, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 0, 127, 0.2) 0%, rgba(255, 0, 127, 0) 55%);
 
