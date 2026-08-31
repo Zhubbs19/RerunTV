@@ -1,6 +1,7 @@
 {
   "plugins": [
     "breaking-news",
+    "cast-to-tv",
     "closed-captions",
     "companion-app",
     "eas-alerts",
