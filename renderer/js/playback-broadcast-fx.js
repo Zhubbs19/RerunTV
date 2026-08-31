@@ -15,6 +15,7 @@ import {
   channelColor, getChannel, isVideoMediaPath, logoBugProfileDimensions, LOGO_MOTION_PRESETS,
   pickLogoBugProfile, resolveEffectiveIcon,
 } from './channels.js';
+import { currentDisplayFramePx } from './display-mode.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, creditsSqueezeChannelEl, creditsSqueezePanelEl,
   creditsSqueezeTitleEl, creditsSqueezeVideoEl, episodeStatusBugEl, formatDisclaimerCardEl, logoBugEl,
@@ -432,7 +433,7 @@ const FALLBACK_LOGO_BUG_PROFILE = { x: 94, y: 90, size: 46 };
 
 // A profile's x/y is a top-left percentage of #display-frame, tuned by eye
 // against whatever frame size happened to be on screen at the time — but
-// --display-frame-width/height (display-mode.js) can shrink a lot for a
+// #display-frame's own px size (display-mode.js) can shrink a lot for a
 // low resolution tier or a different aspect, while the bug's own px
 // width/height (logoBugProfileDimensions) stays fixed. A corner placement
 // that fit fine in a big native 16:9 frame can then push past the edge once
@@ -441,13 +442,21 @@ const FALLBACK_LOGO_BUG_PROFILE = { x: 94, y: 90, size: 46 };
 // Reading the frame's current px size and clamping x/y so the bug's own
 // footprint always stays fully inside it keeps that from happening,
 // automatically, for every aspect/resolution combination.
+//
+// currentDisplayFramePx() (display-mode.js) computes that size fresh from
+// config + the window's current size rather than reading back the
+// --display-frame-width/height CSS vars applyDisplayMode last painted —
+// those can lag one channel behind (e.g. still holding a previous, smaller-
+// resolution channel's frame size right after a tune, before
+// applyDisplayMode has run again for the new one), which was clamping a
+// channel's own correctly-placed bottom-left logo up against a frame size
+// that was never actually its own. See the "logo bug pinned near the top"
+// report on channel 67 for exactly this symptom.
 function clampLogoBugPosition(x, y, widthPx, heightPx) {
-  const rootStyle = getComputedStyle(document.documentElement);
-  const frameW = parseFloat(rootStyle.getPropertyValue('--display-frame-width'));
-  const frameH = parseFloat(rootStyle.getPropertyValue('--display-frame-height'));
-  if (!frameW || !frameH) return { x, y };
-  const maxX = Math.max(0, 100 - (widthPx / frameW) * 100);
-  const maxY = Math.max(0, 100 - (heightPx / frameH) * 100);
+  const frame = currentDisplayFramePx();
+  if (!frame || !frame.width || !frame.height) return { x, y };
+  const maxX = Math.max(0, 100 - (widthPx / frame.width) * 100);
+  const maxY = Math.max(0, 100 - (heightPx / frame.height) * 100);
   return { x: Math.min(x, maxX), y: Math.min(y, maxY) };
 }
 

@@ -298,7 +298,7 @@ function newLogoBugProfileId() { return `p${Date.now().toString(36)}${(logoBugPr
 // already selected. Used by setup-panels.js's buildTickerLayoutPanel so the
 // ticker bar can be edited per-channel with the exact same drag/resize UI
 // every other HUD overlay already uses.
-export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange, perChannelOverlay }) {
+export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveChange, perChannelOverlay, channelNumber }) {
   const profileSnapshot = (getProfiles() || []).map((profile) => ({ ...profile }));
   const displayModeSnapshot = { ...(S.config.displayMode || {}) };
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
@@ -309,9 +309,22 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   ]);
 
   await showTvScreen();
-  const currentIsReal = (S.config.channels || []).some((channel) => channel.number === S.currentNumber);
-  if (!currentIsReal && S.config.channels && S.config.channels.length && window.tuneToChannel) {
-    await window.tuneToChannel(S.config.channels[0].number, { silent: true });
+  // channelNumber (per-channel overlay overrides — buildLogoBugPanel/
+  // buildTickerLayoutPanel, setup-panels.js) always wins: you're editing
+  // THAT channel's placement, so the live preview needs to be tuned to it
+  // specifically, not just to whichever channel happened to already be live
+  // — otherwise a channel with different content-tag-driven aspect/
+  // resolution than the currently-tuned one would show the wrong context
+  // the whole time you're editing. Falls back to the old "just make sure
+  // SOMETHING real is tuned" behavior for the box-wide default editor,
+  // which has no single channel of its own to prefer.
+  if (channelNumber != null && S.currentNumber !== channelNumber && window.tuneToChannel) {
+    await window.tuneToChannel(channelNumber, { silent: true });
+  } else {
+    const currentIsReal = (S.config.channels || []).some((channel) => channel.number === S.currentNumber);
+    if (!currentIsReal && S.config.channels && S.config.channels.length && window.tuneToChannel) {
+      await window.tuneToChannel(S.config.channels[0].number, { silent: true });
+    }
   }
 
   const crt = document.querySelector('.crt');
@@ -860,21 +873,31 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
 // The old detached miniature preview was removed: placement is edited only
 // against the running channel, so the grid, display mode, logo and touch
 // targets all use the same geometry the viewer will actually see.
-export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange) {
+// ch (optional): the channel this profile array belongs to (buildLogoBugPanel,
+// setup-panels.js, for a per-channel override) — when passed, the live
+// editor tunes to ch.number specifically instead of whatever's already live,
+// so you're always editing WYSIWYG against the actual channel being
+// configured. Omitted by the box-wide default editor (setup-settings.js),
+// which has no single channel of its own to prefer.
+export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange, ch) {
   const wrap = document.createElement('div');
   const explanation = document.createElement('p');
   explanation.className = 'panel-status logobug-live-description';
-  explanation.textContent = 'Edit the logo over the running channel. Each aspect and resolution combination keeps its own placement.';
+  explanation.textContent = ch
+    ? `Edit the logo on channel ${ch.number}. Each aspect and resolution combination keeps its own placement.`
+    : 'Edit the logo over the running channel. Each aspect and resolution combination keeps its own placement.';
   const liveBtn = document.createElement('button');
   liveBtn.type = 'button';
   liveBtn.className = 'btn btn-primary logobug-live-open';
-  liveBtn.textContent = 'EDIT ON CURRENT CHANNEL';
+  liveBtn.textContent = ch ? `TUNE TO CHANNEL ${ch.number} & EDIT` : 'EDIT ON CURRENT CHANNEL';
   liveBtn.disabled = !(S.config.channels && S.config.channels.length);
   liveBtn.title = liveBtn.disabled
     ? 'Add a channel before opening the live placement editor'
-    : 'Overlay an alignment grid on the running channel and edit placement in real time';
+    : ch
+      ? `Tune to channel ${ch.number} and overlay an alignment grid to edit placement in real time`
+      : 'Overlay an alignment grid on the running channel and edit placement in real time';
   liveBtn.addEventListener('click', () => openLiveLogoBugEditor({
-    getProfiles, setProfiles, onLiveChange,
+    getProfiles, setProfiles, onLiveChange, channelNumber: ch && ch.number,
   }));
   wrap.append(explanation, liveBtn);
   return wrap;
