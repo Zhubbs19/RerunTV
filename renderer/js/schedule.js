@@ -594,11 +594,18 @@ function computeActiveCommercials(ch, atMs, fileTags) {
       key: `flow:${flow.id}`
     };
   }
-  // Channel and content-tag constraints are independent gates here too (same
-  // AND semantics as the flow match above) — a preset can be scoped to
-  // specific channels, specific content tags, or both. An untagged file is
-  // "unknown" rather than a mismatch against a tag-scoped preset, matching
-  // the flow logic's reasoning above.
+  // Channel and content-tag constraints are independent gates here — a
+  // preset can be scoped to specific channels, specific content tags, or
+  // both (AND'd when both are set). Unlike the flow match above, an untagged
+  // file does NOT satisfy a tag scope here (it only skips the tag check when
+  // there's no channel scope to fall back on — see below): almost all
+  // content in a typical library is untagged, so treating "untagged" as "any
+  // tag" the way flows do would make the first tag-scoped preset in the list
+  // hijack commercials resolution for every untagged file on every channel,
+  // silently replacing normal channel/block ad behavior (this actually
+  // happened — it's what broke the time machine's break navigation). A
+  // channel-only preset (no contentTags at all) is unaffected by this and
+  // still always matches its channel regardless of tags, same as before.
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
   const preset = presets.find((p) => {
     if (p.enabled === false) return false;
@@ -606,7 +613,7 @@ function computeActiveCommercials(ch, atMs, fileTags) {
     const hasTagScope = p.contentTags && p.contentTags.length > 0;
     if (!hasChannelScope && !hasTagScope) return false;
     if (hasChannelScope && !p.channels.includes(ch.number)) return false;
-    if (hasTagScope && tags.length > 0 && !p.contentTags.some((t) => tags.includes(t))) return false;
+    if (hasTagScope && !p.contentTags.some((t) => tags.includes(t))) return false;
     return true;
   });
   if (preset) return { commercials: preset, key: `preset:${preset.id}` };
