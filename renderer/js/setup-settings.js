@@ -435,7 +435,7 @@ let lastSetupTab = 'channels';
 const SETUP_SECTION_COPY = {
   channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
   display: ['PICTURE & GUIDE', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
-  programming: ['HEADEND PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
+  programming: ['MASTER CONTROL PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
   audio: ['SYSTEM & STORAGE', 'Control audio, connected viewing, network access, virtual channels, and backups.'],
   perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
