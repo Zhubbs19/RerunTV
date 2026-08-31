@@ -128,7 +128,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
   // the real manifest is the only check that actually holds across that
   // bypass, since this is the process that performs the real
   // ipcMain.handle()/on() registration.
-  const { allowedIpc } = allowedSetsFor(manifest.capabilities);
+  const { allowedIpc, allowedSystem } = allowedSetsFor(manifest.capabilities);
   childRpc.on('ipc:handle-register', ({ channel }) => {
     if (!allowedIpc.has(channel)) {
       recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'register IPC channel', channel, 'ipc').message);
@@ -143,11 +143,29 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
     }
     ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
   });
+  // Unlike ipc:handle-register/ipc:on-register above, these two proxy
+  // straight to a real OS-level action with no per-call value to check
+  // against (there's no "channel name" to allowlist — the action itself is
+  // the whole capability) — gated on capabilities.system so a plugin has to
+  // declare (and the user approve) "shell.openExternal"/
+  // "desktopCapturer.getSources" the same way it would ipc/spawn/net, rather
+  // than getting both for free just by being isolated.
   childRpc.handle('desktopCapturer:getSources', async ({ opts }) => {
+    if (!allowedSystem.has('desktopCapturer.getSources')) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'use', 'desktopCapturer.getSources', 'system').message);
+      throw capabilityError(manifest.id, 'use', 'desktopCapturer.getSources', 'system');
+    }
     const sources = await desktopCapturer.getSources(opts);
     return sources.map((s) => ({ id: s.id, name: s.name, thumbnailDataUrl: s.thumbnail.toDataURL() }));
   });
-  childRpc.handle('shell:openExternal', async ({ url }) => { shell.openExternal(url); return true; });
+  childRpc.handle('shell:openExternal', async ({ url }) => {
+    if (!allowedSystem.has('shell.openExternal')) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'use', 'shell.openExternal', 'system').message);
+      throw capabilityError(manifest.id, 'use', 'shell.openExternal', 'system');
+    }
+    shell.openExternal(url);
+    return true;
+  });
   childRpc.on('app:on-before-quit-register', () => { beforeQuitChildren.add(childRpc); });
   childRpc.on('sendToMainWindow', ({ channel, data }) => {
     const mainWindow = baseCtx.getMainWindow();

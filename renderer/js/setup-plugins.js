@@ -74,14 +74,15 @@ function sortPluginsForDisplay(plugins) {
 }
 
 // Human-readable line per declared capability, for the approval prompt —
-// one line per manifest.json capabilities.ipc/spawn/net/mediaSource entry,
-// each already carrying its own author-supplied `why`.
+// one line per manifest.json capabilities.ipc/spawn/net/mediaSource/system
+// entry, each already carrying its own author-supplied `why`.
 function formatCapabilityLines(caps) {
   const lines = [];
   (caps.ipc || []).forEach((e) => lines.push(`Talk to the app internally as "${e.channel}" — ${e.why}`));
   (caps.spawn || []).forEach((e) => lines.push(`Run "${e.bin}" as a separate program — ${e.why}`));
   (caps.net || []).forEach((e) => lines.push(`Open network port ${e.port} — ${e.why}`));
   (caps.mediaSource || []).forEach((e) => lines.push(`Supply channel media as a source named "${e.displayName || e.providerId}" — ${e.why}`));
+  (caps.system || []).forEach((e) => lines.push(`Use the system action "${e.action}" — ${e.why}`));
   return lines;
 }
 

@@ -46,6 +46,22 @@ function isPathContained(base, resolved) {
   return resolved === base || resolved.startsWith(base + path.sep);
 }
 
+// Same regex/behavior as core's main-viewer-projection.js's
+// sanitizeViewerConfig, duplicated for the same packaged-path reason as
+// isPathContained above. Unlike the anonymous LAN viewer, a paired companion
+// device is trusted with real channel folder paths (its own Files tab and
+// Settings editor need them), so this only strips key/value pairs whose key
+// looks like a credential — it does not opaque paths the way the viewer
+// projection does.
+const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth)/i;
+function sanitizeSensitiveConfig(value) {
+  if (Array.isArray(value)) return value.map(sanitizeSensitiveConfig);
+  if (!value || typeof value !== 'object') return value;
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key]) => !SENSITIVE_CONFIG_KEY.test(key))
+    .map(([key, child]) => [key, sanitizeSensitiveConfig(child)]));
+}
+
 // One root per distinct local channel folder — ch.folders[] entries are
 // {id, source, ref, label} (see normalizeChannel, renderer/js/channels.js);
 // `ref` IS the folder's real filesystem path for a source: 'local' entry
@@ -176,7 +192,7 @@ async function activate(ctx) {
 
     if (req.method === 'GET' && url.pathname === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-        .end(JSON.stringify(await loadConfig()));
+        .end(JSON.stringify(sanitizeSensitiveConfig(await loadConfig())));
       return;
     }
 

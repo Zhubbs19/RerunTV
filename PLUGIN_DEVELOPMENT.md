@@ -150,9 +150,21 @@ process, or bind an HTTP server, declare it in `manifest.json`:
   ],
   "mediaSource": [
     { "providerId": "my-source", "displayName": "My Source", "why": "streams channel content from somewhere other than local disk" }
+  ],
+  "system": [
+    { "action": "shell.openExternal", "why": "opens the project's homepage from a Settings link" }
   ]
 }
 ```
+
+`capabilities.system` gates the two OS-level actions proxied to an **isolated**
+plugin's `ctx.shell.openExternal`/`ctx.desktopCapturer.getSources` (see below)
+— declare `"shell.openExternal"` and/or `"desktopCapturer.getSources"` there
+if your isolated plugin calls either; an undeclared one throws the same way
+an undeclared `ipc` channel does. A non-isolated plugin's `ctx.shell`/
+`ctx.desktopCapturer` are the real, unwrapped Electron modules regardless —
+same-process plugins already have unrestricted access via `require('electron')`
+directly, so there's nothing this capability could meaningfully gate there.
 
 Every entry needs a `why` — it's shown verbatim in the approval prompt the
 user sees before your plugin is allowed to activate (a fresh install, or an
@@ -377,6 +389,11 @@ permission check — some things work identically, some need a different
   the underlying call happened to resolve synchronously-ish — an isolated
   plugin never can).
 - `ctx.app.on('before-quit', fn)` — still works.
+- `ctx.shell.openExternal(url)` / `ctx.desktopCapturer.getSources(opts)` —
+  proxied over RPC to the real Electron call, but only if you declared the
+  matching `capabilities.system` entry (`"shell.openExternal"` /
+  `"desktopCapturer.getSources"`, see "Declaring capabilities" above) —
+  undeclared throws, same as an undeclared `ipc` channel.
 
 **Different — no real Electron `BrowserWindow`/`ipcMain` handle can cross a
 process boundary, so these replace the same-process equivalents:**
@@ -394,10 +411,10 @@ process boundary, so these replace the same-process equivalents:**
 
 **Not available at all** (main-process-only, no equivalent):
 `getMainWindow()` itself (use `ctx.sendToMainWindow` instead), and anything
-from `require('electron')` directly — an isolated plugin's process never has
-the `electron` module. If your plugin needs an Electron API not listed
-above, it isn't supported for isolated plugins yet; ask before assuming you
-can work around it.
+else from `require('electron')` directly — an isolated plugin's process
+never has the `electron` module. If your plugin needs an Electron API not
+listed above, it isn't supported for isolated plugins yet; ask before
+assuming you can work around it.
 
 ## Folder layout
 

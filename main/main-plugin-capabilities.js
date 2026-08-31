@@ -28,6 +28,12 @@ const { recordDiagnostic } = require('./main-diagnostics');
 //   spawn:       [{ bin: "ffmpeg", why: "..." }]                — a child-process executable, matched by basename
 //   net:         [{ port: 8723, why: "..." }]                   — a port this plugin's own HTTP server binds
 //   mediaSource: [{ providerId: "my-source", why: "..." }]        — registers as a channel media-content source
+//   system:      [{ action: "shell.openExternal", why: "..." }]   — one of the OS-level actions proxied to an
+//                                                                   isolated plugin's ctx.shell/ctx.desktopCapturer
+//                                                                   ("shell.openExternal" or
+//                                                                   "desktopCapturer.getSources") — see
+//                                                                   main-plugin-isolation.js's
+//                                                                   registerChildInitiatedHandlers
 // A malformed entry (missing its value key or `why`) is dropped rather than
 // erroring the whole manifest — same "degrade gracefully" spirit as every
 // other optional manifest field. `dataDir` is what scopes file writes; it
@@ -60,6 +66,7 @@ function normalizeCapabilities(raw) {
     spawn: normalizeList(caps.spawn, 'bin'),
     net: normalizeList(caps.net, 'port'),
     mediaSource: normalizeList(caps.mediaSource, 'providerId'),
+    system: normalizeList(caps.system, 'action'),
   };
 }
 
@@ -71,7 +78,7 @@ function normalizeCapabilities(raw) {
 // binary re-prompts), not on every boot.
 function capabilitiesSignature(capabilities) {
   return JSON.stringify(capabilities || {
-    ipc: [], spawn: [], net: [], mediaSource: [],
+    ipc: [], spawn: [], net: [], mediaSource: [], system: [],
   });
 }
 
@@ -85,11 +92,14 @@ function capabilityError(pluginId, kind, value, field) {
 // Derives the three lookup sets a ctx builder checks every spawn/listen/IPC
 // call against, from a manifest's (already-normalized) capabilities object.
 function allowedSetsFor(capabilities) {
-  const caps = capabilities || { ipc: [], spawn: [], net: [] };
+  const caps = capabilities || {
+    ipc: [], spawn: [], net: [], system: [],
+  };
   return {
     allowedIpc: new Set(caps.ipc.map((e) => e.channel)),
     allowedSpawn: new Set(caps.spawn.map((e) => stripExeSuffix(String(e.bin)))),
     allowedPorts: new Set(caps.net.map((e) => e.port)),
+    allowedSystem: new Set((caps.system || []).map((e) => e.action)),
   };
 }
 
