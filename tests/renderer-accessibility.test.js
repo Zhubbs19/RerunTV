@@ -56,7 +56,7 @@ test('control center separates everyday viewing from headend operations', () => 
   const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
   const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
   assert.match(markup, /WATCH &amp; LINEUP/);
-  assert.match(markup, /HEADEND STUDIO/);
+  assert.match(markup, /MASTER CONTROL/);
   assert.match(markup, /data-workspaces="viewing headend"/);
   assert.match(settings, /applySetupWorkspace/);
 });
