@@ -119,3 +119,16 @@ html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-li
     animation: none;
   }
 }
+
+/* --font-display (Monoton, above) is only meant for brand/logo scale, per
+   this pack's own comment on that declaration — true for .guide-info-number
+   (up to 56px) but not for .guide-name/.guide-info-title, where guide.css
+   also applies --font-display and Monoton's thin connected-script strokes
+   turn a running program title into a low-contrast smear at 20-22px. Fall
+   back to the theme's own --font-ui here instead, matching how the channel
+   name/description already read everywhere else in this theme. */
+html[data-theme="outrun-synthwave"] .guide-name,
+html[data-theme="outrun-synthwave"] .guide-info-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+}

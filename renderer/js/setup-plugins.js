@@ -228,6 +228,25 @@ function needsAttention(p) {
   });
 }
 
+// Splits needsAttention's reasons into "actually broken" (an error, a
+// tampered/unapproved integrity change, a missing/disabled dependency) vs.
+// "just hasn't had its permissions approved yet" — a routine one-time step
+// every plugin with any capability goes through, including every built-in
+// one RerunTV ships and maintains itself. A brand-new install can otherwise
+// show a dozen identical red ATTENTION badges before anything is actually
+// wrong, which reads as "half this app is broken" rather than "review these
+// once." Reserve ATTENTION's urgency for the reasons that actually warrant
+// it; this one gets its own calmer badge.
+function isOnlyUnapprovedPermissions(p) {
+  if (p.error || p.loadError || p.needsIntegrityApproval) return false;
+  if (permissionState(p) !== 'needs-approval') return false;
+  return !(p.dependsOn || []).some((depId) => {
+    const allPlugins = currentPluginsForAttention;
+    const dependency = allPlugins.find((other) => other.id === depId);
+    return !dependency || dependency.error || (S.config.plugins.disabled || []).includes(depId);
+  });
+}
+
 let currentPluginsForAttention = [];
 
 // Which plugin rows have been manually expanded this session — persists
@@ -386,9 +405,10 @@ export async function renderPluginsList() {
     let attention = false;
     if (!p.error) {
       attention = needsAttention(p);
+      const onlyUnapproved = attention && isOnlyUnapprovedPermissions(p);
       const status = document.createElement('span');
-      status.className = `plugin-row-status${attention ? ' needs-attention' : (disabledIdsAtRender.includes(p.id) ? ' is-off' : '')}`;
-      status.textContent = attention ? 'ATTENTION' : (disabledIdsAtRender.includes(p.id) ? 'OFF' : 'ENABLED');
+      status.className = `plugin-row-status${onlyUnapproved ? ' needs-approval' : (attention ? ' needs-attention' : (disabledIdsAtRender.includes(p.id) ? ' is-off' : ''))}`;
+      status.textContent = onlyUnapproved ? 'NEEDS APPROVAL' : (attention ? 'ATTENTION' : (disabledIdsAtRender.includes(p.id) ? 'OFF' : 'ENABLED'));
       nameLine.appendChild(status);
       row.dataset.attention = String(attention);
     }

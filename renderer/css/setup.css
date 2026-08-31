@@ -396,6 +396,19 @@
   color: var(--paper-dim);
 }
 
+/* setup-panels.js's shared "inherit vs override" panel builder (LOGO,
+   OVERLAYS, TICKER, IDENTITY) appends a plain <hr class="panel-divider">
+   between sections - this class had no rule anywhere, so it fell back to
+   the browser's default <hr>, which this app's global reset collapses to
+   essentially nothing. Same subtle-separator convention as
+   .channel-options-header above. */
+.panel-divider {
+  width: 100%;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  margin: 14px 0;
+}
+
 .channel-badge {
   position: relative;
   width: 44px;
@@ -1740,6 +1753,12 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
 }
 .plugin-row-status.is-off { color: var(--paper-dim); background: rgba(255, 255, 255, 0.09); }
 .plugin-row-status.needs-attention { color: #fff; background: var(--danger); }
+/* A calmer badge for "just needs its one-time permission review" — the
+   routine case every capable plugin goes through once, including ones
+   RerunTV ships itself — kept visually distinct from needs-attention's red,
+   which is reserved for an actual error, a tampered/unapproved integrity
+   change, or a broken dependency. */
+.plugin-row-status.needs-approval { color: var(--ink-deep); background: var(--cyan, #5fc9d6); }
 .plugin-row-desc {
   font-family: var(--font-ui);
   font-weight: 500;
@@ -3680,7 +3699,11 @@ html[data-theme] .btn[aria-disabled="true"] {
 }
 
 .flow-node-card {
-  flex: 0 0 min(320px, 85vw);
+  /* 320px -> 280px: the built-in 5-step template (30-Min Dual-Episode
+     Cartoon Flow) only fit ~3 cards before needing horizontal scroll on a
+     typical Setup width - this fits closer to 4 without cramping any
+     field, since every input inside already sizes to 100% of the card. */
+  flex: 0 0 min(280px, 85vw);
   background: var(--gradient-panel);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
