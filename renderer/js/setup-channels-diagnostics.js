@@ -16,6 +16,7 @@ import {
 import { getChannelSchedule } from './schedule.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { applyLocalFolderRelink, replaceLocalRoot } from './library-relink.js';
+import { collectRealContentTags } from './setup-util.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
 import { formatSlotLabel, getDisplayTitle } from './util.js';
 
@@ -65,14 +66,21 @@ nowNextToggleBtn.addEventListener('click', () => {
 // files at once (a moved/renamed/deleted file never triggers a codec error,
 // it just silently becomes unreachable), plus flags config-level dangling
 // references that only surface today as confusing runtime behavior: an ad
-// preset with no channel scope whose contentTags never match any file's tags
-// anywhere (it will simply never fire — a channel-scoped preset is exempt
-// since it doesn't need a tag match to fire), and pool entries still
-// targeting a channel/block that no longer exists.
-function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
+// preset OR pool entry whose contentTags never match any real content
+// anywhere (collectRealContentTags, setup-util.js — file tags plus channel-
+// level contentTags) will simply never fire, REGARDLESS of channel/block
+// scope also being set — resolveActiveCommercials/poolFor (schedule.js/
+// interstitials.js) both require an actual tag overlap whenever contentTags
+// is set at all, so a channel scope narrows WHEN an entry could fire, it
+// doesn't substitute for the tag match. (This is exactly the failure mode
+// that broke jump-to-break on a real channel: 30 pool entries scoped to one
+// channel via channelAffinity, but ALSO tagged with a contentTag nothing on
+// that channel carried — silently dead, not just narrowed.) Also flags pool
+// entries still targeting a channel/block that no longer exists.
+function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
-  const totalIssues = missingTotal + orphanedPresets.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
+  const totalIssues = missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
 
   const summary = document.createElement('div');
   summary.className = 'health-check-summary' + (totalIssues === 0 ? ' is-clean' : '');
@@ -158,6 +166,20 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
       const item = document.createElement('div');
       item.className = 'health-check-item';
       item.textContent = `"${p.name || 'UNTITLED'}" — tags: ${p.contentTags.join(', ')} (no file anywhere has any of these tags)`;
+      healthCheckResultsEl.appendChild(item);
+    });
+  }
+
+  if (orphanedPoolEntries.length) {
+    const title = document.createElement('div');
+    title.className = 'health-check-group-title';
+    title.textContent = 'BUMPER POOL ENTRIES WITH NO MATCHING TAGGED CONTENT';
+    healthCheckResultsEl.appendChild(title);
+    orphanedPoolEntries.forEach((e) => {
+      const item = document.createElement('div');
+      item.className = 'health-check-item';
+      const chLabel = e.channelAffinity === 'any' ? 'ANY CH' : `CH ${e.channelAffinity}`;
+      item.textContent = `${e.type} entry (${chLabel}) — tags: ${e.contentTags.join(', ')} (no file or channel anywhere has any of these tags, so this can never play)`;
       healthCheckResultsEl.appendChild(item);
     });
   }
@@ -251,20 +273,17 @@ export async function checkChannelHealth() {
 
   const missingPoolEntries = poolFileEntries.filter(({ path }) => existsMap[path] === false);
 
-  const allFileTags = new Set();
-  S.config.channels.forEach((ch) => {
-    (ch.files || []).forEach((f) => (f.tags || []).forEach((t) => allFileTags.add(t)));
-    // A channel's own contentTags (setup-panels.js's ADS tab) apply to every
-    // file on it for matching purposes (interstitials.js's
-    // effectiveContentTags) — fold them in so a preset targeting one isn't
-    // flagged orphaned just because no individual file carries it.
-    (ch.contentTags || []).forEach((t) => allFileTags.add(t));
-  });
+  const allFileTags = collectRealContentTags();
+  // A tag scope has to actually overlap something real to ever fire — a
+  // channel/block scope also being set doesn't substitute for that (see this
+  // function's own header comment above). Applies identically to presets and
+  // pool entries, since both gate on contentTags the same all-or-nothing way.
+  const isDeadTagScope = (contentTags) => contentTags && contentTags.length && !contentTags.some((t) => allFileTags.has(t));
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
-  const orphanedPresets = presets.filter((p) => p.enabled !== false && p.contentTags && p.contentTags.length &&
-    !(p.channels && p.channels.length) && !p.contentTags.some((t) => allFileTags.has(t)));
+  const orphanedPresets = presets.filter((p) => p.enabled !== false && isDeadTagScope(p.contentTags));
 
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
+  const orphanedPoolEntries = pool.filter((e) => isDeadTagScope(e.contentTags));
   const danglingPoolEntries = pool.filter((e) => {
     if (e.blockAffinity == null || e.channelAffinity === 'any') return false;
     const ch = S.config.channels.find((c) => c.number === e.channelAffinity);
@@ -292,10 +311,10 @@ export async function checkChannelHealth() {
     if (channelSet.size > 1) duplicateFiles.push({ path, channels: Array.from(channelSet).sort((a, b) => a - b) });
   });
 
-  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles });
+  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles });
   healthCheckBtn.disabled = false;
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
-  return missingTotal + orphanedPresets.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
+  return missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
 }
 
 healthCheckBtn.addEventListener('click', () => checkChannelHealth());

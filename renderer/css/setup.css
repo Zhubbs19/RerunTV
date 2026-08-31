@@ -2412,6 +2412,19 @@ html[data-theme] .btn[aria-disabled="true"] {
   letter-spacing: 0.5px;
   color: var(--danger);
 }
+.dead-tag-warning {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--danger);
+  border-left: 3px solid var(--danger);
+  background: rgba(var(--danger-rgb), 0.08);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  margin-top: 4px;
+  line-height: 1.4;
+}
 .block-card-row {
   display: flex;
   align-items: center;

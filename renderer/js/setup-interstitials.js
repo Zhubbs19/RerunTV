@@ -21,7 +21,7 @@ import {
 import { getMediaSourcePicker } from './plugins.js';
 import { blockPickerLabel } from './setup-schedule.js';
 import {
-  attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, buildPreemptionWindowsEditor,
+  attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, buildPreemptionWindowsEditor,
   parsePositiveInt, probeDuration, probeDurationForEntry,
 } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
@@ -818,6 +818,8 @@ function buildInterstitialCard(entry, idx, pool) {
     tagsInput.value = (entry.contentTags || []).join(', ');
     const tagsField = labeledField('CONTENT TAGS (BLANK = ANY)', attachTagAutocomplete(tagsInput), { wide: true });
     body.appendChild(tagsField);
+    const deadTagWarning = buildDeadTagWarning(() => entry.contentTags);
+    body.appendChild(deadTagWarning.el);
 
     const secondGrid = document.createElement('div');
     secondGrid.className = 'field-grid field-grid-wide';
@@ -865,6 +867,7 @@ function buildInterstitialCard(entry, idx, pool) {
           forcedTimingField.parentNode.removeChild(forcedTimingField);
         }
       }
+      deadTagWarning.refresh();
       saveConfigDebounced();
     });
 
@@ -1550,12 +1553,15 @@ function buildPresetRow(preset, idx, presets) {
   tagsInput.className = 'title-row-input';
   tagsInput.placeholder = 'e.g. cartoon, cartoon-30';
   tagsInput.value = (preset.contentTags || []).join(', ');
+  const presetDeadTagWarning = buildDeadTagWarning(() => preset.contentTags);
   tagsInput.addEventListener('change', () => {
     const tags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     preset.contentTags = tags;
+    presetDeadTagWarning.refresh();
     saveConfigDebounced();
   });
   body.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(tagsInput), { wide: true }));
+  body.appendChild(presetDeadTagWarning.el);
 
   const grid = document.createElement('div');
   grid.className = 'field-grid';

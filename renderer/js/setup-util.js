@@ -85,6 +85,61 @@ export function collectAllTags() {
   return Array.from(tags).sort();
 }
 
+// Tags that some real piece of CONTENT actually carries — per-file tags
+// (TITLES tab) plus a channel's own contentTags (ADS tab — see
+// interstitials.js's effectiveContentTags), which stand in for every file on
+// that channel. Deliberately narrower than collectAllTags above: that one
+// also includes pool-entry/preset contentTags themselves (so autocomplete
+// can suggest a tag someone already typed elsewhere), which is exactly what
+// makes a tag look "already in use" even when nothing actually airs with
+// it — an ad/preset/flow whose contentTags don't overlap THIS set can never
+// become eligible, full stop, regardless of channel/block affinity (see
+// poolFor, interstitials.js). Used to warn about that at edit time (setup-
+// interstitials.js, setup-interstitials-flowbuilder.js) and to flag it after
+// the fact (the "dead" pool-entry/preset health check, setup-channels-
+// diagnostics.js), so both stay in sync with the exact same definition of
+// "will this tag ever match."
+export function collectRealContentTags() {
+  const tags = new Set();
+  (S.config.channels || []).forEach((ch) => {
+    (ch.files || []).forEach((f) => (f.tags || []).forEach((t) => tags.add(t)));
+    (ch.blocks || []).forEach((b) => (b.files || []).forEach((f) => (f.tags || []).forEach((t) => tags.add(t))));
+    (ch.contentTags || []).forEach((t) => tags.add(t));
+  });
+  return tags;
+}
+
+// A small live-updating warning for any "APPLIES TO CONTENT TAGGED"-style
+// field (the pool entry editor, ad presets, flow contentTags, flow mid-show
+// cadence — setup-interstitials.js/setup-interstitials-flowbuilder.js) that
+// flags a tag no real content carries yet, at the moment it's typed, instead
+// of only showing up later as a silently-dead ad/preset/flow (the health
+// check catches the same condition after the fact — see collectRealContentTags
+// above and setup-channels-diagnostics.js). getTags() should return the
+// currently-entered tag array; call refresh() after every edit to that value
+// (both on this field's own change and, since a warning here has to reflect
+// content elsewhere in the config too, from anywhere content/channel tags
+// might change — callers that skip that are just accepting a slightly stale
+// warning until the next full re-render, not a wrong one).
+const defaultDeadTagMessage = (dead) =>
+  `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — THIS WILL NEVER MATCH UNTIL SOME CONTENT IS. CHANNEL/BLOCK TARGETING ALONE DOESN'T SATISFY A CONTENT TAG.`;
+
+export function buildDeadTagWarning(getTags, formatMessage = defaultDeadTagMessage) {
+  const el = document.createElement('div');
+  el.className = 'dead-tag-warning hidden';
+  function refresh() {
+    const tags = (getTags() || []).filter(Boolean);
+    if (!tags.length) { el.classList.add('hidden'); return; }
+    const real = collectRealContentTags();
+    const dead = tags.filter((t) => !real.has(t));
+    if (!dead.length) { el.classList.add('hidden'); return; }
+    el.textContent = formatMessage(dead);
+    el.classList.remove('hidden');
+  }
+  refresh();
+  return { el, refresh };
+}
+
 // Turns a plain comma-separated tags <input> into one with a suggestion
 // dropdown for the tag currently being typed (the text after the last
 // comma) — a plain HTML5 <datalist> doesn't work for this shape of field,
