@@ -268,15 +268,14 @@ purpose-built to back your own picker UI (option 1 above). Your
 `renderer.js` calls any of them the same way:
 `window.api.callMediaSourceHook(providerId, verb, ...args)` — a generic
 passthrough to whatever you've registered, not limited to the reserved
-verb names. See `plugins/gdrive-media-source` for a complete worked
-example of both patterns together.
+verb names.
 
 **`getFetchProgress(ref) => Promise<{ ready: boolean, progress?: number, label?: string }>`**
 — another optional, well-known verb name (not one of the four core ones,
 but recognized by core rather than provider-invented): if your `readRange`
 can legitimately take a long time on first access (e.g. downloading to a
-local cache before it can serve anything — see `plugins/gdrive-media-source`'s
-lazy-cache strategy), register this and `renderer/js/playback.js` will call
+local cache before it can serve anything), register this and
+`renderer/js/playback.js` will call
 it before attempting playback, showing a visible progress card
 (`{ready: false, progress: 0-1, label}`) and polling once a second until
 you return `{ready: true}`, instead of the tune just sitting on static with
@@ -294,10 +293,9 @@ redirected, the file gets full local-file treatment — including `FIX
 PLAYBACK`'s codec auto-fix, which operates on your cache file directly, not
 the original remote copy. `renderer/js/playback.js` calls this as a
 fallback only, after a genuine live playback attempt (going straight
-through your `readRange`, same as any file) fails to decode — see
-`plugins/gdrive-media-source` for the full pattern: live streaming by
-default, caching only kicks in if live genuinely doesn't work for a given
-file.
+through your `readRange`, same as any file) fails to decode: live streaming
+by default, caching only kicks in if live genuinely doesn't work for a
+given file.
 
 **`getDisplayName(ref) => Promise<string | null>`** — a `ch.files[].path`
 for your provider is an opaque ref (e.g. a Drive file id), which has no

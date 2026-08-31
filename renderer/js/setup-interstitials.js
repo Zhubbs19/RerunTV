@@ -69,7 +69,7 @@ async function pickFolderRefForProvider(providerId) {
 // wants every file), a single bumper/ad/promo slot wants exactly one, so a
 // folder with more than one match needs a way to choose among them. Reuses
 // the app's own confirm-dialog/folder-row CSS classes (setup.css) for visual
-// consistency with gdrive-media-source's own breadcrumb picker.
+// consistency with a media-source plugin's own breadcrumb picker.
 function pickOneFromList(refs, labels) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');

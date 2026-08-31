@@ -182,9 +182,8 @@ export function escapeHtml(str) {
 
 export function basenameNoExt(filePath) {
   const base = filePath.split(/[\\/]/).pop() || filePath;
-  // Internet Archive's own transcode pipeline names derivatives
-  // "<name>.ia.<ext>" (see archive-media-source/main.js's fileFormatToken) —
-  // a file downloaded locally via that plugin's "download to a local
+  // Some remote-media plugins' own transcode pipelines name derivatives
+  // "<name>.ia.<ext>" — a file downloaded locally via a "save to a local
   // folder" action keeps that name, so a plain single-extension strip left
   // titles reading "<name>.ia" once the file was no longer plugin-sourced.
   const withoutIaSuffix = base.replace(/\.ia\.[a-z0-9]+$/i, '');
