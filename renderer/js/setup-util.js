@@ -544,6 +544,21 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     if (activeTarget !== 'logo-bug') element.style.opacity = '1';
   }
 
+  // Bounds-check any profile's x/y against the CURRENT overlay's px size
+  // (whichever aspect/resolution frame is active right now) using the same
+  // width/height math each target type already uses elsewhere in this file.
+  // Returns null when it's already fully on screen.
+  function overflowFix(profile) {
+    const element = targetElement();
+    const dims = activeTarget === 'logo-bug' ? channels.logoBugProfileDimensions(profile)
+      : isBarTarget() ? { width: (profile.width || 0) / 100 * overlay.clientWidth, height: (profile.height || 0) / 100 * overlay.clientHeight }
+        : { width: element.offsetWidth * (profile.scale || 1), height: element.offsetHeight * (profile.scale || 1) };
+    const maxX = Math.max(0, 100 - dims.width / overlay.clientWidth * 100);
+    const maxY = Math.max(0, 100 - dims.height / overlay.clientHeight * 100);
+    if (profile.x <= maxX && profile.y <= maxY) return null;
+    return { x: Math.round(Math.min(profile.x, maxX) * 10) / 10, y: Math.round(Math.min(profile.y, maxY) * 10) / 10 };
+  }
+
   function selectProfileForContext() {
     const context = currentContext();
     showTargetForEditing();
@@ -580,7 +595,26 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
           return dim;
         })() : isBarTarget() ? { width: base.width, height: base.height } : { scale: base.scale || 1 }),
       };
+      // base's x/y/size were tuned against WHATEVER frame was current when
+      // that profile was authored — often a different aspect/resolution
+      // (e.g. the DEFAULT profile, sized for a big native frame) than the
+      // one this brand-new entry is being seeded for. Copying base.x/y in
+      // unchanged can start this entry already past the edge of the
+      // CURRENT (possibly much smaller) frame, so it's bounds-checked once
+      // right after creation, same as the self-heal below.
+      const fix = overflowFix(exact);
+      if (fix) Object.assign(exact, fix);
       setTargetProfiles([...profiles, exact]);
+    } else {
+      // Self-heal a PRE-EXISTING entry that was already saved out of bounds
+      // (e.g. from before this bounds-check existed) — corrected the moment
+      // it's actually viewed here, so it doesn't keep silently reappearing
+      // in the same wrong spot every time this context comes up again.
+      const fix = overflowFix(exact);
+      if (fix) {
+        exact = { ...exact, ...fix };
+        setTargetProfiles(profiles.map((profile) => (profile.id === exact.id ? exact : profile)));
+      }
     }
     activeId = exact.id;
     renderProfile();
