@@ -407,6 +407,19 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     },
   });
 
+  // Keep renderer notifications identical in both plugin modes. Isolated
+  // plugins get this helper through the RPC bridge; same-process plugins
+  // should not have to branch on execution mode or reach through the raw
+  // BrowserWindow just to publish a status update.
+  const sendToMainWindow = (channel, data) => {
+    const mainWindow = typeof baseCtx.getMainWindow === 'function'
+      ? baseCtx.getMainWindow()
+      : null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(channel, data);
+    }
+  };
+
   return {
     ...baseCtx, pluginDir,
     ipcMain: checkedIpcMain,
@@ -415,6 +428,7 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     fs: createCheckedFs(manifest.id, dataDir),
     createLanAccess,
     isLanServiceEnabled,
+    sendToMainWindow,
     services: checkedServices,
     // Symmetric with the isolated runtime's ctx.registerService/callService
     // (plugin-isolation-runtime.js) — same shared baseCtx.services object

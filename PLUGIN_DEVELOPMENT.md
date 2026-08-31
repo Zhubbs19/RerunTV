@@ -494,7 +494,7 @@ module.exports = { activate };
   published by the ffmpeg-transcode plugin). Check for existence before
   using anything on it — a plugin you depend on may be disabled or missing.
 - A handful of app-specific helpers plugins have found useful:
-  `getMainWindow`, `getLanAddresses`, `fetchJsonCached`, `readJsonBody`,
+  `getMainWindow`, `sendToMainWindow`, `getLanAddresses`, `fetchJsonCached`, `readJsonBody`,
   `serveStatic`, `loadConfig`, `trackConnection`, `mimeFor`. These aren't a stable
   guaranteed API in the way the Electron modules above are — check an
   existing plugin under [`plugins/`](plugins/) that uses the one you need to
