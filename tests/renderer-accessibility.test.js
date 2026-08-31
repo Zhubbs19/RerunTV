@@ -23,7 +23,7 @@ test('fallback media titles remove dotted release noise and expose suspicious me
   const util = await loadModule(path.join(ROOT, 'renderer', 'js', 'util.js'), context);
   await util.evaluate();
   const file = { path: 'C:/archive/Email.Surveillance.1080p.WEB-DL.2CH.PSA.ia.mp4' };
-  assert.equal(util.namespace.getDisplayTitle(file), 'Email Surveillance PSA ia');
+  assert.equal(util.namespace.getDisplayTitle(file), 'Email Surveillance PSA');
   assert.equal(util.namespace.titleNeedsMetadata(file), true);
   assert.equal(util.namespace.titleNeedsMetadata({ path: 'Pilot.mkv' }), false);
   assert.equal(util.namespace.titleNeedsMetadata({ path: file.path, title: 'Email Surveillance PSA' }), false);
