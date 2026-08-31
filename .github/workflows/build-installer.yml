@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           tag="v${{ steps.version.outputs.version }}"
-          product=$(node -p "require('./package.json').build.productName || require('./package.json').productName")
+          product=$(node -p "require('./electron-builder.config.js').productName")
           # Matches build.artifactName (package.json) exactly, no spaces —
           # electron-builder's own latest.yml records this same hyphenated
           # name as the expected download, so this has to stay byte-for-byte
