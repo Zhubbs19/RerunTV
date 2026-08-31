@@ -190,6 +190,7 @@ contextBridge.exposeInMainWorld('api', {
   noaaGetForecast: (opts) => ipcRenderer.invoke('noaa:getForecast', opts),
   // Cast to TV (Chromecast/Google TV) — handled by plugins/cast-to-tv's own
   // main.js, not core.
+  castScan: () => ipcRenderer.invoke('cast:scan'),
   castConnect: (host) => ipcRenderer.invoke('cast:connect', host),
   castDisconnect: () => ipcRenderer.invoke('cast:disconnect'),
   castNow: () => ipcRenderer.invoke('cast:castNow'),

@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const { CastSession } = require('./castv2-lite');
+const { discoverCastDevices } = require('./mdns-lite');
 
 const PORT = 8731;
 const CONTENT_TYPE_BY_EXT = {
@@ -108,6 +109,8 @@ function activate(ctx) {
     });
     reportStatus({ state: 'casting', path: nowPlaying.path });
   }
+
+  ipcMain.handle('cast:scan', async () => discoverCastDevices());
 
   ipcMain.handle('cast:connect', async (event, host) => {
     await doConnect(host);

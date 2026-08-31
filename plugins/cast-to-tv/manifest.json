@@ -9,7 +9,8 @@
   "settings": "settings.js",
   "capabilities": {
     "ipc": [
-      { "channel": "cast:connect", "why": "connects to the Chromecast/Google TV device at the IP address you enter" },
+      { "channel": "cast:scan", "why": "scans the LAN (mDNS) for Chromecast/Google TV devices to list in the settings panel" },
+      { "channel": "cast:connect", "why": "connects to the Chromecast/Google TV device you selected from the scan" },
       { "channel": "cast:disconnect", "why": "closes the connection to the cast device" },
       { "channel": "cast:castNow", "why": "loads whatever is currently airing onto the connected cast device" },
       { "channel": "cast:stop", "why": "stops playback on the cast device" },
