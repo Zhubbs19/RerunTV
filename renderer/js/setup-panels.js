@@ -914,6 +914,33 @@ export function buildChannelAdsPanel(ch, panelEl) {
   hint.className = 'titles-empty';
   hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE CONFIGURED IN PROGRAMMING (CADENCE & PRESETS; ADVANCED FLOWS WHEN NEEDED). THIS TOGGLE IS A GLOBAL KILL-SWITCH FOR ADS ON THIS CHANNEL ONLY.';
   panelEl.appendChild(hint);
+
+  // Channel-wide content tags — applied to EVERY file on this channel, on
+  // top of that file's own tags, wherever an ad-pool entry/preset/flow
+  // checks content tags (interstitials.js's effectiveContentTags). Exists
+  // for a themed channel (a 24/7 holiday-movies channel, say) where tagging
+  // every individual file the same way would be pure busywork when a preset
+  // or pool entry just wants to target "this channel's content."
+  const tagsLabel = document.createElement('div');
+  tagsLabel.className = 'flow-label';
+  tagsLabel.textContent = 'CHANNEL CONTENT TAGS (APPLY TO EVERY FILE ON THIS CHANNEL)';
+  panelEl.appendChild(tagsLabel);
+
+  const tagsInput = document.createElement('input');
+  tagsInput.type = 'text';
+  tagsInput.className = 'title-row-input';
+  tagsInput.placeholder = 'e.g. christmas-ad, holiday';
+  tagsInput.value = (ch.contentTags || []).join(', ');
+  tagsInput.addEventListener('change', () => {
+    ch.contentTags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    saveConfigDebounced();
+  });
+  panelEl.appendChild(attachTagAutocomplete(tagsInput));
+
+  const tagsHint = document.createElement('div');
+  tagsHint.className = 'titles-empty';
+  tagsHint.textContent = 'MATCHES AD-POOL ENTRIES, PRESETS, AND FLOWS THAT TARGET CONTENT TAGS — NO NEED TO TAG EVERY FILE INDIVIDUALLY.';
+  panelEl.appendChild(tagsHint);
 }
 
 // Builds the ad-settings UI for a daypart block override (block.commercials).

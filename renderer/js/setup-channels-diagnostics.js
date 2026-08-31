@@ -252,7 +252,14 @@ export async function checkChannelHealth() {
   const missingPoolEntries = poolFileEntries.filter(({ path }) => existsMap[path] === false);
 
   const allFileTags = new Set();
-  S.config.channels.forEach((ch) => (ch.files || []).forEach((f) => (f.tags || []).forEach((t) => allFileTags.add(t))));
+  S.config.channels.forEach((ch) => {
+    (ch.files || []).forEach((f) => (f.tags || []).forEach((t) => allFileTags.add(t)));
+    // A channel's own contentTags (setup-panels.js's ADS tab) apply to every
+    // file on it for matching purposes (interstitials.js's
+    // effectiveContentTags) — fold them in so a preset targeting one isn't
+    // flagged orphaned just because no individual file carries it.
+    (ch.contentTags || []).forEach((t) => allFileTags.add(t));
+  });
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
   const orphanedPresets = presets.filter((p) => p.enabled !== false && p.contentTags && p.contentTags.length &&
     !(p.channels && p.channels.length) && !p.contentTags.some((t) => allFileTags.has(t)));

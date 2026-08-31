@@ -94,6 +94,21 @@ function seededShuffle(arr, seed) {
   return out;
 }
 
+// A channel can carry its own contentTags (setup-panels.js's ADS tab) that
+// apply to EVERY file airing on it, in addition to that file's own tags —
+// for a themed channel (e.g. a 24/7 Christmas Movies channel) where an
+// ad-pool preset/entry wants to target "this channel's content" by tag
+// without tagging every individual file. Every fileTags derivation below
+// (resolveBreakAt, nextCandidateBoundary) folds this in via this helper, so
+// pool/preset/flow content-tag matching sees both sources uniformly.
+// Exported for setup-aircheck.js's preview simulator and
+// channel-package.js's export-scoping, which need the exact same union.
+export function effectiveContentTags(ch, file) {
+  const fromFile = (file && file.tags) || [];
+  const fromChannel = (ch && ch.contentTags) || [];
+  return fromChannel.length ? [...fromFile, ...fromChannel] : fromFile;
+}
+
 // Entries eligible for a break of this type on this channel/block right now.
 // fileTags (the tags — see setup-panels.js's TITLES tab — of whichever
 // content file is airing around this break, or [] when there isn't one, e.g.
@@ -457,7 +472,7 @@ export function resolveBreakAt(ch, atMs) {
   // optional contentTags (setup-interstitials.js) can target ads at specific
   // tagged content instead of only channel/block.
   const posNow = computeSourcePosition(source, atMs, { ignoreContentLost: true });
-  const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
+  const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
   const activeCommercials = resolveActiveCommercials(ch, atMs, fileTags);
   const cc = activeCommercials.commercials; // this channel's effective commercials config (block/preset override already resolved) — short name, used constantly below
@@ -882,7 +897,7 @@ function nextCandidateBoundary(ch, fromMs) {
   // applied here it would leak the tuned channel's accumulated ad-break lag
   // into every other channel's candidate-boundary computation too.
   const posNow = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
-  const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
+  const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
   const cc = resolveActiveCommercials(ch, fromMs, fileTags).commercials;
   if (cc && cc.enabled !== false) {
