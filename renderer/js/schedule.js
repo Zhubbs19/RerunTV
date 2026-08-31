@@ -391,14 +391,15 @@ export function prevBroadcastHoursBoundary(ch, fromMs) {
   return -Infinity;
 }
 
-// Which commercials config applies to a channel at a given moment. A tagged
-// ad preset (S.config.interstitials.presets — setup-interstitials.js's AD
-// PRESETS panel) wins over everything else whenever the content airing right
-// now (fileTags, passed in by the caller — resolveBreakAt already computes
-// this) carries one of the preset's contentTags: presets exist precisely to
-// give a specific *show* its own break structure (a 30-min cartoon's 2-episode
-// pod layout, a 2-hour movie's spread-out breaks) regardless of which
-// channel/block it happens to be airing on. Falling short of a preset match,
+// Which commercials config applies to a channel at a given moment. An ad
+// preset (S.config.interstitials.presets — setup-interstitials.js's AD
+// PRESETS panel) wins over everything else whenever it matches: a preset can
+// be scoped to specific channels, specific content tags, or both (AND'd when
+// both are set) — a tag-scoped preset exists to give a specific *show* its
+// own break structure (a 30-min cartoon's 2-episode pod layout, a 2-hour
+// movie's spread-out breaks) regardless of which channel/block it airs on; a
+// channel-scoped preset exists to give a whole channel its own break
+// structure without having to tag every file on it. Falling short of a preset match,
 // falls back to the highest-priority block that both matches its trigger
 // right now AND carries its own `commercials` override, else the channel's
 // default. Deliberately independent of resolveActiveSource for the
@@ -593,12 +594,22 @@ function computeActiveCommercials(ch, atMs, fileTags) {
       key: `flow:${flow.id}`
     };
   }
+  // Channel and content-tag constraints are independent gates here too (same
+  // AND semantics as the flow match above) — a preset can be scoped to
+  // specific channels, specific content tags, or both. An untagged file is
+  // "unknown" rather than a mismatch against a tag-scoped preset, matching
+  // the flow logic's reasoning above.
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
-  if (fileTags && fileTags.length) {
-    const preset = presets.find((p) => p.enabled !== false && p.contentTags && p.contentTags.length &&
-      p.contentTags.some((t) => fileTags.includes(t)));
-    if (preset) return { commercials: preset, key: `preset:${preset.id}` };
-  }
+  const preset = presets.find((p) => {
+    if (p.enabled === false) return false;
+    const hasChannelScope = p.channels && p.channels.length > 0;
+    const hasTagScope = p.contentTags && p.contentTags.length > 0;
+    if (!hasChannelScope && !hasTagScope) return false;
+    if (hasChannelScope && !p.channels.includes(ch.number)) return false;
+    if (hasTagScope && tags.length > 0 && !p.contentTags.some((t) => tags.includes(t))) return false;
+    return true;
+  });
+  if (preset) return { commercials: preset, key: `preset:${preset.id}` };
   const candidates = (ch.blocks || [])
     .map((b, idx) => ({ b, idx }))
     .filter(({ b }) => b.commercials && matchesTrigger(atMs, b))
