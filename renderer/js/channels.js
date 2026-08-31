@@ -464,6 +464,22 @@ export async function tryGetDisplayName(providerId, rawRef) {
   }
 }
 
+// Optional per-provider verb, same shape as tryGetDisplayName above: a
+// provider that can identify real descriptive metadata for a specific file
+// (not just a cleaned-up name) can register `getMetadata(ref)` to return
+// `{ description?, facets?: { genre?, era?, contentType? } }` — merged into
+// the new file's own `description`/`facets` fields at scan time
+// (addPluginSourceToChannel below), same one-time-at-scan timing as
+// getDisplayName's title. Absent or throwing is a normal, silent no-op —
+// most providers won't implement this at all.
+export async function tryGetMetadata(providerId, rawRef) {
+  try {
+    return await window.api.callMediaSourceHook(providerId, 'getMetadata', rawRef);
+  } catch (err) {
+    return null;
+  }
+}
+
 // A saved curation profile's contentPoolScope.folders (setup-autocurate.js)
 // may still hold legacy raw path strings from before ch.folders[] entries
 // had ids — resolve each to its current entry id (matching by ref) so an

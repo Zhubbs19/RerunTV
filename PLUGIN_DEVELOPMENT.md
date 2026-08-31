@@ -308,6 +308,21 @@ name; `setup-channels.js` calls it once per file at scan time
 (`addPluginSourceToChannel`/`rescanAllFolders`) and stores it as the file's
 `title`.
 
+**`getMetadata(ref) => Promise<{ description?, facets?: { genre?, era?, contentType? } } | null>`**
+— optional, called alongside `getDisplayName` at the same scan-time sites,
+for a provider that can identify real descriptive metadata about a specific
+file (not just a cleaned-up name) — e.g. a synopsis, release year, or genre
+from the source's own catalog. Whatever you return is merged into the new
+file's `description`/`facets` fields exactly once, at scan time, the same as
+a locally-derived title — not re-fetched on every render, so return `null`
+rather than a guess you're not confident in (a wrong description is worse
+than a missing one, and there's no later re-clean pass the way an
+unset title gets one from `getDisplayTitle`'s own fallback). If your
+source's metadata is per-collection rather than per-file (e.g. one shared
+synopsis for an entire multi-episode/multi-movie folder), return `null`
+rather than applying it identically to every file in that collection —
+worse than no description is a wrong one repeated dozens of times.
+
 Your provider is responsible for its own auth/token refresh (if any) — the
 core verbs (`probe`/`readRange`/`checkAvailable`) are called fresh each
 time, so refresh transparently inside them rather than assuming a token

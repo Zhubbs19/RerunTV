@@ -6,8 +6,8 @@ import { applyConfigDefaults, showTvScreen } from './app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from './channel-package.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
-  buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, mediaRefId, nextChannelNumber, parseMediaRef, sortedChannels,
-  tryGetDisplayName,
+  buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, freshFileFacets, mediaRefId, nextChannelNumber, parseMediaRef,
+  sortedChannels, tryGetDisplayName, tryGetMetadata,
 } from './channels.js';
 import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
@@ -1418,17 +1418,20 @@ export async function addPluginSourceToChannel(ch, providerId) {
     // fs:scanFolder handler applies that once, at scan time) — probing
     // needs the raw ref back, same convention every provider call uses.
     const rawRef = parseMediaRef(refs[i]).ref;
-    // Independent lookups (duration, title) for the same file — run in
-    // parallel rather than sequentially awaited. Found in review: for a
-    // 200-file Drive folder this was doubling scan wall-clock time for no
+    // Independent lookups (duration, title, metadata) for the same file —
+    // run in parallel rather than sequentially awaited. Found in review: for
+    // a 200-file Drive folder this was doubling scan wall-clock time for no
     // reason, since neither call depends on the other's result.
-    // eslint-disable-next-line no-await-in-loop -- files themselves are still scanned one at a time, only the two per-file lookups are parallelized
-    const [duration, title] = await Promise.all([
+    // eslint-disable-next-line no-await-in-loop -- files themselves are still scanned one at a time, only the per-file lookups are parallelized
+    const [duration, title, metadata] = await Promise.all([
       probeDurationForEntry(providerId, rawRef),
       tryGetDisplayName(providerId, rawRef),
+      tryGetMetadata(providerId, rawRef),
     ]);
     newFiles.push({
       path: refs[i], duration, folder: entry.id, source: providerId, ...(title ? { title } : {}),
+      ...(metadata && metadata.description ? { description: metadata.description } : {}),
+      ...(metadata && metadata.facets ? { facets: { ...freshFileFacets(), ...metadata.facets } } : {}),
     });
   }
   ch.folders.push(entry);
@@ -1523,12 +1526,15 @@ export async function rescanAllFolders() {
         // Parallel, not sequential — see addPluginSourceToChannel's own
         // comment on the same pattern above.
         // eslint-disable-next-line no-await-in-loop
-        const [duration, title] = await Promise.all([
+        const [duration, title, metadata] = await Promise.all([
           probeDurationForEntry(entry.source, rawRef),
           entry.source === 'local' ? Promise.resolve(null) : tryGetDisplayName(entry.source, rawRef),
+          entry.source === 'local' ? Promise.resolve(null) : tryGetMetadata(entry.source, rawRef),
         ]);
         ch.files.push({
           path: newPaths[i], duration, folder: entry.id, source: entry.source, ...(title ? { title } : {}),
+          ...(metadata && metadata.description ? { description: metadata.description } : {}),
+          ...(metadata && metadata.facets ? { facets: { ...freshFileFacets(), ...metadata.facets } } : {}),
         });
         added++;
       }
