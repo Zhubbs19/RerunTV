@@ -13,7 +13,7 @@ import { getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
-import { attachTagAutocomplete, buildBreakpointTrack, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
+import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
 import { S, saveConfigDebounced } from './state.js';
 
 export function ensureFlowsConfig() {
@@ -173,12 +173,23 @@ export function renderFlowsList() {
     tagsInput.className = 'title-row-input';
     tagsInput.placeholder = 'e.g. cartoon, cartoon-30';
     tagsInput.value = (activeFlow.contentTags || []).join(', ');
+    // Unlike a preset/pool entry, a flow treats an UNTAGGED file as "unknown"
+    // rather than a mismatch (see computeActiveCommercials, schedule.js) —
+    // so a dead tag here doesn't make the flow never fire, it makes the tag
+    // filter silently do nothing: the flow ends up matching every untagged
+    // file on its target channel(s) instead of just the ones meant to opt in.
+    const deadTagWarning = buildDeadTagWarning(
+      () => activeFlow.contentTags,
+      (dead) => `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — UNTIL SOME CONTENT IS, THIS TAG FILTER HAS NO EFFECT: THE FLOW WILL MATCH EVERY UNTAGGED FILE ON ITS TARGET CHANNEL(S), NOT JUST TAGGED ONES.`
+    );
     tagsInput.addEventListener('change', () => {
       activeFlow.contentTags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
       updateFlowStatusBanner(activeFlow);
+      deadTagWarning.refresh();
       saveConfigDebounced();
     });
     tagsContainer.appendChild(attachTagAutocomplete(tagsInput));
+    tagsContainer.appendChild(deadTagWarning.el);
   }
 
   updateFlowStatusBanner(activeFlow);
@@ -278,11 +289,18 @@ function renderFlowCadencePanel(flow) {
   contentTagsInput.className = 'title-row-input';
   contentTagsInput.placeholder = 'e.g. movie, long-form';
   contentTagsInput.value = (cadence.contentTags || []).join(', ');
+  const cadenceDeadTagWarning = buildDeadTagWarning(
+    () => cadence.contentTags,
+    (dead) => `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — UNTIL SOME CONTENT IS, THIS TAG FILTER HAS NO EFFECT: THE CADENCE WILL APPLY TO EVERY UNTAGGED SEGMENT, NOT JUST TAGGED ONES.`
+  );
   contentTagsInput.addEventListener('change', () => {
     cadence.contentTags = contentTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
+    cadenceDeadTagWarning.refresh();
     saveConfigDebounced();
   });
   grid.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(contentTagsInput), { wide: true }));
+  cadenceDeadTagWarning.el.style.gridColumn = '1 / -1';
+  grid.appendChild(cadenceDeadTagWarning.el);
 
   if (cadence.timing === 'breakpoints') {
     const bpInput = document.createElement('input');
