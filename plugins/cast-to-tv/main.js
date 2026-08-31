@@ -110,7 +110,7 @@ function activate(ctx) {
     reportStatus({ state: 'casting', path: nowPlaying.path });
   }
 
-  ipcMain.handle('cast:scan', async () => discoverCastDevices());
+  ipcMain.handle('cast:scan', async () => discoverCastDevices({ interfaces: getLanAddresses().map((c) => c.address) }));
 
   ipcMain.handle('cast:connect', async (event, host) => {
     await doConnect(host);

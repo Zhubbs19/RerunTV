@@ -127,7 +127,17 @@ function buildDeviceList(state) {
 // PTR+SRV+A(+TXT) records seen in that window. Devices already on the
 // network typically respond within a few hundred ms of the query, so the
 // default window is generous mainly for a device that's mid-boot.
-function discoverCastDevices({ timeoutMs = 4000 } = {}) {
+//
+// `interfaces`: local IPv4 addresses to join the multicast group on (pass
+// ctx.getLanAddresses().map(c => c.address) from main.js) — on a machine
+// with more than one network adapter (a VPN, a virtualization host-only
+// adapter, etc.), joining with no interface specified lets the OS pick
+// whichever default multicast route it likes, which is routinely NOT the
+// real LAN adapter the Chromecast is actually on. Found live: a socket
+// joined that way received zero mDNS traffic even after 6+ seconds on a
+// network with normal chatter, while explicitly joining the real Wi-Fi
+// adapter's address received responses within milliseconds.
+function discoverCastDevices({ timeoutMs = 4000, interfaces = [] } = {}) {
   return new Promise((resolve) => {
     const state = { instances: {}, addresses: {}, txt: {} };
     const socket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -144,9 +154,22 @@ function discoverCastDevices({ timeoutMs = 4000 } = {}) {
     socket.on('message', (msg) => {
       try { parseResponse(msg, state); } catch (e) { /* one malformed packet shouldn't abort the scan */ }
     });
-    socket.bind(0, () => {
+    // mDNS responses arrive addressed to 224.0.0.251:5353 — UDP delivery is
+    // matched on destination port against what a socket is bound to, so
+    // binding to an ephemeral port here (as an earlier version of this code
+    // did) joins the multicast group but never actually receives anything.
+    // reuseAddr is required since Windows/macOS commonly already have their
+    // own mDNS responder (Bonjour, Chrome, etc.) bound to 5353.
+    socket.bind(MDNS_PORT, () => {
       try {
-        socket.addMembership(MDNS_ADDRESS);
+        if (interfaces.length) {
+          for (const addr of interfaces) {
+            try { socket.addMembership(MDNS_ADDRESS, addr); } catch (e) { /* an interface that's since gone away shouldn't abort the whole scan */ }
+          }
+          socket.setMulticastInterface(interfaces[0]); // controls which adapter the query itself goes out on
+        } else {
+          socket.addMembership(MDNS_ADDRESS); // no known LAN address — fall back to whatever the OS picks
+        }
         const query = buildPtrQuery();
         socket.send(query, MDNS_PORT, MDNS_ADDRESS);
       } catch (e) { finish(); return; }
