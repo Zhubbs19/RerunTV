@@ -1395,6 +1395,7 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
     panelEl.appendChild(buildDynamicOverlaysEditor(
       () => ch.dynamicOverlays,
       (rules) => { ch.dynamicOverlays = rules; saveConfigDebounced(); },
+      ch,
     ));
   }
 

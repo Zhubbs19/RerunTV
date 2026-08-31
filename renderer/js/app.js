@@ -341,6 +341,29 @@ export function handleKey(e) {
     case 'H':
       toggleHintBar();
       break;
+    case 'o':
+    case 'O': {
+      // Quick access to the live drag/resize logo bug editor for whatever
+      // channel is currently tuned, without a trip through Setup ->
+      // Channels -> this channel -> OVERLAYS first. Edits whatever's
+      // actually controlling this channel's logo right now — its own
+      // override if it has one, else the box-wide default — same
+      // inherit/override resolution applyLogoBugPlacement itself uses, so
+      // there's nothing new to create just to open this.
+      const ch = getChannel(S.currentNumber);
+      if (!ch) break;
+      import('./setup-util.js').then(({ openLiveLogoBugEditor }) => openLiveLogoBugEditor({
+        getProfiles: () => ch.logoBugProfiles || (S.config.display && S.config.display.logoBugProfiles),
+        setProfiles: (profiles) => {
+          if (ch.logoBugProfiles != null) ch.logoBugProfiles = profiles;
+          else { S.config.display = S.config.display || {}; S.config.display.logoBugProfiles = profiles; }
+          saveConfigDebounced();
+        },
+        onLiveChange: () => applyLogoBugPlacement(ch),
+        channelNumber: ch.number,
+      }));
+      break;
+    }
     case '?':
       openTvMenu();
       break;
