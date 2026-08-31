@@ -66,6 +66,22 @@ const PREMIERE_JINGLE_DURATION_S = 8;
 // file/dynamic duration to fall back on.
 const LOCAL_AVAIL_DURATION_S = 15;
 const BOUNDARY_SAFETY_CAP = 500;
+// Wall-clock backstop for nextBreakStart/prevBreakStart (below), on top of
+// BOUNDARY_SAFETY_CAP's iteration count: a channel whose configured
+// commercials never actually resolve to a real segment (e.g. every matching
+// pool entry is gated by a contentTags requirement the airing files never
+// satisfy — a real config someone can build) burns the full 500-iteration
+// search on every single nextBreakStart call, and prevBreakStart nests a
+// fresh nextBreakStart search per file walked backward, multiplying that
+// into many seconds of synchronous work on the render thread — freezing the
+// whole app, including unrelated keybinds, since JS is single-threaded and
+// both are called directly from the '['/']' keydown handler. The iteration
+// cap alone bounds the search to a *finite* number of relatively cheap
+// resolveBreakAt calls, but says nothing about how long that takes in
+// practice; this bounds it in real time instead, threaded through every
+// nested call below so the total across all of them (not just each one
+// individually) respects the same budget.
+const JUMP_SEARCH_TIME_BUDGET_MS = 1200;
 const DAY_MS = 86400000;
 
 function seededShuffle(arr, seed) {
@@ -76,6 +92,21 @@ function seededShuffle(arr, seed) {
     [out[i], out[j]] = [out[j], out[i]];
   }
   return out;
+}
+
+// A channel can carry its own contentTags (setup-panels.js's ADS tab) that
+// apply to EVERY file airing on it, in addition to that file's own tags —
+// for a themed channel (e.g. a 24/7 Christmas Movies channel) where an
+// ad-pool preset/entry wants to target "this channel's content" by tag
+// without tagging every individual file. Every fileTags derivation below
+// (resolveBreakAt, nextCandidateBoundary) folds this in via this helper, so
+// pool/preset/flow content-tag matching sees both sources uniformly.
+// Exported for setup-aircheck.js's preview simulator and
+// channel-package.js's export-scoping, which need the exact same union.
+export function effectiveContentTags(ch, file) {
+  const fromFile = (file && file.tags) || [];
+  const fromChannel = (ch && ch.contentTags) || [];
+  return fromChannel.length ? [...fromFile, ...fromChannel] : fromFile;
 }
 
 // Entries eligible for a break of this type on this channel/block right now.
@@ -441,7 +472,7 @@ export function resolveBreakAt(ch, atMs) {
   // optional contentTags (setup-interstitials.js) can target ads at specific
   // tagged content instead of only channel/block.
   const posNow = computeSourcePosition(source, atMs, { ignoreContentLost: true });
-  const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
+  const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
   const activeCommercials = resolveActiveCommercials(ch, atMs, fileTags);
   const cc = activeCommercials.commercials; // this channel's effective commercials config (block/preset override already resolved) — short name, used constantly below
@@ -866,7 +897,7 @@ function nextCandidateBoundary(ch, fromMs) {
   // applied here it would leak the tuned channel's accumulated ad-break lag
   // into every other channel's candidate-boundary computation too.
   const posNow = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
-  const fileTags = (posNow && posNow.file && posNow.file.tags) || [];
+  const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
   const cc = resolveActiveCommercials(ch, fromMs, fileTags).commercials;
   if (cc && cc.enabled !== false) {
@@ -1031,11 +1062,13 @@ export function startOfBreakRun(ch, brk) {
 // any non-interrupting station-ID bars in between — so repeated presses
 // keep landing meaningfully further ahead in time instead of stepping
 // segment-by-segment through the pod they're already in.
-export function nextBreakStart(ch, fromMs) {
+export function nextBreakStart(ch, fromMs, deadlineMs) {
+  const deadline = deadlineMs != null ? deadlineMs : Date.now() + JUMP_SEARCH_TIME_BUDGET_MS;
   const current = resolveBreakAt(ch, fromMs);
   let t = current ? endOfBreakRun(ch, current) : fromMs;
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
+    if (Date.now() > deadline) return Infinity;
     const atT = resolveBreakAt(ch, t);
     if (atT) {
       if (isJumpableBreak(atT)) return t;
@@ -1065,12 +1098,13 @@ export function nextBreakStart(ch, fromMs) {
 // the last one found before beforeMs — cheap since a single file only ever
 // holds a handful of breaks. Bounded by BOUNDARY_SAFETY_CAP as a backstop,
 // though a real file's break count within itself will never come close.
-function latestBreakStartInFile(ch, bs, beforeMs) {
+function latestBreakStartInFile(ch, bs, beforeMs, deadlineMs) {
   let latest = null;
   let t = bs.fileStartMs;
   let guard = 0;
   while (t < beforeMs && t < bs.fileEndMs && guard < BOUNDARY_SAFETY_CAP) {
-    const start = nextBreakStart(ch, t);
+    if (Date.now() > deadlineMs) break;
+    const start = nextBreakStart(ch, t, deadlineMs);
     if (!isFinite(start) || start >= bs.fileEndMs || start >= beforeMs) break;
     latest = start;
     t = start + 1;
@@ -1095,6 +1129,7 @@ function latestBreakStartInFile(ch, bs, beforeMs) {
 // BOUNDARY_SAFETY_CAP files back so a channel with no breaks configured at
 // all can't spin forever.
 export function prevBreakStart(ch, fromMs) {
+  const deadline = Date.now() + JUMP_SEARCH_TIME_BUDGET_MS;
   const current = resolveBreakAt(ch, fromMs);
   // startOfBreakRun (see nextBreakStart above): if fromMs lands inside a
   // multi-segment pod, probe from ahead of the WHOLE pod, not just whatever
@@ -1104,6 +1139,7 @@ export function prevBreakStart(ch, fromMs) {
   let probeMs = current ? startOfBreakRun(ch, current) : fromMs;
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
+    if (Date.now() > deadline) return -Infinity;
     // Querying at probeMs - 1 (not probeMs) guarantees landing inside the
     // file *before* probeMs even when probeMs itself sits exactly on a
     // boundary — otherwise this could loop on the same boundary forever.
@@ -1117,7 +1153,7 @@ export function prevBreakStart(ch, fromMs) {
     // everyNMinutes/breakpoints/flow-mid-cadence) are all real candidate
     // boundaries — checked nearest-to-probeMs first so the *closest* prior
     // break wins.
-    const interior = latestBreakStartInFile(ch, bs, probeMs);
+    const interior = latestBreakStartInFile(ch, bs, probeMs, deadline);
     const candidates = [interior, bs.fileEndMs + BOUNDARY_EPSILON_MS, bs.fileStartMs + BOUNDARY_EPSILON_MS]
       .filter((c) => c != null && c < probeMs)
       .sort((a, b) => b - a);

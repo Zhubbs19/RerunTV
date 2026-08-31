@@ -144,7 +144,7 @@ export function freshBroadcastHours() {
 export function freshChannel() {
   return {
     number: nextChannelNumber(), name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
-    adsEnabled: true, favorite: false, rating: null, vhsQuality: false,
+    adsEnabled: true, contentTags: [], favorite: false, rating: null, vhsQuality: false,
     logoBugProfiles: null, volume: null, broadcastHours: freshBroadcastHours(),
     quickAccess: false, dynamicOverlays: null, tickerLayout: null, tickerContent: null,
   };

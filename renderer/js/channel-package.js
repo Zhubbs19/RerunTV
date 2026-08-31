@@ -8,6 +8,11 @@ function fileTags(channel) {
   const collect = (files) => (files || []).forEach((file) => (file.tags || []).forEach((tag) => tags.add(tag)));
   collect(channel.files);
   (channel.blocks || []).forEach((block) => collect(block.files));
+  // The channel's own contentTags (setup-panels.js's ADS tab — see
+  // interstitials.js's effectiveContentTags) apply to every file on it for
+  // matching purposes, so a flow/preset scoped only via one of those tags
+  // still counts as depending on this channel for export purposes too.
+  (channel.contentTags || []).forEach((tag) => tags.add(tag));
   return tags;
 }
 
