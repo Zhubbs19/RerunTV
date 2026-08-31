@@ -1,18 +1,23 @@
 {
   "id": "cast-to-tv",
   "name": "Cast to TV",
-  "version": "1.0.0",
-  "description": "Casts whatever's currently airing to a Chromecast/Google TV device on the LAN, kept in sync with the live schedule.",
+  "version": "1.3.0",
+  "description": "Mirrors the complete RerunTV window or a selected desktop display to one Chromecast/Google TV, with lower-latency program-only casting as a fallback.",
   "category": "system",
   "main": "main.js",
   "renderer": "renderer.js",
   "settings": "settings.js",
+  "style": "style.css",
   "capabilities": {
     "ipc": [
       { "channel": "cast:scan", "why": "scans the LAN (mDNS) for Chromecast/Google TV devices to list in the settings panel" },
+      { "channel": "cast:listMirrorSources", "why": "lists the RerunTV window and desktop displays so the selected complete rendered output can be mirrored" },
       { "channel": "cast:connect", "why": "connects to the Chromecast/Google TV device you selected from the scan" },
       { "channel": "cast:disconnect", "why": "closes the connection to the cast device" },
       { "channel": "cast:castNow", "why": "loads whatever is currently airing onto the connected cast device" },
+      { "channel": "cast:mirrorChunk", "why": "streams encoded RerunTV window frames from the renderer to the selected receiver" },
+      { "channel": "cast:startMirror", "why": "starts whole-app RerunTV mirroring on the selected receiver" },
+      { "channel": "cast:stopMirror", "why": "stops whole-app RerunTV mirroring and releases its capture stream" },
       { "channel": "cast:stop", "why": "stops playback on the cast device" },
       { "channel": "cast:setVolume", "why": "sets the cast device's receiver volume" },
       { "channel": "cast:setAutoSync", "why": "turns on/off automatically keeping the cast device in sync with channel changes and drift" },
@@ -20,7 +25,10 @@
       { "channel": "cast:getStatus", "why": "reports connection/casting status back to the settings panel" }
     ],
     "net": [
-      { "port": 8731, "why": "serves the currently-airing local video file to the Chromecast/Google TV device over the LAN, and receives its status callbacks" }
+      { "port": 8731, "why": "serves either the complete live RerunTV mirror or the currently-airing local video to the selected Cast receiver" }
+    ],
+    "system": [
+      { "action": "desktopCapturer.getSources", "why": "captures either the RerunTV application window or a selected desktop display for mirroring" }
     ]
   }
 }

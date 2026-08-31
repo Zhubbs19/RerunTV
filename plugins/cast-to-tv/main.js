@@ -22,7 +22,7 @@ const CONTENT_TYPE_BY_EXT = {
 };
 
 function activate(ctx) {
-  const { ipcMain, createServer, getLanAddresses, sendToMainWindow } = ctx;
+  const { ipcMain, createServer, desktopCapturer, getLanAddresses, sendToMainWindow } = ctx;
 
   let session = null; // current CastSession, or null when not connected
   let deviceHost = null;
@@ -30,15 +30,44 @@ function activate(ctx) {
   let nowPlaying = null; // { path, positionMs, title, channelNumber } — latest from the renderer
   let lastLoadedPath = null;
   let lastStatus = { state: 'disconnected' };
+  let castMode = null; // 'program' or 'mirror'
+  let mirrorMimeType = 'video/webm; codecs="vp8, opus"';
+  let mirrorQuality = null;
+  let mirrorActive = false;
+  let mirrorBootstrap = [];
+  let mirrorBootstrapBytes = 0;
+  const mirrorClients = new Set();
+  const MAX_MIRROR_BOOTSTRAP_BYTES = 16 * 1024 * 1024;
 
   function reportStatus(patch) {
-    lastStatus = { ...lastStatus, ...patch };
+    lastStatus = { ...patch };
     sendToMainWindow('cast:status', lastStatus);
   }
 
   // ---- local HTTP server: serves whatever `nowPlaying.path` currently is ----
   const server = createServer((req, res) => {
-    if (req.url.split('?')[0] !== '/now') { res.writeHead(404); res.end(); return; }
+    const route = req.url.split('?')[0];
+    const remoteAddress = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+    if ((route === '/mirror' || route === '/now') && deviceHost && remoteAddress !== deviceHost) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    if (route === '/mirror') {
+      if (!mirrorActive) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, {
+        'Content-Type': mirrorMimeType,
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'Access-Control-Allow-Origin': '*',
+        Connection: 'keep-alive',
+      });
+      mirrorBootstrap.forEach((chunk) => res.write(chunk));
+      mirrorClients.add(res);
+      req.on('close', () => mirrorClients.delete(res));
+      res.on('close', () => mirrorClients.delete(res));
+      return;
+    }
+    if (route !== '/now') { res.writeHead(404); res.end(); return; }
     if (!nowPlaying || !nowPlaying.path) { res.writeHead(404); res.end(); return; }
     const filePath = nowPlaying.path;
     let stat;
@@ -70,29 +99,74 @@ function activate(ctx) {
     return `http://${host}:${PORT}/now`;
   }
 
+  function mirrorUrl() {
+    const addrs = getLanAddresses();
+    const host = (addrs && addrs[0] && addrs[0].address) || '127.0.0.1';
+    return `http://${host}:${PORT}/mirror`;
+  }
+
+  function resetMirrorStream() {
+    mirrorActive = false;
+    mirrorBootstrap = [];
+    mirrorBootstrapBytes = 0;
+    for (const response of mirrorClients) {
+      try { response.end(); } catch (e) { /* receiver already closed */ }
+    }
+    mirrorClients.clear();
+  }
+
   async function doConnect(host) {
-    if (session) session.disconnect();
+    const previousSession = session;
+    session = null;
+    if (previousSession) previousSession.disconnect();
     deviceHost = host;
     reportStatus({ state: 'connecting', host });
-    session = new CastSession({
+    const nextSession = new CastSession({
       host,
       onStatus: (s) => {
-        if (s.state === 'media' && typeof s.currentTime === 'number' && nowPlaying) {
+        // A replaced session can emit its asynchronous close after the new
+        // one has started. Ignore that stale callback instead of letting it
+        // clear the current receiver and make CAST NOW fail at random.
+        if (session !== nextSession) return;
+        if (castMode === 'program' && s.state === 'media' && typeof s.currentTime === 'number' && nowPlaying) {
           // Drift check: if the receiver's own reported position has wandered
           // more than 4s from where the live schedule actually is right now,
           // nudge it back in line rather than letting it silently fall behind
           // (a receiver-side buffering stall is the common cause).
           if (autoSync) {
             const expectedSec = (nowPlaying.positionMs + (Date.now() - nowPlaying.capturedAt)) / 1000;
-            if (Math.abs(expectedSec - s.currentTime) > 4) session.seek(expectedSec);
+            if (Math.abs(expectedSec - s.currentTime) > 4) nextSession.seek(expectedSec);
           }
         }
-        if (s.state === 'error' || s.state === 'disconnected') { session = null; deviceHost = null; }
-        reportStatus(s);
+        if (s.state === 'error' || s.state === 'disconnected') {
+          session = null;
+          deviceHost = null;
+          if (castMode === 'mirror') resetMirrorStream();
+          castMode = null;
+          mirrorQuality = null;
+        }
+        if (s.state === 'media' && s.playerState === 'IDLE') {
+          castMode = null;
+          reportStatus({ state: 'connected', host });
+        } else {
+          reportStatus({ ...s, host, mode: castMode, quality: castMode === 'mirror' ? mirrorQuality : undefined });
+        }
       },
     });
-    await session.connect();
-    reportStatus({ state: 'connected', host });
+    session = nextSession;
+    try {
+      await nextSession.connect();
+      if (session !== nextSession) throw new Error('The selected receiver changed while connecting');
+      reportStatus({ state: 'connected', host });
+    } catch (error) {
+      if (session === nextSession) {
+        session = null;
+        deviceHost = null;
+      }
+      nextSession.disconnect();
+      reportStatus({ state: 'error', host, error: error.message });
+      throw error;
+    }
   }
 
   function castCurrent() {
@@ -100,6 +174,7 @@ function activate(ctx) {
     if (!nowPlaying || !nowPlaying.path) throw new Error('Nothing is currently playing');
     const elapsedSec = (nowPlaying.positionMs + (Date.now() - nowPlaying.capturedAt)) / 1000;
     lastLoadedPath = nowPlaying.path;
+    castMode = 'program';
     const ext = path.extname(nowPlaying.path).toLowerCase();
     session.loadMedia({
       url: mediaUrl(),
@@ -107,10 +182,25 @@ function activate(ctx) {
       currentTimeSec: Math.max(0, elapsedSec),
       title: nowPlaying.title,
     });
-    reportStatus({ state: 'casting', path: nowPlaying.path });
+    reportStatus({ state: 'casting', host: deviceHost, mode: castMode, path: nowPlaying.path });
   }
 
   ipcMain.handle('cast:scan', async () => discoverCastDevices({ interfaces: getLanAddresses().map((c) => c.address) }));
+
+  ipcMain.handle('cast:listMirrorSources', async () => {
+    const sources = await desktopCapturer.getSources({
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 320, height: 180 },
+      fetchWindowIcons: true,
+    });
+    return sources.map((source) => ({
+      id: source.id,
+      name: source.name,
+      displayId: source.display_id || '',
+      sourceType: source.id.startsWith('screen:') ? 'screen' : 'window',
+      thumbnailDataUrl: source.thumbnail.toDataURL(),
+    }));
+  });
 
   ipcMain.handle('cast:connect', async (event, host) => {
     await doConnect(host);
@@ -120,19 +210,73 @@ function activate(ctx) {
   ipcMain.handle('cast:disconnect', async () => {
     if (session) session.disconnect();
     session = null; deviceHost = null; lastLoadedPath = null;
+    castMode = null;
+    mirrorQuality = null;
+    resetMirrorStream();
     reportStatus({ state: 'disconnected' });
     return lastStatus;
   });
 
-  ipcMain.handle('cast:castNow', async () => {
+  ipcMain.handle('cast:castNow', async (event, host) => {
+    // The selected receiver is the user's intent. Do not require a hidden
+    // two-step CONNECT then CAST NOW ritual; establish or switch the session
+    // here so every caller gets the same reliable behavior.
+    if (host && (!session || deviceHost !== host)) await doConnect(host);
+    if (castMode === 'mirror') resetMirrorStream();
     castCurrent();
+    return lastStatus;
+  });
+
+  ipcMain.on('cast:mirrorChunk', (event, bytes) => {
+    if (!bytes) return;
+    const chunk = Buffer.from(bytes);
+    if (!chunk.length) return;
+    mirrorActive = true;
+    if (!mirrorClients.size && mirrorBootstrapBytes < MAX_MIRROR_BOOTSTRAP_BYTES) {
+      mirrorBootstrap.push(chunk);
+      mirrorBootstrapBytes += chunk.length;
+    }
+    for (const response of mirrorClients) {
+      try { response.write(chunk); } catch (e) { mirrorClients.delete(response); }
+    }
+  });
+
+  ipcMain.handle('cast:startMirror', async (event, host, mimeType, quality) => {
+    if (!host) throw new Error('Choose a receiver before mirroring');
+    if (!mirrorActive) throw new Error('RerunTV window capture did not start');
+    if (!session || deviceHost !== host) await doConnect(host);
+    castMode = 'mirror';
+    lastLoadedPath = null;
+    mirrorQuality = typeof quality === 'string' ? quality : null;
+    mirrorMimeType = typeof mimeType === 'string' && mimeType.startsWith('video/webm')
+      ? mimeType : 'video/webm';
+    session.loadMedia({
+      url: mirrorUrl(),
+      contentType: mirrorMimeType,
+      currentTimeSec: 0,
+      title: 'RerunTV Live',
+      streamType: 'LIVE',
+    });
+    reportStatus({ state: 'mirroring', host, mode: castMode, quality: mirrorQuality });
+    return lastStatus;
+  });
+
+  ipcMain.handle('cast:stopMirror', async () => {
+    resetMirrorStream();
+    if (session) session.stopMedia();
+    castMode = null;
+    mirrorQuality = null;
+    reportStatus({ state: session ? 'connected' : 'disconnected', host: deviceHost });
     return lastStatus;
   });
 
   ipcMain.handle('cast:stop', async () => {
     if (session) session.stopMedia();
     lastLoadedPath = null;
-    reportStatus({ state: session ? 'connected' : 'disconnected' });
+    castMode = null;
+    mirrorQuality = null;
+    resetMirrorStream();
+    reportStatus({ state: session ? 'connected' : 'disconnected', host: deviceHost });
     return lastStatus;
   });
 
@@ -154,7 +298,7 @@ function activate(ctx) {
   ipcMain.on('cast:setNowPlaying', (event, info) => {
     const prevPath = nowPlaying && nowPlaying.path;
     nowPlaying = { ...info, capturedAt: Date.now() };
-    if (session && autoSync && lastLoadedPath && prevPath && prevPath !== info.path) {
+    if (session && castMode === 'program' && autoSync && lastLoadedPath && prevPath && prevPath !== info.path) {
       try { castCurrent(); } catch (e) { reportStatus({ state: 'error', error: e.message }); }
     }
   });
@@ -163,6 +307,7 @@ function activate(ctx) {
 
   ctx.app.on('before-quit', () => {
     if (session) session.disconnect();
+    resetMirrorStream();
     try { server.close(); } catch (e) {}
   });
 }

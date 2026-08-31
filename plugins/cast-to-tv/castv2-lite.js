@@ -137,6 +137,7 @@ class CastSession {
     this.framer = new MessageFramer((msg) => this._handleMessage(msg));
     this.requestId = 1;
     this.transportId = null;
+    this.receiverSessionId = null;
     this.mediaSessionId = null;
     this.heartbeatTimer = null;
     this.connected = false;
@@ -169,6 +170,8 @@ class CastSession {
     if (this.socket) { try { this._send(NS_CONNECTION, PLATFORM_DESTINATION, { type: 'CLOSE' }); } catch (e) {} this.socket.destroy(); }
     this.socket = null;
     this.connected = false;
+    this.transportId = null;
+    this.receiverSessionId = null;
   }
 
   _send(namespace, destinationId, data) {
@@ -198,6 +201,7 @@ class CastSession {
     if (msg.namespace === NS_RECEIVER && data.type === 'RECEIVER_STATUS') {
       const apps = (data.status && data.status.applications) || [];
       const app = apps.find((a) => a.appId === DEFAULT_MEDIA_RECEIVER_APP_ID);
+      if (app) this.receiverSessionId = app.sessionId || null;
       if (app && app.transportId && app.transportId !== this.transportId) {
         this.transportId = app.transportId;
         this._send(NS_CONNECTION, this.transportId, { type: 'CONNECT' });
@@ -222,16 +226,19 @@ class CastSession {
     }
   }
 
-  loadMedia({ url, contentType, currentTimeSec, title }) {
+  loadMedia({ url, contentType, currentTimeSec, title, streamType = 'BUFFERED' }) {
     if (!this.transportId) throw new Error('Not connected to a receiver app yet');
     this._send(NS_MEDIA, this.transportId, {
       type: 'LOAD',
       requestId: this.requestId++,
-      sessionId: this.transportId,
+      // The receiver application session and its message transport are
+      // different Cast identifiers. Using transportId here makes the
+      // Default Media Receiver reject otherwise valid LOAD requests.
+      sessionId: this.receiverSessionId || undefined,
       media: {
         contentId: url,
         contentType: contentType || 'video/mp4',
-        streamType: 'BUFFERED',
+        streamType,
         metadata: title ? { metadataType: 0, title } : undefined,
       },
       currentTime: currentTimeSec || 0,

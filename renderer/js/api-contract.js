@@ -30,6 +30,7 @@
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
     'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',
+    'castListMirrorSources', 'castMirrorChunk', 'castStartMirror', 'castStopMirror',
     'castSetAutoSync', 'castSetNowPlaying', 'castGetStatus', 'onCastStatus',
   ];
   const methods = Object.freeze(Object.fromEntries([
