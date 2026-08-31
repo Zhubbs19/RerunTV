@@ -1217,6 +1217,7 @@ export function buildLogoBugPanel(ch, panelEl) {
       () => ch.logoBugProfiles,
       (profiles) => { ch.logoBugProfiles = profiles; saveConfigDebounced(); },
       () => applyLogoBugPlacement(ch),
+      ch,
     ));
   }
 
@@ -1447,11 +1448,11 @@ export function buildTickerLayoutPanel(ch, panelEl) {
     } else {
       const explanation = document.createElement('p');
       explanation.className = 'panel-status logobug-live-description';
-      explanation.textContent = 'Edit the ticker bar over the running channel. Each aspect and resolution combination keeps its own placement.';
+      explanation.textContent = `Edit the ticker bar on channel ${ch.number}. Each aspect and resolution combination keeps its own placement.`;
       const liveBtn = document.createElement('button');
       liveBtn.type = 'button';
       liveBtn.className = 'btn btn-primary logobug-live-open';
-      liveBtn.textContent = 'EDIT ON CURRENT CHANNEL';
+      liveBtn.textContent = `TUNE TO CHANNEL ${ch.number} & EDIT`;
       liveBtn.addEventListener('click', () => openLiveLogoBugEditor({
         getProfiles: () => ch.tickerLayout,
         setProfiles: (profiles) => { ch.tickerLayout = profiles; },
@@ -1460,6 +1461,7 @@ export function buildTickerLayoutPanel(ch, panelEl) {
           getProfiles: () => ch.tickerLayout,
           setProfiles: (profiles) => { ch.tickerLayout = profiles; },
         },
+        channelNumber: ch.number,
       }));
       panelEl.append(explanation, liveBtn);
     }
