@@ -188,6 +188,17 @@ contextBridge.exposeInMainWorld('api', {
   // plugins/noaa-weather/main.js and plugins/local-weather/renderer.js's
   // forecast rendering.
   noaaGetForecast: (opts) => ipcRenderer.invoke('noaa:getForecast', opts),
+  // Cast to TV (Chromecast/Google TV) — handled by plugins/cast-to-tv's own
+  // main.js, not core.
+  castConnect: (host) => ipcRenderer.invoke('cast:connect', host),
+  castDisconnect: () => ipcRenderer.invoke('cast:disconnect'),
+  castNow: () => ipcRenderer.invoke('cast:castNow'),
+  castStop: () => ipcRenderer.invoke('cast:stop'),
+  castSetVolume: (level) => ipcRenderer.invoke('cast:setVolume', level),
+  castSetAutoSync: (enabled) => ipcRenderer.invoke('cast:setAutoSync', enabled),
+  castSetNowPlaying: (info) => ipcRenderer.send('cast:setNowPlaying', info),
+  castGetStatus: () => ipcRenderer.invoke('cast:getStatus'),
+  onCastStatus: (cb) => ipcRenderer.on('cast:status', (event, data) => cb(data)),
   // Plugins — see main-plugins.js and renderer/js/plugins.js.
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),

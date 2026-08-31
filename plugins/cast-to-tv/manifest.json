@@ -1,0 +1,25 @@
+{
+  "id": "cast-to-tv",
+  "name": "Cast to TV",
+  "version": "1.0.0",
+  "description": "Casts whatever's currently airing to a Chromecast/Google TV device on the LAN, kept in sync with the live schedule.",
+  "category": "system",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "capabilities": {
+    "ipc": [
+      { "channel": "cast:connect", "why": "connects to the Chromecast/Google TV device at the IP address you enter" },
+      { "channel": "cast:disconnect", "why": "closes the connection to the cast device" },
+      { "channel": "cast:castNow", "why": "loads whatever is currently airing onto the connected cast device" },
+      { "channel": "cast:stop", "why": "stops playback on the cast device" },
+      { "channel": "cast:setVolume", "why": "sets the cast device's receiver volume" },
+      { "channel": "cast:setAutoSync", "why": "turns on/off automatically keeping the cast device in sync with channel changes and drift" },
+      { "channel": "cast:setNowPlaying", "why": "receives the currently-playing local file/position from the renderer so it can be served to the cast device" },
+      { "channel": "cast:getStatus", "why": "reports connection/casting status back to the settings panel" }
+    ],
+    "net": [
+      { "port": 8731, "why": "serves the currently-airing local video file to the Chromecast/Google TV device over the LAN, and receives its status callbacks" }
+    ]
+  }
+}

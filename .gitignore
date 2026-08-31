@@ -33,6 +33,7 @@ plugins/video-splicer/
 plugins/spotify-connect/
 
 !plugins/breaking-news/
+!plugins/cast-to-tv/
 !plugins/companion-app/
 !plugins/area-51/
 !plugins/closed-captions/

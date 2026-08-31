@@ -178,6 +178,8 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 - **Vintage audio texture** — ambient tape hiss/static/carrier hum tied to the active theme
 - **Party Channel** — an opt-in, paired LAN guest page (photo/video bulletin, TTS announcements,
   soundboard, trivia, caption contest, vote-for-next, check-in wall, visual effects)
+- **Cast to TV** — casts whatever's currently airing to a Chromecast/Google TV device on the
+  LAN, kept in sync with the live schedule
 - **Companion App** — turns a paired phone on the same WiFi into a remote and mobile setup
   surface; it also provides the API used by the Android companion app
 - **TMDB metadata matching** for the TITLES tab (needs a free API key)

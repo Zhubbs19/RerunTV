@@ -29,6 +29,8 @@
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
     'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
+    'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',
+    'castSetAutoSync', 'castSetNowPlaying', 'castGetStatus', 'onCastStatus',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),
