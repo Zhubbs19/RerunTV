@@ -264,11 +264,21 @@ export const LOGO_MOTION_PRESETS = ['none', 'pulse', 'glow', 'slide-in'];
 // A dynamicOverlays array (box-wide: S.config.display.dynamicOverlays;
 // per-channel override: ch.dynamicOverlays, null = inherit box-wide — same
 // inherit convention as logoBugProfiles above) is a list of
-// { id, trigger, mediaPath, corner, size, durationMs }. `trigger` fires the
-// overlay at a specific schedule/break moment (see DYNAMIC_OVERLAY_TRIGGERS
-// below); `corner` is one of the four screen corners or 'center';
-// `durationMs` of 0 means "auto" — resolveActiveBreakEnd for a break
-// trigger, DEFAULT_OVERLAY_DURATION_MS for tuneIn/contentStart.
+// { id, trigger, mediaPath, corner, x, y, size, durationMs, contentTags }.
+// `trigger` fires the overlay at a specific schedule/break moment (see
+// DYNAMIC_OVERLAY_TRIGGERS below); `corner` is one of the four screen
+// corners, 'center', 'fullscreen', or 'custom' (drag-placed via the live
+// editor — buildDynamicOverlaysEditor's POSITION button, same underlying
+// openLiveLogoBugEditor mechanics as the logo bug/ticker — in which case
+// `x`/`y` (0-100 percentages of the screen, top-left corner, same
+// convention as logoBugProfiles) are used instead of a CORNER_STYLE
+// preset). `durationMs` of 0 means "auto" — resolveActiveBreakEnd for a
+// break trigger, DEFAULT_OVERLAY_DURATION_MS for tuneIn/contentStart.
+// `contentTags` (optional, same "unset/empty = any content, otherwise must
+// share at least one tag" convention as ad targeting — see
+// effectiveContentTags, interstitials.js) narrows the rule to only fire
+// while content carrying one of these tags is airing, on top of whichever
+// trigger moment matched.
 export const DYNAMIC_OVERLAY_TRIGGERS = [
   { id: 'tuneIn', label: 'CHANNEL TUNE-IN' },
   { id: 'contentStart', label: 'PROGRAM START' },
@@ -287,7 +297,7 @@ export const DYNAMIC_OVERLAY_TRIGGERS = [
 // bug replacement wouldn't use it) but is offered for every trigger rather
 // than gated per-trigger, matching how corner/size/duration are already
 // generic across all triggers.
-export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'fullscreen'];
+export const DYNAMIC_OVERLAY_CORNERS = ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'center', 'fullscreen', 'custom'];
 export const DEFAULT_OVERLAY_DURATION_MS = 8000;
 
 // ---------- Generic x/y/width/height overlay-layout profiles (ticker bar) ----------
@@ -391,8 +401,14 @@ export function normalizeDynamicOverlays(rules) {
       trigger: rule.trigger,
       mediaPath: typeof rule.mediaPath === 'string' ? rule.mediaPath : '',
       corner: DYNAMIC_OVERLAY_CORNERS.includes(rule.corner) ? rule.corner : 'bottom-right',
+      // Only meaningful when corner === 'custom' — kept even when a config
+      // is later switched back to a preset corner so re-selecting 'custom'
+      // restores the last-dragged spot instead of resetting to 0,0.
+      x: Number.isFinite(Number(rule.x)) ? Math.min(100, Math.max(0, Number(rule.x))) : null,
+      y: Number.isFinite(Number(rule.y)) ? Math.min(100, Math.max(0, Number(rule.y))) : null,
       size: Math.min(600, Math.max(40, Number(rule.size) || 160)),
       durationMs: Math.min(120000, Math.max(0, Number(rule.durationMs) || 0)),
+      contentTags: Array.isArray(rule.contentTags) ? rule.contentTags.filter((t) => typeof t === 'string' && t) : [],
     }));
 }
 

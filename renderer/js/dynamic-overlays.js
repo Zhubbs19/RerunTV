@@ -7,6 +7,8 @@
 // normalizeDynamicOverlays comment.
 import { DEFAULT_OVERLAY_DURATION_MS, isVideoMediaPath } from './channels.js';
 import { dynamicOverlayEl } from './dom.js';
+import { effectiveContentTags } from './interstitials.js';
+import { computeLivePosition } from './schedule.js';
 import { S } from './state.js';
 
 const CORNER_STYLE = {
@@ -53,21 +55,49 @@ export function clearDynamicOverlaysForBreak() {
   if (activeTrigger && BREAK_TRIGGERS.has(activeTrigger)) hideDynamicOverlay();
 }
 
+// Content the rule's own contentTags (if any) must overlap — same "unset/
+// empty = eligible for anything, otherwise must share at least one tag"
+// convention resolveBreakAt (interstitials.js) already uses for ad
+// targeting. Computed from the channel's OWN currently-airing file, same
+// (ch, computeLivePosition) pairing setup-aircheck.js's preview simulator
+// uses, so a rule scoped to e.g. "holiday" only fires while holiday-tagged
+// content is actually on screen, regardless of which moment (trigger)
+// happens to line up with it.
+function ruleMatchesCurrentContent(ch, rule) {
+  if (!rule.contentTags || !rule.contentTags.length) return true;
+  const pos = computeLivePosition(ch);
+  const fileTags = effectiveContentTags(ch, pos && pos.file);
+  return fileTags.length > 0 && rule.contentTags.some((t) => fileTags.includes(t));
+}
+
 // Returns true when a matching custom-media rule was actually found and
 // shown, false otherwise — callers that have their own built-in fallback
 // rendering (e.g. flashRatingBug/showMovieRatingCard, playback.js) use this
 // to know whether they still need to render that fallback themselves.
 export function triggerDynamicOverlays(ch, trigger) {
-  const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath);
+  const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath && ruleMatchesCurrentContent(ch, r));
   if (!rule) return false;
   clearTimeout(hideTimer);
   hideTimer = null;
   activeTrigger = trigger;
   dynamicOverlayEl.innerHTML = '';
   dynamicOverlayEl.style.setProperty('--dynamic-overlay-size', `${rule.size}px`);
-  Object.entries(CORNER_STYLE[rule.corner] || CORNER_STYLE['bottom-right']).forEach(([prop, value]) => {
-    dynamicOverlayEl.style[prop] = value;
-  });
+  // 'custom' is drag-placed (x/y percentages) rather than one of
+  // CORNER_STYLE's fixed presets — everything CORNER_STYLE would normally
+  // set (right/bottom/transform) is cleared explicitly first since a
+  // PREVIOUS rule's corner styling could otherwise linger on this shared
+  // element (e.g. a 'center' rule's translate transform bleeding into a
+  // custom-positioned one right after it).
+  if (rule.corner === 'custom' && Number.isFinite(rule.x) && Number.isFinite(rule.y)) {
+    Object.assign(dynamicOverlayEl.style, {
+      top: `${rule.y}%`, left: `${rule.x}%`, right: 'auto', bottom: 'auto', transform: 'none', width: '', height: '',
+    });
+  } else {
+    Object.assign(dynamicOverlayEl.style, { width: '', height: '' });
+    Object.entries(CORNER_STYLE[rule.corner] || CORNER_STYLE['bottom-right']).forEach(([prop, value]) => {
+      dynamicOverlayEl.style[prop] = value;
+    });
+  }
 
   const isVideo = isVideoMediaPath(rule.mediaPath);
   const media = document.createElement(isVideo ? 'video' : 'img');
