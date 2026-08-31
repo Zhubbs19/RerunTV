@@ -34,6 +34,7 @@ const RUNTIME_SCRIPT = path.join(__dirname, 'plugin-isolation-runtime.js');
 // reading ctx.services.ffmpegPath and vice versa, with no separate storage.
 const serviceProviders = new Map(); // key -> childRpc (isolated function-valued providers only)
 const partyRouteRegistry = new Map(); // "METHOD pathname" -> childRpc
+const partyRouteOwners = new Map(); // "METHOD pathname" -> plugin id
 const beforeQuitChildren = new Set(); // childRpc instances that asked for the before-quit event
 const runningChildren = new Set(); // { child, pluginId } — for teardown + diagnostics
 // First-writer-owns-it for ctx.services keys, shared with the non-isolated
@@ -103,6 +104,13 @@ function claimServiceKey(pluginId, key) {
   const owner = serviceOwners.get(key);
   if (owner && owner !== pluginId) return false;
   serviceOwners.set(key, pluginId);
+  return true;
+}
+
+function claimPartyRoute(pluginId, routeKey) {
+  const owner = partyRouteOwners.get(routeKey);
+  if (owner && owner !== pluginId) return false;
+  partyRouteOwners.set(routeKey, pluginId);
   return true;
 }
 
@@ -183,10 +191,21 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
     }
     pluginServices[key] = value;
   });
-  childRpc.on('services:registerProvider', ({ key }) => { serviceProviders.set(key, childRpc); });
+  childRpc.on('services:registerProvider', ({ key }) => {
+    if (!claimServiceKey(manifest.id, key)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" tried to register services provider "${key}", already owned by another plugin — registration ignored.`);
+      return;
+    }
+    serviceProviders.set(key, childRpc);
+  });
   childRpc.handle('services:call', async ({ key, args }) => callAnyService(pluginServices, key, args || []));
   childRpc.on('party:registerRoute', ({ method, pathname }) => {
-    partyRouteRegistry.set(`${method} ${pathname}`, childRpc);
+    const routeKey = `${method} ${pathname}`;
+    if (!claimPartyRoute(manifest.id, routeKey)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" tried to register Party route "${routeKey}", already owned by another plugin — registration ignored.`);
+      return;
+    }
+    partyRouteRegistry.set(routeKey, childRpc);
   });
   childRpc.handle('party:dispatchRoute', async (reqDescriptor) => {
     const owner = partyRouteRegistry.get(`${reqDescriptor.method} ${reqDescriptor.pathname}`);
@@ -254,7 +273,11 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
       // another plugin awaiting a service call this one was providing) is
       // rejected immediately rather than waiting out its own timeout.
       serviceProviders.forEach((provider, key) => { if (provider === childRpc) serviceProviders.delete(key); });
-      partyRouteRegistry.forEach((owner, key) => { if (owner === childRpc) partyRouteRegistry.delete(key); });
+      partyRouteRegistry.forEach((owner, key) => {
+        if (owner !== childRpc) return;
+        partyRouteRegistry.delete(key);
+        partyRouteOwners.delete(key);
+      });
       beforeQuitChildren.delete(childRpc);
       childRpc.dispose(`plugin "${manifest.id}" process exited (code ${code})`);
       settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });

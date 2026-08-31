@@ -18,7 +18,7 @@ import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { applyLocalFolderRelink, replaceLocalRoot } from './library-relink.js';
 import { collectRealContentTags } from './setup-util.js';
 import { S, saveConfigDebounced, viewNow } from './state.js';
-import { formatSlotLabel, getDisplayTitle } from './util.js';
+import { formatSlotLabel, getDisplayTitle, titleNeedsMetadata } from './util.js';
 
 // ---------- Cross-channel NOW/NEXT dashboard ----------
 // Reuses the exact same getChannelSchedule() call a program-guide-style
@@ -77,10 +77,11 @@ nowNextToggleBtn.addEventListener('click', () => {
 // channel via channelAffinity, but ALSO tagged with a contentTag nothing on
 // that channel carried — silently dead, not just narrowed.) Also flags pool
 // entries still targeting a channel/block that no longer exists.
-function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
+function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
-  const totalIssues = missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
+  const metadataTotal = Array.from(metadataByChannel.values()).reduce((total, files) => total + files.length, 0);
+  const totalIssues = missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length + metadataTotal;
 
   const summary = document.createElement('div');
   summary.className = 'health-check-summary' + (totalIssues === 0 ? ' is-clean' : '');
@@ -214,6 +215,21 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
       healthCheckResultsEl.appendChild(item);
     });
   }
+
+  if (metadataByChannel.size) {
+    const title = document.createElement('div');
+    title.className = 'health-check-group-title';
+    title.textContent = 'TITLES THAT NEED METADATA';
+    healthCheckResultsEl.appendChild(title);
+    metadataByChannel.forEach((files, chNumber) => {
+      const ch = S.config.channels.find((candidate) => candidate.number === chNumber);
+      const item = document.createElement('div');
+      item.className = 'health-check-item';
+      const examples = files.slice(0, 3).map((file) => getDisplayTitle(file)).join('; ');
+      item.textContent = `CH ${chNumber}${ch?.name ? ` — ${ch.name}` : ''}: ${files.length} suspicious fallback title(s)${examples ? ` — ${examples}` : ''}`;
+      healthCheckResultsEl.appendChild(item);
+    });
+  }
 }
 
 export async function checkChannelHealth() {
@@ -311,10 +327,17 @@ export async function checkChannelHealth() {
     if (channelSet.size > 1) duplicateFiles.push({ path, channels: Array.from(channelSet).sort((a, b) => a - b) });
   });
 
-  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles });
+  const metadataByChannel = new Map();
+  S.config.channels.forEach((ch) => {
+    const files = (ch.files || []).filter(titleNeedsMetadata);
+    if (files.length) metadataByChannel.set(ch.number, files);
+  });
+
+  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel });
   healthCheckBtn.disabled = false;
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
-  return missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length;
+  const metadataTotal = Array.from(metadataByChannel.values()).reduce((total, files) => total + files.length, 0);
+  return missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length + metadataTotal;
 }
 
 healthCheckBtn.addEventListener('click', () => checkChannelHealth());

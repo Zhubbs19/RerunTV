@@ -197,3 +197,9 @@ html[data-theme="wood-console-70s"] .crt.guide-anim-enabled .guide-grid {
     transition: none;
   }
 }
+/* A relay-era set warms into view in two deliberate mechanical beats. */
+html[data-theme="wood-console-70s"] {
+  --theme-guide-enter-x: 0px;
+  --theme-guide-enter-y: 22px;
+  --theme-guide-enter-ease: steps(2, end);
+}

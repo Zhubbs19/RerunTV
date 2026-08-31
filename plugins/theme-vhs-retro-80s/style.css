@@ -54,3 +54,9 @@ html[data-theme="vhs-retro-80s"] {
   --bevel-raised: inset 0 1px 0 rgba(255, 230, 0, 0.4), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
   --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.7);
 }
+/* Tape-era menus roll upward with visibly quantized timing. */
+html[data-theme="vhs-retro-80s"] {
+  --theme-guide-enter-x: 0px;
+  --theme-guide-enter-y: -16px;
+  --theme-guide-enter-ease: steps(4, end);
+}

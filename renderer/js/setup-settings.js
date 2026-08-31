@@ -370,6 +370,43 @@ import { renderPluginDiagnostics } from './plugin-diagnostics.js';
 // ---------- Settings screen tabs ----------
 const setupTabBtns = document.querySelectorAll('.setup-tab-btn');
 const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
+const setupWorkspaceBtns = document.querySelectorAll('.setup-workspace-btn');
+const setupWorkspaceDescription = document.getElementById('setup-workspace-description');
+let activeSetupWorkspace = 'viewing';
+
+const SETUP_WORKSPACE_COPY = {
+  viewing: 'Everyday channel and picture controls.',
+  headend: 'Scheduling, automation, integrations, storage, and diagnostics.',
+};
+
+function workspaceForTab(tab) {
+  const button = Array.from(setupTabBtns).find((entry) => entry.dataset.tab === tab);
+  const workspaces = (button?.dataset.workspaces || 'viewing headend').split(/\s+/);
+  return workspaces.includes(activeSetupWorkspace) ? activeSetupWorkspace : workspaces[0];
+}
+
+function applySetupWorkspace(workspace, { keepTab = true } = {}) {
+  activeSetupWorkspace = workspace === 'headend' ? 'headend' : 'viewing';
+  setupWorkspaceBtns.forEach((button) => {
+    const active = button.dataset.setupWorkspace === activeSetupWorkspace;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  setupTabBtns.forEach((button) => {
+    const visible = (button.dataset.workspaces || 'viewing headend').split(/\s+/).includes(activeSetupWorkspace);
+    button.classList.toggle('workspace-hidden', !visible);
+    button.setAttribute('aria-hidden', String(!visible));
+  });
+  if (setupWorkspaceDescription) setupWorkspaceDescription.textContent = SETUP_WORKSPACE_COPY[activeSetupWorkspace];
+  const activeButton = Array.from(setupTabBtns).find((button) => button.classList.contains('active'));
+  if (!keepTab || activeButton?.classList.contains('workspace-hidden')) {
+    document.querySelector('.setup-tab-btn[data-tab="channels"]')?.click();
+  }
+}
+
+setupWorkspaceBtns.forEach((button) => button.addEventListener('click', () => {
+  applySetupWorkspace(button.dataset.setupWorkspace);
+}));
 
 // The original SYSTEM markup mixed audio/power with LAN device access in a
 // single grid. Move the two network cards into their dedicated sub-tab at
@@ -396,10 +433,10 @@ if (networkSettingsGrid) {
 let lastSetupTab = 'channels';
 
 const SETUP_SECTION_COPY = {
-  channels: ['CHANNELS', 'Build and manage the lineup, media folders, schedules, titles, ads, and logos.'],
-  display: ['DISPLAY', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
-  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
-  audio: ['AUDIO, NETWORK & STORAGE', 'Control audio levels, connected viewing, access, virtual channels, and backups.'],
+  channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
+  display: ['PICTURE & GUIDE', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
+  programming: ['HEADEND PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
+  audio: ['SYSTEM & STORAGE', 'Control audio, connected viewing, network access, virtual channels, and backups.'],
   perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP & UPDATES', 'Find guidance, shortcuts, software updates, and release notes.'],
@@ -483,6 +520,7 @@ export function resetSetupTabs() {
   if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
   restoreActiveSubtabPanels();
   updateBreadcrumb();
+  applySetupWorkspace(workspaceForTab(lastSetupTab));
 }
 
 // ---------- Second-level sub-tabs within a single top-level tab ----------
@@ -1187,6 +1225,7 @@ function allSearchEntries() {
 }
 
 function navigateToSearchEntry(entry) {
+  applySetupWorkspace(workspaceForTab(entry.tab), { keepTab: true });
   const topButton = document.querySelector(`.setup-tab-btn[data-tab="${entry.tab}"]`);
   if (topButton) topButton.click();
   if (entry.subtab) {

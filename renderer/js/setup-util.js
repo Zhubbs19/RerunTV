@@ -3,11 +3,14 @@
 // setup-settings.js) — split out of the old monolithic setup.js so none of
 // those modules need to import from each other just to get these.
 import {
-  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, isVideoMediaPath, newDynamicOverlayId, normalizeDynamicOverlays,
+  DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays,
   normalizeIconOverrides, sortedChannels,
 } from './channels.js';
 import { S, saveConfigDebounced } from './state.js';
 import { basenameNoExt, randomId, toDatetimeLocalValue, deepClone } from './util.js';
+import { openDynamicOverlayPositionEditor } from './setup-overlay-position-editor.js';
+
+export { openDynamicOverlayPositionEditor } from './setup-overlay-position-editor.js';
 
 const IMAGE_MEDIA_RE = /\.(?:png|jpe?g|gif|webp|bmp)$/i;
 const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
@@ -935,132 +938,6 @@ export function buildLogoBugProfileEditor(getProfiles, setProfiles, onLiveChange
   }));
   wrap.append(explanation, liveBtn);
   return wrap;
-}
-
-// Single-point drag placement for one dynamic-overlay rule's 'custom'
-// x/y — a lighter sibling of openLiveLogoBugEditor: a rule always shows at
-// the same spot regardless of which moment its trigger fires at, so there's
-// no aspect/resolution-keyed list of profiles to manage here, just one x/y
-// pair. Opens on the real TV screen with the rule's own media (or a plain
-// swatch if none is chosen yet) so the drag target is exactly what will
-// actually show. Reuses the logo bug editor's CSS classes (overlay grid,
-// draggable selection box, bottom toolbar) rather than duplicating styling.
-export async function openDynamicOverlayPositionEditor({ rule, onApply, channelNumber }) {
-  const { showSetupScreen, showTvScreen } = await import('./app.js');
-  await showTvScreen();
-  if (channelNumber != null && S.currentNumber !== channelNumber && window.tuneToChannel) {
-    await window.tuneToChannel(channelNumber, { silent: true });
-  }
-
-  const crt = document.querySelector('.crt');
-  const app = document.getElementById('app');
-  if (!crt || !app) return;
-
-  const overlay = document.createElement('div');
-  overlay.className = 'logobug-live-overlay';
-  overlay.setAttribute('role', 'application');
-  overlay.setAttribute('aria-label', 'Custom overlay placement editor');
-
-  const selection = document.createElement('div');
-  selection.className = 'logobug-live-selection';
-  selection.setAttribute('aria-label', 'Drag to move the overlay');
-  overlay.appendChild(selection);
-
-  if (rule.mediaPath) {
-    const isVideo = isVideoMediaPath(rule.mediaPath);
-    const media = document.createElement(isVideo ? 'video' : 'img');
-    if (isVideo) { media.muted = true; media.loop = true; media.autoplay = true; media.playsInline = true; }
-    window.api.toFileUrl(rule.mediaPath).then((url) => { media.src = url; if (isVideo) media.play().catch(() => {}); });
-    media.style.width = '100%';
-    media.style.height = '100%';
-    media.style.objectFit = 'contain';
-    media.style.display = 'block';
-    selection.appendChild(media);
-  }
-
-  let x = Number.isFinite(rule.x) ? rule.x : 50;
-  let y = Number.isFinite(rule.y) ? rule.y : 50;
-  const size = rule.size || 160;
-
-  const toolbar = document.createElement('div');
-  toolbar.className = 'logobug-live-toolbar';
-  const title = document.createElement('div');
-  title.className = 'logobug-live-title';
-  title.textContent = 'CUSTOM OVERLAY PLACEMENT';
-  const status = document.createElement('div');
-  status.className = 'logobug-live-status';
-  toolbar.append(title, status);
-
-  const actions = document.createElement('div');
-  actions.className = 'logobug-live-actions';
-  const cancel = document.createElement('button');
-  cancel.type = 'button';
-  cancel.className = 'btn';
-  cancel.textContent = 'CANCEL';
-  const apply = document.createElement('button');
-  apply.type = 'button';
-  apply.className = 'btn btn-primary';
-  apply.textContent = 'APPLY PLACEMENT';
-  actions.append(cancel, apply);
-  toolbar.appendChild(actions);
-
-  function render() {
-    selection.style.left = `${x}%`;
-    selection.style.top = `${y}%`;
-    selection.style.width = `${size}px`;
-    selection.style.height = `${size}px`;
-    status.textContent = `X ${x.toFixed(1)}%  Y ${y.toFixed(1)}%`;
-  }
-
-  selection.addEventListener('pointerdown', (event) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const rect = overlay.getBoundingClientRect();
-    const selectionRect = selection.getBoundingClientRect();
-    const offsetX = event.clientX - selectionRect.left;
-    const offsetY = event.clientY - selectionRect.top;
-    const pointerId = event.pointerId;
-    const move = (nextEvent) => {
-      if (nextEvent.pointerId !== pointerId) return;
-      const maxX = Math.max(0, 100 - selection.offsetWidth / overlay.clientWidth * 100);
-      const maxY = Math.max(0, 100 - selection.offsetHeight / overlay.clientHeight * 100);
-      const rawX = ((nextEvent.clientX - offsetX - rect.left) / rect.width) * 100;
-      const rawY = ((nextEvent.clientY - offsetY - rect.top) / rect.height) * 100;
-      x = Math.round(Math.min(maxX, Math.max(0, rawX)) * 10) / 10;
-      y = Math.round(Math.min(maxY, Math.max(0, rawY)) * 10) / 10;
-      render();
-    };
-    const finish = (nextEvent) => {
-      if (nextEvent.pointerId !== pointerId) return;
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', finish);
-      document.removeEventListener('pointercancel', finish);
-    };
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', finish);
-    document.addEventListener('pointercancel', finish);
-  });
-
-  let closing = false;
-  async function close(keepChanges) {
-    if (closing) return;
-    closing = true;
-    document.removeEventListener('keydown', onKeyDown);
-    overlay.remove();
-    toolbar.remove();
-    if (keepChanges) onApply(x, y);
-    await showSetupScreen();
-  }
-  function onKeyDown(event) {
-    if (event.key === 'Escape') { event.preventDefault(); close(false); }
-  }
-  document.addEventListener('keydown', onKeyDown);
-  cancel.addEventListener('click', () => close(false));
-  apply.addEventListener('click', () => close(true));
-
-  crt.appendChild(overlay);
-  app.appendChild(toolbar);
-  render();
 }
 
 // Repeatable rule-row list for dynamicOverlays (channels.js) — box-wide

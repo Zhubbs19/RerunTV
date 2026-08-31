@@ -48,7 +48,7 @@ jobs:
         # tries to publish a GitHub Release itself before this workflow's
         # own "Create GitHub Release" step runs (and without GH_TOKEN set
         # here, that implicit publish just fails the build outright).
-        run: npx electron-builder --win --publish=never --config.extraMetadata.version=${{ steps.version.outputs.version }}
+        run: npx electron-builder --win --publish=never --config electron-builder.config.js --config.extraMetadata.version=${{ steps.version.outputs.version }}
 
       - name: Create GitHub Release
         env:

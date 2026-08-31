@@ -163,11 +163,11 @@
   --guide-chan-col: clamp(90px, 22%, 170px);
 }
 .crt.guide-anim-enabled .guide-grid {
-  --guide-anim-offset-x: 0px;
-  --guide-anim-offset-y: 14px;
+  --guide-anim-offset-x: var(--theme-guide-enter-x, 0px);
+  --guide-anim-offset-y: var(--theme-guide-enter-y, 14px);
   opacity: 0;
   transform: translate(var(--guide-anim-offset-x), var(--guide-anim-offset-y));
-  transition: opacity var(--guide-anim-ms, 180ms) ease-in-out, transform var(--guide-anim-ms, 180ms) ease-in-out;
+  transition: opacity var(--guide-anim-ms, 180ms) var(--theme-guide-enter-ease, ease-in-out), transform var(--guide-anim-ms, 180ms) var(--theme-guide-enter-ease, ease-in-out);
   will-change: opacity, transform;
 }
 .crt.guide-anim-enabled .guide-grid.guide-grid-visible {

@@ -90,7 +90,12 @@ export function triggerDynamicOverlays(ch, trigger) {
   // custom-positioned one right after it).
   if (rule.corner === 'custom' && Number.isFinite(rule.x) && Number.isFinite(rule.y)) {
     Object.assign(dynamicOverlayEl.style, {
-      top: `${rule.y}%`, left: `${rule.x}%`, right: 'auto', bottom: 'auto', transform: 'none', width: '', height: '',
+      // Clamp against the live frame, not merely 0..100 in config: an
+      // imported x=100 rule or a later size increase must never leave part
+      // of the overlay outside the visible picture.
+      top: `clamp(0px, ${rule.y}%, calc(100% - var(--dynamic-overlay-size)))`,
+      left: `clamp(0px, ${rule.x}%, calc(100% - var(--dynamic-overlay-size)))`,
+      right: 'auto', bottom: 'auto', transform: 'none', width: '', height: '',
     });
   } else {
     Object.assign(dynamicOverlayEl.style, { width: '', height: '' });

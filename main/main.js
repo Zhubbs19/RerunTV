@@ -133,6 +133,13 @@ function createWindow(overrides = {}) {
   });
   setMainWindow(mainWindow);
   mainWindow.setMenuBarVisibility(false);
+  // The renderer is an app:// document with a privileged preload bridge;
+  // never let in-page content replace it with an arbitrary origin or spawn
+  // a child renderer that inherits desktop-app expectations.
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!url.startsWith('app://bundle/')) event.preventDefault();
+  });
   if (saved && saved.isMaximized) mainWindow.maximize();
   mainWindow.loadURL('app://bundle/renderer/index.html');
 

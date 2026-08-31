@@ -124,19 +124,25 @@
     <div id="setup-screen" class="screen hidden">
       <div class="setup-panel">
         <div class="setup-header">
-          <div class="setup-eyebrow">SYSTEM CONFIG // REV 1.0</div>
-          <h1 id="setup-page-title" class="setup-title">CHANNELS</h1>
+          <div class="setup-eyebrow">RERUNTV CONTROL CENTER // REV 1.0</div>
+          <h1 id="setup-page-title" class="setup-title">CHANNEL LINEUP</h1>
           <p id="setup-page-description" class="setup-sub">Build and manage the channel lineup, media folders, schedules, titles, ads, and logos.</p>
         </div>
         <div class="setup-nav">
+        <div class="setup-workspace-switch" role="group" aria-label="Control center workspace">
+          <span class="setup-workspace-label">WORKSPACE</span>
+          <button type="button" class="btn setup-workspace-btn active" data-setup-workspace="viewing" aria-pressed="true">WATCH &amp; LINEUP</button>
+          <button type="button" class="btn setup-workspace-btn" data-setup-workspace="headend" aria-pressed="false">HEADEND STUDIO</button>
+          <span id="setup-workspace-description" class="setup-workspace-description">Everyday channel and picture controls.</span>
+        </div>
         <div class="setup-tabs" id="setup-tabs" aria-label="Settings sections">
-          <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
-          <button class="setup-tab-btn" data-tab="display">DISPLAY</button>
-          <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
-          <button class="setup-tab-btn" data-tab="audio">SYSTEM</button>
-          <button class="setup-tab-btn" data-tab="perf">PERFORMANCE</button>
-          <button class="setup-tab-btn" data-tab="plugins">PLUGINS</button>
-          <button class="setup-tab-btn" data-tab="help">HELP</button>
+          <button class="setup-tab-btn active" data-tab="channels" data-workspaces="viewing headend">LINEUP</button>
+          <button class="setup-tab-btn" data-tab="display" data-workspaces="viewing">PICTURE &amp; GUIDE</button>
+          <button class="setup-tab-btn" data-tab="programming" data-workspaces="headend">PROGRAMMING</button>
+          <button class="setup-tab-btn" data-tab="audio" data-workspaces="headend">SYSTEM &amp; STORAGE</button>
+          <button class="setup-tab-btn" data-tab="perf" data-workspaces="headend">STATUS</button>
+          <button class="setup-tab-btn" data-tab="plugins" data-workspaces="headend">PLUG-INS</button>
+          <button class="setup-tab-btn" data-tab="help" data-workspaces="viewing headend">MANUAL</button>
         </div>
         <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
         <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH SETTINGS AND ACTIONS…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">

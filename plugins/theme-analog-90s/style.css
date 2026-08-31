@@ -184,3 +184,9 @@ html[data-theme="analog-90s"] .crt.guide-anim-enabled .guide-grid {
    era shows no rating bug at all, same reasoning as
    theme-wood-console-70s/style.css. */
 html[data-theme="analog-90s"] .rating-bug { display: none !important; }
+/* An analog barker channel hard-cuts from the headend feed. */
+html[data-theme="analog-90s"] {
+  --theme-guide-enter-x: 0px;
+  --theme-guide-enter-y: 0px;
+  --theme-guide-enter-ease: steps(1, end);
+}

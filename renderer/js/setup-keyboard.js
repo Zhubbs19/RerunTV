@@ -131,7 +131,7 @@ function controlledPanelForTab(bar, btn) {
 }
 
 function enableTabBarKeyboardNav(bar, btnSelector) {
-  const btns = () => Array.from(bar.querySelectorAll(btnSelector));
+  const btns = () => Array.from(bar.querySelectorAll(btnSelector)).filter((btn) => !btn.classList.contains('workspace-hidden'));
   bar.setAttribute('role', 'tablist');
   btns().forEach((btn) => {
     btn.setAttribute('role', 'tab');
