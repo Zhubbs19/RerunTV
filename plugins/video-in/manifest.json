@@ -11,6 +11,9 @@
   "capabilities": {
     "ipc": [
       { "channel": "desktop:listSources", "why": "lists windows/screens for you to pick which one shows up as CH 0" }
+    ],
+    "system": [
+      { "action": "desktopCapturer.getSources", "why": "enumerates windows/screens for you to pick which one shows up as CH 0" }
     ]
   }
 }
