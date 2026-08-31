@@ -65,9 +65,10 @@ nowNextToggleBtn.addEventListener('click', () => {
 // files at once (a moved/renamed/deleted file never triggers a codec error,
 // it just silently becomes unreachable), plus flags config-level dangling
 // references that only surface today as confusing runtime behavior: an ad
-// preset whose contentTags never match any file's tags anywhere (it will
-// simply never fire), and pool entries still targeting a channel/block that
-// no longer exists.
+// preset with no channel scope whose contentTags never match any file's tags
+// anywhere (it will simply never fire — a channel-scoped preset is exempt
+// since it doesn't need a tag match to fire), and pool entries still
+// targeting a channel/block that no longer exists.
 function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, danglingPoolEntries, missingPoolEntries, duplicateFiles }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
@@ -254,7 +255,7 @@ export async function checkChannelHealth() {
   S.config.channels.forEach((ch) => (ch.files || []).forEach((f) => (f.tags || []).forEach((t) => allFileTags.add(t))));
   const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
   const orphanedPresets = presets.filter((p) => p.enabled !== false && p.contentTags && p.contentTags.length &&
-    !p.contentTags.some((t) => allFileTags.has(t)));
+    !(p.channels && p.channels.length) && !p.contentTags.some((t) => allFileTags.has(t)));
 
   const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   const danglingPoolEntries = pool.filter((e) => {

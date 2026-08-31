@@ -19,7 +19,8 @@ export function buildChannelPackage(config, channel) {
     (flow.channels || []).includes(channel.number) ||
     ((flow.contentTags || []).length && flow.contentTags.some((tag) => tags.has(tag))));
   const presets = (interstitials.presets || []).filter((preset) =>
-    (preset.contentTags || []).some((tag) => tags.has(tag)));
+    (preset.channels || []).includes(channel.number) ||
+    ((preset.contentTags || []).length && preset.contentTags.some((tag) => tags.has(tag))));
   const pool = (interstitials.pool || []).filter((entry) =>
     entry.channelAffinity === channel.number || blockIds.has(entry.blockAffinity));
   return {
@@ -79,7 +80,7 @@ export function mergeChannelPackage(config, pkg, { targetNumber, replace = false
     (resources[kind] || []).forEach((original) => {
       const entry = clone(original);
       entry.id = uniqueId(entry.id, used, makeId);
-      if (kind === 'flows' && Array.isArray(entry.channels)) {
+      if ((kind === 'flows' || kind === 'presets') && Array.isArray(entry.channels)) {
         entry.channels = entry.channels.map((number) => number === sourceNumber ? targetNumber : number);
       }
       if (kind === 'pool') {

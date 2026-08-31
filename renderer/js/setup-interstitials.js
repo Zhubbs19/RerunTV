@@ -8,7 +8,7 @@
 // self-contained subsystem (own timeline canvas, own simulator) with almost
 // no coupling to the pool/preset/standby UI here beyond the shared
 // labeledField() helper (exported below for that file to reuse).
-import { addInterstitialPoolEntry, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
+import { addInterstitialPoolEntry, getChannel, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
 import {
   commercialsIntervalEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
   interstitialsBulkBarEl, interstitialsBulkChannelApplyBtn, interstitialsBulkChannelSelectEl,
@@ -1329,19 +1329,21 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
 });
 
 // AD PRESETS — named break layouts targeted at tagged content (see the
-// TITLES tab's per-file tags field) rather than at a channel or block. Each
-// preset is a `commercials`-shaped object (same timing/intervalMinutes/
-// breakpoints/podMin/podMax fields resolveBreakAt already reads off a
-// channel or block's own commercials config — see resolveActiveCommercials,
-// schedule.js) plus contentTags + a name, so it's a drop-in match for the
-// exact same resolution code with zero special-casing at playback time.
+// TITLES tab's per-file tags field), specific channels, or both — an
+// alternative to scoping a break structure via a channel or block's own
+// commercials override. Each preset is a `commercials`-shaped object (same
+// timing/intervalMinutes/breakpoints/podMin/podMax fields resolveBreakAt
+// already reads off a channel or block's own commercials config — see
+// resolveActiveCommercials, schedule.js) plus channels + contentTags + a
+// name, so it's a drop-in match for the exact same resolution code with zero
+// special-casing at playback time.
 function randomPresetId() {
   return `preset-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function freshPreset() {
   return {
-    id: randomPresetId(), name: '', enabled: true, contentTags: [],
+    id: randomPresetId(), name: '', enabled: true, channels: [], contentTags: [],
     timing: 'interval', intervalMinutes: null, breakpoints: null, podMin: 1, podMax: 1,
   };
 }
@@ -1397,6 +1399,18 @@ function buildPresetRow(preset, idx, presets) {
   title.className = 'interstitial-card-title';
   title.textContent = preset.name && preset.name.trim() ? preset.name : '(untitled preset)';
   header.appendChild(title);
+
+  if (preset.channels && preset.channels.length) {
+    const chWrap = document.createElement('span');
+    chWrap.className = 'interstitial-card-tags';
+    preset.channels.slice(0, 3).forEach((num) => {
+      const chip = document.createElement('span');
+      chip.className = 'interstitial-tag-chip';
+      chip.textContent = `CH ${String(num).padStart(2, '0')}`;
+      chWrap.appendChild(chip);
+    });
+    header.appendChild(chWrap);
+  }
 
   if (preset.contentTags && preset.contentTags.length) {
     const tagsWrap = document.createElement('span');
@@ -1461,6 +1475,76 @@ function buildPresetRow(preset, idx, presets) {
   });
   body.appendChild(labeledField('PRESET NAME', nameInput, { wide: true }));
 
+  const channelsContainer = document.createElement('div');
+  const chSelect = document.createElement('select');
+  chSelect.className = 'block-hour-select flow-select';
+  chSelect.setAttribute('aria-label', 'Target channels');
+
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = 'ALL CHANNELS';
+  chSelect.appendChild(optAll);
+
+  sortedChannels().forEach((c) => {
+    const opt = document.createElement('option');
+    opt.value = String(c.number);
+    opt.textContent = `CH ${String(c.number).padStart(2, '0')} ${c.name || 'UNTITLED'}`;
+    chSelect.appendChild(opt);
+  });
+
+  const pillsWrap = document.createElement('div');
+  pillsWrap.className = 'flow-channel-pills-wrap';
+
+  const renderChannelPills = () => {
+    pillsWrap.innerHTML = '';
+    const selected = preset.channels || [];
+    if (!selected.length) {
+      const badge = document.createElement('span');
+      badge.className = 'flow-channel-pill all-chs';
+      badge.textContent = '🌐 ALL CHANNELS';
+      pillsWrap.appendChild(badge);
+    } else {
+      selected.forEach((num) => {
+        const chObj = getChannel(num);
+        const pill = document.createElement('span');
+        pill.className = 'flow-channel-pill';
+        pill.textContent = `CH ${String(num).padStart(2, '0')}${chObj && chObj.name ? ' (' + chObj.name + ')' : ''} `;
+        const removeBtn = document.createElement('span');
+        removeBtn.className = 'pill-remove';
+        removeBtn.textContent = '✕';
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          preset.channels = preset.channels.filter((n) => n !== num);
+          renderChannelPills();
+          saveConfigDebounced();
+        });
+        pill.appendChild(removeBtn);
+        pillsWrap.appendChild(pill);
+      });
+    }
+  };
+
+  chSelect.addEventListener('change', () => {
+    const val = chSelect.value;
+    if (val === 'all') {
+      preset.channels = [];
+    } else {
+      const num = parseInt(val, 10);
+      if (!preset.channels) preset.channels = [];
+      if (!preset.channels.includes(num)) {
+        preset.channels.push(num);
+      }
+    }
+    chSelect.value = 'all';
+    renderChannelPills();
+    saveConfigDebounced();
+  });
+
+  renderChannelPills();
+  channelsContainer.appendChild(chSelect);
+  channelsContainer.appendChild(pillsWrap);
+  body.appendChild(labeledField('APPLIES TO CHANNELS', channelsContainer, { wide: true }));
+
   const tagsInput = document.createElement('input');
   tagsInput.type = 'text';
   tagsInput.className = 'title-row-input';
@@ -1471,7 +1555,7 @@ function buildPresetRow(preset, idx, presets) {
     preset.contentTags = tags;
     saveConfigDebounced();
   });
-  body.appendChild(labeledField('APPLIES TO CONTENT TAGGED', attachTagAutocomplete(tagsInput), { wide: true }));
+  body.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(tagsInput), { wide: true }));
 
   const grid = document.createElement('div');
   grid.className = 'field-grid';
