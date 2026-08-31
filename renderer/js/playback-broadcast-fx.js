@@ -15,7 +15,6 @@ import {
   channelColor, getChannel, isVideoMediaPath, logoBugProfileDimensions, LOGO_MOTION_PRESETS,
   pickLogoBugProfile, resolveEffectiveIcon,
 } from './channels.js';
-import { currentDisplayFramePx } from './display-mode.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, creditsSqueezeChannelEl, creditsSqueezePanelEl,
   creditsSqueezeTitleEl, creditsSqueezeVideoEl, episodeStatusBugEl, formatDisclaimerCardEl, logoBugEl,
@@ -431,35 +430,6 @@ export function finishCreditsSpeedupIfActive() {
 // malformed config).
 const FALLBACK_LOGO_BUG_PROFILE = { x: 94, y: 90, size: 46 };
 
-// A profile's x/y is a top-left percentage of #display-frame, tuned by eye
-// against whatever frame size happened to be on screen at the time — but
-// #display-frame's own px size (display-mode.js) can shrink a lot for a
-// low resolution tier or a different aspect, while the bug's own px
-// width/height (logoBugProfileDimensions) stays fixed. A corner placement
-// that fit fine in a big native 16:9 frame can then push past the edge once
-// content switches to e.g. SD 240-line 4:3, and #tv-screen's overflow:hidden
-// (guide.css) silently clips it instead of it just looking a bit off.
-// Reading the frame's current px size and clamping x/y so the bug's own
-// footprint always stays fully inside it keeps that from happening,
-// automatically, for every aspect/resolution combination.
-//
-// currentDisplayFramePx() (display-mode.js) computes that size fresh from
-// config + the window's current size rather than reading back the
-// --display-frame-width/height CSS vars applyDisplayMode last painted —
-// those can lag one channel behind (e.g. still holding a previous, smaller-
-// resolution channel's frame size right after a tune, before
-// applyDisplayMode has run again for the new one), which was clamping a
-// channel's own correctly-placed bottom-left logo up against a frame size
-// that was never actually its own. See the "logo bug pinned near the top"
-// report on channel 67 for exactly this symptom.
-function clampLogoBugPosition(x, y, widthPx, heightPx) {
-  const frame = currentDisplayFramePx();
-  if (!frame || !frame.width || !frame.height) return { x, y };
-  const maxX = Math.max(0, 100 - (widthPx / frame.width) * 100);
-  const maxY = Math.max(0, 100 - (heightPx / frame.height) * 100);
-  return { x: Math.min(x, maxX), y: Math.min(y, maxY) };
-}
-
 // The profiles a channel actually draws from — its own override array if it
 // has one, else the box-wide default (S.config.display.logoBugProfiles).
 function activeLogoBugProfiles(ch) {
@@ -483,9 +453,8 @@ function activeLogoBugContext() {
 export function applyLogoBugPlacement(ch) {
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
   const { width, height } = logoBugProfileDimensions(profile);
-  const { x, y } = clampLogoBugPosition(profile.x, profile.y, width, height);
-  logoBugEl.style.left = `${x}%`;
-  logoBugEl.style.top = `${y}%`;
+  logoBugEl.style.left = `${profile.x}%`;
+  logoBugEl.style.top = `${profile.y}%`;
   // --logo-bug-size kept for backward compat with any legacy CSS still
   // referencing it; --logo-bug-width/height are the canonical dimensions.
   logoBugEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
@@ -619,9 +588,8 @@ function applyLogoBugGhost(ch) {
     if (ch) {
       const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
       const { width, height } = logoBugProfileDimensions(profile);
-      const { x, y } = clampLogoBugPosition(profile.x, profile.y, width, height);
-      logoBugGhostEl.style.left = `${x}%`;
-      logoBugGhostEl.style.top = `${y}%`;
+      logoBugGhostEl.style.left = `${profile.x}%`;
+      logoBugGhostEl.style.top = `${profile.y}%`;
       logoBugGhostEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
       logoBugGhostEl.style.setProperty('--logo-bug-width', `${width}px`);
       logoBugGhostEl.style.setProperty('--logo-bug-height', `${height}px`);

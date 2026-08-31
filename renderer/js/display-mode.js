@@ -337,30 +337,6 @@ export function applyOverlayLayouts() {
   });
 }
 
-// Pure computation of #display-frame's own current layout width/height (the
-// pre-transform box that its children's left/top percentages — including
-// the logo bug's, playback-broadcast-fx.js's clampLogoBugPosition — are
-// actually relative to). Factored out of applyDisplayMode so a caller that
-// only needs to know "how big is the frame right now" can compute it fresh
-// from config + the window's current size, instead of reading back the
-// --display-frame-width/height CSS vars applyDisplayMode last painted —
-// those can be a stale previous channel's size if read before
-// applyDisplayMode has (re)run for whatever channel is current now, which
-// showed up as a channel's own logo bug placement getting clamped against
-// the wrong frame and yanked out of position.
-export function currentDisplayFramePx() {
-  if (!displayFrameEl) return null;
-  const { aspect, resolution } = resolveEffectiveDisplayMode();
-  const ratio = ASPECT_RATIOS[aspect] || ASPECT_RATIOS['16:9'];
-  const appEl = displayFrameEl.parentElement;
-  const availW = appEl ? appEl.clientWidth : window.innerWidth;
-  const availH = appEl ? appEl.clientHeight : window.innerHeight;
-  const targetW = Math.max(1, Math.min(availW, availH * ratio));
-  if (resolution === 'native') return { width: targetW, height: targetW / ratio };
-  const lines = RESOLUTION_LINES[resolution] || RESOLUTION_LINES.sd480;
-  return { width: Math.round(lines * ratio), height: lines };
-}
-
 export function applyDisplayMode() {
   if (!displayFrameEl) return;
   const { aspect, windowMode, resolution } = resolveEffectiveDisplayMode();
