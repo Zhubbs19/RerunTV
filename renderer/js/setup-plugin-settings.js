@@ -41,18 +41,33 @@ function renderChannelDisplaySettings(container, pluginId, channelDefinition) {
   });
 }
 
-const THEME_FONT_OPTIONS = [
+// Every option here is either a font this app already bundles as a local
+// woff2 (tokens.css) — so picking it never triggers a network fetch, per the
+// app's offline-first rule — or a generic OS-installed stack. The bundled
+// faces are listed first since they're the ones that actually look
+// distinctive against a theme's chrome; the generic stacks after them are
+// for someone who just wants plainer/more legible text than a stylized
+// theme's own default.
+export const THEME_FONT_OPTIONS = [
   { value: '', label: 'THEME DEFAULT' },
+  { value: "'Archivo Black', sans-serif", label: 'BOLD DISPLAY (ARCHIVO BLACK)' },
+  { value: "'Barlow', sans-serif", label: 'CLEAN GROTESK (BARLOW)' },
+  { value: "'Barlow Condensed', sans-serif", label: 'CONDENSED GROTESK (BARLOW CONDENSED)' },
+  { value: "'Archivo Narrow', sans-serif", label: 'NARROW GROTESK — REAL GUIDE FACE (ARCHIVO NARROW)' },
+  { value: "'Fjalla One', sans-serif", label: 'CONDENSED DISPLAY (FJALLA ONE)' },
+  { value: "'IBM Plex Mono', monospace", label: 'TECHNICAL MONOSPACE (IBM PLEX MONO)' },
+  { value: "'VT323', monospace", label: 'TELETEXT / CHARACTER GENERATOR (VT323)' },
+  { value: "'Monoton', cursive", label: 'NEON TUBE — DISPLAY SIZES ONLY (MONOTON)' },
+  { value: "'Comfortaa', sans-serif", label: 'ROUNDED SANS (COMFORTAA)' },
   { value: "system-ui, 'Segoe UI', sans-serif", label: 'SYSTEM SANS' },
   { value: "Verdana, Tahoma, system-ui, sans-serif", label: 'HUMANIST SANS' },
   { value: "'Arial Narrow', 'Roboto Condensed', sans-serif", label: 'CONDENSED SANS' },
   { value: "Arial, Helvetica, sans-serif", label: 'CLASSIC SANS' },
-  { value: "ui-monospace, 'Cascadia Mono', Consolas, monospace", label: 'MONOSPACE' },
+  { value: "ui-monospace, 'Cascadia Mono', Consolas, monospace", label: 'SYSTEM MONOSPACE' },
   { value: "Georgia, 'Times New Roman', serif", label: 'SERIF' },
 ];
 
-function renderThemeFontSettings(container, plugin) {
-  const themeId = plugin.id.replace(/^theme-/, '');
+export function renderThemeFontSettings(container, themeId) {
   if (!S.config.display.themeFontOverrides) S.config.display.themeFontOverrides = {};
   const values = S.config.display.themeFontOverrides[themeId] || {};
   container.innerHTML = `
@@ -83,7 +98,7 @@ function renderThemeFontSettings(container, plugin) {
     delete S.config.display.themeFontOverrides[themeId];
     applyTheme();
     saveConfigDebounced();
-    renderThemeFontSettings(container, plugin);
+    renderThemeFontSettings(container, themeId);
   });
 }
 
@@ -142,7 +157,7 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
   if (plugin.category === 'theme') {
     const fontSection = document.createElement('section');
     fontSection.className = 'plugin-settings-section';
-    renderThemeFontSettings(fontSection, plugin);
+    renderThemeFontSettings(fontSection, plugin.id.replace(/^theme-/, ''));
     container.appendChild(fontSection);
   }
   sections.forEach((section) => {

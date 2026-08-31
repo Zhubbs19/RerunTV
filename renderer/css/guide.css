@@ -270,6 +270,21 @@
      this content appropriately sized at a small simulated resolution now
      — that didn't exist yet when the max-height hack was written; it's
      the right fix, this box no longer needs its own separate one. */
+  /* flex-shrink:0 - confirmed live (getBoundingClientRect on a real window):
+     without this, .guide-rows' overflow-y:auto/min-height floor below
+     doesn't fully protect this box the way the comment above assumes -
+     once total content (this + rows) exceeds .guide-grid's available
+     height, the flex column still compresses THIS box below its own
+     content's natural height too. Because this is a flex-end column, that
+     compression doesn't clip the content (which would at least stay inside
+     the box) - it pushes the excess upward, out through this box's own top
+     edge, overlapping the live picture above it. Reproduces even in the
+     unmodified default theme at a shortish window, and gets worse the
+     taller a theme's own channel-name/title font renders. Protecting this
+     box's height and letting .guide-rows (which already scrolls
+     internally) absorb 100% of any real space deficit is the safe
+     direction to push that squeeze in.  */
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -710,6 +725,19 @@
    (flex:1 in #tv-screen's flex-column, see tv.css) expand to fill the
    height it frees up. See app.js's onFullscreenChange. */
 body.is-fullscreen .hint-bar {
+  display: none;
+}
+
+/* The guide (docked or full-page) shows its own equivalent hint row
+   (.guide-hints) — the global bar is meant to be covered by .guide-grid's
+   absolute-positioned panel, but at a short window height (a small, non-
+   maximized window, or a shrunk secondary display) the docked 46%-tall
+   panel and the global bar's own slide-in/out animation can both end up
+   visible at once, stacking two rows of keyboard hints with genuinely
+   conflicting bindings (e.g. G means "open guide" in one row and "close
+   guide" in the other). Hide it outright while the guide is active, same
+   reasoning as the fullscreen rule above — nothing here needs both.  */
+.crt.guide-active .hint-bar {
   display: none;
 }
 

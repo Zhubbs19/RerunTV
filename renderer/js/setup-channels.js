@@ -628,12 +628,21 @@ export function renderChannelList() {
       // maximum tape wear (--vhs-degradation, power.js's applyVhsQuality) —
       // only matters while VHS above is checked. Blank/0 falls back to the
       // original fixed default (7 loops).
+      // A visible label rather than relying on the placeholder — "WEAR LOOPS
+      // (DEFAULT 7)" doesn't fit inside .block-priority-input's 56px width
+      // (shared with plain 1-2-digit priority fields elsewhere), so it used
+      // to just render as "WEA" with no visible cue at all.
+      const vhsWearLabel = document.createElement('span');
+      vhsWearLabel.className = 'option-label';
+      vhsWearLabel.title = 'How many loops of this channel\'s content it takes to reach maximum tape wear. Blank = default (7 loops).';
+      vhsWearLabel.textContent = 'WEAR LOOPS';
+
       const vhsWearInput = document.createElement('input');
       vhsWearInput.type = 'number';
       vhsWearInput.min = 1;
       vhsWearInput.className = 'block-priority-input';
       vhsWearInput.title = 'How many loops of this channel\'s content it takes to reach maximum tape wear. Blank = default (7 loops).';
-      vhsWearInput.placeholder = 'WEAR LOOPS (DEFAULT 7)';
+      vhsWearInput.placeholder = '7';
       vhsWearInput.value = ch.vhsWearLoops || '';
       vhsWearInput.addEventListener('change', () => {
         ch.vhsWearLoops = vhsWearInput.value.trim() === '' ? null : Math.max(1, parseInt(vhsWearInput.value, 10) || 7);
@@ -1010,6 +1019,7 @@ export function renderChannelList() {
       options.appendChild(favoriteLabel);
       options.appendChild(quickAccessLabel);
       options.appendChild(vhsLabel);
+      options.appendChild(vhsWearLabel);
       options.appendChild(vhsWearInput);
       options.appendChild(hideFormatDisclaimerLabel);
       options.appendChild(hideRatingBugLabel);

@@ -27,6 +27,7 @@ import { attachSliderReadout } from './setup-util.js';
 import { renderChannelList } from './setup-channels.js';
 import { renderBoxStatus } from './setup-channels-diagnostics.js';
 import { hidePinLockScreen } from './pin-lock.js';
+import { renderThemeFontSettings } from './setup-plugin-settings.js';
 import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
@@ -225,6 +226,18 @@ function renderDynamicOverlaysEditor() {
   ));
 }
 
+// Surfaces the same THEME TYPOGRAPHY control PLUGINS > [theme] > SETTINGS
+// already has (renderThemeFontSettings, setup-plugin-settings.js) right next
+// to the theme picker itself — customizing the theme you're looking at
+// shouldn't require knowing it's really a plugin under the hood and finding
+// its settings panel on a different tab. Re-render on every theme switch
+// since the override values shown are per-theme.
+function renderThemeFontSettingsInline() {
+  const container = document.getElementById('display-theme-font-settings');
+  if (!container) return;
+  renderThemeFontSettings(container, S.config.theme || 'digital-2000s');
+}
+
 function renderCustomSoundSettings() {
   const root = document.getElementById('custom-sounds-list');
   if (!root) return;
@@ -316,6 +329,7 @@ export function renderSettingsPanels() {
   renderThemeSelectOptions();
   themeSelect.value = S.config.theme || 'digital-2000s';
   renderThemeBrowser();
+  renderThemeFontSettingsInline();
   renderGuideGenreSettings();
   upNextEnabledEl.checked = S.config.upNext.enabled !== false;
   if (upNextDurationSlider) {
@@ -586,36 +600,36 @@ const HELP_GUIDE = [
     'THEME (under CLOCK & GUIDE) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
     'CHANNEL LOGO shows a small logo in a corner of the screen while you\'re watching. TIP: Leave it in the same spot long enough and it develops a faint "burn-in" ghost, just like a real old TV — that\'s intentional, not a bug.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.1 Volume Controls', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.1 Volume Controls', body: [
     'The box has two separate volume levels — CONTENT (your shows) and COMMERCIAL/BUMPER — both set as a percentage you can adjust live with the +/- keys. Turn up the commercial volume if your ads always sound quiet, or down if they blast.',
     'NOTE: Any individual channel or block can set its own volume, which always overrides the two sliders above.',
     'VINTAGE CRT AUDIO FILTER & SFX softens the sound a bit and can add a faint hum and mechanical click sounds, for that old-TV-speaker feel.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
     'Enable PHONE REMOTE LAN ACCESS in the Universal Remote plugin, save, and restart. Its pairing link opens a full remote in any browser on the same WiFi; the short code is exchanged for a private session before controls or channel data are available.',
     'NOTE: This only works on your home WiFi, not over cellular data or from outside the house.',
     'TIP: If the remote page won\'t load, double check your phone is on the exact same WiFi network as the box (not a guest network) — that\'s the most common issue.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.3 Watching on Other Screens (The LAN Viewer)', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.3 Watching on Other Screens (The LAN Viewer)', body: [
     'WATCH ON OTHER DEVICES is off by default. Enable it, save, and restart, then open its pairing link on a laptop, tablet, or second TV. The viewer receives schedule data and opaque media ids, never host filesystem paths.',
     'NOTE: Each paired viewer is an independent read-only instance of the channel lineup and can tune locally without changing the main box.',
     'There\'s also an early Android TV app included in this project for a proper big-screen version of the same viewer, if you\'re comfortable building it yourself.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.4 The Party Page (Guest Bulletin & Jukebox)', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.4 The Party Page (Guest Bulletin & Jukebox)', body: [
     'When the PARTY channel (see SECTION 7) is enabled and RerunTV restarted, it shows a pairing QR code for the guest page. Guests need no account, but must use that host-issued link before posting or controlling party features.',
     'From that page, a guest can: post a photo or short video to the screen, send a text-to-speech announcement, play a sound effect, join a trivia round, submit a caption contest entry, vote for what plays next, check in on the guest wall, and — if the jukebox is turned on — add or vote to skip a song.',
     'TIP: The QR code shows right on screen whenever the PARTY channel is idle, so guests can just scan it — no need to read a URL out loud over the music.',
     'NOTE: Anything posted from the party page only lasts for that session — it\'s not saved permanently, and clears out the next time the box restarts.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.5 The Android Companion App and Connected Devices', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.5 The Android Companion App and Connected Devices', body: [
     'There\'s also a separate Android app (different from the browser remote above) with quick-tap favorite channels you set up yourself, plus the same core remote controls — a faster option if you\'re often using just one hand.',
     'CONNECTED DEVICES shows every remote, viewer, and party guest currently active on your network. NOTE: A device drops off this list about 30 seconds after it stops checking in — think of it as "who\'s active right now," not a permanent list.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.6 Backing Up Your Settings', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.6 Backing Up Your Settings', body: [
     'CAUTION: Your settings are backed up automatically on a rotating basis, and you can also click "snapshot now" any time for a manual backup. If something ever goes wrong, click "RESTORE" next to any backup to roll back to it — and if that wasn\'t what you wanted, Ctrl+Z undoes even that (see SECTION 8).',
     'TIP: Give an important backup a LABEL (like "before reorganizing cartoons") and PIN it so automatic rotation never removes it. PREVIEW shows channel, title-count, schedule, and box-setting differences before you restore.',
   ] },
-  { group: 'SECTION 6 — AUDIO & SYSTEM', title: '6.7 Opt-In Library Synchronization', body: [
+  { group: 'SECTION 6 — SYSTEM', title: '6.7 Opt-In Library Synchronization', body: [
     'LIBRARY SYNC is off by default. When enabled, it checks only the folders already linked to your channels, either after startup or at your chosen interval, and adds new titles automatically.',
     'Likely renames preserve your title, tags, and other metadata only when the match is unambiguous. Missing titles are reported but kept by default; automatic removal is a separate warned option you must explicitly enable.',
   ] },
@@ -1752,6 +1766,7 @@ themeSelect.addEventListener('change', () => {
   applyTheme();
   renderThemeBrowser();
   renderGuideGenreSettings();
+  renderThemeFontSettingsInline();
   saveConfigDebounced();
 });
 if (themeBrowserToggle) {
