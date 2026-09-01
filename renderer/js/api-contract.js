@@ -26,7 +26,7 @@
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
-    'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
+    'setTitleBarHidden', 'setUiScale', 'reportThemeColors', 'reportInstalledThemes',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
     'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',

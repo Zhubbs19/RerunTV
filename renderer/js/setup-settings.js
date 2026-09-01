@@ -32,7 +32,7 @@ import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
   clock24El, detailsEnabledEl,
-  guideSlotsSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl,
+  guideSlotsSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl, uiScaleSelect,
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, ignoreThemeCrtBiasEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
   guideLivePreviewEnabledEl,
@@ -298,6 +298,7 @@ export function renderSettingsPanels() {
   adVolumeSlider.value = Math.round((typeof S.config.adVolume === 'number' ? S.config.adVolume : 1) * 100);
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
+  uiScaleSelect.value = S.config.display.uiScale || 'auto';
   logoBugMotionSelect.value = S.config.display.logoBugMotion || 'none';
   renderLogoBugEditor();
   renderDynamicOverlaysEditor();
@@ -1648,6 +1649,11 @@ contentVolumeSlider.addEventListener('input', () => {
 });
 guideSlotsSelect.addEventListener('change', () => {
   S.config.display.guideSlots = parseInt(guideSlotsSelect.value, 10) || 3;
+  saveConfigDebounced();
+});
+uiScaleSelect.addEventListener('change', () => {
+  S.config.display.uiScale = uiScaleSelect.value;
+  if (window.api && window.api.setUiScale) window.api.setUiScale(S.config.display.uiScale);
   saveConfigDebounced();
 });
 pictureModeSelect.addEventListener('change', () => {

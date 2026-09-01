@@ -62,6 +62,7 @@ const { startMediaBridge } = require('./main-media-bridge');
 const { startDiscoveryServer } = require('./main-discovery-server');
 const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
 const { registerDialogIpc } = require('./main-dialogs');
+const { applyWindowUiScale, normalizeUiScalePreference } = require('./main-ui-scale');
 
 // A device that's already entered a LAN service's pairing code once stays
 // paired across restarts (createLanAccess's opts.sessionsFile/
@@ -103,9 +104,11 @@ registerAppSchemePrivileges();
 function createWindow(overrides = {}) {
   const saved = loadWindowState();
   const bounds = saved && boundsOnScreen(saved) ? saved : {};
+  const bootConfig = loadConfig();
   const hideTitleBar = overrides.hideTitleBar !== undefined
     ? overrides.hideTitleBar
-    : !!((loadConfig().display || {}).hideTitleBar);
+    : !!((bootConfig.display || {}).hideTitleBar);
+  let uiScalePreference = normalizeUiScalePreference((bootConfig.display || {}).uiScale);
 
   const mainWindow = new BrowserWindow({
     width: bounds.width || 1280,
@@ -142,6 +145,7 @@ function createWindow(overrides = {}) {
   });
   if (saved && saved.isMaximized) mainWindow.maximize();
   mainWindow.loadURL('app://bundle/renderer/index.html');
+  mainWindow.webContents.on('did-finish-load', () => applyWindowUiScale(mainWindow, uiScalePreference));
 
   let saveStateTimer = null;
   const persistWindowState = () => {
@@ -154,7 +158,13 @@ function createWindow(overrides = {}) {
     clearTimeout(saveStateTimer);
     saveStateTimer = setTimeout(persistWindowState, 500);
   };
-  mainWindow.on('resize', persistWindowStateDebounced);
+  let uiScaleTimer = null;
+  mainWindow.on('resize', () => {
+    persistWindowStateDebounced();
+    if (uiScalePreference !== 'auto') return;
+    clearTimeout(uiScaleTimer);
+    uiScaleTimer = setTimeout(() => applyWindowUiScale(mainWindow, uiScalePreference), 100);
+  });
   mainWindow.on('move', persistWindowStateDebounced);
   mainWindow.on('close', persistWindowState);
 
@@ -169,6 +179,15 @@ function createWindow(overrides = {}) {
   };
   mainWindow.on('enter-full-screen', sendFullscreenState);
   mainWindow.on('leave-full-screen', sendFullscreenState);
+
+  // The renderer can change this live from DISPLAY > INTERFACE without a
+  // restart. Kept on the BrowserWindow so automatic mode can also reapply
+  // after later resize/fullscreen changes without rereading a debounced
+  // config file that may not have been flushed yet.
+  mainWindow.__setUiScalePreference = (preference) => {
+    uiScalePreference = normalizeUiScalePreference(preference);
+    return applyWindowUiScale(mainWindow, uiScalePreference);
+  };
 }
 
 // Set for the duration of window:setTitleBarHidden's own close()->createWindow()
@@ -430,6 +449,12 @@ ipcMain.handle('window:toggleFullscreen', async () => {
   if (!mainWindow) return false;
   mainWindow.setFullScreen(!mainWindow.isFullScreen());
   return mainWindow.isFullScreen();
+});
+
+ipcMain.handle('window:setUiScale', async (event, preference) => {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || typeof mainWindow.__setUiScalePreference !== 'function') return 1;
+  return mainWindow.__setUiScalePreference(preference);
 });
 
 // DISPLAY tab's "hide title bar" option (config.display.hideTitleBar) — a

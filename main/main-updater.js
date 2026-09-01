@@ -229,10 +229,17 @@ function showProgressWindow(getMainWindow, state) {
   clearTimeout(progressCloseTimer);
   if (!progressWindow || progressWindow.isDestroyed()) {
     const parent = getMainWindow();
+    // Match the main app's couch-distance scale. The popup needs both a
+    // larger native window and the same page zoom: enlarging only its page
+    // would clip the fixed 520x210 design, while enlarging only the window
+    // would leave the contents visually tiny in a large empty surface.
+    const interfaceScale = parent && !parent.isDestroyed()
+      ? parent.webContents.getZoomFactor()
+      : 1;
     progressWindowReady = false;
     progressWindow = new BrowserWindow({
-      width: 520,
-      height: 210,
+      width: Math.round(520 * interfaceScale),
+      height: Math.round(210 * interfaceScale),
       parent: parent && !parent.isDestroyed() ? parent : undefined,
       modal: false,
       frame: false,
@@ -253,6 +260,7 @@ function showProgressWindow(getMainWindow, state) {
       },
     });
     progressWindow.setMenuBarVisibility(false);
+    progressWindow.webContents.setZoomFactor(interfaceScale);
     progressWindow.on('closed', () => {
       progressWindow = null;
       progressWindowReady = false;

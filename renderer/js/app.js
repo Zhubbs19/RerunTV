@@ -866,6 +866,10 @@ export function applyConfigDefaults(config) {
   // it's a real look change, not a bugfix.
   if (!config.crtIntensity.overlayScope) config.crtIntensity.overlayScope = 'video';
   if (!config.display) config.display = { clock24: false, guideSlots: 3 };
+  if (!['auto', '100', '125', '150', '175', '200'].includes(String(config.display.uiScale || 'auto'))) {
+    config.display.uiScale = 'auto';
+  }
+  if (!config.display.uiScale) config.display.uiScale = 'auto';
   // logoBugPosition/logoBugSize (old corner-enum + size-px) -> logoBugProfiles
   // (see foldLogoBugCorner, channels.js) — the box-wide default always has
   // at least the one folded-forward DEFAULT profile, never null.

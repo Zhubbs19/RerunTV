@@ -351,6 +351,17 @@
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-enabled" checked>SHOW HINT BAR (H TO TOGGLE)</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-compact" checked>COMPACT HINT BAR (CORE CONTROLS + TV MENU)</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-slide-enabled" checked>SLIDE HINT BAR IN / OUT</label>
+            <label class="panel-interval" title="AUTO enlarges the complete interface on high-resolution displays while respecting your operating system's display scaling.">
+              INTERFACE SIZE
+              <select id="ui-scale-select">
+                <option value="auto" selected>AUTO (RECOMMENDED)</option>
+                <option value="100">100%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+                <option value="175">175%</option>
+                <option value="200">200%</option>
+              </select>
+            </label>
             <div class="hintbar-motion-settings">
               <label class="crt-slider">SLIDE UP <input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val">250ms</span></label>
               <label class="crt-slider">SLIDE DOWN <input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val">200ms</span></label>

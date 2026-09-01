@@ -88,6 +88,9 @@ contextBridge.exposeInMainWorld('api', {
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.
   setAspectLock: (aspect) => ipcRenderer.invoke('window:setAspectLock', { aspect }),
+  // Enlarges the complete interface through Chromium's page zoom so core,
+  // plugin UI, themes, dialogs, and the program guide remain in lockstep.
+  setUiScale: (preference) => ipcRenderer.invoke('window:setUiScale', preference),
   // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
   // reopens the real OS window with/without its frame, since that's a
   // BrowserWindow constructor-only option (see main.js's
