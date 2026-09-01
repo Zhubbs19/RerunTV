@@ -61,6 +61,24 @@ test('headless dashboard is loopback-ready and stops only with its page token', 
   }
 });
 
+test('viewer pairing page supports the native Android TV keyboard', async () => {
+  const runtime = startViewerServer({}, { host: '127.0.0.1', port: 0 });
+  try {
+    assert.equal(await runtime.ready, true);
+    const response = await request(runtime.server.address().port, '/');
+    assert.equal(response.status, 200);
+    assert.match(response.body, /autofocus/);
+    assert.match(response.body, /inputmode="numeric"/);
+    assert.match(response.body, /Select the code box with OK to use your TV keyboard/);
+    assert.match(response.body, /type="submit">PAIR DEVICE/);
+    assert.match(response.body, /@media\(min-width:900px\)/);
+    assert.doesNotMatch(response.body, /class="keypad"/);
+    assert.doesNotMatch(response.body, /new KeyboardEvent/);
+  } finally {
+    await new Promise((resolve) => runtime.server.close(resolve));
+  }
+});
+
 test('companion remote exposes explicit setup exit and interface scale choices', () => {
   const root = path.join(__dirname, '..');
   const remoteHtml = fs.readFileSync(path.join(root, 'plugins', 'companion-app', 'remote', 'index.html'), 'utf8');
