@@ -1,0 +1,9 @@
+{
+  "id": "theme-dual-tuner-dvr-05",
+  "name": "Dual-Tuner DVR '05",
+  "version": "1.0.0",
+  "description": "Theme pack: early DVR interface with midnight blue panels, silver rails, yellow focus, and live guide preview.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

@@ -109,9 +109,11 @@
     <!-- App-wide display mode (DISPLAY > APP DISPLAY MODE, display-mode.js) —
          simulates the fixed aspect/resolution a real box's own display would
          have had, independent of the video-only ASPECT RATIO setting. Wraps
-         both screens (not migration-toast, real UI chrome) so setup and TV
-         both letterbox/pillarbox and pixelate identically. Sized/scaled by 
-         applyDisplayMode(), called on boot and whenever the setting changes. -->
+         both screens (not migration-toast, real UI chrome). TV and its guides
+         use the simulated output geometry; the text-heavy Control Center uses
+         the full window so box emulation never compromises setup usability.
+         Sized/scaled by applyDisplayMode(), called on boot and whenever the
+         setting changes. -->
     <div id="display-frame">
 
     <!-- SETUP SCREEN — hidden by default, same as #tv-screen below;

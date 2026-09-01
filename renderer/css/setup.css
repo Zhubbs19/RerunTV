@@ -28,6 +28,17 @@
   column-gap: 28px;
 }
 
+/* Control Center is a desktop management surface even when the TV output is
+   emulating a 4:3 or low-resolution box. Keep its information architecture
+   compact enough to scan, while retaining comfortably sized remote/touch
+   targets and the selected theme's chrome. */
+.display-frame-control-center #setup-screen { padding: clamp(18px, 2cqw, 32px); }
+.display-frame-control-center .setup-panel { width: min(97%, 1720px); }
+.display-frame-control-center .setup-header {
+  grid-template-columns: minmax(250px, auto) minmax(320px, 1fr);
+  grid-template-areas: "eyebrow eyebrow" "title description";
+}
+
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
@@ -2774,7 +2785,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   letter-spacing: 1.2px;
 }
 .setup-workspace-btn {
-  min-height: 36px;
+  min-height: 42px;
   padding: 7px 12px;
 }
 .setup-workspace-btn.active {
@@ -3289,6 +3300,22 @@ html[data-theme] .btn[aria-disabled="true"] {
   color: var(--paper-dim);
   margin: 10px 0 14px 2px;
   min-height: 14px;
+}
+
+.display-frame-control-center .setup-workspace-switch {
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+}
+.display-frame-control-center .setup-tabs { margin: 10px 0 6px; }
+.display-frame-control-center .setup-breadcrumb { margin: 5px 0 8px 2px; }
+.display-frame-control-center .setup-search { margin-bottom: 10px; }
+
+@media (max-width: 760px) {
+  .display-frame-control-center .setup-header {
+    grid-template-columns: 1fr;
+    grid-template-areas: "eyebrow" "title" "description";
+  }
+  .setup-workspace-description { flex-basis: 100%; text-align: left; }
 }
 .setup-breadcrumb .crumb-sep { margin: 0 6px; opacity: 0.5; }
 .setup-breadcrumb .crumb-current { color: var(--gold); }

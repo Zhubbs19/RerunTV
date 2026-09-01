@@ -1,0 +1,9 @@
+{
+  "id": "theme-addressable-converter-89",
+  "name": "Addressable Converter '89",
+  "version": "1.0.0",
+  "description": "Theme pack: late-1980s addressable converter with red LED digits, amber prompts, and a compact black-plastic guide.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

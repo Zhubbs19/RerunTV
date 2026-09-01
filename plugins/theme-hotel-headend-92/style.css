@@ -1,0 +1,47 @@
+/* Hospitality headend UI: institutional teal, warm ivory information slabs,
+   and unusually generous focus blocks designed for simple hotel remotes. */
+html[data-theme="hotel-headend-92"] {
+  --motion-control-duration: 65ms; --motion-control-ease: steps(2,end); --motion-control-hover: none; --motion-control-active: translate(1px,1px);
+  --motion-card-duration: 110ms; --motion-card-ease: steps(3,end); --motion-card-from-y: 8px; --motion-card-from-scale: 1;
+  --motion-digit-duration: 80ms; --motion-digit-ease: steps(2,end); --motion-digit-from-scale: 1.04;
+  --theme-guide-enter-x: 24px; --theme-guide-enter-y: 0px; --theme-guide-enter-ease: steps(3,end);
+  --setup-nav-bg: #082f35; --setup-overflow-shadow: rgba(133,225,208,.5);
+  --ink: #0a444b; --ink-deep: #05272c; --cell: #176168; --cell-alt: #1d6b71;
+  --gold: #ffd86a; --gold-ink: #1e1700; --cyan: #85e1d0; --paper: #fff9df;
+  --paper-dim: #d2e8d8; --line: #75a99f; --danger: #ff6459;
+  --gold-rgb: 255,216,106; --danger-rgb: 255,100,89; --cyan-rgb: 133,225,208;
+  --font-display: 'Arial Narrow','Archivo Narrow',system-ui,sans-serif;
+  --font-ui: Tahoma,Verdana,system-ui,sans-serif; --font-body: Arial,sans-serif;
+  --gradient-page: linear-gradient(180deg,#0c4c53 0%,#082f35 60%,#031d21 100%);
+  --gradient-panel: linear-gradient(180deg,#236c72 0%,#0d454c 58%,#062c31 100%);
+  --gradient-cell: linear-gradient(180deg,#28777b 0%,#12565c 100%);
+  --gradient-btn: linear-gradient(180deg,#205b5e 0%,#124a50 55%,#082f34 100%);
+  --gradient-gold: linear-gradient(180deg,#fff2b4 0%,#ffd86a 52%,#c79b31 100%);
+  --gloss-strong: linear-gradient(180deg,rgba(255,255,255,.16),transparent 52%);
+  --gloss-soft: linear-gradient(180deg,rgba(255,255,255,.08),transparent 55%);
+  --radius-sm: 0; --radius-md: 2px; --radius-lg: 3px;
+  --shadow-hard: 2px 2px 0 rgba(0,20,22,.75); --shadow-hard-sm: 1px 1px 0 rgba(0,20,22,.75);
+  --bevel-raised: inset 1px 1px rgba(255,255,255,.3), inset -2px -2px rgba(0,0,0,.3);
+  --bevel-inset: inset 2px 2px 3px rgba(0,0,0,.42);
+  --guide-grid-bg: #082f35; --guide-channel-bg: #e8dfbc; --guide-channel-fg: #063239;
+  --guide-channel-subtle: #24585a; --guide-program-bg: #0f555c; --guide-program-alt-bg: #176168;
+  --guide-selection-bg: #ffd86a; --guide-selection-fg: #1c1600; --guide-timebar-bg: #d9d1b1;
+  --guide-row-height: 60px; --guide-row-gap: 3px;
+}
+html[data-theme="hotel-headend-92"] .guide-grid { --guide-chan-col: clamp(120px,21%,190px); border: 4px ridge #a4c5b9; }
+html[data-theme="hotel-headend-92"] .guide-topbar { border-bottom: 7px solid #e8dfbc; }
+html[data-theme="hotel-headend-92"] .guide-timeheader { color: #072f34; text-shadow: none; padding: 8px 0; }
+html[data-theme="hotel-headend-92"] :is(.guide-row-chan,.guide-row-track) { border-radius: 0; box-shadow: none; border-color: #b8d1c4; }
+html[data-theme="hotel-headend-92"] .guide-entry { border-right: 2px solid #72a89f; text-transform: uppercase; }
+html[data-theme="hotel-headend-92"] .guide-entry.sel { animation: none; box-shadow: inset 0 0 0 4px #fff8d0; text-shadow: none; }
+html[data-theme="hotel-headend-92"] .guide-overlay { left: 5%; bottom: 5%; border: 4px ridge #d8e6d8; border-left: 18px solid #ffd86a; border-radius: 0; background: #06343a; backdrop-filter: none; }
+html[data-theme="hotel-headend-92"] .guide-number { color: #ffd86a; border-right: 3px solid #e8dfbc; }
+html[data-theme="hotel-headend-92"] .channel-entry { color: #063239; background: #e8dfbc; border: 3px outset #fffbe9; text-shadow: none; min-width: 120px; text-align: center; }
+html[data-theme="hotel-headend-92"] :is(.btn,.setup-tab-btn,.setup-subtab-btn,.tv-menu-btn) { min-height: 42px; border: 2px outset #a9c7bc; border-radius: 0; }
+html[data-theme="hotel-headend-92"] :is(.btn,.setup-tab-btn,.setup-subtab-btn,.tv-menu-btn):active { border-style: inset; }
+html[data-theme="hotel-headend-92"] :is(.setup-tab-btn,.setup-subtab-btn).active { color: #171200; background: #ffd86a; border-color: #fff4b4; }
+html[data-theme="hotel-headend-92"] #tv-screen .crt.powering-off .crt-power-fx-line { animation-name: hotel-92-off; }
+html[data-theme="hotel-headend-92"] #tv-screen .crt.powering-on .crt-power-fx-line { animation-name: hotel-92-on; }
+@keyframes hotel-92-off { 0%{transform:scaleY(60);opacity:0} 12%{transform:scaleY(1);opacity:1} 70%{transform:scaleY(.6);opacity:1} 100%{transform:scaleY(.05) scaleX(.02);opacity:0} }
+@keyframes hotel-92-on { 0%{transform:scaleY(.05) scaleX(.02);opacity:0} 14%{transform:scaleY(1);opacity:1} 100%{transform:scaleY(60);opacity:0} }
+@media (prefers-reduced-motion: reduce) { html[data-theme="hotel-headend-92"] #tv-screen .crt .crt-power-fx-line { animation:none; } }

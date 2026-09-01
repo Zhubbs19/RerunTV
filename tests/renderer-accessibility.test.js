@@ -55,19 +55,40 @@ test('dynamic channel edit navigation uses correct toolbar and tab semantics', (
 test('control center separates everyday viewing from headend operations', () => {
   const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
   const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
+  const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
   assert.match(markup, /WATCH &amp; LINEUP/);
   assert.match(markup, /MASTER CONTROL/);
   assert.match(markup, /data-workspaces="viewing headend"/);
   assert.match(settings, /applySetupWorkspace/);
+  assert.match(displayMode, /display-frame-control-center/);
+  assert.match(displayMode, /setupVisible[\s\S]*?--display-frame-width[\s\S]*?availW/);
 });
 
 test('flagship era themes own guide motion while every theme keeps a core fallback', () => {
   const guide = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'guide.css'), 'utf8');
   assert.match(guide, /--theme-guide-enter-x, 0px/);
   assert.match(guide, /--theme-guide-enter-ease, ease-in-out/);
-  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'prevue-guide-94', 'cable-box-osd']) {
+  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'prevue-guide-94', 'cable-box-osd', 'addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
     const css = fs.readFileSync(path.join(ROOT, 'plugins', `theme-${id}`, 'style.css'), 'utf8');
     assert.match(css, /--theme-guide-enter-x:/, `${id} needs an era-specific guide entrance`);
     assert.match(css, /--theme-guide-enter-ease:/, `${id} needs an era-specific guide easing`);
+  }
+});
+
+test('new cable-box themes include visual, guide, sound, caption, and era behavior', () => {
+  for (const id of ['addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
+    const base = path.join(ROOT, 'plugins', `theme-${id}`);
+    const manifest = JSON.parse(fs.readFileSync(path.join(base, 'manifest.json'), 'utf8'));
+    const renderer = fs.readFileSync(path.join(base, 'renderer.js'), 'utf8');
+    const css = fs.readFileSync(path.join(base, 'style.css'), 'utf8');
+    assert.equal(manifest.category, 'theme');
+    assert.match(renderer, /group: 'REAL CABLE-BOX UI'/);
+    assert.match(renderer, /guidePreviewDefault:/);
+    assert.match(renderer, /captionStyle:/);
+    assert.match(renderer, /channelChangeSfx\(\)/);
+    assert.match(renderer, /powerSfx\(isOn\)/);
+    assert.match(css, new RegExp(`html\\[data-theme="${id}"\\]`));
+    assert.match(css, /--guide-row-height:/);
+    assert.match(css, /prefers-reduced-motion/);
   }
 });

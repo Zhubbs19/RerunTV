@@ -3,7 +3,7 @@
 // the video-only ASPECT RATIO setting (aspectMode, power.js) which only
 // affects object-fit on #player.
 import { getChannel } from './channels.js';
-import { displayFrameEl, player } from './dom.js';
+import { displayFrameEl, player, setupScreen } from './dom.js';
 import { getPluginChannelDisplaySettings, getPluginChannelEntryForNumber } from './plugins.js';
 import { computeLivePosition } from './schedule.js';
 import { S } from './state.js';
@@ -359,6 +359,26 @@ export function applyDisplayMode() {
   const appEl = displayFrameEl.parentElement;
   const availW = appEl ? appEl.clientWidth : window.innerWidth;
   const availH = appEl ? appEl.clientHeight : window.innerHeight;
+
+  // The Control Center is an administration workspace, not set-top-box
+  // output. Keeping it inside a simulated 4:3/240-line frame produced large
+  // pillarboxes and needlessly tiny forms on modern displays. Give Setup the
+  // whole application canvas while leaving TV, channel cards, and both guide
+  // modes faithful to the selected box aspect/resolution. The window aspect
+  // lock remains the user's explicit window preference; only the content
+  // frame is decoupled here.
+  const setupVisible = setupScreen && !setupScreen.classList.contains('hidden');
+  displayFrameEl.classList.toggle('display-frame-control-center', Boolean(setupVisible));
+  if (setupVisible) {
+    root.setProperty('--display-frame-width', `${Math.max(1, availW)}px`);
+    root.setProperty('--display-frame-height', `${Math.max(1, availH)}px`);
+    root.setProperty('--display-frame-transform', 'none');
+    root.setProperty('--display-frame-image-rendering', 'auto');
+    root.setProperty('--display-content-zoom', '1');
+    root.setProperty('--display-frame-scale', '1');
+    return;
+  }
+
   const targetW = Math.max(1, Math.min(availW, availH * ratio));
   const targetH = targetW / ratio;
 

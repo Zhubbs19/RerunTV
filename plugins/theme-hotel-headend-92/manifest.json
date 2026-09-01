@@ -1,0 +1,9 @@
+{
+  "id": "theme-hotel-headend-92",
+  "name": "Hotel Headend '92",
+  "version": "1.0.0",
+  "description": "Theme pack: early-1990s hospitality cable guide with institutional teal, warm ivory, and oversized remote focus.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}
