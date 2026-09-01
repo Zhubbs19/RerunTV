@@ -75,3 +75,14 @@ test('companion remote exposes explicit setup exit and interface scale choices',
   assert.match(appJs, /cmd\?\.action === 'watch-tv'/);
   assert.match(appJs, /setUiScale\?\./);
 });
+
+test('packaged installs include launchers that target the installed executable', () => {
+  const root = path.join(__dirname, '..');
+  const builder = fs.readFileSync(path.join(root, 'electron-builder.config.js'), 'utf8');
+  const serverLauncher = fs.readFileSync(path.join(root, 'run-server.bat'), 'utf8');
+  const headlessLauncher = fs.readFileSync(path.join(root, 'run-headless.bat'), 'utf8');
+
+  assert.match(builder, /extraFiles:\s*\['run-server\.bat', 'run-headless\.bat'\]/);
+  assert.match(serverLauncher, /RerunTV\.exe" --server/);
+  assert.match(headlessLauncher, /RerunTV\.exe" --headless/);
+});

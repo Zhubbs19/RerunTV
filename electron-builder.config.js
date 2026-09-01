@@ -14,6 +14,9 @@ module.exports = {
   directories: { output: 'dist' },
   artifactName: '${productName}-Setup-${version}.${ext}',
   files: ['main/**/*.js', 'renderer/**/*', ...pluginFiles, 'package.json'],
+  // These live beside RerunTV.exe in installed/unpacked builds. Each batch
+  // file also retains a development fallback for running from the repo.
+  extraFiles: ['run-server.bat', 'run-headless.bat'],
   asarUnpack: ['plugins/**'],
   publish: {
     provider: 'github', owner: 'Zhubbs19', repo: 'RerunTV', private: true,
