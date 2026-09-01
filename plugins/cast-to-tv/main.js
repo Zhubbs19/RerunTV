@@ -55,12 +55,16 @@ function activate(ctx) {
     }
     if (route === '/mirror') {
       if (!mirrorActive) { res.writeHead(404); res.end(); return; }
+      req.socket.setNoDelay(true);
       res.writeHead(200, {
         'Content-Type': mirrorMimeType,
         'Cache-Control': 'no-store, no-cache, must-revalidate',
         'Access-Control-Allow-Origin': '*',
         Connection: 'keep-alive',
       });
+      // Send headers immediately so the receiver can start its demuxer
+      // without waiting for Node to coalesce them with a later media write.
+      res.flushHeaders?.();
       mirrorBootstrap.forEach((chunk) => res.write(chunk));
       mirrorClients.add(res);
       req.on('close', () => mirrorClients.delete(res));
@@ -227,7 +231,31 @@ function activate(ctx) {
     return lastStatus;
   });
 
-  ipcMain.on('cast:mirrorChunk', (event, bytes) => {
+  function writeMirrorChunk(response, chunk) {
+    if (response.destroyed || response.writableEnded) return Promise.resolve();
+    try {
+      if (response.write(chunk)) return Promise.resolve();
+    } catch (e) {
+      mirrorClients.delete(response);
+      return Promise.resolve();
+    }
+    // Honor socket backpressure rather than accumulating stale frames in
+    // ServerResponse's internal buffer. The renderer awaits this IPC call
+    // before forwarding its next encoded chunk.
+    return new Promise((resolve) => {
+      const done = () => {
+        response.off('drain', done);
+        response.off('close', done);
+        response.off('error', done);
+        resolve();
+      };
+      response.once('drain', done);
+      response.once('close', done);
+      response.once('error', done);
+    });
+  }
+
+  ipcMain.handle('cast:mirrorChunk', async (event, bytes) => {
     if (!bytes) return;
     const chunk = Buffer.from(bytes);
     if (!chunk.length) return;
@@ -236,9 +264,7 @@ function activate(ctx) {
       mirrorBootstrap.push(chunk);
       mirrorBootstrapBytes += chunk.length;
     }
-    for (const response of mirrorClients) {
-      try { response.write(chunk); } catch (e) { mirrorClients.delete(response); }
-    }
+    await Promise.all([...mirrorClients].map((response) => writeMirrorChunk(response, chunk)));
   });
 
   ipcMain.handle('cast:startMirror', async (event, host, mimeType, quality) => {

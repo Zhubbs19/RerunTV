@@ -50,16 +50,24 @@ function isPathContained(base, resolved) {
 // sanitizeViewerConfig, duplicated for the same packaged-path reason as
 // isPathContained above. Unlike the anonymous LAN viewer, a paired companion
 // device is trusted with real channel folder paths (its own Files tab and
-// Settings editor need them), so this only strips key/value pairs whose key
-// looks like a credential — it does not opaque paths the way the viewer
-// projection does.
+// Settings editor need them). Credential fields keep their shape but their
+// current values are redacted, allowing replacement without sending an
+// existing secret back over the LAN.
 const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth)/i;
+function redactSensitiveShape(value) {
+  if (Array.isArray(value)) return value.map(redactSensitiveShape);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, redactSensitiveShape(child)]));
+  }
+  return null;
+}
 function sanitizeSensitiveConfig(value) {
   if (Array.isArray(value)) return value.map(sanitizeSensitiveConfig);
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !SENSITIVE_CONFIG_KEY.test(key))
-    .map(([key, child]) => [key, sanitizeSensitiveConfig(child)]));
+    .map(([key, child]) => [key, SENSITIVE_CONFIG_KEY.test(key)
+      ? redactSensitiveShape(child)
+      : sanitizeSensitiveConfig(child)]));
 }
 
 // One root per distinct local channel folder — ch.folders[] entries are
@@ -156,7 +164,9 @@ async function activate(ctx) {
   // window directly.
   function sendToMainWindow(channel, data) {
     const mainWindow = getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
+    mainWindow.webContents.send(channel, data);
+    return true;
   }
   // Not a hard dependency (this plugin works fully without it) — just
   // published by the party-channel plugin onto ctx.services if that one's
@@ -216,10 +226,19 @@ async function activate(ctx) {
     if (req.method === 'POST' && url.pathname === '/api/settings') {
       try {
         const body = await readJsonBody(req);
-        if (body && body.patch && typeof body.patch === 'object') {
-          sendToMainWindow('companion:applySettings', body.patch);
+        if (!body || !body.patch || typeof body.patch !== 'object' || Array.isArray(body.patch)) {
+          res.writeHead(400).end('A settings patch object is required');
+          return;
         }
-        res.writeHead(204).end();
+        if (!sendToMainWindow('companion:applySettings', body.patch)) {
+          res.writeHead(503).end('RerunTV is not ready to apply settings');
+          return;
+        }
+        // The renderer owns the live in-memory config and queues its normal
+        // autosave immediately. 202 accurately describes that handoff; the
+        // previous unconditional 204 claimed success even when there was no
+        // renderer window to receive the change.
+        res.writeHead(202).end();
       } catch (e) {
         res.writeHead(400).end('Bad request');
       }

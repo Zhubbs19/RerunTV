@@ -35,7 +35,7 @@ import {
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
   adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
-  resetIdleTimer, powerOn, powerOff,
+  resetIdleTimer, powerOn, powerOff, pushRemoteState,
 } from './power.js';
 import { applyDisplayModeSettled } from './display-mode.js';
 import { applyTheme } from './themes.js';
@@ -384,13 +384,24 @@ window.addEventListener('keydown', handleKey);
 // {key, shift} and is fed through the exact same handler real keystrokes
 // use — digit-entry buffering, guide-grid interception, wake-on-any-key,
 // time-machine shuttle, all of it, with zero duplicated logic.
-window.api.onRemoteCommand((cmd) => handleKey({
-  key: cmd.key,
-  shiftKey: !!cmd.shift,
-  ctrlKey: !!cmd.ctrl,
-  altKey: !!cmd.alt,
-  preventDefault() {},
-}));
+window.api.onRemoteCommand((cmd) => {
+  const init = {
+    key: cmd.key,
+    shiftKey: !!cmd.shift,
+    ctrlKey: !!cmd.ctrl,
+    altKey: !!cmd.alt,
+  };
+  if (tvScreen.classList.contains('hidden')) {
+    // Setup has its own window-level keyboard navigation (setup-keyboard.js).
+    // The old direct handleKey call returned immediately while Setup was
+    // visible, turning the remote's SETUP button into a one-way trip. A real
+    // KeyboardEvent reaches those same setup listeners and keeps every
+    // tab/subtab/dialog navigable from the Companion.
+    window.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true }));
+  } else {
+    handleKey({ ...init, preventDefault() {} });
+  }
+});
 // Direct channel jump from the Android companion remote's quick-tap grid —
 // bypasses the digit-entry buffer entirely (unlike pushDigit) since the app
 // already knows the exact channel number, no need to simulate keypresses.
@@ -433,28 +444,81 @@ function deepMergeExistingKeys(target, patch) {
   return changed;
 }
 
+function sameConfigShape(current, incoming) {
+  if (Array.isArray(current) || Array.isArray(incoming)) {
+    return Array.isArray(current) && Array.isArray(incoming);
+  }
+  const currentIsObject = current !== null && typeof current === 'object';
+  const incomingIsObject = incoming !== null && typeof incoming === 'object';
+  if (currentIsObject || incomingIsObject) return currentIsObject && incomingIsObject;
+  return typeof current === typeof incoming;
+}
+
+function applyCompanionSettingsLive(changedSections) {
+  if (!changedSections.size) return;
+
+  // A desktop settings control normally performs both halves of an edit:
+  // mutate S.config and immediately refresh the live surface that consumes
+  // it. Companion edits bypass those individual DOM listeners, so replay
+  // the same inexpensive, idempotent refreshes here after the patch lands.
+  applyTheme({ boxOnly: S.isSetupOpen });
+  applyCrtState();
+  applyPictureMode();
+  applyAspectMode();
+  applyMuteState();
+  applyVolume();
+  applyHintBarState();
+  applyDisplayModeSettled();
+  window.applyTickerState?.();
+  pushRemoteState();
+
+  if (changedSections.has('display')) applyCustomCss();
+  if (changedSections.has('timeMachine') && S.config.timeMachine?.enabled === false && S.timeMachineOn) {
+    exitTimeMachine({ toLive: true });
+  }
+  if (changedSections.has('display')) {
+    document.documentElement.classList.toggle('titlebar-hidden', !!S.config.display?.hideTitleBar);
+  }
+  if (S.isSetupOpen) renderSettingsPanels();
+}
+
 // Companion app's Settings tab (plugins/companion-app/main.js's POST
-// /api/settings) — a patch is {sectionKey: {...nested values...}}, arbitrarily
-// deep (the phone app's settings tree mirrors the full config JSON, not just
-// its top-level fields). Merged into a top-level section that already exists
-// in S.config (display, theme, network, party, timeMachine, updates, ...) via
-// deepMergeExistingKeys above, same as every desktop setup-screen checkbox/
-// field edit funnels into S.config before an autosave — never creates a new
-// section, key, or array entry, and never touches channels/plugins (those
-// need their own dedicated, validated flows, not a blanket merge), so a
-// malformed or unexpected key is silently dropped rather than corrupting
-// config shape.
+// /api/settings) — a patch mirrors the full config JSON: top-level scalars
+// are replaced, while object sections may contain arbitrarily deep partial
+// values. Existing objects merge through deepMergeExistingKeys above; every
+// other value must retain its existing shape. The handler never creates a
+// new section/key and never touches channels/plugins (those need dedicated,
+// validated flows), so malformed or unexpected data is silently dropped.
 window.api.onCompanionApplySettings((patch) => {
   if (!patch || typeof patch !== 'object') return;
   const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
-  let changed = false;
+  const changedSections = new Set();
   for (const [section, values] of Object.entries(patch)) {
     if (BLOCKED_SECTIONS.has(section)) continue;
+    if (!(section in S.config)) continue;
     const target = S.config[section];
-    if (!target || typeof target !== 'object' || !values || typeof values !== 'object') continue;
-    if (deepMergeExistingKeys(target, values)) changed = true;
+    const targetIsPlainObject = target !== null && typeof target === 'object' && !Array.isArray(target);
+    const valuesIsPlainObject = values !== null && typeof values === 'object' && !Array.isArray(values);
+    if (targetIsPlainObject && valuesIsPlainObject) {
+      if (deepMergeExistingKeys(target, values)) changedSections.add(section);
+      continue;
+    }
+    // Top-level scalar settings (theme, crtEnabled, pictureMode,
+    // aspectMode, volume, and others) used to be silently skipped here
+    // because the old handler only accepted object/object pairs. Arrays are
+    // also legitimate leaf values from the Companion's generic editor.
+    if (!sameConfigShape(target, values)) continue;
+    const equal = Array.isArray(target)
+      ? JSON.stringify(target) === JSON.stringify(values)
+      : Object.is(target, values);
+    if (!equal) {
+      S.config[section] = values;
+      changedSections.add(section);
+    }
   }
-  if (changed) saveConfigDebounced();
+  if (!changedSections.size) return;
+  saveConfigDebounced();
+  applyCompanionSettingsLive(changedSections);
 });
 
 // Companion app's ALERTS section (REMOTE tab) — dedicated relays rather than

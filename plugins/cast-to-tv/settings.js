@@ -259,6 +259,10 @@ window.RCBPlugins.registerPluginSettings('cast-to-tv', {
         if (!selectedDeviceHost) return;
         renderStatus({ state: 'connecting', host: selectedDeviceHost, mode: 'mirror' });
         try {
+          // Launch the receiver before starting the recorder. Previously the
+          // connection delay accumulated in the WebM bootstrap and left the
+          // TV permanently several seconds behind from its first frame.
+          await window.api.castConnect(selectedDeviceHost);
           const capture = await window.RCBPlugins.castToTv.startMirror(qualityEl.value, sourceEl.value);
           const quality = `${capture.sourceName} · ${capture.width}×${capture.height} @ ${Math.round(capture.frameRate)} FPS`;
           renderStatus(await window.api.castStartMirror(selectedDeviceHost, capture.mimeType, quality));

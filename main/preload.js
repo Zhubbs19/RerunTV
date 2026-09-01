@@ -195,7 +195,9 @@ contextBridge.exposeInMainWorld('api', {
   castDisconnect: () => ipcRenderer.invoke('cast:disconnect'),
   castNow: (host) => ipcRenderer.invoke('cast:castNow', host),
   castListMirrorSources: () => ipcRenderer.invoke('cast:listMirrorSources'),
-  castMirrorChunk: (bytes) => ipcRenderer.send('cast:mirrorChunk', bytes),
+  // Awaitable so TCP backpressure reaches the encoder instead of silently
+  // buffering increasingly stale frames in the main process.
+  castMirrorChunk: (bytes) => ipcRenderer.invoke('cast:mirrorChunk', bytes),
   castStartMirror: (host, mimeType, quality) => ipcRenderer.invoke('cast:startMirror', host, mimeType, quality),
   castStopMirror: () => ipcRenderer.invoke('cast:stopMirror'),
   castStop: () => ipcRenderer.invoke('cast:stop'),

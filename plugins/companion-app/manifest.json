@@ -1,8 +1,8 @@
 {
   "id": "companion-app",
   "name": "Companion App",
-  "version": "2.1.0",
-  "description": "LAN API for the Android companion app and the plain phone-browser remote (remote/, no app install needed) — remote control, quick-tap channel grid, channel favorite editor, trivia trigger, edit every box-wide setting, and browse/download files from your channel folders, all from your phone. One pairing covers all of it. Pairing-code + session auth, same as the other LAN services — once paired, a device stays paired across restarts, no need to re-enter the code every time. Runs same-process (not isolated) because file browsing needs real filesystem access to wherever your channel folders actually live, which the isolated-plugin sandbox can't grant. Works standalone; if the Party Channel plugin is also installed, channel reactions also work.",
+  "version": "3.0.0",
+  "description": "Unified responsive control surface for the Android Companion and any phone browser — full remote and guide navigation, Time Machine, channel management, live alerts/ticker, every box-wide and plugin setting, and channel-folder browsing/downloads. One authenticated UI and pairing covers all features, so Android and browser controls stay in sync.",
   "category": "system",
   "main": "main.js",
   "settings": "settings.js",

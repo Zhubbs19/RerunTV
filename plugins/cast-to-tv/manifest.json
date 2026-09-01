@@ -1,7 +1,7 @@
 {
   "id": "cast-to-tv",
   "name": "Cast to TV",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Mirrors the complete RerunTV window or a selected desktop display to one Chromecast/Google TV, with lower-latency program-only casting as a fallback.",
   "category": "system",
   "main": "main.js",

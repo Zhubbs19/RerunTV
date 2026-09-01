@@ -53,9 +53,11 @@ let stoppingMirror = false;
 let acceptMirrorChunks = false;
 
 const MIRROR_PROFILES = {
-  '720p30': { width: 1280, height: 720, frameRate: 30, bitrate: 4_000_000, codec: 'vp8' },
-  '1080p60': { width: 1920, height: 1080, frameRate: 60, bitrate: 10_000_000, codec: 'vp8' },
-  '4k60': { width: 3840, height: 2160, frameRate: 60, bitrate: 35_000_000, codec: 'vp9' },
+  // Short slices reduce glass-to-glass delay. Bitrate scales with resolution
+  // so guide text stays sharp without making every mode pay 4K's cost.
+  '720p30': { width: 1280, height: 720, frameRate: 30, bitrate: 5_000_000, audioBitrate: 160_000, timeslice: 125, codec: 'vp8' },
+  '1080p60': { width: 1920, height: 1080, frameRate: 60, bitrate: 14_000_000, audioBitrate: 192_000, timeslice: 150, codec: 'vp8' },
+  '4k60': { width: 3840, height: 2160, frameRate: 60, bitrate: 42_000_000, audioBitrate: 192_000, timeslice: 250, codec: 'vp9' },
 };
 
 function chooseMirrorMimeType(preferredCodec) {
@@ -189,6 +191,7 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
     ? [...canvasStream.getVideoTracks()]
     : [...mirrorWindowStream.getVideoTracks()];
   const outputVideoTrack = tracks[0] || null;
+  if (outputVideoTrack && 'contentHint' in outputVideoTrack) outputVideoTrack.contentHint = 'detail';
   // A desktop source may already contain Windows loopback audio, including
   // other applications. Prefer that one complete track and avoid doubling
   // RerunTV. App-window capture instead mixes the player and RerunTV SFX.
@@ -211,9 +214,20 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
 
   const requestedMimeType = chooseMirrorMimeType(profile.codec);
   const options = requestedMimeType
-    ? { mimeType: requestedMimeType, videoBitsPerSecond: profile.bitrate }
-    : { videoBitsPerSecond: profile.bitrate };
-  mirrorRecorder = new MediaRecorder(mirrorOutputStream, options);
+    ? {
+      mimeType: requestedMimeType,
+      videoBitsPerSecond: profile.bitrate,
+      audioBitsPerSecond: profile.audioBitrate,
+      videoKeyFrameIntervalDuration: 1000,
+    }
+    : { videoBitsPerSecond: profile.bitrate, audioBitsPerSecond: profile.audioBitrate };
+  try {
+    mirrorRecorder = new MediaRecorder(mirrorOutputStream, options);
+  } catch (error) {
+    // Older Chromium versions may reject only the optional keyframe hint.
+    delete options.videoKeyFrameIntervalDuration;
+    mirrorRecorder = new MediaRecorder(mirrorOutputStream, options);
+  }
   acceptMirrorChunks = true;
 
   let resolveFirstChunk;
@@ -228,7 +242,7 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
       if (!acceptMirrorChunks) return;
       const bytes = await event.data.arrayBuffer();
       if (!acceptMirrorChunks) return;
-      window.api.castMirrorChunk(bytes);
+      await window.api.castMirrorChunk(bytes);
       resolveFirstChunk();
     });
   });
@@ -237,7 +251,7 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
   }, { once: true });
   const videoTrack = mirrorWindowStream.getVideoTracks()[0];
   if (videoTrack) videoTrack.addEventListener('ended', () => stopMirror(), { once: true });
-  mirrorRecorder.start(500);
+  mirrorRecorder.start(profile.timeslice);
 
   // Make sure the WebM header is already waiting at the LAN endpoint before
   // the receiver asks for /mirror; otherwise it can join mid-stream and see
