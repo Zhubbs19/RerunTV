@@ -53,9 +53,16 @@ Setup is saved to Electron's app-data folder. Press **S** any time to go back.
 npm run server
 ```
 
-Runs with no window on this machine — useful for running RerunTV on a headless box. Only
-LAN services explicitly enabled in the saved config bind to the network, and clients must
-open a host-issued pairing link before receiving controls, schedule data, or media.
+Runs without the full TV window and opens a small local browser control page with the
+pairing code, viewer addresses, connection instructions, and a Stop button. Starting in
+server mode explicitly enables the paired LAN viewer for that run even when **WATCH ON
+OTHER DEVICES** was previously switched off. Use `npm run headless` instead when you want
+the same server without automatically opening the local control page. Pairing, session
+expiry, rate limits, and opaque media references remain enabled in both modes.
+
+The ignored `android-tv-client/` project provides the matching large-screen client. It
+auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on 1080p and
+4K panels, supports D-pad controls, and includes a phone remote served directly by the TV.
 
 ## Controls
 

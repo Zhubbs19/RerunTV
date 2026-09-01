@@ -5,7 +5,8 @@
   "main": "main/main.js",
   "scripts": {
     "start": "electron .",
-    "server": "electron . --headless",
+    "server": "electron . --server",
+    "headless": "electron . --headless",
     "test": "node scripts/run-tests.js",
     "test:contracts": "node scripts/validate-plugin-contracts.js",
     "pack": "electron-builder --dir --config electron-builder.config.js",

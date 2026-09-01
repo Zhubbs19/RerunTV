@@ -45,7 +45,23 @@
      it down, which breaks both portrait AND landscape layout (nothing
      reflows at its real size); viewport-fit=cover opts into env(safe-area-
      inset-*) so overlays like the touch control bar can avoid notches. -->
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta id="reruntv-viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<script>
+  // The native Android TV client identifies its WebView with a stable UA
+  // suffix. TV WebViews disagree wildly about whether a 4K panel is 960,
+  // 1920, or 3840 CSS pixels wide; device-width therefore makes the same
+  // guide microscopic on one OEM and oversized on another. Render the TV
+  // client against one 1920-wide logical canvas and let WebView composite
+  // that canvas at the panel's native resolution. Desktop browsers and the
+  // Electron window keep the ordinary responsive device-width contract.
+  if (/RerunTV-AndroidTV/i.test(navigator.userAgent)) {
+    document.getElementById('reruntv-viewport').setAttribute(
+      'content',
+      'width=1920, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover',
+    );
+    document.documentElement.dataset.tvClient = 'android';
+  }
+</script>
 <title>RerunTV</title>
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/setup.css" />

@@ -28,8 +28,10 @@ require('./main-config').migrateUserDataIfNeeded();
 const { installMainLogCapture, registerDiagnosticsIpc } = require('./main-diagnostics');
 installMainLogCapture();
 
-// "Server mode" — a --headless (or --server) launch never creates or shows
-// a BrowserWindow on this machine, but every LAN-facing server (viewer,
+// "Server mode" — a --headless launch never creates or shows the full
+// RerunTV BrowserWindow on this machine. --server opens the loopback-only
+// server/pairing webpage after boot; --headless only prints its URL. Every
+// LAN-facing server (viewer,
 // remote, discovery, a plugin's own bridge/stream server) still starts exactly as normal
 // — see app.whenReady() below. Every existing mainWindow reference (via
 // main-window-ref.js's getMainWindow()) is already either null-guarded or
@@ -37,7 +39,8 @@ installMainLogCapture();
 // never exists in this mode — so mainWindow simply staying unset forever is
 // safe with no further changes needed elsewhere. See package.json's
 // "server" script / run-server.bat for how this is meant to be launched.
-const HEADLESS = process.argv.includes('--headless') || process.argv.includes('--server');
+const SERVER_CONTROL = process.argv.includes('--server');
+const HEADLESS = process.argv.includes('--headless') || SERVER_CONTROL;
 let interactiveBootInProgress = !HEADLESS;
 
 // Split out of this file into focused main-*.js modules — config/backups,
@@ -349,7 +352,14 @@ app.whenReady().then(async () => {
   const bridge = await startMediaBridge();
   viewerProjectionRef = bridge.projection;
   mediaBridgePort = bridge.port;
-  if (isLanServiceEnabled(bootConfig, 'viewer')) {
+  // Starting with --headless/--server is itself an explicit request to host
+  // RerunTV for a viewer. Do not make a windowless process silently expose
+  // nothing just because WATCH ON OTHER DEVICES was last switched off in
+  // the desktop UI. The service remains protected by the same pairing code,
+  // persisted session, rate limits, and opaque media projection as normal
+  // viewer mode; this changes availability, not its security boundary.
+  const viewerEnabledForThisRun = HEADLESS || isLanServiceEnabled(bootConfig, 'viewer');
+  if (viewerEnabledForThisRun) {
     // Independent of the bridge above — this server's own /media route (and
     // its own separate projection instance) is what an actual remote LAN
     // device uses, gated by pairing same as everything else it serves.
@@ -367,8 +377,17 @@ app.whenReady().then(async () => {
           needsIntegrityApproval: plugin.integrityStatus === 'unverified' || plugin.integrityStatus === 'modified',
         }
       )),
+      getControlState: () => ({
+        viewerUrls: viewerAccessUrls,
+        companionUrls: pluginServices.companionAccessUrls || [],
+        mode: HEADLESS ? 'headless' : 'desktop',
+      }),
+      requestStop: HEADLESS ? () => app.quit() : null,
     });
-    viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+    const viewerStarted = await viewerRuntime.ready;
+    if (viewerStarted) {
+      viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+    }
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   pluginDisabledAtBoot = [...disabledPluginIds];
@@ -409,11 +428,20 @@ app.whenReady().then(async () => {
     // never fires with zero windows ever created, so the process simply
     // keeps running until it's stopped externally (Ctrl+C in the console
     // this was launched from, or the process being killed).
-    console.log('RerunTV is running in SERVER mode — no window on this machine.');
-    console.log('Enabled LAN services are available to paired devices:');
+    console.log('RerunTV is running in HEADLESS VIEWER mode — no window on this machine.');
+    console.log('The viewer is available to paired devices:');
     viewerAccessUrls.forEach((u) => console.log(`  Watch at ${u.url}  (${u.name})`));
     (pluginServices.companionAccessUrls || []).forEach((u) => console.log(`  Companion/remote at ${u.url}  (${u.name})`));
-    console.log('Press Ctrl+C to stop.');
+    const controlUrl = `http://127.0.0.1:${VIEWER_PORT}/server`;
+    console.log(`Local control panel: ${controlUrl}`);
+    if (SERVER_CONTROL && viewerAccessUrls.length) {
+      console.log('Opening the local control panel in your browser.');
+      shell.openExternal(controlUrl);
+    } else if (SERVER_CONTROL) {
+      console.log('The control panel could not open because the viewer server did not start.');
+    } else {
+      console.log('Press Ctrl+C to stop.');
+    }
     return;
   }
 

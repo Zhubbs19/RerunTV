@@ -286,7 +286,9 @@ async function activate(ctx) {
     if (req.method === 'POST' && url.pathname === '/command') {
       try {
         const body = await readJsonBody(req);
-        if (body && typeof body.key === 'string') {
+        if (body?.action === 'watch-tv') {
+          sendToMainWindow('remote:command', { action: 'watch-tv' });
+        } else if (body && typeof body.key === 'string') {
           sendToMainWindow('remote:command', {
             key: body.key,
             shift: !!body.shift,

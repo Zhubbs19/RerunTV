@@ -380,11 +380,19 @@ export function handleKey(e) {
 }
 
 window.addEventListener('keydown', handleKey);
+// An explicit route back to live TV for remote clients. Escape remains a
+// context-sensitive "back" key inside Setup, so overloading it as an exit
+// would make text fields, dialogs, and nested setup panels unpredictable.
+window.addEventListener('reruntv:watch-tv', () => showTvScreen());
 // Universal remote: every button press the phone page sends arrives here as
 // {key, shift} and is fed through the exact same handler real keystrokes
 // use — digit-entry buffering, guide-grid interception, wake-on-any-key,
 // time-machine shuttle, all of it, with zero duplicated logic.
 window.api.onRemoteCommand((cmd) => {
+  if (cmd?.action === 'watch-tv') {
+    showTvScreen();
+    return;
+  }
   const init = {
     key: cmd.key,
     shiftKey: !!cmd.shift,
@@ -472,7 +480,10 @@ function applyCompanionSettingsLive(changedSections) {
   window.applyTickerState?.();
   pushRemoteState();
 
-  if (changedSections.has('display')) applyCustomCss();
+  if (changedSections.has('display')) {
+    applyCustomCss();
+    window.api.setUiScale?.(S.config.display?.uiScale || 'auto');
+  }
   if (changedSections.has('timeMachine') && S.config.timeMachine?.enabled === false && S.timeMachineOn) {
     exitTimeMachine({ toLive: true });
   }

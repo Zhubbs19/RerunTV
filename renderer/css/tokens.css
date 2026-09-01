@@ -301,6 +301,18 @@ code,
   justify-content: center;
 }
 
+/* Native Android TV viewer: reserve a small title/action-safe perimeter for
+   televisions that still apply panel overscan. The fixed 1920px viewport is
+   established in index.html before first paint, so this 24px inset remains
+   physically consistent on both 1080p and 4K output instead of doubling on
+   one OEM WebView and shrinking on another. */
+html[data-tv-client="android"] body { background: #000; }
+html[data-tv-client="android"] #app {
+  width: calc(100vw - 48px);
+  height: calc(100vh - 48px);
+  margin: 24px;
+}
+
 /* App-wide display mode (display-mode.js) — always-on letterbox/pillarbox
    frame at a fixed aspect ratio, centered inside #app. --display-frame-* vars
    are set inline by applyDisplayMode(); default to today's exact behavior

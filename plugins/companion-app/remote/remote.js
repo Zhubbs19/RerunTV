@@ -22,6 +22,7 @@
     'displayMode.resolution': [['native', 'NATIVE'], ['sd480', 'SD 480-LINE'], ['sd240', 'SD 240-LINE'], ['auto', 'AUTO']],
     'displayMode.autoPriority': [['metadata', 'FILE RESOLUTION FIRST'], ['era', 'ERA TAG FIRST']],
     'display.guideSlots': [['2', '2 / 1 HOUR'], ['3', '3 / 1.5 HOURS'], ['4', '4 / 2 HOURS']],
+    'display.uiScale': [['auto', 'AUTO (RECOMMENDED)'], ['100', '100%'], ['125', '125%'], ['150', '150%'], ['175', '175%'], ['200', '200%']],
     'updates.strategy': [['startup-auto', 'INSTALL BEFORE APP OPENS'], ['background-auto', 'INSTALL WHEN APP QUITS'], ['background-notify', 'ASK WHEN READY'], ['manual', 'MANUAL'], ['off', 'OFF']],
   };
 
@@ -243,7 +244,8 @@
   document.addEventListener('click', function (event) {
     var button = event.target.closest('[data-action]'); if (!button) return;
     var action = button.dataset.action;
-    if (action === 'refresh-channels') loadChannels();
+    if (action === 'watch-tv') request('/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'watch-tv' }) }).then(function () { feedback('RETURNED TO LIVE TV'); }).catch(function () { feedback('COULD NOT EXIT SETUP', true); });
+    else if (action === 'refresh-channels') loadChannels();
     else if (action === 'reload-settings') loadSettings();
     else if (action === 'save-settings') saveSettings();
     else if (action === 'load-roots') loadRoots();
