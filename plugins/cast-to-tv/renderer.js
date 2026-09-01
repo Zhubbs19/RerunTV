@@ -125,32 +125,27 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
     ? 'The RerunTV window could not be found for capture'
     : 'The selected desktop display is no longer available');
 
-  const captureConstraints = {
-    audio: source.sourceType === 'screen' ? {
-      mandatory: { chromeMediaSource: 'desktop', chromeMediaSourceId: source.id },
-    } : false,
+  if (typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+    throw new Error('This Electron build cannot capture mirrored audio');
+  }
+  const preparedCapture = await window.api.castPrepareMirrorCapture(source.id);
+  if (preparedCapture.audioMode === 'unavailable') {
+    throw new Error('Whole-desktop audio capture is currently supported on Windows only');
+  }
+  mirrorWindowStream = await navigator.mediaDevices.getDisplayMedia({
+    audio: true,
     video: {
-      mandatory: {
-        chromeMediaSource: 'desktop',
-        chromeMediaSourceId: source.id,
-        maxWidth: profile.width,
-        maxHeight: profile.height,
-        maxFrameRate: profile.frameRate,
-      },
+      width: { ideal: profile.width, max: profile.width },
+      height: { ideal: profile.height, max: profile.height },
+      frameRate: { ideal: profile.frameRate, max: profile.frameRate },
     },
-  };
-  try {
-    mirrorWindowStream = await navigator.mediaDevices.getUserMedia(captureConstraints);
-  } catch (error) {
-    // Window/screen video capture is the required feature. Windows loopback
-    // audio availability varies by Electron/device, so retry video-only
-    // rather than making desktop mirroring fail completely.
-    if (captureConstraints.audio) {
-      captureConstraints.audio = false;
-      mirrorWindowStream = await navigator.mediaDevices.getUserMedia(captureConstraints);
-    } else {
-      throw error;
-    }
+  });
+  if (!mirrorWindowStream.getAudioTracks().length) {
+    mirrorWindowStream.getTracks().forEach((track) => track.stop());
+    mirrorWindowStream = null;
+    throw new Error(source.sourceType === 'screen'
+      ? 'Windows system audio capture did not provide an audio track'
+      : 'RerunTV app audio capture did not provide an audio track');
   }
 
   // Render to an exact-size canvas so the quality picker controls the
@@ -192,9 +187,10 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
     : [...mirrorWindowStream.getVideoTracks()];
   const outputVideoTrack = tracks[0] || null;
   if (outputVideoTrack && 'contentHint' in outputVideoTrack) outputVideoTrack.contentHint = 'detail';
-  // A desktop source may already contain Windows loopback audio, including
-  // other applications. Prefer that one complete track and avoid doubling
-  // RerunTV. App-window capture instead mixes the player and RerunTV SFX.
+  // getDisplayMedia supplies either the complete RerunTV frame audio or the
+  // Windows system-loopback track. Retain the older player/SFX mixer only as
+  // a defensive fallback for Chromium builds that expose a stream without
+  // that requested track.
   if (mirrorWindowStream.getAudioTracks().length) {
     tracks.push(...mirrorWindowStream.getAudioTracks());
   } else if (typeof player.captureStream === 'function') {
@@ -268,6 +264,8 @@ async function startMirror(profileId = '1080p60', sourcePreference = 'app') {
     width: actual.width || profile.width,
     height: actual.height || profile.height,
     frameRate: actual.frameRate || profile.frameRate,
+    hasAudio: mirrorOutputStream.getAudioTracks().length > 0,
+    audioMode: preparedCapture.audioMode,
   };
 }
 

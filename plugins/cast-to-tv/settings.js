@@ -264,7 +264,8 @@ window.RCBPlugins.registerPluginSettings('cast-to-tv', {
           // TV permanently several seconds behind from its first frame.
           await window.api.castConnect(selectedDeviceHost);
           const capture = await window.RCBPlugins.castToTv.startMirror(qualityEl.value, sourceEl.value);
-          const quality = `${capture.sourceName} · ${capture.width}×${capture.height} @ ${Math.round(capture.frameRate)} FPS`;
+          const audioLabel = capture.audioMode === 'system' ? 'SYSTEM AUDIO' : 'APP AUDIO';
+          const quality = `${capture.sourceName} · ${capture.width}×${capture.height} @ ${Math.round(capture.frameRate)} FPS · ${audioLabel}`;
           renderStatus(await window.api.castStartMirror(selectedDeviceHost, capture.mimeType, quality));
         } catch (error) {
           await window.RCBPlugins.castToTv.stopMirror({ notifyMain: false }).catch(() => {});

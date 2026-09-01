@@ -1,7 +1,7 @@
 {
   "id": "cast-to-tv",
   "name": "Cast to TV",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Mirrors the complete RerunTV window or a selected desktop display to one Chromecast/Google TV, with lower-latency program-only casting as a fallback.",
   "category": "system",
   "main": "main.js",
@@ -12,6 +12,7 @@
     "ipc": [
       { "channel": "cast:scan", "why": "scans the LAN (mDNS) for Chromecast/Google TV devices to list in the settings panel" },
       { "channel": "cast:listMirrorSources", "why": "lists the RerunTV window and desktop displays so the selected complete rendered output can be mirrored" },
+      { "channel": "cast:prepareMirrorCapture", "why": "grants one-time capture of the selected app window or display with app audio or Windows system-loopback audio" },
       { "channel": "cast:connect", "why": "connects to the Chromecast/Google TV device you selected from the scan" },
       { "channel": "cast:disconnect", "why": "closes the connection to the cast device" },
       { "channel": "cast:castNow", "why": "loads whatever is currently airing onto the connected cast device" },

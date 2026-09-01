@@ -36,6 +36,7 @@ function activate(ctx) {
   let mirrorActive = false;
   let mirrorBootstrap = [];
   let mirrorBootstrapBytes = 0;
+  let mirrorCaptureSession = null;
   const mirrorClients = new Set();
   const MAX_MIRROR_BOOTSTRAP_BYTES = 16 * 1024 * 1024;
 
@@ -206,6 +207,50 @@ function activate(ctx) {
     }));
   });
 
+  ipcMain.handle('cast:prepareMirrorCapture', async (event, sourceId) => {
+    const mediaSession = event.sender && event.sender.session;
+    if (!mediaSession || typeof mediaSession.setDisplayMediaRequestHandler !== 'function') {
+      throw new Error('This Electron build cannot capture mirrored audio');
+    }
+    const sources = await desktopCapturer.getSources({
+      types: ['window', 'screen'],
+      thumbnailSize: { width: 0, height: 0 },
+      fetchWindowIcons: false,
+    });
+    const source = sources.find((candidate) => candidate.id === sourceId);
+    if (!source) throw new Error('The selected mirror source is no longer available');
+    const sourceType = source.id.startsWith('screen:') ? 'screen' : 'window';
+
+    // getDisplayMedia cannot choose a source itself in Electron. Install a
+    // one-shot handler for the source the user picked in the plugin UI. For
+    // app-window capture, WebFrameMain audio includes the player, Web Audio
+    // SFX, and plugin-created audio elements. For a whole Windows display,
+    // Electron's loopback source captures the actual system mix.
+    mediaSession.setDisplayMediaRequestHandler((request, callback) => {
+      const streams = { video: source };
+      if (request.audioRequested) {
+        if (sourceType === 'screen' && process.platform === 'win32') {
+          streams.audio = 'loopback';
+        } else if (sourceType === 'window' && request.frame) {
+          streams.audio = request.frame;
+          streams.enableLocalEcho = true;
+        }
+      }
+      callback(streams);
+      setImmediate(() => {
+        try { mediaSession.setDisplayMediaRequestHandler(null); } catch (e) { /* session closed */ }
+        if (mirrorCaptureSession === mediaSession) mirrorCaptureSession = null;
+      });
+    });
+    mirrorCaptureSession = mediaSession;
+    return {
+      sourceType,
+      audioMode: sourceType === 'screen'
+        ? (process.platform === 'win32' ? 'system' : 'unavailable')
+        : 'app',
+    };
+  });
+
   ipcMain.handle('cast:connect', async (event, host) => {
     await doConnect(host);
     return lastStatus;
@@ -334,6 +379,10 @@ function activate(ctx) {
   ctx.app.on('before-quit', () => {
     if (session) session.disconnect();
     resetMirrorStream();
+    if (mirrorCaptureSession) {
+      try { mirrorCaptureSession.setDisplayMediaRequestHandler(null); } catch (e) {}
+      mirrorCaptureSession = null;
+    }
     try { server.close(); } catch (e) {}
   });
 }
