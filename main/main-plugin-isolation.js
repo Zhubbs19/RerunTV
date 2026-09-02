@@ -22,6 +22,13 @@ const { recordDiagnostic } = require('./main-diagnostics');
 const { allowedSetsFor, capabilityError } = require('./main-plugin-capabilities');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'plugin-isolation-runtime.js');
+// A hung/broken isolated plugin (forked but never emitting 'runtime-ready',
+// or activate() inside it never resolving) must not block the rest of boot
+// forever — loadMainPlugins() awaits this per plugin in a loop, and that in
+// turn gates createWindow()/the headless "ready" log for every mode. Found
+// live: a stuck personal plugin silently prevented the whole app — desktop
+// and headless alike — from ever finishing boot.
+const ACTIVATION_TIMEOUT_MS = 15000;
 
 // Module-level (not per-call) registries — deliberately shared across every
 // isolated plugin activated this boot, since a cross-plugin capability
@@ -255,8 +262,14 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     const settle = (result) => {
       if (settled) return;
       settled = true;
+      clearTimeout(activationTimer);
       resolve(result);
     };
+    const activationTimer = setTimeout(() => {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" did not finish activating within ${ACTIVATION_TIMEOUT_MS}ms — killing it and continuing boot.`);
+      try { child.kill(); } catch (e) { /* already gone */ }
+      settle({ ok: false, error: `isolated process did not finish activating within ${ACTIVATION_TIMEOUT_MS}ms` });
+    }, ACTIVATION_TIMEOUT_MS);
 
     const childRpc = createRpc(
       (msg) => { try { child.postMessage(msg); } catch (e) { /* child likely already gone */ } },
