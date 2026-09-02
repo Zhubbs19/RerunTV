@@ -8,12 +8,14 @@ const { startViewerServer } = require('../main/main-viewer-server');
 
 function request(port, pathname, options = {}) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port, path: pathname, ...options }, (res) => {
+    const { body, ...requestOptions } = options;
+    const req = http.request({ host: '127.0.0.1', port, path: pathname, ...requestOptions }, (res) => {
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => resolve({ status: res.statusCode, body: Buffer.concat(chunks).toString() }));
     });
     req.on('error', reject);
+    if (body) req.write(body);
     req.end();
   });
 }
@@ -79,11 +81,56 @@ test('viewer pairing page supports the native Android TV keyboard', async () => 
   }
 });
 
+test('headless viewer bridges TV state and Companion remote commands', async () => {
+  const services = {};
+  const runtime = startViewerServer(services, {
+    host: '127.0.0.1',
+    port: 0,
+    access: { authorize: async () => true },
+  });
+  try {
+    assert.equal(await runtime.ready, true);
+    const port = runtime.server.address().port;
+    const initial = JSON.parse((await request(port, '/api/remote-events')).body);
+    assert.deepEqual(initial, { cursor: 0, events: [] });
+
+    assert.equal(services.viewerRemoteBridge.publish('remote:command', { key: 'g' }), true);
+    const queued = JSON.parse((await request(port, `/api/remote-events?after=${initial.cursor}`)).body);
+    assert.equal(queued.events.length, 1);
+    assert.deepEqual(queued.events[0], {
+      sequence: 1,
+      channel: 'remote:command',
+      data: { key: 'g' },
+    });
+
+    const state = JSON.stringify({ number: 5, name: 'Cartoons', powered: true });
+    const posted = await request(port, '/api/remote-state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(state) },
+      body: state,
+    });
+    assert.equal(posted.status, 204);
+    assert.deepEqual(services.viewerRemoteBridge.getState(), { number: 5, name: 'Cartoons', powered: true });
+  } finally {
+    await new Promise((resolve) => runtime.server.close(resolve));
+  }
+});
+
 test('LAN viewer boot guards host-only Companion event subscriptions', () => {
   const appJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'app.js'), 'utf8');
   assert.match(appJs, /window\.api\.onCompanionApplySettings\?\.\(/);
   assert.match(appJs, /window\.api\.onCompanionTriggerNews\?\.\(/);
   assert.match(appJs, /window\.api\.onCompanionSetTicker\?\.\(/);
+});
+
+test('browser viewer relays state and polls headless remote events', () => {
+  const shim = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'browser-api-shim.js'), 'utf8');
+  const companion = fs.readFileSync(path.join(__dirname, '..', 'plugins', 'companion-app', 'main.js'), 'utf8');
+  assert.match(shim, /fetch\('\/api\/remote-state'/);
+  assert.match(shim, /fetch\(`\/api\/remote-events/);
+  assert.match(shim, /onViewerEvent\('remote:command'/);
+  assert.match(companion, /bridge\.publish\(channel, data\)/);
+  assert.match(companion, /viewerRemoteBridge/);
 });
 
 test('Android TV viewport setup is allowed by the renderer CSP', () => {

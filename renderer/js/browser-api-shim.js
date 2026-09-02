@@ -27,6 +27,51 @@
     };
   }
 
+  const viewerEventListeners = new Map();
+  let viewerEventCursor = null;
+  let viewerEventPollTimer = null;
+  let viewerEventPollActive = false;
+
+  function dispatchViewerEvents(events) {
+    (events || []).forEach((event) => {
+      const listeners = viewerEventListeners.get(event.channel) || [];
+      listeners.forEach((listener) => {
+        try { listener(event.data); } catch (e) { console.error('[LAN viewer] remote event failed:', e); }
+      });
+    });
+  }
+
+  async function pollViewerEvents() {
+    if (viewerEventPollActive) return;
+    viewerEventPollActive = true;
+    try {
+      const suffix = viewerEventCursor == null ? '' : `?after=${encodeURIComponent(viewerEventCursor)}`;
+      const response = await fetch(`/api/remote-events${suffix}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      dispatchViewerEvents(payload.events);
+      if (Number.isSafeInteger(payload.cursor)) viewerEventCursor = payload.cursor;
+    } catch (e) {
+      // A transient server restart should not tear down the viewer; the next
+      // poll retries and the TV client's own connection recovery remains in
+      // charge of main-frame failures.
+    } finally {
+      viewerEventPollActive = false;
+      viewerEventPollTimer = setTimeout(pollViewerEvents, 250);
+    }
+  }
+
+  function onViewerEvent(channel, callback) {
+    if (typeof callback !== 'function') return () => {};
+    if (!viewerEventListeners.has(channel)) viewerEventListeners.set(channel, []);
+    viewerEventListeners.get(channel).push(callback);
+    if (!viewerEventPollTimer && !viewerEventPollActive) pollViewerEvents();
+    return () => {
+      const listeners = viewerEventListeners.get(channel) || [];
+      viewerEventListeners.set(channel, listeners.filter((listener) => listener !== callback));
+    };
+  }
+
   const browserApi = {
     // ---- Setup/editing actions: intentionally inert on a viewer. A
     // curious user opening Setup here can click around freely, but nothing
@@ -138,11 +183,16 @@
     // no-op everywhere else. Forwarding it is what lets that app's own
     // embedded phone-remote server (RemoteServer.kt) answer /state with the
     // real current channel instead of always reporting nothing.
-    onRemoteCommand: () => {},
+    onRemoteCommand: (callback) => onViewerEvent('remote:command', callback),
     sendRemoteState: (state) => {
       if (window.AndroidRemoteBridge && window.AndroidRemoteBridge.reportState) {
         try { window.AndroidRemoteBridge.reportState(JSON.stringify(state)); } catch (e) {}
       }
+      fetch('/api/remote-state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(state),
+      }).catch(() => {});
     },
     // Host-only visibility readout — a viewer has no LAN servers of its own
     // to report connections for.
@@ -150,8 +200,8 @@
     // Android companion remote's direct-tune/channel-flag-edit relays (see
     // main.js's startRemoteServer) — host-only, same no-op reasoning as
     // onRemoteCommand above (a viewer already has its own direct input).
-    onRemoteTune: () => {},
-    onRemoteSetChannelFlag: () => {},
+    onRemoteTune: (callback) => onViewerEvent('remote:tune', callback),
+    onRemoteSetChannelFlag: (callback) => onViewerEvent('remote:setChannelFlag', callback),
 
     // ---- Party channel (party-channel plugin): a viewer tuning to PARTY_CH renders
     // the exact same queue-driven UI as the host (pure function of

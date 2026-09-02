@@ -24,6 +24,60 @@ const { sanitizeViewerConfig, createViewerProjection } = require('./main-viewer-
 const { version: APP_VERSION } = require('../package.json');
 
 const RENDERER_DIR = path.join(__dirname, '..', 'renderer');
+const VIEWER_REMOTE_EVENT_LIMIT = 128;
+const VIEWER_REMOTE_CHANNELS = new Set([
+  'remote:command',
+  'remote:tune',
+  'remote:setChannelFlag',
+]);
+
+function readJsonBody(req, maxBytes = 8192) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let bytes = 0;
+    req.on('data', (chunk) => {
+      bytes += chunk.length;
+      if (bytes > maxBytes) { reject(new Error('Body too large')); req.destroy(); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
+      catch (e) { reject(e); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function createViewerRemoteBridge() {
+  let latestState = { number: null, name: null };
+  let sequence = 0;
+  const events = [];
+  return {
+    publish(channel, data) {
+      if (!VIEWER_REMOTE_CHANNELS.has(channel)) return false;
+      sequence += 1;
+      events.push({ sequence, channel, data });
+      if (events.length > VIEWER_REMOTE_EVENT_LIMIT) events.shift();
+      return true;
+    },
+    updateState(state) {
+      if (!state || typeof state !== 'object' || Array.isArray(state)) return false;
+      latestState = { ...state };
+      return true;
+    },
+    getState: () => ({ ...latestState }),
+    read(after) {
+      const hasCursor = after !== null && after !== undefined && after !== '';
+      const cursor = Number(after);
+      return {
+        cursor: sequence,
+        events: hasCursor && Number.isSafeInteger(cursor)
+          ? events.filter((event) => event.sequence > cursor)
+          : [],
+      };
+    },
+  };
+}
 
 function escapeHtml(value) {
   return String(value || '')
@@ -84,6 +138,8 @@ ${canStop ? '<section class="panel"><h2>SERVER POWER</h2><p class="muted">Stops 
 // ever arrives well after boot has finished populating it.
 function startViewerServer(pluginServices, pluginRuntime = {}) {
   const services = pluginServices || {};
+  const remoteBridge = services.viewerRemoteBridge || createViewerRemoteBridge();
+  services.viewerRemoteBridge = remoteBridge;
   const pluginsDir = pluginRuntime.pluginsDir || null;
   const access = pluginRuntime.access || createLanAccess('viewer', { readLimit: 1200, writeLimit: 30 });
   const projection = pluginRuntime.projection || createViewerProjection();
@@ -137,7 +193,31 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       res.writeHead(405).end('Method not allowed');
       return;
     }
-    if (!(await access.authorize(req, res, url, 'read'))) return;
+    const requestKind = req.method === 'GET' ? 'read' : 'write';
+    if (!(await access.authorize(req, res, url, requestKind))) return;
+
+    // In headless mode there is no Electron renderer to connect the PC-side
+    // Companion service to what is playing. The authenticated TV viewer
+    // reports its state here, and polls the sibling event route for remote
+    // commands queued by that Companion service through viewerRemoteBridge.
+    if (url.pathname === '/api/remote-state' && req.method === 'POST') {
+      try {
+        const state = await readJsonBody(req);
+        if (!remoteBridge.updateState(state)) { res.writeHead(400).end('Bad request'); return; }
+        res.writeHead(204, { 'Cache-Control': 'no-store' }).end();
+      } catch (e) {
+        if (!res.writableEnded) res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/remote-events' && req.method === 'GET') {
+      const result = remoteBridge.read(url.searchParams.has('after') ? url.searchParams.get('after') : null);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(result));
+      return;
+    }
+
     if (req.method !== 'GET') {
       res.writeHead(405).end('Method not allowed');
       return;
@@ -246,4 +326,4 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
   return { server, access, projection, ready };
 }
 
-module.exports = { startViewerServer, sanitizeViewerConfig, createViewerProjection };
+module.exports = { startViewerServer, sanitizeViewerConfig, createViewerProjection, createViewerRemoteBridge };

@@ -164,9 +164,24 @@ async function activate(ctx) {
   // window directly.
   function sendToMainWindow(channel, data) {
     const mainWindow = getMainWindow();
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) return false;
-    mainWindow.webContents.send(channel, data);
-    return true;
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send(channel, data);
+      return true;
+    }
+    // A headless process has no Electron renderer. Route core remote events
+    // through the paired LAN viewer instead, where browser-api-shim.js polls
+    // and dispatches them into the same app.js listeners.
+    const bridge = ctx.services.viewerRemoteBridge;
+    return !!(bridge && typeof bridge.publish === 'function' && bridge.publish(channel, data));
+  }
+
+  function currentRemoteState() {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      return latestRemoteState;
+    }
+    const bridge = ctx.services.viewerRemoteBridge;
+    return bridge && typeof bridge.getState === 'function' ? bridge.getState() : latestRemoteState;
   }
   // Not a hard dependency (this plugin works fully without it) — just
   // published by the party-channel plugin onto ctx.services if that one's
@@ -304,7 +319,8 @@ async function activate(ctx) {
     }
 
     if (req.method === 'GET' && url.pathname === '/state') {
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(latestRemoteState));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(currentRemoteState()));
       return;
     }
 
