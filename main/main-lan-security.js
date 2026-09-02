@@ -153,10 +153,14 @@ function createLanAccess(service, opts = {}) {
     return parseCookies(req.headers.cookie)[cookieName] || '';
   }
 
-  function isAuthenticated(req) {
+  function authenticatedToken(req) {
     pruneSessions();
     const token = tokenFromRequest(req);
-    return !!token && sessions.has(token);
+    return token && sessions.has(token) ? token : '';
+  }
+
+  function isAuthenticated(req) {
+    return !!authenticatedToken(req);
   }
 
   function pruneRateWindows(now) {
@@ -187,8 +191,21 @@ function createLanAccess(service, opts = {}) {
     // (the LAN viewer, companion-app: 90 days) needs the cookie the browser
     // actually keeps to agree with how long the server-side session record
     // stays valid, or the persisted-pairing feature silently doesn't persist.
-    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${Math.floor(sessionTtlMs / 1000)}; Path=/; HttpOnly; SameSite=Strict`);
+    const expires = new Date(Date.now() + sessionTtlMs).toUTCString();
+    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${Math.floor(sessionTtlMs / 1000)}; Expires=${expires}; Path=/; HttpOnly; SameSite=Strict`);
     res.setHeader('Cache-Control', 'no-store');
+  }
+
+  function renewSessionIfNeeded(res, token) {
+    const expiresAt = sessions.get(token) || 0;
+    // Sliding renewal means a TV that is still used does not unexpectedly
+    // return to the pairing screen merely because 90 days elapsed since the
+    // original code entry. Refresh only in the final half of the lifetime so
+    // normal media/config polling does not rewrite the sessions file.
+    if (expiresAt - Date.now() > sessionTtlMs / 2) return;
+    sessions.set(token, Date.now() + sessionTtlMs);
+    if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
+    setSession(res, token);
   }
 
   // A legitimate pairing attempt is either a direct top-level navigation (the
@@ -258,10 +275,12 @@ function createLanAccess(service, opts = {}) {
       await handlePairing(req, res, url);
       return false;
     }
-    if (!isAuthenticated(req)) {
+    const token = authenticatedToken(req);
+    if (!token) {
       await handlePairing(req, res, url);
       return false;
     }
+    renewSessionIfNeeded(res, token);
     return checkRateLimit(req, res, kind);
   }
 
