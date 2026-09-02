@@ -60,6 +60,12 @@ OTHER DEVICES** was previously switched off. Use `npm run headless` instead when
 the same server without automatically opening the local control page. Pairing, session
 expiry, rate limits, and opaque media references remain enabled in both modes.
 
+On an installed Windows build, **SYSTEM > NETWORK & DEVICES > START SERVER WHEN I SIGN IN**
+registers server mode with Windows Startup Apps. At sign-in, the normal updater box runs
+according to the selected update policy, then the local server control site opens in the
+default browser. Opening RerunTV from the Start menu while that server is running switches
+cleanly back to the full desktop interface.
+
 The ignored `android-tv-client/` project provides the matching large-screen client. It
 auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on 1080p and
 4K panels, supports D-pad controls, and includes a phone remote served directly by the TV.

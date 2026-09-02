@@ -41,7 +41,12 @@ installMainLogCapture();
 // "server" script / run-server.bat for how this is meant to be launched.
 const SERVER_CONTROL = process.argv.includes('--server');
 const HEADLESS = process.argv.includes('--headless') || SERVER_CONTROL;
-let interactiveBootInProgress = !HEADLESS;
+// Server-control mode is windowless after boot, but it deliberately uses the
+// updater's small BrowserWindow before opening the local control site. Keep
+// window-all-closed from treating that updater window as the whole app while
+// the remaining server/plugin boot is still in progress.
+const STARTUP_UPDATE_UI = !HEADLESS || SERVER_CONTROL;
+let interactiveBootInProgress = STARTUP_UPDATE_UI;
 
 // Split out of this file into focused main-*.js modules — config/backups,
 // window-state, LAN address discovery, the app:// protocol handler,
@@ -66,6 +71,7 @@ const { startDiscoveryServer } = require('./main-discovery-server');
 const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
 const { registerDialogIpc } = require('./main-dialogs');
 const { applyWindowUiScale, normalizeUiScalePreference } = require('./main-ui-scale');
+const { registerStartupServerIpc } = require('./main-startup-server');
 
 // A device that's already entered a LAN service's pairing code once stays
 // paired across restarts (createLanAccess's opts.sessionsFile/
@@ -200,7 +206,24 @@ function createWindow(overrides = {}) {
 // own zero-window interval.
 let intentionalWindowRecreate = false;
 
-app.on('second-instance', () => {
+app.on('second-instance', (event, commandLine) => {
+  if (HEADLESS) {
+    const requestedServer = commandLine.includes('--server');
+    const requestedHeadless = commandLine.includes('--headless');
+    if (requestedServer) {
+      shell.openExternal(`http://127.0.0.1:${VIEWER_PORT}/server`);
+      return;
+    }
+    if (!requestedHeadless) {
+      // A login-started server owns the single-instance lock. If the user
+      // later opens RerunTV normally, restart cleanly into the full desktop
+      // UI instead of making that launch appear to do nothing.
+      const args = app.isPackaged ? [] : [path.join(__dirname, '..')];
+      app.relaunch({ args });
+      app.quit();
+    }
+    return;
+  }
   const mainWindow = getMainWindow();
   if (!mainWindow || mainWindow.isDestroyed()) return;
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -267,6 +290,7 @@ registerLanIpc(ipcMain, {
   getCompanionAccessUrls: () => pluginServicesRef.companionAccessUrls || [],
 });
 registerDialogIpc(ipcMain);
+registerStartupServerIpc(ipcMain);
 registerPluginsIpc(ipcMain, {
   getPluginMainLoadErrors: () => pluginMainLoadErrors,
   getPluginsNeedingApproval: () => pluginsNeedingApproval,
@@ -317,7 +341,7 @@ app.whenReady().then(async () => {
   // plugins:list round-trip. Runs in headless/server mode too — an
   // integration plugin may have nothing to do with the on-screen UI at all.
   const bootConfig = loadConfig();
-  if (!HEADLESS) {
+  if (STARTUP_UPDATE_UI) {
     // The updater's small pre-launch window is served through app:// too,
     // so the protocol must exist before the startup gate. A genuinely fresh
     // install skips the gate once; renderer onboarding explains and saves
@@ -442,6 +466,7 @@ app.whenReady().then(async () => {
     } else {
       console.log('Press Ctrl+C to stop.');
     }
+    interactiveBootInProgress = false;
     return;
   }
 

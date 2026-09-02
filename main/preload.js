@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('api', {
   // of reading File objects straight off the DragEvent itself.
   getPathForFile: (file) => webUtils.getPathForFile(file),
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
+  getStartupServerStatus: () => ipcRenderer.invoke('startupServer:getStatus'),
+  setStartupServerEnabled: (enabled) => ipcRenderer.invoke('startupServer:setEnabled', enabled),
   // 'dev-mode' (running from source, nothing to check against), 'up-to-date',
   // 'downloading' (found one, autoUpdater is fetching it now), 'disabled'
   // (config.updates.strategy is 'off'), or 'error'. Once a 'downloading' result

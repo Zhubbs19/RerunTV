@@ -40,7 +40,7 @@ import {
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect, hideTitleBarEnabledEl,
-  viewerEnabledEl, viewerUrlStatusEl, connectedDevicesListEl, setupScreen,
+  viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
@@ -360,6 +360,7 @@ export function renderSettingsPanels() {
   renderTagTaxonomyPanel();
   renderBackupsList();
   renderViewerUrlStatus();
+  renderStartupServerStatus();
   renderConnectedDevices();
   sliderReadouts.forEach((r) => r.refresh());
 }
@@ -416,8 +417,10 @@ setupWorkspaceBtns.forEach((button) => button.addEventListener('click', () => {
 const networkSettingsGrid = document.getElementById('network-settings-grid');
 if (networkSettingsGrid) {
   const viewerPanel = viewerEnabledEl?.closest('.panel');
+  const startupServerPanel = startupServerEnabledEl?.closest('.panel');
   const devicesPanel = connectedDevicesListEl?.closest('.panel');
   if (viewerPanel) networkSettingsGrid.appendChild(viewerPanel);
+  if (startupServerPanel) networkSettingsGrid.appendChild(startupServerPanel);
   if (devicesPanel) networkSettingsGrid.appendChild(devicesPanel);
 }
 
@@ -1529,6 +1532,57 @@ viewerEnabledEl.addEventListener('change', () => {
   S.config.network.viewerEnabled = viewerEnabledEl.checked;
   saveConfigDebounced();
   viewerUrlStatusEl.textContent = `${viewerEnabledEl.checked ? 'Viewer access will start' : 'Viewer access will stop'} after RerunTV restarts.`;
+});
+
+export async function renderStartupServerStatus(statusOverride = null) {
+  if (!startupServerEnabledEl || !startupServerStatusEl) return;
+  const panel = startupServerEnabledEl.closest('.panel');
+  if (typeof window.api.getStartupServerStatus !== 'function') {
+    // The LAN viewer uses the same renderer files but intentionally receives
+    // no host-only OS controls through browser-api-shim.js.
+    panel?.classList.add('hidden');
+    return;
+  }
+  panel?.classList.remove('hidden');
+  let status = statusOverride;
+  if (!status) {
+    try {
+      status = await window.api.getStartupServerStatus();
+    } catch (error) {
+      status = { supported: false, enabled: false, error: error.message };
+    }
+  }
+  startupServerEnabledEl.checked = !!status.enabled;
+  startupServerEnabledEl.disabled = !status.supported;
+  startupServerEnabledEl.closest('label')?.classList.toggle('control-disabled', !status.supported);
+
+  if (status.reason === 'windows-only') {
+    startupServerStatusEl.textContent = 'Automatic server startup is currently available on Windows PCs.';
+  } else if (status.reason === 'installed-build-only') {
+    startupServerStatusEl.textContent = 'Available in the installed RerunTV build. Development mode will not change Windows startup.';
+  } else if (status.error) {
+    startupServerStatusEl.textContent = `Windows could not change the startup setting: ${status.error}`;
+  } else if (status.enabled && status.launchAllowed === false) {
+    startupServerStatusEl.textContent = 'Registered, but disabled in Windows Startup Apps. Re-enable RerunTV Server there to run it at sign-in.';
+  } else if (status.enabled) {
+    startupServerStatusEl.textContent = 'At sign-in, RerunTV checks for updates in its updater box, then opens the local server control site.';
+  } else {
+    startupServerStatusEl.textContent = 'Start the paired viewer server and open its local control site automatically when you sign in to Windows.';
+  }
+}
+
+startupServerEnabledEl?.addEventListener('change', async () => {
+  if (typeof window.api.setStartupServerEnabled !== 'function') return;
+  startupServerEnabledEl.disabled = true;
+  startupServerStatusEl.textContent = startupServerEnabledEl.checked
+    ? 'Adding RerunTV Server to Windows startup…'
+    : 'Removing RerunTV Server from Windows startup…';
+  try {
+    const status = await window.api.setStartupServerEnabled(startupServerEnabledEl.checked);
+    await renderStartupServerStatus(status);
+  } catch (error) {
+    await renderStartupServerStatus({ supported: true, enabled: false, error: error.message });
+  }
 });
 
 // Host visibility into who's actually on the LAN right now — see

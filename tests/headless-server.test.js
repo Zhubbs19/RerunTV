@@ -104,3 +104,18 @@ test('packaged installs include launchers that target the installed executable',
   assert.match(serverLauncher, /RerunTV\.exe" --server/);
   assert.match(headlessLauncher, /RerunTV\.exe" --headless/);
 });
+
+test('Windows startup launches server control mode and keeps the updater gate', () => {
+  const root = path.join(__dirname, '..');
+  const startup = fs.readFileSync(path.join(root, 'main', 'main-startup-server.js'), 'utf8');
+  const main = fs.readFileSync(path.join(root, 'main', 'main.js'), 'utf8');
+  const preload = fs.readFileSync(path.join(root, 'main', 'preload.js'), 'utf8');
+
+  assert.match(startup, /STARTUP_ARGS\s*=\s*Object\.freeze\(\['--server', '--login-startup'\]\)/);
+  assert.match(startup, /app\.setLoginItemSettings/);
+  assert.match(startup, /app\.getLoginItemSettings/);
+  assert.match(main, /const STARTUP_UPDATE_UI = !HEADLESS \|\| SERVER_CONTROL/);
+  assert.match(main, /if \(STARTUP_UPDATE_UI\)[\s\S]*initAutoUpdater/);
+  assert.match(preload, /startupServer:getStatus/);
+  assert.match(preload, /startupServer:setEnabled/);
+});

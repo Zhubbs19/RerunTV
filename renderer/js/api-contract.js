@@ -25,6 +25,7 @@
   ];
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
+    'getStartupServerStatus', 'setStartupServerEnabled',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
     'setTitleBarHidden', 'setUiScale', 'reportThemeColors', 'reportInstalledThemes',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
