@@ -69,7 +69,11 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
     // hand /media a client-suppliable id rather than a raw path/ref.
     registerRef: (ref) => opaqueRef(ref),
     resolve: (opaque) => {
-      const match = /^viewer:([A-Za-z0-9_-]+)$/.exec(String(opaque || ''));
+      // Config values use `viewer:<id>`, while the browser shim deliberately
+      // strips that marker when building /media?id=<id>. Accept both forms;
+      // either way the value is only useful if it exists in this process's
+      // private map, so this does not widen access to raw filesystem paths.
+      const match = /^(?:viewer:)?([A-Za-z0-9_-]+)$/.exec(String(opaque || ''));
       const entry = match ? refs.get(match[1]) : null;
       return entry ? entry.ref : null;
     },

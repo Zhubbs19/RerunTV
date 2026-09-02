@@ -500,7 +500,7 @@ function applyCompanionSettingsLive(changedSections) {
 // other value must retain its existing shape. The handler never creates a
 // new section/key and never touches channels/plugins (those need dedicated,
 // validated flows), so malformed or unexpected data is silently dropped.
-window.api.onCompanionApplySettings((patch) => {
+window.api.onCompanionApplySettings?.((patch) => {
   if (!patch || typeof patch !== 'object') return;
   const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
   const changedSections = new Set();
@@ -536,13 +536,13 @@ window.api.onCompanionApplySettings((patch) => {
 // routing through onCompanionApplySettings above, because both of these need
 // to actually DO something live (fire an interrupt, refresh a visible bar),
 // not just mutate config for the next natural re-render.
-window.api.onCompanionTriggerNews((data) => {
+window.api.onCompanionTriggerNews?.((data) => {
   const interrupt = getInterrupt('breaking-news');
   if (!interrupt) return; // plugin not installed — button just does nothing, same as a missing hotkey
   interrupt.run({ manual: true, headline: data && typeof data.headline === 'string' && data.headline.trim() ? data.headline.trim() : undefined });
 });
 
-window.api.onCompanionSetTicker((data) => {
+window.api.onCompanionSetTicker?.((data) => {
   if (!data || typeof data !== 'object') return;
   // Same lazy-seed guard as the ticker plugin's own settings.js — this can
   // arrive before that plugin's SETTINGS panel has ever been opened once.

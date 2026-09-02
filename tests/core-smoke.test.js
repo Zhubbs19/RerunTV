@@ -25,6 +25,7 @@ test('viewer projection removes credentials and replaces local paths with opaque
   assert.equal(serialized.includes('C:\\\\Users'), false);
   assert.match(projected.channels[0].files[0].path, /^viewer:/);
   assert.equal(projection.resolve(projected.channels[0].files[0].path), rawPath);
+  assert.equal(projection.resolve(projected.channels[0].files[0].path.slice('viewer:'.length)), rawPath);
 });
 
 test('backup comparison reports lineup, schedule, and setting changes', () => {

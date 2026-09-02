@@ -79,6 +79,22 @@ test('viewer pairing page supports the native Android TV keyboard', async () => 
   }
 });
 
+test('LAN viewer boot guards host-only Companion event subscriptions', () => {
+  const appJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'app.js'), 'utf8');
+  assert.match(appJs, /window\.api\.onCompanionApplySettings\?\.\(/);
+  assert.match(appJs, /window\.api\.onCompanionTriggerNews\?\.\(/);
+  assert.match(appJs, /window\.api\.onCompanionSetTicker\?\.\(/);
+});
+
+test('Android TV viewport setup is allowed by the renderer CSP', () => {
+  const root = path.join(__dirname, '..');
+  const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
+  const viewportScript = fs.readFileSync(path.join(root, 'renderer', 'js', 'tv-client-viewport.js'), 'utf8');
+  assert.match(html, /<script src="js\/tv-client-viewport\.js"><\/script>/);
+  assert.match(viewportScript, /RerunTV-AndroidTV/);
+  assert.match(viewportScript, /width=1920/);
+});
+
 test('companion remote exposes explicit setup exit and interface scale choices', () => {
   const root = path.join(__dirname, '..');
   const remoteHtml = fs.readFileSync(path.join(root, 'plugins', 'companion-app', 'remote', 'index.html'), 'utf8');
