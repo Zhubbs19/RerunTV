@@ -119,3 +119,28 @@ test('Windows startup launches server control mode and keeps the updater gate', 
   assert.match(preload, /startupServer:getStatus/);
   assert.match(preload, /startupServer:setEnabled/);
 });
+
+test('Windows startup remains checked when Electron drops login-item arguments on readback', () => {
+  const electronPath = require.resolve('electron');
+  const originalElectron = require.cache[electronPath];
+  require.cache[electronPath] = { exports: { app: {} } };
+  const modulePath = require.resolve('../main/main-startup-server');
+  delete require.cache[modulePath];
+  const { statusFromLoginSettings } = require(modulePath);
+  delete require.cache[modulePath];
+  if (originalElectron) require.cache[electronPath] = originalElectron;
+  else delete require.cache[electronPath];
+
+  const status = statusFromLoginSettings({
+    openAtLogin: false,
+    executableWillLaunchAtLogin: true,
+    launchItems: [{
+      name: 'RerunTV Server',
+      path: 'C:\\Users\\Example\\RerunTV.exe',
+      args: [],
+      enabled: true,
+    }],
+  }, 'c:\\users\\example\\reruntv.exe');
+
+  assert.deepEqual(status, { enabled: true, launchAllowed: true });
+});
