@@ -442,6 +442,20 @@ function activeLogoBugContext() {
     : resolveEffectiveDisplayMode();
 }
 
+// Keep a pixel-sized profile wholly inside the current TV canvas. Interface
+// zoom and simulated-resolution zoom can make the canvas smaller in CSS px
+// while leaving a profile's stored dimensions unchanged; a raw `left: 94%`
+// can then put part of the bug past the right/bottom edge. CSS min()/clamp()
+// keep the stored placement responsive without rewriting the user's profile.
+function applyLogoBugProfileStyles(element, profile) {
+  const { width, height } = logoBugProfileDimensions(profile);
+  element.style.setProperty('--logo-bug-size', `min(${profile.size}px, 100%)`);
+  element.style.setProperty('--logo-bug-width', `min(${width}px, 100%)`);
+  element.style.setProperty('--logo-bug-height', `min(${height}px, 100%)`);
+  element.style.left = `clamp(0px, ${profile.x}%, max(0px, calc(100% - var(--logo-bug-width))))`;
+  element.style.top = `clamp(0px, ${profile.y}%, max(0px, calc(100% - var(--logo-bug-height))))`;
+}
+
 // Position + size are resolution-aware now (S.config.display.logoBugProfiles
 // / ch.logoBugProfiles — see pickLogoBugProfile, channels.js), keyed off the
 // actively-playing video's own width. `player.videoWidth` reads 0 before
@@ -452,14 +466,7 @@ function activeLogoBugContext() {
 // apply within the same tune, not just on the next one.
 export function applyLogoBugPlacement(ch) {
   const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
-  const { width, height } = logoBugProfileDimensions(profile);
-  logoBugEl.style.left = `${profile.x}%`;
-  logoBugEl.style.top = `${profile.y}%`;
-  // --logo-bug-size kept for backward compat with any legacy CSS still
-  // referencing it; --logo-bug-width/height are the canonical dimensions.
-  logoBugEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
-  logoBugEl.style.setProperty('--logo-bug-width', `${width}px`);
-  logoBugEl.style.setProperty('--logo-bug-height', `${height}px`);
+  applyLogoBugProfileStyles(logoBugEl, profile);
   // Absent opacity falls back to the CSS default (55%) via the var()
   // fallback in overlays.css, so profiles without it round-trip unchanged.
   if (Number.isFinite(profile.opacity)) logoBugEl.style.setProperty('--logo-bug-opacity', profile.opacity / 100);
@@ -587,12 +594,7 @@ function applyLogoBugGhost(ch) {
     logoBugGhostEl.style.background = '';
     if (ch) {
       const profile = pickLogoBugProfile(activeLogoBugProfiles(ch), activeLogoBugContext()) || FALLBACK_LOGO_BUG_PROFILE;
-      const { width, height } = logoBugProfileDimensions(profile);
-      logoBugGhostEl.style.left = `${profile.x}%`;
-      logoBugGhostEl.style.top = `${profile.y}%`;
-      logoBugGhostEl.style.setProperty('--logo-bug-size', `${profile.size}px`);
-      logoBugGhostEl.style.setProperty('--logo-bug-width', `${width}px`);
-      logoBugGhostEl.style.setProperty('--logo-bug-height', `${height}px`);
+      applyLogoBugProfileStyles(logoBugGhostEl, profile);
       const effectiveIcon = resolveEffectiveIcon(ch, viewNow());
       if (effectiveIcon) {
         const img = document.createElement('img');

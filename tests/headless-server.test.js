@@ -207,3 +207,33 @@ test('Windows startup remains checked when Electron drops login-item arguments o
 
   assert.deepEqual(status, { enabled: true, launchAllowed: true });
 });
+
+test('isolated plugin handshake listeners are installed before readiness events can race', () => {
+  const root = path.join(__dirname, '..');
+  const host = fs.readFileSync(path.join(root, 'main', 'main-plugin-isolation.js'), 'utf8');
+  const child = fs.readFileSync(path.join(root, 'main', 'plugin-isolation-runtime.js'), 'utf8');
+
+  const hostListener = host.indexOf("childRpc.on('runtime-ready'");
+  const hostResultListener = host.indexOf("childRpc.on('activate-result'");
+  const hostHandlers = host.lastIndexOf('registerChildInitiatedHandlers(childRpc');
+  assert.ok(hostListener !== -1 && hostListener < hostHandlers);
+  assert.ok(hostResultListener !== -1 && hostResultListener < hostHandlers);
+
+  const childListener = child.indexOf("rpc.on('init'");
+  const childReady = child.indexOf("rpc.emit('runtime-ready'");
+  assert.ok(childListener !== -1 && childListener < childReady);
+});
+
+test('isolated plugin service snapshots omit host-only function bridges', () => {
+  const { cloneableServiceSnapshot } = require('../main/rpc-channel');
+  const snapshot = cloneableServiceSnapshot({
+    ffmpegPath: 'C:\\ffmpeg.exe',
+    viewerUrls: [{ url: 'http://127.0.0.1:8724' }],
+    viewerRemoteBridge: { sendCommand() {} },
+  });
+
+  assert.deepEqual(snapshot, {
+    ffmpegPath: 'C:\\ffmpeg.exe',
+    viewerUrls: [{ url: 'http://127.0.0.1:8724' }],
+  });
+});

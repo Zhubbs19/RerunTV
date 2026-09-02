@@ -1146,6 +1146,19 @@ function initViewerLiveLink() {
 // does NOT count for this — browsers deliberately don't treat those as user
 // activation). { once: true } since only the very first one matters.
 function initViewerAudioUnlock() {
+  // The native Android TV shell explicitly sets
+  // mediaPlaybackRequiresUserGesture=false before loading this page. Its
+  // D-pad events are injected into the WebView as synthetic KeyboardEvents,
+  // so waiting for a browser-trusted DOM gesture here would leave that
+  // client force-muted forever even though the native player policy already
+  // permits audible autoplay. Ordinary LAN browsers keep the gesture gate.
+  if (document.documentElement.dataset.tvClient === 'android') {
+    S.viewerAudioUnlocked = true;
+    applyMuteState();
+    if (player.paused && S.isPoweredOn) player.play().catch(() => {});
+    return;
+  }
+
   const unlock = () => {
     if (S.viewerAudioUnlocked) return;
     S.viewerAudioUnlocked = true;

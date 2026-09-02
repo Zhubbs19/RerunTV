@@ -24,6 +24,20 @@
 // slowest thing actually routed over this channel.
 const DEFAULT_TIMEOUT_MS = 20000;
 
+// ctx.services can also hold host-only bridges containing functions (for
+// example viewerRemoteBridge). Those values are useful to same-process
+// plugins but cannot cross utilityProcess.postMessage's structured-clone
+// boundary. Snapshot only independently cloneable values for an isolated
+// plugin; callable cross-process services use registerService/callService
+// and the RPC provider registry instead.
+function cloneableServiceSnapshot(services) {
+  const snapshot = {};
+  Object.entries(services || {}).forEach(([key, value]) => {
+    try { snapshot[key] = structuredClone(value); } catch (e) { /* host-only value */ }
+  });
+  return snapshot;
+}
+
 function createRpc(post, subscribe, options = {}) {
   const timeoutMs = options.timeoutMs || DEFAULT_TIMEOUT_MS;
   let nextId = 1;
@@ -115,4 +129,4 @@ function createRpc(post, subscribe, options = {}) {
   };
 }
 
-module.exports = { createRpc };
+module.exports = { createRpc, cloneableServiceSnapshot };

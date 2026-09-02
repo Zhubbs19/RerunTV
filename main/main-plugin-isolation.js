@@ -16,7 +16,7 @@
 const path = require('path');
 const { app, ipcMain, shell, desktopCapturer } = require('electron');
 const { utilityProcess } = require('electron');
-const { createRpc } = require('./rpc-channel');
+const { createRpc, cloneableServiceSnapshot } = require('./rpc-channel');
 const { recordConnection } = require('./main-connections');
 const { recordDiagnostic } = require('./main-diagnostics');
 const { allowedSetsFor, capabilityError } = require('./main-plugin-capabilities');
@@ -272,9 +272,52 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     }, ACTIVATION_TIMEOUT_MS);
 
     const childRpc = createRpc(
-      (msg) => { try { child.postMessage(msg); } catch (e) { /* child likely already gone */ } },
+      (msg) => {
+        try { child.postMessage(msg); } catch (e) {
+          const error = `could not send activation data to isolated process: ${e.message}`;
+          recordDiagnostic(`plugin:${manifest.id}`, 'error', error);
+          if (!settled) {
+            try { child.kill(); } catch (killError) { /* already gone */ }
+            settle({ ok: false, error });
+          }
+        }
+      },
       (cb) => child.on('message', (msg) => cb(msg)),
     );
+
+    // Install the completion listener before any runtime-ready path can send
+    // init. A plugin whose activate() is synchronous can answer immediately;
+    // registering this after sendInitWhenReady() would lose that result and
+    // turn a successful activation into a timeout.
+    childRpc.on('activate-result', (result) => {
+      if (result.ok) runningChildren.add({ child, pluginId: manifest.id });
+      settle(result);
+    });
+
+    // The child can emit runtime-ready as soon as its script starts. Keep
+    // that event even if it arrives while the host is still registering the
+    // handlers the activated plugin will use. Previously the listener was
+    // attached after registerChildInitiatedHandlers(), so a fast child could
+    // win the race, have its event dropped by createRpc(), and then sit idle
+    // until the activation timeout.
+    let runtimeReady = false;
+    let hostHandlersReady = false;
+    const sendInitWhenReady = () => {
+      if (!runtimeReady || !hostHandlersReady) return;
+      childRpc.emit('init', {
+        manifest,
+        pluginDir,
+        dataDir,
+        remotePort: baseCtx.remotePort,
+        ffmpegStaticPath: baseCtx.ffmpegStaticPath,
+        viewerUrls: typeof baseCtx.getViewerUrls === 'function' ? baseCtx.getViewerUrls() : [],
+        servicesSnapshot: cloneableServiceSnapshot(pluginServices),
+      });
+    };
+    childRpc.on('runtime-ready', () => {
+      runtimeReady = true;
+      sendInitWhenReady();
+    });
 
     child.on('exit', (code) => {
       runningChildren.forEach((entry) => { if (entry.child === child) runningChildren.delete(entry); });
@@ -297,23 +340,8 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     });
 
     registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manifest);
-
-    // ---- handshake ----
-    childRpc.on('runtime-ready', () => {
-      childRpc.emit('init', {
-        manifest,
-        pluginDir,
-        dataDir,
-        remotePort: baseCtx.remotePort,
-        ffmpegStaticPath: baseCtx.ffmpegStaticPath,
-        viewerUrls: typeof baseCtx.getViewerUrls === 'function' ? baseCtx.getViewerUrls() : [],
-        servicesSnapshot: { ...pluginServices },
-      });
-    });
-    childRpc.on('activate-result', (result) => {
-      if (result.ok) runningChildren.add({ child, pluginId: manifest.id });
-      settle(result);
-    });
+    hostHandlersReady = true;
+    sendInitWhenReady();
   });
 }
 

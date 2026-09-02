@@ -44,11 +44,11 @@ export const S = {
   staticRAF: null,
   endedHandler: null,
   errorHandler: null,
-  // True once a LAN viewer (window.__isViewer) has seen its first real,
-  // browser-trusted user gesture (touchstart/pointerdown/keydown — never a
-  // JS-dispatched synthetic one, browsers don't count those) — see
-  // applyMuteState (power.js) and initViewerAudioUnlock (app.js). Always
-  // stays false on the host, where it's never read.
+  // True once a LAN viewer (window.__isViewer) may play audible media: after
+  // an ordinary browser's first trusted gesture, or immediately in the
+  // native Android TV shell whose WebView explicitly allows gesture-free
+  // media playback. See applyMuteState (power.js) and initViewerAudioUnlock
+  // (app.js). Always stays false on the host, where it's never read.
   viewerAudioUnlocked: false,
   // The player's current pending 'loadedmetadata' listener, if any — tracked
   // just like endedHandler/errorHandler so a new one always replaces the old

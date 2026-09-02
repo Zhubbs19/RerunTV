@@ -173,15 +173,17 @@ function buildCtx(manifest, pluginDir, init) {
 }
 
 async function main() {
-  // Handshake: don't send 'runtime-ready' until the message listener above is
-  // definitely attached (it is, by the time createRpc() returns, since
-  // createRpc calls subscribe() synchronously) — otherwise the host's 'init'
-  // reply could arrive before this process is listening for it.
-  rpc.emit('runtime-ready', {});
-
-  const init = await new Promise((resolve) => {
+  // Register the method listener before announcing readiness. The transport
+  // listener already exists after createRpc(), but that alone is not enough:
+  // createRpc intentionally drops an event whose method listener does not
+  // exist yet. A fast host could answer runtime-ready with init while this
+  // process was descheduled between emit() and new Promise(), losing init
+  // forever and leaving activation stuck until the host timeout.
+  const initPromise = new Promise((resolve) => {
     rpc.on('init', (payload) => resolve(payload));
   });
+  rpc.emit('runtime-ready', {});
+  const init = await initPromise;
 
   let result;
   try {
