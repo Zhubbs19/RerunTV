@@ -200,6 +200,22 @@ function seedBundledPlugins() {
         fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
       }
       seeded.set(folder.name, sourceHash);
+    } else {
+      // destDir already exists but was never enrolled in this ledger — e.g.
+      // it was placed there before this tracking existed, or by some path
+      // other than this function's own !existsSync branch above. Without
+      // this branch such a folder is permanently invisible to the refresh
+      // check above (which requires seeded.has() first) and silently never
+      // receives any bundled-source update again, no matter how the repo's
+      // copy changes. Found live: gdrive-media-source's installed copy sat
+      // frozen since its first install, missing a manifest capability
+      // (system/shell.openExternal) the repo copy later added for its own
+      // SIGN IN button, which made every sign-in attempt fail with a
+      // capability-denied error and no obvious cause. Enroll it now and
+      // sync it to match the bundled source immediately, same as any other
+      // first-party plugin under a bundled id is expected to track.
+      fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+      seeded.set(folder.name, sourceHash);
     }
   }
 
