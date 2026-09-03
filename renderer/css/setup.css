@@ -130,6 +130,7 @@
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
   padding: 10px 18px;
   cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .setup-tab-btn:hover { color: var(--gold); }
 .setup-tab-btn.active {
@@ -1195,16 +1196,27 @@ input[type="checkbox"].shuffle-toggle:active {
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
   flex-shrink: 0;
+  transition: opacity 150ms ease;
 }
 .title-row-plugin-poster.hidden { display: none; }
+@starting-style {
+  .title-row-plugin-poster:not(.hidden) { opacity: 0; }
+}
 
 .title-row-plugin-search-results {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 4px;
+  transition: opacity 150ms ease;
 }
 .title-row-plugin-search-results.hidden { display: none; }
+@starting-style {
+  .title-row-plugin-search-results:not(.hidden) { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .title-row-plugin-poster, .title-row-plugin-search-results { transition: none; }
+}
 .title-row-plugin-search-result {
   display: flex;
   align-items: center;
@@ -1713,6 +1725,20 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   font-size: 12px;
   color: var(--paper-dim);
   padding: 8px 2px;
+  /* Fades in on appearance (toggled via the shared .hidden class,
+     setup-plugins.js) instead of popping in with no transition, matching
+     the reveal treatment other transient UI states get. Only the show
+     direction is animated — @starting-style only applies when the element
+     newly matches its selector, and .hidden's own display:none is
+     !important, so hiding still snaps instantly; that asymmetry is fine
+     for a state that's rare and non-interactive either way. */
+  transition: opacity 150ms ease;
+}
+@starting-style {
+  .plugins-empty:not(.hidden) { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .plugins-empty { transition: none; }
 }
 .plugin-row {
   display: flex;
@@ -1722,6 +1748,7 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   background: var(--gradient-panel);
+  transition: opacity 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
 }
 .plugin-row.has-error { border-color: var(--danger); }
 .plugin-row.pending-change { border-color: var(--cyan); box-shadow: 0 0 0 1px var(--cyan) inset; }
@@ -1737,8 +1764,26 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
    description/integrity/permission/capability/dependency block that used
    to always render inline, now shown only on demand or when the row
    actually needs attention. */
-.plugin-row-details.collapsed { display: none; }
-.plugin-row-details { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+/* Collapsed via max-height/opacity, not display:none, so opening/closing
+   the DETAILS block (setup-plugins.js) reads as a deliberate reveal rather
+   than a hard cut — matches .panel-reveal's treatment of other panels.
+   max-height is a generous fixed cap (not measured content height) since
+   there's no JS involved in the toggle; it only affects transition timing
+   for unusually long detail blocks, not final layout. */
+.plugin-row-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  max-height: 600px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 180ms ease, opacity 150ms ease, margin-top 180ms ease;
+}
+.plugin-row-details.collapsed { max-height: 0; opacity: 0; margin-top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .plugin-row-details { transition: none; }
+}
 .plugin-row-name {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -2380,8 +2425,20 @@ html[data-theme] .btn[aria-disabled="true"] {
   color: var(--paper-dim);
 }
 [data-subtab-panel="virtual"] .panel.collapsed .panel-toggle::after { content: "\25B8"; }
-[data-subtab-panel="virtual"] .panel.collapsed > *:not(.panel-toggle) { display: none; }
+/* Same max-height/opacity accordion technique as .plugin-row-details above,
+   applied per direct child rather than one wrapper since this panel's body
+   is several separate field rows, not a single collapsible block. */
+[data-subtab-panel="virtual"] .panel > *:not(.panel-toggle) {
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 180ms ease, opacity 150ms ease;
+}
+[data-subtab-panel="virtual"] .panel.collapsed > *:not(.panel-toggle) { max-height: 0; opacity: 0; }
 [data-subtab-panel="virtual"] .panel.collapsed { gap: 0; }
+@media (prefers-reduced-motion: reduce) {
+  [data-subtab-panel="virtual"] .panel > *:not(.panel-toggle) { transition: none; }
+}
 [data-subtab-panel="virtual"] .panel.filtered-out { display: none; }
 
 /* Party Channel settings UI moved to plugins/party-channel/style.css. */
