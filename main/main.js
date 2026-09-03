@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
 
 // Two running instances would each hold an independent in-memory config and
 // independently debounce-save (saveConfigDebounced, state.js) to the same
@@ -113,6 +113,16 @@ registerAppSchemePrivileges();
 function createWindow(overrides = {}) {
   const saved = loadWindowState();
   const bounds = saved && boundsOnScreen(saved) ? saved : {};
+  // No saved state (first launch, or userData was reset) used to fall back
+  // to a flat 1280x800 below regardless of the real display — on a 4K
+  // monitor that opens as a small window nowhere near filling the screen,
+  // and every cqw/cqh-scaled panel inside #display-frame (guide.css,
+  // setup.css) sizes itself off that too-small effective canvas, reading as
+  // a generally cramped/"smushed" layout rather than just a small window.
+  // Default to the current display's work area instead so a fresh box
+  // fills its screen like a real one would, same as the maximized-state
+  // case just below.
+  const defaultArea = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
   const bootConfig = loadConfig();
   const hideTitleBar = overrides.hideTitleBar !== undefined
     ? overrides.hideTitleBar
@@ -120,10 +130,10 @@ function createWindow(overrides = {}) {
   let uiScalePreference = normalizeUiScalePreference((bootConfig.display || {}).uiScale);
 
   const mainWindow = new BrowserWindow({
-    width: bounds.width || 1280,
-    height: bounds.height || 800,
-    x: bounds.x,
-    y: bounds.y,
+    width: bounds.width || defaultArea.width,
+    height: bounds.height || defaultArea.height,
+    x: bounds.x !== undefined ? bounds.x : defaultArea.x,
+    y: bounds.y !== undefined ? bounds.y : defaultArea.y,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#060606',
