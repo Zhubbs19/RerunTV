@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#090B0D"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="8dp"
+        android:background="#101417">
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="RERUNTV COMPANION"
+            android:textColor="#65D7DD"
+            android:textStyle="bold"
+            android:textSize="10sp"
+            android:letterSpacing="0.1" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="5dp">
+
+            <EditText
+                android:id="@+id/hostInput"
+                android:layout_width="0dp"
+                android:layout_height="44dp"
+                android:layout_weight="1"
+                android:singleLine="true"
+                android:hint="RerunTV host or IP"
+                android:inputType="textUri"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:textColor="#F0EEE6"
+                android:textColorHint="#7E8991"
+                android:background="@drawable/input_bg" />
+
+            <Button
+                android:id="@+id/discoverButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/btn_bg"
+                android:text="FIND"
+                android:textColor="#F0EEE6"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/openButton"
+                android:layout_width="wrap_content"
+                android:layout_height="44dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/btn_bg_gold"
+                android:text="OPEN"
+                android:textColor="#171006"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <WebView
+        android:id="@+id/companionWebView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#090B0D" />
+
+</LinearLayout>

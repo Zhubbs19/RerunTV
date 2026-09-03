@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Some 4K Android TV firmware exposes the panel as a genuinely huge dp
+     canvas instead of increasing density. Give that uncommon configuration
+     an additional couch-distance step without affecting ordinary 960dp TV
+     layouts. -->
+<resources>
+    <dimen name="tv_safe_padding">80dp</dimen>
+    <dimen name="tv_content_width">1040dp</dimen>
+    <dimen name="tv_title_text">52sp</dimen>
+    <dimen name="tv_body_text">24sp</dimen>
+    <dimen name="tv_caption_text">19sp</dimen>
+    <dimen name="tv_button_text">21sp</dimen>
+    <dimen name="tv_button_min_width">216dp</dimen>
+    <dimen name="tv_button_height">72dp</dimen>
+    <dimen name="tv_button_padding_horizontal">22dp</dimen>
+    <dimen name="tv_input_height">76dp</dimen>
+    <dimen name="tv_row_gap">18dp</dimen>
+</resources>

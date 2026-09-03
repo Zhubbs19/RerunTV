@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/launcher_background">
+
+    <WebView
+        android:id="@+id/webview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/launcher_background" />
+
+    <!-- Scrollability is defensive: normal 16:9 sets show this centered,
+         while unusual accessibility font scales and low-height projectors
+         still keep every action reachable instead of clipping a row. -->
+    <ScrollView
+        android:id="@+id/setup_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/launcher_background"
+        android:clipToPadding="false"
+        android:fillViewport="true"
+        android:padding="@dimen/tv_safe_padding"
+        android:scrollbarStyle="outsideOverlay"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-condensed"
+                android:letterSpacing="0.18"
+                android:text="@string/setup_eyebrow"
+                android:textAllCaps="true"
+                android:textColor="#75D9F3"
+                android:textSize="@dimen/tv_caption_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:fontFamily="sans-serif-condensed"
+                android:letterSpacing="0.08"
+                android:text="@string/setup_title"
+                android:textColor="@color/launcher_foreground"
+                android:textSize="@dimen/tv_title_text"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="@dimen/tv_content_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:lineSpacingExtra="4dp"
+                android:text="@string/setup_hint"
+                android:textColor="#F5F7FF"
+                android:textSize="@dimen/tv_body_text" />
+
+            <EditText
+                android:id="@+id/host_input"
+                style="@style/Widget.RerunTV.TvInput"
+                android:layout_width="@dimen/tv_content_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="24dp"
+                android:hint="@string/setup_input_hint"
+                android:imeOptions="actionGo"
+                android:inputType="textUri" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tv_row_gap"
+                android:orientation="horizontal">
+                <Button android:id="@+id/scan_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/scan" />
+                <Button android:id="@+id/connect_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/connect" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/scan_status_text"
+                android:layout_width="@dimen/tv_content_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:textColor="@color/launcher_foreground"
+                android:textSize="@dimen/tv_caption_text"
+                android:visibility="gone" />
+
+            <Button
+                android:id="@+id/action_watch_tv_btn"
+                style="@style/Widget.RerunTV.TvButton"
+                android:layout_width="@dimen/tv_content_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="30dp"
+                android:text="@string/action_watch_tv" />
+
+            <TextView
+                android:id="@+id/quick_actions_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="30dp"
+                android:fontFamily="sans-serif-condensed"
+                android:letterSpacing="0.15"
+                android:text="@string/quick_actions_title"
+                android:textColor="#75D9F3"
+                android:textSize="@dimen/tv_caption_text"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/quick_actions_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tv_row_gap"
+                android:orientation="horizontal"
+                android:visibility="gone">
+                <Button android:id="@+id/action_guide_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_guide" />
+                <Button android:id="@+id/action_settings_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_settings" />
+                <Button android:id="@+id/action_info_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_info" />
+                <Button android:id="@+id/action_mute_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/action_mute" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/quick_actions_row2"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tv_row_gap"
+                android:orientation="horizontal"
+                android:visibility="gone">
+                <Button android:id="@+id/action_vol_down_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_vol_down" />
+                <Button android:id="@+id/action_vol_up_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_vol_up" />
+                <Button android:id="@+id/action_crt_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_crt" />
+                <Button android:id="@+id/action_picture_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/action_picture" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/quick_actions_row3"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/tv_row_gap"
+                android:orientation="horizontal"
+                android:visibility="gone">
+                <Button android:id="@+id/action_aspect_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_aspect" />
+                <Button android:id="@+id/action_sleep_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_sleep" />
+                <Button android:id="@+id/action_power_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginEnd="12dp" android:text="@string/action_power" />
+                <Button android:id="@+id/action_sap_btn" style="@style/Widget.RerunTV.TvButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/action_sap" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/remote_url_text"
+                android:layout_width="@dimen/tv_content_width"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:gravity="center"
+                android:textColor="@color/launcher_foreground"
+                android:textSize="@dimen/tv_caption_text"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/menu_hint_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="center"
+                android:text="@string/menu_hint"
+                android:textColor="#B7BFCE"
+                android:textSize="@dimen/tv_caption_text" />
+        </LinearLayout>
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/connection_lost_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/launcher_background"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="@dimen/tv_safe_padding"
+        android:visibility="gone">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-condensed"
+            android:text="@string/connection_lost_title"
+            android:textColor="@color/launcher_foreground"
+            android:textSize="@dimen/tv_title_text"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/connection_lost_message"
+            android:layout_width="@dimen/tv_content_width"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:text="@string/connection_lost_message"
+            android:textColor="#FFFFFF"
+            android:textSize="@dimen/tv_body_text" />
+        <Button
+            android:id="@+id/connection_lost_change_btn"
+            style="@style/Widget.RerunTV.TvButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="@string/change_address" />
+    </LinearLayout>
+</FrameLayout>

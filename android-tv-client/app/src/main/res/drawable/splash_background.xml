@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Set as the theme's windowBackground (styles.xml) so this paints the
+     instant the Activity's window appears, before the WebView has created
+     anything to show — covers the gap between tapping the launcher icon
+     and the page actually rendering, instead of a flash of blank/white. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launcher_background" />
+    <item
+        android:width="180dp"
+        android:height="180dp"
+        android:gravity="center"
+        android:drawable="@drawable/reruntv_logo" />
+</layer-list>

@@ -30,6 +30,15 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   'remote:tune',
   'remote:setChannelFlag',
   'companion:configChanged',
+  // Companion app's party/alerts relays (plugins/companion-app/main.js).
+  // In headless/server mode there's no mainWindow to receive these over
+  // IPC at all — a paired LAN viewer is the only possible display, so
+  // these must also be publishable to the viewer bridge, not just
+  // whitelisted for the (host-only, in normal mode) mainWindow path.
+  'party:reaction',
+  'party:triggerTrivia',
+  'companion:triggerNews',
+  'companion:setTicker',
 ]);
 
 function readJsonBody(req, maxBytes = 8192) {

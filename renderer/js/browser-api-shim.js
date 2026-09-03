@@ -82,10 +82,14 @@
     document.body.style.height = (100 / factor) + '%';
     const app = document.getElementById('app');
     if (app) {
-      const safe = document.documentElement.dataset.tvClient === 'android' ? 24 : 0;
-      app.style.width = ((window.innerWidth - safe * 2) / factor) + 'px';
-      app.style.height = ((window.innerHeight - safe * 2) / factor) + 'px';
-      app.style.margin = (safe / factor) + 'px';
+      // Full-bleed — #app holds #display-frame (the actual TV picture), so
+      // insetting it here would shrink the picture itself and leave a
+      // permanent black border, not just protect UI chrome. See tokens.css's
+      // android-tv-client comment for why an overscan-safe inset was tried
+      // here before and removed.
+      app.style.width = (window.innerWidth / factor) + 'px';
+      app.style.height = (window.innerHeight / factor) + 'px';
+      app.style.margin = '0px';
     }
   }
   window.addEventListener('resize', applyViewerUiScale);
@@ -229,6 +233,12 @@
     onRemoteTune: (callback) => onViewerEvent('remote:tune', callback),
     onRemoteSetChannelFlag: (callback) => onViewerEvent('remote:setChannelFlag', callback),
     onCompanionConfigChanged: (callback) => onViewerEvent('companion:configChanged', callback),
+    // Companion app's ALERTS section (REMOTE tab) — these were missing
+    // entirely here, so app.js's own `window.api.onCompanionTriggerNews?.()`
+    // / `onCompanionSetTicker?.()` calls silently no-op'd on any LAN viewer,
+    // including headless/server mode where a viewer is the only display.
+    onCompanionTriggerNews: (callback) => onViewerEvent('companion:triggerNews', callback),
+    onCompanionSetTicker: (callback) => onViewerEvent('companion:setTicker', callback),
 
     // ---- Party channel (party-channel plugin): a viewer tuning to PARTY_CH renders
     // the exact same queue-driven UI as the host (pure function of
@@ -244,13 +254,19 @@
     onPartyEffect: () => {},
     onPartyCheckin: () => {},
     onPartyVote: () => {},
-    onPartyReaction: () => {},
+    // Unlike the other onParty* relays above, reaction/trigger-trivia are
+    // also reachable in headless/server mode (main-viewer-server.js's
+    // VIEWER_REMOTE_CHANNELS whitelists them) — there's no mainWindow at
+    // all in that mode, so a paired LAN viewer is the only display that
+    // could ever show these; party-channel/renderer.js already calls
+    // window.api.onPartyReaction/onPartyTriggerTrivia when present.
+    onPartyReaction: (callback) => onViewerEvent('party:reaction', callback),
     sendPartyVoteState: () => {},
     captureVideoFrame: () => Promise.resolve(null),
     onPartyCaption: () => {},
     sendPartyTriviaState: () => {},
     onPartyTriviaAnswer: () => {},
-    onPartyTriggerTrivia: () => {},
+    onPartyTriggerTrivia: (callback) => onViewerEvent('party:triggerTrivia', callback),
     spotifyStart: () => Promise.resolve(false),
     spotifyStop: () => Promise.resolve(false),
     spotifyGetStreamUrl: () => Promise.resolve(''),

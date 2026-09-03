@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="tv_safe_padding">56dp</dimen>
+    <dimen name="tv_content_width">840dp</dimen>
+    <dimen name="tv_title_text">42sp</dimen>
+    <dimen name="tv_body_text">20sp</dimen>
+    <dimen name="tv_caption_text">16sp</dimen>
+    <dimen name="tv_button_text">18sp</dimen>
+    <dimen name="tv_button_min_width">176dp</dimen>
+    <dimen name="tv_button_height">60dp</dimen>
+    <dimen name="tv_button_padding_horizontal">18dp</dimen>
+    <dimen name="tv_input_height">64dp</dimen>
+    <dimen name="tv_row_gap">14dp</dimen>
+</resources>

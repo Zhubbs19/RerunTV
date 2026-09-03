@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Simple placeholder palette (dark + gold) echoing the app's own CRT/
+         retro look — swap for real launcher artwork whenever you like, this
+         just needs to exist for the build to have something to reference. -->
+    <color name="launcher_background">#0d0f14</color>
+    <color name="launcher_foreground">#f0b429</color>
+</resources>

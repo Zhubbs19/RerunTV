@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Focus-state background for every button/input in this app — the app's
+     own gold accent as a border+glow when D-pad-focused, a flat dark plate
+     otherwise. TV apps rely entirely on a visible focus state since there's
+     no pointer hover to fall back on. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="#33F0B429" />
+            <stroke android:width="4dp" android:color="@color/launcher_foreground" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#1A1F2E" />
+            <stroke android:width="2dp" android:color="#59637A" />
+            <corners android:radius="3dp" />
+        </shape>
+    </item>
+</selector>

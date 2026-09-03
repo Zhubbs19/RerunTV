@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Pulled directly from the desktop app's own default-theme design
+         tokens (renderer/css/tokens.css's :root block), not a guessed
+         approximation — so the phone app reads as the same product, not a
+         reskin of it. Names mirror the CSS custom property they came from
+         (gradient-page/gradient-panel/gradient-btn/gradient-gold, each
+         collapsed from a CSS linear-gradient into its start/mid/end stops). -->
+    <color name="bg_top">#131c58</color>
+    <color name="bg_mid">#1a2570</color>
+    <color name="bg_bottom">#0d1348</color>
+
+    <color name="panel_top">#3346a0</color>
+    <color name="panel_mid">#222e7c</color>
+    <color name="panel_bottom">#182060</color>
+
+    <color name="btn_top">#40529f</color>
+    <color name="btn_mid">#2b3884</color>
+    <color name="btn_bottom">#1f2a6c</color>
+
+    <color name="gold_top">#fbe969</color>
+    <color name="gold_mid">#f5d327</color>
+    <color name="gold_mid2">#e3bc12</color>
+    <color name="gold_bottom">#cba408</color>
+
+    <color name="bg">#131c58</color>
+    <color name="panel">#222e7c</color>
+    <color name="panel_alt">#0a1040</color>   <!-- ink-deep: inputs/nested groups -->
+    <color name="border">#5163b8</color>      <!-- line -->
+    <color name="gold">#f5d327</color>
+    <color name="gold_dim">#a68a1f</color>
+    <color name="gold_ink">#141002</color>    <!-- text on a gold-filled control -->
+    <color name="cyan">#6fe0f2</color>
+    <color name="text">#ffffff</color>        <!-- paper -->
+    <color name="text_dim">#c9d2f2</color>    <!-- paper-dim -->
+    <color name="danger">#e0654d</color>
+    <color name="ok">#4caf6e</color>
+
+    <color name="launcher_background">#131c58</color>
+    <color name="launcher_foreground">#f5d327</color>
+</resources>

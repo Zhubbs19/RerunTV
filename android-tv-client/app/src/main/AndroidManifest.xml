@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Not "required" — this is meant to also run fine on a regular phone/
+         tablet browser context if ever sideloaded there, touchscreen is not
+         mandatory the way it would be for a typical touch-first app. -->
+    <uses-feature
+        android:name="android.software.leanback"
+        android:required="false" />
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/reruntv_logo"
+        android:roundIcon="@drawable/reruntv_logo"
+        android:banner="@drawable/reruntv_tv_banner"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.RetroCableBoxTvClient"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: the LAN viewer server is always plain
+             http:// (see main.js's startViewerServer) — same trust model as
+             the phone remote, LAN-only, no TLS. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@style/Theme.RetroCableBoxTvClient">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+                <!-- Makes the app show up on the Google TV home screen's
+                     app row, not just in a phone-style app drawer. -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

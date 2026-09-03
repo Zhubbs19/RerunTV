@@ -301,17 +301,16 @@ code,
   justify-content: center;
 }
 
-/* Native Android TV viewer: reserve a small title/action-safe perimeter for
-   televisions that still apply panel overscan. The fixed 1920px viewport is
-   established in index.html before first paint, so this 24px inset remains
-   physically consistent on both 1080p and 4K output instead of doubling on
-   one OEM WebView and shrinking on another. */
+/* Native Android TV viewer: just a black backdrop so there's no flash of
+   white while the page's own CSS is still loading (matches the WebView's
+   own background paint and the splash screen, MainActivity.kt). #app itself
+   stays full-bleed — modern Android TV/Google TV hardware does pixel-exact
+   scan, not analog-style overscan cropping, so shrinking #app here would
+   shrink #display-frame (the actual TV picture) with it and leave a
+   permanent black letterbox border on every panel. This used to reserve a
+   24px "safe" perimeter for overscan; that read as a real, unwanted border
+   on real 4K hardware, so it was removed rather than made conditional. */
 html[data-tv-client="android"] body { background: #000; }
-html[data-tv-client="android"] #app {
-  width: calc(100vw - 48px);
-  height: calc(100vh - 48px);
-  margin: 24px;
-}
 
 /* App-wide display mode (display-mode.js) — always-on letterbox/pillarbox
    frame at a fixed aspect ratio, centered inside #app. --display-frame-* vars

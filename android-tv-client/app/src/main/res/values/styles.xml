@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.RetroCableBoxTvClient" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="colorPrimary">@color/launcher_background</item>
+        <item name="colorPrimaryDark">@color/launcher_background</item>
+        <item name="colorAccent">@color/launcher_foreground</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+
+    <style name="Widget.RerunTV.TvButton" parent="Widget.AppCompat.Button">
+        <item name="android:minWidth">@dimen/tv_button_min_width</item>
+        <item name="android:minHeight">@dimen/tv_button_height</item>
+        <item name="android:paddingStart">@dimen/tv_button_padding_horizontal</item>
+        <item name="android:paddingEnd">@dimen/tv_button_padding_horizontal</item>
+        <item name="android:paddingTop">8dp</item>
+        <item name="android:paddingBottom">8dp</item>
+        <item name="android:background">@drawable/tv_button_background</item>
+        <item name="android:stateListAnimator">@animator/tv_button_focus_anim</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">@dimen/tv_button_text</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">sans-serif-condensed</item>
+    </style>
+
+    <style name="Widget.RerunTV.TvInput" parent="Widget.AppCompat.EditText">
+        <item name="android:minHeight">@dimen/tv_input_height</item>
+        <item name="android:background">@drawable/tv_button_background</item>
+        <item name="android:paddingStart">18dp</item>
+        <item name="android:paddingEnd">18dp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textColorHint">#AEB7C9</item>
+        <item name="android:textSize">@dimen/tv_body_text</item>
+        <item name="android:singleLine">true</item>
+    </style>
+</resources>

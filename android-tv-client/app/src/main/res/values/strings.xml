@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RerunTV</string>
+    <string name="setup_eyebrow">ANDROID TV VIEWER // 4K READY</string>
+    <string name="setup_title">RERUNTV</string>
+    <string name="setup_hint">Enter the LAN viewer address shown in RerunTV\'s
+        settings screen, under "WATCH ON OTHER DEVICES" — e.g.
+        http://192.168.1.70:8724</string>
+    <string name="setup_input_hint">http://192.168.1.70:8724</string>
+    <string name="connect">CONNECT</string>
+    <string name="menu_hint">Press the remote\'s PLAY/PAUSE button any time to reopen this menu.</string>
+    <string name="action_guide">GUIDE</string>
+    <string name="action_settings">SETTINGS</string>
+    <string name="action_info">INFO</string>
+    <string name="action_mute">MUTE</string>
+    <string name="connection_lost_title">SIGNAL LOST</string>
+    <string name="connection_lost_message">Can\'t reach the host — retrying automatically…</string>
+    <string name="change_address">CHANGE ADDRESS</string>
+    <string name="scan">SCAN</string>
+    <string name="scan_searching">Searching your network for Retro Cable Box…</string>
+    <string name="scan_found">Found it — %1$s. Press CONNECT.</string>
+    <string name="scan_not_found">Nothing found — make sure Retro Cable Box is running, then type the address manually.</string>
+    <string name="action_vol_down">VOL −</string>
+    <string name="action_vol_up">VOL +</string>
+    <string name="action_crt">CRT FX</string>
+    <string name="action_picture">PICTURE</string>
+    <string name="action_aspect">ASPECT</string>
+    <string name="action_sleep">SLEEP</string>
+    <string name="action_power">POWER</string>
+    <string name="action_sap">SAP/AUDIO</string>
+    <string name="remote_url_text">Use this TV as a remote from your phone: %1$s</string>
+    <string name="quick_actions_title">TV REMOTE</string>
+    <string name="action_watch_tv">WATCH TV / EXIT SETUP</string>
+</resources>

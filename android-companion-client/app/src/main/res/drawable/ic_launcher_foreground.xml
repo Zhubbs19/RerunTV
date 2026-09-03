@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A simple retro CRT-TV glyph: rabbit-ear antennas, a rounded body, an
+     inset "screen" with a small channel-indicator dot, and a stand — all
+     flat-filled/stroked paths (no gradients, to keep this reliably
+     buildable without a compiler to check it against). Reused unscaled by
+     the adaptive icon (mipmap-anydpi-v26/ic_launcher.xml), flattened for
+     the pre-API-26 fallback (mipmap/ic_launcher.xml), and reused again via
+     a translating <group> for the wide TV banner (tv_banner.xml) — see
+     each of those files for how. Sized within the adaptive-icon safe zone
+     (roughly the centered 66dp circle of the 108dp canvas). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Antennas -->
+    <path
+        android:strokeColor="@color/launcher_foreground"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M40,40 L26,16" />
+    <path
+        android:strokeColor="@color/launcher_foreground"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M68,40 L82,16" />
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M23,13 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M79,13 a3,3 0 1,0 6,0 a3,3 0 1,0 -6,0" />
+    <!-- TV body -->
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M20,38 h68 a6,6 0 0 1 6,6 v34 a6,6 0 0 1 -6,6 h-68 a6,6 0 0 1 -6,-6 v-34 a6,6 0 0 1 6,-6 z" />
+    <!-- Screen -->
+    <path
+        android:fillColor="@color/launcher_background"
+        android:pathData="M30,47 h48 v28 h-48 z" />
+    <!-- Channel indicator dot -->
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M68,66 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+    <!-- Stand -->
+    <path
+        android:fillColor="@color/launcher_foreground"
+        android:pathData="M46,84 h16 v6 h-16 z" />
+</vector>

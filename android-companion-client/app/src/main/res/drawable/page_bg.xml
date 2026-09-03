@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Matches the desktop's gradient-page token (tokens.css): linear-gradient
+     from #131c58 to #1a2570 to #0d1348, top to bottom. android:angle="270"
+     is Android's top-to-bottom (it measures counter-clockwise from the
+     positive x-axis, so 270 points straight down). -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="@color/bg_top"
+        android:centerColor="@color/bg_mid"
+        android:endColor="@color/bg_bottom" />
+</shape>
