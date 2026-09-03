@@ -467,6 +467,37 @@ function saveConfig(config) {
   return true;
 }
 
+// Headless Companion edits have no desktop renderer/autosave owner. Merge
+// only existing, same-shaped settings into the current disk config; never
+// accept a projected viewer config or replace the channel/plugin registry.
+function applyHeadlessSettingsPatch(patch) {
+  const config = loadConfig();
+  if (config._configLoadError) throw new Error('Cannot edit an unreadable config');
+  const blocked = new Set(['__proto__', 'prototype', 'constructor']);
+  const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  function merge(target, incoming, root = false) {
+    let changed = false;
+    for (const [key, value] of Object.entries(incoming)) {
+      if (blocked.has(key) || key.startsWith('_') || !Object.prototype.hasOwnProperty.call(target, key)) continue;
+      if (root && ['channels', 'plugins', 'pluginSettingsMeta'].includes(key)) continue;
+      const current = target[key];
+      if (object(current) && object(value)) {
+        changed = merge(current, value) || changed;
+      } else if (Array.isArray(current) ? Array.isArray(value)
+        : !object(current) && !object(value) && !Array.isArray(value) && typeof current === typeof value) {
+        if (JSON.stringify(current) !== JSON.stringify(value)) {
+          target[key] = value;
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+  if (!object(patch)) throw new Error('A settings patch object is required');
+  if (merge(config, patch, true)) saveConfig(config);
+  return true;
+}
+
 function registerBackupsIpc(ipcMain) {
   ipcMain.handle('backups:list', async () => listBackups());
   ipcMain.handle('backups:preview', async (event, file) => previewBackup(file));
@@ -521,5 +552,5 @@ function registerConfigIpc(ipcMain) {
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
-  registerBackupsIpc, registerConfigIpc,
+  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch,
 };

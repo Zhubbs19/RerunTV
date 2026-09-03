@@ -10,3 +10,14 @@
 @media(max-width:640px){.app-header{padding-top:max(12px,env(safe-area-inset-top))}.tab-bar{top:70px}.remote-layout{grid-template-columns:1fr}.action-grid{grid-template-columns:repeat(2,1fr)}.panel-heading{align-items:flex-start}.panel-heading .search{width:45vw}.channel-row{grid-template-columns:1fr}.channel-actions{justify-content:flex-end}.jump-grid{grid-template-columns:repeat(2,1fr)}.hero-controls{grid-template-columns:repeat(4,1fr);gap:5px}.hero-controls button{padding:8px 3px}.settings-toolbar{align-items:flex-start;flex-direction:column}.toolbar-actions{width:100%}.toolbar-actions button{flex:1}}
 @media(min-width:850px){.tab-panel[data-panel=remote].active{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.tab-panel[data-panel=remote] .hero-controls{grid-column:1/-1}.tab-panel[data-panel=remote] .remote-face{grid-row:2/4}.tab-panel[data-panel=guide].active{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}.tab-panel[data-panel=guide] .guide-card{grid-row:1/3}.settings-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+.tab-bar{top:var(--companion-header-height,72px)}
+.field-range{grid-template-columns:minmax(0,1fr) 76px}.field-range output{text-align:right;font-size:12px;white-space:nowrap}
+.field,.settings-group,.settings-group-body{min-width:0}.field input,.field select,.field textarea{min-width:0;max-width:100%}
+.setting-list{display:grid;gap:7px}.setting-list-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}.setting-list-row button{font-size:10px}
+.dpad{max-width:100%;aspect-ratio:1;height:auto}.toolbar-actions{flex-wrap:wrap}
+html:not([data-companion-scale="100"]) .settings-groups{grid-template-columns:minmax(0,1fr)}
+html:not([data-companion-scale="100"]) .remote-layout{grid-template-columns:minmax(0,1fr)}
+html:not([data-companion-scale="100"]) .tab-panel[data-panel=remote].active,html:not([data-companion-scale="100"]) .tab-panel[data-panel=guide].active{display:block}
+html:not([data-companion-scale="100"]) .app-header{flex-wrap:wrap}
+html:not([data-companion-scale="100"]) .panel-heading{flex-wrap:wrap}
+html:not([data-companion-scale="100"]) .action-grid,html:not([data-companion-scale="100"]) .transport-grid{grid-template-columns:repeat(2,minmax(0,1fr))}

@@ -58,7 +58,7 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 // that tie all of the above to the renderer.
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./main-protocol');
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./main-media');
-const { loadConfig, registerBackupsIpc, registerConfigIpc } = require('./main-config');
+const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./main-lan');
 const { trackConnection, registerConnectionsIpc } = require('./main-connections');
@@ -416,12 +416,31 @@ app.whenReady().then(async () => {
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
   pluginDisabledAtBoot = [...disabledPluginIds];
   const approvedCapabilities = (bootConfig.plugins && bootConfig.plugins.approvedCapabilities) || {};
+  if (HEADLESS) {
+    pluginServices.applyCompanionSettings = (patch) => {
+      applyHeadlessSettingsPatch(patch);
+      // Send only an invalidation, never an unredacted config/credential patch.
+      pluginServices.viewerRemoteBridge?.publish('companion:configChanged', null);
+      return true;
+    };
+  }
   const loadResult = await loadMainPlugins(disabledPluginIds, {
     fetchJsonCached, getMainWindow, getLanAddresses, readJsonBody,
     serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
     getViewerUrls: () => viewerAccessUrls,
-    getInstalledThemes: getLatestThemeList,
+    getInstalledThemes: () => {
+      const reported = getLatestThemeList();
+      if (reported.length) return reported;
+      // Bundled theme pack ids follow theme-<registered id>. Server mode
+      // has no desktop renderer to report its theme registry over IPC.
+      const disabled = new Set(loadConfig().plugins?.disabled || []);
+      return [{ id: 'digital-2000s', label: 'DIGITAL CABLE (MID 2000s BLUE)' }]
+        .concat(discoverPlugins().filter((plugin) => !plugin.error
+          && plugin.bundled && plugin.category === 'theme' && plugin.id.startsWith('theme-')
+          && plugin.integrityStatus === 'bundled' && !disabled.has(plugin.id))
+          .map((plugin) => ({ id: plugin.id.slice(6), label: plugin.name.toUpperCase() })));
+    },
     ffmpegStaticPath: FFMPEG_STATIC_PATH, services: pluginServices,
   }, approvedCapabilities);
   pluginMainLoadErrors = loadResult.loadErrors;

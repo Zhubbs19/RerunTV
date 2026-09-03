@@ -72,6 +72,24 @@
     };
   }
 
+  let viewerUiScale = 'auto';
+  function applyViewerUiScale() {
+    const fit = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
+    const automatic = fit >= 2 ? 2 : fit >= 1.7 ? 1.75 : fit >= 1.45 ? 1.5 : fit >= 1.2 ? 1.25 : 1;
+    const factor = ['100', '125', '150', '175', '200'].includes(viewerUiScale) ? Number(viewerUiScale) / 100 : automatic;
+    document.body.style.zoom = String(factor);
+    document.body.style.width = (100 / factor) + '%';
+    document.body.style.height = (100 / factor) + '%';
+    const app = document.getElementById('app');
+    if (app) {
+      const safe = document.documentElement.dataset.tvClient === 'android' ? 24 : 0;
+      app.style.width = ((window.innerWidth - safe * 2) / factor) + 'px';
+      app.style.height = ((window.innerHeight - safe * 2) / factor) + 'px';
+      app.style.margin = (safe / factor) + 'px';
+    }
+  }
+  window.addEventListener('resize', applyViewerUiScale);
+
   const browserApi = {
     // ---- Setup/editing actions: intentionally inert on a viewer. A
     // curious user opening Setup here can click around freely, but nothing
@@ -172,6 +190,14 @@
     // tab, which the letterbox/pillarbox CSS already handles regardless. A
     // no-op here just means a viewer never attempts the OS-window lock.
     setAspectLock: () => Promise.resolve(false),
+    // CSS zoom scales all chrome in Chromium/WebView, with a compensating
+    // layout canvas so the TV picture continues to fill its viewport.
+    setUiScale: (preference) => {
+      viewerUiScale = String(preference || 'auto');
+      applyViewerUiScale();
+      window.dispatchEvent(new Event('resize'));
+      return Promise.resolve(viewerUiScale);
+    },
 
     // ---- Universal remote relay: a viewer has its own direct keyboard/
     // D-pad input, so it doesn't need the phone-remote's command relay in
@@ -202,6 +228,7 @@
     // onRemoteCommand above (a viewer already has its own direct input).
     onRemoteTune: (callback) => onViewerEvent('remote:tune', callback),
     onRemoteSetChannelFlag: (callback) => onViewerEvent('remote:setChannelFlag', callback),
+    onCompanionConfigChanged: (callback) => onViewerEvent('companion:configChanged', callback),
 
     // ---- Party channel (party-channel plugin): a viewer tuning to PARTY_CH renders
     // the exact same queue-driven UI as the host (pure function of

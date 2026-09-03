@@ -29,6 +29,7 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   'remote:command',
   'remote:tune',
   'remote:setChannelFlag',
+  'companion:configChanged',
 ]);
 
 function readJsonBody(req, maxBytes = 8192) {

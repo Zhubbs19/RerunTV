@@ -224,9 +224,8 @@ async function activate(ctx) {
     // Installed theme-pack ids/labels, for the companion app's theme picker
     // to render a real dropdown instead of free text — see
     // preload.js's reportInstalledThemes / renderer/js/plugins.js's
-    // reportInstalledThemes for how this gets kept current. Can be empty
-    // (nothing pushed yet — e.g. the renderer hasn't finished its first
-    // plugin load), in which case the app falls back to a text field.
+    // reportInstalledThemes for how this gets kept current. The host also
+    // supplies a bundled-theme fallback when running without a renderer.
     if (req.method === 'GET' && url.pathname === '/api/themes') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
         .end(JSON.stringify(getInstalledThemes ? getInstalledThemes() : []));
@@ -243,6 +242,11 @@ async function activate(ctx) {
         const body = await readJsonBody(req);
         if (!body || !body.patch || typeof body.patch !== 'object' || Array.isArray(body.patch)) {
           res.writeHead(400).end('A settings patch object is required');
+          return;
+        }
+        if (typeof ctx.services.applyCompanionSettings === 'function') {
+          ctx.services.applyCompanionSettings(body.patch);
+          res.writeHead(204).end();
           return;
         }
         if (!sendToMainWindow('companion:applySettings', body.patch)) {

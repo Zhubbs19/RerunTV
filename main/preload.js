@@ -128,6 +128,7 @@ contextBridge.exposeInMainWorld('api', {
   // matching S.config keys (app.js's deepMergeExistingKeys);
   // getCompanionUrl is the setup panel's half, mirroring getViewerUrl.
   onCompanionApplySettings: (cb) => ipcRenderer.on('companion:applySettings', (event, patch) => cb(patch)),
+  onCompanionConfigChanged: (cb) => ipcRenderer.on('companion:configChanged', () => cb()),
   getCompanionUrl: () => ipcRenderer.invoke('companion:getUrl'),
   // Companion app's ALERTS section (REMOTE tab) — see plugins/companion-app/
   // main.js's POST /news/trigger and POST /ticker/set.

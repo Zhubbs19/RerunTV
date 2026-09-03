@@ -465,6 +465,9 @@ function sameConfigShape(current, incoming) {
 function applyCompanionSettingsLive(changedSections) {
   if (!changedSections.size) return;
 
+  // Resize the layout canvas before recomputing picture/overlay geometry.
+  if (changedSections.has('display')) window.api.setUiScale?.(S.config.display?.uiScale || 'auto');
+
   // A desktop settings control normally performs both halves of an edit:
   // mutate S.config and immediately refresh the live surface that consumes
   // it. Companion edits bypass those individual DOM listeners, so replay
@@ -482,7 +485,6 @@ function applyCompanionSettingsLive(changedSections) {
 
   if (changedSections.has('display')) {
     applyCustomCss();
-    window.api.setUiScale?.(S.config.display?.uiScale || 'auto');
   }
   if (changedSections.has('timeMachine') && S.config.timeMachine?.enabled === false && S.timeMachineOn) {
     exitTimeMachine({ toLive: true });
@@ -1027,6 +1029,7 @@ async function init() {
   // don't need a second notice layered on top.
   const beforeMigration = JSON.stringify(loaded);
   S.config = applyConfigDefaults(loaded);
+  if (window.__isViewer) window.api.setUiScale(S.config.display.uiScale);
   resetUndoBaseline();
   if (!loaded._configLoadError && beforeMigration !== JSON.stringify(S.config)) {
     showMigrationToast();
@@ -1095,15 +1098,21 @@ async function init() {
 // since a dialog firing on every failed 10s poll would be unusable.
 const VIEWER_CONFIG_POLL_MS = 10000;
 function startViewerConfigPolling() {
-  setInterval(async () => {
+  let refreshing = false;
+  async function refresh() {
+    if (refreshing) return;
+    refreshing = true;
     try {
       const fresh = await window.api.loadConfig();
       if (fresh._configLoadError) {
         console.warn('[LAN viewer] config poll got a corrupted read from the host — keeping the last good config.');
         return;
       }
-      S.config = applyConfigDefaults(fresh);
+      const next = applyConfigDefaults(fresh);
+      const changed = new Set(Object.keys(next).filter((key) => JSON.stringify(next[key]) !== JSON.stringify(S.config[key])));
+      S.config = next;
       bumpConfigGeneration();
+      applyCompanionSettingsLive(changed);
       // Whichever plugin's toggle controls this can change live on the host
       // while a viewer sits open — just a visibility flip against config
       // already in hand, not another network round trip (the URL itself was
@@ -1112,8 +1121,12 @@ function startViewerConfigPolling() {
       viewerLiveLinkEl.classList.toggle('hidden', !viewerLiveLinkEl.dataset.url || !findLiveViewerLinkChannelType());
     } catch (e) {
       console.warn('[LAN viewer] config poll failed:', e);
+    } finally {
+      refreshing = false;
     }
-  }, VIEWER_CONFIG_POLL_MS);
+  }
+  window.api.onCompanionConfigChanged?.(refresh);
+  setInterval(refresh, VIEWER_CONFIG_POLL_MS);
 }
 
 // Cross-link to whatever plugin's own guest/companion page (if any) wants to
