@@ -109,6 +109,11 @@ export function checkBreakState(ch, opts) {
     const key = breakKeyFor(ch, resolved);
     if (S.completedBreakKeys && S.completedBreakKeys.has(key) && S.activeBreakKey !== key) {
       if (S.activeBreakKey) endBreak(ch);
+      // Same "content actually stopped and nothing else is going to restart
+      // it" case as the isTextOnlyChannelId one below — this resolved break
+      // is being treated as a no-op (already completed), so it must not
+      // swallow a genuine content-ended tick either.
+      else if (opts.contentJustEnded) playChannelLive(ch);
       scheduleNextBreak(ch);
       return;
     }
@@ -130,6 +135,20 @@ export function checkBreakState(ch, opts) {
         S.contentLostMs += viewNow() - S.breakEnteredAtMs;
       }
       startBreak(ch, resolved, key);
+      // startBreak leaves `player` completely untouched for a non-interrupting
+      // break (currently only the text-only "YOU'RE WATCHING <channel>"
+      // station-ID bar) — it assumes content is already playing underneath
+      // and just overlays a bar on top of it. That assumption breaks when
+      // this break happens to resolve at the exact instant content's own
+      // 'ended' event fired (opts.contentJustEnded): the video is sitting
+      // stopped on its last frame, not actually still playing, and since a
+      // non-interrupting break never sets S.activeBreakInterruptsContent,
+      // endBreak's shouldResume is false when this bar's window ends —
+      // nothing was ever going to call playChannelLive again, leaving the
+      // channel frozen indefinitely. Advance content now, underneath the
+      // bar, exactly as a plain content-ended tick with no break at all
+      // would have.
+      if (opts.contentJustEnded && !S.activeBreakInterruptsContent) playChannelLive(ch);
     }
   } else if (S.activeBreakKey) {
     if (S.awaitingBumperEnd) {
