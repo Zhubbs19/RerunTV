@@ -328,32 +328,33 @@ export function applyOverlayLayouts() {
   const layouts = (S.config.display && S.config.display.overlayLayouts) || {};
   const context = resolveOverlayLayoutContext();
   const ch = getChannel(S.currentNumber);
-  // KEEP OVERLAYS AT FULL RESOLUTION (DISPLAY > APP DISPLAY MODE) — a
-  // simulated resolution tier shrinks #display-frame's own DOM to a tiny
+  // KEEP OVERLAYS AT FULL RESOLUTION (DISPLAY > APP DISPLAY MODE) — only
+  // still relevant to ticker-bar now. Every OTHER OVERLAY_LAYOUT_TARGETS
+  // element is an #app-level sibling of #display-frame today (index.html,
+  // see the comment above #overlay-extend-layer), specifically so it's no
+  // longer subject to #display-frame's own simulated-resolution transform/
+  // zoom at all — it renders at native sharpness unconditionally now,
+  // regardless of this setting, with nothing left to counter-scale.
+  // ticker-bar couldn't make that same move (a plugin injects its DOM at
+  // runtime, not core markup here), so it's still nested inside
+  // #display-frame and still needs this counter-scale to match native size.
+  // A simulated resolution tier shrinks #display-frame's own DOM to a tiny
   // fixed pixel box (--display-frame-width/height), applies a compensating
   // CSS `zoom` (--display-content-zoom) so that tiny box's own layout still
   // fits without overlapping/clipping, then blows the whole thing back up
   // to fill the real letterboxed target via `transform: scale()`
   // (--display-frame-scale) — see applyDisplayMode below. Both stages
-  // multiply together, and neither one alone is the actual factor an
-  // overlay ends up bigger or smaller by relative to how it looks at
-  // RESOLUTION: NATIVE (zoom=1, scale=1, i.e. exactly its authored CSS
-  // size) — dividing out only --display-frame-scale (an earlier version of
-  // this code) left overlays far SMALLER than native instead of matching
-  // it, since it ignored --display-content-zoom's own contribution.
-  // Dividing out their PRODUCT instead cancels both stages, landing back at
-  // the same size an overlay would render at NATIVE regardless of which
-  // tier the video itself is simulating. Both values are read back off the
-  // CSS vars applyDisplayMode already set just before this runs, rather
-  // than threaded through as parameters, so there's one source of truth.
+  // multiply together; dividing out their product cancels both, landing
+  // ticker-bar back at the same size it'd render at RESOLUTION: NATIVE
+  // regardless of which tier the video itself is simulating.
   const overlaysNativeSize = !!(S.config.displayMode && S.config.displayMode.overlaysNativeSize);
-  let invScale = 1;
+  let tickerInvScale = 1;
   if (overlaysNativeSize) {
     const root = document.documentElement.style;
     const frameScale = parseFloat(root.getPropertyValue('--display-frame-scale')) || 1;
     const contentZoom = parseFloat(root.getPropertyValue('--display-content-zoom')) || 1;
     const combined = frameScale * contentZoom;
-    invScale = combined ? 1 / combined : 1;
+    tickerInvScale = combined ? 1 / combined : 1;
   }
 
   OVERLAY_LAYOUT_TARGETS.forEach(({ id }) => {
@@ -361,6 +362,7 @@ export function applyOverlayLayouts() {
     const perChannel = ch && PER_CHANNEL_OVERLAY_TARGET_IDS.has(id) ? ch.tickerLayout : null;
     const profile = pickOverlayLayout(perChannel != null ? perChannel : layouts[id], context);
     if (!element) return;
+    const invScale = id === 'ticker-bar' ? tickerInvScale : 1;
     if (!profile && invScale === 1) {
       // No custom position and no counter-scale needed — but a PREVIOUS
       // call may have left an inline transform behind (KEEP OVERLAYS AT
@@ -397,6 +399,35 @@ export function applyOverlayLayouts() {
       element.style.transform = `${base}scale(${baseScale * invScale})`;
     }
   });
+}
+
+// EXTEND GUIDE & OVERLAYS TO FULL SCREEN (DISPLAY > APP DISPLAY MODE) — two
+// consumers share these four vars: #guide-grid itself, and
+// #overlay-extend-layer (tokens.css), the wrapper around every other
+// OVERLAY_LAYOUT_TARGETS badge except ticker-bar. Both are direct #app
+// children now (index.html), sized/positioned entirely by these vars rather
+// than inheriting #display-frame's own box the way they used to as
+// descendants. Off (default): reproduces #display-frame's own centered
+// (targetW x targetH) rect exactly, so the guide and badges stay confined
+// to the video's simulated content box — today's behavior, unchanged. On:
+// they instead cover the real #app window (availW x availH), independent
+// of whatever aspect/resolution the video itself is simulating.
+function applyExtendLayerBounds({
+  availW, availH, targetW, targetH,
+}) {
+  const root = document.documentElement.style;
+  const fullScreen = !!(S.config.displayMode && S.config.displayMode.uiExtent === 'fullscreen');
+  if (fullScreen) {
+    root.setProperty('--guide-grid-left', '0px');
+    root.setProperty('--guide-grid-top', '0px');
+    root.setProperty('--guide-grid-width', `${availW}px`);
+    root.setProperty('--guide-grid-height', `${availH}px`);
+  } else {
+    root.setProperty('--guide-grid-left', `${(availW - targetW) / 2}px`);
+    root.setProperty('--guide-grid-top', `${(availH - targetH) / 2}px`);
+    root.setProperty('--guide-grid-width', `${targetW}px`);
+    root.setProperty('--guide-grid-height', `${targetH}px`);
+  }
 }
 
 export function applyDisplayMode() {
@@ -438,6 +469,9 @@ export function applyDisplayMode() {
     root.setProperty('--display-frame-image-rendering', 'auto');
     root.setProperty('--display-content-zoom', '1');
     root.setProperty('--display-frame-scale', '1');
+    applyExtendLayerBounds({
+      availW, availH, targetW: availW, targetH: availH,
+    });
     return;
   }
 
@@ -451,6 +485,9 @@ export function applyDisplayMode() {
     root.setProperty('--display-frame-image-rendering', 'auto');
     root.setProperty('--display-content-zoom', '1');
     root.setProperty('--display-frame-scale', '1');
+    applyExtendLayerBounds({
+      availW, availH, targetW, targetH,
+    });
     applyOverlayLayouts();
     return;
   }
@@ -475,6 +512,9 @@ export function applyDisplayMode() {
   // would otherwise render at a fraction of how big the closed select's
   // OWN text appears on screen once magnified by it).
   root.setProperty('--display-frame-scale', String(scale));
+  applyExtendLayerBounds({
+    availW, availH, targetW, targetH,
+  });
   applyOverlayLayouts();
 }
 

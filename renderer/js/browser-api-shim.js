@@ -78,6 +78,15 @@
     const automatic = fit >= 2 ? 2 : fit >= 1.7 ? 1.75 : fit >= 1.45 ? 1.5 : fit >= 1.2 ? 1.25 : 1;
     const factor = ['100', '125', '150', '175', '200'].includes(viewerUiScale) ? Number(viewerUiScale) / 100 : automatic;
     document.body.style.zoom = String(factor);
+    // Exposed so app CSS (guide.css's docked-mode height budget, currently
+    // the only consumer) can compensate for this zoom instead of silently
+    // squeezing — a fixed-px row height (like every other fixed-px size in
+    // this app) grows right along with this zoom for readability, but a
+    // flat percentage-of-screen height budget does NOT, so taller zoomed
+    // rows fit fewer of themselves in the same unchanged budget. Native
+    // Electron/desktop viewers never set this, so it's always 1 there via
+    // the CSS var(--viewer-ui-scale, 1) fallback — zero effect off-viewer.
+    document.documentElement.style.setProperty('--viewer-ui-scale', String(factor));
     document.body.style.width = (100 / factor) + '%';
     document.body.style.height = (100 / factor) + '%';
     const app = document.getElementById('app');

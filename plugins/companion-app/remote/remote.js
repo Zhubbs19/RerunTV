@@ -21,6 +21,7 @@
     'displayMode.windowMode': [['letterbox', 'LETTERBOX'], ['lockWindow', 'LOCK WINDOW TO ASPECT']],
     'displayMode.resolution': [['native', 'NATIVE'], ['sd480', 'SD 480-LINE'], ['sd240', 'SD 240-LINE'], ['auto', 'AUTO']],
     'displayMode.autoPriority': [['metadata', 'FILE RESOLUTION FIRST'], ['era', 'ERA TAG FIRST']],
+    'displayMode.uiExtent': [['confined', 'CONFINED TO CONTENT'], ['fullscreen', 'EXTEND BEYOND PILLARBOX']],
     'display.guideSlots': [['2', '2 / 1 HOUR'], ['3', '3 / 1.5 HOURS'], ['4', '4 / 2 HOURS']],
     'display.uiScale': [['auto', 'AUTO (RECOMMENDED)'], ['100', '100%'], ['125', '125%'], ['150', '150%'], ['175', '175%'], ['200', '200%']],
     'display.logoBugMotion': [['none', 'NONE (STATIC)'], ['pulse', 'PULSE'], ['glow', 'GLOW'], ['slide-in', 'SLIDE IN ON TUNE']],

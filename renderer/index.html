@@ -327,9 +327,16 @@
                 <option value="era">ERA TAG FIRST</option>
               </select>
             </div>
-            <label class="shuffle-toggle" title="Keeps the guide, station-ID card, up-next bar, logo bug, and every other on-screen card at their normal designed size and sharpness, even while RESOLUTION is set to a chunky SD tier — only the video picture itself gets the simulated old resolution. Off (default) matches a real old box, where the menus rendered at the same fixed low resolution as everything else. Has no visible effect at RESOLUTION: NATIVE, since there's no simulated downscale to opt overlays out of.">
+            <label class="shuffle-toggle" title="Keeps the text ticker at its normal designed size and sharpness, even while RESOLUTION is set to a chunky SD tier — only the video picture itself gets the simulated old resolution. The guide and every other on-screen card already always render at full sharpness now regardless of this setting (see UI EXTENT below) — this only still matters for the ticker, which a plugin injects and can't get that same treatment. Off (default) matches a real old box, where the ticker rendered at the same fixed low resolution as everything else. Has no visible effect at RESOLUTION: NATIVE, since there's no simulated downscale to opt out of.">
               <input type="checkbox" id="display-mode-overlays-native-size">KEEP OVERLAYS AT FULL RESOLUTION
             </label>
+            <div class="panel-interval">
+              UI EXTENT
+              <select id="display-mode-ui-extent-select" title="Whether the channel guide and every other on-screen card (station-ID bar, up-next bar, rating/episode/capability badges, VCR OSD, channel-number entry, volume indicator) can use the real screen/window instead of being confined to the video's own simulated aspect/resolution box — useful on a large TV where a letterboxed or low-simulated-resolution picture would otherwise squeeze them into a small corner. The video and the channel logo bug keep their own simulated aspect/resolution either way; only these UI cards' available space changes.">
+                <option value="confined">CONFINED TO CONTENT (AUTHENTIC)</option>
+                <option value="fullscreen">EXTEND BEYOND PILLARBOX</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1256,119 +1263,20 @@
              specific break type) — see dynamic-overlays.js. -->
         <div id="dynamic-overlay" class="dynamic-overlay hidden"></div>
 
-        <!-- TV content-rating bug, flashed briefly at the start of a program -->
-        <div id="rating-bug" class="rating-bug"></div>
-
         <!-- Full-screen movie rating card (MPAA analogue), shown instead of
              the corner bug above when the airing file is tagged as a movie
              — see showMovieRatingCard, playback.js. -->
         <div id="movie-rating-card" class="movie-rating-card"></div>
-
-        <!-- "NEW EPISODE"/"REPEAT" bug, flashed briefly at program start —
-             see flashEpisodeStatusBug, playback.js. -->
-        <div id="episode-status-bug" class="episode-status-bug"></div>
-
-        <!-- "Formatted to fit your screen"/widescreen disclaimer card,
-             flashed once when a file's native aspect doesn't match the
-             box's currently-applied one — see flashFormatDisclaimer,
-             playback.js. -->
-        <div id="format-disclaimer-card" class="format-disclaimer-card"></div>
-
-        <!-- Content advisory disclaimer card ("CONTAINS SCENES OF A GRAPHIC
-             NATURE", etc.) — see flashContentAdvisory, playback.js. -->
-        <div id="content-advisory-card" class="format-disclaimer-card"></div>
-
-        <!-- CC/SAP/STEREO capability badge, flashed briefly at program
-             start — see flashCapabilityBadge, playback.js. -->
-        <div id="capability-badge" class="capability-badge"></div>
-
-        <!-- Volume level indicator -->
-        <div id="volume-indicator" class="volume-indicator">
-          <div class="volume-label" id="volume-label">VOLUME</div>
-          <div class="volume-bar"><div class="volume-bar-fill" id="volume-bar-fill"></div></div>
-        </div>
-
-        <!-- Direct channel-number entry -->
-        <div id="channel-entry" class="channel-entry hidden"></div>
 
         <!-- Setup-screen "PREVIEW" mode banner — see openPreviewModal, setup-channels.js -->
         <div id="preview-banner" class="preview-banner hidden"></div>
 
         <!-- Time machine: VCR-style shuttle OSD + tape distortion -->
         <div id="tape-fx" class="tape-fx hidden"></div>
-        <div id="timeshift-badge" class="timeshift-badge hidden"></div>
-        <div id="vcr-osd" class="vcr-osd hidden">
-          <div class="vcr-osd-row">
-            <span class="vcr-mode" id="vcr-mode">PLAY</span>
-            <span class="vcr-speed" id="vcr-speed"></span>
-          </div>
-          <div class="vcr-time" id="vcr-time">--:--</div>
-          <div class="vcr-prog" id="vcr-prog"></div>
-          <div class="vcr-hint">&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; T PLAY/CLOSE &nbsp; L LIVE &nbsp; ESC CLOSE</div>
-        </div>
-
-        <!-- Pre-end "up next" promo banner -->
-        <div id="upnext-bar" class="upnext-bar">
-          <span class="upnext-label">UP NEXT</span>
-          <span class="upnext-title" id="upnext-title"></span>
-        </div>
-
         <!-- Templated text over a looping background clip — a dynamic
              interstitials-pool entry (see startBreak, playback.js) -->
         <div id="dynamic-bumper-text" class="dynamic-bumper-text hidden"></div>
 
-        <!-- Periodic station identification bumper -->
-        <div id="station-id-bar" class="station-id-bar">
-          <span class="station-id-label">YOU'RE WATCHING</span>
-          <span class="station-id-name" id="station-id-name"></span>
-        </div>
-
-        <!-- Now-playing guide banner -->
-        <div id="guide-overlay" class="guide-overlay hidden">
-          <div class="guide-number" id="guide-number">--</div>
-          <div class="guide-meta">
-            <div class="guide-name-row">
-              <div class="guide-logo hidden" id="guide-logo"></div>
-              <div class="guide-name" id="guide-name">NO SIGNAL</div>
-            </div>
-            <div class="guide-now" id="guide-now"></div>
-            <div class="guide-bar"><div class="guide-bar-fill" id="guide-bar-fill"></div></div>
-          </div>
-          <div class="guide-mute hidden" id="guide-mute">MUTED</div>
-        </div>
-
-        <!-- Full time-grid program guide -->
-        <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
-          <div class="guide-topbar">
-            <div class="guide-info-panel">
-              <div class="guide-info-number" id="gi-number">--</div>
-              <div class="guide-info-body">
-                <div class="guide-info-channel" id="gi-channel">CHANNEL GUIDE</div>
-                <div class="guide-info-title" id="gi-title">&mdash;</div>
-                <div class="guide-info-time" id="gi-time"></div>
-              </div>
-            </div>
-            <div class="guide-search-row">
-              <input type="text" id="guide-search" class="guide-search" placeholder="/ SEARCH CHANNELS OR UPCOMING PROGRAMS…" aria-label="Search guide channels and upcoming programs">
-              <div class="guide-daterange" id="guide-daterange"></div>
-            </div>
-          </div>
-          <div id="guide-program-results" class="guide-program-results hidden"></div>
-          <div class="guide-timeheader" id="guide-timeheader"></div>
-          <div class="guide-rows" id="guide-rows">
-            <div class="guide-gridlines" id="guide-gridlines"></div>
-            <div class="guide-now-line hidden" id="guide-now-line"></div>
-          </div>
-          <div class="guide-hint">
-            <span>&uarr;&darr; CHANNEL</span>
-            <span>&larr;&rarr; TIME</span>
-            <span>/ FILTER</span>
-            <span>ENTER TUNE</span>
-            <span>D DOCK / FULL PAGE</span>
-            <span>B SHOW BREAKS</span>
-            <span>G / ESC CLOSE</span>
-          </div>
-        </div>
 
         <div id="program-reminder-toast" class="program-reminder-toast hidden" role="status" aria-live="assertive">
           <div><strong>PROGRAM REMINDER</strong><span id="program-reminder-copy"></span></div>
@@ -1580,6 +1488,151 @@
       <div class="crt-flicker"></div>
       <div class="crt-grain"></div>
     </div>
+
+    <!-- Full time-grid program guide — deliberately a sibling of
+         #display-frame (a direct #app child), not nested inside #tv-screen
+         like it used to be, for the same structural reason
+         #screen-crt-overlay above is: #display-frame's own `transform`
+         (tokens.css) creates a stacking context nothing inside it can paint
+         above, AND (the specific reason this one needed to move) nothing
+         inside it can be SIZED past #display-frame's own box either, since
+         #display-frame also clips with overflow:hidden. EXTEND GUIDE TO
+         FULL SCREEN (DISPLAY > APP DISPLAY MODE) drives --guide-grid-left/
+         top/width/height (display-mode.js) so this box can size itself to
+         the real window instead of the (possibly smaller, letterboxed)
+         simulated-resolution content box — off by default, reproducing
+         today's exact confined-to-content-box geometry, so nothing changes
+         unless it's turned on. Off, this is a deliberate exception to the
+         "guide is part of the TV's own picture" philosophy above
+         #screen-crt-overlay's own opacity rule: legibility on a real large
+         display wins over picture authenticity for anyone who opts in. -->
+    <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
+      <div class="guide-topbar">
+        <div class="guide-info-panel">
+          <div class="guide-info-number" id="gi-number">--</div>
+          <div class="guide-info-body">
+            <div class="guide-info-channel" id="gi-channel">CHANNEL GUIDE</div>
+            <div class="guide-info-title" id="gi-title">&mdash;</div>
+            <div class="guide-info-time" id="gi-time"></div>
+          </div>
+        </div>
+        <div class="guide-search-row">
+          <input type="text" id="guide-search" class="guide-search" placeholder="/ SEARCH CHANNELS OR UPCOMING PROGRAMS…" aria-label="Search guide channels and upcoming programs">
+          <div class="guide-daterange" id="guide-daterange"></div>
+        </div>
+      </div>
+      <div id="guide-program-results" class="guide-program-results hidden"></div>
+      <div class="guide-timeheader" id="guide-timeheader"></div>
+      <div class="guide-rows" id="guide-rows">
+        <div class="guide-gridlines" id="guide-gridlines"></div>
+        <div class="guide-now-line hidden" id="guide-now-line"></div>
+      </div>
+      <div class="guide-hint">
+        <span>&uarr;&darr; CHANNEL</span>
+        <span>&larr;&rarr; TIME</span>
+        <span>/ FILTER</span>
+        <span>ENTER TUNE</span>
+        <span>D DOCK / FULL PAGE</span>
+        <span>B SHOW BREAKS</span>
+        <span>G / ESC CLOSE</span>
+      </div>
+    </div>
+
+    <!-- OVERLAY_LAYOUT_TARGETS badges (ticker-bar excepted — see
+         applyOverlayLayouts, display-mode.js) — wrapped in
+         #overlay-extend-layer, an #app-level sibling of #display-frame, for
+         the same reason #guide-grid (below) and #screen-crt-overlay (above)
+         are: #display-frame clips (overflow:hidden) and transforms
+         everything inside it, so nothing nested there can size itself past
+         its own (possibly letterboxed) content box. EXTEND GUIDE &
+         OVERLAYS TO FULL SCREEN (DISPLAY > APP DISPLAY MODE) drives the
+         wrapper's --guide-grid-left/top/width/height vars — the same ones
+         #guide-grid itself uses (display-mode.js) — so these can also
+         spill into any pillarbox/letterbox space when it's on; off by
+         default, the wrapper exactly reproduces #display-frame's own
+         confined content box, so nothing visibly changes. Each badge keeps
+         its own existing left/top % positioning (applyOverlayLayouts,
+         unchanged) resolved against whichever box the wrapper currently
+         is. One permanent side effect of this move, regardless of the
+         setting: these badges are no longer subject to #display-frame's
+         own simulated-resolution transform at all, so they always render
+         at native sharpness now (KEEP OVERLAYS AT FULL RESOLUTION's old
+         counter-scale trick is moot for them, kept only for ticker-bar,
+         which couldn't move). The logo bug and the video/CRT layers
+         deliberately stay inside #display-frame — only this wrapper's
+         contents + #guide-grid move, never the picture itself. See each
+         .crt.power-off/.crt.guide-active selector in overlays.css/
+         guide.css for the body:has() rewrite this move required — a plain
+         descendant combinator can no longer reach these from .crt. -->
+    <div id="overlay-extend-layer">
+    <!-- TV content-rating bug, flashed briefly at the start of a program -->
+    <div id="rating-bug" class="rating-bug"></div>
+
+    <!-- "NEW EPISODE"/"REPEAT" bug, flashed briefly at program start —
+         see flashEpisodeStatusBug, playback.js. -->
+    <div id="episode-status-bug" class="episode-status-bug"></div>
+
+    <!-- "Formatted to fit your screen"/widescreen disclaimer card,
+         flashed once when a file's native aspect doesn't match the
+         box's currently-applied one — see flashFormatDisclaimer,
+         playback.js. -->
+    <div id="format-disclaimer-card" class="format-disclaimer-card"></div>
+
+    <!-- Content advisory disclaimer card ("CONTAINS SCENES OF A GRAPHIC
+         NATURE", etc.) — see flashContentAdvisory, playback.js. -->
+    <div id="content-advisory-card" class="format-disclaimer-card"></div>
+
+    <!-- CC/SAP/STEREO capability badge, flashed briefly at program
+         start — see flashCapabilityBadge, playback.js. -->
+    <div id="capability-badge" class="capability-badge"></div>
+
+    <!-- Volume level indicator -->
+    <div id="volume-indicator" class="volume-indicator">
+      <div class="volume-label" id="volume-label">VOLUME</div>
+      <div class="volume-bar"><div class="volume-bar-fill" id="volume-bar-fill"></div></div>
+    </div>
+
+    <!-- Direct channel-number entry -->
+    <div id="channel-entry" class="channel-entry hidden"></div>
+
+    <div id="timeshift-badge" class="timeshift-badge hidden"></div>
+
+    <div id="vcr-osd" class="vcr-osd hidden">
+      <div class="vcr-osd-row">
+        <span class="vcr-mode" id="vcr-mode">PLAY</span>
+        <span class="vcr-speed" id="vcr-speed"></span>
+      </div>
+      <div class="vcr-time" id="vcr-time">--:--</div>
+      <div class="vcr-prog" id="vcr-prog"></div>
+      <div class="vcr-hint">&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; T PLAY/CLOSE &nbsp; L LIVE &nbsp; ESC CLOSE</div>
+    </div>
+
+    <!-- Pre-end "up next" promo banner -->
+    <div id="upnext-bar" class="upnext-bar">
+      <span class="upnext-label">UP NEXT</span>
+      <span class="upnext-title" id="upnext-title"></span>
+    </div>
+
+    <!-- Periodic station identification bumper -->
+    <div id="station-id-bar" class="station-id-bar">
+      <span class="station-id-label">YOU'RE WATCHING</span>
+      <span class="station-id-name" id="station-id-name"></span>
+    </div>
+
+    <!-- Now-playing guide banner -->
+    <div id="guide-overlay" class="guide-overlay hidden">
+      <div class="guide-number" id="guide-number">--</div>
+      <div class="guide-meta">
+        <div class="guide-name-row">
+          <div class="guide-logo hidden" id="guide-logo"></div>
+          <div class="guide-name" id="guide-name">NO SIGNAL</div>
+        </div>
+        <div class="guide-now" id="guide-now"></div>
+        <div class="guide-bar"><div class="guide-bar-fill" id="guide-bar-fill"></div></div>
+      </div>
+      <div class="guide-mute hidden" id="guide-mute">MUTED</div>
+    </div>
+    </div><!-- /#overlay-extend-layer -->
 
   </div><!-- /#app -->
 

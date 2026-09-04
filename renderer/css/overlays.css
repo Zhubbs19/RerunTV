@@ -17,10 +17,17 @@
 .crt.power-off #static-canvas,
 .crt.power-off #test-pattern-canvas,
 .crt.power-off #no-signal,
-.crt.power-off #volume-indicator,
-.crt.power-off #channel-entry,
-.crt.power-off #plugin-channel-container,
-.crt.power-off #guide-overlay {
+.crt.power-off #plugin-channel-container {
+  display: none;
+}
+/* :has(), not a plain descendant selector — see guide.css's #guide-grid
+   comment. EXTEND GUIDE & OVERLAYS TO FULL SCREEN (display-mode.js) moves
+   these OVERLAY_LAYOUT_TARGETS elements to be top-level #app children
+   instead of .crt descendants, so a bare .crt.power-off #foo selector can
+   no longer reach them; :has() reaches across regardless of nesting. */
+body:has(.crt.power-off) #volume-indicator,
+body:has(.crt.power-off) #channel-entry,
+body:has(.crt.power-off) #guide-overlay {
   display: none;
 }
 
@@ -360,11 +367,17 @@
   white-space: nowrap;
 }
 
-.crt.power-off .vcr-osd,
-.crt.power-off .timeshift-badge,
 .crt.power-off .tape-fx { display: none; }
-.crt.guide-active .vcr-osd,
 .crt.guide-active .tape-fx { display: none; }
+/* :has(), not a plain .crt.power-off/.crt.guide-active descendant selector
+   — see guide.css's #guide-grid comment for why: EXTEND GUIDE & OVERLAYS TO
+   FULL SCREEN (display-mode.js) moves these OVERLAY_LAYOUT_TARGETS elements
+   to be top-level #app children instead of .crt descendants when the
+   setting is on, so they're only sometimes still reachable via a plain
+   descendant combinator — :has() reaches them either way. */
+body:has(.crt.power-off) .vcr-osd,
+body:has(.crt.power-off) .timeshift-badge { display: none; }
+body:has(.crt.guide-active) .vcr-osd { display: none; }
 
 .upnext-bar {
   position: absolute;
@@ -425,7 +438,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.crt.power-off .upnext-bar { display: none; }
+body:has(.crt.power-off) .upnext-bar { display: none; }
 
 .logo-bug {
   position: absolute;
@@ -571,8 +584,8 @@
   transition: opacity 300ms linear;
 }
 .rating-bug.show { opacity: 1; }
-.crt.guide-active .rating-bug,
-.crt.power-off .rating-bug { display: none; }
+body:has(.crt.guide-active) .rating-bug,
+body:has(.crt.power-off) .rating-bug { display: none; }
 /* wood-console-70s's "no rating bug before 1997" override moved to
    plugins/theme-wood-console-70s/style.css (theme-pack-plugins migration);
    uhf-public-access-80s/analog-90s/cable-box-osd/prevue-guide-94 use the
@@ -635,8 +648,8 @@
   transition: opacity 300ms linear;
 }
 .episode-status-bug.show { opacity: 1; }
-.crt.guide-active .episode-status-bug,
-.crt.power-off .episode-status-bug { display: none; }
+body:has(.crt.guide-active) .episode-status-bug,
+body:has(.crt.power-off) .episode-status-bug { display: none; }
 
 /* "Formatted to fit your screen"/widescreen disclaimer card — a lower-third
    text bar rather than a corner badge, matching how real syndicated reruns
@@ -662,8 +675,11 @@
   transition: opacity 300ms linear;
 }
 .format-disclaimer-card.show { opacity: 1; }
-.crt.guide-active .format-disclaimer-card,
-.crt.power-off .format-disclaimer-card { display: none; }
+/* .format-disclaimer-card is a shared CLASS, also worn by
+   #content-advisory-card (index.html) — this one rule covers both
+   OVERLAY_LAYOUT_TARGETS entries. */
+body:has(.crt.guide-active) .format-disclaimer-card,
+body:has(.crt.power-off) .format-disclaimer-card { display: none; }
 
 /* Sits higher than the format-disclaimer-card default so the two don't
    visually stack if both happen to fire for the same airing. */
@@ -690,8 +706,8 @@
   transition: opacity 300ms linear;
 }
 .capability-badge.show { opacity: 1; }
-.crt.guide-active .capability-badge,
-.crt.power-off .capability-badge { display: none; }
+body:has(.crt.guide-active) .capability-badge,
+body:has(.crt.power-off) .capability-badge { display: none; }
 
 .station-id-bar {
   position: absolute;
@@ -733,7 +749,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.crt.power-off .station-id-bar { display: none; }
+body:has(.crt.power-off) .station-id-bar { display: none; }
 
 .trivia-card {
   position: absolute;

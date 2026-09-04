@@ -40,7 +40,7 @@ import {
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
-  displayModeOverlaysNativeSizeEl, hideTitleBarEnabledEl,
+  displayModeOverlaysNativeSizeEl, displayModeUiExtentSelect, hideTitleBarEnabledEl,
   viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
@@ -314,6 +314,7 @@ export function renderSettingsPanels() {
   displayModeResolutionSelect.value = S.config.displayMode.resolution || 'native';
   displayModeAutoPrioritySelect.value = S.config.displayMode.autoPriority || 'metadata';
   displayModeOverlaysNativeSizeEl.checked = !!S.config.displayMode.overlaysNativeSize;
+  displayModeUiExtentSelect.value = S.config.displayMode.uiExtent || 'confined';
   crtOverlayWholeScreenEnabledEl.checked = S.config.crtIntensity.overlayScope === 'wholeScreen';
   ignoreThemeCrtBiasEnabledEl.checked = !!S.config.display.ignoreThemeCrtBias;
   if (bezelInsetScaleSlider) bezelInsetScaleSlider.value = S.config.display.bezelInsetScale != null ? S.config.display.bezelInsetScale : 100;
@@ -1770,6 +1771,11 @@ displayModeAutoPrioritySelect.addEventListener('change', () => {
 });
 displayModeOverlaysNativeSizeEl.addEventListener('change', () => {
   S.config.displayMode.overlaysNativeSize = displayModeOverlaysNativeSizeEl.checked;
+  applyDisplayMode();
+  saveConfigDebounced();
+});
+displayModeUiExtentSelect.addEventListener('change', () => {
+  S.config.displayMode.uiExtent = displayModeUiExtentSelect.value;
   applyDisplayMode();
   saveConfigDebounced();
 });

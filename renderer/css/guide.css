@@ -149,8 +149,33 @@
    waiting on a fix, instead of it silently regressing everyone by default. */
 .guide-grid {
   position: absolute;
-  inset: 0;
-  z-index: 3;
+  /* Not inset:0 — #guide-grid is now a direct #app child (index.html),
+     sibling of #display-frame rather than nested inside it, so it has no
+     ambient box of its own to inset against. left/top/width/height are
+     driven by --guide-grid-* (applyDisplayMode, display-mode.js): by
+     default they exactly reproduce #display-frame's own centered content
+     rect (today's behavior, unchanged), and with EXTEND GUIDE TO FULL
+     SCREEN on, they instead cover the real #app window — letting this
+     panel use the couch-distance-readable space the video's own simulated
+     aspect/resolution would otherwise letterbox away. */
+  left: var(--guide-grid-left, 0);
+  top: var(--guide-grid-top, 0);
+  width: var(--guide-grid-width, 100%);
+  height: var(--guide-grid-height, 100%);
+  /* This box used to inherit #display-frame's own size-container context
+     for free; now that it's a sibling instead of a descendant, it has to
+     establish that context itself so every cqw/cqh rule below (and in
+     .guide-row etc.) keeps resolving against ITS OWN box, same as always —
+     just a possibly bigger one now. */
+  container-type: size;
+  container-name: display-frame;
+  /* Was 3, sufficient inside #tv-screen/.crt's own local stacking context;
+     needs a much higher value now that it competes directly with #app's
+     other high-z-index children (confirm dialogs sit at 1000+, tokens.css/
+     setup.css) instead of just .crt's video/overlay layers. Still below
+     #screen-crt-overlay's 100000 (tokens.css) and real modal dialogs, so
+     both can still cover it same as before. */
+  z-index: 500;
   background: var(--guide-grid-bg, var(--gradient-page));
   display: flex;
   flex-direction: column;
@@ -162,7 +187,24 @@
      ~640px-wide screen. Same ceiling as before at native/full-size windows. */
   --guide-chan-col: clamp(90px, 22%, 170px);
 }
-.crt.guide-anim-enabled .guide-grid {
+/* #guide-grid is a top-level #app child now (see above), so #tv-screen's
+   own .hidden toggle (showSetupScreen/showTvScreen, app.js) no longer hides
+   it for free the way it did as a descendant. Defense-in-depth, same
+   pattern as #screen-crt-overlay's own body:has() rule just above in
+   tokens.css: guarantee it never shows over Setup regardless of whatever
+   state app.js's own guide-close-on-navigate logic is in. */
+body:has(#setup-screen:not(.hidden)) #guide-grid,
+body:has(#setup-screen:not(.hidden)) #overlay-extend-layer { display: none !important; }
+/* :has(), not a plain .crt.guide-anim-enabled .guide-grid descendant
+   selector (what this used to be) — #guide-grid is a top-level #app child
+   now (see the comment above), no longer a .crt descendant, so a bare
+   descendant combinator can never match it again. .crt still carries
+   guide-anim-enabled (toggled alongside the rest of its guide-state classes
+   — see the .crt.guide-active.guide-full rules below, unaffected by the
+   move since #player/.crt-scanlines etc. never left .crt), so :has() reaches
+   across to the new sibling location the same way body:has(#setup-screen…)
+   above already does for the same reason. */
+body:has(.crt.guide-anim-enabled) #guide-grid {
   --guide-anim-offset-x: var(--theme-guide-enter-x, 0px);
   --guide-anim-offset-y: var(--theme-guide-enter-y, 14px);
   opacity: 0;
@@ -170,12 +212,12 @@
   transition: opacity var(--guide-anim-ms, 180ms) var(--theme-guide-enter-ease, ease-in-out), transform var(--guide-anim-ms, 180ms) var(--theme-guide-enter-ease, ease-in-out);
   will-change: opacity, transform;
 }
-.crt.guide-anim-enabled .guide-grid.guide-grid-visible {
+body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   opacity: 1;
   transform: translate(0, 0);
 }
 @media (prefers-reduced-motion: reduce) {
-  .crt.guide-anim-enabled .guide-grid {
+  body:has(.crt.guide-anim-enabled) #guide-grid {
     transition: none;
     opacity: 1;
     transform: none;
@@ -187,13 +229,24 @@
    like glancing at a real cable box's guide without losing the show. */
 .guide-grid.docked {
   top: auto;
-  height: 46%;
+  /* --viewer-ui-scale (browser-api-shim.js) is the LAN-viewer/Android-TV
+     client's own couch-distance readability zoom (1x-2x) — always 1 on
+     desktop/Electron (the var's own fallback), so this is a no-op there.
+     Every fixed-px size in this panel (row height included) grows right
+     along with that zoom for legibility, but a flat 46%-of-screen budget
+     does NOT — so on a real TV, taller zoomed rows fit fewer of themselves
+     in the same unscaled strip, down to just one or two. Scaling the
+     budget by the same factor keeps roughly the same NUMBER of rows
+     visible regardless of zoom tier, capped at 75% so the docked strip
+     can't swallow the live picture it's meant to leave visible above it. */
+  height: min(calc(46% * var(--viewer-ui-scale, 1)), 75%);
   /* clamp(), not a flat 380px floor — at a small simulated resolution
      (display-mode.js) a flat floor forces this bottom sheet well past 46%,
      leaving barely any of the "live picture stays full-size, visible
      above" the docked mode is meant to preserve. Same ceiling as before at
-     native/full-size windows. */
-  min-height: clamp(140px, 46%, 380px);
+     native/full-size windows; the ceiling itself scales with
+     --viewer-ui-scale too, for the same reason the height above does. */
+  min-height: clamp(140px, min(calc(46% * var(--viewer-ui-scale, 1)), 75%), calc(380px * var(--viewer-ui-scale, 1)));
   padding-top: 10px;
   border-top: 3px solid var(--gold);
   box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.6);

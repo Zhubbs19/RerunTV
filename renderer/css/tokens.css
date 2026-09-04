@@ -365,6 +365,31 @@ html[data-tv-client="android"] body { background: #000; }
   isolation: isolate;
 }
 
+/* Wraps the OVERLAY_LAYOUT_TARGETS badges (index.html's own comment there
+   has the full story) — sized/positioned by --guide-grid-left/top/width/
+   height (display-mode.js), the same vars #guide-grid itself uses, so both
+   consumers of EXTEND GUIDE & OVERLAYS TO FULL SCREEN agree on one target
+   box. isolation:isolate keeps these badges' own individual z-index values
+   (rating-bug, capability-badge, etc.) scoped to comparisons against each
+   other, same as .crt's own isolation used to do for them before this move
+   — without it they'd compare against every other z-indexed element on the
+   page instead of just their old .crt siblings. pointer-events:none since
+   none of these badges are interactive (plain info displays) and this
+   layer can now cover a much larger area than before — auto on children
+   would be needed if that ever changes for one of them. */
+#overlay-extend-layer {
+  position: absolute;
+  left: var(--guide-grid-left, 0);
+  top: var(--guide-grid-top, 0);
+  width: var(--guide-grid-width, 100%);
+  height: var(--guide-grid-height, 100%);
+  container-type: size;
+  container-name: display-frame;
+  z-index: 400;
+  isolation: isolate;
+  pointer-events: none;
+}
+
 /* Text-heavy app chrome stays readable even when the user chooses an
    intense whole-glass CRT treatment: setup and any open non-guide
    dialog/menu cap the overlay as a usability safeguard. [role="dialog"]

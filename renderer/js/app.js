@@ -992,6 +992,7 @@ export function applyConfigDefaults(config) {
   if (!config.displayMode.windowMode) config.displayMode.windowMode = 'letterbox';
   if (!config.displayMode.resolution) config.displayMode.resolution = 'native';
   if (!config.displayMode.autoPriority) config.displayMode.autoPriority = 'metadata';
+  if (!config.displayMode.uiExtent) config.displayMode.uiExtent = 'confined';
   return config;
 }
 
