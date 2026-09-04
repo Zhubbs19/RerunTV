@@ -149,6 +149,16 @@ export function checkBreakState(ch, opts) {
       // bar, exactly as a plain content-ended tick with no break at all
       // would have.
       if (opts.contentJustEnded && !S.activeBreakInterruptsContent) playChannelLive(ch);
+    } else if (opts.contentJustEnded && !S.activeBreakInterruptsContent) {
+      // Same frozen-player case as startBreak's own contentJustEnded check
+      // above, but for a non-interrupting break that was ALREADY active
+      // (S.activeBreakKey === key, so the `if` above never ran) when
+      // content's 'ended' event happened to fire independently — e.g. the
+      // station-ID bar started a few seconds before this file's natural
+      // end, not at the same instant. Nothing in the branch above runs for
+      // an unchanged break, so this tick would otherwise be silently
+      // swallowed and the channel left frozen exactly like before that fix.
+      playChannelLive(ch);
     }
   } else if (S.activeBreakKey) {
     if (S.awaitingBumperEnd) {
