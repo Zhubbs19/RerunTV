@@ -162,6 +162,19 @@
   top: var(--guide-grid-top, 0);
   width: var(--guide-grid-width, 100%);
   height: var(--guide-grid-height, 100%);
+  /* bottom:0, not left unset — the old inset:0 this replaced set it for
+     free. .guide-grid.docked below relies on it: it sets top:auto with an
+     explicit height, and per the CSS spec, when top/height/bottom are all
+     specified on an absolutely positioned box the odd one out (bottom, in
+     the base rule above) is ignored in favor of the other two — EXCEPT
+     when docked sets top back to auto, at which point bottom:0 is what
+     anchors the strip's bottom edge to the screen instead of floating to
+     a static-position fallback (found live: without this, the docked
+     strip rendered sandwiched mid-screen with picture visible both above
+     AND below it, instead of pinned to the bottom with picture only
+     above). .full below relies on the same mechanism from the other
+     direction (top:0, height:auto — bottom:0 then determines height). */
+  bottom: 0;
   /* This box used to inherit #display-frame's own size-container context
      for free; now that it's a sibling instead of a descendant, it has to
      establish that context itself so every cqw/cqh rule below (and in
@@ -548,7 +561,18 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
 
 .guide-row.active-row .guide-row-chan {
   border-color: var(--gold);
-  background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05));
+  /* background-image, not the `background` shorthand — a bare gradient
+     value in the shorthand resets every other sub-property (background-
+     color included) to its initial value (transparent), wiping out the
+     base rule's --guide-channel-bg entirely instead of layering the gold
+     wash on top of it. Invisible on themes whose --guide-channel-bg is
+     already close to the grid's own dark background, but a real bug on
+     any theme that deliberately uses a LIGHT channel-cell color (e.g.
+     theme-prevue-guide-94's near-white channel ID cards) — the light
+     background disappeared on selection, leaving that theme's dark
+     --guide-channel-subtle text (tuned for the light background) sitting
+     on the dark grid background behind it instead, unreadable. */
+  background-image: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05));
 }
 
 .guide-row-track {
