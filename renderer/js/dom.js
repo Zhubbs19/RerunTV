@@ -193,6 +193,7 @@ export const displayModeWindowSelect = document.getElementById('display-mode-win
 export const hideTitleBarEnabledEl = document.getElementById('hide-titlebar-enabled');
 export const displayModeResolutionSelect = document.getElementById('display-mode-resolution-select');
 export const displayModeAutoPrioritySelect = document.getElementById('display-mode-auto-priority-select');
+export const displayModeOverlaysNativeSizeEl = document.getElementById('display-mode-overlays-native-size');
 export const crtOverlayWholeScreenEnabledEl = document.getElementById('crt-overlay-wholescreen-enabled');
 export const ignoreThemeCrtBiasEnabledEl = document.getElementById('ignore-theme-crt-bias-enabled');
 export const bootPowerAnimEnabledEl = document.getElementById('boot-power-anim-enabled');

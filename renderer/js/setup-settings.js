@@ -39,7 +39,8 @@ import {
   logoBugEditorEl, logoBugMotionSelect, dynamicOverlaysEditorEl, daypartChimeEnabledEl, movieModeEnabledEl, pictureModeSelect, bezelInsetScaleSlider,
   upNextDurationSlider,
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
-  displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect, hideTitleBarEnabledEl,
+  displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
+  displayModeOverlaysNativeSizeEl, hideTitleBarEnabledEl,
   viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
@@ -312,6 +313,7 @@ export function renderSettingsPanels() {
   hideTitleBarEnabledEl.checked = !!S.config.display.hideTitleBar;
   displayModeResolutionSelect.value = S.config.displayMode.resolution || 'native';
   displayModeAutoPrioritySelect.value = S.config.displayMode.autoPriority || 'metadata';
+  displayModeOverlaysNativeSizeEl.checked = !!S.config.displayMode.overlaysNativeSize;
   crtOverlayWholeScreenEnabledEl.checked = S.config.crtIntensity.overlayScope === 'wholeScreen';
   ignoreThemeCrtBiasEnabledEl.checked = !!S.config.display.ignoreThemeCrtBias;
   if (bezelInsetScaleSlider) bezelInsetScaleSlider.value = S.config.display.bezelInsetScale != null ? S.config.display.bezelInsetScale : 100;
@@ -1763,6 +1765,11 @@ displayModeResolutionSelect.addEventListener('change', () => {
 });
 displayModeAutoPrioritySelect.addEventListener('change', () => {
   S.config.displayMode.autoPriority = displayModeAutoPrioritySelect.value;
+  applyDisplayMode();
+  saveConfigDebounced();
+});
+displayModeOverlaysNativeSizeEl.addEventListener('change', () => {
+  S.config.displayMode.overlaysNativeSize = displayModeOverlaysNativeSizeEl.checked;
   applyDisplayMode();
   saveConfigDebounced();
 });

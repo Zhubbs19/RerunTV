@@ -309,30 +309,92 @@ export function resolveOverlayLayoutContext() {
     : resolveEffectiveDisplayMode();
 }
 
+// A few OVERLAY_LAYOUT_TARGETS rely on their own CSS `transform` (not just
+// `left`/`top`) for default (no saved custom-position profile) centering —
+// overlays.css's `left:50%; transform:translateX(-50%);` idiom. Overwriting
+// `transform` outright, the way the KEEP OVERLAYS AT FULL RESOLUTION
+// counter-scale below does, would silently un-center these. Not needed once
+// a custom profile exists for a target — the layout editor already
+// repositions those by explicit top-left corner instead (transform-
+// origin:'top left', no base transform), same as it always has; this is
+// purely for preserving each target's own DEFAULT appearance.
+const OVERLAY_BASE_TRANSFORMS = {
+  'upnext-bar': 'translateX(-50%)',
+  'format-disclaimer-card': 'translateX(-50%)',
+  'content-advisory-card': 'translateX(-50%)',
+};
+
 export function applyOverlayLayouts() {
   const layouts = (S.config.display && S.config.display.overlayLayouts) || {};
   const context = resolveOverlayLayoutContext();
   const ch = getChannel(S.currentNumber);
+  // KEEP OVERLAYS AT FULL RESOLUTION (DISPLAY > APP DISPLAY MODE) — a
+  // simulated resolution tier shrinks #display-frame's own DOM to a tiny
+  // fixed pixel box (--display-frame-width/height), applies a compensating
+  // CSS `zoom` (--display-content-zoom) so that tiny box's own layout still
+  // fits without overlapping/clipping, then blows the whole thing back up
+  // to fill the real letterboxed target via `transform: scale()`
+  // (--display-frame-scale) — see applyDisplayMode below. Both stages
+  // multiply together, and neither one alone is the actual factor an
+  // overlay ends up bigger or smaller by relative to how it looks at
+  // RESOLUTION: NATIVE (zoom=1, scale=1, i.e. exactly its authored CSS
+  // size) — dividing out only --display-frame-scale (an earlier version of
+  // this code) left overlays far SMALLER than native instead of matching
+  // it, since it ignored --display-content-zoom's own contribution.
+  // Dividing out their PRODUCT instead cancels both stages, landing back at
+  // the same size an overlay would render at NATIVE regardless of which
+  // tier the video itself is simulating. Both values are read back off the
+  // CSS vars applyDisplayMode already set just before this runs, rather
+  // than threaded through as parameters, so there's one source of truth.
+  const overlaysNativeSize = !!(S.config.displayMode && S.config.displayMode.overlaysNativeSize);
+  let invScale = 1;
+  if (overlaysNativeSize) {
+    const root = document.documentElement.style;
+    const frameScale = parseFloat(root.getPropertyValue('--display-frame-scale')) || 1;
+    const contentZoom = parseFloat(root.getPropertyValue('--display-content-zoom')) || 1;
+    const combined = frameScale * contentZoom;
+    invScale = combined ? 1 / combined : 1;
+  }
+
   OVERLAY_LAYOUT_TARGETS.forEach(({ id }) => {
     const element = document.getElementById(id);
     const perChannel = ch && PER_CHANNEL_OVERLAY_TARGET_IDS.has(id) ? ch.tickerLayout : null;
     const profile = pickOverlayLayout(perChannel != null ? perChannel : layouts[id], context);
-    if (!element || !profile) return;
-    element.style.left = `${profile.x}%`;
-    element.style.top = `${profile.y}%`;
-    element.style.right = 'auto';
-    element.style.bottom = 'auto';
+    if (!element) return;
+    if (!profile && invScale === 1) {
+      // No custom position and no counter-scale needed — but a PREVIOUS
+      // call may have left an inline transform behind (KEEP OVERLAYS AT
+      // FULL RESOLUTION just got turned back off, or resolution changed
+      // back to native). Explicitly clear it (empty string, not 'none' —
+      // that would permanently kill a target like upnext-bar's own CSS
+      // centering transform instead of just handing control back to it)
+      // rather than leaving it stuck at whatever scale was last applied.
+      element.style.transform = '';
+      element.style.transformOrigin = '';
+      return;
+    }
+    const base = (!profile && OVERLAY_BASE_TRANSFORMS[id]) ? `${OVERLAY_BASE_TRANSFORMS[id]} ` : '';
+    if (profile) {
+      element.style.left = `${profile.x}%`;
+      element.style.top = `${profile.y}%`;
+      element.style.right = 'auto';
+      element.style.bottom = 'auto';
+    }
     if (id === 'ticker-bar') {
       // width/height profile (percentages of the screen), not the generic
       // scale-factor model the other targets use — see
       // normalizeOverlayLayoutProfiles (channels.js) for why: the ticker bar
       // has no natural intrinsic size to scale from.
-      element.style.transform = 'none';
-      element.style.width = `${profile.width}%`;
-      element.style.height = `${profile.height}%`;
+      if (profile) {
+        element.style.width = `${profile.width}%`;
+        element.style.height = `${profile.height}%`;
+      }
+      element.style.transformOrigin = 'top left';
+      element.style.transform = invScale === 1 ? 'none' : `${base}scale(${invScale})`;
     } else {
       element.style.transformOrigin = 'top left';
-      element.style.transform = `scale(${profile.scale || 1})`;
+      const baseScale = profile ? (profile.scale || 1) : 1;
+      element.style.transform = `${base}scale(${baseScale * invScale})`;
     }
   });
 }
