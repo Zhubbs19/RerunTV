@@ -358,6 +358,21 @@ function startBreak(ch, resolved, key) {
   // to the bumper, at the ad-volume multiplier rather than the channel's own.
   cancelUpNextBar();
   applyVolume();
+  // Stop the outgoing show's own playback right now, synchronously — not
+  // just fadeOutPlayer's CSS opacity fade below, which only hides it
+  // visually while leaving it playing (audio included) underneath. Both
+  // async branches below await resolvePlayablePath/toFileUrl before
+  // actually swapping player.src to the bumper; on a slow resolve (a
+  // network/plugin-backed media source, disk contention, anything not
+  // near-instant) that gap is long enough to be audible/visible — the show
+  // keeps running right through the start of its own scheduled break
+  // instead of cutting the instant the break begins, same as the trivia/
+  // localAvail branches above already correctly do with their own
+  // synchronous player.pause(). S.contentLostMs still credits back the
+  // FULL real-time window regardless (breakEnteredAtMs is captured before
+  // this point), so schedule position isn't affected either way — this is
+  // purely about the show visibly/audibly continuing when it shouldn't.
+  player.pause();
   if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
   if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
 
