@@ -42,11 +42,18 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
       const listEl = container.querySelector('[data-el="list"]');
       const addBtn = container.querySelector('[data-el="add-station"]');
 
+      // The section's own `ctx.settings` is a one-time snapshot (taken when
+      // the panel was expanded — see setup-plugin-settings.js's makeContext),
+      // not a live reference, so re-reading it after a mutation would show
+      // stale data. window.RCBPlugins.ctx.settings.getPluginSettings/
+      // updatePluginSettings (the generic grouped accessor documented in
+      // PLUGIN_DEVELOPMENT.md, same one renderer.js uses) always reads the
+      // live store instead.
       function stations() {
-        return ctx.getPluginSettings('music-choice-channel').stations || [];
+        return window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel').stations || [];
       }
       function commit(nextStations, extra) {
-        ctx.updatePluginSettings('music-choice-channel', { stations: nextStations, ...(extra || {}) });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { stations: nextStations, ...(extra || {}) });
       }
       function updateStationAt(idx, patch) {
         const next = stations().map((s, i) => (i === idx ? { ...s, ...patch } : s));
@@ -55,7 +62,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
 
       addBtn.addEventListener('click', () => {
         const st = newStation();
-        const current = ctx.getPluginSettings('music-choice-channel');
+        const current = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
         commit([...(current.stations || []), st], { selectedStationId: current.selectedStationId || st.id });
         renderList();
       });
@@ -124,7 +131,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
           q('name').addEventListener('change', (e) => updateStationAt(idx, { name: e.target.value.trim() || 'UNTITLED STATION' }));
           themeSelect.addEventListener('change', (e) => { updateStationAt(idx, { themeId: e.target.value }); renderList(); });
           q('remove').addEventListener('click', () => {
-            const current = ctx.getPluginSettings('music-choice-channel');
+            const current = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
             const next = current.stations.filter((_, i) => i !== idx);
             const patch = { stations: next };
             if (current.selectedStationId === station.id) patch.selectedStationId = next[0] ? next[0].id : null;
