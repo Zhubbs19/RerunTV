@@ -1,6 +1,10 @@
 // Per-channel sponsor list — stored via the generic plugin-settings system
-// (getPluginSettings/updatePluginSettings, exposed on ctx) rather than a
-// core config key, since this plugin owns nothing core needs to know about.
+// rather than a core config key, since this plugin owns nothing core needs
+// to know about. The section's own `ctx.settings` is a one-time snapshot
+// (taken when the panel was expanded — see setup-plugin-settings.js's
+// makeContext), not a live reference, so this reads/writes through
+// window.RCBPlugins.ctx.settings.getPluginSettings/updatePluginSettings
+// instead, same as music-choice-channel/settings.js.
 window.RCBPlugins.registerPluginSettings('sponsor-billboard', {
   sections: [{
     id: 'general',
@@ -18,7 +22,7 @@ window.RCBPlugins.registerPluginSettings('sponsor-billboard', {
       // normalized to { name, mediaPath } here so editing an old config
       // doesn't lose its name.
       function loadSponsors() {
-        const raw = ctx.getPluginSettings('sponsor-billboard').sponsorsByChannel || {};
+        const raw = window.RCBPlugins.ctx.settings.getPluginSettings('sponsor-billboard').sponsorsByChannel || {};
         const byChannel = {};
         Object.keys(raw).forEach((num) => {
           const v = raw[num];
@@ -28,13 +32,13 @@ window.RCBPlugins.registerPluginSettings('sponsor-billboard', {
       }
 
       function commit(sponsorsByChannel) {
-        ctx.updatePluginSettings('sponsor-billboard', { sponsorsByChannel: { ...sponsorsByChannel } });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('sponsor-billboard', { sponsorsByChannel: { ...sponsorsByChannel } });
       }
 
       function renderList() {
         const sponsorsByChannel = loadSponsors();
         listEl.innerHTML = '';
-        ctx.sortedChannels().forEach((ch) => {
+        window.RCBPlugins.ctx.channels.sortedChannels().forEach((ch) => {
           const key = String(ch.number);
           if (!sponsorsByChannel[key]) sponsorsByChannel[key] = { name: '', mediaPath: '' };
           const entry = sponsorsByChannel[key];

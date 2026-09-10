@@ -1,11 +1,14 @@
-// Global enable + interval + per-channel override list — same
-// getPluginSettings/updatePluginSettings pattern and per-channel-map shape
-// as sponsor-billboard/settings.js.
+// Global enable + interval + per-channel override list — same per-channel-map
+// shape as sponsor-billboard/settings.js. The section's own `ctx.settings` is
+// a one-time snapshot (taken when the panel was expanded — see
+// setup-plugin-settings.js's makeContext), not a live reference, so this
+// reads/writes through window.RCBPlugins.ctx.settings.getPluginSettings/
+// updatePluginSettings instead, same as sponsor-billboard/music-choice-channel.
 window.RCBPlugins.registerPluginSettings('film-reel-marks', {
   sections: [{
     id: 'general',
     render(container, ctx) {
-      const settings = ctx.getPluginSettings('film-reel-marks');
+      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('film-reel-marks');
       container.innerHTML = `
         <label class="panel-toggle"><input type="checkbox" data-el="enabled">FILM REEL-CHANGE CUE MARKS</label>
         <div class="panel-body">
@@ -23,15 +26,15 @@ window.RCBPlugins.registerPluginSettings('film-reel-marks', {
       intervalEl.value = settings.intervalMin || 20;
 
       enabledEl.addEventListener('change', () => {
-        ctx.updatePluginSettings('film-reel-marks', { enabled: enabledEl.checked });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { enabled: enabledEl.checked });
       });
       intervalEl.addEventListener('change', () => {
-        ctx.updatePluginSettings('film-reel-marks', { intervalMin: Math.max(1, parseInt(intervalEl.value, 10) || 20) });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { intervalMin: Math.max(1, parseInt(intervalEl.value, 10) || 20) });
       });
 
       const listEl = container.querySelector('#film-reel-marks-channel-list');
       const channelOverrides = { ...(settings.channelOverrides || {}) };
-      ctx.sortedChannels().forEach((ch) => {
+      window.RCBPlugins.ctx.channels.sortedChannels().forEach((ch) => {
         const row = document.createElement('div');
         row.className = 'panel-interval';
         const label = document.createElement('span');
@@ -49,7 +52,7 @@ window.RCBPlugins.registerPluginSettings('film-reel-marks', {
         select.addEventListener('change', () => {
           if (select.value === '') delete channelOverrides[String(ch.number)];
           else channelOverrides[String(ch.number)] = select.value === 'on';
-          ctx.updatePluginSettings('film-reel-marks', { channelOverrides: { ...channelOverrides } });
+          window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { channelOverrides: { ...channelOverrides } });
         });
         row.append(label, select);
         listEl.appendChild(row);
