@@ -1,0 +1,16 @@
+{
+  "id": "music-choice-channel",
+  "name": "Music Choice Channel",
+  "version": "1.0.0",
+  "description": "A retro '90s/2000s digital-cable-style audio channel — configure genre \"stations\" backed by your own music folders, flip between them live like a real Music Choice/DMX channel grid, and tune in to a full-screen now-playing display with a genre-colored background (a gradient, an image slideshow, or a muted looping video).",
+  "category": "channel",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "style": "style.css",
+  "main": "main.js",
+  "capabilities": {
+    "ipc": [
+      { "channel": "music-choice:scanFolder", "why": "recursively finds audio files in a station's music folder, and image files in a slideshow background folder" }
+    ]
+  }
+}

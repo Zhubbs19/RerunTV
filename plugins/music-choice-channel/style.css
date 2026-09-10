@@ -1,0 +1,294 @@
+/* Music Choice Channel (CH 910) — a retro '90s/2000s digital-cable audio
+   channel look: a genre-colored still/slideshow/video background behind a
+   plain, high-contrast NOW PLAYING readout, no video-of-the-song, just the
+   channel "bug" + artist/title text real cable audio services used. Same
+   z-index tier as other virtual channels (see spotify-connect/style.css's
+   file-top comment). Per-station color comes from CSS custom properties
+   (--mc-bg/--mc-bg2/--mc-accent) set in JS (applyStationTheme, renderer.js)
+   rather than per-theme selectors, since the theme is user-picked per
+   station, not tied to the app's own CRT theme. */
+.mc-channel {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  overflow: hidden;
+  font-family: var(--font-ui, system-ui, sans-serif);
+  --mc-bg: #1a0606;
+  --mc-bg2: #3a0d0d;
+  --mc-accent: #ff4444;
+}
+
+.mc-bg {
+  position: absolute;
+  inset: 0;
+}
+
+.mc-bg-gradient {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 30% 20%, var(--mc-bg2) 0%, var(--mc-bg) 65%);
+  transition: background 0.6s ease;
+}
+
+.mc-bg-slideshow {
+  position: absolute;
+  inset: 0;
+}
+.mc-slideshow-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+  filter: saturate(0.85) brightness(0.55);
+}
+.mc-slideshow-img.mc-slideshow-top { opacity: 1; }
+
+.mc-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.85) brightness(0.5);
+}
+
+.mc-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.2) 40%, rgba(0, 0, 0, 0.85) 100%);
+}
+
+/* A small decorative VU-meter, pure CSS — the closest thing real Music
+   Choice-style channels had to "motion" behind the static/slideshow image. */
+.mc-vu {
+  position: absolute;
+  right: 28px;
+  bottom: 118px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 34px;
+  opacity: 0.55;
+}
+.mc-vu span {
+  width: 5px;
+  background: var(--mc-accent);
+  animation: mc-vu-bounce 1.1s ease-in-out infinite;
+}
+.mc-vu span:nth-child(1) { animation-delay: 0s; height: 40%; }
+.mc-vu span:nth-child(2) { animation-delay: 0.15s; height: 70%; }
+.mc-vu span:nth-child(3) { animation-delay: 0.3s; height: 100%; }
+.mc-vu span:nth-child(4) { animation-delay: 0.45s; height: 60%; }
+.mc-vu span:nth-child(5) { animation-delay: 0.6s; height: 85%; }
+@keyframes mc-vu-bounce {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+
+.mc-chrome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 28px 36px;
+  pointer-events: none;
+}
+
+.mc-bug {
+  display: inline-flex;
+  flex-direction: column;
+  align-self: flex-start;
+  border: 2px solid var(--mc-accent);
+  background: rgba(0, 0, 0, 0.55);
+  padding: 8px 14px;
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.5);
+}
+.mc-bug-brand {
+  font-family: var(--font-display, sans-serif);
+  font-size: 13px;
+  letter-spacing: 2px;
+  color: var(--mc-accent);
+}
+.mc-bug-station {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.mc-topright {
+  position: absolute;
+  top: 28px;
+  right: 36px;
+  text-align: right;
+  color: #fff;
+}
+.mc-chnum {
+  font-family: var(--font-mono, monospace);
+  font-size: 15px;
+  opacity: 0.85;
+}
+.mc-stereo {
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--mc-accent);
+  margin-top: 4px;
+}
+
+.mc-empty, .mc-probe-hint {
+  margin: auto;
+  align-self: center;
+  text-align: center;
+  color: #fff;
+  max-width: 60%;
+}
+.mc-empty-title, .mc-probe-hint {
+  font-family: var(--font-display, sans-serif);
+  font-size: 22px;
+  letter-spacing: 1px;
+  color: var(--mc-accent);
+}
+.mc-empty-body {
+  margin-top: 10px;
+  font-size: 15px;
+  opacity: 0.85;
+}
+
+.mc-now-playing {
+  align-self: flex-start;
+  max-width: 70%;
+}
+.mc-artist {
+  font-family: var(--font-display, sans-serif);
+  font-size: clamp(28px, 4.5vw, 54px);
+  color: #fff;
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+  line-height: 1.05;
+}
+.mc-title {
+  font-size: clamp(18px, 2.4vw, 28px);
+  color: var(--mc-accent);
+  margin-top: 4px;
+}
+.mc-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  color: #fff;
+  max-width: 480px;
+}
+.mc-progress-bar {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+}
+.mc-progress-fill {
+  height: 100%;
+  background: var(--mc-accent);
+  width: 0%;
+  transition: width 1s linear;
+}
+.mc-upnext {
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.5px;
+}
+
+.mc-hint {
+  align-self: flex-end;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.mc-browser {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: rgba(5, 5, 10, 0.92);
+  padding: 40px 60px;
+  pointer-events: auto;
+}
+.mc-browser-title {
+  font-family: var(--font-display, sans-serif);
+  font-size: 22px;
+  letter-spacing: 1.5px;
+  color: #fff;
+  margin-bottom: 18px;
+}
+.mc-browser-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mc-browser-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.mc-browser-row:hover { background: rgba(255, 255, 255, 0.06); }
+.mc-browser-row-active {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.1);
+}
+.mc-browser-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+.mc-browser-name { font-weight: 700; }
+.mc-browser-genre {
+  font-size: 12px;
+  letter-spacing: 1px;
+  opacity: 0.65;
+}
+.mc-browser-count {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  opacity: 0.5;
+}
+.mc-browser-hint {
+  margin-top: 16px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ---------- Settings panel (PLUGINS tab) ---------- */
+.mc-settings-card {
+  border: 1px solid var(--line);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  background: rgba(0, 0, 0, 0.12);
+}
+.mc-settings-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.mc-settings-card-head .title-row-input { flex: 1; }
+.mc-settings-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+}

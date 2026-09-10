@@ -48,6 +48,7 @@ plugins/spotify-connect/
 !plugins/ffmpeg-transcode/
 !plugins/film-reel-marks/
 !plugins/local-weather/
+!plugins/music-choice-channel/
 !plugins/noaa-weather/
 !plugins/party-channel/
 !plugins/pay-per-view/
