@@ -72,7 +72,22 @@ const serviceOwners = new Map(); // key -> pluginId
 // dataDir; here there isn't one to target). child-process spawn is only
 // granted at all if the manifest declares at least one capabilities.spawn
 // entry.
-function buildExecArgv(manifest, appRootDir, pluginDir, dataDir) {
+//
+// `helperBinaries` are the individual executable FILES core itself already
+// resolved and is handing this child in its own init payload (today: the
+// ffmpeg binary, either bundled or found on PATH, plus whatever path the
+// user configured for it). They are granted read because a plugin has to be
+// able to check that a binary core told it about actually exists before
+// spawning it — and a plugin that couldn't check would still be allowed to
+// spawn it, so this reveals nothing it doesn't already have. Found the hard
+// way: this build doesn't bundle ffmpeg, so the ffmpeg-transcode plugin
+// resolves a system one from PATH, and every such path sits outside the two
+// directories below. fs.existsSync() doesn't throw under the permission
+// model, it just answers false — so the plugin concluded the binary wasn't
+// there and refused to activate, silently taking the codec fix, caption
+// extraction, thumbnail capture and recording down with it. Each entry is
+// one exact file, never a directory.
+function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries = []) {
   // Packaged plugins are seeded under portable userData/plugins, which is a
   // sibling of resources/app.asar rather than a child of appRootDir. Grant
   // the plugin's own directory explicitly so the runtime can require its
@@ -81,6 +96,7 @@ function buildExecArgv(manifest, appRootDir, pluginDir, dataDir) {
   const readPaths = [appRootDir, pluginDir];
   const writePaths = [];
   if (dataDir) { readPaths.push(dataDir); writePaths.push(dataDir); }
+  helperBinaries.filter(Boolean).forEach((binary) => readPaths.push(binary));
   const args = [
     '--experimental-permission',
     `--allow-fs-read=${readPaths.join(',')}`,
@@ -229,6 +245,19 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
 // ...} extraCtx object main.js builds for the non-isolated path; `manifest`
 // is one entry from discoverPlugins(); `pluginDir` is its absolute install
 // path; `pluginServices` is the single shared services object.
+// The executables core resolves for plugins to spawn — read-granted above so
+// an isolated plugin can stat one before spawning it. A config read that
+// fails (a corrupt or missing config at boot) costs the user-configured
+// override, not the whole activation.
+function helperBinaryPaths(baseCtx) {
+  const paths = [baseCtx.ffmpegStaticPath];
+  try {
+    const configured = (baseCtx.loadConfig().ffmpeg || {}).ffmpegPath;
+    if (configured) paths.push(configured);
+  } catch (e) { /* no configured override available — the resolved path above still applies */ }
+  return paths;
+}
+
 function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir) {
   return new Promise((resolve) => {
     const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
@@ -238,7 +267,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     try {
       child = utilityProcess.fork(RUNTIME_SCRIPT, [], {
         serviceName: `plugin:${manifest.id}`,
-        execArgv: buildExecArgv(manifest, appRootDir, pluginDir, dataDir),
+        execArgv: buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaryPaths(baseCtx)),
         stdio: 'pipe',
       });
     } catch (e) {

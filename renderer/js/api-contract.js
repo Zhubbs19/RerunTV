@@ -35,6 +35,12 @@
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',
     'castListMirrorSources', 'castPrepareMirrorCapture', 'castMirrorChunk', 'castStartMirror', 'castStopMirror',
     'castSetAutoSync', 'castSetNowPlaying', 'castGetStatus', 'onCastStatus',
+    // Host-only: recording reads the real source files and spawns ffmpeg on
+    // the machine running RerunTV. A LAN viewer has neither, so the tape
+    // deck's channel degrades to "recording is unavailable here" there
+    // rather than getting a shim that could not work.
+    'tapesRecord', 'tapesStatus', 'tapesCancel', 'tapesList', 'tapesSetArt', 'tapesDelete',
+    'onTapesProgress', 'onTapesDone',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),

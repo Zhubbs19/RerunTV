@@ -175,6 +175,21 @@ function removePluginIntegrity(id) {
   if (plugins[id]) { delete plugins[id]; saveIntegrityManifest(plugins); }
 }
 
+// Refreshing an app-owned copy REPLACES it rather than copying over it.
+// fs.cpSync only adds and overwrites; a file the bundled source no longer
+// ships stays behind forever. That is not cosmetic: the leftover changes the
+// installed folder's hash, so discoverPlugins() reads the copy as 'modified'
+// and loadMainPlugins() then refuses to activate it until the user approves
+// an integrity change they never made. Found exactly that way — the
+// ffmpeg-transcode plugin's settings UI was split out of a renderer.js that
+// the bundled source stopped shipping, the orphan survived the update, and
+// the plugin every ffmpeg feature depends on (codec fix, caption extraction,
+// thumbnail capture, recording) silently stopped loading.
+function replaceBundledCopy(sourceDir, destDir) {
+  fs.rmSync(destDir, { recursive: true, force: true });
+  fs.cpSync(sourceDir, destDir, { recursive: true });
+}
+
 function seedBundledPlugins() {
   let folders;
   try {
@@ -197,7 +212,7 @@ function seedBundledPlugins() {
       // A null hash is the old v1 array ledger: refresh once while upgrading
       // it so existing installs receive newly added settings/runtime files.
       if (seeded.get(folder.name) !== sourceHash) {
-        fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+        replaceBundledCopy(sourceDir, destDir);
       }
       seeded.set(folder.name, sourceHash);
     } else {
@@ -214,7 +229,7 @@ function seedBundledPlugins() {
       // capability-denied error and no obvious cause. Enroll it now and
       // sync it to match the bundled source immediately, same as any other
       // first-party plugin under a bundled id is expected to track.
-      fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
+      replaceBundledCopy(sourceDir, destDir);
       seeded.set(folder.name, sourceHash);
     }
   }

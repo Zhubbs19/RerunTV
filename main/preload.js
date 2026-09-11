@@ -227,6 +227,17 @@ contextBridge.exposeInMainWorld('api', {
   castSetNowPlaying: (info) => ipcRenderer.send('cast:setNowPlaying', info),
   castGetStatus: () => ipcRenderer.invoke('cast:getStatus'),
   onCastStatus: (cb) => ipcRenderer.on('cast:status', (event, data) => cb(data)),
+  // Recording ("taping") a channel's broadcast to a file, and the shelf of
+  // finished tapes CH 101 plays back — handled by plugins/tape-deck's own
+  // main.js, not core.
+  tapesRecord: (plan) => ipcRenderer.invoke('tapes:record', plan),
+  tapesStatus: () => ipcRenderer.invoke('tapes:status'),
+  tapesCancel: (id) => ipcRenderer.invoke('tapes:cancel', id),
+  tapesList: () => ipcRenderer.invoke('tapes:list'),
+  tapesSetArt: (opts) => ipcRenderer.invoke('tapes:setArt', opts),
+  tapesDelete: (id) => ipcRenderer.invoke('tapes:delete', id),
+  onTapesProgress: (cb) => ipcRenderer.on('tapes:progress', (event, data) => cb(data)),
+  onTapesDone: (cb) => ipcRenderer.on('tapes:done', (event, data) => cb(data)),
   // Plugins — see main-plugins.js and renderer/js/plugins.js.
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),

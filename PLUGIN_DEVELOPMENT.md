@@ -693,12 +693,37 @@ the config schema:
 - `ctx.updatePluginSettings(id, patch)` — shallow-merges generic settings and
   saves through the app's normal config-generation/undo funnel.
 
+`getChannelSchedule(ch, from, to)` lists the CONTENT airing across a range.
+Two more resolvers cover the breaks between it, so a plugin can reconstruct
+a channel's entire broadcast rather than just its programme listing:
+
+- `resolveBreakAt(ch, atMs)` — what, if anything, is interrupting content at
+  that exact instant. Returns `null` when nothing is, or
+  `{ type, entry, windowStart, windowEnd, label? }`. `entry` is the
+  interstitial pool entry, whose `file` (or `bgFile`, for a dynamic text
+  bumper) is the clip that plays; a break with no file at all is one core
+  draws as an on-screen card over a paused picture. The one break that does
+  NOT pause anything is a text-only station ID (`type === 'channelId'` with
+  no `entry.file`) — core overlays that bar on top of the still-running show.
+- `nextBreakBoundary(ch, fromMs)` — the next instant the answer above
+  changes, so you can step boundary to boundary instead of sampling.
+  `Infinity` when nothing is ever scheduled.
+
+Both are pure functions of `(channel, timestamp)`, exactly like
+`getChannelSchedule`, so a whole range resolves without playing any of it.
+`plugins/tape-deck/renderer.js`'s `planSegments` is a worked example: it
+walks a range with these three and produces the list of cuts that becomes a
+recording. It is also worth reading for two rules any similar walk needs:
+a break with no `entry.file` is a card core draws over a PAUSED picture, so
+it occupies time; and a text-only station ID is the one break that does not
+pause anything, so it occupies none.
+
 `ctx` also groups everything above by concern, so you can destructure just
 the piece you need instead of pulling every key off the flat object:
 
 - `ctx.core` — `{ S, viewNow, player, saveConfigDebounced }`
 - `ctx.audio` — `{ playTone, playNoiseBurst, getAudioCtx }`
-- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry }`
+- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry, resolveBreakAt, nextBreakBoundary }`
 - `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
 - `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
 

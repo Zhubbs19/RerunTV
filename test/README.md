@@ -59,6 +59,15 @@ process cleanup for free. Those drivers are scratch, not harness — leave them
 untracked, same as the existing `verify-*.mjs` pile. The driver receives the
 CDP port as its only argument and should exit non-zero on failure.
 
+Add `-PreApprovePlugin <id>` (repeatable) when the plugin under test is new,
+or its manifest's `capabilities` block changed at all — the `why` strings
+included. An unapproved plugin's renderer still loads and registers its
+channel, but its main-process half never activates, so every one of its IPC
+handlers answers "No handler registered" and the run reads as a pile of
+unrelated failures rather than one missing approval. It writes only into the
+throwaway copy, through the same `lib/preapprove-plugin.js` the theme sweep
+uses.
+
 Wrap each logical check in its own try/catch rather than a single straight
 line of `await`s: a busy renderer occasionally makes one `Runtime.evaluate`
 fail with "Promise was collected", and an unguarded run throws away every
@@ -168,8 +177,8 @@ assume it hung if it's still running after a few minutes.
   `fetch`/`WebSocket` are enough). Only implements the handful of domains
   this suite needs — not a general-purpose library.
 - `lib/preapprove-plugin.js` — writes a plugin's current capability
-  signature into a throwaway config, behind `theme-visual-sweep.ps1`'s
-  `-PreApprovePlugin <id>`. Needed whenever a plugin manifest's
+  signature into a throwaway config, behind `theme-visual-sweep.ps1`'s and
+  `run-ui-tests.ps1`'s `-PreApprovePlugin <id>`. Needed whenever a plugin manifest's
   `capabilities` block changed: any edit there (the `why` strings included)
   changes its approval signature, and an unapproved plugin is skipped at
   load, so a run without this silently tests a plugin that never activated.

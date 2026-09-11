@@ -35,9 +35,17 @@
 # tempting anyone to launch Electron by hand against the real config, which
 # is the one thing this whole wrapper exists to prevent. The driver still
 # takes the CDP port as its only argument.
+# -PreApprovePlugin approves a plugin's declared capabilities inside the
+# THROWAWAY copy (never the source), via the same lib/preapprove-plugin.js
+# theme-visual-sweep.ps1 uses. Needed for a brand-new plugin, or any plugin
+# whose manifest capabilities changed: without approval its main-process half
+# never activates, so its renderer loads but every one of its ipcMain
+# handlers is missing, which reads as a pile of unrelated failures. Accepts
+# several ids.
 param(
     [string]$UserDataSource = '',
-    [string]$Script = 'run-ui-tests.mjs'
+    [string]$Script = 'run-ui-tests.mjs',
+    [string[]]$PreApprovePlugin = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -152,6 +160,11 @@ $electronProc = $null
 $exitCode = 2
 
 try {
+    foreach ($pluginId in $PreApprovePlugin) {
+        & node (Join-Path $PSScriptRoot 'lib\preapprove-plugin.js') $repoRoot $userDataDir $pluginId
+        if ($LASTEXITCODE -ne 0) { throw "Pre-approving $pluginId failed." }
+    }
+
     Write-Host "Launching Electron against the throwaway userData copy, CDP on port $port ..." -ForegroundColor Cyan
     $electronCmd = Join-Path $repoRoot 'node_modules\.bin\electron.cmd'
     $stdout = Join-Path $PSScriptRoot 'electron-stdout.log'

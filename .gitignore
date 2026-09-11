@@ -73,6 +73,7 @@ plugins/spotify-connect/
 !plugins/signal-glitches/
 !plugins/smpte-test-pattern/
 !plugins/sponsor-billboard/
+!plugins/tape-deck/
 !plugins/teletext-arcade/
 !plugins/theme-analog-90s/
 !plugins/theme-cable-box-osd/

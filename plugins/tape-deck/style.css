@@ -1,0 +1,817 @@
+/* CH 101, the tape deck. Two looks from one stylesheet: a VCR with a slot
+   that swallows a cassette, and a disc player with a tray that slides out.
+   The .tape-deck--vhs / .tape-deck--dvd class on the root picks between them.
+
+   The palette here is deliberately SELF-CONTAINED rather than drawn from
+   core's theme tokens. Every other plugin channel is on-screen furniture and
+   should re-skin with the guide; this one is a machine sitting under the
+   television, and it reads wrong when it changes colour with the channel
+   guide. It is also a correctness matter: --ink is a dark navy in the
+   default guide theme, so a panel that inherited it painted near-black text
+   on a near-black chassis and the tape titles simply were not there.
+
+   The top-right and bottom-left corners are kept clear throughout: core
+   draws the channel logo bug in one and its own cards in the other, and
+   anything a plugin puts there ends up underneath them. */
+
+.tape-deck {
+  position: absolute;
+  inset: 0;
+  --deck-ink: #eef1f6;
+  --deck-dim: #9aa2b1;
+  --deck-amber: #f2c14e;
+  --deck-vfd: #7cf6b0;
+  --deck-chassis: #1b1b1f;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.4rem 1rem;
+  background:
+    radial-gradient(120% 80% at 50% 110%, rgba(120, 130, 150, 0.16), transparent 70%),
+    #08090b;
+  color: var(--deck-ink);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  overflow: hidden;
+}
+
+.tape-shelf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  /* Room for the logo bug. */
+  padding-right: 8rem;
+  flex: 0 0 auto;
+}
+
+.tape-eyebrow {
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  color: var(--deck-amber);
+  white-space: nowrap;
+}
+
+.tape-clock {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  color: var(--deck-dim);
+}
+
+/* ---------- the shelf ---------- */
+
+.tape-shelf {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  /* `safe` so a single case still starts at the left edge instead of being
+     centred out of a scroll container's reachable area. */
+  justify-content: safe center;
+  gap: 0.7rem;
+  padding: 0.6rem 0.2rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tape-shelf::-webkit-scrollbar { display: none; }
+
+.tape-shelf-empty {
+  margin: auto;
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  color: var(--deck-dim);
+}
+
+/* A case standing on a shelf. A cassette sleeve is tall and narrow; a disc
+   keep-case is wider and squarer, which is most of what tells the two apart
+   at a glance before you read a word of either. */
+.tape-case {
+  flex: 0 0 auto;
+  width: 9.5rem;
+  height: 13rem;
+  /* The card that turns over. Both faces live inside it, so flipping is one
+     rotation rather than a swap of contents. */
+  perspective: 900px;
+  transform: translateY(0) rotate(-0.4deg);
+  transition: transform 160ms ease;
+}
+
+.tape-case--disc {
+  width: 11rem;
+  height: 12.4rem;
+}
+
+.tape-case-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 420ms cubic-bezier(0.3, 0.8, 0.3, 1);
+}
+
+.tape-case.is-flipped .tape-case-inner { transform: rotateY(180deg); }
+
+.tape-case-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.7rem 0.6rem 0.55rem;
+  border-radius: 3px 3px 2px 2px;
+  background: linear-gradient(100deg, #15151a 0%, #1e1e25 42%, #101014 100%);
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 6px solid var(--spine, #444);
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backface-visibility: hidden;
+  overflow: hidden;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.tape-case-back { transform: rotateY(180deg); }
+
+/* With real artwork on a face, the printed text would sit on top of the
+   picture. The text drops to the bottom of the sleeve, over a scrim — which
+   is where a real release printed it, and the only place it stays readable
+   against an arbitrary image. */
+.tape-case-face.has-art {
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.tape-case-face.has-art > * {
+  position: relative;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.tape-case-face.has-art .tape-case-title {
+  -webkit-line-clamp: 2;
+}
+
+.tape-case-face.has-art::after {
+  content: '';
+  position: absolute;
+  inset: 40% 0 0;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
+}
+
+/* The media sits on top of the scrim, not under it — it is an object in the
+   case, not printing on the sleeve. */
+.tape-case-media { z-index: 1; }
+
+.tape-case-back .tape-case-contents { padding-right: 3.4rem; }
+
+.tape-case.is-selected { transform: translateY(-1.1rem) rotate(0deg); }
+
+.tape-case.is-selected .tape-case-face {
+  border-color: var(--deck-amber);
+  /* Repeats the wear wash from the base rule, which this shadow list would
+     otherwise replace outright. */
+  box-shadow:
+    0 16px 26px rgba(0, 0, 0, 0.65),
+    0 0 0 2px rgba(242, 193, 78, 0.5),
+    inset 0 0 0 999px rgba(122, 122, 134, min(0.26, calc(var(--wear, 0) * 0.035)));
+}
+
+.tape-case-spine,
+.tape-case-blurb {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+/* The physical media, lying in the open case. This is where a tape's MEDIA
+   LABEL art shows before it is ever loaded — the cover on the case and the
+   label on the cassette were never the same picture, and this is the only
+   place you could see both at once. A cassette is a rectangle with two
+   spool windows; a disc is a circle with a clear hub. */
+.tape-case-media {
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.5rem;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.tape-case-media--vhs {
+  width: 4.4rem;
+  height: 2.6rem;
+  border-radius: 2px;
+  background-color: var(--spine, #2a2a30);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 0 0.5rem;
+}
+
+/* An unlabelled cassette shows its two spool windows; a labelled one has a
+   sticker over them, the way a real one did. */
+.tape-case-media--vhs .tape-case-media-hub {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+.tape-case-media--vhs.has-art .tape-case-media-hub { display: none; }
+
+.tape-case-media--disc {
+  width: 3.1rem;
+  height: 3.1rem;
+  border-radius: 50%;
+  background-color: #16161a;
+  background-image:
+    radial-gradient(circle at 50% 50%, #0d0d10 0 17%, transparent 18%),
+    conic-gradient(from 210deg, #7fd3ff, #d6a8ff, #ffd6a8, #a8ffc8, #7fd3ff);
+}
+
+/* With real label art the rainbow underneath would show through the edges,
+   so the art replaces it outright and only the hole is punched back out. */
+.tape-case-media--disc.has-art {
+  background-blend-mode: normal;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, transparent 0 17%, #000 18%);
+  mask-image: radial-gradient(circle at 50% 50%, transparent 0 17%, #000 18%);
+}
+
+.tape-case-media--disc .tape-case-media-hub { display: none; }
+
+/* The list of what is on the tape, printed on the back the way a release's
+   track listing was. */
+.tape-case-contents {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.6rem;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--deck-dim);
+  text-transform: uppercase;
+  overflow: hidden;
+}
+
+.tape-case-contents li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tape-case-title {
+  font-size: 0.86rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--deck-ink);
+  text-transform: uppercase;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tape-case-sub {
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--deck-dim);
+}
+
+.tape-case-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.3rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.62rem;
+  color: var(--deck-dim);
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  padding-top: 0.35rem;
+}
+
+/* ---------- the machine ---------- */
+
+.tape-machine {
+  flex: 0 0 auto;
+  position: relative;
+  border-radius: 5px;
+  padding: 0.75rem 1rem 0.9rem;
+  background: linear-gradient(180deg, #2b2b30 0%, #1b1b1f 55%, #131316 100%);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.tape-machine-face {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.tape-machine-brand {
+  font-size: 0.6rem;
+  letter-spacing: 0.28em;
+  color: #8a8a94;
+}
+
+/* The little green fluorescent readout every deck had. */
+.tape-vfd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+  letter-spacing: 0.14em;
+  color: var(--deck-vfd);
+  text-shadow: 0 0 8px rgba(124, 246, 176, 0.55);
+}
+
+.tape-slot {
+  position: relative;
+  height: 2.6rem;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #0b0b0d;
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.9);
+}
+
+.tape-slot-mouth {
+  position: absolute;
+  inset: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+/* The cassette (or tray) travelling into the machine. Parked below the slot
+   until a load starts, so the same element does both formats. */
+.tape-carrier {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 100%;
+  height: 2.2rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.7rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #d8d8e2;
+  background: linear-gradient(180deg, #26262c 0%, #17171b 100%);
+  border-left: 5px solid var(--spine, #444);
+  border-radius: 2px;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.6);
+  transition: top 900ms cubic-bezier(0.3, 0.9, 0.3, 1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tape-carrier-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The disc itself, on the tray. Hidden in cassette mode, where the carrier
+   IS the tape. */
+.tape-platter { display: none; }
+
+/* The sticker across a cassette's shell. Shown only when a tape actually has
+   label art — an unlabelled cassette is just its shell colour, which is how
+   most of them looked. */
+.tape-carrier-sticker {
+  display: none;
+  position: absolute;
+  inset: 0.25rem 0.35rem 0.25rem 0.35rem;
+  border-radius: 1px;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.9;
+}
+
+.tape-carrier-sticker.has-art { display: block; }
+.tape-deck--dvd .tape-carrier-sticker { display: none; }
+
+/* Real label art replaces the generic rainbow face; applyArt sets the image
+   inline, so this only has to size it. */
+.tape-platter.has-art {
+  background-size: cover;
+  background-position: center;
+}
+
+.tape-machine.is-inserting .tape-carrier { top: 0.2rem; }
+.tape-machine.is-seated .tape-carrier { top: 100%; }
+
+/* ---------- the disc player's own chassis ----------
+   A cassette goes UP into a slot; a disc comes OUT on a tray and goes back
+   in flat. Same two elements, driven the other way round, plus a real disc
+   sitting on the tray so the two machines are told apart at a glance. */
+
+.tape-deck--dvd .tape-slot {
+  height: 3.2rem;
+  background: #0d0d10;
+}
+
+/* A tray's mouth is a thin seam across the fascia, not a cassette's wide
+   letterbox opening. */
+.tape-deck--dvd .tape-slot-mouth {
+  inset: auto 6% 1.05rem;
+  height: 0;
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+}
+
+.tape-deck--dvd .tape-carrier {
+  top: 1.1rem;
+  left: 14%;
+  right: 14%;
+  height: 1.9rem;
+  gap: 0.7rem;
+  border-left: none;
+  border-radius: 2px 2px 6px 6px;
+  background: linear-gradient(180deg, #33333a 0%, #1c1c21 100%);
+  transition: top 900ms cubic-bezier(0.3, 0.9, 0.3, 1), transform 900ms cubic-bezier(0.3, 0.9, 0.3, 1);
+}
+
+.tape-deck--dvd .tape-platter {
+  display: block;
+  flex: 0 0 auto;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  /* The rainbow sheen a pressed disc throws under a lamp. */
+  background:
+    radial-gradient(circle at 50% 50%, #0d0d10 0 18%, transparent 19%),
+    conic-gradient(from 210deg, #7fd3ff, #d6a8ff, #ffd6a8, #a8ffc8, #7fd3ff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+
+/* Out: the tray slides forward and tips into view. Seated: it draws back
+   flush with the fascia. */
+.tape-deck--dvd .tape-machine.is-tray-out .tape-carrier {
+  top: 1.6rem;
+  transform: translateY(0.55rem) scaleY(1.05);
+}
+
+.tape-deck--dvd .tape-machine.is-seated .tape-carrier {
+  top: 1.1rem;
+  transform: none;
+}
+
+.tape-deck--dvd .tape-machine.is-seated .tape-platter {
+  animation: tape-platter-spin 700ms linear infinite;
+}
+
+@keyframes tape-platter-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tape-hint {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  color: var(--deck-dim);
+  text-align: center;
+  /* Room for core's own cards in the bottom-left corner. */
+  padding-left: 12rem;
+}
+
+/* ---------- the disc menu ---------- */
+
+.tape-disc-menu {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 1.1rem;
+  padding: 1.6rem 2rem 1.2rem;
+  background:
+    radial-gradient(70% 60% at 18% 0%, rgba(96, 132, 190, 0.3), transparent 72%),
+    linear-gradient(160deg, #141a2e 0%, #080a12 100%);
+}
+
+/* A disc's own cover art, behind its menu — the printed sleeve showing
+   through, not a second thing to look at. */
+.tape-disc-poster {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+
+.tape-disc-poster.has-art { opacity: 0.3; }
+
+.tape-disc-menu > *:not(.tape-disc-poster) { position: relative; }
+
+.tape-disc-art {
+  padding-right: 8rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding-bottom: 0.9rem;
+}
+
+.tape-disc-title {
+  font-family: var(--font-display, system-ui, sans-serif);
+  font-size: clamp(1.4rem, 3.4vw, 2.6rem);
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.tape-disc-sub,
+.tape-disc-run {
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  color: var(--deck-dim);
+  margin-top: 0.3rem;
+}
+
+.tape-disc-chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* A menu of two entries should read as a short menu, not as a list
+     stranded at the top of an empty screen. */
+  align-self: start;
+  width: min(46rem, 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.tape-disc-chapters::-webkit-scrollbar { display: none; }
+
+.tape-chapter {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr auto;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  border-left: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tape-chapter.is-play {
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tape-chapter.is-selected {
+  border-left-color: var(--deck-amber);
+  background: rgba(242, 193, 78, 0.18);
+  color: #fff;
+}
+
+.tape-chapter-n,
+.tape-chapter-time {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.72rem;
+  color: var(--deck-dim);
+}
+
+.tape-chapter-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* A viewer's own animation for one phase of the machine's operation, laid
+   over the built-in one. Contained rather than cropped, so a picture of any
+   shape arrives whole. */
+.tape-phase-anim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ---------- playback ----------
+   During playback the container has to stay non-empty (core only reveals it
+   when render() put something in it) but must not paint over the picture,
+   so the deck is transparent here and only the deck's own chrome shows. */
+
+.tape-deck.tape-playing {
+  background: none;
+  padding: 0;
+  pointer-events: none;
+}
+
+/* The beat of blue every deck showed between engaging and locking on. */
+.tape-bluescreen {
+  position: absolute;
+  inset: 0;
+  background: #0a2a8c;
+  opacity: 1;
+  transition: opacity 420ms ease;
+}
+
+.tape-bluescreen.is-gone { opacity: 0; }
+
+/* Tracking noise, drawn as moving bands rather than as real video noise —
+   a canvas cannot sample the picture (media is a different origin), and it
+   does not need to: the bands over the top read exactly the same. */
+.tape-tracking {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12) 0 2px,
+    rgba(255, 255, 255, 0) 2px 6px
+  );
+  mix-blend-mode: screen;
+}
+
+.tape-playing.is-settling .tape-tracking {
+  opacity: 0.85;
+  animation: tape-tracking-roll 420ms linear infinite;
+}
+
+.tape-playing.is-locked .tape-tracking { opacity: 0; }
+
+/* A worn tape never fully locks. The bands stay faintly there, heavier with
+   each generation, on top of the wear already encoded into the file itself —
+   the picture loss is real and permanent, this is just the transport
+   struggling with a tape it has seen too many times. */
+.tape-playing.is-worn.is-locked .tape-tracking {
+  opacity: min(0.34, calc(var(--wear, 0) * 0.045));
+  animation: tape-tracking-roll 1600ms linear infinite;
+}
+
+.tape-osd-wear {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: #ffb4a2;
+}
+
+/* A case that has been through the machine a few times sits a little less
+   crisply on the shelf. Painted as an inset wash rather than a `filter`,
+   because a filter on a face inside a preserve-3d card flattens the
+   transform and the flip stops working. */
+.tape-case-face {
+  box-shadow:
+    0 10px 18px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 999px rgba(122, 122, 134, min(0.26, calc(var(--wear, 0) * 0.035)));
+}
+
+@keyframes tape-tracking-roll {
+  from { transform: translateY(0); }
+  to { transform: translateY(24px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-playing.is-settling .tape-tracking { animation: none; opacity: 0.4; }
+  .tape-playing.is-worn.is-locked .tape-tracking { animation: none; }
+  .tape-case-inner { transition: none; }
+  .tape-carrier { transition: none; }
+  .tape-rewind-reel span,
+  .tape-deck--dvd .tape-machine.is-seated .tape-platter { animation: none; }
+}
+
+/* The deck's own on-screen display, in the top-left — core keeps the
+   top-right for the logo bug. */
+.tape-osd {
+  position: absolute;
+  top: 1.1rem;
+  left: 1.4rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+}
+
+.tape-osd-mode { font-size: 0.9rem; color: var(--deck-vfd, #7cf6b0); }
+.tape-osd-counter { font-size: 0.78rem; color: #d8d8e2; }
+.tape-osd-bad { color: #ff6b5b; }
+
+/* The burned-in date stamp a home recording always had. Bottom-right, since
+   core uses the bottom-left. */
+.tape-stamp {
+  position: absolute;
+  right: 1.4rem;
+  bottom: 2.6rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.66);
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  text-transform: uppercase;
+}
+
+.tape-shuttle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.6rem;
+  letter-spacing: 0.2em;
+  color: #fff;
+  text-shadow: 0 0 14px rgba(0, 0, 0, 0.95);
+}
+
+.tape-shuttle.hidden { display: none; }
+
+.tape-hint--play {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0.7rem;
+  padding-left: 12rem;
+}
+
+/* ---------- rewind ---------- */
+
+.tape-rewinding {
+  align-items: center;
+  justify-content: center;
+  gap: 1.4rem;
+}
+
+.tape-rewind-reel {
+  display: flex;
+  gap: 3.5rem;
+}
+
+.tape-rewind-reel span {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  border: 5px solid #3a3a42;
+  border-top-color: var(--deck-amber);
+  animation: tape-reel-spin 420ms linear infinite reverse;
+}
+
+@keyframes tape-reel-spin {
+  to { transform: rotate(360deg); }
+}
+
+.tape-rewind-label {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1rem;
+  letter-spacing: 0.32em;
+  color: var(--deck-vfd);
+}
+
+/* ---------- the REC readout on live TV ----------
+   Lives on document.body, not inside the channel container, because it has
+   to stay visible while you watch something else. Top-left again. */
+
+.tape-rec-osd {
+  position: fixed;
+  top: 1.1rem;
+  left: 1.4rem;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.35rem 0.75rem;
+  background: rgba(0, 0, 0, 0.62);
+  border-radius: 2px;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  color: #f4f4f6;
+  pointer-events: none;
+}
+
+.tape-rec-osd.hidden { display: none; }
+
+.tape-rec-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+  animation: tape-rec-blink 1.6s steps(1, end) infinite;
+}
+
+.tape-rec-bad { color: #ff6b5b; }
+
+@keyframes tape-rec-blink {
+  0%, 55% { opacity: 1; }
+  56%, 100% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-rec-dot { animation: none; }
+}

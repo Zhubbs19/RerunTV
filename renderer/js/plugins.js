@@ -69,6 +69,7 @@
 import { getAudioCtx, playNoiseBurst, playTone } from './audio.js';
 import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChannel, sortedChannels } from './channels.js';
 import { getChannelSchedule } from './schedule.js';
+import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
 import { alertDialog } from './setup-dialogs.js';
 import { MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from './util.js';
@@ -613,7 +614,11 @@ export function pluginDiagnosticsSnapshot() {
 // existing plugin's renderer.js needs to change. New plugin code should
 // prefer the grouped form; the flat aliases are the deprecated-but-supported
 // path until a version bump actually retires them.
-const CTX_VERSION = 2;
+// v3 added resolveBreakAt/nextBreakBoundary to ctx.channels — the pair a
+// plugin needs to walk a channel's real broadcast (content AND the breaks
+// between it) across a time range, rather than only the content the guide
+// lists.
+const CTX_VERSION = 3;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -621,6 +626,7 @@ function installGlobalApi() {
   const channels = {
     sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel,
     addFilesToChannel, addInterstitialPoolEntry,
+    resolveBreakAt, nextBreakBoundary,
   };
   const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
   const util = { formatClock, WEEKDAYS, MONTHS };
@@ -661,6 +667,16 @@ function installGlobalApi() {
     // and live schedule, not something a plugin could reasonably reimplement
     // on its own without duplicating — and risking drifting out of sync
     // with — core's actual scheduling engine).
+    // resolveBreakAt/nextBreakBoundary (interstitials.js) are the break-side
+    // counterparts to getChannelSchedule: the first answers "what, if
+    // anything, is interrupting content at this instant," the second "when
+    // does that answer next change." Together with getChannelSchedule they
+    // let a plugin reconstruct a channel's ENTIRE broadcast across a range —
+    // shows plus the bumpers and commercials between them — which is what
+    // recording one needs and what the guide alone can't give. Exposed
+    // rather than reimplemented for the usual reason: break resolution is
+    // several hundred lines of cadence, pod and flow logic that must not
+    // drift out of sync with what actually airs.
     // addFilesToChannel/addInterstitialPoolEntry (channels.js) let a plugin
     // add real content to a channel or the interstitials pool without
     // knowing the config object's shape — same dedupe/shuffle/anchor and
