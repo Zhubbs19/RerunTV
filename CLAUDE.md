@@ -110,7 +110,7 @@ config/window/filter/selection are all unchanged, just moving the live line and
   supports `Page.captureScreenshot`/`Runtime.evaluate`/`Input.*`, but NOT the `Browser.*`
   window-management methods — no `Browser.setWindowBounds`; to start maximized, pre-seed
   `<userData>/window-state.json` with `{"isMaximized":true}` before launch instead, since
-  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`test/`, gitignored,
+  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`test/`, tracked —
   see `test/README.md`) was built and verified working end-to-end this way — full tab/subtab
   screenshot sweep plus targeted functional checks via `Runtime.evaluate` calling real exported
   functions (`S.config` mutations, dynamic `import()` of renderer modules, computed-style

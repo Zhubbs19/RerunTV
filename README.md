@@ -160,6 +160,13 @@ the guide also scrolls backward into the past.
   ffmpeg; the original moves to `_originals_backup/`, never deleted
 - **Undo/redo, a command palette (Ctrl+K), full keyboard nav, and OS drag-and-drop** on
   the setup screen
+- **Background auto-update** — checks, a settings panel to choose the policy (silent /
+  prompt-first / off), and a guided install flow that preserves your channel library
+- **Plugin channels are listed and editable too** — the Channel Setup screen's channel
+  list has a PLUGIN CHANNELS section for every plugin-provided channel (Music Choice,
+  Party Channel, Prevue, Public Access, etc.), where you can rename it, give it a
+  different channel number (where the plugin allows it), and set its display overrides,
+  right alongside your own channels
 - **Plugin developer diagnostics** — registration/capability inventory, bounded main and
   renderer logs, reload status, and redacted JSON support bundles
 - **23 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
@@ -211,12 +218,25 @@ main/
                                 primitives shared by both plugin trust modes below
   main-plugin-isolation.js   Spawns an isolated plugin's main.js as its own OS process
   main-media.js              Folder scanning, codec-compatibility transcode
-  main-config.js             channels.json load/save, backups
+  main-media-dispatch.js     Routes a channel's `path` to local disk or a plugin's
+                              mediaSource capability
+  main-media-bridge.js       Loopback HTTP server for a mediaSource-plugin ref in the host
+                              window when the LAN viewer server is off
+  main-config.js             channels.json load/save, backups, update-time userData guard
+  main-updater.js            Background update checks, guided/silent install (electron-updater)
+  main-updater-state.js      Pure update-history/version-transition helpers
   main-lan.js                Local network address/port helpers
+  main-lan-security.js       Shared pairing-code + session-cookie auth for the LAN servers
   main-discovery-server.js   LAN auto-discovery for the remote/viewer
   main-viewer-server.js      LAN viewer HTTP server
+  main-viewer-projection.js  Redacts config before it reaches the LAN viewer
+  main-startup-server.js     Registers server mode with the OS's startup-apps list
   main-connections.js        WATCH ON OTHER DEVICES connection tracking
   main-api-cache.js          Disk cache for third-party API responses (TMDB, NOAA, ...)
+  main-diagnostics.js        Bounded/redacted logging for the support-bundle export
+  config-diff.js             Pure config-summary/diffing for diagnostics
+  main-dialogs.js            Shared file/folder picker IPC handlers
+  main-ui-scale.js           Interface scaling for high-DPI/4K displays
   main-window-ref.js         Shared BrowserWindow reference
   main-window-state.js       Remembers window size/position between launches
   main-http-util.js          Shared readJsonBody()/serveStaticFile() for the remote/party/
@@ -228,11 +248,13 @@ main/
                                 process — the counterpart to main-plugin-isolation.js, which
                                 only covers the host side of that boundary
   preload.js                 contextBridge — exposes window.api.* to the renderer
+  update-progress-preload.js contextBridge for the separate update-progress.html window
 plugins/
   <plugin-id>/manifest.json  id, category, capabilities, isolation
   <plugin-id>/main.js        optional — main-process half (IPC handlers, etc.)
   <plugin-id>/renderer.js    optional — renderer half (registers into core via
                              registerChannelType/registerThemePack/registerCoreHook/...)
+  <plugin-id>/settings.js    optional — the plugin's own PLUGINS-tab settings UI
   <plugin-id>/style.css      optional
 renderer/
   index.html
@@ -242,23 +264,46 @@ renderer/
     state.js                 Shared mutable state (S) + the viewNow() viewing clock
     dom.js                   Every element reference, resolved once
     plugins.js                     Plugin registry + the registerX() extension points
+    plugin-settings-schema.js      Optional schemaVersion/defaults/validate/migrations
+                                    contract for a plugin's own settings
     channels.js, schedule.js       Channel lookup + the live-schedule/dayparting math
     playback-core.js               Tuning and primary media playback
     playback-breaks.js             Commercial/interstitial playback state
     playback-broadcast-fx.js       Up-next, logo bug, and broadcast presentation
+    playback-order.js              Natural/reverse/shuffle playback ordering
+    playback-recovery.js           Provider-backed (mediaSource plugin) fetch/recovery
     interstitials.js               Deterministic commercial/interstitial-break resolver
                                     (resolveBreakAt) — the engine playback modules/guide.js/
                                     timemachine.js all read to decide what's airing when
     virtual.js                     Renders/tears down the currently-tuned plugin channel
-    guide.js                       Now-playing banner and the time-grid guide
+    guide.js, guide-genres.js      Now-playing banner, the time-grid guide, genre palettes
+    program-search.js              Seven-day program search across channels
     themes.js, display-mode.js     Theme switching; AUTO resolution/aspect simulation
+    broadcast-identity.js          Per-channel theme/tune/no-signal identity overrides
+    dynamic-overlays.js            Scheduled/break-triggered image/video overlays
     timemachine.js                 VCR shuttle
     power.js                       Power, standby, volume, CRT state
-    curation*.js, tagtaxonomy.js   Auto-curation engine (tagging, scheduler)
+    curation*.js, tagtaxonomy.js   Auto-curation engine (tagging, template scheduling,
+                                    background regeneration)
+    library-sync.js, library-sync-core.js, library-relink.js
+                                    Opt-in channel-folder resync and the channel-health
+                                    relink workflow
+    channel-package.js             Portable single-channel export/import
+    config-schema.js               Schema-versioning scaffold for the top-level app config
+    update-notice.js, update-progress.js
+                                    The update-ready toast and the separate update-progress
+                                    window
+    plugin-diagnostics.js          Plugin registration/capability inventory for diagnostics
+    api-contract.js                Canonical window.api surface, checked against the
+                                    sandboxed preload
     setup*.js (family)             Setup screen: channel list, schedule/calendar,
                                     settings, interstitials + flow builder, plugins tab,
-                                    tag taxonomy, command palette, keyboard nav, drag-drop
+                                    tag taxonomy, command palette, keyboard nav, drag-drop,
+                                    backups, channel-preview, cross-channel diagnostics,
+                                    overlay-position editor
     tv-menu.js                     The D-pad-navigable action menu opened by `?`
+    tv-client-viewport.js          Cross-device CSS-pixel viewport normalization for the
+                                    Android TV client
     touch-controls.js              LAN-viewer touch input translation
     audio.js                       Shared AudioContext/SFX mix bus
     browser-api-shim.js            Browser fallback for window.api on the LAN viewer
@@ -312,7 +357,7 @@ npm run dist    # installer (nsis / dmg / AppImage)
 ```
 
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
-if no tests are discovered. The larger real-Electron/CDP suite remains under the ignored
+if no tests are discovered. The larger real-Electron/CDP suite lives under the tracked
 `test/` working directory; run it with
 `powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1`.
 

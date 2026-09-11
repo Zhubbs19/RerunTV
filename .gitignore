@@ -1,6 +1,5 @@
 node_modules/
 dist/
-docs/*
 soundboard/
 _originals_backup/
 userData/
@@ -10,6 +9,15 @@ Thumbs.db
 *.log
 *.swp
 *.bak
+
+# test/ (renderer/js/... under CLAUDE.md's UI test suite) has a tracked
+# harness (README.md, run-ui-tests.*, theme-visual-sweep.*, lib/, fixtures/)
+# but every run's own output/scratch stays ignored — see test/README.md.
+test/screenshots/
+test/theme-sweep-screenshots/
+test/results.json
+test/report.json
+test/userData.test-backup/
 android-tv-client/.gradle/
 android-tv-client/.gradle-user-home/
 android-tv-client/.idea/
