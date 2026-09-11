@@ -32,16 +32,184 @@ export function themeFor(station) {
   return GENRE_THEMES.find((t) => t.id === (station && station.themeId)) || GENRE_THEMES[0];
 }
 
-// Most personal rips follow "Artist - Title.ext" — reused loosely from
-// core's own getDisplayTitle (util.js) filename-cleanup convention, kept
-// local here since there's no ID3 reader in this app and re-deriving a
-// title from a raw filename is genuinely this plugin's own concern.
-export function parseArtistTitle(filePath) {
-  const base = filePath.replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '');
-  const cleaned = base.replace(/_+/g, ' ').trim();
+// ---------- Presentation era ----------
+// What the real services actually put on screen, which is the thing this
+// plugin had wrong. Music Choice ran a "freeze frame television" format:
+// still slides over the audio showing artist, song, album and year, with a
+// small strip at the top or bottom carrying artist info / "Did You Know?"
+// factoids / banner advertising, cycling roughly every 30 seconds. Nothing
+// in that format ever showed an elapsed-time readout, a progress bar, or an
+// "up next" line — those are streaming-app affordances, and having them was
+// the most anachronistic thing here. DMX went further still and put track
+// info only on the tuner box's LCD, not on the TV at all.
+//
+// Rather than deleting the modern readouts outright, they move behind this
+// one dial: the two period eras are accurate, 'modern' keeps what this
+// plugin did before for anyone who preferred it.
+export const ERAS = [
+  { id: 'nineties', label: "'90s DIGITAL CABLE", transport: false, albumLine: false, vu: false, slideMs: 30000 },
+  { id: 'twothousands', label: "'2000s MUSIC CHOICE", transport: false, albumLine: true, vu: false, slideMs: 30000 },
+  { id: 'modern', label: 'MODERN (PROGRESS BAR + UP NEXT)', transport: true, albumLine: true, vu: true, slideMs: 12000 },
+];
+export const DEFAULT_ERA = 'twothousands';
+
+export function eraFor(settings) {
+  const id = (settings && settings.era) || DEFAULT_ERA;
+  return ERAS.find((e) => e.id === id) || ERAS.find((e) => e.id === DEFAULT_ERA);
+}
+
+// Music Choice colour-coded its on-screen theme by daypart (its own
+// description of the pre-2021 graphics package), so the same station reads
+// warmer in the morning and cooler late at night. Pure function of the
+// timestamp, like everything else here, so a time-machine scrub to 3am gets
+// the 3am treatment.
+export const DAYPARTS = [
+  { id: 'morning', label: 'MORNING', startHour: 5, tint: 'rgba(255, 176, 92, 0.10)' },
+  { id: 'day', label: 'DAYTIME', startHour: 11, tint: 'rgba(255, 255, 255, 0.06)' },
+  { id: 'evening', label: 'EVENING', startHour: 17, tint: 'rgba(120, 86, 255, 0.12)' },
+  { id: 'night', label: 'OVERNIGHT', startHour: 21, tint: 'rgba(0, 40, 120, 0.20)' },
+];
+
+export function daypartFor(nowMs) {
+  const hour = new Date(nowMs).getHours();
+  // Walk backwards so the first match is the latest start hour at or below
+  // `hour`; anything earlier than the first start hour belongs to the
+  // overnight block that began the previous evening.
+  for (let i = DAYPARTS.length - 1; i >= 0; i--) {
+    if (hour >= DAYPARTS[i].startHour) return DAYPARTS[i];
+  }
+  return DAYPARTS[DAYPARTS.length - 1];
+}
+
+// ---------- Filename metadata ----------
+// There is no ID3 reader in this app, so artist/title/album/year come from
+// the path. Handles the shapes personal rips actually come in:
+//   Artist - Title.mp3
+//   03 - Artist - Title.mp3
+//   Artist - Album - 03 - Title.mp3
+//   Artist - Title (1997).mp3
+//   <Artist>/<Album>/03 Title.mp3     (folders as the last resort)
+// Anything it cannot work out stays null rather than being guessed, so the
+// UI omits that line instead of printing something wrong.
+const YEAR_RE = /[([]\s*((?:19|20)\d{2})\s*[)\]]\s*$/;
+const LEADING_TRACK_NO_RE = /^\d{1,3}\s*[-._)\]]?\s+/;
+
+export function parseTrackMeta(filePath) {
+  const norm = String(filePath || '').replace(/\\/g, '/');
+  const segments = norm.split('/').filter(Boolean);
+  const base = (segments.pop() || '').replace(/\.[^.]+$/, '');
+  const folderAlbum = segments.length ? segments[segments.length - 1] : null;
+  const folderArtist = segments.length > 1 ? segments[segments.length - 2] : null;
+
+  let cleaned = base.replace(/_+/g, ' ').trim();
+  let year = null;
+  const yearMatch = cleaned.match(YEAR_RE);
+  if (yearMatch) {
+    year = yearMatch[1];
+    cleaned = cleaned.slice(0, yearMatch.index).trim();
+  }
+  cleaned = cleaned.replace(LEADING_TRACK_NO_RE, '').trim();
+
   const parts = cleaned.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
-  if (parts.length >= 2) return { artist: parts[0].toUpperCase(), title: parts.slice(1).join(' - ') };
-  return { artist: 'UNKNOWN ARTIST', title: cleaned || 'UNTITLED' };
+  let artist = null;
+  let title = null;
+  let album = null;
+  if (parts.length >= 3) {
+    // Artist - Album - [track] - Title. A track number only got stripped
+    // above when it led the whole name, so drop a purely numeric middle
+    // segment here too.
+    artist = parts[0];
+    title = parts[parts.length - 1];
+    album = parts.slice(1, -1).filter((p) => !/^\d{1,3}$/.test(p)).join(' - ') || null;
+  } else if (parts.length === 2) {
+    artist = parts[0];
+    title = parts[1];
+  } else {
+    title = parts[0] || null;
+  }
+
+  // Folders are only trustworthy as metadata under the <Artist>/<Album>/track
+  // convention, which is exactly the case where the filename alone gave no
+  // artist. Reading them whenever they merely exist turns a flat
+  // "C:/Music/Oasis - Wonderwall (1995).mp3" into album "Music", which is
+  // worse than showing no album at all. A drive root is never a name.
+  const nameable = (seg) => seg && !/^[A-Za-z]:$/.test(seg) && seg.trim();
+  if (!artist && nameable(folderArtist)) {
+    artist = folderArtist.replace(/_+/g, ' ').trim();
+    if (!album && nameable(folderAlbum) && folderAlbum !== folderArtist) {
+      album = folderAlbum.replace(/_+/g, ' ').trim();
+    }
+  }
+  if (album) {
+    const albumYear = album.match(YEAR_RE);
+    if (albumYear) {
+      if (!year) year = albumYear[1];
+      album = album.slice(0, albumYear.index).trim();
+    }
+  }
+  return {
+    artist: artist ? artist.toUpperCase() : 'UNKNOWN ARTIST',
+    title: title || 'UNTITLED',
+    album: album || null,
+    year: year || null,
+  };
+}
+
+// A saved track record may carry hand-set fields; fall back to the filename.
+export function trackMetaOf(track) {
+  const parsed = parseTrackMeta(track.path);
+  return {
+    artist: track.artist || parsed.artist,
+    title: track.title || parsed.title,
+    album: track.album || parsed.album,
+    year: track.year || parsed.year,
+  };
+}
+
+// Kept as the old two-field shape because settings.js and every saved track
+// record still speak it; parseTrackMeta above is the full version.
+export function parseArtistTitle(filePath) {
+  const meta = parseTrackMeta(filePath);
+  return { artist: meta.artist, title: meta.title };
+}
+
+// ---------- The rotating info strip ----------
+// The piece of Music Choice's on-screen grammar this plugin was missing: a
+// strip that cycles every ~30s rather than one static readout. Built fresh
+// each tick from whatever is actually available and indexed off the
+// timestamp, so it is a pure function of (inputs, now) like the playback
+// math — a time-machine scrub lands on the slide it would have shown live.
+//
+// Deliberately no shipped stock of "Did You Know?" facts: inventing music
+// trivia would put fabricated claims on screen as though they were true. The
+// default rotation is built from things this app can actually verify about
+// the user's own library; real factoids are whatever the user types into
+// settings.
+export function buildInfoSlides(station, settings, pb) {
+  const slides = [];
+  ((settings && settings.factoids) || []).forEach((text) => {
+    const trimmed = String(text || '').trim();
+    if (trimmed) slides.push({ kind: 'factoid', label: 'DID YOU KNOW?', text: trimmed });
+  });
+  const trackCount = station ? (station.tracks || []).length : 0;
+  if (trackCount) {
+    slides.push({
+      kind: 'station',
+      label: 'ON THIS CHANNEL',
+      text: `${station.name || 'THIS STATION'} — ${trackCount} TRACK${trackCount === 1 ? '' : 'S'} IN ROTATION, COMMERCIAL FREE`,
+    });
+  }
+  if (pb && pb.nextTrack && pb.totalTracks > 1) {
+    const next = trackMetaOf(pb.nextTrack);
+    slides.push({ kind: 'coming', label: 'ALSO ON THIS CHANNEL', text: `${next.artist} — ${next.title}` });
+  }
+  return slides;
+}
+
+export function resolveInfoSlide(slides, nowMs, rotateMs) {
+  if (!slides.length) return null;
+  const period = rotateMs > 0 ? rotateMs : 30000;
+  return slides[Math.floor(nowMs / period) % slides.length];
 }
 
 // Pure function of (station, now) — the one thing this whole plugin's
@@ -176,14 +344,15 @@ function applyStationBackground(station) {
 
 // Deterministic on viewNow() (not a free-running setInterval index) so a
 // time-machine scrub lands on the same image it would have shown live —
-// same reasoning as everything else in this file using viewNow().
-const SLIDESHOW_INTERVAL_MS = 12000;
+// same reasoning as everything else in this file using viewNow(). The
+// interval comes from the era: the real freeze-frame slides held for about
+// thirty seconds, not the twelve this used to use.
 let lastSlideshowIndex = -1;
-function updateSlideshow(station, nowMs) {
+function updateSlideshow(station, nowMs, era) {
   if (!els || (station.background && station.background.mode) !== 'slideshow') return;
   const images = (station.background && station.background.images) || [];
   if (!images.length) { els.slideshowImgA.removeAttribute('src'); return; }
-  const idx = Math.floor(nowMs / SLIDESHOW_INTERVAL_MS) % images.length;
+  const idx = Math.floor(nowMs / era.slideMs) % images.length;
   if (idx === lastSlideshowIndex) return;
   lastSlideshowIndex = idx;
   window.api.toFileUrl(images[idx]).then((url) => {
@@ -197,19 +366,70 @@ function updateSlideshow(station, nowMs) {
   });
 }
 
-function updateNowPlayingUi(pb) {
+function updateNowPlayingUi(pb, era) {
   if (!els) return;
-  const meta = parseArtistTitle(pb.track.path);
-  els.artistEl.textContent = pb.track.artist || meta.artist;
-  els.titleEl.textContent = pb.track.title || meta.title;
+  const meta = trackMetaOf(pb.track);
+  els.artistEl.textContent = meta.artist;
+  els.titleEl.textContent = meta.title;
+
+  // ALBUM (YEAR) — the two fields the real on-screen slide carried that this
+  // plugin never showed. Only rendered when the filename actually yielded
+  // them, and only in the eras that displayed them.
+  const albumParts = [];
+  if (meta.album) albumParts.push(meta.album);
+  if (meta.year) albumParts.push(`(${meta.year})`);
+  const albumText = era.albumLine ? albumParts.join(' ') : '';
+  els.albumEl.textContent = albumText;
+  els.albumEl.classList.toggle('hidden', !albumText);
+
+  // The transport readout is a modern affordance — no cable audio service
+  // ever put a progress bar or an up-next line on screen (see the ERAS
+  // comment above), so the period eras simply do not build one.
+  els.transportEl.classList.toggle('hidden', !era.transport);
+  els.upNextEl.classList.toggle('hidden', !era.transport);
+  if (!era.transport) return;
   els.elapsedEl.textContent = formatClock(pb.offsetSec);
   els.durationEl.textContent = formatClock(pb.track.durationSec);
   const pct = pb.track.durationSec ? Math.min(100, (pb.offsetSec / pb.track.durationSec) * 100) : 0;
   els.progressFillEl.style.width = `${pct}%`;
-  const nextMeta = parseArtistTitle(pb.nextTrack.path);
+  const nextMeta = trackMetaOf(pb.nextTrack);
   els.upNextEl.textContent = pb.totalTracks > 1
-    ? `UP NEXT: ${pb.nextTrack.artist || nextMeta.artist} – ${pb.nextTrack.title || nextMeta.title}`
+    ? `UP NEXT: ${nextMeta.artist} – ${nextMeta.title}`
     : '';
+}
+
+// The bottom strip. Only the text swaps; the strip itself stays put, which
+// is how the real thing behaved — the now-playing readout is persistent and
+// the secondary information beneath it is what rotates.
+let lastInfoSlideText = null;
+function updateInfoStrip(station, settings, pb, era, nowMs) {
+  if (!els) return;
+  const slide = resolveInfoSlide(buildInfoSlides(station, settings, pb), nowMs, era.slideMs);
+  if (!slide) {
+    els.infoStripEl.classList.add('hidden');
+    lastInfoSlideText = null;
+    return;
+  }
+  els.infoStripEl.classList.remove('hidden');
+  if (slide.text === lastInfoSlideText) return;
+  lastInfoSlideText = slide.text;
+  els.infoLabelEl.textContent = slide.label;
+  els.infoTextEl.textContent = slide.text;
+  // Restart the fade rather than letting a repeated class add be a no-op.
+  els.infoStripEl.classList.remove('mc-info-enter');
+  void els.infoStripEl.offsetWidth;
+  els.infoStripEl.classList.add('mc-info-enter');
+}
+
+function applyEraAndDaypart(settings, nowMs) {
+  if (!els) return eraFor(settings);
+  const era = eraFor(settings);
+  const daypart = daypartFor(nowMs);
+  els.root.dataset.era = era.id;
+  els.root.dataset.daypart = daypart.id;
+  els.root.style.setProperty('--mc-daypart-tint', daypart.tint);
+  els.vuEl.classList.toggle('hidden', !era.vu);
+  return era;
 }
 
 function loadTrack(ctx, station, pb) {
@@ -233,10 +453,13 @@ function tick(ctx) {
   const settings = getSettings();
   const station = selectedStation(settings);
   if (!station) return;
+  const nowMs = ctx.viewNow();
+  const era = applyEraAndDaypart(settings, nowMs);
   els.stationNameEl.textContent = station.name || 'UNTITLED STATION';
-  const pb = computeStationPlayback(station, ctx.viewNow());
+  const pb = computeStationPlayback(station, nowMs);
   if (!pb) {
     els.nowPlayingEl.classList.add('hidden');
+    els.infoStripEl.classList.add('hidden');
     els.probeHintEl.textContent = (station.tracks || []).length
       ? 'DURATIONS NOT YET PROBED — RESCAN THIS STATION IN SETTINGS'
       : 'NO TRACKS YET — CHOOSE A FOLDER AND RESCAN THIS STATION IN SETTINGS';
@@ -252,8 +475,9 @@ function tick(ctx) {
     // clock skew) — resync without a full reload/re-buffer.
     ctx.player.currentTime = pb.offsetSec;
   }
-  updateNowPlayingUi(pb);
-  updateSlideshow(station, ctx.viewNow());
+  updateNowPlayingUi(pb, era);
+  updateInfoStrip(station, settings, pb, era, nowMs);
+  updateSlideshow(station, nowMs, era);
 }
 
 function renderBrowser(ctx) {
@@ -334,16 +558,17 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           </div>
           <video class="mc-bg-video hidden" data-el="bg-video" muted loop playsinline></video>
           <div class="mc-bg-scrim"></div>
-          <div class="mc-vu"><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="mc-daypart-wash"></div>
+          <div class="mc-vu hidden" data-el="vu"><span></span><span></span><span></span><span></span><span></span></div>
         </div>
         <div class="mc-chrome">
           <div class="mc-bug">
             <div class="mc-bug-brand">MUSIC CHOICE</div>
             <div class="mc-bug-station" data-el="station-name">&nbsp;</div>
-          </div>
-          <div class="mc-topright">
-            <div class="mc-chnum">CH ${CHANNEL_NUMBER}</div>
-            <div class="mc-stereo">◆ DIGITAL STEREO</div>
+            <div class="mc-bug-meta">
+              <span class="mc-chnum">CH ${CHANNEL_NUMBER}</span>
+              <span class="mc-stereo">◆ DIGITAL STEREO</span>
+            </div>
           </div>
           <div class="mc-empty hidden" data-el="empty">
             <div class="mc-empty-title">NO STATIONS CONFIGURED</div>
@@ -351,14 +576,20 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           </div>
           <div class="mc-probe-hint hidden" data-el="probe-hint">DURATIONS NOT YET PROBED — RESCAN THIS STATION IN SETTINGS</div>
           <div class="mc-now-playing hidden" data-el="now-playing">
+            <div class="mc-nowlabel">NOW PLAYING</div>
             <div class="mc-artist" data-el="artist"></div>
             <div class="mc-title" data-el="title"></div>
-            <div class="mc-progress-row">
+            <div class="mc-album hidden" data-el="album"></div>
+            <div class="mc-progress-row hidden" data-el="transport">
               <span data-el="elapsed">0:00</span>
               <div class="mc-progress-bar"><div class="mc-progress-fill" data-el="progress-fill"></div></div>
               <span data-el="duration">0:00</span>
             </div>
-            <div class="mc-upnext" data-el="up-next"></div>
+            <div class="mc-upnext hidden" data-el="up-next"></div>
+            <div class="mc-info-strip hidden" data-el="info-strip">
+              <span class="mc-info-label" data-el="info-label"></span>
+              <span class="mc-info-text" data-el="info-text"></span>
+            </div>
           </div>
           <div class="mc-hint">▲▼ CHANGE STATION &middot; OK STATION LIST</div>
         </div>
@@ -376,12 +607,18 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       bgVideoEl: q('bg-video'),
       stationNameEl: q('station-name'), emptyEl: q('empty'), probeHintEl: q('probe-hint'),
       nowPlayingEl: q('now-playing'), artistEl: q('artist'), titleEl: q('title'),
+      albumEl: q('album'), transportEl: q('transport'),
       elapsedEl: q('elapsed'), durationEl: q('duration'), progressFillEl: q('progress-fill'),
-      upNextEl: q('up-next'), browserEl: q('browser'), browserListEl: q('browser-list'),
+      upNextEl: q('up-next'), vuEl: q('vu'),
+      infoStripEl: q('info-strip'), infoLabelEl: q('info-label'), infoTextEl: q('info-text'),
+      browserEl: q('browser'), browserListEl: q('browser-list'),
     };
 
     const settings = getSettings();
     const stations = settings.stations || [];
+    // Era/daypart before the empty-state bail-out, so even the "no stations"
+    // card is painted in the right period treatment.
+    applyEraAndDaypart(settings, ctx.viewNow());
     els.emptyEl.classList.toggle('hidden', stations.length > 0);
     if (!stations.length) return;
 
@@ -410,6 +647,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     currentLoadedTrackPath = null;
     bgVideoPath = null;
     lastSlideshowIndex = -1;
+    lastInfoSlideText = null;
     browserOpen = false;
     els = null;
   },

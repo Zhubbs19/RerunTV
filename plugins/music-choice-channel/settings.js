@@ -1,4 +1,4 @@
-import { GENRE_THEMES, probeAllDurations } from './renderer.js';
+import { DEFAULT_ERA, ERAS, GENRE_THEMES, probeAllDurations } from './renderer.js';
 
 function newId() {
   return (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `mc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -24,12 +24,56 @@ function totalDuration(station) {
 }
 
 window.RCBPlugins.registerPluginSettings('music-choice-channel', {
-  schemaVersion: 1,
-  defaults: { stations: [], selectedStationId: null },
+  schemaVersion: 2,
+  defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [] },
   validate(settings) {
-    return Array.isArray(settings.stations) ? true : 'stations must be an array';
+    if (!Array.isArray(settings.stations)) return 'stations must be an array';
+    if (settings.factoids != null && !Array.isArray(settings.factoids)) return 'factoids must be an array';
+    return true;
   },
   sections: [{
+    id: 'presentation',
+    label: 'ON-SCREEN STYLE',
+    render(container) {
+      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+      container.innerHTML = `
+        <div class="panel-status">
+          Real cable audio services ran a "freeze frame" format — still slides over the music showing
+          artist, song, album and year, with a strip underneath carrying artist notes and
+          &ldquo;Did You Know?&rdquo; factoids that swapped every 30 seconds or so. None of them ever showed a
+          progress bar, an elapsed time, or an up-next line. Pick how faithful you want this channel to be.
+        </div>
+        <div class="field">
+          <span class="field-label">ERA</span>
+          <select class="block-hour-select" data-el="era"></select>
+        </div>
+        <div class="field">
+          <span class="field-label">&ldquo;DID YOU KNOW?&rdquo; FACTOIDS — ONE PER LINE</span>
+          <textarea class="pubaccess-slide-input" data-el="factoids" rows="5"
+            placeholder="Your own notes about the music on this channel. Nothing ships here by default — invented trivia would put made-up claims on screen as if they were true."></textarea>
+          <span class="panel-status">Rotates with slides built from your own library, in the strip along the bottom of the screen.</span>
+        </div>
+      `;
+      const eraSelect = container.querySelector('[data-el="era"]');
+      ERAS.forEach((era) => {
+        const opt = document.createElement('option');
+        opt.value = era.id;
+        opt.textContent = era.label;
+        if (era.id === (settings.era || DEFAULT_ERA)) opt.selected = true;
+        eraSelect.appendChild(opt);
+      });
+      eraSelect.addEventListener('change', () => {
+        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { era: eraSelect.value });
+      });
+
+      const factoidsEl = container.querySelector('[data-el="factoids"]');
+      factoidsEl.value = (settings.factoids || []).join('\n');
+      factoidsEl.addEventListener('change', () => {
+        const lines = factoidsEl.value.split('\n').map((l) => l.trim()).filter(Boolean);
+        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { factoids: lines });
+      });
+    },
+  }, {
     id: 'stations',
     label: 'MUSIC CHOICE CHANNEL (CH 910)',
     layout: 'wide',
