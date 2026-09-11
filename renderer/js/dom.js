@@ -72,6 +72,7 @@ export const bulkVolumeApplyBtn = document.getElementById('bulk-volume-apply-btn
 export const bulkVolumeInheritBtn = document.getElementById('bulk-volume-inherit-btn');
 export const bulkRemoveBtn = document.getElementById('bulk-remove-btn');
 export const addChannelBtn = document.getElementById('add-channel-btn');
+export const subChannelsEnabledEl = document.getElementById('sub-channels-enabled');
 export const rescanAllBtn = document.getElementById('rescan-all-btn');
 export const configExportBtn = document.getElementById('config-export-btn');
 export const channelImportBtn = document.getElementById('channel-import-btn');

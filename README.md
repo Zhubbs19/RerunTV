@@ -76,7 +76,7 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 |---|---|
 | `↑` `↓` / PgUp PgDn | Change channel |
 | `0`–`9` | Type a channel number directly (auto-tunes after ~1.4s) |
-| `.` | Sub-channel separator while typing a number (`7` `.` `1` → CH 7.1) |
+| `.` | Sub-channel separator while typing a number (`7` `.` `1` → CH 7.1), when enabled |
 | `Enter` | Confirm number entry, or show the guide banner |
 | `G` | Open/close the full time-grid guide |
 | `/` | Filter channels (inside the guide) |
@@ -122,8 +122,10 @@ the guide also scrolls backward into the past.
 
 - **Multi-folder channels** — merge several folders into one channel's loop; add/remove
   them independently without rescanning the rest
-- **Sub-channels** — a channel can sit at `7.1` / `7.2` the way a digital broadcast
-  sub-channel does; type `7`, `.`, `1` on the keypad to tune one
+- **Sub-channels (opt-in)** — switch on ALLOW SUB-CHANNELS at the bottom of the LINEUP tab
+  and a channel can sit at `7.1` / `7.2` the way a digital broadcast sub-channel does; type
+  `7`, `.`, `1` on the keypad to tune one. Off by default, so ordinary channel numbers keep
+  stepping by whole numbers
 - **Time-grid guide** with half-hour columns, a live "now" line, channel icons, filtering
 - **Seven-day program search and local reminders** directly from guide results, with a
   pending-reminder list you can edit, optional auto-tune when one comes due, and a desktop

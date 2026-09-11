@@ -715,9 +715,11 @@ const HELP_GUIDE = [
     'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
   ] },
   { group: 'SECTION 1 — CHANNELS', title: '1.9 Sub-Channels (7.1, 7.2)', body: [
-    'A channel number can carry one decimal place, so you can run 7.1 and 7.2 alongside 7 the way a digital broadcast station carries sub-channels. Type the number into a channel\'s number box as 7.1.',
+    'Off by default. Most lineups are whole numbers all the way through, and there is no reason to put decimal points in front of everyone who does not want them.',
+    'Switch on ALLOW SUB-CHANNELS at the bottom of the LINEUP tab and a channel number can then carry one decimal place, so you can run 7.1 and 7.2 alongside 7 the way a digital broadcast station carries sub-channels. Type the number into a channel\'s number box as 7.1.',
     'To tune one from the remote, type the main number, press the period key, then the sub-channel digit: 7 . 1. Everything else treats it as an ordinary channel — it sorts straight after 7, appears in the guide, takes blocks and breaks, and can be marked as a favorite.',
     'Only one decimal place is allowed. 7.1 is a channel, 7.12 is not.',
+    'NOTE: with the option on, the up/down arrows in a number box step in tenths rather than whole numbers — that is the trade, and why it is off unless you ask for it. Switching it back off later does not break a sub-channel you already made: it stays in the lineup, in the guide and tunable. The option only controls whether you can type a new one.',
   ] },
   { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.2 CH 100 — The Channel Mosaic', body: [
     'CH 100 is a preview mosaic: a grid showing what is airing on every one of your other channels right now, paging through the lineup a screenful at a time.',

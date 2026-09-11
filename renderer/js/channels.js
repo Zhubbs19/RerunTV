@@ -740,6 +740,21 @@ export function isSubChannel(number) {
   return Number.isFinite(number) && !Number.isInteger(number);
 }
 
+// Whether this box offers sub-channel numbering at all. Off by default:
+// most lineups are whole numbers throughout, and turning it on makes a
+// number box's up/down arrows step in tenths, which is a nuisance for
+// everyone who never wanted a 7.1.
+//
+// It gates the ways a sub-channel can be ENTERED (the setup screen's number
+// box, the keypad separator) and nothing else. Lookup, sorting, formatting
+// and tuning always handle a decimal number, so a lineup that already has
+// one keeps working — including on the remote, via the guide or a favorite —
+// if the option is later switched back off. Anything else would strand a
+// channel the user can see but cannot reach.
+export function subChannelsEnabled() {
+  return !!(S.config.subChannels && S.config.subChannels.enabled);
+}
+
 // "07" for a whole number, "07.1" for a sub-channel. The two-digit main part
 // is kept for both so badges, guide rows and the number entry overlay stay
 // visually aligned with every existing integer channel.

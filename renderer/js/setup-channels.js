@@ -6,7 +6,8 @@ import { applyConfigDefaults, showTvScreen } from './app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from './channel-package.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
-  buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
+  buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
+  subChannelsEnabled,
   sortedChannels, tryGetDisplayName, tryGetMetadata,
 } from './channels.js';
 import {
@@ -16,6 +17,7 @@ import {
   channelFilterEl, channelImportBtn, channelListEl, configExportBtn, configImportBtn, doneBtn,
   previewBannerEl, previewModalBlockEl, previewModalCancelBtn, previewModalChannelLabelEl, previewModalDatetimeEl,
   previewModalEl, previewModalGoBtn, previewModalNowBtn, previewModalQuickEl, rescanAllBtn, scanProgressEl,
+  subChannelsEnabledEl,
 } from './dom.js';
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from './display-mode.js';
 import { tuneToChannel } from './playback-core.js';
@@ -206,6 +208,7 @@ function filteredSetupChannels(fullList) {
 
 export function renderChannelList() {
   if (!channelListEl) return;
+  if (subChannelsEnabledEl) subChannelsEnabledEl.checked = subChannelsEnabled();
   ensureMediaSourceProvidersLoaded();
   channelListEl.innerHTML = '';
   channelListEl.classList.toggle('select-mode', !!S.bulkSelectMode);
@@ -271,10 +274,14 @@ export function renderChannelList() {
       const numInput = document.createElement('input');
       numInput.type = 'number';
       numInput.min = 0;
-      // A channel may sit at 7.1 the way a digital sub-channel does — one
-      // decimal place, rounded by parseChannelNumber (channels.js) so a typed
-      // 7.1 is the same Map key as a config-loaded one.
-      numInput.step = '0.1';
+      // Whole-number stepping unless sub-channels are actually switched on:
+      // `step` drives the up/down arrows, so a box-wide 0.1 would make every
+      // ordinary channel's arrows crawl in tenths for the sake of a feature
+      // most lineups never use. With the option on, a channel may sit at 7.1
+      // the way a digital sub-channel does — one decimal place, rounded by
+      // parseChannelNumber (channels.js) so a typed 7.1 is the same Map key
+      // as a config-loaded one.
+      numInput.step = subChannelsEnabled() ? '0.1' : '1';
       numInput.value = ch.number;
       numInput.setAttribute('aria-label', 'Channel number');
       numInput.addEventListener('change', () => {
@@ -289,8 +296,15 @@ export function renderChannelList() {
           numInput.value = ch.number;
           return;
         }
+        // A decimal typed straight into the box bypasses `step` entirely, so
+        // the option has to be enforced here too — otherwise switching it off
+        // would only hide the arrows' tenths, not the feature.
+        if (isSubChannel(v) && !subChannelsEnabled()) {
+          rejectNumberChange('TURN ON ALLOW SUB-CHANNELS TO USE A NUMBER LIKE 7.1');
+          return;
+        }
         if (S.config.channels.some((c) => c !== ch && c.number === v)) {
-          rejectNumberChange(`CH ${v} IS ALREADY IN USE`);
+          rejectNumberChange(`CH ${formatChannelNumber(v)} IS ALREADY IN USE`);
           return;
         }
         const oldNum = ch.number;
@@ -1877,6 +1891,16 @@ previewModalGoBtn.addEventListener('click', () => {
   tuneToChannel(chNumber);
   previewBannerEl.textContent = `SETUP PREVIEW — CH ${chNumber} @ ${formatPreviewBannerTime(targetMs)} — PRESS S TO RETURN`;
   previewBannerEl.classList.remove('hidden');
+});
+
+subChannelsEnabledEl?.addEventListener('change', () => {
+  S.config.subChannels = S.config.subChannels || {};
+  S.config.subChannels.enabled = subChannelsEnabledEl.checked;
+  saveConfigDebounced();
+  // Re-render so every number box picks up its new step immediately — the
+  // step is set when a row is built, so without this the arrows keep their
+  // old behaviour until something else happens to rebuild the list.
+  renderChannelList();
 });
 
 addChannelBtn.addEventListener('click', () => {

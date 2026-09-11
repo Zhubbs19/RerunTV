@@ -212,6 +212,9 @@
             <button id="add-channel-btn" class="btn">+ ADD CHANNEL</button>
             <button id="rescan-all-btn" class="btn">RESCAN ALL FOLDERS</button>
             <button id="health-check-btn" class="btn">CHECK CHANNELS</button>
+            <label class="shuffle-toggle" title="Off by default. Leave it off and every channel number is a whole number, and the up/down arrows in a number box step by 1. Switch it on only if you actually want 7.1 / 7.2 style sub-channels; the arrows then step in tenths.">
+              <input type="checkbox" id="sub-channels-enabled">ALLOW SUB-CHANNELS (7.1)
+            </label>
           </div>
           <div id="scan-progress" class="scan-progress hidden" role="status" aria-live="polite"></div>
           <div id="health-check-results" class="health-check-results hidden"></div>

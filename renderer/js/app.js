@@ -13,6 +13,7 @@ import { showOnboarding } from './onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
 import {
   foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
+  subChannelsEnabled,
   normalizeLogoBugProfiles, sortedChannels, getChannel,
 } from './channels.js';
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
@@ -267,7 +268,9 @@ export function handleKey(e) {
   // to gain a second way to type the same separator is a bad trade.
   // pushDigit ignores it unless a number entry is genuinely in progress, so
   // a stray press outside one does nothing rather than opening the overlay.
-  if (e.key === '.') {
+  // Left free for a plugin hotkey when sub-channels are switched off, rather
+  // than silently swallowed by a feature that isn't in use.
+  if (e.key === '.' && subChannelsEnabled()) {
     pushDigit('.');
     return;
   }
@@ -902,6 +905,9 @@ export function applyConfigDefaults(config) {
   // Marked moments — {channelNumber, at} on the viewing clock, no recording
   // involved. See airchecks.js for why that's a complete description of a
   // moment here.
+  // Sub-channel numbering (7.1) is opt-in — see subChannelsEnabled
+  // (channels.js) for what the flag does and does not gate.
+  if (!config.subChannels) config.subChannels = { enabled: false };
   if (!Array.isArray(config.airChecks)) config.airChecks = [];
   // The log itself lives in its own file (main-history.js); this is only the
   // switch that decides whether anything gets written to it.
