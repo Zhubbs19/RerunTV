@@ -50,6 +50,7 @@ plugins/party-jukebox/
 plugins/youtube-music/
 plugins/video-splicer/
 plugins/spotify-connect/
+plugins/makemkv/
 
 !plugins/breaking-news/
 !plugins/cast-to-tv/

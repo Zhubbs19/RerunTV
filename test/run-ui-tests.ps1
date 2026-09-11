@@ -160,7 +160,11 @@ $electronProc = $null
 $exitCode = 2
 
 try {
-    foreach ($pluginId in $PreApprovePlugin) {
+    # Invoked through `powershell -File`, arguments arrive as plain strings
+    # with no array parsing, so `-PreApprovePlugin a,b` lands as one string.
+    # Splitting here makes both that and the native array form work.
+    $approveIds = $PreApprovePlugin | ForEach-Object { $_ -split ',' } | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() }
+    foreach ($pluginId in $approveIds) {
         & node (Join-Path $PSScriptRoot 'lib\preapprove-plugin.js') $repoRoot $userDataDir $pluginId
         if ($LASTEXITCODE -ne 0) { throw "Pre-approving $pluginId failed." }
     }

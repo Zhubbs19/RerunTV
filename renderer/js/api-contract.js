@@ -40,7 +40,9 @@
     // deck's channel degrades to "recording is unavailable here" there
     // rather than getting a shim that could not work.
     'tapesRecord', 'tapesStatus', 'tapesCancel', 'tapesList', 'tapesReadDisc', 'tapesSetArt', 'tapesDelete',
-    'onTapesProgress', 'onTapesDone',
+    'tapesImport', 'onTapesProgress', 'onTapesDone',
+    'makemkvStatus', 'makemkvListTitles', 'makemkvRip', 'makemkvJobs', 'makemkvCancel',
+    'onMakemkvProgress', 'onMakemkvDone',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),

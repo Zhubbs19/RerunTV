@@ -235,6 +235,17 @@ contextBridge.exposeInMainWorld('api', {
   tapesCancel: (id) => ipcRenderer.invoke('tapes:cancel', id),
   tapesList: () => ipcRenderer.invoke('tapes:list'),
   tapesReadDisc: (videoTsPath) => ipcRenderer.invoke('tapes:readDisc', videoTsPath),
+  tapesImport: (opts) => ipcRenderer.invoke('tapes:import', opts),
+  // MakeMKV — a separate application the user installs and licenses
+  // themselves, driven by plugins/makemkv's own main.js, not by core. Same
+  // narrow named-bridge shape as every other optional plugin above.
+  makemkvStatus: () => ipcRenderer.invoke('makemkv:status'),
+  makemkvListTitles: (source) => ipcRenderer.invoke('makemkv:listTitles', source),
+  makemkvRip: (opts) => ipcRenderer.invoke('makemkv:rip', opts),
+  makemkvJobs: () => ipcRenderer.invoke('makemkv:jobs'),
+  makemkvCancel: (id) => ipcRenderer.invoke('makemkv:cancel', id),
+  onMakemkvProgress: (cb) => ipcRenderer.on('makemkv:progress', (event, data) => cb(data)),
+  onMakemkvDone: (cb) => ipcRenderer.on('makemkv:done', (event, data) => cb(data)),
   tapesSetArt: (opts) => ipcRenderer.invoke('tapes:setArt', opts),
   tapesDelete: (id) => ipcRenderer.invoke('tapes:delete', id),
   onTapesProgress: (cb) => ipcRenderer.on('tapes:progress', (event, data) => cb(data)),

@@ -43,6 +43,10 @@
       {
         "channel": "tapes:delete",
         "why": "deletes a tape the user chose to erase, together with its sidecar"
+      },
+      {
+        "channel": "tapes:import",
+        "why": "puts an existing video file on the shelf as a tape, so a copy made by another tool can be watched here"
       }
     ],
     "spawn": [

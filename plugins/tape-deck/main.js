@@ -323,6 +323,46 @@ async function probeTitleReadable(ffmpegPath, videoTsPath, vts, spawnFn) {
   return { readable: result.ok && decodedSeconds > 0, detail: lastLines(result.output) };
 }
 
+// The chapters an existing video file already carries. An MKV off a disc has
+// them, and they are the whole point of the shelf's chapter menu, so an
+// imported file should not arrive as one undifferentiated lump.
+//
+// Written to a file rather than read off ffmpeg's stdout: this process reads
+// its own folder freely, and runFfmpeg's stdout is already spoken for by the
+// progress stream.
+async function readSourceChapters(ffmpegPath, sourcePath, destAbs, spawnFn, fs) {
+  const ok = await runFfmpeg(ffmpegPath, [
+    '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
+    '-i', sourcePath, '-f', 'ffmetadata', destAbs,
+  ], spawnFn, { timeoutMs: PROBE_TIMEOUT_MS });
+  if (!ok.ok || !fs.existsSync(destAbs)) return [];
+  let text = '';
+  try { text = fs.readFileSync(destAbs, 'utf8'); } catch (e) { return []; }
+
+  const chapters = [];
+  let current = null;
+  text.split(/\r?\n/).forEach((line) => {
+    if (line.trim() === '[CHAPTER]') { current = { timebase: 1e9 }; chapters.push(current); return; }
+    if (!current) return;
+    if (line.startsWith('[')) { current = null; return; }
+    const at = line.indexOf('=');
+    if (at < 0) return;
+    const key = line.slice(0, at).trim().toUpperCase();
+    const value = line.slice(at + 1).trim();
+    // TIMEBASE is a fraction like 1/1000000000; START and END are counts of it.
+    if (key === 'TIMEBASE') {
+      const parts = value.split('/');
+      const denominator = Number(parts[1]);
+      if (Number.isFinite(denominator) && denominator > 0) current.timebase = denominator;
+    }
+    if (key === 'START') current.start = Number(value);
+    if (key === 'TITLE') current.title = value;
+  });
+  return chapters
+    .filter((c) => Number.isFinite(c.start))
+    .map((c, i) => ({ startS: c.start / c.timebase, label: c.title || `CHAPTER ${i + 1}` }));
+}
+
 // Where tapes actually live. The default is this plugin's own data folder;
 // a user who picked somewhere else gets that instead — but only if it was
 // actually granted, which ctx.fs.writeDirs is the authority on. An isolated
@@ -423,10 +463,19 @@ async function activate(ctx) {
   // disagrees gets no chapters instead of wrong ones.
   function discChapters(plan, measuredSeconds) {
     if (!plan.disc || !Array.isArray(plan.chapters) || !plan.chapters.length) return null;
-    const expected = Number(plan.disc.durationS) || 0;
-    if (!expected || !measuredSeconds) return null;
-    const drift = Math.abs(measuredSeconds - expected);
-    if (drift > Math.max(5, expected * 0.02)) return null;
+    if (!measuredSeconds) return null;
+    // The drift check only makes sense when the chapter times came from
+    // somewhere OTHER than the file being encoded — a disc's own tables,
+    // which can be wrong or misparsed. Chapters read out of the very file
+    // being copied have nothing to disagree with, and the duration passed
+    // alongside them is only a progress hint, so checking them against it
+    // rejects every one of them.
+    if (plan.chapterSource !== 'file') {
+      const expected = Number(plan.disc.durationS) || 0;
+      if (!expected) return null;
+      const drift = Math.abs(measuredSeconds - expected);
+      if (drift > Math.max(5, expected * 0.02)) return null;
+    }
     return plan.chapters
       .filter((chapter) => Number.isFinite(chapter.startS) && chapter.startS < measuredSeconds)
       .map((chapter, i) => ({
@@ -603,7 +652,10 @@ async function activate(ctx) {
       startMs: plan.startMs,
       endMs: plan.endMs,
       recordedMs: Date.now(), // when the file was written — a real-clock fact about the file, not a schedule read
-      durationS: Math.round(totalSeconds),
+      // For a whole-file segment the claimed length is only a progress hint
+      // (a disc's own tables, or a caller's guess). What actually decoded is
+      // the truth, and it is what the shelf and the chapter menu read.
+      durationS: Math.round(measuredSeconds > 0 ? measuredSeconds : totalSeconds),
       quality: String(plan.quality || 720),
       // Recorded onto the tape itself, not read from settings at playback
       // time: a shelf can hold cassettes and discs side by side, and each
@@ -642,7 +694,11 @@ async function activate(ctx) {
     pump();
   }
 
-  ipcMain.handle('tapes:record', async (event, plan) => {
+  ipcMain.handle('tapes:record', async (event, plan) => handleRecord(plan));
+
+  // The body of tapes:record, callable directly so tapes:import queues a job
+  // through exactly the same path rather than a parallel one.
+  async function handleRecord(plan) {
     if (!plan || !Array.isArray(plan.segments) || !plan.segments.length) {
       return { error: 'That range has nothing scheduled on it.' };
     }
@@ -680,7 +736,7 @@ async function activate(ctx) {
     queue.push({ id, plan, generation, carriedOver });
     pump();
     return { id, generation, queued: queue.length };
-  });
+  }
 
   // Reports where tapes are actually going. Whether that matches what the
   // settings ask for is deliberately NOT answered here: this process would
@@ -754,6 +810,56 @@ async function activate(ctx) {
         nodeFs.rmdirSync(scratchAbs);
       } catch (e) { /* best effort — a leftover scratch copy costs disk, not correctness */ }
     }
+  });
+
+  // Puts an existing video file on the shelf as a tape. Generic on purpose:
+  // it takes a path and knows nothing about where the file came from, so any
+  // plugin (or a future "add this file" button) can use it without the deck
+  // growing knowledge of that plugin.
+  ipcMain.handle('tapes:import', async (event, opts) => {
+    const { path: sourcePath, title, media, durationS, chapters } = opts || {};
+    if (typeof sourcePath !== 'string' || !sourcePath.trim()) return { error: 'No file was given to import.' };
+    const ffmpegPath = ffmpegBinary();
+    if (!ffmpegPath) {
+      return { error: 'ffmpeg is unavailable — enable the FFmpeg Transcode plugin, or point it at an ffmpeg binary in its settings.' };
+    }
+
+    // The file's own chapters, unless the caller already knows better.
+    let useChapters = Array.isArray(chapters) && chapters.length ? chapters : null;
+    if (!useChapters) {
+      const metaRel = path.join('work', `meta-${Date.now()}.txt`);
+      const metaAbs = abs(metaRel);
+      try {
+        fs.mkdirSync(abs('work'), { recursive: true });
+        const found = await readSourceChapters(ffmpegPath, sourcePath.trim(), metaAbs, spawn, fs);
+        if (found.length > 1) useChapters = found;
+      } catch (e) { /* no chapters is not a failure */ }
+      try { nodeFs.unlinkSync(metaAbs); } catch (e) { /* best effort */ }
+    }
+
+    const hint = Number.isFinite(durationS) && durationS > 0 ? durationS : 3600;
+    return handleRecord({
+      title: title || 'IMPORTED',
+      channelNumber: 0,
+      channelName: 'IMPORTED',
+      startMs: Date.now(), // when it was brought in — a real-clock fact, not a schedule read
+      endMs: Date.now() + Math.round(hint * 1000),
+      mode: 'dvd-sd',
+      media: media === 'vhs' ? 'vhs' : 'disc',
+      degrade: 'off',
+      disc: { durationS: hint, title: 1 },
+      // Read out of the file itself, so they need no cross-check against a
+      // duration that is only a guess.
+      chapterSource: 'file',
+      chapters: useChapters || [],
+      segments: [{
+        kind: 'disc',
+        files: [sourcePath.trim()],
+        inSeconds: 0,
+        outSeconds: hint,
+        label: title || 'IMPORTED',
+      }],
+    });
   });
 
   ipcMain.handle('tapes:status', async () => snapshot());

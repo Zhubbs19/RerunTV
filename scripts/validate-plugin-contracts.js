@@ -21,6 +21,38 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const errors = [];
 
+// ---------- declared-vs-used IPC ----------
+
+// An isolated plugin's ipcMain.handle() THROWS on a channel its manifest
+// never declared, and that throw happens inside activate() — so the whole
+// plugin fails to load, main and renderer both, with no hint about which
+// channel was at fault. Found exactly that way: one undeclared channel took
+// a whole working plugin off the air.
+//
+// Literal channel names are statically visible, so this is checkable without
+// running anything. A dynamically built channel name is not, and is skipped
+// rather than guessed at.
+function checkDeclaredIpc(dir, manifest, mainSource) {
+  const tag = `plugins/${dir}/${manifest.main}`;
+  const declared = new Set(((manifest.capabilities || {}).ipc || []).map((e) => e.channel));
+  const used = new Set();
+  const pattern = /ipcMain\s*\.\s*(?:handle|on)\s*\(\s*(['"`])([^'"`]+)\1/g;
+  let match;
+  // eslint-disable-next-line no-cond-assign
+  while ((match = pattern.exec(mainSource))) used.add(match[2]);
+
+  used.forEach((channel) => {
+    if (!declared.has(channel)) {
+      errors.push(`${tag}: registers IPC channel "${channel}" but manifest.json never declares it — an isolated plugin throws on that during activate(), taking the whole plugin down`);
+    }
+  });
+  declared.forEach((channel) => {
+    if (!used.has(channel)) {
+      errors.push(`${tag}: manifest.json declares IPC channel "${channel}" that nothing registers — drop it rather than asking the user to approve access that is never used`);
+    }
+  });
+}
+
 // ---------- manifest.json validation ----------
 
 const CATEGORY_VALUES = new Set(['channel', 'theme', 'onscreen', 'system']);
@@ -119,6 +151,15 @@ function validateManifest(dir, manifestPath) {
   }
   if (!m.style && !m.renderer && !m.settings && !m.main) {
     errors.push(`${tag}: none of style/renderer/settings/main is set — this plugin does nothing`);
+  }
+
+  if (typeof m.main === 'string' && m.main) {
+    const mainPath = path.join(path.dirname(manifestPath), m.main);
+    try {
+      checkDeclaredIpc(dir, m, fs.readFileSync(mainPath, 'utf-8'));
+    } catch (e) {
+      errors.push(`${tag}: "main" points at ${m.main}, which could not be read (${e.message})`);
+    }
   }
 }
 
