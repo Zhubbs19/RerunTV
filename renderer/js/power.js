@@ -118,7 +118,12 @@ export function toggleMute() {
 // particular caller's pending hide-timeout lives under (each caller needs
 // its own, so flashing one control doesn't cut off another's still-showing
 // message).
-function flashMessage(text, timerKey) {
+// Exported so any feature that needs a one-line on-screen confirmation gets
+// the same transient centre-screen readout the CRT/picture-mode toggles
+// already use, rather than each growing its own overlay element. `timerKey`
+// names the S slot holding that caller's own auto-hide timer, so two
+// features flashing near each other don't cancel one another's.
+export function flashMessage(text, timerKey) {
   crtToggleFlash.textContent = text;
   crtToggleFlash.classList.add('show');
   S[timerKey] = autoHideAfter(S[timerKey], 1500, () => crtToggleFlash.classList.remove('show'));

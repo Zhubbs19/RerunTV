@@ -72,6 +72,7 @@ const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
 const { registerDialogIpc } = require('./main-dialogs');
 const { applyWindowUiScale, normalizeUiScalePreference } = require('./main-ui-scale');
 const { registerStartupServerIpc } = require('./main-startup-server');
+const { registerHistoryIpc, flushHistoryNow } = require('./main-history');
 
 // A device that's already entered a LAN service's pairing code once stays
 // paired across restarts (createLanAccess's opts.sessionsFile/
@@ -315,6 +316,7 @@ registerMediaDispatchIpc(ipcMain, {
 });
 registerBackupsIpc(ipcMain);
 registerConfigIpc(ipcMain);
+registerHistoryIpc();
 registerDiagnosticsIpc(ipcMain, {
   app,
   dialog,
@@ -505,6 +507,10 @@ app.whenReady().then(async () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+// The viewing log batches its writes, so the last couple of seconds of it
+// would otherwise die with the process on quit.
+app.on('will-quit', () => flushHistoryNow());
 
 app.on('window-all-closed', () => {
   // The pre-launch updater window can close after an up-to-date/error

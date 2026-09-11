@@ -161,6 +161,10 @@ export const S = {
   liveContentPath: null,
   liveContentChannel: null,
   driftCheckTimer: null,
+  // Non-null while channel SCAN is running (toggleChannelScan,
+  // playback-core.js) — also the flag app.js checks to cancel the scan on
+  // any other keypress.
+  scanTimer: null,
   // Real (not viewNow()) timestamp of the last corrective seek — a plain
   // rate limit so a file that keeps stalling underneath us gets one nudge
   // per cooldown instead of a seek every tick, which on a slow remote
@@ -190,6 +194,8 @@ export const S = {
   contentAdvisoryCueTimers: [],
   hintBarFlashTimer: null,
   pictureModeFlashTimer: null,
+  airCheckFlashTimer: null,
+  scanFlashTimer: null,
   aspectModeFlashTimer: null,
   sleepTimerFlashTimer: null,
   crtFlashTimer: null,

@@ -90,6 +90,8 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 | `Z` | Cycle the sleep timer (off / 30 / 60 / 90 / 120 min) |
 | `F` | Fullscreen |
 | `P` | Power off (any key wakes it) |
+| `N` | Channel SCAN — hold on each channel a few seconds, any key stops |
+| `X` | Mark an air check — save this moment to come back to |
 | `T` | Time machine — VCR shuttle mode |
 | `L` | Return to live |
 | `[` `]` | Jump to the previous/next commercial break (time machine only) |
@@ -127,6 +129,16 @@ the guide also scrolls backward into the past.
   the schedule says it should be, easing it back after a machine sleep or a long stall
 - **Display wake lock** — keeps the monitor from sleeping while the set is powered on,
   including on still-picture states like a plugin channel, a NO SIGNAL card, or the guide
+- **Air checks** — mark the moment you're watching with `X`, then jump straight back to it
+  from the TV menu; nothing is recorded, a mark is just a channel and a point in time
+- **Channel SCAN** — the old cable-box SCAN button: hold on each channel for a few seconds
+  until something's worth stopping for, and any key stops it
+- **Viewing history** — a log of what actually aired, kept in its own file rather than in
+  your channel config, with estimated watch time and most-watched channel/program
+- **Media keys** — the OS now-playing overlay shows the channel and program, and a
+  keyboard's next/previous track keys change channel
+- **Poster frames without a metadata match** — the program details card falls back to a
+  frame pulled out of the file itself when there's no matched poster art
 - **Channel icons** — assign an image per channel, or use the auto-colored number badge
 - **Dayparting** — give a channel time blocks that swap in a different folder by hour
   (cartoons 6am–8pm, something else overnight); guide and playback both follow
@@ -229,6 +241,8 @@ main/
   main-media-bridge.js       Loopback HTTP server for a mediaSource-plugin ref in the host
                               window when the LAN viewer server is off
   main-config.js             channels.json load/save, backups, update-time userData guard
+  main-history.js            viewing-history.json — the append-only viewing log, kept
+                              out of channels.json on purpose
   main-updater.js            Background update checks, guided/silent install (electron-updater)
   main-updater-state.js      Pure update-history/version-transition helpers
   main-lan.js                Local network address/port helpers
@@ -288,6 +302,10 @@ renderer/
     broadcast-identity.js          Per-channel theme/tune/no-signal identity overrides
     dynamic-overlays.js            Scheduled/break-triggered image/video overlays
     timemachine.js                 VCR shuttle
+    airchecks.js                   Marked moments — a channel plus an instant on the
+                                    viewing clock, recalled by shifting that clock
+    history.js                     Viewing-history recording/summaries (the log itself
+                                    lives in main-history.js's own file)
     power.js                       Power, standby, volume, CRT state
     curation*.js, tagtaxonomy.js   Auto-curation engine (tagging, template scheduling,
                                     background regeneration)

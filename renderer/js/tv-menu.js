@@ -9,7 +9,8 @@
 // controls, since all of those already just dispatch a 'keydown' that
 // lands here the same way.
 import { shortcutsOverlayEl } from './dom.js';
-import { changeChannel, jumpToLastChannel } from './playback-core.js';
+import { changeChannel, jumpToLastChannel, toggleChannelScan } from './playback-core.js';
+import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCheck } from './airchecks.js';
 import { showDetailsForCurrentChannel } from './details.js';
 import { openGuideGrid } from './guide.js';
 import { interruptEntries } from './plugins.js';
@@ -42,6 +43,15 @@ function actions() {
     { label: 'INFO', run: () => showDetailsForCurrentChannel() },
     { label: 'TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) },
     { label: 'RETURN TO LIVE', run: () => returnToLive() },
+    { label: 'SCAN', run: () => toggleChannelScan() },
+    { label: 'MARK AIR CHECK', run: () => saveAirCheck() },
+    // The most recent marks, as one-press recalls. This is a remote-friendly
+    // shortlist, not a management surface — removing one is a setup-screen
+    // job, where there's a keyboard and a full list to work with.
+    ...airChecks().slice(0, AIR_CHECK_MENU_MAX).map((mark) => ({
+      label: `▶ ${airCheckLabel(mark)}`,
+      run: () => recallAirCheck(mark.id),
+    })),
     ...interruptEntries().filter((e) => e.label).map((e) => ({ label: e.label, run: () => e.run({ manual: true }) })),
     { label: 'MUTE', run: () => toggleMute() },
     { label: 'VOL ▲', run: () => adjustVolume(0.1) },

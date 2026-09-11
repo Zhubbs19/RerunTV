@@ -26,7 +26,7 @@ import { applyMuteState, applyVolume } from './power.js';
 import { getThemePack } from './plugins.js';
 import { pickDeterministic, poolFor } from './interstitials.js';
 import { S, viewNow } from './state.js';
-import { autoHideAfter, formatHourLabel } from './util.js';
+import { autoHideAfter, formatHourLabel, getDisplayTitle } from './util.js';
 import { channelIdentity, effectiveThemeId } from './broadcast-identity.js';
 import { computeNextTitle } from './playback-breaks.js';
 
@@ -471,6 +471,41 @@ export function applyLogoBugPlacement(ch) {
   // fallback in overlays.css, so profiles without it round-trip unchanged.
   if (Number.isFinite(profile.opacity)) logoBugEl.style.setProperty('--logo-bug-opacity', profile.opacity / 100);
   else logoBugEl.style.removeProperty('--logo-bug-opacity');
+}
+
+// ---------- OS media session ----------
+// Tells the operating system what's airing, so the media keys on a keyboard
+// and the system's own now-playing overlay both work on a box that is
+// explicitly meant to keep running behind other windows. Channel up/down is
+// the honest mapping for next/previous track — there is no "track" here, and
+// skipping within a programme would contradict the whole live-schedule
+// premise. Play/pause is deliberately left to the element's own default:
+// pausing genuinely pauses, and the drift watchdog (playback-core.js) snaps
+// the channel back to live the moment it resumes, which is exactly the
+// behaviour a viewer would expect from a set-top box.
+export function initMediaSession(onChannelDelta) {
+  const ms = navigator.mediaSession;
+  if (!ms || typeof ms.setActionHandler !== 'function') return;
+  const bind = (action, fn) => {
+    try { ms.setActionHandler(action, fn); } catch (e) { /* unsupported action */ }
+  };
+  bind('nexttrack', () => onChannelDelta(1));
+  bind('previoustrack', () => onChannelDelta(-1));
+}
+
+export function updateMediaSession(ch, file) {
+  const ms = navigator.mediaSession;
+  if (!ms || typeof window.MediaMetadata !== 'function') return;
+  try {
+    if (!ch) { ms.metadata = null; return; }
+    ms.metadata = new window.MediaMetadata({
+      title: file ? getDisplayTitle(file) : (ch.name || `CHANNEL ${ch.number}`),
+      artist: `CH ${ch.number}${ch.name ? ` — ${ch.name}` : ''}`,
+      album: 'RerunTV',
+    });
+  } catch (e) {
+    // Metadata is decoration; never let it take a tune down with it.
+  }
 }
 
 export function updateLogoBug(ch) {

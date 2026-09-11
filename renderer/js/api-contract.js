@@ -29,6 +29,7 @@
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',
+    'historyAppend', 'historyList', 'historyClear',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
     'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',

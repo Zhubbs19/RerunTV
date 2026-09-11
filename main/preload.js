@@ -49,6 +49,11 @@ contextBridge.exposeInMainWorld('api', {
   // state without changing it.
   setKeepDisplayAwake: (keepAwake) => ipcRenderer.invoke('power:setKeepDisplayAwake', keepAwake),
   showSystemNotification: (opts) => ipcRenderer.invoke('notify:show', opts),
+  // Viewing history — its own file, not part of channels.json. See
+  // main-history.js for why.
+  historyAppend: (entry) => ipcRenderer.invoke('history:append', entry),
+  historyList: (limit) => ipcRenderer.invoke('history:list', limit),
+  historyClear: () => ipcRenderer.invoke('history:clear'),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),

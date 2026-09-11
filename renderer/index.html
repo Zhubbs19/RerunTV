@@ -437,6 +437,15 @@
           </div>
         </div>
 
+        <div class="panel span-full">
+          <div class="panel-toggle">AIR CHECKS</div>
+          <span class="panel-status">Moments you marked while watching, with X or MARK AIR CHECK in the TV menu (?). Choosing one shifts the viewing clock back to that instant on that channel. Nothing is recorded — a mark is just a channel and a point in time, so it costs no disk space. Re-scanning or re-ordering a channel's folders re-anchors it, and marks made before that will land on whatever airs at that time afterwards.</span>
+          <div id="airchecks-list" class="titles-list"></div>
+          <div class="panel-body">
+            <button id="airchecks-clear-all" class="btn" type="button">CLEAR ALL AIR CHECKS</button>
+          </div>
+        </div>
+
         <div class="panel">
           <div class="panel-toggle">NO SIGNAL SCREEN</div>
           <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
@@ -914,6 +923,34 @@
                on an otherwise empty screen, so reading "is the box healthy"
                meant clicking through all three. -->
           <div class="settings-grid">
+
+            <div class="panel span-full">
+              <label class="panel-toggle"><input type="checkbox" id="viewing-history-enabled" checked> 📼 VIEWING HISTORY</label>
+              <span class="panel-status">A log of what actually went on screen, kept on this machine in its own file and never part of your channel config or its backups. Rows are written as a programme starts, so the newest entry is whatever is on now. Watch time is an estimate: the log knows when something started, not when you left the room.</span>
+              <div class="box-status-grid">
+                <div class="box-status-item">
+                  <div class="box-status-value" id="history-total-time">—</div>
+                  <div class="box-status-label">ESTIMATED WATCH TIME</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="history-row-count">—</div>
+                  <div class="box-status-label">PROGRAMS LOGGED</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="history-top-channel">—</div>
+                  <div class="box-status-label">MOST-WATCHED CHANNEL</div>
+                </div>
+                <div class="box-status-item">
+                  <div class="box-status-value" id="history-top-title">—</div>
+                  <div class="box-status-label">MOST-WATCHED PROGRAM</div>
+                </div>
+              </div>
+              <div id="history-list" class="titles-list"></div>
+              <div class="block-row">
+                <button id="history-refresh-btn" class="btn" type="button">REFRESH</button>
+                <button id="history-clear-btn" class="btn" type="button">CLEAR HISTORY</button>
+              </div>
+            </div>
 
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">🩺 BOX STATUS</label>
@@ -1455,6 +1492,8 @@
         <span data-hint-key="power" data-hint-secondary="true">P POWER</span>
         <span data-hint-key="overlay-editor" data-hint-secondary="true">O LOGO PLACEMENT</span>
         <span data-hint-key="time-machine">T TIME MACHINE / PLAY</span>
+        <span data-hint-key="scan" data-hint-secondary="true">N SCAN CHANNELS</span>
+        <span data-hint-key="air-check" data-hint-secondary="true">X MARK AIR CHECK</span>
         <span data-hint-key="news-alert" data-plugin-hint="true" data-hint-secondary="true">B NEWS ALERT</span>
         <span data-hint-key="alert-test" data-plugin-hint="true" data-hint-secondary="true">E EAS ALERT</span>
         <span data-hint-key="closed-captions" data-plugin-hint="true" data-hint-secondary="true">K CAPTIONS</span>

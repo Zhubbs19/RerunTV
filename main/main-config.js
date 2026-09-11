@@ -31,7 +31,7 @@ const { getMainWindow } = require('./main-window-ref');
 // an earlier blind recursive-copy attempt here fail outright.
 const OWN_DATA_ENTRIES = [
   'channels.json', 'window-state.json', 'api-cache.json',
-  'update-state.json',
+  'update-state.json', 'viewing-history.json',
   'backups', 'plugins',
 ];
 

@@ -19,10 +19,11 @@ import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, comp
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
   tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, playChannelLive,
+  stopChannelScan, toggleChannelScan,
   startScheduleDriftWatchdog,
 } from './playback-core.js';
 import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback-breaks.js';
-import { applyLogoBugPlacement, showNoSignal } from './playback-broadcast-fx.js';
+import { applyLogoBugPlacement, initMediaSession, showNoSignal } from './playback-broadcast-fx.js';
 import {
   showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
@@ -36,8 +37,9 @@ import {
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
   adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
-  resetIdleTimer, powerOn, powerOff, pushRemoteState, applyDisplayWakeLock,
+  resetIdleTimer, powerOn, powerOff, pushRemoteState, applyDisplayWakeLock, flashMessage,
 } from './power.js';
+import { saveAirCheck } from './airchecks.js';
 import { applyDisplayModeSettled } from './display-mode.js';
 import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
@@ -207,6 +209,12 @@ export function handleKey(e) {
     return;
   }
 
+  // Touching the remote is how you stop a SCAN on a real box, so any input
+  // at all ends it — placed ahead of every branch below so digit entry and
+  // shifted combos cancel it too. The SCAN key itself falls through to its
+  // own toggle rather than being eaten here.
+  if (S.scanTimer != null && e.key !== 'n' && e.key !== 'N') stopChannelScan();
+
   if (triggerVirtualChannelKey(S.currentNumber, e.key)) return;
 
   if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
@@ -365,6 +373,14 @@ export function handleKey(e) {
       }));
       break;
     }
+    case 'n':
+    case 'N':
+      flashMessage(toggleChannelScan() ? 'SCANNING…' : 'SCAN STOPPED', 'scanFlashTimer');
+      break;
+    case 'x':
+    case 'X':
+      saveAirCheck();
+      break;
     case '?':
       openTvMenu();
       break;
@@ -857,6 +873,13 @@ export function applyConfigDefaults(config) {
   // guide are all still-image states where it doesn't.
   if (!config.keepDisplayAwake) config.keepDisplayAwake = { enabled: true };
   if (!Array.isArray(config.reminders)) config.reminders = [];
+  // Marked moments — {channelNumber, at} on the viewing clock, no recording
+  // involved. See airchecks.js for why that's a complete description of a
+  // moment here.
+  if (!Array.isArray(config.airChecks)) config.airChecks = [];
+  // The log itself lives in its own file (main-history.js); this is only the
+  // switch that decides whether anything gets written to it.
+  if (!config.viewingHistory) config.viewingHistory = { enabled: true };
   // How many minutes before a REMIND ME program's start the toast fires
   // (checkProgramReminders, guide.js) — 1 matches the original hardcoded
   // 60000ms lead exactly, so an existing config keeps today's timing.
@@ -1084,6 +1107,10 @@ async function init() {
   // the same clock and can drift for exactly the same reasons (its device
   // sleeping, a slow stream off the host), so it wants the same correction.
   startScheduleDriftWatchdog();
+  // Media keys on a keyboard and the OS now-playing overlay, mapped to
+  // channel up/down — the honest equivalent of next/previous track on a box
+  // with no tracks. See initMediaSession (playback-broadcast-fx.js).
+  initMediaSession((delta) => changeChannel(delta));
   // The set boots powered on, so claim the wake lock now rather than waiting
   // for the first powerOn() — which only ever fires on a transition out of
   // standby and would otherwise never run at all in a normal session.

@@ -37,6 +37,7 @@ import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from
 import { isEnabledByDefault } from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 import { waitForMediaSourceReady as waitForProviderMediaSource } from './playback-recovery.js';
+import { historyEnabled, recordViewing } from './history.js';
 import {
   cancelUpNextBar, checkBreakState, fadeInPlayer, resetActiveBreakState, scheduleContentAdvisoryCues,
   scheduleUpNextBar,
@@ -46,7 +47,7 @@ import {
   flashContentAdvisory, flashEpisodeStatusBug,
   flashFormatDisclaimer, flashRatingBug, genericNoSignalCopy, hideNoSignal, markStaticReady, resetCreditsSpeedup,
   scheduleCreditsSpeedup, showBlockedCard, showMovieRatingCard, showNoSignal, showSignOffCard, showStaticBurst,
-  updateLogoBug,
+  initMediaSession, updateLogoBug, updateMediaSession,
 } from './playback-broadcast-fx.js';
 
 // Same shape as computeLivePosition, but content playback lags real time by
@@ -457,6 +458,8 @@ export async function playChannelLive(ch, opts) {
   // reset or sets S.activeBreakKey, both of which the watchdog checks.
   S.liveContentPath = file.path;
   S.liveContentChannel = ch.number;
+  updateMediaSession(ch, file);
+  if (historyEnabled()) recordViewing(ch, file);
   // Real content only (not the bumper/dynamic-background player.src= sites
   // below) — lets a captions plugin know a new file is about to play without
   // core knowing captions exist at all (registerCoreHook, plugins.js).
@@ -896,6 +899,46 @@ export function changeChannel(direction) {
   if (idx === -1) idx = 0;
   else idx = (idx + direction + numbers.length) % numbers.length;
   tuneToChannel(numbers[idx]);
+}
+
+// ---------- Channel SCAN ----------
+// The SCAN button off a real cable box: hold on each channel for a few
+// seconds, then move on, until something is worth stopping for. Built on
+// changeChannel rather than its own walk of the lineup so hidden channels,
+// plugin channels, and tune gates all behave exactly as they do when
+// surfing by hand.
+//
+// Real time, not viewNow(): the dwell is how long a person looks at the
+// screen, which has nothing to do with what the schedule thinks the time is
+// — a time-machine session scanning at ×7200 would otherwise flip channels
+// faster than they could load. Stopped by literally any other input, which
+// app.js arranges by calling stopChannelScan() from the keydown handler.
+const SCAN_DWELL_MS = 8000;
+
+export function isChannelScanning() {
+  return S.scanTimer != null;
+}
+
+export function stopChannelScan({ silent = false } = {}) {
+  if (S.scanTimer == null) return false;
+  clearInterval(S.scanTimer);
+  S.scanTimer = null;
+  if (!silent) showGuideOverlay();
+  return true;
+}
+
+export function toggleChannelScan() {
+  if (stopChannelScan()) return false;
+  // Moving immediately makes the key feel like it did something; waiting a
+  // full dwell first reads as the key having been ignored.
+  changeChannel(1);
+  showGuideOverlay();
+  S.scanTimer = setInterval(() => {
+    if (!S.isPoweredOn || S.isSetupOpen) { stopChannelScan({ silent: true }); return; }
+    changeChannel(1);
+    showGuideOverlay();
+  }, SCAN_DWELL_MS);
+  return true;
 }
 
 // Jumps between only the channels marked as favorites — a no-op (not a

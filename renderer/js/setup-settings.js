@@ -53,8 +53,13 @@ import {
   timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
   reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
+  airChecksListEl, airChecksClearAllBtn,
   keepDisplayAwakeEl, playbackResyncEnabledEl,
+  viewingHistoryEnabledEl, historyListEl, historyTotalTimeEl, historyRowCountEl,
+  historyTopChannelEl, historyTopTitleEl, historyRefreshBtn, historyClearBtn,
 } from './dom.js';
+import { airCheckLabel, airChecks, clearAirChecks, removeAirCheck } from './airchecks.js';
+import { clearViewingHistory, formatWatchTime, listViewingHistory, summarizeHistory } from './history.js';
 
 // Live numeric readouts for every box-wide range slider — wired once at
 // module load since these elements are all static (not rebuilt per-render),
@@ -330,6 +335,8 @@ export function renderSettingsPanels() {
     reminderLeadMinutesSlider.value = S.config.reminderLeadMinutes != null ? S.config.reminderLeadMinutes : 1;
   }
   renderRemindersPanel();
+  renderAirChecksPanel();
+  renderViewingHistoryPanel();
   if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
   if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
@@ -706,6 +713,17 @@ const HELP_GUIDE = [
     'KEEP THE DISPLAY AWAKE holds off your monitor\'s screensaver and sleep timer while the set is powered on. Playing video normally keeps a screen up by itself, but a plugin channel, a NO SIGNAL card, or an open guide is a still picture as far as your computer is concerned. Powering the set off, including into AUTO STANDBY, releases it again immediately.',
     'KEEP PLAYBACK IN SYNC re-checks every 20 seconds that the picture is still at the point the schedule says it should be, and eases it back if it has fallen behind. This matters most after the computer sleeps and wakes, when the wall clock has moved on but the video has not. It also covers a file that stalls long enough to lose its place.',
     'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
+  ] },
+  { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.3 Air Checks — Marking a Moment', body: [
+    'Press X while watching, or pick MARK AIR CHECK from the TV menu, and the box remembers exactly where you were: which channel, and what moment of its schedule was on screen.',
+    'To go back, open the TV menu and choose one of the AIR CHECK entries listed there. The viewing clock shifts to that instant and the channel tunes, so the programme picks up exactly where it was.',
+    'Nothing is recorded and nothing is copied. Because a channel plays the same thing at the same time no matter when you ask, a channel number and a timestamp already describe the moment completely. A mark costs a few dozen bytes.',
+    'CAUTION: re-scanning a channel\'s folder or changing its playback order re-anchors that channel. Marks made before that will land on whatever airs at that time afterwards, which may be something else. The full list, with a REMOVE button on each, is under AIR CHECKS on the PICTURE & GUIDE tab.',
+  ] },
+  { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.4 Channel Scan and the Viewing Log', body: [
+    'Press N to start SCAN. The box holds on each channel for about eight seconds and then moves on, showing the channel banner as it goes, exactly like the SCAN button on an old cable box. Pressing any key stops it on whatever is on screen.',
+    'The STATUS tab keeps a VIEWING HISTORY: one row for each programme that actually reached the screen, with an estimated watch time and your most-watched channel and programme.',
+    'That log lives in its own file, separate from your channel configuration. It is never included in a config backup or export, which also means CLEAR HISTORY cannot be undone by restoring a backup. Turn the whole thing off with the checkbox on that panel if you would rather nothing were logged.',
   ] },
   { group: 'SECTION 9 — THE PLUGINS TAB', title: '9.1 Installing, Turning On/Off, and Removing Plugins', body: [
     'A lot of what this box can do — every special channel from SECTION 7, the remote control, weather and show-info lookups, even audio streaming features that need extra processing behind the scenes — comes from individual PLUGINS, listed on the PLUGINS tab. Some come built in and turned on by default; you can add more yourself.',
@@ -1659,6 +1677,122 @@ remindersClearAllBtn?.addEventListener('click', async () => {
   S.config.reminders = [];
   saveConfigDebounced();
   renderRemindersPanel();
+});
+
+// ---------- Viewing history (STATUS tab) ----------
+// Reads from main-history.js's own file rather than from S.config, so this
+// panel is the only thing in the setup screen that does its own async fetch
+// on render. Kept to the most recent slice: the log holds thousands of rows
+// and this is a "what have I been watching" readout, not an audit trail.
+const HISTORY_PANEL_ROWS = 40;
+
+export function renderViewingHistoryPanel() {
+  if (viewingHistoryEnabledEl) {
+    viewingHistoryEnabledEl.checked = !S.config.viewingHistory || S.config.viewingHistory.enabled !== false;
+  }
+  if (!historyListEl) return;
+  listViewingHistory(500).then((entries) => {
+    const summary = summarizeHistory(entries);
+    if (historyTotalTimeEl) historyTotalTimeEl.textContent = summary.rowCount ? formatWatchTime(summary.totalMs) : '—';
+    if (historyRowCountEl) historyRowCountEl.textContent = summary.rowCount ? String(summary.rowCount) : '—';
+    if (historyTopChannelEl) {
+      const top = summary.channels[0];
+      historyTopChannelEl.textContent = top ? `CH ${top.number}${top.name ? ` ${top.name}` : ''}` : '—';
+    }
+    if (historyTopTitleEl) {
+      const top = summary.titles[0];
+      historyTopTitleEl.textContent = top && top.title ? top.title : '—';
+    }
+    historyListEl.innerHTML = '';
+    if (!entries.length) {
+      const empty = document.createElement('div');
+      empty.className = 'titles-empty';
+      empty.textContent = 'NOTHING LOGGED YET. WATCH SOMETHING AND COME BACK.';
+      historyListEl.appendChild(empty);
+      return;
+    }
+    entries.slice(0, HISTORY_PANEL_ROWS).forEach((entry) => {
+      const row = document.createElement('div');
+      row.className = 'block-row';
+      const label = document.createElement('span');
+      label.className = 'block-count';
+      const when = new Date(entry.at).toLocaleString();
+      const name = entry.channelName ? ` ${entry.channelName}` : '';
+      label.textContent = `${when} · CH ${entry.channelNumber}${name} · ${entry.title || 'UNTITLED'}`;
+      row.appendChild(label);
+      historyListEl.appendChild(row);
+    });
+  }).catch(() => {});
+}
+
+viewingHistoryEnabledEl?.addEventListener('change', () => {
+  S.config.viewingHistory = S.config.viewingHistory || {};
+  S.config.viewingHistory.enabled = viewingHistoryEnabledEl.checked;
+  saveConfigDebounced();
+});
+
+historyRefreshBtn?.addEventListener('click', () => renderViewingHistoryPanel());
+
+historyClearBtn?.addEventListener('click', async () => {
+  const ok = await confirmDialog({
+    title: 'CLEAR VIEWING HISTORY',
+    message: 'Delete the whole log of what this box has played? This cannot be undone — the log is not part of your config, so config backups do not contain it.',
+    confirmText: 'CLEAR HISTORY',
+  });
+  if (!ok) return;
+  await clearViewingHistory();
+  renderViewingHistoryPanel();
+});
+
+// ---------- Air checks (PICTURE & GUIDE > INTERFACE) ----------
+// The TV menu offers the most recent few as one-press recalls; this is the
+// full list, and the only place a mark can be deleted. Same shape as the
+// reminders list above on purpose — both are "things you marked while
+// watching that you may want to undo later".
+export function renderAirChecksPanel() {
+  if (!airChecksListEl) return;
+  const marks = airChecks();
+  if (airChecksClearAllBtn) airChecksClearAllBtn.disabled = !marks.length;
+  airChecksListEl.innerHTML = '';
+  if (!marks.length) {
+    const empty = document.createElement('div');
+    empty.className = 'titles-empty';
+    empty.textContent = 'NO AIR CHECKS MARKED. PRESS X WHILE WATCHING TO MARK THE MOMENT.';
+    airChecksListEl.appendChild(empty);
+    return;
+  }
+  marks.forEach((mark) => {
+    const row = document.createElement('div');
+    row.className = 'block-row';
+    const label = document.createElement('span');
+    label.className = 'block-count';
+    const channel = getChannel(mark.channelNumber);
+    const name = (channel && channel.name) || mark.channelName || 'UNNAMED';
+    label.textContent = `${airCheckLabel(mark)} · ${name} · ${new Date(mark.at).toLocaleDateString()}`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn';
+    remove.textContent = 'REMOVE';
+    remove.addEventListener('click', () => {
+      removeAirCheck(mark.id);
+      renderAirChecksPanel();
+    });
+    row.append(label, remove);
+    airChecksListEl.appendChild(row);
+  });
+}
+
+airChecksClearAllBtn?.addEventListener('click', async () => {
+  const count = airChecks().length;
+  if (!count) return;
+  const ok = await confirmDialog({
+    title: 'CLEAR AIR CHECKS',
+    message: `Remove all ${count} marked moment${count === 1 ? '' : 's'}?`,
+    confirmText: 'CLEAR ALL',
+  });
+  if (!ok) return;
+  clearAirChecks();
+  renderAirChecksPanel();
 });
 
 keepDisplayAwakeEl?.addEventListener('change', () => {
