@@ -297,6 +297,32 @@ async function copyIntoDataDir(ffmpegPath, sourcePath, destAbs, spawnFn) {
   return result.ok;
 }
 
+// Whether a title's video can actually be decoded, as opposed to merely
+// listed.
+//
+// This matters because a pressed disc scrambles its VIDEO but not its index:
+// a commercial DVD hands over its titles, chapters and audio tracks quite
+// happily, and only fails when you try to read a frame. Without this check
+// the deck would list a film, spend a long time copying it, and produce
+// something unwatchable — the exact "silently produce a broken tape" outcome
+// the provider-backed refusal exists to avoid.
+//
+// A second of real decoding is the only honest test. Scrambled sectors do not
+// announce themselves; they just are not valid MPEG.
+async function probeTitleReadable(ffmpegPath, videoTsPath, vts, spawnFn) {
+  const set = String(vts).padStart(2, '0');
+  const vob = path.join(videoTsPath, `VTS_${set}_1.VOB`);
+  let decodedSeconds = 0;
+  const result = await runFfmpeg(ffmpegPath, [
+    '-hide_banner', '-nostdin', '-v', 'error', '-progress', 'pipe:1', '-nostats',
+    '-i', vob, '-t', '1', '-an', '-f', 'null', '-',
+  ], spawnFn, {
+    timeoutMs: PROBE_TIMEOUT_MS,
+    onProgress: (seconds) => { decodedSeconds = Math.max(decodedSeconds, seconds); },
+  });
+  return { readable: result.ok && decodedSeconds > 0, detail: lastLines(result.output) };
+}
+
 // Where tapes actually live. The default is this plugin's own data folder;
 // a user who picked somewhere else gets that instead — but only if it was
 // actually granted, which ctx.fs.writeDirs is the authority on. An isolated
@@ -702,6 +728,23 @@ async function activate(ctx) {
       }
       const disc = readDiscStructure(videoTs, vtsBuffers);
       if (disc.error) return { error: disc.error };
+
+      // Checked once, on the first title, rather than per title: scrambling
+      // is a property of the disc, and a second of decoding per title would
+      // make reading a twenty-title disc needlessly slow.
+      const firstTitle = disc.titles.find((title) => title.vts);
+      if (firstTitle) {
+        // eslint-disable-next-line no-await-in-loop
+        const probe = await probeTitleReadable(ffmpegPath, videoTsPath, firstTitle.vts, spawn);
+        if (!probe.readable) {
+          return {
+            error: 'This disc lists its titles but its video cannot be read, which is what a commercially pressed disc looks like: the index is in the clear and the video is scrambled. RerunTV does not descramble discs. Home-authored and unprotected discs work.',
+            encrypted: true,
+            titles: disc.titles,
+            detail: probe.detail,
+          };
+        }
+      }
       return { titles: disc.titles, warnings: disc.warnings, videoTsPath };
     } catch (e) {
       return { error: `That disc could not be read: ${e.message}` };

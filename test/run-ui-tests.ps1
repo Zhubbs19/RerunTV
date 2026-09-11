@@ -173,17 +173,34 @@ try {
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Normal
 
     Write-Host "Waiting for the CDP endpoint to come up..." -ForegroundColor Cyan
+    # Two distinct failures used to look identical here, and "never opened its
+    # CDP port" sent three separate investigations down the wrong path: the app
+    # can be alive and slow, or it can have exited during startup. Those need
+    # opposite fixes, so tell them apart and say which one happened. The budget
+    # is also generous now, because the app's own startup update check can
+    # legitimately hold the window back for a while.
     $ready = $false
-    for ($i = 0; $i -lt 40; $i++) {
+    $died = $false
+    for ($i = 0; $i -lt 120; $i++) {
         Start-Sleep -Milliseconds 500
         try {
             $null = Invoke-RestMethod -Uri "http://127.0.0.1:$port/json/version" -TimeoutSec 2
             $ready = $true
             break
         } catch { }
+        # Only after a grace period: the process list is briefly empty while
+        # cmd.exe is still handing off to the real electron.exe.
+        if ($i -gt 6 -and -not (Get-OurElectronProcesses)) { $died = $true; break }
     }
     if (-not $ready) {
-        throw "Electron never opened its CDP port. Check $stdout and $stderr."
+        Write-Host "--- electron stdout ---" -ForegroundColor Yellow
+        if (Test-Path $stdout) { Get-Content $stdout -Tail 40 | ForEach-Object { Write-Host "  $_" } }
+        Write-Host "--- electron stderr ---" -ForegroundColor Yellow
+        if (Test-Path $stderr) { Get-Content $stderr -Tail 40 | ForEach-Object { Write-Host "  $_" } }
+        if ($died) {
+            throw "Electron exited during startup (no process left). Its output, if any, is above."
+        }
+        throw "Electron is still running but never opened its CDP port within 60s. Its output, if any, is above."
     }
     Write-Host "App is up. Running the test suite..." -ForegroundColor Green
 

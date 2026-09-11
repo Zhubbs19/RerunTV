@@ -185,9 +185,21 @@ function removePluginIntegrity(id) {
 // the bundled source stopped shipping, the orphan survived the update, and
 // the plugin every ffmpeg feature depends on (codec fix, caption extraction,
 // thumbnail capture, recording) silently stopped loading.
+//
+// Removing the old copy first is an OPTIMISATION for clearing orphans, not a
+// requirement, and it must never be load-bearing: fs.rmSync on Windows
+// throws whenever anything in the tree is still open, which for a folder the
+// app itself just loaded from is entirely possible. So a failed removal
+// falls back to the overwrite-in-place this used to do — the orphan survives
+// another boot, which is the old behaviour and survivable, rather than the
+// removal taking the whole app down with it.
 function replaceBundledCopy(sourceDir, destDir) {
-  fs.rmSync(destDir, { recursive: true, force: true });
-  fs.cpSync(sourceDir, destDir, { recursive: true });
+  try {
+    fs.rmSync(destDir, { recursive: true, force: true });
+  } catch (e) {
+    recordDiagnostic('plugin-loader', 'log', `Could not clear ${path.basename(destDir)} before refreshing it; overwriting in place instead (${e.message})`);
+  }
+  fs.cpSync(sourceDir, destDir, { recursive: true, force: true });
 }
 
 function seedBundledPlugins() {
@@ -202,35 +214,14 @@ function seedBundledPlugins() {
   const seeded = loadSeededManifest();
 
   for (const folder of folders) {
-    const sourceDir = path.join(BUNDLED_PLUGINS_DIR, folder.name);
-    const destDir = path.join(dest, folder.name);
-    const sourceHash = hashDirectory(sourceDir);
-    if (!fs.existsSync(destDir)) {
-      fs.cpSync(sourceDir, destDir, { recursive: true });
-      seeded.set(folder.name, sourceHash);
-    } else if (seeded.has(folder.name)) {
-      // A null hash is the old v1 array ledger: refresh once while upgrading
-      // it so existing installs receive newly added settings/runtime files.
-      if (seeded.get(folder.name) !== sourceHash) {
-        replaceBundledCopy(sourceDir, destDir);
-      }
-      seeded.set(folder.name, sourceHash);
-    } else {
-      // destDir already exists but was never enrolled in this ledger — e.g.
-      // it was placed there before this tracking existed, or by some path
-      // other than this function's own !existsSync branch above. Without
-      // this branch such a folder is permanently invisible to the refresh
-      // check above (which requires seeded.has() first) and silently never
-      // receives any bundled-source update again, no matter how the repo's
-      // copy changes. Found live: gdrive-media-source's installed copy sat
-      // frozen since its first install, missing a manifest capability
-      // (system/shell.openExternal) the repo copy later added for its own
-      // SIGN IN button, which made every sign-in attempt fail with a
-      // capability-denied error and no obvious cause. Enroll it now and
-      // sync it to match the bundled source immediately, same as any other
-      // first-party plugin under a bundled id is expected to track.
-      replaceBundledCopy(sourceDir, destDir);
-      seeded.set(folder.name, sourceHash);
+    // Per plugin, so one unwritable or locked folder costs that plugin's
+    // refresh rather than the app's boot. This runs before any window
+    // exists, inside the startup promise, so an escaping throw here is not a
+    // visible error — it is an app that simply never appears.
+    try {
+      seedOneBundledPlugin(folder.name, dest, seeded);
+    } catch (e) {
+      recordDiagnostic('plugin-loader', 'error', `Could not seed bundled plugin ${folder.name}: ${e.message}`);
     }
   }
 
@@ -248,7 +239,44 @@ function seedBundledPlugins() {
     seeded.delete(id);
   }
 
-  saveSeededManifest(seeded);
+  try {
+    saveSeededManifest(seeded);
+  } catch (e) {
+    recordDiagnostic('plugin-loader', 'error', `Could not save the bundled-plugin ledger: ${e.message}`);
+  }
+}
+
+// One bundled plugin's copy brought up to date. Split out so the caller can
+// contain a failure to this plugin instead of the whole seeding pass.
+function seedOneBundledPlugin(name, dest, seeded) {
+  const sourceDir = path.join(BUNDLED_PLUGINS_DIR, name);
+  const destDir = path.join(dest, name);
+  const sourceHash = hashDirectory(sourceDir);
+  if (!fs.existsSync(destDir)) {
+    fs.cpSync(sourceDir, destDir, { recursive: true });
+    seeded.set(name, sourceHash);
+  } else if (seeded.has(name)) {
+    // A null hash is the old v1 array ledger: refresh once while upgrading
+    // it so existing installs receive newly added settings/runtime files.
+    if (seeded.get(name) !== sourceHash) replaceBundledCopy(sourceDir, destDir);
+    seeded.set(name, sourceHash);
+  } else {
+    // destDir already exists but was never enrolled in this ledger — e.g.
+    // it was placed there before this tracking existed, or by some path
+    // other than this function's own !existsSync branch above. Without
+    // this branch such a folder is permanently invisible to the refresh
+    // check above (which requires seeded.has() first) and silently never
+    // receives any bundled-source update again, no matter how the repo's
+    // copy changes. Found live: gdrive-media-source's installed copy sat
+    // frozen since its first install, missing a manifest capability
+    // (system/shell.openExternal) the repo copy later added for its own
+    // SIGN IN button, which made every sign-in attempt fail with a
+    // capability-denied error and no obvious cause. Enroll it now and
+    // sync it to match the bundled source immediately, same as any other
+    // first-party plugin under a bundled id is expected to track.
+    replaceBundledCopy(sourceDir, destDir);
+    seeded.set(name, sourceHash);
+  }
 }
 
 // Capability normalization/signing (normalizeCapabilities, used below, and

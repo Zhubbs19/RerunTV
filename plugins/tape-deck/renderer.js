@@ -995,8 +995,16 @@ async function loadDisc(ctx, item) {
   if (!result || result.error) {
     loadedDisc = null;
     deckState = 'shelf';
-    setVfd('NO DISC');
-    flashToast(String((result && result.error) || 'THAT DISC COULD NOT BE READ').toUpperCase(), 'bad');
+    // A scrambled disc is a specific, recognisable case rather than a
+    // generic failure, and it reads its titles fine — so say which one it is
+    // instead of "could not be read".
+    setVfd(result && result.encrypted ? 'PROTECTED' : 'NO DISC');
+    flashToast(
+      result && result.encrypted
+        ? 'THIS DISC IS COPY-PROTECTED · RERUNTV DOES NOT DESCRAMBLE DISCS'
+        : String((result && result.error) || 'THAT DISC COULD NOT BE READ').toUpperCase(),
+      'bad',
+    );
     renderShelf(ctx);
     return;
   }
