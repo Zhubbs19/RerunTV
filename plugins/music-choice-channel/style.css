@@ -184,6 +184,31 @@
 .mc-now-playing {
   align-self: stretch;
   max-width: 70%;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+}
+/* The cover sits to the left of the text, the way the 2000s slide laid it
+   out. Hidden outright when the library has no sidecar image for the track
+   (resolveAlbumArt, renderer.js) rather than showing an empty frame. */
+.mc-art {
+  flex: 0 0 auto;
+  width: clamp(110px, 15vw, 210px);
+  height: clamp(110px, 15vw, 210px);
+  object-fit: cover;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+}
+.mc-channel[data-era="nineties"] .mc-art {
+  border: 3px solid var(--mc-accent);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.6);
+}
+/* min-width:0 so the copy column can shrink and let the info strip's text
+   ellipsise, instead of the flex row overflowing past max-width. */
+.mc-now-copy {
+  min-width: 0;
+  flex: 1;
 }
 .mc-nowlabel {
   font-size: 11px;

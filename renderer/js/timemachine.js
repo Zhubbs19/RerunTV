@@ -11,7 +11,7 @@ import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, viewNow } from './state.js';
 import { autoHideAfter, formatClock, formatOffset, getDisplayTitle } from './util.js';
-import { isVirtualChannel } from './virtual.js';
+import { isVirtualChannel, virtualChannelSupportsTimeMachine, virtualChannelTimeMachineText } from './virtual.js';
 
 const BREAK_OSD_LABELS = {
   commercial: 'COMMERCIAL BREAK', trivia: 'TRIVIA', channelId: 'STATION ID',
@@ -20,8 +20,14 @@ const BREAK_OSD_LABELS = {
 };
 
 export function timeMachineAvailable() {
-  return S.config.timeMachine && S.config.timeMachine.enabled &&
-    !isVirtualChannel(S.currentNumber) && !!getChannel(S.currentNumber);
+  if (!(S.config.timeMachine && S.config.timeMachine.enabled)) return false;
+  // A plugin channel can opt in when its own playback is a pure function of
+  // a timestamp, exactly like core's schedule.js — scrubbing then works for
+  // free, because the plugin re-derives from viewNow() the same way. Without
+  // the opt-in, the old "no real channel record, so no time machine" rule
+  // still holds.
+  if (isVirtualChannel(S.currentNumber)) return virtualChannelSupportsTimeMachine(S.currentNumber);
+  return !!getChannel(S.currentNumber);
 }
 
 export function updateTimeShiftBadge() {
@@ -58,7 +64,9 @@ export function updateVcrOsd() {
       vcrProgEl.textContent = pos ? getDisplayTitle(pos.file) : '—';
     }
   } else {
-    vcrProgEl.textContent = '';
+    // No channel record means a plugin channel that opted in above; it is
+    // the only thing that knows what it is playing at the scrubbed instant.
+    vcrProgEl.textContent = virtualChannelTimeMachineText(S.currentNumber, viewNow());
   }
   updateTimeShiftBadge();
 }

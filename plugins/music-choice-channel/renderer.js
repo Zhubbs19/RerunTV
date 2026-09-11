@@ -173,6 +173,86 @@ export function parseArtistTitle(filePath) {
   return { artist: meta.artist, title: meta.title };
 }
 
+// ---------- Album art ----------
+// The 2000s on-screen slide carried the album cover, so a library that has
+// one should show it. This looks for a sidecar image beside the audio file —
+// the "cover.jpg next to the album" convention every ripper and tagger
+// writes — rather than reading artwork embedded in the file's own tags.
+//
+// That is a deliberate limit. Reading an embedded APIC/covr frame means
+// parsing the audio file in the main process, which means widening this
+// plugin's declared IPC capability; any change to a manifest's capabilities
+// block (the `why` strings included) changes its approval signature, and a
+// plugin whose signature no longer matches is skipped entirely until the
+// user clicks approve again. Not worth forcing that prompt for a fallback,
+// so sidecar art works today and embedded art stays a separate decision.
+//
+// Probing is done by simply trying to load each candidate and taking the
+// first that decodes — no filesystem access needed from the renderer at all.
+const ART_BASENAMES = ['cover', 'folder', 'front', 'albumart'];
+const ART_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
+
+// Split in two because they cache differently: a file named after the track
+// belongs to that track alone, while a generic cover belongs to the whole
+// folder and every other track in it resolves to the same answer.
+export function albumArtCandidates(trackPath) {
+  const norm = String(trackPath || '').replace(/\\/g, '/');
+  const slash = norm.lastIndexOf('/');
+  if (slash < 0) return { dir: null, trackArt: [], folderArt: [] };
+  const dir = norm.slice(0, slash);
+  const base = norm.slice(slash + 1).replace(/\.[^.]+$/, '');
+  return {
+    dir,
+    // Someone who put "03 Roads.jpg" next to "03 Roads.mp3" meant that one
+    // specifically, so it outranks a generic album cover.
+    trackArt: ART_EXTENSIONS.map((ext) => `${dir}/${base}.${ext}`),
+    folderArt: ART_BASENAMES.flatMap((name) => ART_EXTENSIONS.map((ext) => `${dir}/${name}.${ext}`)),
+  };
+}
+
+// `null` is a real cached answer ("looked, found nothing"), so every read
+// goes through has() rather than a truthiness check — otherwise a folder
+// with no art re-probes every candidate on each track change.
+const trackArtCache = new Map();
+const folderArtCache = new Map();
+
+function probeImage(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.addEventListener('load', () => resolve(img.naturalWidth > 0), { once: true });
+    img.addEventListener('error', () => resolve(false), { once: true });
+    img.src = url;
+  });
+}
+
+async function firstLoadable(paths) {
+  for (const candidate of paths) {
+    // eslint-disable-next-line no-await-in-loop
+    const url = await window.api.toFileUrl(candidate).catch(() => null);
+    // eslint-disable-next-line no-await-in-loop
+    if (url && await probeImage(url)) return url;
+  }
+  return null;
+}
+
+export async function resolveAlbumArt(trackPath) {
+  if (trackArtCache.has(trackPath)) return trackArtCache.get(trackPath);
+  const { dir, trackArt, folderArt } = albumArtCandidates(trackPath);
+  if (!dir) return null;
+
+  let found = await firstLoadable(trackArt);
+  if (!found) {
+    if (folderArtCache.has(dir)) {
+      found = folderArtCache.get(dir);
+    } else {
+      found = await firstLoadable(folderArt);
+      folderArtCache.set(dir, found);
+    }
+  }
+  trackArtCache.set(trackPath, found);
+  return found;
+}
+
 // ---------- The rotating info strip ----------
 // The piece of Music Choice's on-screen grammar this plugin was missing: a
 // strip that cycles every ~30s rather than one static readout. Built fresh
@@ -366,11 +446,29 @@ function updateSlideshow(station, nowMs, era) {
   });
 }
 
+// Resolving art hits the disk, so it runs only when the track actually
+// changes, not on every one-second tick. The guard on the way back covers
+// the case where the song moved on (or the channel was left) while the
+// probe was still running.
+let artTrackPath = null;
+function updateAlbumArt(trackPath) {
+  if (!els || trackPath === artTrackPath) return;
+  artTrackPath = trackPath;
+  els.artEl.classList.add('hidden');
+  resolveAlbumArt(trackPath).then((url) => {
+    if (!els || artTrackPath !== trackPath) return;
+    if (!url) { els.artEl.removeAttribute('src'); return; }
+    els.artEl.src = url;
+    els.artEl.classList.remove('hidden');
+  });
+}
+
 function updateNowPlayingUi(pb, era) {
   if (!els) return;
   const meta = trackMetaOf(pb.track);
   els.artistEl.textContent = meta.artist;
   els.titleEl.textContent = meta.title;
+  updateAlbumArt(pb.track.path);
 
   // ALBUM (YEAR) — the two fields the real on-screen slide carried that this
   // plugin never showed. Only rendered when the filename actually yielded
@@ -468,6 +566,17 @@ function tick(ctx) {
   }
   els.nowPlayingEl.classList.remove('hidden');
   els.probeHintEl.classList.add('hidden');
+  // While the time machine is actively shuttling, the scrubbed instant moves
+  // by minutes per tick — reloading and re-seeking the audio each second
+  // would just thrash the decoder for something nobody can listen to anyway.
+  // The readout keeps tracking, and the next tick after the shuttle stops
+  // loads whatever is actually playing at the committed instant.
+  const shuttling = !!(window.S && window.S.shuttleDir);
+  if (shuttling) {
+    updateNowPlayingUi(pb, era);
+    updateInfoStrip(station, settings, pb, era, nowMs);
+    return;
+  }
   if (currentLoadedTrackPath !== pb.track.path) {
     loadTrack(ctx, station, pb);
   } else if (Math.abs(ctx.player.currentTime - pb.offsetSec) > 2.5) {
@@ -542,6 +651,20 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
   // got moved to. Opt out of that override's number field until this
   // plugin reads its live number dynamically instead.
   numberLocked: true,
+  // computeStationPlayback is a pure function of (station, timestamp), so
+  // scrubbing needs nothing extra here — tick() already re-derives from
+  // ctx.viewNow() every second and will land on whatever this station would
+  // have been playing at the shifted instant. See virtual.js's
+  // virtualChannelSupportsTimeMachine for the core side of this opt-in.
+  supportsTimeMachine: true,
+  timeMachineNowText(nowMs) {
+    const station = selectedStation();
+    if (!station) return '';
+    const pb = computeStationPlayback(station, nowMs);
+    if (!pb) return station.name || '';
+    const meta = trackMetaOf(pb.track);
+    return `${meta.artist} — ${meta.title}`;
+  },
   get nowText() {
     const station = selectedStation();
     return station ? station.name : 'No stations configured';
@@ -576,6 +699,8 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           </div>
           <div class="mc-probe-hint hidden" data-el="probe-hint">DURATIONS NOT YET PROBED — RESCAN THIS STATION IN SETTINGS</div>
           <div class="mc-now-playing hidden" data-el="now-playing">
+            <img class="mc-art hidden" data-el="art" alt="">
+            <div class="mc-now-copy">
             <div class="mc-nowlabel">NOW PLAYING</div>
             <div class="mc-artist" data-el="artist"></div>
             <div class="mc-title" data-el="title"></div>
@@ -590,8 +715,9 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
               <span class="mc-info-label" data-el="info-label"></span>
               <span class="mc-info-text" data-el="info-text"></span>
             </div>
+            </div>
           </div>
-          <div class="mc-hint">▲▼ CHANGE STATION &middot; OK STATION LIST</div>
+          <div class="mc-hint">◀▶ CHANGE STATION &middot; OK STATION LIST &middot; ▲▼ CHANGE CHANNEL</div>
         </div>
         <div class="mc-browser hidden" data-el="browser">
           <div class="mc-browser-title">CHOOSE A STATION</div>
@@ -607,7 +733,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       bgVideoEl: q('bg-video'),
       stationNameEl: q('station-name'), emptyEl: q('empty'), probeHintEl: q('probe-hint'),
       nowPlayingEl: q('now-playing'), artistEl: q('artist'), titleEl: q('title'),
-      albumEl: q('album'), transportEl: q('transport'),
+      albumEl: q('album'), artEl: q('art'), transportEl: q('transport'),
       elapsedEl: q('elapsed'), durationEl: q('duration'), progressFillEl: q('progress-fill'),
       upNextEl: q('up-next'), vuEl: q('vu'),
       infoStripEl: q('info-strip'), infoLabelEl: q('info-label'), infoTextEl: q('info-text'),
@@ -648,6 +774,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     bgVideoPath = null;
     lastSlideshowIndex = -1;
     lastInfoSlideText = null;
+    artTrackPath = null;
     browserOpen = false;
     els = null;
   },
@@ -660,16 +787,36 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     if ((getSettings().stations || []).length) { openBrowser(ctx); return true; }
     return false;
   },
+  // A plugin channel's onKey runs before core's own handler and a `true`
+  // return swallows the key outright (app.js), so anything claimed here is
+  // simply gone while this channel is tuned. Two things were wrong with
+  // that:
+  //
+  //   - Up/Down are core's CHANGE CHANNEL keys. Claiming them for station
+  //     cycling meant you could tune INTO 910 and then never tune out of it
+  //     with the keys anyone would reach for.
+  //   - The station browser returned true for every key it did not handle,
+  //     which took out direct channel entry, the guide, setup and power as
+  //     well, leaving Escape as the only way out of a full-screen list.
+  //
+  // Station cycling now lives on Left/Right, which core only uses to shuttle
+  // and only while the time machine is on — so that case defers too. Nothing
+  // else is claimed, in either state.
   onKey(key, ctx) {
     if (browserOpen) {
       if (key === 'ArrowUp') { browserMove(ctx, -1); return true; }
       if (key === 'ArrowDown') { browserMove(ctx, 1); return true; }
       if (key === 'Enter' || key === ' ') { if (browserHighlightId) switchToStation(ctx, browserHighlightId); closeBrowser(); return true; }
       if (key === 'Escape') { closeBrowser(); return true; }
-      return true; // swallow everything else while the browser is open
+      // Anything this list does not itself use belongs to core. Close first,
+      // so tuning away or opening the guide does not leave the browser up
+      // behind whatever the key actually did.
+      closeBrowser();
+      return false;
     }
-    if (key === 'ArrowUp') { cycleStation(ctx, -1); return true; }
-    if (key === 'ArrowDown') { cycleStation(ctx, 1); return true; }
+    if (window.S && window.S.timeMachineOn) return false;
+    if (key === 'ArrowLeft') { cycleStation(ctx, -1); return true; }
+    if (key === 'ArrowRight') { cycleStation(ctx, 1); return true; }
     return false;
   },
 });

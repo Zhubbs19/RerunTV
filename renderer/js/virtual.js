@@ -68,6 +68,32 @@ export function triggerVirtualChannelKey(number, key) {
   }
 }
 
+// The time machine used to be refused outright on every plugin channel,
+// because core has no schedule of its own to re-derive for one. A plugin
+// that computes what it is playing as a pure function of a timestamp (the
+// same property core's own schedule.js relies on) can support it perfectly
+// well, so it opts in with `supportsTimeMachine: true` and core stops
+// treating "not a real channel" as "cannot be time-shifted".
+export function virtualChannelSupportsTimeMachine(number) {
+  const plugin = pluginTypeForNumber(number);
+  return !!(plugin && plugin.def.supportsTimeMachine);
+}
+
+// Optional companion to the flag above: what the VCR on-screen display
+// should name as the current programme at the scrubbed instant. Core has no
+// way to work that out for a plugin channel, so without this the OSD's
+// programme line is simply blank.
+export function virtualChannelTimeMachineText(number, nowMs) {
+  const plugin = pluginTypeForNumber(number);
+  if (!plugin || typeof plugin.def.timeMachineNowText !== 'function') return '';
+  try {
+    return plugin.def.timeMachineNowText(nowMs, window.RCBPlugins.ctx) || '';
+  } catch (e) {
+    console.error(`[plugin ${plugin.id}] timeMachineNowText() threw`, e);
+    return '';
+  }
+}
+
 export function virtualChannelNumbers() {
   const nums = [];
   const seen = new Set();

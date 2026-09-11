@@ -46,6 +46,43 @@ function Get-OurElectronProcesses {
         Where-Object { $_.CommandLine -and $_.CommandLine.Contains($repoRoot) }
 }
 
+# Chromium's own runtime state, which is not config and is held open by a
+# running app - copying a live install's userData failed outright on a locked
+# Network\Cookies. Skipping these also takes the copy from ~534MB to a few,
+# since the caches are almost all of it. Anything RerunTV itself cares about
+# (channels.json, plugins, themes, backups, window-state.json) is kept.
+$VolatileUserDataEntries = @(
+    'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'DawnGraphiteCache', 'DawnWebGPUCache',
+    'Network', 'Local Storage', 'Session Storage', 'Shared Dictionary', 'blob_storage',
+    'Crashpad', 'Dictionaries', 'Service Worker', 'component_crx_cache', 'extensions_crx_cache',
+    'DIPS', 'Local State', 'SingletonCookie', 'SingletonLock', 'SingletonSocket',
+    'LOG', 'LOG.old', 'lockfile'
+)
+
+function Copy-UserDataConfig {
+    param([string]$SourceDir, [string]$DestDir)
+    New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
+    $skipped = @()
+    Get-ChildItem -LiteralPath $SourceDir -Force |
+        Where-Object { $VolatileUserDataEntries -notcontains $_.Name } |
+        ForEach-Object {
+            try {
+                Copy-Item -LiteralPath $_.FullName -Destination $DestDir -Recurse -Force -ErrorAction Stop
+            } catch {
+                # A stray lock on something non-essential should not sink the
+                # whole run; the channels.json assertion below is what decides
+                # whether the copy was actually usable.
+                $skipped += $_.Name
+            }
+        }
+    if ($skipped.Count) {
+        Write-Host "  (skipped locked entries: $($skipped -join ', '))" -ForegroundColor Yellow
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $DestDir 'channels.json'))) {
+        throw "Copy produced no channels.json in $DestDir - the source config did not come across."
+    }
+}
+
 function Stop-OurElectronProcesses {
     $procs = Get-OurElectronProcesses
     if (-not $procs) { return }
@@ -88,7 +125,7 @@ if ($UserDataSource) {
         throw "-UserDataSource must not be this repo's own userData (it is the folder being replaced): $sourceDir"
     }
     Write-Host "Copying userData from $sourceDir into a throwaway working copy (the source is never written to)..." -ForegroundColor Cyan
-    Copy-Item -LiteralPath $sourceDir -Destination $userDataDir -Recurse -Force
+    Copy-UserDataConfig -SourceDir $sourceDir -DestDir $userDataDir
 } else {
     New-Item -ItemType Directory -Force -Path $userDataDir | Out-Null
 }

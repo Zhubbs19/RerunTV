@@ -616,6 +616,47 @@ number field in the PLUGIN CHANNELS section rather than shipping a plugin
 that can be renumbered into breaking itself. Renaming (the label) has no
 such hazard and is always safe to leave enabled.
 
+### Claim keys sparingly
+
+`onKey` runs before any of core's own key handling, and returning `true`
+swallows the key outright. Claim only the keys you actually handle. In
+particular, `ArrowUp`/`ArrowDown` are core's CHANGE CHANNEL keys — claiming
+those leaves the viewer unable to tune away from your channel with the keys
+anyone would reach for. `ArrowLeft`/`ArrowRight` are free unless the time
+machine is on (core shuttles with them then), so they are the natural place
+for "move sideways within this channel". If your channel opens a full-screen
+list or overlay, still let unrelated keys through rather than returning
+`true` for everything — otherwise direct channel entry, the guide, setup and
+power all stop working while it is up.
+
+### Time machine support
+
+Core used to refuse the time machine on every plugin channel, on the grounds
+that it has no schedule of its own to re-derive for one. If your channel
+computes what it is playing as a pure function of a timestamp — reading
+`ctx.viewNow()` rather than keeping its own playback log, the same property
+core's `schedule.js` relies on — then scrubbing already works, and you opt in:
+
+```js
+window.RCBPlugins.registerChannelType('my-plugin', {
+  // ...
+  supportsTimeMachine: true,
+  // Optional, but without it the VCR display's programme line is blank —
+  // core cannot know what your channel is playing at the scrubbed instant.
+  timeMachineNowText(nowMs) {
+    const playing = whatIPlayAt(nowMs); // your own pure (state, now) function
+    return playing ? `${playing.artist} — ${playing.title}` : '';
+  },
+});
+```
+
+Do not set the flag if your channel plays live or otherwise cannot answer
+"what were you playing an hour ago" — the time machine would enter and then
+show something that never aired. While `S.shuttleDir` is non-zero the viewer
+is scrubbing at speed; skip reloading media on each tick and just keep the
+on-screen readout tracking, or you will thrash the decoder for something
+nobody can hear.
+
 `ctx` passed to `render`/`stop`/`onOk`/`onKey` is `{ S, viewNow, player }`:
 
 - `S` — the live, mutable app-state object. `S.config` is the whole user

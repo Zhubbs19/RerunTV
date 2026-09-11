@@ -30,7 +30,26 @@
 //                                 // key as handled (app.js's handler
 //                                 // returns immediately after), false/
 //                                 // undefined to let normal key handling
-//                                 // continue.
+//                                 // continue. Be sparing: a `true` return
+//                                 // swallows the key outright, so claiming
+//                                 // ArrowUp/ArrowDown takes away CHANGE
+//                                 // CHANNEL and strands the viewer on your
+//                                 // channel. Claim only keys you handle.
+//     supportsTimeMachine,       // optional — set true when what this
+//                                 // channel plays is a pure function of a
+//                                 // timestamp (i.e. it reads ctx.viewNow()
+//                                 // rather than keeping its own playback
+//                                 // log). Core then allows the time machine
+//                                 // here instead of refusing it outright,
+//                                 // and scrubbing works because your own
+//                                 // render/tick re-derives from the shifted
+//                                 // clock like everything else.
+//     timeMachineNowText(nowMs, ctx), // optional companion to the flag —
+//                                 // what the VCR on-screen display should
+//                                 // name as playing at the scrubbed
+//                                 // instant. Core cannot work that out for
+//                                 // a plugin channel, so without this the
+//                                 // OSD's programme line is blank.
 //     enabled(ctx) }             // optional — gates whether this channel
 //                                 // shows up in the channel list at all
 //                                 // (beyond just "is the plugin installed"),
