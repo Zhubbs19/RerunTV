@@ -42,7 +42,8 @@ import {
   scheduleUpNextBar,
 } from './playback-breaks.js';
 import {
-  applyLogoBugPlacement, channelNoSignalCopy, flashCapabilityBadge, flashContentAdvisory, flashEpisodeStatusBug,
+  applyLogoBugPlacement, channelNoSignalCopy, finishCreditsSpeedupIfActive, flashCapabilityBadge,
+  flashContentAdvisory, flashEpisodeStatusBug,
   flashFormatDisclaimer, flashRatingBug, genericNoSignalCopy, hideNoSignal, markStaticReady, resetCreditsSpeedup,
   scheduleCreditsSpeedup, showBlockedCard, showMovieRatingCard, showNoSignal, showSignOffCard, showStaticBurst,
   updateLogoBug,

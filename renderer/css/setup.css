@@ -68,7 +68,15 @@
   border-bottom: 2px solid var(--line);
 }
 
-.setup-search { width: 100%; margin-bottom: 14px; }
+/* This sits directly above each tab's own content filter ("FILTER
+   CHANNELS…", "SEARCH FILENAME / TEXT…") and, styled identically, read as a
+   second filter for the same list. The accent rule and glyph mark it as the
+   app-wide jump bar that belongs to the nav above it. */
+.setup-search {
+  width: 100%;
+  margin-bottom: 14px;
+  border-left: 3px solid var(--gold-dim);
+}
 #setup-search-empty { text-align: center; margin: -8px 0 16px; }
 
 .setup-search-results {
@@ -393,13 +401,49 @@
   text-transform: none;
 }
 
+/* setup-channels.js splits this row into four named groups (LINEUP, PICTURE,
+   AUDIO & CAPTIONS, ON-SCREEN EXTRAS). Auto-fit columns so a wide window
+   shows all four side by side and a narrow one stacks them, rather than one
+   undifferentiated wrap-flow of eighteen checkboxes. */
 .channel-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px 26px;
+  padding-top: 10px;
+}
+.channel-options.hidden { display: none; }
+.channel-option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.channel-option-group-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--paper-dim);
+  opacity: 0.75;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  padding-bottom: 4px;
+}
+.channel-option-group-items {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 18px;
-  padding-top: 10px;
 }
+/* Each label and the control it names share a non-wrapping group, so
+   flex-wrap can't strand a label at the end of a line above an unrelated
+   control. */
+.channel-option-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
 .option-label {
   font-family: var(--font-ui);
   font-weight: 700;
@@ -481,6 +525,10 @@
   background-repeat: no-repeat;
 }
 
+/* These two lines (file count, NOW playing) are read-only summary text, but a
+   filled, rounded, full-width box directly under the channel-name field read
+   as two more editable inputs. A left rule and no fill says "this is about
+   the channel" without imitating a control. */
 .channel-row .folder-status {
   font-family: var(--font-ui);
   font-weight: 600;
@@ -490,9 +538,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 7px 10px;
-  background: rgba(0, 0, 0, 0.22);
-  border-radius: var(--radius-sm);
+  padding: 4px 0 4px 10px;
+  background: none;
+  border-left: 2px solid rgba(var(--cyan-rgb), 0.3);
+  border-radius: 0;
 }
 
 /* Every checkbox label across the settings screen (not just inside a
@@ -1181,6 +1230,7 @@ input[type="checkbox"].shuffle-toggle:active {
 .title-row-wrap { overflow-x: auto; }
 
 .media-thumbnail {
+  position: relative;
   overflow: hidden;
   border: 1px solid rgba(var(--cyan-rgb), 0.28);
   border-radius: 4px;
@@ -1191,7 +1241,13 @@ input[type="checkbox"].shuffle-toggle:active {
 }
 .media-thumbnail img,
 .media-thumbnail video { width: 100%; height: 100%; display: block; object-fit: cover; }
-.media-thumbnail.placeholder {
+/* The hatched label covers the tile until the media has a decoded frame, and
+   stays for good if it never gets one (see buildMediaThumbnail,
+   setup-util.js) — a tile mid-decode or with an undecodable codec reads as a
+   labelled placeholder rather than a black rectangle. */
+.media-thumbnail-label {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   color: var(--cyan);
@@ -1199,6 +1255,11 @@ input[type="checkbox"].shuffle-toggle:active {
   font-size: 10px;
   letter-spacing: 1px;
   text-align: center;
+}
+.media-thumbnail:not(.placeholder) .media-thumbnail-label { display: none; }
+.media-thumbnail.placeholder img,
+.media-thumbnail.placeholder video { visibility: hidden; }
+.media-thumbnail.placeholder {
   background: repeating-linear-gradient(135deg, rgba(var(--cyan-rgb), .06) 0 6px, transparent 6px 12px), #050815;
 }
 .title-row-thumbnail {
@@ -2423,51 +2484,16 @@ html[data-theme] .btn[aria-disabled="true"] {
   .custom-sound-row .btn { width: 100%; }
 }
 
-/* Virtual Channels sub-tab: 17 full-width cards is the longest, least
-   navigable panel in the app (Area 51 through the parental-lock PIN, one
-   below another with no way to jump around). Collapsible cards + a local
-   filter shrink that to a scannable list of headers by default, same idea
-   as the EXPAND ALL/COLLAPSE ALL pattern used in Bumper & Ad Pool. Scoped
-   to [data-subtab-panel="virtual"] so it doesn't change how .panel behaves
-   anywhere else (DISPLAY, the per-channel option rows, etc). */
-.virtual-channels-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+/* The parental-lock PIN sits on a settings page anyone can open, so the
+   field is masked by default with an explicit SHOW toggle beside it
+   (setup-settings.js) rather than printing the code on screen. */
+.pin-code-input {
+  width: 80px;
+  text-align: center;
+  font-weight: bold;
+  letter-spacing: 4px;
 }
-.virtual-channels-toolbar .titles-search { flex: 1 1 260px; min-width: 200px; }
-
-[data-subtab-panel="virtual"] .panel-toggle {
-  position: relative;
-  padding-right: 20px;
-}
-[data-subtab-panel="virtual"] .panel-toggle::after {
-  content: "\25BE";
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  color: var(--paper-dim);
-}
-[data-subtab-panel="virtual"] .panel.collapsed .panel-toggle::after { content: "\25B8"; }
-/* Same max-height/opacity accordion technique as .plugin-row-details above,
-   applied per direct child rather than one wrapper since this panel's body
-   is several separate field rows, not a single collapsible block. */
-[data-subtab-panel="virtual"] .panel > *:not(.panel-toggle) {
-  max-height: 2000px;
-  opacity: 1;
-  overflow: hidden;
-  transition: max-height 180ms ease, opacity 150ms ease;
-}
-[data-subtab-panel="virtual"] .panel.collapsed > *:not(.panel-toggle) { max-height: 0; opacity: 0; }
-[data-subtab-panel="virtual"] .panel.collapsed { gap: 0; }
-@media (prefers-reduced-motion: reduce) {
-  [data-subtab-panel="virtual"] .panel > *:not(.panel-toggle) { transition: none; }
-}
-[data-subtab-panel="virtual"] .panel.filtered-out { display: none; }
+.pin-code-reveal-btn { margin-left: 8px; }
 
 /* Party Channel settings UI moved to plugins/party-channel/style.css. */
 

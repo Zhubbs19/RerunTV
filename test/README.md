@@ -16,13 +16,25 @@ without checking they belong in the tracked harness, not the scratch pile.
 ## Running it
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1
+powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1 -UserDataSource "C:\Users\<you>\Apps\RerunTV\userData"
 ```
+
+`-UserDataSource` points the run at an existing config to start from. Pass the
+**installed app's** userData: a fresh, empty profile has no channels, no
+installed plugins and no approved capabilities, so the sweep screenshots an
+empty app and passes checks that real data would fail. The folder is copied
+into the throwaway working copy and is never written to. Omit the flag only
+when you specifically want to exercise genuine first-run behaviour.
+
+Starting from a real config also means the post-update "WHAT'S NEW" modal
+appears (the config carries an update history); the suite waits for that IPC
+and dismisses it before the sweep, so don't be surprised to see that check.
 
 That's the only supported entry point. It:
 
-1. Backs up the real `userData/` folder (see **Safety** below), pre-seeds a
-   throwaway one with a maximized window state.
+1. Backs up the real `userData/` folder (see **Safety** below), then creates a
+   throwaway one - copied from `-UserDataSource` if given, otherwise empty -
+   with a maximized window state.
 2. Launches Electron with CDP on port 9222.
 3. Runs `run-ui-tests.mjs`, which drives the app and writes
    `screenshots/*.png` and `results.json`.

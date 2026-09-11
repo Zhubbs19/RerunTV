@@ -148,7 +148,7 @@
           <button class="setup-tab-btn" data-tab="help" data-workspaces="viewing headend">MANUAL</button>
         </div>
         <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
-        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="SEARCH SETTINGS AND ACTIONS…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
+        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="⌕ JUMP TO ANY SETTING OR ACTION…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
         <div id="setup-search-results" class="setup-search-results hidden" role="listbox" aria-label="Settings search results"></div>
         <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
         </div>
@@ -758,8 +758,7 @@
         <div class="setup-tab-panel hidden" data-tab-panel="audio">
         <div class="setup-subtabs">
           <button class="setup-subtab-btn active" data-subtab="system">AUDIO &amp; POWER</button>
-          <button class="setup-subtab-btn" data-subtab="network">NETWORK &amp; DEVICES</button>
-          <button class="setup-subtab-btn" data-subtab="virtual">SECURITY</button>
+          <button class="setup-subtab-btn" data-subtab="network">NETWORK &amp; ACCESS</button>
           <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
           <button class="setup-subtab-btn" data-subtab="librarysync">LIBRARY SYNC</button>
         </div>
@@ -820,28 +819,22 @@
         </div>
 
         <div class="setup-subtab-panel hidden" data-subtab-panel="network">
-          <div id="network-settings-grid" class="settings-grid"></div>
-        </div>
+          <div id="network-settings-grid" class="settings-grid">
 
-        <div class="setup-subtab-panel hidden" data-subtab-panel="virtual">
-        <div class="settings-grid">
+            <div class="panel">
+              <label class="panel-toggle">
+                <input type="checkbox" id="pin-lock-enabled">
+                PARENTAL CONTROL LOCK (90s BLUE SCREEN)
+              </label>
+              <span class="panel-status">Requires a 4-digit PIN before tuning into any channel or rating you've marked as restricted. Starts at 1234 — change it here.</span>
+              <div class="panel-interval">
+                4-DIGIT PIN CODE:
+                <input type="password" id="pin-code-input" class="pin-code-input" inputmode="numeric" autocomplete="off" maxlength="4" value="1234">
+                <button type="button" id="pin-code-reveal-btn" class="btn pin-code-reveal-btn" aria-pressed="false" aria-label="Show PIN">SHOW</button>
+              </div>
+            </div>
 
-
-
-
-        <div class="panel span-full">
-          <label class="panel-toggle">
-            <input type="checkbox" id="pin-lock-enabled">
-            PARENTAL CONTROL LOCK (90s BLUE SCREEN)
-          </label>
-          <span class="panel-status">Requires a 4-digit PIN (default 1234) before tuning into any channel or rating you've marked as restricted.</span>
-          <div class="panel-interval">
-            4-DIGIT PIN CODE:
-            <input type="text" id="pin-code-input" maxlength="4" value="1234" style="width:80px; text-align:center; font-weight:bold;">
           </div>
-        </div>
-
-        </div>
         </div>
 
         <div class="setup-subtab-panel hidden" data-subtab-panel="backups">
@@ -884,12 +877,9 @@
 
         <!-- PERFORMANCE MONITOR TAB PANEL -->
         <div class="setup-tab-panel hidden" data-tab-panel="perf">
-          <div class="setup-subtabs">
-            <button class="setup-subtab-btn active" data-subtab="status">BOX STATUS</button>
-            <button class="setup-subtab-btn" data-subtab="monitor">LIVE MONITOR</button>
-            <button class="setup-subtab-btn" data-subtab="telemetry">TELEMETRY</button>
-          </div>
-          <div class="setup-subtab-panel" data-subtab-panel="status">
+          <!-- One page, not three sub-tabs: each of these was a single panel
+               on an otherwise empty screen, so reading "is the box healthy"
+               meant clicking through all three. -->
           <div class="settings-grid">
 
             <div class="panel span-full">
@@ -916,11 +906,6 @@
               <button id="box-status-check-btn" class="btn">RUN HEALTH CHECK…</button>
             </div>
 
-          </div>
-          </div>
-
-          <div class="setup-subtab-panel hidden" data-subtab-panel="monitor">
-          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">⚡ REAL-TIME SYSTEM &amp; RENDER MONITOR</label>
               <span class="panel-status">Live hardware metrics, video player performance, memory telemetry, and channel broadcast stats.</span>
@@ -943,11 +928,6 @@
               </div>
             </div>
 
-          </div>
-          </div>
-
-          <div class="setup-subtab-panel hidden" data-subtab-panel="telemetry">
-          <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">📊 BROADCAST &amp; MEDIA TELEMETRY</label>
               <div class="perf-telemetry-grid">
@@ -978,7 +958,6 @@
               </div>
             </div>
 
-          </div>
           </div>
         </div>
 

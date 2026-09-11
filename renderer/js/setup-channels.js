@@ -1044,36 +1044,54 @@ export function renderChannelList() {
       const colorLabel = document.createElement('span');
       colorLabel.className = 'option-label';
       colorLabel.textContent = 'COLOR';
-      options.appendChild(colorLabel);
-      options.appendChild(swatches);
-      options.appendChild(shuffleLabel);
-      options.appendChild(favoriteLabel);
-      options.appendChild(quickAccessLabel);
-      options.appendChild(vhsLabel);
-      options.appendChild(vhsWearLabel);
-      options.appendChild(vhsWearInput);
-      options.appendChild(hideFormatDisclaimerLabel);
-      options.appendChild(hideRatingBugLabel);
-      options.appendChild(hideEpisodeStatusLabel);
-      options.appendChild(hideDaypartChimeLabel);
-      options.appendChild(hideLocalAvailGlitchLabel);
-      options.appendChild(hideContentAdvisoryLabel);
-      options.appendChild(hideCapabilityBadgeLabel);
-      defaultCapabilityLabels.forEach((label) => options.appendChild(label));
-      options.appendChild(notSubscribedLabel);
-      options.appendChild(hiddenLabel);
-      options.appendChild(ratingLabel);
-      options.appendChild(ratingSelect);
-      options.appendChild(aspectLabel);
-      options.appendChild(aspectSelect);
-      options.appendChild(resolutionLabel);
-      options.appendChild(resolutionSelect);
-      options.appendChild(displayAspectLabel);
-      options.appendChild(displayAspectSelect);
-      options.appendChild(volumeLabel);
-      options.appendChild(volumeSlider);
-      options.appendChild(volumeReadout.el);
-      options.appendChild(volumeResetBtn);
+
+      // Everything below used to be appended straight into one wrapping flex
+      // row: eighteen checkboxes in no particular order, with seven of them
+      // phrased as HIDE-something negatives interleaved among the positives,
+      // and a label free to wrap away from the control it names ("RESOLUTION"
+      // ending one line above an unrelated <select>). Four named groups, each
+      // keeping its own label/control pairs intact, make the row scannable
+      // without changing a single setting's meaning.
+      const optionField = (...parts) => {
+        const field = document.createElement('div');
+        field.className = 'channel-option-field';
+        parts.forEach((part) => field.appendChild(part));
+        return field;
+      };
+      const optionGroup = (title, items) => {
+        const group = document.createElement('div');
+        group.className = 'channel-option-group';
+        const heading = document.createElement('div');
+        heading.className = 'channel-option-group-title';
+        heading.textContent = title;
+        const body = document.createElement('div');
+        body.className = 'channel-option-group-items';
+        items.forEach((item) => body.appendChild(item));
+        group.append(heading, body);
+        options.appendChild(group);
+      };
+
+      optionGroup('LINEUP', [
+        optionField(colorLabel, swatches),
+        shuffleLabel, favoriteLabel, quickAccessLabel, notSubscribedLabel, hiddenLabel,
+      ]);
+      optionGroup('PICTURE', [
+        optionField(ratingLabel, ratingSelect),
+        optionField(aspectLabel, aspectSelect),
+        optionField(resolutionLabel, resolutionSelect),
+        optionField(displayAspectLabel, displayAspectSelect),
+        vhsLabel,
+        optionField(vhsWearLabel, vhsWearInput),
+      ]);
+      optionGroup('AUDIO & CAPTIONS', [
+        ...defaultCapabilityLabels,
+        hideDaypartChimeLabel,
+        optionField(volumeLabel, volumeSlider, volumeReadout.el, volumeResetBtn),
+      ]);
+      optionGroup('ON-SCREEN EXTRAS', [
+        hideFormatDisclaimerLabel, hideRatingBugLabel, hideEpisodeStatusLabel,
+        hideLocalAvailGlitchLabel, hideContentAdvisoryLabel, hideCapabilityBadgeLabel,
+      ]);
 
       const optionsWrap = document.createElement('div');
       optionsWrap.className = 'channel-options-wrap';

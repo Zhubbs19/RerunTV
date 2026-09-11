@@ -357,6 +357,19 @@ const GUIDE_ROW_CHUNK_SIZE = 12;
 // animation's row count is stable the whole time it's playing.
 const GUIDE_LAZY_FILL_THRESHOLD = 30;
 
+// .guide-entry is a flex container, and text-overflow only applies to a block
+// container's own inline content — so a title too wide for its slot was hard-
+// clipped mid-word ("Bosko the Doughbo") instead of ellipsized. Putting the
+// text in its own block child gives the ellipsis something to act on, and
+// block.textContent still reads back the same string for anything that wants it.
+function setEntryLabel(block, text) {
+  const label = document.createElement('span');
+  label.className = 'guide-entry-label';
+  label.textContent = text;
+  block.appendChild(label);
+  block.title = text;
+}
+
 function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
   const schedule = getChannelSchedule(ch, S.guideWindowStart, windowEnd);
   const row = document.createElement('div');
@@ -407,8 +420,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
       block.classList.add('guide-entry-themed');
     }
     const displayTitle = getDisplayTitle(entry.file);
-    block.textContent = displayTitle;
-    block.title = displayTitle;
+    setEntryLabel(block, displayTitle);
     block.addEventListener('click', () => {
       S.guideSelRowIdx = rowIdx;
       S.guideSelTime = entry.start + 1;
@@ -442,8 +454,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
       block.style.width = Math.max(widthPct, 2) + '%';
       block.dataset.end = String(entry.end);
       const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
-      block.textContent = label;
-      block.title = label;
+      setEntryLabel(block, label);
       block.addEventListener('click', () => {
         S.guideSelRowIdx = rowIdx;
         S.guideSelTime = entry.start + 1;
@@ -581,8 +592,7 @@ export function renderGuideGrid() {
       block.className = 'guide-entry';
       block.style.left = '0%';
       block.style.width = '100%';
-      block.textContent = info.nowText;
-      block.title = info.nowText;
+      setEntryLabel(block, info.nowText);
       block.addEventListener('click', () => {
         tuneToChannel(num);
         closeGuideGrid();

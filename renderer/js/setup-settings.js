@@ -43,7 +43,6 @@ import {
   displayModeOverlaysNativeSizeEl, displayModeUiExtentSelect, hideTitleBarEnabledEl,
   viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
-  virtualFilterInputEl, virtualExpandAllBtn, virtualCollapseAllBtn,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
   updateModeSelect, updateStatusLineEl, updateSettingsPanelEl,
   helpReleaseNotesListEl, releaseNotesPanelEl,
@@ -52,7 +51,7 @@ import {
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
   timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
-  pinCancelBtn, pinCodeInputEl, pinLockEnabledEl,
+  pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
 } from './dom.js';
 
 // Live numeric readouts for every box-wide range slider — wired once at
@@ -443,7 +442,7 @@ const SETUP_SECTION_COPY = {
   channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
   display: ['PICTURE & GUIDE', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
   programming: ['MASTER CONTROL PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
-  audio: ['SYSTEM & STORAGE', 'Control audio, connected viewing, network access, virtual channels, and backups.'],
+  audio: ['SYSTEM & STORAGE', 'Control audio, connected viewing, network access, the parental lock, and backups.'],
   perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP & UPDATES', 'Find guidance, shortcuts, software updates, and release notes.'],
@@ -1453,59 +1452,6 @@ setupScreen.addEventListener('scroll', syncSetupNavStickySurface, { passive: tru
 window.addEventListener('resize', syncSetupNavStickySurface);
 syncSetupNavStickySurface();
 
-// ---------- Virtual Channels: collapsible cards + local filter ----------
-// This sub-tab is one full-width .panel per system-level setting that hasn't
-// moved to a plugin's own SETTINGS panel (currently just the parental-lock
-// PIN — a couple of others used to live here too, before they became
-// plugins), stacked with no grouping, easily the longest unbroken scroll in
-// setup. Collapsing to just
-// the header row by
-// default, plus a local filter that auto-expands matches, turns that into
-// a scannable list instead of a scroll marathon. Scoped entirely to this
-// sub-tab (see the [data-subtab-panel="virtual"] CSS) so it doesn't change
-// how .panel behaves anywhere else in setup.
-function virtualChannelPanels() {
-  return Array.from(document.querySelectorAll('[data-subtab-panel="virtual"] .panel'));
-}
-
-// Runs once at module load (these panels are static HTML, never rebuilt),
-// so a user's expand/collapse choices persist for the rest of the session
-// instead of resetting every time renderSettingsPanels() re-syncs values.
-virtualChannelPanels().forEach((p) => p.classList.add('collapsed'));
-
-virtualChannelPanels().forEach((p) => {
-  const toggle = p.querySelector('.panel-toggle');
-  if (!toggle) return;
-  toggle.addEventListener('click', (e) => {
-    // Let checkbox/button/input/select clicks inside the header do their
-    // own thing (enable/disable the channel) without also flipping collapse.
-    if (e.target.closest('input, button, select, a')) return;
-    p.classList.toggle('collapsed');
-  });
-});
-
-if (virtualExpandAllBtn) {
-  virtualExpandAllBtn.addEventListener('click', () => {
-    virtualChannelPanels().forEach((p) => p.classList.remove('collapsed'));
-  });
-}
-if (virtualCollapseAllBtn) {
-  virtualCollapseAllBtn.addEventListener('click', () => {
-    virtualChannelPanels().forEach((p) => p.classList.add('collapsed'));
-  });
-}
-if (virtualFilterInputEl) {
-  virtualFilterInputEl.addEventListener('input', () => {
-    const q = virtualFilterInputEl.value.trim().toLowerCase();
-    virtualChannelPanels().forEach((p) => {
-      if (!q) { p.classList.remove('filtered-out'); return; }
-      const matches = p.textContent.toLowerCase().includes(q);
-      p.classList.toggle('filtered-out', !matches);
-      if (matches) p.classList.remove('collapsed');
-    });
-  });
-}
-
 // The URL list is a live property of whatever network adapters the machine
 // currently has (see getLanUrls, main.js) — not part of S.config, so this
 // is a fresh main-process query on demand, same pattern a plugin with its
@@ -1973,6 +1919,19 @@ triviaIntervalEl.addEventListener('change', () => {
 
 if (pinLockEnabledEl) pinLockEnabledEl.addEventListener('change', () => { if (!S.config.pinLock) S.config.pinLock = {}; S.config.pinLock.enabled = pinLockEnabledEl.checked; saveConfigDebounced(); });
 if (pinCodeInputEl) pinCodeInputEl.addEventListener('input', () => { if (!S.config.pinLock) S.config.pinLock = {}; S.config.pinLock.code = pinCodeInputEl.value.trim() || '1234'; saveConfigDebounced(); });
+// The PIN is masked by default — it sits on a settings page that is itself
+// reachable without the lock, so a plain text input meant anyone glancing at
+// the screen could read the code the lock exists to keep. SHOW is for the
+// person who set it and forgot it.
+if (pinCodeRevealBtn && pinCodeInputEl) {
+  pinCodeRevealBtn.addEventListener('click', () => {
+    const revealed = pinCodeInputEl.type === 'text';
+    pinCodeInputEl.type = revealed ? 'password' : 'text';
+    pinCodeRevealBtn.textContent = revealed ? 'SHOW' : 'HIDE';
+    pinCodeRevealBtn.setAttribute('aria-pressed', String(!revealed));
+    pinCodeRevealBtn.setAttribute('aria-label', revealed ? 'Show PIN' : 'Hide PIN');
+  });
+}
 if (pinCancelBtn) pinCancelBtn.addEventListener('click', hidePinLockScreen);
 
 initFlowBuilder();

@@ -57,9 +57,6 @@ export const boxStatusBackupEl = document.getElementById('box-status-backup');
 export const boxStatusIssuesEl = document.getElementById('box-status-issues');
 export const boxStatusCheckBtn = document.getElementById('box-status-check-btn');
 export const setupSearchEmptyEl = document.getElementById('setup-search-empty');
-export const virtualFilterInputEl = document.getElementById('virtual-filter-input');
-export const virtualExpandAllBtn = document.getElementById('virtual-expand-all-btn');
-export const virtualCollapseAllBtn = document.getElementById('virtual-collapse-all-btn');
 export const bulkSelectToggleBtn = document.getElementById('bulk-select-toggle-btn');
 export const bulkActionsBar = document.getElementById('bulk-actions-bar');
 export const bulkSelectedCountEl = document.getElementById('bulk-selected-count');
@@ -290,4 +287,5 @@ export const pinCancelBtn = document.getElementById('pin-cancel-btn');
 
 export const pinLockEnabledEl = document.getElementById('pin-lock-enabled');
 export const pinCodeInputEl = document.getElementById('pin-code-input');
+export const pinCodeRevealBtn = document.getElementById('pin-code-reveal-btn');
 export const staticCtx = staticCanvas.getContext('2d');

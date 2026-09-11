@@ -23,15 +23,22 @@ const AUDIO_MEDIA_RE = /\.(?:mp3|wav|ogg|m4a|aac|flac)$/i;
 export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' } = {}) {
   const thumb = document.createElement('div');
   thumb.className = `media-thumbnail${className ? ` ${className}` : ''}`;
+  // The label sits in its own child rather than as the thumb's textContent,
+  // so a still-decoding video can render UNDER it and simply reveal itself
+  // once it has a real frame. Before this, a <video> was appended straight
+  // away and every tile that had not decoded yet - or never would, because
+  // Electron can't decode that file's codec - showed as a black rectangle
+  // with nothing to say it wasn't just an empty slot.
+  const labelEl = document.createElement('span');
+  labelEl.className = 'media-thumbnail-label';
+  thumb.appendChild(labelEl);
   const fallback = (text = label) => {
-    thumb.innerHTML = '';
+    thumb.querySelectorAll('img, video').forEach((el) => el.remove());
     thumb.classList.add('placeholder');
-    thumb.textContent = String(text || 'MEDIA').slice(0, 5).toUpperCase();
+    labelEl.textContent = String(text || 'MEDIA').slice(0, 5).toUpperCase();
   };
-  if (!filePath) {
-    fallback();
-    return thumb;
-  }
+  fallback();
+  if (!filePath) return thumb;
   if (AUDIO_MEDIA_RE.test(filePath)) {
     fallback('♪');
     return thumb;
@@ -39,6 +46,10 @@ export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' 
 
   const media = document.createElement(IMAGE_MEDIA_RE.test(filePath) ? 'img' : 'video');
   media.alt = '';
+  // Not "loaded" — "actually has a frame to show". For video that is the
+  // seek landing, not loadedmetadata, which is what used to swap a black
+  // element in ahead of any decoded picture.
+  const ready = () => { thumb.classList.remove('placeholder'); labelEl.textContent = ''; };
   if (media.tagName === 'VIDEO') {
     media.muted = true;
     media.playsInline = true;
@@ -46,9 +57,13 @@ export function buildMediaThumbnail(filePath, { label = 'MEDIA', className = '' 
     media.addEventListener('loadedmetadata', () => {
       if (media.duration > 1) media.currentTime = Math.min(1, media.duration / 4);
     }, { once: true });
+    media.addEventListener('seeked', ready, { once: true });
+    media.addEventListener('loadeddata', ready, { once: true });
+  } else {
+    media.addEventListener('load', ready, { once: true });
   }
   media.addEventListener('error', () => fallback(), { once: true });
-  thumb.appendChild(media);
+  thumb.insertBefore(media, labelEl);
 
   const load = () => Promise.resolve(window.api.toFileUrl(filePath))
     .then((url) => { media.src = url; })

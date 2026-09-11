@@ -510,12 +510,19 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   flex-direction: column;
   gap: var(--guide-row-gap, 3px);
   padding-top: 4px;
+  /* The track's height is whatever is left over after the video pane, so it
+     is almost never an exact multiple of the row height and used to come to
+     rest with the bottom channel sliced through the middle. Proximity (not
+     mandatory) snapping settles on a row edge without fighting the
+     scrollIntoView that keyboard row navigation does. */
+  scroll-snap-type: y proximity;
 }
 
 .guide-row {
   display: grid;
   grid-template-columns: var(--guide-chan-col, 170px) 1fr;
   min-height: var(--guide-row-height, 52px);
+  scroll-snap-align: start;
 }
 
 .guide-row-chan {
@@ -603,6 +610,16 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   text-overflow: ellipsis;
   cursor: pointer;
   background: var(--guide-program-bg, transparent);
+}
+/* The ellipsis lives on this child rather than on .guide-entry itself, which
+   is a flex container (see setEntryLabel, guide.js). min-width:0 lets it
+   actually shrink below its content width inside that flex row. */
+.guide-entry-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .guide-entry:nth-child(even) { background: var(--guide-program-alt-bg, var(--cell-alt)); }
 .guide-entry { transition: background-color 120ms ease; }

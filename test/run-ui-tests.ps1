@@ -18,7 +18,20 @@
 # orphaned processes holding file locks on userData during development of
 # this script.
 #
-# Usage: powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1
+# -UserDataSource points the run at an existing config to start from (it is
+# copied into the throwaway working copy; the source is only ever read). The
+# installed app's own userData is the one worth testing against - a fresh,
+# empty one has no channels, no installed plugins and no approved
+# capabilities, so a sweep over it screenshots an empty app and passes checks
+# that real data would fail. Same parameter, same semantics as
+# theme-visual-sweep.ps1. Omit it only to test genuine first-run behaviour.
+#
+# Usage: powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1 `
+#          -UserDataSource "C:\Users\<you>\Apps\RerunTV\userData"
+
+param(
+    [string]$UserDataSource = ''
+)
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -66,19 +79,36 @@ if (Test-Path $userDataDir) {
     $movedRealUserData = $true
 }
 
-# Pre-seed a maximized window state in the fresh throwaway userData - the
-# app reads this on launch (main.js) and maximizes itself if isMaximized is
-# true, before any window is even created. Screenshots capture the full
-# scrollable page regardless, but a maximized window is closer to real usage
-# and needs less of that virtual scrolling to begin with.
-New-Item -ItemType Directory -Force -Path $userDataDir | Out-Null
-'{"isMaximized":true,"width":1600,"height":1000}' | Set-Content -Path (Join-Path $userDataDir 'window-state.json') -Encoding utf8 -NoNewline
+if ($UserDataSource) {
+    $sourceDir = (Resolve-Path -LiteralPath $UserDataSource).Path
+    if (-not (Test-Path -LiteralPath (Join-Path $sourceDir 'channels.json'))) {
+        throw "-UserDataSource must contain channels.json: $sourceDir"
+    }
+    if ($sourceDir -eq $userDataDir -or $sourceDir -eq $backupDir) {
+        throw "-UserDataSource must not be this repo's own userData (it is the folder being replaced): $sourceDir"
+    }
+    Write-Host "Copying userData from $sourceDir into a throwaway working copy (the source is never written to)..." -ForegroundColor Cyan
+    Copy-Item -LiteralPath $sourceDir -Destination $userDataDir -Recurse -Force
+} else {
+    New-Item -ItemType Directory -Force -Path $userDataDir | Out-Null
+}
+
+# Maximize on launch - main.js reads this file itself before any window
+# exists. Screenshots capture the full scrollable page regardless, but a
+# maximized window is closer to real usage and needs less of that virtual
+# scrolling. Written unconditionally (including over a copied-in state) so
+# every run screenshots at the same size; x/y are included because
+# main-window-state.js's boundsOnScreen() rejects a saved state without
+# numeric coordinates and silently falls back to the small default.
+@{ isMaximized = $true; width = 1600; height = 1000; x = 40; y = 40 } |
+    ConvertTo-Json -Compress |
+    Set-Content -Path (Join-Path $userDataDir 'window-state.json') -Encoding utf8 -NoNewline
 
 $electronProc = $null
 $exitCode = 2
 
 try {
-    Write-Host "Launching Electron with a fresh throwaway userData and CDP on port $port ..." -ForegroundColor Cyan
+    Write-Host "Launching Electron against the throwaway userData copy, CDP on port $port ..." -ForegroundColor Cyan
     $electronCmd = Join-Path $repoRoot 'node_modules\.bin\electron.cmd'
     $stdout = Join-Path $PSScriptRoot 'electron-stdout.log'
     $stderr = Join-Path $PSScriptRoot 'electron-stderr.log'

@@ -153,6 +153,29 @@ async function main() {
   }
   record('onboarding dismissed', !(await elementExists(session, '.onboarding-screen')));
 
+  // ---------- Dismiss the post-update "WHAT'S NEW" changelog ----------
+  // Only appears when the config carries an update history (update-notice.js)
+  // — i.e. whenever this run starts from a real installed userData rather than
+  // an empty one. It is a role="dialog" covering the whole app, so it blanks
+  // out every screenshot taken while it is up and dims #screen-crt-overlay to
+  // .32 (tokens.css), which silently breaks the CRT-overlay check much later.
+  // update-notice.js opens it off an unawaited getPostUpdateNotice() promise,
+  // so a plain "is it there yet" check right after boot loses the race and it
+  // pops up mid-sweep instead. Await the same IPC first, so by the time we
+  // look, the handler that opens it has already been queued.
+  await evalJs(session, `
+    if (window.api && window.api.getPostUpdateNotice) {
+      try { await window.api.getPostUpdateNotice(); } catch (e) { /* no notice */ }
+    }
+    return true;
+  `);
+  await sleep(300);
+  if (await elementExists(session, '#update-changelog:not(.hidden)')) {
+    await clickSelector(session, '#update-changelog-done');
+    await sleep(250);
+  }
+  record('post-update changelog dismissed', !(await elementExists(session, '#update-changelog:not(.hidden)')));
+
   // ---------- Seed a synthetic test channel ----------
   // No real media files are needed for anything this suite checks (logo
   // rendering, motion, dynamic-overlay triggering, opacity) — updateLogoBug
@@ -181,8 +204,10 @@ async function main() {
     { id: 'channels', subtabs: [] },
     { id: 'display', subtabs: ['picture', 'interface'] },
     { id: 'programming', subtabs: ['presets', 'flows', 'pool', 'onscreen', 'autocurate', 'tagtaxonomy', 'aircheck'] },
-    { id: 'audio', subtabs: ['system', 'network', 'virtual', 'backups', 'librarysync'] },
-    { id: 'perf', subtabs: ['status', 'monitor', 'telemetry'] },
+    { id: 'audio', subtabs: ['system', 'network', 'backups', 'librarysync'] },
+    // STATUS is a single page now - its three former sub-tabs each held one
+    // panel on an otherwise empty screen.
+    { id: 'perf', subtabs: [] },
     { id: 'plugins', subtabs: ['installed', 'appearance', 'diagnostics'] },
     { id: 'help', subtabs: ['guide', 'shortcuts', 'updates', 'releases'] },
   ];
@@ -243,15 +268,38 @@ async function main() {
   await sleep(300);
   await scrollAndShot(session, 'display-interface-dynamic-overlays-with-media');
 
-  // ---------- CHANNELS > edit > LOGO / OVERLAYS tabs ----------
+  // ---------- CHANNELS > per-channel OPTIONS row ----------
+  // The row is collapsed unless the channel already has non-default options,
+  // so a fresh test channel never shows it without an explicit expand.
   await clickSelector(session, '.setup-tab-btn[data-tab="channels"]');
   await sleep(300);
+  await clickSelector(session, '.channel-row[data-channel-number="1"] .channel-options-header');
+  await sleep(250);
+  const optionGroupCount = await countMatches(session, '.channel-row[data-channel-number="1"] .channel-option-group');
+  record('channel OPTIONS row is split into 4 named groups', optionGroupCount === 4, `found ${optionGroupCount}`);
+  // Every label must sit in the same non-wrapping group as the control it
+  // names — a bare .option-label directly in the wrap-flow is exactly the
+  // orphaning this grouping exists to prevent.
+  const orphanLabels = await evalJs(session, `
+    const row = document.querySelector('.channel-row[data-channel-number="1"]');
+    return Array.from(row.querySelectorAll('.option-label'))
+      .filter((el) => !el.closest('.channel-option-field'))
+      .map((el) => el.textContent.trim());
+  `);
+  record('no OPTIONS label is orphaned from its control', orphanLabels.length === 0, orphanLabels.join(', '));
+  await scrollAndShot(session, 'channel-1-options-expanded');
+
+  // ---------- CHANNELS > edit > LOGO / OVERLAYS tabs ----------
   await clickSelector(session, '.channel-row[data-channel-number="1"] .edit-btn');
   await sleep(300);
   record('channel edit panel opens', await elementExists(session, '#channel-1-edit-panel'));
   await scrollAndShot(session, 'channel-1-edit-default');
 
-  await clickSelector(session, '#channel-1-edit-panel .edit-tab-group-btn[data-edit-group=look]');
+  // #channel-1-edit-panel is the edit panel's inner CONTENT div, and the
+  // CONTENT/LOOK/PLAYBACK group bar is its SIBLING (setup-channels.js) - so
+  // the obvious '#channel-1-edit-panel .edit-tab-group-btn' never matched
+  // anything. Reach the bar through the wrapper that holds both.
+  await clickSelector(session, '.edit-panel:has(> #channel-1-edit-panel) .edit-tab-group-btn[data-edit-group=look]');
   await sleep(120);
   await clickSelector(session, '#channel-1-edit-tab-logo');
   await sleep(200);
@@ -365,6 +413,18 @@ async function main() {
     return true;
   `);
   const opacityBeforeGuide = await evalJs(session, `return getComputedStyle(document.getElementById('screen-crt-overlay')).opacity;`);
+  // tokens.css dims this overlay to .32 whenever setup or any non-guide
+  // [role=dialog] is open, so anything left open by an earlier step makes the
+  // assertion below fail for a reason that has nothing to do with the guide.
+  // Name the culprits rather than just reporting a number.
+  const dimmers = await evalJs(session, `
+    const open = [];
+    if (!document.getElementById('setup-screen').classList.contains('hidden')) open.push('#setup-screen');
+    document.querySelectorAll('[role="dialog"]:not(#guide-grid):not(.hidden)').forEach((el) => {
+      open.push('#' + (el.id || '(no id)') + '.' + (el.className || '').split(' ').join('.'));
+    });
+    return open.join(', ') || 'none';
+  `);
   let guideOpen = false;
   try {
     await evalJs(session, `const g = await import('./js/guide.js'); g.openGuideGrid(); return true;`);
@@ -378,7 +438,7 @@ async function main() {
     record(
       'whole-screen CRT overlay stays at full opacity while guide is open',
       Number(opacityBeforeGuide) === 1 && Number(opacityWithGuide) === 1,
-      `before=${opacityBeforeGuide} with-guide=${opacityWithGuide}`,
+      `before=${opacityBeforeGuide} with-guide=${opacityWithGuide} dimmers=[${dimmers}]`,
     );
     await shot(session, 'tv-screen-guide-wholescreen-crt');
   } else {
