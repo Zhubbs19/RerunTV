@@ -28,6 +28,7 @@
     'getStartupServerStatus', 'setStartupServerEnabled',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
+    'setKeepDisplayAwake', 'showSystemNotification',
     'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
     'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',

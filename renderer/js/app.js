@@ -19,6 +19,7 @@ import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, comp
 import { resolveBreakAt, boundarySlot } from './interstitials.js';
 import {
   tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, playChannelLive,
+  startScheduleDriftWatchdog,
 } from './playback-core.js';
 import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback-breaks.js';
 import { applyLogoBugPlacement, showNoSignal } from './playback-broadcast-fx.js';
@@ -35,7 +36,7 @@ import {
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
   adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
-  resetIdleTimer, powerOn, powerOff, pushRemoteState,
+  resetIdleTimer, powerOn, powerOff, pushRemoteState, applyDisplayWakeLock,
 } from './power.js';
 import { applyDisplayModeSettled } from './display-mode.js';
 import { applyTheme } from './themes.js';
@@ -843,12 +844,32 @@ export function applyConfigDefaults(config) {
   config.upNext.duration = Number.isFinite(upNextDuration) ? Math.min(15000, Math.max(3000, upNextDuration)) : 8000;
   if (!config.details) config.details = { enabled: true };
   if (!config.timeMachine) config.timeMachine = { enabled: false };
+  // Periodic "is the picture still where the schedule says it is" check
+  // (startScheduleDriftWatchdog, playback-core.js). On by default because
+  // the alternative is the app quietly lying about what's airing after the
+  // machine wakes from sleep; the toggle exists for anyone whose media sits
+  // on something slow enough that they'd rather ride out a stall than be
+  // seeked through it.
+  if (!config.playbackResync) config.playbackResync = { enabled: true };
+  // Holds a display wake lock while the TV is powered on (power:
+  // setKeepDisplayAwake, main.js). Real video playback usually keeps the
+  // screen up on its own, but a virtual channel, a no-signal card, and the
+  // guide are all still-image states where it doesn't.
+  if (!config.keepDisplayAwake) config.keepDisplayAwake = { enabled: true };
   if (!Array.isArray(config.reminders)) config.reminders = [];
   // How many minutes before a REMIND ME program's start the toast fires
   // (checkProgramReminders, guide.js) — 1 matches the original hardcoded
   // 60000ms lead exactly, so an existing config keeps today's timing.
   const reminderLeadMinutes = Number(config.reminderLeadMinutes);
   config.reminderLeadMinutes = Number.isFinite(reminderLeadMinutes) ? Math.min(30, Math.max(1, reminderLeadMinutes)) : 1;
+  // Tune to the channel when a reminder comes due instead of waiting for
+  // TUNE NOW to be clicked. Off by default: changing the channel out from
+  // under someone is the surprising option, so it stays opt-in.
+  if (config.reminderAutoTune == null) config.reminderAutoTune = false;
+  // Hand a due reminder to the OS as a real notification when the window
+  // isn't focused. On by default — the app is built to keep running behind
+  // other windows, which is exactly when an in-app toast is invisible.
+  if (config.reminderNotify == null) config.reminderNotify = true;
   if (!config.librarySync) config.librarySync = { enabled: false, runAtStartup: true, intervalMinutes: 30, removeMissing: false };
   if (config.librarySync.runAtStartup == null) config.librarySync.runAtStartup = true;
   if (!config.librarySync.intervalMinutes) config.librarySync.intervalMinutes = 30;
@@ -1059,6 +1080,14 @@ async function init() {
   // kicked off from here.
   initUpdateNotice();
   initLibrarySync();
+  // Runs on a viewer too: a LAN viewer resolves the same schedule against
+  // the same clock and can drift for exactly the same reasons (its device
+  // sleeping, a slow stream off the host), so it wants the same correction.
+  startScheduleDriftWatchdog();
+  // The set boots powered on, so claim the wake lock now rather than waiting
+  // for the first powerOn() — which only ever fires on a transition out of
+  // standby and would otherwise never run at all in a normal session.
+  applyDisplayWakeLock();
 
   // A LAN viewer (browser-api-shim.js, window.__isViewer) always boots
   // straight to live playback — there's no first-run "add a channel" setup

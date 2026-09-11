@@ -149,6 +149,23 @@ export const S = {
   contentLostMs: 0,
   contentLostKey: null,
   breakEnteredAtMs: 0,
+  // What real channel content the player element is currently loaded with —
+  // set by playChannelLive (playback-core.js) at the moment it assigns
+  // player.src for content (never for a bumper), cleared at the top of every
+  // tune. Read only by the schedule-drift watchdog (checkScheduleDrift,
+  // playback-core.js), which needs to know that the file still on screen is
+  // the same one the schedule says should be airing before it trusts a
+  // comparison of player.currentTime against the computed offset. Tracking
+  // the path rather than reading it back off player.src avoids re-resolving
+  // a mediasource: ref through IPC just to answer "same file?".
+  liveContentPath: null,
+  liveContentChannel: null,
+  driftCheckTimer: null,
+  // Real (not viewNow()) timestamp of the last corrective seek — a plain
+  // rate limit so a file that keeps stalling underneath us gets one nudge
+  // per cooldown instead of a seek every tick, which on a slow remote
+  // source would make the stall worse rather than better.
+  lastDriftSeekMs: 0,
   // True while a real-file bumper (commercial/adBreakIn/adBreakOut/upNext/
   // channelId-with-video) is playing and hasn't fired its own 'ended'/'error'
   // yet — lets checkBreakState (playback.js) tell "the probed duration this

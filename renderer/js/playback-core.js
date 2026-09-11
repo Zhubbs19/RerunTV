@@ -63,6 +63,81 @@ function computeLiveContentPosition(ch) {
   return computeSourcePosition(source, viewNow());
 }
 
+// ---------- Schedule-drift watchdog ----------
+// Content is seeked to its computed live offset when a file starts, and the
+// break/boundary timers re-derive a fresh position at every content edge.
+// Nothing re-checked in between, so anything that stopped the video's clock
+// without stopping the wall clock — the machine suspending, a long decode
+// stall, a slow Range request from a mediaSource provider — left the picture
+// running behind its own schedule until the next boundary, while the guide,
+// the up-next banner, and the LAN viewer all went on describing the moment
+// that should have been on screen. That's the one thing this app is not
+// allowed to get wrong, so it gets a cheap periodic re-check.
+//
+// The correction is deliberately narrow. It only acts while this channel's
+// own real content is what's loaded and playing, it seeks rather than
+// re-tuning (no static burst, no re-resolve, no reset of anything else),
+// and it stands down for every state where a mismatch is intentional rather
+// than accidental: a break (the player is holding a bumper, not content),
+// credits speedup (playbackRate is elevated on purpose), and the time
+// machine's shuttle (the position is being scrubbed by hand). viewNow() is
+// the clock throughout, so a time-shifted session is corrected against its
+// own shifted schedule rather than dragged back to real time.
+const DRIFT_CHECK_MS = 20000;
+const DRIFT_TOLERANCE_S = 3;
+// A file that keeps stalling underneath us gets one nudge per cooldown
+// rather than a seek every tick — on a slow remote source, seeking into a
+// stall makes it worse, not better.
+const DRIFT_SEEK_COOLDOWN_MS = 30000;
+// Never correct into the last few seconds of a file: the schedule is about
+// to cross a boundary anyway, and handleContentEnded/checkBreakState resolve
+// that transition properly on their own. Seeking on top of them would race
+// that handoff for no benefit.
+const DRIFT_TAIL_GUARD_S = 5;
+
+export function checkScheduleDrift() {
+  if (!S.isPoweredOn || S.isSetupOpen) return;
+  if (S.activeBreakKey || S.creditsSpeedupActive) return;
+  if (S.shuttleDir !== 0) return;
+  if (!S.liveContentPath || S.liveContentChannel !== S.currentNumber) return;
+  if (player.paused || player.seeking || player.readyState < 3) return;
+  if (!Number.isFinite(player.duration) || player.duration <= 0) return;
+  // Real time, not viewNow(): this is a rate limit on how often we're willing
+  // to disturb the player, which is a wall-clock concern and has nothing to
+  // do with what the schedule thinks the time is.
+  if (Date.now() - S.lastDriftSeekMs < DRIFT_SEEK_COOLDOWN_MS) return;
+
+  const ch = getChannel(S.currentNumber);
+  if (!ch) return;
+  const now = viewNow();
+  const source = resolveActiveSource(ch, now);
+  if (!source) return;
+  // Read-only on purpose — computeLiveContentPosition above would reset the
+  // accumulated break lag as a side effect of a source change, and that
+  // bookkeeping belongs to the playback path, not to an observer. A source
+  // that has moved on under us is a boundary crossing, not drift, so bail
+  // and let the normal machinery resolve it.
+  if (S.contentLostKey !== `${ch.number}:${source.key}`) return;
+  const pos = computeSourcePosition(source, now);
+  if (!pos || !pos.file || pos.file.path !== S.liveContentPath) return;
+  const expected = pos.offset;
+  if (expected >= player.duration - DRIFT_TAIL_GUARD_S) return;
+  const delta = expected - player.currentTime;
+  if (Math.abs(delta) < DRIFT_TOLERANCE_S) return;
+
+  S.lastDriftSeekMs = Date.now();
+  console.log(`[drift] CH${ch.number} resynced ${delta > 0 ? '+' : ''}${delta.toFixed(1)}s to match the schedule`);
+  player.currentTime = expected;
+}
+
+export function startScheduleDriftWatchdog() {
+  clearInterval(S.driftCheckTimer);
+  S.driftCheckTimer = setInterval(() => {
+    if (!isEnabledByDefault(S.config.playbackResync)) return;
+    try { checkScheduleDrift(); } catch (e) { console.error('[drift] check failed:', e); }
+  }, DRIFT_CHECK_MS);
+}
+
 function sleep(ms) {
   return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
@@ -373,6 +448,15 @@ export async function playChannelLive(ch, opts) {
 
   player.loop = false; // clears any loop left set by a virtual channel's background audio
   player.src = url;
+  // Claim the player for this channel's real content, for the drift
+  // watchdog's benefit (checkScheduleDrift below). Set here rather than in
+  // onMeta so a file that never finishes loading can't leave a previous
+  // file's claim standing and get "corrected" against the wrong schedule
+  // entry; every path that puts something else on the player (a bumper, a
+  // virtual channel, a no-signal card) either runs through tuneToChannel's
+  // reset or sets S.activeBreakKey, both of which the watchdog checks.
+  S.liveContentPath = file.path;
+  S.liveContentChannel = ch.number;
   // Real content only (not the bumper/dynamic-background player.src= sites
   // below) — lets a captions plugin know a new file is about to play without
   // core knowing captions exist at all (registerCoreHook, plugins.js).
@@ -617,6 +701,12 @@ export async function tuneToChannel(number, opts) {
   // this tune's own ch.number) only once ITS OWN loadedmetadata actually
   // fires, same reset-then-reapply discipline as the calls just above.
   S.currentPlayerChannelNumber = null;
+  // Same reset-then-reclaim discipline for the drift watchdog's content
+  // claim: every branch below that doesn't reach playChannelLive (virtual
+  // channel, no signal, coming soon, sign-off, blocked) must leave no stale
+  // claim behind for the watchdog to act on.
+  S.liveContentPath = null;
+  S.liveContentChannel = null;
   // Display mode is channel-scoped too, including virtual plugin channels.
   // Apply it before any branch below can return: plugin channels never enter
   // playChannelLive(), which is where regular channels used to pick up their

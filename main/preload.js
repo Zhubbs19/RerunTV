@@ -42,6 +42,13 @@ contextBridge.exposeInMainWorld('api', {
   // Android app's theme dropdown has a real, install-accurate option list
   // instead of free text. See plugins.js's reportInstalledThemes.
   reportInstalledThemes: (themes) => ipcRenderer.send('themes:list', themes),
+  // Display wake lock held while the TV is powered on, and the OS-level
+  // fallback for a program reminder that fires while the window is
+  // unfocused — see main.js's power:setKeepDisplayAwake / notify:show.
+  // Resolves to the resulting held state; call it with null to read that
+  // state without changing it.
+  setKeepDisplayAwake: (keepAwake) => ipcRenderer.invoke('power:setKeepDisplayAwake', keepAwake),
+  showSystemNotification: (opts) => ipcRenderer.invoke('notify:show', opts),
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),

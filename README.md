@@ -120,7 +120,13 @@ the guide also scrolls backward into the past.
 - **Multi-folder channels** — merge several folders into one channel's loop; add/remove
   them independently without rescanning the rest
 - **Time-grid guide** with half-hour columns, a live "now" line, channel icons, filtering
-- **Seven-day program search and local reminders** directly from guide results
+- **Seven-day program search and local reminders** directly from guide results, with a
+  pending-reminder list you can edit, optional auto-tune when one comes due, and a desktop
+  notification for the case the app is running behind another window
+- **Schedule-drift correction** — a periodic check that the picture is still at the point
+  the schedule says it should be, easing it back after a machine sleep or a long stall
+- **Display wake lock** — keeps the monitor from sleeping while the set is powered on,
+  including on still-picture states like a plugin channel, a NO SIGNAL card, or the guide
 - **Channel icons** — assign an image per channel, or use the auto-colored number badge
 - **Dayparting** — give a channel time blocks that swap in a different folder by hour
   (cartoons 6am–8pm, something else overnight); guide and playback both follow

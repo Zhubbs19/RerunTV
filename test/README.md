@@ -46,6 +46,24 @@ Running `node test/run-ui-tests.mjs [port]` directly only works if something
 else already has a matching Electron instance up with CDP enabled — normally
 that's the `.ps1` script's job, not yours.
 
+### Running one targeted check instead of the full sweep
+
+```powershell
+powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1 `
+  -UserDataSource "C:\Users\<you>\Apps\RerunTV\userData" -Script my-check.mjs
+```
+
+`-Script` swaps in a different driver `.mjs` (resolved inside `test/`) against
+the same launched app, so a single-feature check gets the userData backup and
+process cleanup for free. Those drivers are scratch, not harness — leave them
+untracked, same as the existing `verify-*.mjs` pile. The driver receives the
+CDP port as its only argument and should exit non-zero on failure.
+
+Wrap each logical check in its own try/catch rather than a single straight
+line of `await`s: a busy renderer occasionally makes one `Runtime.evaluate`
+fail with "Promise was collected", and an unguarded run throws away every
+later result when that happens.
+
 ## Safety: why this needs a wrapper at all
 
 `main-config.js`'s `portableUserDataDir()` hardcodes RerunTV's dev-mode

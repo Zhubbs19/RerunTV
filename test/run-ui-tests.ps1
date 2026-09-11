@@ -29,8 +29,15 @@
 # Usage: powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1 `
 #          -UserDataSource "C:\Users\<you>\Apps\RerunTV\userData"
 
+# -Script runs a different driver .mjs against the same launched app instead
+# of the full sweep. It exists so a targeted, single-feature check gets the
+# userData backup/restore and electron.exe cleanup above for free rather than
+# tempting anyone to launch Electron by hand against the real config, which
+# is the one thing this whole wrapper exists to prevent. The driver still
+# takes the CDP port as its only argument.
 param(
-    [string]$UserDataSource = ''
+    [string]$UserDataSource = '',
+    [string]$Script = 'run-ui-tests.mjs'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -167,7 +174,9 @@ try {
     }
     Write-Host "App is up. Running the test suite..." -ForegroundColor Green
 
-    & node (Join-Path $PSScriptRoot 'run-ui-tests.mjs') $port
+    $driver = Join-Path $PSScriptRoot $Script
+    if (-not (Test-Path -LiteralPath $driver)) { throw "Driver script not found: $driver" }
+    & node $driver $port
     $exitCode = $LASTEXITCODE
 }
 finally {

@@ -420,6 +420,23 @@
         </div>
         </div>
 
+        <div class="panel span-full">
+          <div class="panel-toggle">PROGRAM REMINDERS</div>
+          <span class="panel-status">Reminders set from the guide's program search (open the guide with G, then press / and search). Each one fires once and clears itself a few minutes after its program ends. REMINDER LEAD TIME above controls how early.</span>
+          <div class="panel-body">
+            <label class="shuffle-toggle" title="Changes the channel for you the moment a reminder comes due, instead of waiting for you to press TUNE NOW on the toast.">
+              <input type="checkbox" id="reminder-auto-tune">TUNE AUTOMATICALLY WHEN A REMINDER COMES DUE
+            </label>
+            <label class="shuffle-toggle" title="The on-screen toast is invisible while you're working in another window. This sends a desktop notification as well, but only when the RerunTV window isn't focused.">
+              <input type="checkbox" id="reminder-notify" checked>ALSO NOTIFY ON THE DESKTOP WHEN THIS WINDOW ISN'T FOCUSED
+            </label>
+          </div>
+          <div id="reminders-list" class="titles-list"></div>
+          <div class="panel-body">
+            <button id="reminders-clear-all" class="btn" type="button">CLEAR ALL REMINDERS</button>
+          </div>
+        </div>
+
         <div class="panel">
           <div class="panel-toggle">NO SIGNAL SCREEN</div>
           <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
@@ -801,6 +818,22 @@
             <div id="connected-devices-list" class="titles-list"></div>
           </div>
           <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="keep-display-awake" checked>
+            KEEP THE DISPLAY AWAKE WHILE THE TV IS ON
+          </label>
+          <span class="panel-status">Stops your monitor's screensaver and sleep timer from cutting in while the set is powered on. Playing video usually holds the screen up on its own, but a plugin channel, a NO SIGNAL card, or an open guide is a still picture as far as the operating system is concerned. Released as soon as you power the set off, including into AUTO STANDBY.</span>
+        </div>
+
+        <div class="panel">
+          <label class="panel-toggle">
+            <input type="checkbox" id="playback-resync-enabled" checked>
+            KEEP PLAYBACK IN SYNC WITH THE SCHEDULE
+          </label>
+          <span class="panel-status">Re-checks every 20 seconds that what's on screen is still at the point the schedule says it should be, and nudges it back if not. Matters after the computer sleeps and wakes, or when a file stalls long enough to fall behind. Turn this off if your media sits on something slow enough that you'd rather ride out a stall than be seeked through it.</span>
         </div>
 
         <div class="panel">

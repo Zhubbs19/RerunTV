@@ -185,8 +185,25 @@ function checkProgramReminders() {
   if (!due) return;
   activeReminder = due;
   notifiedReminders.add(due.id);
-  reminderCopyEl.textContent = `${due.title} starts ${formatSlotLabel(due.start)} on CH ${due.channelNumber}${due.channelName ? ` · ${due.channelName}` : ''}.`;
+  const where = `CH ${due.channelNumber}${due.channelName ? ` · ${due.channelName}` : ''}`;
+  reminderCopyEl.textContent = `${due.title} starts ${formatSlotLabel(due.start)} on ${where}.`;
+  // Auto-tune makes TUNE NOW meaningless — hide it rather than leave a
+  // button that re-tunes to the channel already on screen.
+  const autoTune = !!S.config.reminderAutoTune;
+  if (reminderTuneBtn) reminderTuneBtn.classList.toggle('hidden', autoTune);
   reminderToastEl.classList.remove('hidden');
+  if (autoTune) tuneToChannel(due.channelNumber);
+  // The toast is the primary delivery; this is the fallback for the case the
+  // app is explicitly designed for — still broadcasting behind whatever the
+  // user is actually working in, where nothing on the TV screen is visible.
+  // Main refuses it outright if the window turns out to be focused after
+  // all, so a stale document.hasFocus() here can't produce a duplicate.
+  if (S.config.reminderNotify !== false && !document.hasFocus() && window.api?.showSystemNotification) {
+    Promise.resolve(window.api.showSystemNotification({
+      title: autoTune ? 'NOW TUNED' : 'PROGRAM REMINDER',
+      body: `${due.title} — ${formatSlotLabel(due.start)} on ${where}`,
+    })).catch(() => {});
+  }
 }
 
 reminderTuneBtn?.addEventListener('click', () => {

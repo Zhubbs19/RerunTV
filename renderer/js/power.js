@@ -627,9 +627,23 @@ export function toggleCrt() {
   flashMessage(`CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`, 'crtFlashTimer');
 }
 
+// Asks main to hold or release a display wake lock, matching "is this set
+// switched on". Powering off is the one state where letting the monitor
+// sleep is obviously right — the screen is already showing nothing on
+// purpose — so the lock tracks S.isPoweredOn rather than merely "the app is
+// running". Host-only: setKeepDisplayAwake isn't part of the LAN viewer's
+// api surface (api-contract.js), and a browser tab has no business holding
+// its device awake for a page it may not even be showing.
+export function applyDisplayWakeLock() {
+  if (!window.api || typeof window.api.setKeepDisplayAwake !== 'function') return;
+  const wanted = S.isPoweredOn && S.config.keepDisplayAwake?.enabled !== false;
+  Promise.resolve(window.api.setKeepDisplayAwake(wanted)).catch(() => {});
+}
+
 export function powerOff() {
   if (!S.isPoweredOn) return;
   S.isPoweredOn = false;
+  applyDisplayWakeLock();
 
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
@@ -669,6 +683,7 @@ export function powerOff() {
 export function powerOn() {
   if (S.isPoweredOn) return;
   S.isPoweredOn = true;
+  applyDisplayWakeLock();
 
   clearTimeout(S.powerAnimTimer);
   crtContainer.classList.remove('power-off', 'powering-off');

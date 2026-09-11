@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, Notification } = require('electron');
 
 // Two running instances would each hold an independent in-memory config and
 // independently debounce-save (saveConfigDebounced, state.js) to the same
@@ -594,6 +594,63 @@ ipcMain.handle('window:setAspectLock', async (event, { aspect } = {}) => {
   // current size to the ratio.
   const [curW] = mainWindow.getContentSize();
   mainWindow.setContentSize(curW, Math.round(curW * (h / w)));
+  return true;
+});
+
+// A set that's switched on shouldn't let the monitor go dark underneath it.
+// Chromium keeps the display up on its own while real video is decoding, but
+// a virtual/plugin channel, a no-signal card, an open guide, and a paused
+// trivia break are all still-image states where it doesn't — and those are
+// exactly the states a cable box is expected to sit in indefinitely. The
+// renderer owns the policy (only it knows whether the set is powered on and
+// whether the user wants this at all); main just holds the blocker, since
+// powerSaveBlocker is main-process-only. Held per-app rather than per-window
+// so the title-bar toggle's close-and-recreate (window:setTitleBarHidden
+// above) doesn't drop it and leave the renderer believing it's still held —
+// the replacement renderer reasserts on boot regardless.
+// Passing null/undefined asks what's currently held without changing it.
+// Without that, nothing anywhere — diagnostics, a test, or a person reading
+// the code — can answer "is the lock actually held right now?", since the
+// setter's return value is just the state it was asked for and reads the
+// same whether or not it changed anything.
+let displayWakeLockId = null;
+ipcMain.handle('power:setKeepDisplayAwake', async (event, keepAwake) => {
+  const held = displayWakeLockId != null && powerSaveBlocker.isStarted(displayWakeLockId);
+  if (keepAwake == null) return held;
+  const wanted = !!keepAwake;
+  if (wanted === held) return held;
+  if (wanted) {
+    displayWakeLockId = powerSaveBlocker.start('prevent-display-sleep');
+  } else {
+    if (displayWakeLockId != null) powerSaveBlocker.stop(displayWakeLockId);
+    displayWakeLockId = null;
+  }
+  return wanted;
+});
+
+// Last-resort delivery for a program reminder the user cannot see, because
+// the app is deliberately built to keep broadcasting behind other windows —
+// which is precisely when guide.js's in-app toast is hidden. The renderer
+// decides when that's the case; main only refuses the obviously-wrong case
+// of firing one while the window is focused, so a race between the renderer
+// checking focus and this handler running can't produce a notification for
+// something already on screen.
+ipcMain.handle('notify:show', async (event, { title, body } = {}) => {
+  if (!Notification.isSupported()) return false;
+  const mainWindow = getMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) return false;
+  const notification = new Notification({
+    title: String(title || 'RerunTV').slice(0, 120),
+    body: String(body || '').slice(0, 400),
+  });
+  notification.on('click', () => {
+    const win = getMainWindow();
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
+  notification.show();
   return true;
 });
 

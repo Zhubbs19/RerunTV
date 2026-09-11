@@ -4,7 +4,7 @@ import { applyConfigDefaults } from './app.js';
 import { CUSTOM_SOUND_SLOTS } from './audio.js';
 import { applyDisplayMode } from './display-mode.js';
 import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback-broadcast-fx.js';
-import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel } from './power.js';
+import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, saveConfigDebounced, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
@@ -52,6 +52,8 @@ import {
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
   timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
+  reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
+  keepDisplayAwakeEl, playbackResyncEnabledEl,
 } from './dom.js';
 
 // Live numeric readouts for every box-wide range slider — wired once at
@@ -327,6 +329,9 @@ export function renderSettingsPanels() {
   if (reminderLeadMinutesSlider) {
     reminderLeadMinutesSlider.value = S.config.reminderLeadMinutes != null ? S.config.reminderLeadMinutes : 1;
   }
+  renderRemindersPanel();
+  if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
+  if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
   noSignalMessageInput.value = S.config.display.noSignalMessage || '';
   renderThemeSelectOptions();
@@ -693,6 +698,14 @@ const HELP_GUIDE = [
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
     'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',
     'SET REMINDER creates a local reminder. When the viewing clock reaches the program, a toast offers TUNE NOW or DISMISS; reminders follow the time-machine clock just like the schedule itself.',
+    'Everything you have pending is listed under PROGRAM REMINDERS on the PICTURE & GUIDE tab, in the INTERFACE section. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
+    'Two options live with that list. TUNE AUTOMATICALLY changes the channel for you the moment a reminder comes due. The desktop-notification option covers the case this box is built for — still broadcasting behind whatever you are actually working in, where an on-screen toast is invisible. It only fires when the RerunTV window is not the one you are looking at.',
+  ] },
+  { group: 'SECTION 6 — SYSTEM', title: '6.8 Staying On Schedule and Staying Awake', body: [
+    'Two settings on the SYSTEM & STORAGE tab, under AUDIO & POWER, keep a long unattended session honest.',
+    'KEEP THE DISPLAY AWAKE holds off your monitor\'s screensaver and sleep timer while the set is powered on. Playing video normally keeps a screen up by itself, but a plugin channel, a NO SIGNAL card, or an open guide is a still picture as far as your computer is concerned. Powering the set off, including into AUTO STANDBY, releases it again immediately.',
+    'KEEP PLAYBACK IN SYNC re-checks every 20 seconds that the picture is still at the point the schedule says it should be, and eases it back if it has fallen behind. This matters most after the computer sleeps and wakes, when the wall clock has moved on but the video has not. It also covers a file that stalls long enough to lose its place.',
+    'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
   ] },
   { group: 'SECTION 9 — THE PLUGINS TAB', title: '9.1 Installing, Turning On/Off, and Removing Plugins', body: [
     'A lot of what this box can do — every special channel from SECTION 7, the remote control, weather and show-info lookups, even audio streaming features that need extra processing behind the scenes — comes from individual PLUGINS, listed on the PLUGINS tab. Some come built in and turned on by default; you can add more yourself.',
@@ -1575,6 +1588,92 @@ export function renderConnectedDevices() {
   }
 }
 
+
+// ---------- Program reminders (PICTURE & GUIDE > INTERFACE) ----------
+// Reminders are created from the guide's program search (guide.js's
+// addProgramReminder) and used to be invisible from the moment they were set
+// until the moment they fired — no list, no way to cancel one added by
+// mistake, no way to check whether one was still pending. They live in
+// S.config.reminders and clear themselves a few minutes after their own
+// program ends (checkProgramReminders, guide.js), so this is a view of
+// pending ones only and needs no expiry logic of its own.
+export function renderRemindersPanel() {
+  if (reminderAutoTuneEl) reminderAutoTuneEl.checked = !!S.config.reminderAutoTune;
+  if (reminderNotifyEl) reminderNotifyEl.checked = S.config.reminderNotify !== false;
+  if (!remindersListEl) return;
+  const reminders = (S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
+  if (remindersClearAllBtn) remindersClearAllBtn.disabled = !reminders.length;
+  remindersListEl.innerHTML = '';
+  if (!reminders.length) {
+    const empty = document.createElement('div');
+    empty.className = 'titles-empty';
+    empty.textContent = 'NO REMINDERS SET. OPEN THE GUIDE (G), PRESS /, AND SEARCH FOR A PROGRAM.';
+    remindersListEl.appendChild(empty);
+    return;
+  }
+  reminders.forEach((reminder) => {
+    const row = document.createElement('div');
+    row.className = 'block-row';
+    const label = document.createElement('span');
+    label.className = 'block-count';
+    // The channel name is stored on the reminder itself, but a channel
+    // renamed since then should read as its current name — fall back to the
+    // stored copy only for a channel that no longer exists at all, so a
+    // reminder for a deleted channel still says what it was for.
+    const channel = getChannel(reminder.channelNumber);
+    const name = (channel && channel.name) || reminder.channelName || 'UNNAMED';
+    label.textContent = `${reminder.title} — CH ${reminder.channelNumber} · ${name} · ${new Date(reminder.start).toLocaleString()}`;
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'btn';
+    remove.textContent = 'REMOVE';
+    remove.addEventListener('click', () => {
+      S.config.reminders = (S.config.reminders || []).filter((entry) => entry.id !== reminder.id);
+      saveConfigDebounced();
+      renderRemindersPanel();
+    });
+    row.append(label, remove);
+    remindersListEl.appendChild(row);
+  });
+}
+
+reminderAutoTuneEl?.addEventListener('change', () => {
+  S.config.reminderAutoTune = reminderAutoTuneEl.checked;
+  saveConfigDebounced();
+});
+
+reminderNotifyEl?.addEventListener('change', () => {
+  S.config.reminderNotify = reminderNotifyEl.checked;
+  saveConfigDebounced();
+});
+
+remindersClearAllBtn?.addEventListener('click', async () => {
+  const count = (S.config.reminders || []).length;
+  if (!count) return;
+  const ok = await confirmDialog({
+    title: 'CLEAR REMINDERS',
+    message: `Remove all ${count} pending program reminder${count === 1 ? '' : 's'}?`,
+    confirmText: 'CLEAR ALL',
+  });
+  if (!ok) return;
+  S.config.reminders = [];
+  saveConfigDebounced();
+  renderRemindersPanel();
+});
+
+keepDisplayAwakeEl?.addEventListener('change', () => {
+  S.config.keepDisplayAwake.enabled = keepDisplayAwakeEl.checked;
+  // Applied immediately rather than at the next power transition — the
+  // setting is only meaningful as a live claim on the OS, so leaving the old
+  // one held until the next standby would read as the toggle not working.
+  applyDisplayWakeLock();
+  saveConfigDebounced();
+});
+
+playbackResyncEnabledEl?.addEventListener('change', () => {
+  S.config.playbackResync.enabled = playbackResyncEnabledEl.checked;
+  saveConfigDebounced();
+});
 
 // ---------- Config backups (AUDIO & SYSTEM tab) ----------
 // See main.js's backupCurrentConfig/listBackups/restoreBackup — rotating,
