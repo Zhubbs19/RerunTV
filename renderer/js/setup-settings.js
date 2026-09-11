@@ -714,6 +714,16 @@ const HELP_GUIDE = [
     'KEEP PLAYBACK IN SYNC re-checks every 20 seconds that the picture is still at the point the schedule says it should be, and eases it back if it has fallen behind. This matters most after the computer sleeps and wakes, when the wall clock has moved on but the video has not. It also covers a file that stalls long enough to lose its place.',
     'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
   ] },
+  { group: 'SECTION 1 — CHANNELS', title: '1.9 Sub-Channels (7.1, 7.2)', body: [
+    'A channel number can carry one decimal place, so you can run 7.1 and 7.2 alongside 7 the way a digital broadcast station carries sub-channels. Type the number into a channel\'s number box as 7.1.',
+    'To tune one from the remote, type the main number, press the period key, then the sub-channel digit: 7 . 1. Everything else treats it as an ordinary channel — it sorts straight after 7, appears in the guide, takes blocks and breaks, and can be marked as a favorite.',
+    'Only one decimal place is allowed. 7.1 is a channel, 7.12 is not.',
+  ] },
+  { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.2 CH 100 — The Channel Mosaic', body: [
+    'CH 100 is a preview mosaic: a grid showing what is airing on every one of your other channels right now, paging through the lineup a screenful at a time.',
+    'Each tile is a still frame taken from that channel\'s current position, not a live picture. That is deliberate — a wall of moving video would cost far more than the whole rest of the box put together, and a real cable mosaic was a page of near-stills too.',
+    'Tiles per page, how long a page stays up, and how often the frames refresh are all on the PLUGINS tab under Channel Mosaic. If a big lineup makes the page stutter, lower the tile count first; it matters more than the refresh rate.',
+  ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.3 Air Checks — Marking a Moment', body: [
     'Press X while watching, or pick MARK AIR CHECK from the TV menu, and the box remembers exactly where you were: which channel, and what moment of its schedule was on screen.',
     'To go back, open the TV menu and choose one of the AIR CHECK entries listed there. The viewing clock shifts to that instant and the channel tunes, so the programme picks up exactly where it was.',

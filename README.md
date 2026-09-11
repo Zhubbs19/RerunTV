@@ -76,6 +76,7 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 |---|---|
 | `↑` `↓` / PgUp PgDn | Change channel |
 | `0`–`9` | Type a channel number directly (auto-tunes after ~1.4s) |
+| `.` | Sub-channel separator while typing a number (`7` `.` `1` → CH 7.1) |
 | `Enter` | Confirm number entry, or show the guide banner |
 | `G` | Open/close the full time-grid guide |
 | `/` | Filter channels (inside the guide) |
@@ -121,6 +122,8 @@ the guide also scrolls backward into the past.
 
 - **Multi-folder channels** — merge several folders into one channel's loop; add/remove
   them independently without rescanning the rest
+- **Sub-channels** — a channel can sit at `7.1` / `7.2` the way a digital broadcast
+  sub-channel does; type `7`, `.`, `1` on the keypad to tune one
 - **Time-grid guide** with half-hour columns, a live "now" line, channel icons, filtering
 - **Seven-day program search and local reminders** directly from guide results, with a
   pending-reminder list you can edit, optional auto-tune when one comes due, and a desktop
@@ -201,6 +204,9 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
   of every channel
 - **CH 2 — Public Access**: a community bulletin board cycling text slides you write
 - **CH 3 — Local Weather**: a synthetic forecast barker channel, or a real one via NOAA
+- **CH 100 — Channel Mosaic**: a paging grid of what's airing on every other channel
+  right now. Every tile is a paused frame seeked to that channel's live position, not a
+  live feed, so a full page costs a fraction of what a wall of pictures would
 - **CH 51 — Classified Intercept**: a fictional radar-and-satellite log channel
 - **CH 96 — Shopping Network**, and
   **CH 98 — Pay-Per-View**: interactive fictional cable-channel experiences

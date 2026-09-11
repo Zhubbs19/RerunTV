@@ -9,7 +9,7 @@
 // at all yet (see ensureFlowsConfig's two seeded defaults for the intended
 // shape). labeledField is exported from setup-interstitials.js since both
 // files build small "LABEL + control" form rows the same way.
-import { getChannel, sortedChannels } from './channels.js';
+import { formatChannelNumber, getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
@@ -106,7 +106,7 @@ export function renderFlowsList() {
     sortedChannels().forEach((c) => {
       const opt = document.createElement('option');
       opt.value = String(c.number);
-      opt.textContent = `CH ${String(c.number).padStart(2, '0')} ${c.name || 'UNTITLED'}`;
+      opt.textContent = `CH ${formatChannelNumber(c.number)} ${c.name || 'UNTITLED'}`;
       chSelect.appendChild(opt);
     });
 

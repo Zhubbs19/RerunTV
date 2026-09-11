@@ -7,6 +7,7 @@ import {
   getPluginChannelEntryForNumber, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds,
 } from './plugins.js';
 import { autoHideAfter } from './util.js';
+import { formatChannelNumber } from './channels.js';
 
 // The plugin channel currently rendered into pluginChannelContainerEl (if
 // any) — tracked here rather than on the DOM, since a plugin's stop() hook
@@ -162,7 +163,7 @@ export function getVirtualBadge(number) {
 
 export function showVirtualGuideOverlay(number) {
   const info = virtualChannelInfo(number);
-  guideNumberEl.textContent = String(number).padStart(2, '0');
+  guideNumberEl.textContent = formatChannelNumber(number);
   guideNameEl.textContent = info.name;
   guideNowEl.textContent = `NOW: ${info.nowText}`;
   guideBarFillEl.style.width = '100%';

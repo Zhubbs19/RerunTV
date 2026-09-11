@@ -1,6 +1,6 @@
 import { player } from './dom.js';
 import { S } from './state.js';
-import { getChannel, sortedChannels } from './channels.js';
+import { formatChannelNumber, getChannel, sortedChannels } from './channels.js';
 
 let frameCount = 0;
 let lastFpsTime = performance.now();
@@ -86,7 +86,7 @@ export function updatePerfMetrics() {
   if (activeChEl) {
     const ch = getChannel(S.currentNumber);
     if (ch) {
-      activeChEl.textContent = `CH ${String(ch.number).padStart(2, '0')} — ${ch.name || 'UNTITLED'}`;
+      activeChEl.textContent = `CH ${formatChannelNumber(ch.number)} — ${ch.name || 'UNTITLED'}`;
     } else {
       activeChEl.textContent = `CH ${String(S.currentNumber).padStart(2, '0')} (VIRTUAL / SYSTEM)`;
     }

@@ -12,7 +12,7 @@ import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { showOnboarding } from './onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
 import {
-  foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays,
+  foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
   normalizeLogoBugProfiles, sortedChannels, getChannel,
 } from './channels.js';
 import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
@@ -109,8 +109,21 @@ if (migrationToastDismissBtn) {
 
 // ---------- Direct number entry ----------
 export function pushDigit(d) {
-  S.entryBuffer += d;
-  if (S.entryBuffer.length > 3) S.entryBuffer = S.entryBuffer.slice(-3);
+  if (d === '.') {
+    // The sub-channel separator, the way a set-top box's own dash/dot key
+    // works: only meaningful after at least one digit, and only once. Typed
+    // anywhere else it's ignored rather than starting a nonsense entry.
+    if (!S.entryBuffer || S.entryBuffer.includes('.')) return;
+    S.entryBuffer += '.';
+  } else if (S.entryBuffer.includes('.')) {
+    // One sub-channel digit only — 7.1 exists, 7.12 does not (see
+    // parseChannelNumber, channels.js).
+    if (S.entryBuffer.split('.')[1].length >= 1) return;
+    S.entryBuffer += d;
+  } else {
+    S.entryBuffer += d;
+    if (S.entryBuffer.length > 3) S.entryBuffer = S.entryBuffer.slice(-3);
+  }
   channelEntryEl.textContent = S.entryBuffer;
   channelEntryEl.classList.remove('hidden');
   channelEntryEl.classList.remove('digit-flash');
@@ -122,7 +135,11 @@ export function pushDigit(d) {
 
 export function commitEntry() {
   if (S.entryBuffer) {
-    tuneToChannel(parseInt(S.entryBuffer, 10));
+    // parseChannelNumber handles a trailing separator ("7." reads as 7) and
+    // rejects anything that isn't a channel number outright, rather than
+    // parseInt's habit of quietly tuning to the leading digits of garbage.
+    const target = parseChannelNumber(S.entryBuffer);
+    if (Number.isFinite(target)) tuneToChannel(target);
   }
   S.entryBuffer = '';
   channelEntryEl.classList.add('hidden');
@@ -243,6 +260,15 @@ export function handleKey(e) {
 
   if (e.key >= '0' && e.key <= '9') {
     pushDigit(e.key);
+    return;
+  }
+  // The sub-channel separator. Only '.' (including the numpad's decimal
+  // key): '-' is already VOLUME DOWN, and taking a working volume key away
+  // to gain a second way to type the same separator is a bad trade.
+  // pushDigit ignores it unless a number entry is genuinely in progress, so
+  // a stray press outside one does nothing rather than opening the overlay.
+  if (e.key === '.') {
+    pushDigit('.');
     return;
   }
   switch (e.key) {

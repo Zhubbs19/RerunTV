@@ -1,7 +1,7 @@
 import { showSetupScreen } from './app.js';
 import { toggleCrt } from './power.js';
 import { playConfiguredSound, sfxGuideToggle } from './audio.js';
-import { buildChannelBadge, channelColor, filteredChannels, getChannel, guideSlots, sortedChannels } from './channels.js';
+import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, sortedChannels } from './channels.js';
 import {
   crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid,
   guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay,
@@ -44,7 +44,7 @@ function updateGuideLogo(ch) {
 }
 
 export function showGuideOverlay(number, ch) {
-  guideNumberEl.textContent = String(number).padStart(2, '0');
+  guideNumberEl.textContent = formatChannelNumber(number);
   if (!ch) {
     guideNameEl.textContent = S.config.display?.noSignalTitle?.trim() || 'NO SIGNAL';
     guideNowEl.textContent = '';
@@ -140,7 +140,7 @@ function renderProgramResults(query) {
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'guide-program-result-copy';
-    copy.innerHTML = `<strong>${escapeHtml(result.title)}</strong><span>CH ${result.channel.number} · ${escapeHtml(result.channel.name || 'UNNAMED')} · ${new Date(result.entry.start).toLocaleString()}</span>`;
+    copy.innerHTML = `<strong>${escapeHtml(result.title)}</strong><span>CH ${formatChannelNumber(result.channel.number)} · ${escapeHtml(result.channel.name || 'UNNAMED')} · ${new Date(result.entry.start).toLocaleString()}</span>`;
     copy.addEventListener('click', () => jumpToProgramResult(result));
     const remind = document.createElement('button');
     remind.type = 'button';
@@ -396,7 +396,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
   chanCell.className = 'guide-row-chan';
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
-  chanText.innerHTML = `<span class="grc-num">CH ${String(ch.number).padStart(2, '0')}</span><span class="grc-name">${escapeHtml(ch.name || 'UNTITLED')}</span>`;
+  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(ch.number)}</span><span class="grc-name">${escapeHtml(ch.name || 'UNTITLED')}</span>`;
   chanCell.appendChild(buildChannelBadge(ch, { small: true, editable: false }));
   chanCell.appendChild(chanText);
 
@@ -696,7 +696,7 @@ export function positionNowLine(windowEnd) {
 
 export function updateGuideInfoPanel(ch, selectedInfo) {
   if (!ch) return;
-  giNumberEl.textContent = String(ch.number).padStart(2, '0');
+  giNumberEl.textContent = formatChannelNumber(ch.number);
   giChannelEl.textContent = ch.name || 'UNTITLED CHANNEL';
   if (selectedInfo) {
     giTitleEl.textContent = getDisplayTitle(selectedInfo.entry.file);

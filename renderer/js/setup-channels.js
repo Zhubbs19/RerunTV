@@ -6,7 +6,7 @@ import { applyConfigDefaults, showTvScreen } from './app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from './channel-package.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
 import {
-  buildChannelBadge, channelColor, freshBroadcastHours, freshChannel, freshFileFacets, mediaRefId, nextChannelNumber, parseMediaRef,
+  buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
   sortedChannels, tryGetDisplayName, tryGetMetadata,
 } from './channels.js';
 import {
@@ -193,7 +193,7 @@ function hasCustomChannelOptions(ch) {
 }
 
 function sortedForSetup() {
-  return [...((S.config && S.config.channels) || [])].sort((a, b) => (parseInt(a.number, 10) || 0) - (parseInt(b.number, 10) || 0));
+  return [...((S.config && S.config.channels) || [])].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
 }
 
 // Channels shown in the setup list, narrowed by S.setupFilterQuery — same
@@ -271,10 +271,14 @@ export function renderChannelList() {
       const numInput = document.createElement('input');
       numInput.type = 'number';
       numInput.min = 0;
+      // A channel may sit at 7.1 the way a digital sub-channel does — one
+      // decimal place, rounded by parseChannelNumber (channels.js) so a typed
+      // 7.1 is the same Map key as a config-loaded one.
+      numInput.step = '0.1';
       numInput.value = ch.number;
       numInput.setAttribute('aria-label', 'Channel number');
       numInput.addEventListener('change', () => {
-        const v = parseInt(numInput.value, 10);
+        const v = parseChannelNumber(numInput.value);
         // No reserved range here — a real channel always takes priority
         // over a plugin's virtual one at the same number (isVirtualChannel,
         // virtual.js), the exact same collision rule already used for every
@@ -389,7 +393,7 @@ export function renderChannelList() {
       const editHeading = document.createElement('div');
       editHeading.className = 'edit-channel-heading';
       const editHeadingTitle = document.createElement('strong');
-      editHeadingTitle.textContent = `EDITING CH ${String(ch.number).padStart(2, '0')} — ${ch.name || 'UNTITLED'}`;
+      editHeadingTitle.textContent = `EDITING CH ${formatChannelNumber(ch.number)} — ${ch.name || 'UNTITLED'}`;
       const editHeadingSummary = document.createElement('span');
       editHeadingSummary.textContent = `${ch.files.length} MEDIA FILE${ch.files.length === 1 ? '' : 'S'} · ${ch.folders.length} FOLDER${ch.folders.length === 1 ? '' : 'S'} · ${schedCount} SCHEDULE BLOCK${schedCount === 1 ? '' : 'S'}`;
       editHeading.append(editHeadingTitle, editHeadingSummary);

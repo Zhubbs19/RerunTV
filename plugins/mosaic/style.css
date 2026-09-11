@@ -1,0 +1,170 @@
+/* CH 100 mosaic. Palette comes from core's own theme tokens so the channel
+   re-skins with every theme pack rather than pinning one era's colours.
+
+   The header's right end and the footer's left end are deliberately kept
+   clear: core draws the channel logo bug in the top-right and its own cards
+   in the bottom-left, and a plugin channel that fills those corners ends up
+   underneath them. */
+.mosaic-channel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.1rem 1.4rem 1rem;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(var(--cyan-rgb, 0 180 255) / 0.16), transparent 70%),
+    var(--bg, #06080f);
+  color: var(--ink, #e8f1ff);
+  font-family: var(--font-ui, system-ui, sans-serif);
+  overflow: hidden;
+}
+
+.mosaic-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  /* Room for the logo bug in the top-right corner. */
+  padding-right: 8rem;
+  flex: 0 0 auto;
+}
+
+.mosaic-eyebrow {
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  color: var(--gold, #ffb000);
+  white-space: nowrap;
+}
+
+.mosaic-pager {
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.mosaic-clock {
+  margin-left: auto;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--cyan, #47c8ff);
+}
+
+.mosaic-grid {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--mosaic-columns, 3), 1fr);
+  gap: 0.55rem;
+  min-height: 0;
+}
+
+.mosaic-tile {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid rgba(var(--ink-rgb, 232 241 255) / 0.16);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.mosaic-frame {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mosaic-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Revealed only once the seek lands, so a tile fades in on a real frame
+     instead of flashing the element's default black box first. */
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.mosaic-video-ready { opacity: 1; }
+.mosaic-video-failed { display: none; }
+
+.mosaic-offair {
+  position: absolute;
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  opacity: 0.5;
+}
+
+.mosaic-pending {
+  opacity: 0.3;
+  animation: mosaic-pending-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes mosaic-pending-pulse {
+  0%, 100% { opacity: 0.18; }
+  50% { opacity: 0.42; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mosaic-pending { animation: none; }
+}
+
+.mosaic-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.25rem 0.45rem 0.1rem;
+  flex: 0 0 auto;
+}
+
+.mosaic-number {
+  font-size: 0.82rem;
+  color: var(--gold, #ffb000);
+  font-variant-numeric: tabular-nums;
+}
+
+.mosaic-name,
+.mosaic-title {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mosaic-name { opacity: 0.78; }
+
+.mosaic-title {
+  padding: 0 0.45rem 0.35rem;
+  opacity: 0.95;
+  flex: 0 0 auto;
+}
+
+.mosaic-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  opacity: 0.6;
+}
+
+.mosaic-footer {
+  flex: 0 0 auto;
+  /* Clear of core's bottom-left cards. */
+  padding-left: 12rem;
+  text-align: right;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  opacity: 0.45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mosaic-video { transition: none; }
+}

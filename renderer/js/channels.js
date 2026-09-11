@@ -724,6 +724,43 @@ export function sortedChannels() {
   return sortedChannelsCache;
 }
 
+// ---------- Channel numbering ----------
+// A channel number is a Number, and may carry one decimal place so a channel
+// can sit at 7.1 / 7.2 the way a digital broadcast sub-channel does. One
+// place only, and rounded on the way in: everything downstream keys channel
+// lookups on the raw Number (the Map in ensureChannelCaches above), so two
+// values that merely print the same but differ in the last bits of a double
+// would silently be two different channels. Rounding at every entry point is
+// what guarantees a config-loaded 7.1 and a typed 7.1 are the same key.
+//
+// Integers are untouched by all of this — they sort, compare and format
+// exactly as they always did, so a lineup with no sub-channels behaves
+// identically to before.
+export function isSubChannel(number) {
+  return Number.isFinite(number) && !Number.isInteger(number);
+}
+
+// "07" for a whole number, "07.1" for a sub-channel. The two-digit main part
+// is kept for both so badges, guide rows and the number entry overlay stay
+// visually aligned with every existing integer channel.
+export function formatChannelNumber(number) {
+  if (!Number.isFinite(number)) return '--';
+  const main = String(Math.trunc(Math.abs(number))).padStart(2, '0');
+  if (Number.isInteger(number)) return main;
+  const sub = Math.round(Math.abs(number) * 10) % 10;
+  return `${main}.${sub}`;
+}
+
+// Accepts "7", "7.1" and "7-1" (a dash is how a set-top box prints a
+// sub-channel, and how someone is likely to type one). Returns NaN for
+// anything else, including a second decimal place — callers treat NaN as
+// "not a channel number" rather than silently tuning somewhere unexpected.
+export function parseChannelNumber(text) {
+  const raw = String(text == null ? '' : text).trim().replace('-', '.').replace(/\.$/, '');
+  if (!/^\d{1,3}(\.\d)?$/.test(raw)) return NaN;
+  return Math.round(parseFloat(raw) * 10) / 10;
+}
+
 // Channels shown in the time-grid guide, narrowed by S.guideFilterQuery, and
 // always excluding ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) —
 // a hidden channel is meant to read as "not in the lineup," not just

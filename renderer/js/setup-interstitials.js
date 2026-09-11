@@ -8,7 +8,7 @@
 // self-contained subsystem (own timeline canvas, own simulator) with almost
 // no coupling to the pool/preset/standby UI here beyond the shared
 // labeledField() helper (exported below for that file to reuse).
-import { addInterstitialPoolEntry, getChannel, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
+import { addInterstitialPoolEntry, formatChannelNumber, getChannel, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
 import {
   commercialsIntervalEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
   interstitialsBulkBarEl, interstitialsBulkChannelApplyBtn, interstitialsBulkChannelSelectEl,
@@ -1491,7 +1491,7 @@ function buildPresetRow(preset, idx, presets) {
   sortedChannels().forEach((c) => {
     const opt = document.createElement('option');
     opt.value = String(c.number);
-    opt.textContent = `CH ${String(c.number).padStart(2, '0')} ${c.name || 'UNTITLED'}`;
+    opt.textContent = `CH ${formatChannelNumber(c.number)} ${c.name || 'UNTITLED'}`;
     chSelect.appendChild(opt);
   });
 

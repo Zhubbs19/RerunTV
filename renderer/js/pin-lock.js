@@ -1,5 +1,5 @@
 import { playPinUnlockSound } from './audio.js';
-import { getChannel } from './channels.js';
+import { formatChannelNumber, getChannel } from './channels.js';
 import { pinDotsEl, pinLockModalEl, pinNoticeEl } from './dom.js';
 import { registerTuneGate } from './plugins.js';
 import { computeLivePosition } from './schedule.js';
@@ -29,7 +29,7 @@ export function showPinLockScreen(number) {
   S.pinTargetCh = number;
   S.pinBuffer = '';
   updatePinDisplay();
-  if (pinNoticeEl) pinNoticeEl.textContent = `PARENTAL LOCK // CH ${String(number).padStart(2, '0')} RESTRICTED`;
+  if (pinNoticeEl) pinNoticeEl.textContent = `PARENTAL LOCK // CH ${formatChannelNumber(number)} RESTRICTED`;
   if (pinLockModalEl) pinLockModalEl.classList.remove('hidden');
 }
 
