@@ -23,7 +23,11 @@ param(
   [string]$Theme = '',
   [string]$WindowSize = '',
   [string]$Script = 'theme-visual-sweep.mjs',
-  [string]$UserDataSource = ''
+  [string]$UserDataSource = '',
+  # Approve this plugin's current capabilities in the THROWAWAY copy before
+  # launching. Needed when a plugin's manifest capabilities changed, since an
+  # unapproved plugin is skipped at load and the run would test nothing.
+  [string]$PreApprovePlugin = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -120,6 +124,10 @@ try {
     }
     Write-Host "Copying audit userData from $fixtureSource into a throwaway working copy (source is never touched)..." -ForegroundColor Cyan
     Copy-UserDataConfig -SourceDir $fixtureSource -DestDir $userDataDir
+    if ($PreApprovePlugin) {
+        & node (Join-Path $PSScriptRoot 'lib\preapprove-plugin.js') $repoRoot $userDataDir $PreApprovePlugin
+        if ($LASTEXITCODE -ne 0) { throw "Pre-approving $PreApprovePlugin failed." }
+    }
     # Deliberately NOT overwriting window-state.json here (an earlier version
     # of this script did, with a hand-rolled '{"isMaximized":true,...}' that
     # omitted x/y) - main-window-state.js's boundsOnScreen() requires numeric

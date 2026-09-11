@@ -14,7 +14,7 @@
     'onPartyCheckin', 'onPartyVote', 'onPartyReaction', 'sendPartyVoteState', 'captureVideoFrame',
     'onPartyCaption', 'sendPartyTriviaState', 'onPartyTriviaAnswer', 'listDesktopSources',
     'spotifyStart', 'spotifyStop', 'spotifyGetStreamUrl', 'onSpotifyStatus', 'onSpotifyEvent',
-    'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus', 'musicChoiceScanFolder',
+    'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'sendPartyJukeboxState', 'onPartyJukeboxAdd', 'onPartyJukeboxSkipVote', 'onPartyJukeboxFun',
     'videoSplicerLaunch',
     'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'tmdbSearch', 'tmdbGetCredits',

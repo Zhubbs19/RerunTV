@@ -166,6 +166,7 @@ contextBridge.exposeInMainWorld('api', {
   youtubeStop: () => ipcRenderer.invoke('youtube:stop'),
   onYoutubeStatus: (cb) => ipcRenderer.on('youtube:status', (event, data) => cb(data)),
   musicChoiceScanFolder: (opts) => ipcRenderer.invoke('music-choice:scanFolder', opts),
+  musicChoiceEmbeddedArt: (opts) => ipcRenderer.invoke('music-choice:embeddedArt', opts),
   sendPartyJukeboxState: (state) => ipcRenderer.send('party:jukeboxState', state),
   onPartyJukeboxAdd: (cb) => ipcRenderer.on('party:jukeboxAdd', (event, data) => cb(data)),
   onPartyJukeboxSkipVote: (cb) => ipcRenderer.on('party:jukeboxSkipVote', () => cb()),

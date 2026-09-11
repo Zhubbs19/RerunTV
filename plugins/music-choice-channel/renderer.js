@@ -175,20 +175,17 @@ export function parseArtistTitle(filePath) {
 
 // ---------- Album art ----------
 // The 2000s on-screen slide carried the album cover, so a library that has
-// one should show it. This looks for a sidecar image beside the audio file —
-// the "cover.jpg next to the album" convention every ripper and tagger
-// writes — rather than reading artwork embedded in the file's own tags.
+// one should show it. Two sources, cheapest first:
 //
-// That is a deliberate limit. Reading an embedded APIC/covr frame means
-// parsing the audio file in the main process, which means widening this
-// plugin's declared IPC capability; any change to a manifest's capabilities
-// block (the `why` strings included) changes its approval signature, and a
-// plugin whose signature no longer matches is skipped entirely until the
-// user clicks approve again. Not worth forcing that prompt for a fallback,
-// so sidecar art works today and embedded art stays a separate decision.
+//   1. A sidecar image beside the audio file — the "cover.jpg next to the
+//      album" convention every ripper and tagger writes. Found by simply
+//      trying to load each candidate and taking the first that decodes, so
+//      it needs no filesystem access from the renderer at all.
+//   2. Artwork embedded in the track's own tags, read in the main process
+//      (embedded-art.js) and handed back as a data URL.
 //
-// Probing is done by simply trying to load each candidate and taking the
-// first that decodes — no filesystem access needed from the renderer at all.
+// The order matters: (1) is a handful of path checks the browser answers
+// from cache, while (2) reads the whole audio file. Most libraries hit (1).
 const ART_BASENAMES = ['cover', 'folder', 'front', 'albumart'];
 const ART_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 
@@ -249,8 +246,17 @@ export async function resolveAlbumArt(trackPath) {
       folderArtCache.set(dir, found);
     }
   }
-  trackArtCache.set(trackPath, found);
-  return found;
+  // Only now go to the file's own tags. Sidecar images are a cheap path
+  // check; reading a tag means the main process reads the whole audio file
+  // and hands back the image as base64, so it is worth doing last and worth
+  // caching per track. Unlike a folder cover, embedded art is genuinely
+  // per-track, so there is nothing to share across the album here.
+  if (!found && window.api && window.api.musicChoiceEmbeddedArt) {
+    const result = await window.api.musicChoiceEmbeddedArt({ filePath: trackPath }).catch(() => null);
+    if (result && result.art) found = result.art;
+  }
+  trackArtCache.set(trackPath, found || null);
+  return found || null;
 }
 
 // ---------- The rotating info strip ----------

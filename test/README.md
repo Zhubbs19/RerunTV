@@ -149,6 +149,18 @@ assume it hung if it's still running after a few minutes.
 - `lib/cdp.mjs` — minimal CDP client (no npm deps; Node 22's built-in
   `fetch`/`WebSocket` are enough). Only implements the handful of domains
   this suite needs — not a general-purpose library.
+- `lib/preapprove-plugin.js` — writes a plugin's current capability
+  signature into a throwaway config, behind `theme-visual-sweep.ps1`'s
+  `-PreApprovePlugin <id>`. Needed whenever a plugin manifest's
+  `capabilities` block changed: any edit there (the `why` strings included)
+  changes its approval signature, and an unapproved plugin is skipped at
+  load, so a run without this silently tests a plugin that never activated.
+  Only ever point it at a throwaway copy.
+- `verify-embedded-art.js` — plain `node test/verify-embedded-art.js`, no
+  Electron. Unit checks for the music-choice plugin's tag parser (ID3v2.2/
+  2.3/2.4, FLAC, MP4) against hand-built tags, including malformed input
+  that must return null rather than throw. Byte parsing is easy to regress
+  and cheap to cover, so this is tracked rather than left as scratch.
 - `fixtures/` — tiny synthesized PNGs used as stand-ins for real media.
   Regenerate with `node test/fixtures/make-fixtures.js` if ever missing.
 - `screenshots/` — output, one PNG per step (plus `-scrolled` companions for
