@@ -615,6 +615,34 @@ input[type="checkbox"].shuffle-toggle:active {
   box-shadow: var(--bevel-raised), 0 0 8px rgba(var(--gold-rgb), 0.5);
 }
 
+/* PLUGIN CHANNELS section — setup-channels.js's renderPluginChannelSection.
+   A plugin channel row reuses .channel-row (and its input styling, above)
+   for the same panel look, but overrides the badge/num/name grid-template
+   this class otherwise imposes: there's no path/now/acts/opts content for a
+   plugin channel, just a badge + number + name + id label + one toggle
+   button, so this flattens it to a simple wrapping flex row instead. */
+.plugin-channel-section-heading {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+  padding: 18px 2px 4px;
+}
+.channel-row.plugin-channel-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.plugin-channel-row input[type="number"] { width: 72px; }
+.plugin-channel-row input[type="text"] { flex: 1 1 200px; min-width: 120px; }
+.plugin-channel-id-label {
+  font-size: 11px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+
 .edit-panel { padding: 0; gap: 0; }
 
 .edit-header-row {

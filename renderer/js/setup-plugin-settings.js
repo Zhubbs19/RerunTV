@@ -17,7 +17,11 @@ function appendSelectOptions(select, options) {
   });
 }
 
-function renderChannelDisplaySettings(container, pluginId, channelDefinition) {
+// Exported for reuse by setup-channels.js's PLUGIN CHANNELS section (the
+// same RESOLUTION/DISPLAY ASPECT override UI a channel-type plugin already
+// gets in its own PLUGINS-tab row, surfaced again next to the plugin's
+// name/number override there so both live together in the channel list).
+export function renderChannelDisplaySettings(container, pluginId, channelDefinition) {
   const values = getPluginChannelDisplaySettings(pluginId, channelDefinition);
   container.innerHTML = `
     <label class="panel-toggle" style="cursor:default;">CHANNEL DISPLAY</label>

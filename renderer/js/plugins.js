@@ -104,9 +104,42 @@ export function getRendererService(id) {
   return rendererServiceRegistry.get(id) || null;
 }
 
+// A plugin channel's authored `number`/`label` are just defaults — the
+// Channel Setup screen's PLUGIN CHANNELS section (setup-channels.js) lets a
+// user rename/renumber one the same way a real channel row does, without
+// touching the plugin's own code or its dedicated PLUGINS-tab settings.
+// Stored in the same generic per-plugin namespace as channelDisplay above,
+// so it survives config export/import and undo/redo like everything else
+// that flows through updatePluginSettings.
+export function getPluginChannelOverride(id, definition = getPluginChannelType(id)) {
+  const stored = getPluginSettings(id).channelOverride;
+  const hasStored = stored && typeof stored === 'object' && !Array.isArray(stored);
+  const hasName = hasStored && typeof stored.name === 'string' && stored.name.trim();
+  const hasNumber = hasStored && Number.isInteger(stored.number);
+  return {
+    name: hasName ? stored.name.trim() : ((definition && definition.label) || id),
+    number: hasNumber ? stored.number : ((definition && definition.number) || 0),
+  };
+}
+
+export function updatePluginChannelOverride(id, patch) {
+  const previous = getPluginSettings(id);
+  const channelOverride = previous.channelOverride && typeof previous.channelOverride === 'object' && !Array.isArray(previous.channelOverride)
+    ? previous.channelOverride
+    : {};
+  return updatePluginSettings(id, { channelOverride: { ...channelOverride, ...patch } });
+}
+
+// The channel number actually in effect for a registered channel-type plugin
+// right now — its own definition.number, unless the user has overridden it
+// via getPluginChannelOverride above. Every place that needs to know "what
+// number does this plugin currently live at" (virtual.js's guide/tune-in
+// logic, display-mode.js's per-channel override lookup) goes through this
+// single function rather than reading definition.number directly, so an
+// override takes effect everywhere consistently.
 export function getPluginChannelEntryForNumber(number) {
   for (const [id, definition] of channelTypeRegistry) {
-    if (definition.number === number) return { id, definition };
+    if (getPluginChannelOverride(id, definition).number === number) return { id, definition };
   }
   return null;
 }

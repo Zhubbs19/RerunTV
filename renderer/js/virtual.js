@@ -3,7 +3,9 @@ import {
   guideOverlay, noSignalEl, player, pluginChannelContainerEl,
 } from './dom.js';
 import { S } from './state.js';
-import { getPluginChannelType, pluginChannelTypeIds } from './plugins.js';
+import {
+  getPluginChannelEntryForNumber, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds,
+} from './plugins.js';
 import { autoHideAfter } from './util.js';
 
 // The plugin channel currently rendered into pluginChannelContainerEl (if
@@ -11,12 +13,12 @@ import { autoHideAfter } from './util.js';
 // needs its own type id, not just "something was showing".
 let activePluginChannelId = null;
 
+// Delegates to plugins.js's shared lookup so a user-set channel-number
+// override (Channel Setup's PLUGIN CHANNELS section) is honored everywhere
+// a plugin channel's live number is asked about, not just here.
 function pluginTypeForNumber(number) {
-  for (const id of pluginChannelTypeIds()) {
-    const def = getPluginChannelType(id);
-    if (def && def.number === number) return { id, def };
-  }
-  return null;
+  const entry = getPluginChannelEntryForNumber(number);
+  return entry ? { id: entry.id, def: entry.definition } : null;
 }
 
 // Finds whichever registered channel type both (a) declares the optional
@@ -30,7 +32,7 @@ function pluginTypeForNumber(number) {
 export function findLiveViewerLinkChannelType() {
   for (const id of pluginChannelTypeIds()) {
     const def = getPluginChannelType(id);
-    if (def && def.viewerLink && isVirtualChannel(def.number)) return def;
+    if (def && def.viewerLink && isVirtualChannel(getPluginChannelOverride(id, def).number)) return def;
   }
   return null;
 }
@@ -68,11 +70,20 @@ export function triggerVirtualChannelKey(number, key) {
 
 export function virtualChannelNumbers() {
   const nums = [];
+  const seen = new Set();
   pluginChannelTypeIds().forEach((id) => {
     const def = getPluginChannelType(id);
     if (!def || !Number.isInteger(def.number)) return;
     if (typeof def.enabled === 'function' && !def.enabled(window.RCBPlugins.ctx)) return;
-    nums.push(def.number);
+    // A user-set number override (getPluginChannelOverride, plugins.js) wins
+    // over the plugin's own authored default. If two plugin channels somehow
+    // land on the same effective number (e.g. an override collides with
+    // another plugin's default), first-registered wins rather than showing
+    // the same guide slot twice.
+    const n = getPluginChannelOverride(id, def).number;
+    if (seen.has(n)) return;
+    seen.add(n);
+    nums.push(n);
   });
 
   // Real user media channels ALWAYS take 100% priority over system virtual channels!
@@ -94,7 +105,7 @@ export function virtualChannelInfo(number) {
     // blurb changes with runtime state, a function evaluated fresh on every
     // guide-overlay render.
     const nowText = typeof plugin.def.nowText === 'function' ? plugin.def.nowText() : (plugin.def.nowText || '');
-    return { number, name: plugin.def.label || plugin.id, nowText };
+    return { number, name: getPluginChannelOverride(plugin.id, plugin.def).name, nowText };
   }
   return { number, name: `CH ${number}`, nowText: '' };
 }

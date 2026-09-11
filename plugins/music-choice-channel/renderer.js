@@ -311,6 +311,13 @@ function browserMove(ctx, dir) {
 window.RCBPlugins.registerChannelType('music-choice-channel', {
   number: CHANNEL_NUMBER,
   label: 'MUSIC CHOICE',
+  // Internally compares window.S.currentNumber against the CHANNEL_NUMBER
+  // constant above rather than reading a live effective number, so a
+  // user-set number override (Channel Setup's PLUGIN CHANNELS section)
+  // would desync this plugin's own tuned-in checks from the real number it
+  // got moved to. Opt out of that override's number field until this
+  // plugin reads its live number dynamically instead.
+  numberLocked: true,
   get nowText() {
     const station = selectedStation();
     return station ? station.name : 'No stations configured';

@@ -656,6 +656,13 @@ window.RCBPlugins.registerChannelType('party-channel', {
   label: 'PARTY',
   nowText: () => (window.S.partyCurrentItem ? 'Live from your phones' : 'Scan to join'),
   badge: { bg: '#9333ea', label: 'PARTY' },
+  // Internally compares S.currentNumber against the PARTY_CH constant above
+  // in many places (vote board, idle screen, item advancement) rather than
+  // reading a live effective number, so a user-set number override
+  // (Channel Setup's PLUGIN CHANNELS section) would desync all of that from
+  // the real number it got moved to. Opt out of that override's number
+  // field until this plugin reads its live number dynamically instead.
+  numberLocked: true,
   // Compatibility defaults for configs saved before core-owned channel
   // settings existed. A value chosen in the generated CHANNEL DISPLAY
   // section is stored under config.pluginSettings and wins over these.

@@ -28,7 +28,10 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
 import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './setup-util.js';
-import { getMediaSourcePicker } from './plugins.js';
+import {
+  getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
+} from './plugins.js';
+import { renderChannelDisplaySettings } from './setup-plugin-settings.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
 import { BADGE_COLORS, S, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
@@ -1127,7 +1130,148 @@ export function renderChannelList() {
       channelListEl.appendChild(row);
       channelListEl.appendChild(editPanel);
     });
+  renderPluginChannelSection();
   renderBulkActionsBar();
+}
+
+// Per-plugin-channel expand state — mirrors openChannelEditTabs' role for
+// real channels below, but there's only ever one panel (CHANNEL DISPLAY) per
+// plugin channel today, so this only needs to remember open/closed.
+const openPluginChannelPanels = new Set();
+
+// A registerChannelType channel (Music Choice, Party, Prevue, Public Access,
+// etc. — plugins.js) has no entry in S.config.channels at all (see that
+// file's registerChannelType doc comment and virtual.js) — its content comes
+// entirely from the plugin's own render(), not from folders/files/a
+// schedule. So unlike a real channel row above, this section only exposes
+// what actually applies to a plugin channel: renaming/renumbering it (backed
+// by getPluginChannelOverride/updatePluginChannelOverride, plugins.js) and
+// the same CHANNEL DISPLAY resolution/aspect override its PLUGINS-tab
+// settings row already offers (renderChannelDisplaySettings, imported from
+// setup-plugin-settings.js) — no FOLDERS/SCHEDULE/TITLES/ADS tabs, since
+// none of those concepts exist for a plugin-supplied channel.
+function renderPluginChannelSection() {
+  const ids = pluginChannelTypeIds();
+  if (!ids.length) return;
+
+  const realNums = new Set((S.config.channels || []).map((c) => c.number));
+  const entries = ids
+    .map((id) => ({ id, def: getPluginChannelType(id) }))
+    .filter(({ def }) => !!def)
+    .map(({ id, def }) => ({ id, def, override: getPluginChannelOverride(id, def) }))
+    // A real user channel at the same number always wins (same priority
+    // rule as virtual.js's virtualChannelNumbers) — that real channel is
+    // already shown, edited, and tuned to above; showing a second,
+    // currently-inert row for the plugin it's shadowing would just confuse
+    // "which one is actually live right now".
+    .filter(({ override }) => !realNums.has(override.number));
+
+  const q = (S.setupFilterQuery || '').trim().toLowerCase();
+  const list = q
+    ? entries.filter(({ override }) => override.name.toLowerCase().includes(q) || String(override.number).includes(q))
+    : entries;
+  if (!list.length) return;
+
+  list.sort((a, b) => a.override.number - b.override.number);
+
+  const heading = document.createElement('div');
+  heading.className = 'plugin-channel-section-heading';
+  heading.textContent = 'PLUGIN CHANNELS';
+  channelListEl.appendChild(heading);
+
+  const note = document.createElement('span');
+  note.className = 'panel-status';
+  note.textContent = 'Provided by an installed plugin — content comes from the plugin itself, so only its name, channel number, and display can be changed here.';
+  channelListEl.appendChild(note);
+
+  list.forEach(({ id, def, override }) => {
+    const row = document.createElement('div');
+    row.className = 'channel-row plugin-channel-row';
+    row.dataset.channelNumber = String(override.number);
+
+    const badge = document.createElement('div');
+    badge.className = 'channel-badge';
+    const badgeInfo = def.badge || { bg: '#3b82f6', label: String(override.number) };
+    badge.style.background = badgeInfo.bg;
+    badge.textContent = badgeInfo.label;
+    row.appendChild(badge);
+
+    const numInput = document.createElement('input');
+    numInput.type = 'number';
+    numInput.min = 0;
+    numInput.value = override.number;
+    numInput.setAttribute('aria-label', 'Channel number');
+    if (def.numberLocked) {
+      // Some plugins (music-choice-channel, party-channel) internally
+      // compare S.currentNumber against their OWN hardcoded channel-number
+      // constant rather than reading a live effective number — renumbering
+      // them here would desync those internal checks from the number the
+      // channel actually moved to. See each plugin's registerChannelType
+      // call for the specifics; this is an opt-out, not a core limitation.
+      numInput.disabled = true;
+      numInput.title = "This plugin's channel number can't be changed — its own code depends on staying at this number.";
+    } else {
+      numInput.addEventListener('change', () => {
+        const v = parseInt(numInput.value, 10);
+        if (Number.isNaN(v) || v < 0 || v === override.number) { numInput.value = override.number; return; }
+        const inUse = realNums.has(v) || ids.some((otherId) => {
+          if (otherId === id) return false;
+          const otherDef = getPluginChannelType(otherId);
+          return otherDef && getPluginChannelOverride(otherId, otherDef).number === v;
+        });
+        if (inUse) {
+          scanProgressEl.classList.remove('hidden');
+          scanProgressEl.textContent = `CH ${v} IS ALREADY IN USE`;
+          setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+          numInput.value = override.number;
+          return;
+        }
+        updatePluginChannelOverride(id, { number: v });
+        renderChannelList();
+      });
+    }
+    row.appendChild(numInput);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'CHANNEL NAME';
+    nameInput.value = override.name;
+    // Unlike a real channel's name field (which mutates ch.name directly and
+    // lets saveConfigDebounced() alone persist it), there's no live object
+    // reference to mutate here — updatePluginChannelOverride always writes
+    // straight to config. Deliberately not re-rendering the list on every
+    // keystroke (only on blur/Enter's 'change') so the input doesn't lose
+    // focus mid-type.
+    nameInput.addEventListener('change', () => {
+      updatePluginChannelOverride(id, { name: nameInput.value.trim() || null });
+    });
+    row.appendChild(nameInput);
+
+    const idLabel = document.createElement('span');
+    idLabel.className = 'plugin-channel-id-label';
+    idLabel.textContent = `PLUGIN: ${id}`;
+    row.appendChild(idLabel);
+
+    const displayToggle = document.createElement('button');
+    displayToggle.className = 'btn';
+    displayToggle.textContent = openPluginChannelPanels.has(id) ? 'DISPLAY ▲' : 'DISPLAY ▾';
+    row.appendChild(displayToggle);
+
+    channelListEl.appendChild(row);
+
+    const displayPanel = document.createElement('div');
+    displayPanel.className = 'titles-panel edit-panel' + (openPluginChannelPanels.has(id) ? '' : ' hidden');
+    channelListEl.appendChild(displayPanel);
+    if (openPluginChannelPanels.has(id)) renderChannelDisplaySettings(displayPanel, id, def);
+
+    displayToggle.addEventListener('click', () => {
+      const nowOpen = !openPluginChannelPanels.has(id);
+      if (nowOpen) openPluginChannelPanels.add(id); else openPluginChannelPanels.delete(id);
+      displayPanel.classList.toggle('hidden', !nowOpen);
+      displayToggle.textContent = nowOpen ? 'DISPLAY ▲' : 'DISPLAY ▾';
+      if (nowOpen) renderChannelDisplaySettings(displayPanel, id, def);
+    });
+  });
 }
 
 // Bulk-select mode's action bar — visible only once at least one channel is

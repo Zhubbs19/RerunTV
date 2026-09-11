@@ -593,6 +593,29 @@ the plugin should not duplicate them in its own settings UI. A channel can
 provide `resolutionOverride` / `displayAspectOverride` on its definition as
 backward-compatible initial defaults, but an explicit saved user choice wins.
 
+`number`/`label` above are just your plugin's defaults, not guarantees — the
+Channel Setup screen's **PLUGIN CHANNELS** section lets a user rename or
+renumber your channel (persisted under
+`S.config.pluginSettings[id].channelOverride`, same pattern as
+`channelDisplay`). Every core lookup of "what number/name is this channel
+right now" (the guide, tune-in, `getPluginChannelEntryForNumber`) already
+resolves through that override, so if your own code only ever compares
+against `S.currentNumber`/`window.S.currentNumber` (rather than closing over
+your own `number` at registration time in a module-level constant), renumbering
+just works with no changes on your end.
+
+If your plugin DOES keep its own channel number in a constant and compares
+`S.currentNumber` against it directly (e.g. to decide "am I the currently
+tuned channel" inside a timer or event handler) — like `music-choice-channel`
+and `party-channel` both do today — a renumber would desync that comparison
+from the real number the channel got moved to, silently breaking your
+plugin while it still appears in the guide under its new number. Until you
+fix that (read the live number instead of a hardcoded constant), set
+`numberLocked: true` on your `registerChannelType` definition to hide the
+number field in the PLUGIN CHANNELS section rather than shipping a plugin
+that can be renumbered into breaking itself. Renaming (the label) has no
+such hazard and is always safe to leave enabled.
+
 `ctx` passed to `render`/`stop`/`onOk`/`onKey` is `{ S, viewNow, player }`:
 
 - `S` — the live, mutable app-state object. `S.config` is the whole user
