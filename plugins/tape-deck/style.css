@@ -292,6 +292,23 @@
   padding-top: 0.35rem;
 }
 
+/* A disc actually in a drive, as opposed to a recording on the shelf. An
+   unprinted case, because nothing has been read off it yet and pretending
+   otherwise would be inventing artwork the disc never had. */
+.tape-case--live .tape-case-face {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.03) 0 8px,
+      rgba(255, 255, 255, 0) 8px 16px
+    ),
+    linear-gradient(160deg, #1c1f26 0%, #121419 100%);
+  border-left-color: #8a8a94;
+  border-style: dashed;
+}
+
+.tape-case--live .tape-case-title { color: var(--deck-amber); }
+
 /* ---------- the machine ---------- */
 
 .tape-machine {

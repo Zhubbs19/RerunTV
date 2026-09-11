@@ -8,6 +8,28 @@
 // renderer service the deck registers, so the planner has exactly one home.
 const PLUGIN_ID = 'tape-deck';
 
+// A settings SECTION gets a much narrower ctx than a channel does — see
+// renderPluginSettings (setup-plugin-settings.js). Its `ctx.settings` is the
+// stored VALUES, not a namespace of functions, and there is no ctx.channels
+// at all. Worse for a panel like this one, those values are a snapshot taken
+// when the section was rendered, so a painter that redraws itself after a
+// write would read back what was there before it.
+//
+// Both problems go away by reading and writing through the renderer-wide ctx,
+// which is always current — the same thing film-reel-marks and
+// music-choice-channel do for the same reason.
+function core() {
+  return window.RCBPlugins.ctx;
+}
+
+function readSettings() {
+  return core().settings.getPluginSettings(PLUGIN_ID) || {};
+}
+
+function writeSettings(patch) {
+  core().settings.updatePluginSettings(PLUGIN_ID, patch);
+}
+
 // Mirrors the renderer's own table for labels and running times. Kept short
 // on purpose: the authoritative capacity check lives in renderer.js and the
 // encode settings in main.js, and this only needs enough to fill a dropdown.
@@ -55,8 +77,8 @@ function toLocalInputValue(ms) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function settingsOf(ctx) {
-  const cfg = ctx.settings.getPluginSettings(PLUGIN_ID) || {};
+function settingsOf() {
+  const cfg = readSettings();
   const known = MODE_LABELS.map(([id]) => id);
   return {
     format: cfg.format === 'dvd' ? 'dvd' : 'vhs',
@@ -69,14 +91,20 @@ function settingsOf(ctx) {
   };
 }
 
-function soundsOf(ctx) {
-  const stored = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).sounds;
+function soundsOf() {
+  const stored = readSettings().sounds;
   return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
 }
 
-function animationsOf(ctx) {
-  const stored = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).animations;
+function animationsOf() {
+  const stored = readSettings().animations;
   return stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+}
+
+// Loose on purpose: comparing two folder paths for a UI hint, where Windows
+// differs in case and separator without meaning anything by it.
+function normalizePath(value) {
+  return String(value || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
 }
 
 // The file picker returns a full path; only its last segment is worth showing
@@ -85,8 +113,8 @@ function basenameOf(filePath) {
   return String(filePath || '').split(/[\\/]/).pop();
 }
 
-function recordableChannels(ctx) {
-  return ctx.channels.sortedChannels().filter((channel) => !channel.hidden && (channel.files || []).length);
+function recordableChannels() {
+  return core().channels.sortedChannels().filter((channel) => !channel.hidden && (channel.files || []).length);
 }
 
 function tapeLine(tape) {
@@ -102,7 +130,7 @@ function tapeLine(tape) {
 
 // Draws the sound-slot rows. Standalone, like every other painter here, so a
 // handler can redraw through the exact path that drew it.
-function paintSounds(container, ctx) {
+function paintSounds(container) {
   const service = deckService();
   if (!service || typeof service.soundSlots !== 'function') {
     container.innerHTML = '<span class="panel-status">The tape deck channel has not loaded — is the plugin enabled?</span>';
@@ -111,7 +139,7 @@ function paintSounds(container, ctx) {
   // The slot list comes from the deck itself rather than being restated
   // here, so adding a sound never means editing two files.
   const slots = service.soundSlots();
-  const chosen = soundsOf(ctx);
+  const chosen = soundsOf();
   container.innerHTML = `
     <span class="panel-status">Every noise the machine makes has a built-in default, synthesized from the app's own sound primitives — nothing needs to be supplied for the deck to sound like a deck. Point a slot at your own recording and it plays instead. A file that will not load falls back to its default rather than going silent.</span>
     ${slots.map(({ id, label }) => `
@@ -128,10 +156,10 @@ function paintSounds(container, ctx) {
   container.querySelectorAll('[data-slot]').forEach((row) => {
     const slot = row.getAttribute('data-slot');
     const save = (value) => {
-      const next = { ...soundsOf(ctx) };
+      const next = { ...soundsOf() };
       if (value) next[slot] = value; else delete next[slot];
-      ctx.settings.updatePluginSettings(PLUGIN_ID, { sounds: next });
-      paintSounds(container, ctx);
+      writeSettings({ sounds: next });
+      paintSounds(container);
     };
     row.querySelector('[data-el="choose"]').addEventListener('click', async () => {
       const picked = await window.api.selectAudio();
@@ -144,14 +172,14 @@ function paintSounds(container, ctx) {
 }
 
 // Draws the animation-slot rows.
-function paintAnimations(container, ctx) {
+function paintAnimations(container) {
   const service = deckService();
   if (!service || typeof service.animationSlots !== 'function') {
     container.innerHTML = '<span class="panel-status">The tape deck channel has not loaded — is the plugin enabled?</span>';
     return;
   }
   const slots = service.animationSlots();
-  const chosen = animationsOf(ctx);
+  const chosen = animationsOf();
   container.innerHTML = `
     <span class="panel-status">The three moments the machine does something on its own. Each has a built-in animation; supply your own picture and it plays over the top for that phase. Use an animated GIF, APNG or WebP — an image rather than a video, so nothing competes with the player about to be handed a file.</span>
     ${slots.map(({ id, label, defaultMs }) => {
@@ -175,12 +203,12 @@ function paintAnimations(container, ctx) {
     const slot = row.getAttribute('data-slot');
     const defaultMs = (slots.find((entry) => entry.id === slot) || {}).defaultMs;
     const save = (patch) => {
-      const next = { ...animationsOf(ctx) };
+      const next = { ...animationsOf() };
       const merged = { ...(next[slot] || {}), ...patch };
       if (!merged.path && !Number.isFinite(merged.ms)) delete next[slot];
       else next[slot] = merged;
-      ctx.settings.updatePluginSettings(PLUGIN_ID, { animations: next });
-      paintAnimations(container, ctx);
+      writeSettings({ animations: next });
+      paintAnimations(container);
     };
     row.querySelector('[data-el="choose"]').addEventListener('click', async () => {
       const picked = await window.api.selectImage();
@@ -195,18 +223,62 @@ function paintAnimations(container, ctx) {
       save({ ms: value });
     });
     row.querySelector('[data-el="reset"]').addEventListener('click', () => {
-      const next = { ...animationsOf(ctx) };
+      const next = { ...animationsOf() };
       delete next[slot];
-      ctx.settings.updatePluginSettings(PLUGIN_ID, { animations: next });
-      paintAnimations(container, ctx);
+      writeSettings({ animations: next });
+      paintAnimations(container);
     });
+  });
+}
+
+// Draws the disc section: what is in a drive right now, and the option to
+// point at a VIDEO_TS folder instead.
+async function paintDiscs(container) {
+  const chosen = readSettings().discFolder || '';
+  let drives = [];
+  if (typeof window.api.checkPathsExist === 'function') {
+    const letters = 'DEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    try {
+      const found = await window.api.checkPathsExist(letters.map((l) => `${l}:\\VIDEO_TS\\VIDEO_TS.IFO`));
+      drives = letters.filter((l, i) => found[i]);
+    } catch (e) {
+      drives = [];
+    }
+  }
+  container.innerHTML = `
+    <span class="panel-status">A DVD shows up on CH 101 next to your tapes. Choose it there and the deck reads what is on the disc, then keeping a title copies it to the shelf as an ordinary tape — with its own chapters, taken from the disc's own tables.</span>
+    <div class="panel-interval">
+      <span>IN A DRIVE NOW</span>
+      <span class="panel-status" data-el="drives">${drives.length ? drives.map((l) => `${escapeHtml(l)}:`).join(', ') : 'NO DISC FOUND'}</span>
+      <button class="btn" data-el="rescan">LOOK AGAIN</button>
+    </div>
+    <div class="panel-interval" style="gap:6px;flex-wrap:wrap">
+      <span>OR A VIDEO_TS FOLDER</span>
+      <span class="panel-status" style="min-width:16rem">${chosen ? escapeHtml(chosen) : 'NONE'}</span>
+      <button class="btn" data-el="choose">CHOOSE FOLDER</button>
+      <button class="btn remove-btn" data-el="clear"${chosen ? '' : ' disabled'}>CLEAR</button>
+    </div>
+    <span class="panel-status">An ISO works the same way once it is mounted — on Windows, double-click it and it appears as a drive. Mounting is left to the system on purpose, so the deck needs no extra permission to do it.</span>
+    <span class="panel-status">Two limits worth knowing. Commercially pressed discs are encrypted and this does not decrypt them, so those will not read; home-authored and unprotected discs will. And the menu you get is built from the disc's own title and chapter structure rather than being the disc's pressed menu, which would need a subpicture decoder and the disc's own bytecode interpreter.</span>
+  `;
+  container.querySelector('[data-el="rescan"]').addEventListener('click', () => paintDiscs(container));
+  container.querySelector('[data-el="choose"]').addEventListener('click', async () => {
+    const picked = await window.api.selectFolder();
+    // A cancelled picker is not a request to clear the folder.
+    if (!picked) return;
+    writeSettings({ discFolder: picked });
+    paintDiscs(container);
+  });
+  container.querySelector('[data-el="clear"]').addEventListener('click', () => {
+    writeSettings({ discFolder: '' });
+    paintDiscs(container);
   });
 }
 
 // Draws the shelf of finished tapes and their artwork. Standalone rather than
 // a section method so every handler below can redraw through the exact path
 // that drew the list, and the panel and the disk never disagree.
-async function paintLibrary(container, ctx) {
+async function paintLibrary(container) {
   container.innerHTML = '<span class="panel-status">Reading the tape shelf…</span>';
   if (typeof window.api.tapesList !== 'function') {
     container.innerHTML = '<span class="panel-status">The tape shelf is only readable on the machine running RerunTV.</span>';
@@ -220,8 +292,25 @@ async function paintLibrary(container, ctx) {
     return;
   }
   const tapes = (result && result.tapes) || [];
+  let status = {};
+  try { status = await window.api.tapesStatus(); } catch (e) { status = {}; }
+  const chosen = readSettings().tapesDir || '';
+  // Compared here rather than asked of the recorder: this side holds the
+  // value that was just written, while the recorder can only re-read a
+  // config whose save is debounced. Loose comparison on purpose — this is a
+  // UI hint, and Windows paths differ in case and separator without meaning
+  // anything.
+  const folderPending = !!chosen && !!status.folder && normalizePath(chosen) !== normalizePath(status.folder);
   container.innerHTML = `
-    <span class="panel-status">${tapes.length ? `${tapes.length} TAPE${tapes.length === 1 ? '' : 'S'}.` : 'No recordings yet.'} Tapes live in <code>${escapeHtml((result && result.folder) || '')}</code> and play on CH 101.</span>
+    <span class="panel-status">${tapes.length ? `${tapes.length} TAPE${tapes.length === 1 ? '' : 'S'}.` : 'No recordings yet.'} Tapes are being written to <code>${escapeHtml((result && result.folder) || '')}</code> and play on CH 101.</span>
+    <div class="panel-interval" style="gap:6px;flex-wrap:wrap">
+      TAPE FOLDER
+      <span class="panel-status" style="min-width:16rem">${chosen ? escapeHtml(chosen) : 'THE PLUGIN&rsquo;S OWN FOLDER'}</span>
+      <button class="btn" data-el="choose-dir">CHOOSE FOLDER</button>
+      <button class="btn remove-btn" data-el="default-dir"${chosen ? '' : ' disabled'}>USE THE DEFAULT</button>
+    </div>
+    ${folderPending ? '<span class="panel-status">That folder takes effect after a restart. Until then tapes keep going to the folder above — the deck is sandboxed, and the folders it may write to are fixed when the app starts.</span>' : ''}
+    <span class="panel-status">Moving the folder does not move the tapes already in the old one. Copy them across yourself if you want them on the shelf.</span>
     <span class="panel-status">Artwork is optional and per tape. FRONT and BACK are the two faces of its case — press D on CH 101 to turn a case over. CASSETTE / DISC LABEL is the picture on the physical media itself, which shows on the cassette or disc lying in the open case, and again on it as it goes into the deck. Cassette colour tints the shell and the case spine; a disc ignores it.</span>
     ${tapes.map((tape) => `
       <div class="panel-body" data-tape="${escapeHtml(tape.id)}" style="margin-bottom:10px">
@@ -240,6 +329,18 @@ async function paintLibrary(container, ctx) {
     `).join('')}
   `;
 
+  container.querySelector('[data-el="choose-dir"]').addEventListener('click', async () => {
+    const picked = await window.api.selectFolder();
+    // A cancelled picker is not a request to reset to the default.
+    if (!picked) return;
+    writeSettings({ tapesDir: picked });
+    paintLibrary(container);
+  });
+  container.querySelector('[data-el="default-dir"]').addEventListener('click', () => {
+    writeSettings({ tapesDir: '' });
+    paintLibrary(container);
+  });
+
   container.querySelectorAll('[data-tape]').forEach((row) => {
     const id = row.getAttribute('data-tape');
     const apply = async (art) => {
@@ -248,7 +349,7 @@ async function paintLibrary(container, ctx) {
         row.insertAdjacentHTML('beforeend', `<span class="panel-status">${escapeHtml(outcome.error)}</span>`);
         return;
       }
-      paintLibrary(container, ctx);
+      paintLibrary(container);
     };
     row.querySelectorAll('[data-art]').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -269,7 +370,7 @@ async function paintLibrary(container, ctx) {
       button.disabled = true;
       button.textContent = 'ERASING…';
       await window.api.tapesDelete(id);
-      paintLibrary(container, ctx);
+      paintLibrary(container);
     });
   });
 }
@@ -286,6 +387,8 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
     scheduled: [],
     sounds: {},
     animations: {},
+    tapesDir: '',
+    discFolder: '',
   },
   validate(values) {
     const errors = [];
@@ -299,13 +402,15 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
     const isMap = (v) => v == null || (typeof v === 'object' && !Array.isArray(v));
     if (!isMap(values.sounds)) errors.push('sounds must be an object of slot -> file path');
     if (!isMap(values.animations)) errors.push('animations must be an object of slot -> {path, ms}');
+    if (values.tapesDir != null && typeof values.tapesDir !== 'string') errors.push('tapesDir must be a folder path');
+    if (values.discFolder != null && typeof values.discFolder !== 'string') errors.push('discFolder must be a folder path');
     return errors;
   },
   sections: [
     {
       id: 'deck',
-      async render(container, ctx) {
-        const cfg = settingsOf(ctx);
+      async render(container) {
+        const cfg = settingsOf();
         const missing = typeof window.api.tapesRecord !== 'function';
         // Asked rather than assumed: only the recorder's own process can see
         // whether ffmpeg actually resolved, and reporting it here beats
@@ -373,7 +478,7 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
         ontoEl.value = cfg.recordOnto;
         degradeEl.value = cfg.degrade;
 
-        const save = (patch) => ctx.settings.updatePluginSettings(PLUGIN_ID, patch);
+        const save = (patch) => writeSettings(patch);
         modeEl.addEventListener('change', () => save({ recordMode: modeEl.value }));
         qualityEl.addEventListener('change', () => save({ quality: qualityEl.value }));
         formatEl.addEventListener('change', () => save({ format: formatEl.value === 'dvd' ? 'dvd' : 'vhs' }));
@@ -390,8 +495,8 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
     },
     {
       id: 'record-now',
-      async render(container, ctx) {
-        const channels = recordableChannels(ctx);
+      async render(container) {
+        const channels = recordableChannels();
         const nowMs = Date.now(); // seeding a form field with the wall clock, not a schedule read
         let tapes = [];
         if (typeof window.api.tapesList === 'function') {
@@ -433,21 +538,21 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
         const statusEl = q('status');
         const timersEl = q('timers');
         startEl.value = toLocalInputValue(nowMs);
-        lengthEl.value = settingsOf(ctx).defaultMinutes;
+        lengthEl.value = settingsOf().defaultMinutes;
 
         if (!channels.length) {
           statusEl.textContent = 'No channel has any content yet — add files to a channel first.';
         }
 
         const readRange = () => {
-          const channel = ctx.channels.getChannel(Number(channelEl.value));
+          const channel = core().channels.getChannel(Number(channelEl.value));
           const startMs = new Date(startEl.value).getTime();
           const minutes = Math.min(480, Math.max(1, Math.round(Number(lengthEl.value)) || 30));
           return { channel, startMs, minutes, overwriteId: ontoEl.value || null };
         };
 
         function paintTimers() {
-          const { scheduled } = settingsOf(ctx);
+          const { scheduled } = settingsOf();
           const pending = scheduled.filter((entry) => entry && !entry.done);
           if (!pending.length) { timersEl.innerHTML = ''; return; }
           timersEl.innerHTML = `
@@ -462,8 +567,8 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
           timersEl.querySelectorAll('[data-cancel]').forEach((button) => {
             button.addEventListener('click', () => {
               const id = button.getAttribute('data-cancel');
-              const next = settingsOf(ctx).scheduled.filter((entry) => entry.id !== id);
-              ctx.settings.updatePluginSettings(PLUGIN_ID, { scheduled: next });
+              const next = settingsOf().scheduled.filter((entry) => entry.id !== id);
+              writeSettings({ scheduled: next });
               paintTimers();
             });
           });
@@ -497,8 +602,8 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
             overwriteId,
             done: false,
           };
-          const next = settingsOf(ctx).scheduled.concat([entry]);
-          ctx.settings.updatePluginSettings(PLUGIN_ID, { scheduled: next });
+          const next = settingsOf().scheduled.concat([entry]);
+          writeSettings({ scheduled: next });
           statusEl.textContent = `Timer set for ${new Date(startMs).toLocaleString()}.`;
           paintTimers();
         });
@@ -508,16 +613,20 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
     },
     {
       id: 'sounds',
-      render(container, ctx) { paintSounds(container, ctx); },
+      render(container) { paintSounds(container); },
     },
     {
       id: 'animations',
-      render(container, ctx) { paintAnimations(container, ctx); },
+      render(container) { paintAnimations(container); },
+    },
+    {
+      id: 'discs',
+      render(container) { paintDiscs(container); },
     },
     {
       id: 'library',
-      render(container, ctx) {
-        paintLibrary(container, ctx);
+      render(container) {
+        paintLibrary(container);
       },
     },
   ],

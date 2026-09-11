@@ -28,7 +28,7 @@ const { activateIsolatedPlugin, callAnyService, claimServiceKey } = require('./m
 const { isPathContained } = require('./main-path-safety');
 const { createLanAccess, isLanServiceEnabled } = require('./main-lan-security');
 const {
-  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
+  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor, resolveUserPaths,
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./main-plugin-capabilities');
 const { recordDiagnostic } = require('./main-diagnostics');
@@ -321,6 +321,7 @@ function discoverPlugins() {
         // field to carry the folder along during the portable-userData
         // migration.
         dataDir: typeof manifest.dataDir === 'string' ? manifest.dataDir : null,
+        userPaths: typeof manifest.userPaths === 'string' ? manifest.userPaths : null,
         // What this plugin's main.js declares it needs to touch — enforced
         // by buildCheckedCtx() below, and shown to the user as an approval
         // prompt (setup-plugins.js) before a NEW or CHANGED capabilities
@@ -400,6 +401,7 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
   const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
   if (dataDir) fs.mkdirSync(dataDir, { recursive: true });
+  const userDirs = resolveUserPaths(manifest, baseCtx);
 
   // The only piece NOT shared with plugin-isolation-runtime.js's buildCtx()
   // (see main-plugin-capabilities.js's header comment) — this same-process
@@ -456,7 +458,7 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     ipcMain: checkedIpcMain,
     spawn: createCheckedSpawn(manifest.id, allowedSpawn),
     createServer: createCheckedServer(manifest.id, allowedPorts),
-    fs: createCheckedFs(manifest.id, dataDir),
+    fs: createCheckedFs(manifest.id, dataDir, userDirs),
     createLanAccess,
     isLanServiceEnabled,
     sendToMainWindow,

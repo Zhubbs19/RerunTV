@@ -27,6 +27,7 @@
 // not.
 const path = require('path');
 const nodeFs = require('fs');
+const { readDiscStructure, ifoFileNames } = require('./dvd-ifo');
 
 // Per-segment ceiling, not a whole-job one: a long tape is legitimately
 // slow, but a single cut that has run this long is stuck on an unreadable
@@ -208,6 +209,23 @@ function encodeArgs(size, fps) {
   ];
 }
 
+// A whole DVD title, rather than a cut out of one file. Its VOBs are fed
+// through the concat demuxer as a single input so the title arrives as one
+// continuous stream — a DVD splits a title across VOBs at an arbitrary 1GB
+// boundary, not at anything you would want a seam at. No -ss/-t: the title
+// runs to its end, and its length is whatever the disc actually holds.
+function discCutArgs(segment, outPath, size, fps) {
+  return [
+    '-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats',
+    '-f', 'concat', '-safe', '0', '-i', segment.listPath,
+    '-map', '0:v:0', '-map', '0:a:0?',
+    '-vf', videoFilter(size, fps),
+    '-af', 'aresample=async=1:first_pts=0',
+    ...encodeArgs(size, fps),
+    '-muxdelay', '0', '-muxpreload', '0', '-f', 'mpegts', outPath,
+  ];
+}
+
 function cutArgs(segment, outPath, size, fps, hasAudio, wearFilters = []) {
   const duration = segment.outSeconds - segment.inSeconds;
   const args = ['-hide_banner', '-nostdin', '-y', '-progress', 'pipe:1', '-nostats'];
@@ -250,6 +268,13 @@ function slateArgs(durationSeconds, outPath, size, fps) {
   ];
 }
 
+// The tail of ffmpeg's own diagnostics, short enough to put in a message a
+// person will actually read.
+function lastLines(output) {
+  return String(output || '').split('\n').slice(-3).join(' ').trim()
+    .slice(0, 300);
+}
+
 // The concat demuxer's list format takes a single-quoted path, and escapes
 // an embedded quote by closing, escaping, and reopening.
 function concatListLine(absPath) {
@@ -257,8 +282,42 @@ function concatListLine(absPath) {
   return `file '${escaped}'`;
 }
 
-function activate(ctx) {
+// Reading a disc's own index files is the one thing this process cannot do
+// directly: it is sandboxed to its own folders, and a disc sits at a drive
+// letter nobody granted. ffmpeg is a child process with no such limit, and
+// its `data` demuxer/muxer is a byte-exact passthrough, so it copies each
+// IFO into this plugin's folder where it CAN be read. No widening of the
+// sandbox, no extra binary — the tool already trusted for the disc's video
+// fetches its table of contents too.
+async function copyIntoDataDir(ffmpegPath, sourcePath, destAbs, spawnFn) {
+  const result = await runFfmpeg(ffmpegPath, [
+    '-hide_banner', '-nostdin', '-loglevel', 'error', '-y',
+    '-f', 'data', '-i', sourcePath, '-map', '0', '-c', 'copy', '-f', 'data', destAbs,
+  ], spawnFn, { timeoutMs: PROBE_TIMEOUT_MS });
+  return result.ok;
+}
+
+// Where tapes actually live. The default is this plugin's own data folder;
+// a user who picked somewhere else gets that instead — but only if it was
+// actually granted, which ctx.fs.writeDirs is the authority on. An isolated
+// plugin's write permissions are fixed when its process forks, so a folder
+// chosen since the last start has not been granted yet and must not be used:
+// writing there would throw on every single tape. Falling back to the data
+// folder keeps recording working until the restart its settings panel asks
+// for.
+function resolveTapesRoot(ctx, config) {
+  const configured = ((config.pluginSettings || {})['tape-deck'] || {}).tapesDir;
+  if (typeof configured !== 'string' || !configured.trim()) return ctx.fs.dataDir;
+  const wanted = path.resolve(configured.trim());
+  const granted = (ctx.fs.writeDirs || []).some((dir) => path.resolve(dir) === wanted);
+  return granted ? wanted : ctx.fs.dataDir;
+}
+
+async function activate(ctx) {
   const { ipcMain, fs, spawn } = ctx;
+  let config = {};
+  try { config = await ctx.loadConfig(); } catch (e) { config = {}; }
+  const tapesRoot = resolveTapesRoot(ctx, config);
 
   const queue = [];
   let active = null;        // the job currently being cut, or null
@@ -266,7 +325,10 @@ function activate(ctx) {
   const cancelledIds = new Set();
   let lastProgressSentAt = 0;
 
-  const abs = (rel) => path.join(fs.dataDir, rel);
+  // Every write goes through here, so the configured folder is honoured in
+  // one place rather than at each call site. createCheckedFs accepts an
+  // absolute path as long as it lands inside a granted root.
+  const abs = (rel) => path.join(tapesRoot, rel);
 
   // Resolved fresh each time rather than cached at activate(): the
   // ffmpeg-transcode plugin publishes its path during ITS activation, and a
@@ -283,6 +345,8 @@ function activate(ctx) {
       // panel and the test driver both ask this instead of inferring it
       // from a failed recording.
       ffmpegReady: !!ffmpegBinary(),
+      // Where tapes are actually being written right now.
+      folder: tapesRoot,
       active: active && {
         id: active.id,
         title: active.plan.title,
@@ -322,6 +386,31 @@ function activate(ctx) {
     } catch (e) { /* best effort — a leftover work dir costs disk, not correctness */ }
   }
 
+  // A ripped title's chapters come from the disc's own tables rather than
+  // from the segment list, which for a disc is a single piece.
+  //
+  // They are only trusted if the title turned out to be about as long as the
+  // disc said. That comparison is the one real check on the IFO parsing:
+  // the byte layout is read from a specification, and a field at the wrong
+  // offset would yield confident nonsense that a synthetic test built to the
+  // same assumption could never catch. A title whose decoded length
+  // disagrees gets no chapters instead of wrong ones.
+  function discChapters(plan, measuredSeconds) {
+    if (!plan.disc || !Array.isArray(plan.chapters) || !plan.chapters.length) return null;
+    const expected = Number(plan.disc.durationS) || 0;
+    if (!expected || !measuredSeconds) return null;
+    const drift = Math.abs(measuredSeconds - expected);
+    if (drift > Math.max(5, expected * 0.02)) return null;
+    return plan.chapters
+      .filter((chapter) => Number.isFinite(chapter.startS) && chapter.startS < measuredSeconds)
+      .map((chapter, i) => ({
+        kind: 'content',
+        label: chapter.label || `CHAPTER ${i + 1}`,
+        startS: chapter.startS,
+        endS: i + 1 < plan.chapters.length ? plan.chapters[i + 1].startS : measuredSeconds,
+      }));
+  }
+
   // Merges the flat segment list into something a viewer would recognise as
   // chapters: a run of consecutive pieces from the same source file is one
   // chapter, and a whole commercial pod collapses into a single stop rather
@@ -332,7 +421,11 @@ function activate(ctx) {
     for (const segment of segments) {
       const duration = segment.outSeconds - segment.inSeconds;
       const last = chapters[chapters.length - 1];
-      const isBreakish = segment.kind !== 'content';
+      // A ripped disc title is programme material, not an interruption —
+      // only a slate or a break segment is. Without this a disc whose own
+      // chapter tables were distrusted fell back to one chapter labelled
+      // COMMERCIAL BREAK, which is the opposite of what it is.
+      const isBreakish = segment.kind !== 'content' && segment.kind !== 'disc';
       const continues = last
         && (isBreakish ? last.kind !== 'content' : (last.kind === 'content' && last.label === segment.label));
       if (continues) {
@@ -362,12 +455,22 @@ function activate(ctx) {
     }
 
     const workRel = path.join('work', job.id);
-    fs.mkdirSync(workRel, { recursive: true });
     const workAbs = abs(workRel);
+    fs.mkdirSync(workAbs, { recursive: true });
+
+    // A disc segment names a list of VOBs rather than one file; the list has
+    // to exist on disk before ffmpeg is pointed at it.
+    plan.segments.filter((segment) => segment.kind === 'disc').forEach((segment, i) => {
+      const listAbs = path.join(workAbs, `disc-${i}.txt`);
+      fs.writeFileSync(listAbs, `${(segment.files || []).map(concatListLine).join('\n')}\n`, 'utf8');
+      segment.listPath = listAbs;
+    });
 
     const usable = plan.segments.filter((s) => (s.outSeconds - s.inSeconds) >= MIN_SEGMENT_SECONDS);
     const totalSeconds = usable.reduce((sum, s) => sum + (s.outSeconds - s.inSeconds), 0);
     let doneSeconds = 0;
+    let lastProgressSeconds = 0;
+    let measuredSeconds = 0;
     const pieces = [];
 
     for (let i = 0; i < usable.length; i++) {
@@ -381,12 +484,20 @@ function activate(ctx) {
 
       const piecePath = path.join(workAbs, `seg-${String(i).padStart(5, '0')}.ts`);
       const onProgress = (outSeconds) => {
+        lastProgressSeconds = outSeconds;
         active.progress = Math.min(0.98, (doneSeconds + Math.min(outSeconds, duration)) / Math.max(1, totalSeconds));
         pushProgress(false);
       };
 
       let result;
-      if (segment.kind === 'slate') {
+      if (segment.kind === 'disc') {
+        result = await runFfmpeg(ffmpegPath, discCutArgs(segment, piecePath, size, fps), spawn, {
+          onProgress, registerChild: (c) => { activeChild = c; },
+        });
+        // What the disc really held, as decoded — the cross-check that
+        // decides below whether the IFO's chapter times can be trusted.
+        measuredSeconds = lastProgressSeconds;
+      } else if (segment.kind === 'slate') {
         result = await runFfmpeg(ffmpegPath, slateArgs(duration, piecePath, size, fps), spawn, {
           onProgress, registerChild: (c) => { activeChild = c; },
         });
@@ -398,6 +509,15 @@ function activate(ctx) {
       }
       activeChild = null;
       if (cancelledIds.has(job.id)) return { cancelled: true };
+
+      // A disc is one segment, so there is no rest of the tape to save: a
+      // failed rip is a failed tape, and silently producing an hour of black
+      // would be the worst possible answer.
+      if (segment.kind === 'disc' && (!result.ok || !fs.existsSync(piecePath))) {
+        rmWorkDir(job.id);
+        const tail = lastLines(result.output);
+        return { error: `ffmpeg could not read that title from the disc: ${tail}` };
+      }
 
       // One unreadable source file should cost that segment, not the tape —
       // the rest of the broadcast is still worth having. A slate of the same
@@ -427,7 +547,7 @@ function activate(ctx) {
     pushProgress(true);
 
     const listRel = path.join(workRel, 'concat.txt');
-    fs.writeFileSync(listRel, `${pieces.map(concatListLine).join('\n')}\n`, 'utf8');
+    fs.writeFileSync(abs(listRel), `${pieces.map(concatListLine).join('\n')}\n`, 'utf8');
 
     const tapeAbs = abs(`${job.id}.mp4`);
     // Every piece already shares one encode, so this pass only re-wraps —
@@ -465,12 +585,13 @@ function activate(ctx) {
       // changed.
       mode: profile.mode,
       media: profile.media,
+      ...(plan.disc ? { disc: plan.disc } : {}),
       // How many times this physical tape has been recorded on. Zero is
       // factory-fresh; every re-record adds one and the picture pays for it.
       generation: job.generation,
-      chapters: buildChapters(usable),
+      chapters: discChapters(plan, measuredSeconds) || buildChapters(usable),
     };
-    fs.writeFileSync(`${job.id}.json`, JSON.stringify(sidecar, null, 2), 'utf8');
+    fs.writeFileSync(abs(`${job.id}.json`), JSON.stringify(sidecar, null, 2), 'utf8');
     rmWorkDir(job.id);
     return { tape: { ...sidecar, path: tapeAbs } };
   }
@@ -535,6 +656,63 @@ function activate(ctx) {
     return { id, generation, queued: queue.length };
   });
 
+  // Reports where tapes are actually going. Whether that matches what the
+  // settings ask for is deliberately NOT answered here: this process would
+  // have to re-read the config from disk, and the renderer's own writes are
+  // debounced, so it would always be a beat behind a folder just picked. The
+  // renderer holds the authoritative value and compares it against `folder`
+  // itself.
+  // Reads a disc's table of contents: what titles it holds, their chapters,
+  // and the audio and subtitle streams each carries. `videoTsPath` is a
+  // VIDEO_TS folder — on a physical disc or a mounted image that is just a
+  // folder at a drive letter, which is why no mounting lives here.
+  ipcMain.handle('tapes:readDisc', async (event, videoTsPath) => {
+    const ffmpegPath = ffmpegBinary();
+    if (!ffmpegPath) {
+      return { error: 'ffmpeg is unavailable — enable the FFmpeg Transcode plugin, or point it at an ffmpeg binary in its settings.' };
+    }
+    if (typeof videoTsPath !== 'string' || !videoTsPath.trim()) return { error: 'No disc folder was given.' };
+
+    const scratch = path.join('disc-read', String(Date.now()));
+    const scratchAbs = abs(scratch);
+    try {
+      fs.mkdirSync(scratchAbs, { recursive: true });
+      const fetchIfo = async (name) => {
+        const destAbs = path.join(scratchAbs, name);
+        const ok = await copyIntoDataDir(ffmpegPath, path.join(videoTsPath, name), destAbs, spawn);
+        if (!ok || !fs.existsSync(destAbs)) return null;
+        try { return fs.readFileSync(destAbs); } catch (e) { return null; }
+      };
+
+      const videoTs = await fetchIfo('VIDEO_TS.IFO');
+      if (!videoTs) {
+        return { error: 'No readable VIDEO_TS.IFO there. If this is a commercial disc it is probably encrypted, which this does not decrypt.' };
+      }
+      // How many title sets to look for comes from the disc index itself, so
+      // a disc with one title is not probed ninety-nine times.
+      const index = readDiscStructure(videoTs, {});
+      if (index.error) return { error: index.error };
+
+      const vtsBuffers = {};
+      const names = ifoFileNames(index.titleSets).slice(1);
+      for (let i = 0; i < names.length; i++) {
+        // eslint-disable-next-line no-await-in-loop
+        const buffer = await fetchIfo(names[i]);
+        if (buffer) vtsBuffers[i + 1] = buffer;
+      }
+      const disc = readDiscStructure(videoTs, vtsBuffers);
+      if (disc.error) return { error: disc.error };
+      return { titles: disc.titles, warnings: disc.warnings, videoTsPath };
+    } catch (e) {
+      return { error: `That disc could not be read: ${e.message}` };
+    } finally {
+      try {
+        for (const name of fs.readdirSync(scratchAbs)) nodeFs.unlinkSync(path.join(scratchAbs, name));
+        nodeFs.rmdirSync(scratchAbs);
+      } catch (e) { /* best effort — a leftover scratch copy costs disk, not correctness */ }
+    }
+  });
+
   ipcMain.handle('tapes:status', async () => snapshot());
 
   ipcMain.handle('tapes:cancel', async (event, id) => {
@@ -550,7 +728,7 @@ function activate(ctx) {
 
   ipcMain.handle('tapes:list', async () => {
     let names;
-    try { names = fs.readdirSync(fs.dataDir); } catch (e) { return { tapes: [], folder: fs.dataDir }; }
+    try { names = fs.readdirSync(tapesRoot); } catch (e) { return { tapes: [], folder: tapesRoot }; }
     const tapes = [];
     for (const name of names) {
       if (!name.endsWith('.json')) continue;
@@ -564,7 +742,7 @@ function activate(ctx) {
     }
     // Newest first: a shelf reads best with the tape you just made on the left.
     tapes.sort((a, b) => (b.recordedMs || 0) - (a.recordedMs || 0));
-    return { tapes, folder: fs.dataDir };
+    return { tapes, folder: tapesRoot };
   });
 
   // Cover art and shell colour live in the tape's own sidecar rather than in
@@ -600,7 +778,7 @@ function activate(ctx) {
       if (typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour)) meta.shellColor = colour;
       else delete meta.shellColor;
     }
-    fs.writeFileSync(`${id}.json`, JSON.stringify(meta, null, 2), 'utf8');
+    fs.writeFileSync(abs(`${id}.json`), JSON.stringify(meta, null, 2), 'utf8');
     return { art: meta.art, shellColor: meta.shellColor || null };
   });
 
@@ -609,8 +787,8 @@ function activate(ctx) {
       return { error: 'bad tape id' };
     }
     if (!fs.existsSync(abs(`${id}.json`))) return { error: 'no such tape' };
-    await new Promise((resolve) => fs.unlink(`${id}.mp4`, resolve));
-    await new Promise((resolve) => fs.unlink(`${id}.json`, resolve));
+    await new Promise((resolve) => fs.unlink(abs(`${id}.mp4`), resolve));
+    await new Promise((resolve) => fs.unlink(abs(`${id}.json`), resolve));
     return { deleted: true };
   });
 }

@@ -394,11 +394,74 @@ function startScheduleWatch(ctx) {
   scheduleTick(ctx);
 }
 
+// ---------- discs ----------
+//
+// A DVD, physical or mounted, is just a VIDEO_TS folder at a drive letter, so
+// finding one is finding that folder. Detection goes through core's own
+// path check rather than the plugin's: this process is sandboxed to its own
+// folders and cannot see a drive letter at all, while core's check is
+// unrestricted and already exists. No new permission, no mounting code, and
+// an image the viewer has mounted themselves shows up exactly like a disc.
+//
+// Windows drive letters only. A disc on another platform is reachable by
+// pointing at its folder, which is the same code path from here on.
+const DRIVE_LETTERS = 'DEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+async function detectDiscDrives() {
+  if (typeof window.api.checkPathsExist !== 'function') return [];
+  const candidates = DRIVE_LETTERS.map((letter) => `${letter}:\\VIDEO_TS\\VIDEO_TS.IFO`);
+  let found;
+  try {
+    found = await window.api.checkPathsExist(candidates);
+  } catch (e) {
+    return [];
+  }
+  return DRIVE_LETTERS
+    .map((letter, i) => (found[i] ? { letter, videoTsPath: `${letter}:\\VIDEO_TS` } : null))
+    .filter(Boolean);
+}
+
+// Everything the deck could load right now: any disc in a drive, a folder
+// the viewer pointed at, and then the tapes on the shelf.
+function discSources(ctx) {
+  const folder = (ctx.settings.getPluginSettings(PLUGIN_ID) || {}).discFolder;
+  const sources = discDrives.map((drive) => ({
+    kind: 'disc',
+    id: `drive:${drive.letter}`,
+    label: `DISC IN ${drive.letter}:`,
+    videoTsPath: drive.videoTsPath,
+  }));
+  if (typeof folder === 'string' && folder.trim()) {
+    sources.push({
+      kind: 'disc',
+      id: 'folder',
+      label: folder.split(/[\\/]/).filter(Boolean).pop() || 'DISC FOLDER',
+      videoTsPath: folder.trim(),
+    });
+  }
+  return sources;
+}
+
+// The shelf is discs first, then tapes — a disc is the thing you just put in,
+// and it should not be hiding at the end of a long library.
+function shelfItems(ctx) {
+  return [...discSources(ctx), ...tapes.map((tape) => ({ kind: 'tape', id: tape.id, tape }))];
+}
+
+async function refreshDiscs(ctx, opts) {
+  discDrives = await detectDiscDrives();
+  if (opts && opts.repaint && deckState === 'shelf' && container) renderShelf(ctx);
+}
+
 // ---------- the deck (CH 101) ----------
 
 let container = null;
 let deckState = 'shelf';
 let tapes = [];
+let discDrives = [];      // optical drives (or mounted images) with a disc in them
+let discTitles = null;    // the table of contents of the disc currently loaded
+let loadedDisc = null;    // which source those titles came from
+let discTimer = null;
 let shelfIndex = 0;
 let flipped = false;      // is the selected case turned over to its back cover
 let menuIndex = 0;
@@ -414,6 +477,7 @@ function clearDeckTimers() {
   clearInterval(clockTimer); clockTimer = null;
   clearInterval(counterTimer); counterTimer = null;
   clearTimeout(stageTimer); stageTimer = null;
+  clearInterval(discTimer); discTimer = null;
 }
 
 function detachPlayer(ctx) {
@@ -431,12 +495,21 @@ function mediaOf(tape, ctx) {
   return settingsFor(ctx).format === 'dvd' ? 'disc' : 'vhs';
 }
 
+// Whatever the shelf cursor is on: a disc in a drive, or a tape.
+function selectedItem(ctx) {
+  const items = shelfItems(ctx);
+  return items[Math.min(shelfIndex, items.length - 1)] || null;
+}
+
 // The deck currently on screen: the loaded tape's own, or the one the
-// selected case would need while still browsing the shelf.
+// selected case would need while still browsing the shelf. A real disc is
+// always a disc, whatever the settings say.
 function isDvd(ctx) {
+  if (loadedDisc) return true;
   if (loaded) return mediaOf(loaded, ctx) === 'disc';
-  const selected = tapes[shelfIndex];
-  return mediaOf(selected, ctx) === 'disc';
+  const item = selectedItem(ctx);
+  if (item && item.kind === 'disc') return true;
+  return mediaOf(item && item.tape, ctx) === 'disc';
 }
 
 // ---------- the deck's sounds ----------
@@ -660,7 +733,7 @@ function tapeDateLabel(ctx, tape) {
 
 function renderShelf(ctx) {
   const format = isDvd(ctx) ? 'dvd' : 'vhs';
-  const empty = !tapes.length;
+  const empty = !shelfItems(ctx).length;
   container.innerHTML = `
     <div class="tape-deck tape-deck--${format}" role="region" aria-label="Channel 101 tape deck">
       <div class="tape-shelf-head">
@@ -683,7 +756,7 @@ function renderShelf(ctx) {
         </div>
       </div>
       <footer class="tape-hint">${empty
-    ? 'NO RECORDINGS YET · PRESS R WHILE WATCHING A CHANNEL TO START TAPING'
+    ? 'NOTHING ON THE SHELF · PRESS R WHILE WATCHING A CHANNEL TO START TAPING, OR PUT A DVD IN'
     : `&larr;&rarr; CHOOSE · D FLIP CASE · OK ${format === 'dvd' ? 'LOAD DISC' : 'INSERT TAPE'}`}</footer>
     </div>
   `;
@@ -693,17 +766,46 @@ function renderShelf(ctx) {
   clockTimer = setInterval(() => updateDeckClock(ctx), 1000);
 }
 
+// A disc in a drive, drawn as the plain unprinted case a disc you just put in
+// actually comes in — no cover art, no chapter listing, because nothing has
+// been read off it yet.
+function discCaseHtml(item, i) {
+  const known = loadedDisc && loadedDisc.id === item.id && discTitles;
+  return `
+    <div class="tape-case tape-case--disc tape-case--live${i === shelfIndex ? ' is-selected' : ''}"
+         style="--spine:#8a8a94;--wear:0" data-case="${i}">
+      <div class="tape-case-inner">
+        <div class="tape-case-face tape-case-front">
+          <div class="tape-case-spine">
+            <span class="tape-case-title">${escapeHtml(item.label)}</span>
+            <span class="tape-case-sub">${known ? `${known.length} TITLE${known.length === 1 ? '' : 'S'}` : 'DVD-VIDEO'}</span>
+          </div>
+          <div class="tape-case-foot">
+            <span>IN THE DRIVE</span>
+            <span>${known ? 'READ' : 'NOT READ YET'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function paintShelf(ctx) {
   const shelf = container && container.querySelector('[data-el="shelf"]');
   if (!shelf) return;
-  if (!tapes.length) {
+  const items = shelfItems(ctx);
+  if (!items.length) {
     shelf.innerHTML = '<div class="tape-shelf-empty">THE SHELF IS EMPTY</div>';
     return;
   }
+  if (shelfIndex >= items.length) shelfIndex = items.length - 1;
   // Each case is two faces on one card. The back is only ever shown for the
   // selected case, so flipping reads as turning one box over rather than the
   // whole shelf rotating at once.
-  shelf.innerHTML = tapes.map((tape, i) => `
+  shelf.innerHTML = items.map((item, i) => {
+    if (item.kind === 'disc') return discCaseHtml(item, i);
+    const tape = item.tape;
+    return `
     <div class="tape-case tape-case--${mediaOf(tape, ctx)}${i === shelfIndex ? ' is-selected' : ''}${i === shelfIndex && flipped ? ' is-flipped' : ''}"
          style="--spine:${tapeSpineColor(tape)};--wear:${wearOf(tape)}" data-case="${i}">
       <div class="tape-case-inner">
@@ -736,11 +838,14 @@ function paintShelf(ctx) {
         </div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
   const selected = shelf.children[shelfIndex];
   if (selected && selected.scrollIntoView) selected.scrollIntoView({ block: 'nearest', inline: 'center' });
   // Art is painted after the layout so a slow disk never delays the shelf.
-  tapes.forEach((tape, i) => applyArt(shelf.children[i], tape, ['front', 'back', 'label']));
+  items.forEach((item, i) => {
+    if (item.kind === 'tape') applyArt(shelf.children[i], item.tape, ['front', 'back', 'label']);
+  });
   syncMachineToSelection(ctx);
 }
 
@@ -754,15 +859,17 @@ function syncMachineToSelection(ctx) {
   deck.classList.toggle('tape-deck--vhs', !disc);
   const brand = container.querySelector('.tape-machine-brand');
   if (brand) brand.textContent = disc ? 'DISC PLAYER' : 'VIDEO CASSETTE RECORDER';
+  const item = selectedItem(ctx);
   const hint = container.querySelector('.tape-hint');
-  if (hint && tapes.length) {
-    hint.innerHTML = `&larr;&rarr; CHOOSE · D FLIP CASE · OK ${disc ? 'LOAD DISC' : 'INSERT TAPE'}`;
+  if (hint && item) {
+    hint.innerHTML = item.kind === 'disc'
+      ? '&larr;&rarr; CHOOSE · OK READ THIS DISC'
+      : `&larr;&rarr; CHOOSE · D FLIP CASE · OK ${disc ? 'LOAD DISC' : 'INSERT TAPE'}`;
   }
-  const selectedTape = tapes[shelfIndex];
   const eyebrow = container.querySelector('.tape-eyebrow');
   if (eyebrow) {
-    const format = selectedTape ? modeInfo(selectedTape.mode).label : '';
-    eyebrow.textContent = `CHANNEL 101 · ${disc ? 'DISC LIBRARY' : 'TAPE LIBRARY'}${format ? ` · ${format}` : ''}`;
+    const suffix = item && item.kind === 'tape' ? ` · ${modeInfo(item.tape.mode).label}` : '';
+    eyebrow.textContent = `CHANNEL 101 · ${disc ? 'DISC LIBRARY' : 'TAPE LIBRARY'}${suffix}`;
   }
 }
 
@@ -857,6 +964,146 @@ function paintMenu() {
   Array.from(list.children).forEach((li, i) => li.classList.toggle('is-selected', i === menuIndex));
   const selected = list.children[menuIndex];
   if (selected && selected.scrollIntoView) selected.scrollIntoView({ block: 'nearest' });
+}
+
+// ---------- loading a disc ----------
+
+// Reads a disc's table of contents and shows what is on it. The mechanism
+// animation runs for real while the IFOs are being fetched, so the wait is
+// the deck thinking rather than a frozen screen.
+async function loadDisc(ctx, item) {
+  loadedDisc = item;
+  discTitles = null;
+  deckState = 'reading';
+  const machine = container.querySelector('[data-el="machine"]');
+  if (machine) machine.classList.add('is-tray-out');
+  setVfd('READING');
+  playDeckSfx(ctx, 'insert', { disc: true });
+  showPhaseAnimation(ctx, 'loading');
+
+  let result;
+  try {
+    result = await window.api.tapesReadDisc(item.videoTsPath);
+  } catch (e) {
+    result = { error: e.message };
+  }
+  if (deckState !== 'reading' || !container) return; // ejected while reading
+
+  if (machine) { machine.classList.remove('is-tray-out'); machine.classList.add('is-seated'); }
+  playDeckSfx(ctx, 'engage', { disc: true });
+
+  if (!result || result.error) {
+    loadedDisc = null;
+    deckState = 'shelf';
+    setVfd('NO DISC');
+    flashToast(String((result && result.error) || 'THAT DISC COULD NOT BE READ').toUpperCase(), 'bad');
+    renderShelf(ctx);
+    return;
+  }
+  discTitles = result.titles || [];
+  showDiscTitleMenu(ctx);
+}
+
+function titleLine(title) {
+  const parts = [`${formatDuration(title.durationS || 0)}`];
+  if (title.chapterCount) parts.push(`${title.chapterCount} CH`);
+  const languages = (title.audio || []).map((a) => (a.language || '').toUpperCase()).filter(Boolean);
+  if (languages.length) parts.push(Array.from(new Set(languages)).join('/'));
+  return parts.join(' · ');
+}
+
+// The disc's titles, in the deck's own menu. Not the disc's pressed menu —
+// that needs a subpicture decoder and the disc's own bytecode interpreter,
+// which this deliberately does not carry. This is built from the structure
+// the disc really has, which is the part that matters for choosing something
+// to keep.
+function showDiscTitleMenu(ctx) {
+  deckState = 'discmenu';
+  menuIndex = 0;
+  clearDeckTimers();
+  const titles = discTitles || [];
+  container.innerHTML = `
+    <div class="tape-deck tape-deck--dvd tape-disc-menu" role="region" aria-label="Disc titles">
+      <div class="tape-disc-art">
+        <div class="tape-disc-title">${escapeHtml(loadedDisc ? loadedDisc.label : 'DISC')}</div>
+        <div class="tape-disc-sub">${titles.length} TITLE${titles.length === 1 ? '' : 'S'} ON THIS DISC</div>
+        <div class="tape-disc-run">KEEPING A TITLE COPIES IT TO THE SHELF AS A TAPE</div>
+      </div>
+      <ol class="tape-disc-chapters" data-el="chapters">
+        ${titles.map((title, i) => `
+          <li class="tape-chapter" data-index="${i}">
+            <span class="tape-chapter-n">${String(title.title).padStart(2, '0')}</span>
+            <span class="tape-chapter-label">TITLE ${title.title}</span>
+            <span class="tape-chapter-time">${titleLine(title)}</span>
+          </li>
+        `).join('')}
+      </ol>
+      <footer class="tape-hint">&larr;&rarr; CHOOSE TITLE · OK KEEP IT · E EJECT</footer>
+    </div>
+  `;
+  if (!titles.length) {
+    const list = container.querySelector('[data-el="chapters"]');
+    if (list) list.innerHTML = '<li class="tape-chapter"><span class="tape-chapter-label">NOTHING PLAYABLE ON THIS DISC</span></li>';
+  }
+  paintMenu();
+}
+
+// Which VOBs actually hold a title. A DVD splits one across numbered files at
+// a 1GB boundary, and only the disc knows how many there are — so ask which
+// exist rather than assuming. VTS_nn_0.VOB is the title set's own menu and is
+// deliberately not included.
+async function titleVobFiles(videoTsPath, vts) {
+  const set = String(vts).padStart(2, '0');
+  const candidates = [];
+  for (let i = 1; i <= 9; i++) candidates.push(`${videoTsPath}\\VTS_${set}_${i}.VOB`);
+  let found;
+  try {
+    found = await window.api.checkPathsExist(candidates);
+  } catch (e) {
+    return [];
+  }
+  return candidates.filter((_, i) => found[i]);
+}
+
+// Copies one title off the disc onto the shelf. It goes through the ordinary
+// recording queue — same progress readout, same shelf, same case artwork —
+// with the disc as its one segment.
+async function keepDiscTitle(ctx, title) {
+  if (!recorderAvailable()) { flashToast('RECORDING IS NOT AVAILABLE ON THIS DEVICE', 'bad'); return; }
+  if (!loadedDisc) return;
+  flashToast(`READING TITLE ${title.title}`);
+  const files = await titleVobFiles(loadedDisc.videoTsPath, title.vts);
+  if (!files.length) {
+    flashToast('THAT TITLE\'S VIDEO FILES ARE NOT READABLE', 'bad');
+    return;
+  }
+  const result = await window.api.tapesRecord({
+    title: `${loadedDisc.label} · TITLE ${title.title}`,
+    channelNumber: 0,
+    channelName: loadedDisc.label,
+    startMs: Date.now(), // when the copy was made — a real-clock fact, not a schedule read
+    endMs: Date.now() + Math.round((title.durationS || 0) * 1000),
+    // A DVD is standard definition; copying it at anything else would be
+    // inventing detail the disc never had. Its own length is its own
+    // business, so no format cap applies.
+    mode: 'dvd-sd',
+    media: 'disc',
+    degrade: 'off',
+    disc: { durationS: title.durationS, title: title.title },
+    chapters: (title.chapters || []).map((chapter, i) => ({
+      startS: chapter.startS,
+      label: `CHAPTER ${i + 1}`,
+    })),
+    segments: [{
+      kind: 'disc',
+      files,
+      inSeconds: 0,
+      outSeconds: Math.max(1, title.durationS || 0),
+      label: `TITLE ${title.title}`,
+    }],
+  });
+  if (result && result.error) { flashToast(String(result.error).toUpperCase(), 'bad'); return; }
+  flashToast(`COPYING TITLE ${title.title} · ${formatDuration(title.durationS || 0)}`);
 }
 
 async function beginPlayback(ctx, startSeconds) {
@@ -988,6 +1235,18 @@ function ejectToShelf(ctx) {
   renderShelf(ctx);
 }
 
+// Putting a disc back on the shelf. Nothing to rewind and nothing playing,
+// so this is just the deck letting go of what it read.
+function ejectDisc(ctx) {
+  clearDeckTimers();
+  playDeckSfx(ctx, 'eject', { disc: true });
+  loadedDisc = null;
+  discTitles = null;
+  deckState = 'shelf';
+  flipped = false;
+  renderShelf(ctx);
+}
+
 async function refreshTapes(ctx, opts) {
   if (typeof window.api.tapesList !== 'function') { tapes = []; return; }
   try {
@@ -996,7 +1255,11 @@ async function refreshTapes(ctx, opts) {
   } catch (e) {
     tapes = [];
   }
-  if (shelfIndex >= tapes.length) shelfIndex = Math.max(0, tapes.length - 1);
+  // Clamped against the whole shelf, not the tape count: discs sit ahead of
+  // the tapes, so measuring against tapes alone drags the cursor backwards
+  // every time the list refreshes.
+  const count = shelfItems(ctx).length;
+  if (shelfIndex >= count) shelfIndex = Math.max(0, count - 1);
   if (opts && opts.repaint && deckState === 'shelf' && container) renderShelf(ctx);
 }
 
@@ -1056,8 +1319,9 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
   supportsTimeMachine: false,
   onKey(key, ctx) {
     if (deckState === 'shelf') {
-      if (key === 'ArrowLeft' && tapes.length) {
-        shelfIndex = (shelfIndex - 1 + tapes.length) % tapes.length;
+      const count = shelfItems(ctx).length;
+      if (key === 'ArrowLeft' && count) {
+        shelfIndex = (shelfIndex - 1 + count) % count;
         // Moving along the shelf puts the previous box back face-out, the
         // way setting one down and picking up the next would.
         flipped = false;
@@ -1065,19 +1329,35 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
         playDeckSfx(ctx, 'browse', { up: false });
         return true;
       }
-      if (key === 'ArrowRight' && tapes.length) {
-        shelfIndex = (shelfIndex + 1) % tapes.length;
+      if (key === 'ArrowRight' && count) {
+        shelfIndex = (shelfIndex + 1) % count;
         flipped = false;
         paintShelf(ctx);
         playDeckSfx(ctx, 'browse', { up: true });
         return true;
       }
-      if ((key === 'd' || key === 'D') && tapes.length) {
+      // A disc in a drive has no case to turn over — nothing has been
+      // printed, and nothing has been read off it yet.
+      if ((key === 'd' || key === 'D') && count) {
+        const item = selectedItem(ctx);
+        if (!item || item.kind !== 'tape') return false;
         flipped = !flipped;
         paintShelf(ctx);
         playDeckSfx(ctx, 'browse', { up: true });
         return true;
       }
+      return false;
+    }
+    if (deckState === 'reading') return false; // nothing to do until the disc answers
+    if (deckState === 'discmenu') {
+      const count = (discTitles || []).length;
+      if (!count) {
+        if (key === 'e' || key === 'E') { ejectDisc(ctx); return true; }
+        return false;
+      }
+      if (key === 'ArrowLeft') { menuIndex = (menuIndex - 1 + count) % count; paintMenu(); return true; }
+      if (key === 'ArrowRight') { menuIndex = (menuIndex + 1) % count; paintMenu(); return true; }
+      if (key === 'e' || key === 'E') { ejectDisc(ctx); return true; }
       return false;
     }
     if (deckState === 'menu') {
@@ -1123,8 +1403,15 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
   },
   onOk(ctx) {
     if (deckState === 'shelf') {
-      if (!tapes.length) return;
-      loadTape(ctx, tapes[shelfIndex]);
+      const item = selectedItem(ctx);
+      if (!item) return;
+      if (item.kind === 'disc') { loadDisc(ctx, item); return; }
+      loadTape(ctx, item.tape);
+      return;
+    }
+    if (deckState === 'discmenu') {
+      const title = (discTitles || [])[menuIndex];
+      if (title) keepDiscTitle(ctx, title);
       return;
     }
     if (deckState === 'menu') {
@@ -1151,9 +1438,18 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
     shelfIndex = 0;
     flipped = false;
     clearDeckTimers();
+    loadedDisc = null;
+    discTitles = null;
     startScheduleWatch(ctx);
     preloadDeckSfx(ctx);
     renderShelf(ctx);
+    // A disc put in while the channel is already tuned should appear on its
+    // own. Polling rather than watching because there is no event for it —
+    // wall-clock, and slow enough to be free.
+    refreshDiscs(ctx, { repaint: true });
+    discTimer = setInterval(() => {
+      if (deckState === 'shelf') refreshDiscs(ctx, { repaint: true });
+    }, 4000);
     // The shelf is drawn immediately from whatever was already known, then
     // refreshed — tuning in should never wait on a directory read.
     refreshTapes(ctx, { repaint: true });
@@ -1166,6 +1462,8 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
     player.removeAttribute('src');
     container = null;
     loaded = null;
+    loadedDisc = null;
+    discTitles = null;
     deckState = 'shelf';
   },
 });

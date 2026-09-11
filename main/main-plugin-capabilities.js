@@ -132,19 +132,61 @@ function createCheckedServer(pluginId, allowedPorts) {
   };
 }
 
+// A plugin may declare manifest `"userPaths": "<settings key>"` — the name of
+// one of its OWN settings holding a folder (or a list of folders) the user
+// picked for it, e.g. where a recorder should put its output. Those folders
+// are granted read and write alongside its dataDir.
+//
+// Two things this deliberately is not. It is not a way for a plugin to widen
+// its own access at will: the value comes from the plugin's settings, which
+// only the user edits through its settings panel. And it is not dynamic —
+// an isolated plugin's OS-level permissions are fixed when its process is
+// forked, so a folder changed now takes effect at the next restart, which is
+// what a plugin's settings UI should say.
+function resolveUserPaths(manifest, baseCtx) {
+  if (typeof manifest.userPaths !== 'string' || !manifest.userPaths) return [];
+  let configured;
+  try {
+    const stored = (baseCtx.loadConfig().pluginSettings || {})[manifest.id] || {};
+    configured = stored[manifest.userPaths];
+  } catch (e) {
+    return []; // unreadable config at boot costs the grant, not the plugin
+  }
+  const candidates = (Array.isArray(configured) ? configured : [configured])
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => path.resolve(entry.trim()));
+  return candidates.filter((dir) => {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      return true;
+    } catch (e) {
+      return false; // a folder that cannot be created is not granted
+    }
+  });
+}
+
 // Reads are intentionally unrestricted (existsSync/readFile/readdirSync take
 // whatever path is passed) — checking whether a user-configured executable
 // exists (a plugin's own custom-binary-path setting) is a legitimate need
 // with no folder to scope it to in advance. Writes are scoped to the
 // plugin's own dataDir (null if the manifest declared none, meaning no
-// filesystem write access at all), rejecting any path that resolves outside
-// it (including via `..`).
-function createCheckedFs(pluginId, dataDir) {
+// filesystem write access at all) plus any folder the USER chose for this
+// plugin through its own settings (manifest `userPaths`, resolved below),
+// rejecting any path that resolves outside all of them (including via `..`).
+//
+// A relative path still resolves against dataDir, exactly as before. An
+// absolute path is now accepted too, but only when it lands inside one of
+// those roots — which is what lets a plugin write its output to a folder the
+// user picked without having to pretend it is relative to anything.
+function createCheckedFs(pluginId, dataDir, userDirs = []) {
+  const writeRoots = [dataDir, ...userDirs].filter(Boolean);
   function resolveDataPath(relPath) {
-    if (!dataDir) throw new Error(`Plugin "${pluginId}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
-    const resolved = path.resolve(dataDir, relPath);
-    if (!isPathContained(dataDir, resolved)) {
-      throw new Error(`Plugin "${pluginId}" tried to write outside its own data folder ("${relPath}").`);
+    if (!writeRoots.length) throw new Error(`Plugin "${pluginId}" has no "dataDir" declared in manifest.json — nowhere to write plugin data.`);
+    const resolved = path.isAbsolute(relPath)
+      ? path.resolve(relPath)
+      : path.resolve(dataDir || writeRoots[0], relPath);
+    if (!writeRoots.some((root) => isPathContained(root, resolved))) {
+      throw new Error(`Plugin "${pluginId}" tried to write outside its own data folder and configured folders ("${relPath}").`);
     }
     return resolved;
   }
@@ -159,10 +201,13 @@ function createCheckedFs(pluginId, dataDir) {
     createWriteStream: (relPath, ...rest) => fs.createWriteStream(resolveDataPath(relPath), ...rest),
     unlink: (relPath, ...rest) => fs.unlink(resolveDataPath(relPath), ...rest),
     dataDir,
+    // Where this plugin may actually write, dataDir included — a plugin with
+    // a user-chosen output folder needs to know which one it got.
+    writeDirs: writeRoots,
   };
 }
 
 module.exports = {
-  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor,
+  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor, resolveUserPaths,
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 };

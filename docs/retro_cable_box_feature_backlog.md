@@ -56,6 +56,33 @@ See [[project_feature_pass_2026_09_11]], [[project_tier2_features]] and
 
 ## Shipped — listed so nobody re-proposes them
 
+- **DVD and disc playback (2026-09-11, `plugins/tape-deck`).** A disc in an optical drive, or a
+  VIDEO_TS folder, appears on the CH 101 shelf next to the tapes; choosing it reads the disc's
+  own IFO files into a title list, and keeping a title copies it across as an ordinary tape
+  with the disc's chapters. Feasibility was settled by probing first, and three findings shaped
+  it. Chromium decodes neither MPEG-2 nor AC-3 and cannot open a VOB, so everything goes
+  through ffmpeg. A gyan.dev *essentials* build has no `dvdvideo` demuxer and no
+  libdvdread/libdvdnav, so title and chapter structure has to be parsed from the IFOs
+  ourselves (`plugins/tape-deck/dvd-ifo.js`, unit-tested by `test/verify-dvd-ifo.js`). And the
+  plugin is sandboxed and cannot read a drive letter at all — so drive detection goes through
+  core's own unrestricted `checkPathsExist` from the renderer, and the IFO bytes are pulled
+  into the plugin's folder by ffmpeg's `data` demuxer acting as a byte-exact copier. No new
+  spawn capability, no mounting code, no widening of the sandbox.
+
+  **Explicitly not built, and not a bug:** navigating the disc's own pressed menu. That is a
+  video background plus a subpicture overlay drawing button highlights plus button geometry
+  plus a virtual machine running the disc's bytecode — it needs libdvdnav, an SPU decoder and
+  a VM interpreter, which is a project rather than an addition. The parser keeps the PGC
+  command table untouched (`title.raw`) so that stays possible later. **CSS decryption is also
+  deliberately absent**, so commercially pressed discs will not read; home-authored and
+  unprotected ones will. An ISO works once mounted, which the OS does natively — mounting was
+  left out precisely so the plugin needs no permission to run a shell.
+
+  The one honest weakness: the IFO byte layout is read from a specification, and a synthetic
+  fixture built to the same assumption cannot catch a field at the wrong offset. The deck
+  cross-checks from the other side at runtime — a title whose IFO runtime disagrees with what
+  ffmpeg actually decoded loses its chapters rather than getting wrong ones.
+
 - **Recording / "taping" (shipped 2026-09-11, `plugins/tape-deck`).** CH 101, the tape
   deck. The route the note below predicted is the one that was built: an ffmpeg
   cut-and-concat over the real source files, driven by core's own schedule engine. Two ctx

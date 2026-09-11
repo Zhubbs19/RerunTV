@@ -168,7 +168,7 @@ function buildCtx(manifest, pluginDir, init) {
     dispatchPartyRoute(reqDescriptor) { return rpc.request('party:dispatchRoute', reqDescriptor); },
     spawn: createCheckedSpawn(manifest.id, allowedSpawn),
     createServer: createCheckedServer(manifest.id, allowedPorts),
-    fs: createCheckedFs(manifest.id, dataDir),
+    fs: createCheckedFs(manifest.id, dataDir, init.userDirs || []),
   };
 }
 

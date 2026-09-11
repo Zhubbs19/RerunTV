@@ -141,11 +141,20 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
   };
   const renderSection = (target, section) => {
     target.innerHTML = '';
-    try {
-      section.render(target, makeContext());
-    } catch (error) {
+    const fail = (error) => {
       console.error(`[plugin settings ${plugin.id}/${section.id}] render() threw`, error);
       renderFailure(target, section, error, () => renderSection(target, section));
+    };
+    try {
+      const result = section.render(target, makeContext());
+      // An async render rejects rather than throwing, so the catch below
+      // never sees it: the section silently rendered nothing and the real
+      // error went to an unhandled rejection. Found exactly that way — two
+      // broken sections showed as empty gaps while two identically broken
+      // synchronous ones showed a failure card.
+      if (result && typeof result.then === 'function') result.then(null, fail);
+    } catch (error) {
+      fail(error);
     }
   };
   if (!channelDefinition && sections.length === 1 && sections[0].legacy) {

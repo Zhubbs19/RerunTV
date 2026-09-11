@@ -73,6 +73,15 @@ line of `await`s: a busy renderer occasionally makes one `Runtime.evaluate`
 fail with "Promise was collected", and an unguarded run throws away every
 later result when that happens.
 
+Put a timeout on every screenshot. `Page.captureScreenshot` sometimes never
+answers on a busy renderer, and an unguarded `await` there stalls the whole
+run indefinitely rather than failing — it stranded two runs of this suite
+before `verify-recording.mjs` grew a `shot()` helper that races it against a
+15s timer. A screenshot is a nicety; the assertions are the test, so skip a
+slow one. If a run does hang, kill the DRIVER's node process rather than the
+PowerShell wrapper: that lets the wrapper's own `finally` restore userData
+and clean up Electron the normal way.
+
 ## Safety: why this needs a wrapper at all
 
 `main-config.js`'s `portableUserDataDir()` hardcodes RerunTV's dev-mode
@@ -183,6 +192,16 @@ assume it hung if it's still running after a few minutes.
   changes its approval signature, and an unapproved plugin is skipped at
   load, so a run without this silently tests a plugin that never activated.
   Only ever point it at a throwaway copy.
+- `lib/dvd-fixture.js` — builds synthetic DVD structures for the tape deck's
+  IFO parser: the index files, plus a real DVD-parameter MPEG-2 program
+  stream via ffmpeg when a whole VIDEO_TS folder is wanted. Shared by
+  `tests/dvd-ifo.test.js` (which runs in the `npm test` gate) and the
+  end-to-end driver, so the byte layout is written down once. Read that
+  test's header before trusting it: the fixtures are built to the same layout
+  the parser reads, so they catch coding regressions and cannot catch a field
+  being at the wrong offset in the real format. The deck covers that from the
+  other side at runtime, by dropping a title's chapters when its IFO runtime
+  disagrees with what ffmpeg actually decoded.
 - `verify-embedded-art.js` — plain `node test/verify-embedded-art.js`, no
   Electron. Unit checks for the music-choice plugin's tag parser (ID3v2.2/
   2.3/2.4, FLAC, MP4) against hand-built tags, including malformed input

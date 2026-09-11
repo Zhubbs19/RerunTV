@@ -18,8 +18,12 @@ window.RCBPlugins.registerPluginSettings('mosaic', {
   },
   sections: [{
     id: 'general',
-    render(container, ctx) {
-      const cfg = ctx.settings.getPluginSettings('mosaic') || {};
+    render(container) {
+      // A settings SECTION's own ctx carries the stored values, not the
+      // renderer-wide namespaces — see renderPluginSettings
+      // (setup-plugin-settings.js). Reads and writes go through the
+      // renderer-wide ctx, which is also always current after a write.
+      const cfg = window.RCBPlugins.ctx.settings.getPluginSettings('mosaic') || {};
       container.innerHTML = `
         <span class="panel-status">CH 100 shows what is airing on every other channel as a grid of still frames, paging through the lineup. Frames are paused, not played, so a full page costs a fraction of what a wall of live pictures would.</span>
         <div class="panel-interval">
@@ -58,20 +62,20 @@ window.RCBPlugins.registerPluginSettings('mosaic', {
       tilesEl.addEventListener('change', () => {
         const value = clamp(tilesEl.value, 4, 16, 9);
         tilesEl.value = value;
-        ctx.settings.updatePluginSettings('mosaic', { tilesPerPage: value });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('mosaic', { tilesPerPage: value });
       });
       pageEl.addEventListener('change', () => {
         const value = clamp(pageEl.value, 5, 120, 20);
         pageEl.value = value;
-        ctx.settings.updatePluginSettings('mosaic', { pageSeconds: value });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('mosaic', { pageSeconds: value });
       });
       refreshEl.addEventListener('change', () => {
         const value = clamp(refreshEl.value, 5, 300, 15);
         refreshEl.value = value;
-        ctx.settings.updatePluginSettings('mosaic', { refreshSeconds: value });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('mosaic', { refreshSeconds: value });
       });
       titlesEl.addEventListener('change', () => {
-        ctx.settings.updatePluginSettings('mosaic', { showTitles: titlesEl.checked });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('mosaic', { showTitles: titlesEl.checked });
       });
     },
   }],

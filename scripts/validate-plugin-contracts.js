@@ -85,7 +85,7 @@ function validateManifest(dir, manifestPath) {
   else if (!ID_RE.test(m.id)) errors.push(`${tag}: "id" (${JSON.stringify(m.id)}) should be lowercase-hyphenated, matching ${ID_RE}`);
   else if (m.id !== dir) errors.push(`${tag}: "id" (${JSON.stringify(m.id)}) doesn't match its folder name (${JSON.stringify(dir)})`);
 
-  ['name', 'version', 'description', 'style', 'renderer', 'settings', 'main', 'dataDir'].forEach((field) => {
+  ['name', 'version', 'description', 'style', 'renderer', 'settings', 'main', 'dataDir', 'userPaths'].forEach((field) => {
     if (m[field] !== undefined && typeof m[field] !== 'string') errors.push(`${tag}: "${field}" must be a string if present`);
   });
   if (m.category !== undefined && !CATEGORY_VALUES.has(m.category)) {
@@ -100,6 +100,9 @@ function validateManifest(dir, manifestPath) {
     }
   }
   if (m.isolated !== undefined && typeof m.isolated !== 'boolean') errors.push(`${tag}: "isolated" must be a boolean`);
+  if (m.userPaths !== undefined && !m.dataDir) {
+    errors.push(`${tag}: "userPaths" needs a "dataDir" too — it widens where a plugin may write, it doesn't replace having somewhere of its own`);
+  }
   if (m.minCtxVersion !== undefined && !Number.isInteger(m.minCtxVersion)) errors.push(`${tag}: "minCtxVersion" must be an integer`);
   validateCapabilities(m.capabilities, tag);
   for (const entry of m.capabilities?.net || []) {

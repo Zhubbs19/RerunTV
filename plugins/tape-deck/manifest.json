@@ -2,7 +2,7 @@
   "id": "tape-deck",
   "name": "Tape Deck",
   "version": "1.0.0",
-  "description": "Records what a channel actually broadcasts — the shows plus the bumpers and commercials that air between them — into one playable file, then plays the results back on CH 101 as a shelf you load into a VCR or a disc player. Record in VHS SP/LP/EP, DVD SD or Blu-Ray (each with the running time it really held), or UNLIMITED for any length at any quality. Tape over an existing cassette and it wears, generation by generation, the way it actually did; a disc re-burns clean. Every tape takes its own front and back cover art, its own label on the cassette or disc inside the case, and its own cassette colour. The deck's seven sounds and three animations all have built-in defaults and can each be replaced with your own file. Recording is an ffmpeg cut-and-concat over your own source files, driven by core's schedule engine, so a range is taped faster than real time instead of being captured live. Needs the FFmpeg Transcode plugin enabled for the binary.",
+  "description": "Records what a channel actually broadcasts — the shows plus the bumpers and commercials that air between them — into one playable file, then plays the results back on CH 101 as a shelf you load into a VCR or a disc player. Record in VHS SP/LP/EP, DVD SD or Blu-Ray (each with the running time it really held), or UNLIMITED for any length at any quality. Tape over an existing cassette and it wears, generation by generation, the way it actually did; a disc re-burns clean. Every tape takes its own front and back cover art, its own label on the cassette or disc inside the case, and its own cassette colour. The deck's seven sounds and three animations all have built-in defaults and can each be replaced with your own file. Recording is an ffmpeg cut-and-concat over your own source files, driven by core's schedule engine, so a range is taped faster than real time instead of being captured live. Plays DVDs too: a disc in a drive, or a VIDEO_TS folder, shows up on the shelf, and keeping one of its titles copies it across as an ordinary tape with the disc's own chapters. Tapes live in this plugin’s own folder by default, or anywhere you point it. Needs the FFmpeg Transcode plugin enabled for the binary.",
   "category": "channel",
   "main": "main.js",
   "renderer": "renderer.js",
@@ -19,6 +19,10 @@
       {
         "channel": "tapes:record",
         "why": "accepts a computed segment list (source file, in-point, out-point) and starts cutting and concatenating it into one tape file"
+      },
+      {
+        "channel": "tapes:readDisc",
+        "why": "reads a DVD's own index files to list the titles, chapters and audio tracks on it, so the deck can offer them"
       },
       {
         "channel": "tapes:status",
@@ -47,5 +51,6 @@
         "why": "cuts each scheduled segment out of its source file and concatenates them into a single tape"
       }
     ]
-  }
+  },
+  "userPaths": "tapesDir"
 }

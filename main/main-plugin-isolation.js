@@ -19,7 +19,7 @@ const { utilityProcess } = require('electron');
 const { createRpc, cloneableServiceSnapshot } = require('./rpc-channel');
 const { recordConnection } = require('./main-connections');
 const { recordDiagnostic } = require('./main-diagnostics');
-const { allowedSetsFor, capabilityError } = require('./main-plugin-capabilities');
+const { allowedSetsFor, capabilityError, resolveUserPaths } = require('./main-plugin-capabilities');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'plugin-isolation-runtime.js');
 // A hung/broken isolated plugin (forked but never emitting 'runtime-ready',
@@ -87,7 +87,7 @@ const serviceOwners = new Map(); // key -> pluginId
 // there and refused to activate, silently taking the codec fix, caption
 // extraction, thumbnail capture and recording down with it. Each entry is
 // one exact file, never a directory.
-function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries = []) {
+function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries = [], userDirs = []) {
   // Packaged plugins are seeded under portable userData/plugins, which is a
   // sibling of resources/app.asar rather than a child of appRootDir. Grant
   // the plugin's own directory explicitly so the runtime can require its
@@ -97,6 +97,10 @@ function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries 
   const writePaths = [];
   if (dataDir) { readPaths.push(dataDir); writePaths.push(dataDir); }
   helperBinaries.filter(Boolean).forEach((binary) => readPaths.push(binary));
+  // Folders the user chose for this plugin through its own settings — see
+  // resolveUserPaths (main-plugin-capabilities.js). Read as well as write:
+  // a plugin that puts its output somewhere has to be able to list it again.
+  userDirs.filter(Boolean).forEach((dir) => { readPaths.push(dir); writePaths.push(dir); });
   const args = [
     '--experimental-permission',
     `--allow-fs-read=${readPaths.join(',')}`,
@@ -262,12 +266,13 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
   return new Promise((resolve) => {
     const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
     if (dataDir) require('fs').mkdirSync(dataDir, { recursive: true });
+    const userDirs = resolveUserPaths(manifest, baseCtx);
 
     let child;
     try {
       child = utilityProcess.fork(RUNTIME_SCRIPT, [], {
         serviceName: `plugin:${manifest.id}`,
-        execArgv: buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaryPaths(baseCtx)),
+        execArgv: buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaryPaths(baseCtx), userDirs),
         stdio: 'pipe',
       });
     } catch (e) {
@@ -337,6 +342,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
         manifest,
         pluginDir,
         dataDir,
+        userDirs,
         remotePort: baseCtx.remotePort,
         ffmpegStaticPath: baseCtx.ffmpegStaticPath,
         viewerUrls: typeof baseCtx.getViewerUrls === 'function' ? baseCtx.getViewerUrls() : [],

@@ -39,7 +39,7 @@
     // the machine running RerunTV. A LAN viewer has neither, so the tape
     // deck's channel degrades to "recording is unavailable here" there
     // rather than getting a shim that could not work.
-    'tapesRecord', 'tapesStatus', 'tapesCancel', 'tapesList', 'tapesSetArt', 'tapesDelete',
+    'tapesRecord', 'tapesStatus', 'tapesCancel', 'tapesList', 'tapesReadDisc', 'tapesSetArt', 'tapesDelete',
     'onTapesProgress', 'onTapesDone',
   ];
   const methods = Object.freeze(Object.fromEntries([

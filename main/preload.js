@@ -234,6 +234,7 @@ contextBridge.exposeInMainWorld('api', {
   tapesStatus: () => ipcRenderer.invoke('tapes:status'),
   tapesCancel: (id) => ipcRenderer.invoke('tapes:cancel', id),
   tapesList: () => ipcRenderer.invoke('tapes:list'),
+  tapesReadDisc: (videoTsPath) => ipcRenderer.invoke('tapes:readDisc', videoTsPath),
   tapesSetArt: (opts) => ipcRenderer.invoke('tapes:setArt', opts),
   tapesDelete: (id) => ipcRenderer.invoke('tapes:delete', id),
   onTapesProgress: (cb) => ipcRenderer.on('tapes:progress', (event, data) => cb(data)),
