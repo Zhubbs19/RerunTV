@@ -18,6 +18,11 @@ test/theme-sweep-screenshots/
 test/results.json
 test/report.json
 test/userData.test-backup/
+test/audit/
+test/audit-*/
+test/failed-profile-*/
+test/failed-sweep-profile-*/
+test/startup-login-harness/
 android-tv-client/.gradle/
 android-tv-client/.gradle-user-home/
 android-tv-client/.idea/
