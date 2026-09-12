@@ -113,6 +113,50 @@ function basenameOf(filePath) {
   return String(filePath || '').split(/[\\/]/).pop();
 }
 
+// The job in flight, shown in the panel so the state is legible from setup
+// as well as from the TV screen — the on-screen readout only exists on live
+// TV, which is exactly where you are not while arranging a recording.
+//
+// Polled rather than pushed: the plugin's progress events go to the deck's
+// own listener, and a panel that may not be open has no business holding a
+// subscription. The timer is cleared as soon as the row leaves the document.
+function watchActiveJob(container) {
+  const paint = async () => {
+    if (!container.isConnected) { clearInterval(timer); return; }
+    let status = {};
+    try { status = await window.api.tapesStatus(); } catch (e) { status = {}; }
+    const job = status.active;
+    if (!job) {
+      container.innerHTML = '<span class="panel-status">Nothing is recording right now.</span>';
+      return;
+    }
+    const percent = Math.round((job.progress || 0) * 100);
+    const waiting = (status.queued || []).length;
+    container.innerHTML = `
+      <div class="panel-interval" style="gap:8px;flex-wrap:wrap">
+        <span class="tape-panel-rec" aria-hidden="true"></span>
+        <span>${escapeHtml(STAGE_WORDS[job.stage] || 'RECORDING')} CH ${job.channelNumber} · ${escapeHtml(job.title || '')}</span>
+        <span class="panel-status">${percent}%${waiting ? ` · ${waiting} waiting` : ''}</span>
+        <button class="btn remove-btn" data-el="stop">STOP</button>
+      </div>
+    `;
+    container.querySelector('[data-el="stop"]').addEventListener('click', async () => {
+      await window.api.tapesCancel(job.id);
+      paint();
+    });
+  };
+  // A second is plenty for a readout measured in percent.
+  const timer = setInterval(paint, 1000);
+  paint();
+}
+
+const STAGE_WORDS = {
+  starting: 'WORKING OUT WHAT AIRS',
+  cutting: 'RECORDING',
+  slate: 'RECORDING',
+  assembling: 'ASSEMBLING THE TAPE',
+};
+
 function recordableChannels() {
   return core().channels.sortedChannels().filter((channel) => !channel.hidden && (channel.files || []).length);
 }
@@ -528,6 +572,7 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
             <button class="btn" data-el="later">SET TIMER</button>
           </div>
           <span class="panel-status" data-el="status"></span>
+          <div data-el="active"></div>
           <div data-el="timers"></div>
         `;
         const q = (name) => container.querySelector(`[data-el="${name}"]`);
@@ -609,6 +654,7 @@ window.RCBPlugins.registerPluginSettings(PLUGIN_ID, {
         });
 
         paintTimers();
+        watchActiveJob(container.querySelector('[data-el="active"]'));
       },
     },
     {

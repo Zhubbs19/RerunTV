@@ -217,6 +217,40 @@ function paintRecOsd() {
   el.classList.remove('hidden');
 }
 
+// Marks the channel being recorded in the programme guide.
+//
+// Two halves, because the guide does not rebuild its rows on every tick: a
+// core hook decorates a row as it is built (for a guide opened mid-record),
+// and a sweep re-applies whenever progress changes (for a record started
+// while the guide is already open). Both find the row the same way, by the
+// channel number core stamps on the cell.
+function paintGuideMarkers() {
+  const recording = lastStatus.active ? String(lastStatus.active.channelNumber) : null;
+  document.querySelectorAll('.guide-row-chan[data-channel-number]').forEach((cell) => {
+    const wanted = cell.dataset.channelNumber === recording;
+    const existing = cell.querySelector('.tape-guide-rec');
+    if (wanted && !existing) {
+      const dot = document.createElement('span');
+      dot.className = 'tape-guide-rec';
+      dot.title = 'Recording';
+      dot.textContent = 'REC';
+      cell.appendChild(dot);
+    } else if (!wanted && existing) {
+      existing.remove();
+    }
+  });
+}
+
+window.RCBPlugins.registerCoreHook('guide-channel-cell', ({ channel, cell }) => {
+  if (!lastStatus.active || !cell) return;
+  if (String(channel.number) !== String(lastStatus.active.channelNumber)) return;
+  const dot = document.createElement('span');
+  dot.className = 'tape-guide-rec';
+  dot.title = 'Recording';
+  dot.textContent = 'REC';
+  cell.appendChild(dot);
+});
+
 function flashToast(message, tone) {
   const el = recOsd();
   clearTimeout(osdHideTimer);
@@ -1498,6 +1532,7 @@ if (typeof window.api.onTapesProgress === 'function') {
   window.api.onTapesProgress((status) => {
     lastStatus = status || { active: null, queued: [] };
     paintRecOsd();
+    paintGuideMarkers();
   });
 }
 if (typeof window.api.onTapesDone === 'function') {
@@ -1505,6 +1540,10 @@ if (typeof window.api.onTapesDone === 'function') {
     if (result && result.error) flashToast(String(result.error).toUpperCase(), 'bad');
     else if (result && result.cancelled) flashToast('RECORDING CANCELLED');
     else if (result && result.tape) flashToast(`TAPE READY · ${String(result.tape.title || '').toUpperCase()}`);
+    // The job is over, so clear its guide marker without waiting for the
+    // next progress push — there will not be one.
+    lastStatus = { active: null, queued: lastStatus.queued || [] };
+    paintGuideMarkers();
     refreshTapes(window.RCBPlugins.ctx, { repaint: true });
   });
 }

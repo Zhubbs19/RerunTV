@@ -20,7 +20,7 @@ import {
 } from './util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from './virtual.js';
 import { effectiveThemeId } from './broadcast-identity.js';
-import { getThemePack } from './plugins.js';
+import { getThemePack, runCoreHooks } from './plugins.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -394,11 +394,20 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
 
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
+  // Addressable by channel number so anything that wants to decorate a row
+  // later can find it again without re-rendering the grid — the 30s tick
+  // deliberately doesn't rebuild rows (see the render-signature fast path
+  // below), so a marker that only appeared at build time would lag behind
+  // whatever it is reporting.
+  chanCell.dataset.channelNumber = String(ch.number);
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
   chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(ch.number)}</span><span class="grc-name">${escapeHtml(ch.name || 'UNTITLED')}</span>`;
   chanCell.appendChild(buildChannelBadge(ch, { small: true, editable: false }));
   chanCell.appendChild(chanText);
+  // Generic decoration point: core knows nothing about who listens or what
+  // they add, only that a row for this channel now exists.
+  runCoreHooks('guide-channel-cell', { channel: ch, cell: chanCell });
 
   const track = document.createElement('div');
   track.className = 'guide-row-track';
@@ -597,11 +606,13 @@ export function renderGuideGrid() {
 
       const chanCell = document.createElement('div');
       chanCell.className = 'guide-row-chan';
+      chanCell.dataset.channelNumber = String(num);
       chanCell.appendChild(buildChannelBadge({ number: num, name: info.name, icon: null }, { small: true, editable: false }));
       const chanText = document.createElement('div');
       chanText.className = 'grc-text';
       chanText.innerHTML = `<span class="grc-num">CH ${String(num).padStart(2, '0')}</span><span class="grc-name">${escapeHtml(info.name)}</span>`;
       chanCell.appendChild(chanText);
+      runCoreHooks('guide-channel-cell', { channel: { number: num, name: info.name }, cell: chanCell });
 
       const track = document.createElement('div');
       track.className = 'guide-row-track';

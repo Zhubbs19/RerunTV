@@ -1001,7 +1001,20 @@ resets — any activity), `'idle-armed'` (fired only when the idle timer is
 actually rescheduled), `'theme-audio-refresh'` (fired whenever something
 that could affect ambient theme audio changes — a theme switch, movie mode,
 power state), `'draw-test-pattern'` (fired instead of the plain no-signal
-card, for an unconfigured channel number).
+card, for an unconfigured channel number), `'guide-channel-cell'` (fired as
+each programme-guide row is built, with `{ channel, cell }`, so a plugin can
+decorate that channel's cell — append to `cell` and core neither knows nor
+cares what you added).
+
+One thing to know about `'guide-channel-cell'`: the guide does NOT rebuild
+its rows on its 30-second tick (see the render-signature fast path in
+`guide.js`), so a marker added only from this hook goes stale as soon as
+whatever it reports changes. Core stamps `data-channel-number` on every
+channel cell for exactly that reason — re-apply your marker by querying
+`.guide-row-chan[data-channel-number="N"]` when your own state changes, and
+use the hook only to cover a guide opened after the fact.
+`plugins/tape-deck/renderer.js`'s `paintGuideMarkers` is a worked example of
+both halves.
 
 ```js
 window.RCBPlugins.registerCoreHook('power-off', () => {

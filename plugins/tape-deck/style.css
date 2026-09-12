@@ -832,3 +832,35 @@
 @media (prefers-reduced-motion: reduce) {
   .tape-rec-dot { animation: none; }
 }
+
+/* The guide's own recording marker. Sits at the end of the channel cell, so
+   it reads as a property of that channel rather than of the programme in the
+   slot beside it. */
+.tape-guide-rec {
+  margin-left: auto;
+  padding: 0 0.3rem;
+  border-radius: 2px;
+  background: #ff3b30;
+  color: #fff;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.56rem;
+  letter-spacing: 0.1em;
+  line-height: 1.5;
+  align-self: center;
+  animation: tape-rec-blink 1.6s steps(1, end) infinite;
+}
+
+/* The settings panel's copy of the same state. */
+.tape-panel-rec {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 8px rgba(255, 59, 48, 0.8);
+  animation: tape-rec-blink 1.6s steps(1, end) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-guide-rec,
+  .tape-panel-rec { animation: none; }
+}
