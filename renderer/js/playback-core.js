@@ -96,6 +96,30 @@ const DRIFT_SEEK_COOLDOWN_MS = 30000;
 // that handoff for no benefit.
 const DRIFT_TAIL_GUARD_S = 5;
 
+// ---------- Load-latency catch-up (playChannelLive's catchUpToSchedule) ----------
+// The watchdog above is the slow, periodic safety net for a picture that
+// falls behind mid-file. These cover the much smaller, entirely predictable
+// gap every single file load opens up between "seek to where the schedule
+// says" and "a frame from there is actually on screen" — see the long
+// comment at catchUpToSchedule for what that cost measured out to.
+//
+// Below CATCH_UP_MIN_S, correcting costs more than it fixes: a second seek
+// for a gap of a few frames is not worth the extra latency it introduces.
+const CATCH_UP_MIN_S = 0.2;
+// How far past the target the corrective seek aims, to cover its own cost.
+// Seeded at a plausible sub-second-hop figure and then learned from what
+// each correction actually takes, so it converges on whatever this machine
+// and this media really do rather than on a number picked here. Capped so a
+// single pathological seek can't teach it to jump wildly ahead.
+const CORRECTION_LEAD_MAX_MS = 600;
+// How much of each correction's leftover gap gets folded back into the
+// estimate. Under 1 so a single unusually slow seek nudges rather than
+// redefines it.
+const CORRECTION_LEAD_DAMPING = 0.6;
+let correctionLeadMs = 120;
+// A corrective seek that never produces a frame must not hold the reveal.
+const CATCH_UP_FRAME_TIMEOUT_MS = 2000;
+
 export function checkScheduleDrift() {
   if (!S.isPoweredOn || S.isSetupOpen) return;
   if (S.activeBreakKey || S.creditsSpeedupActive) return;
@@ -410,6 +434,90 @@ export async function playChannelLive(ch, opts) {
     // cache" when live streaming should have worked. Local files keep the
     // original tight budget; only remote sources get the longer one.
     const decodeTimeoutMs = (file.source && file.source !== 'local') ? 12000 : 4000;
+    // First real decoded frame of the resumed content — the actual "ready"
+    // signal fadeInOnReady callers (endBreak) want, instead of revealing as
+    // soon as src is set while the video is still seeking. Also the tuning
+    // static's own "ready" signal: this is the earliest point a channel
+    // change actually has something to show. Guarded because the catch-up
+    // below can defer it to a second frame, and the decode watchdog can
+    // race it on the way to giving up.
+    let revealed = false;
+    function revealContent() {
+      if (revealed) return;
+      revealed = true;
+      if (opts.fadeInOnReady) fadeInPlayer();
+      markStaticReady();
+    }
+
+    // ---------- Load-latency catch-up ----------
+    // Setting player.currentTime and getting a decoded frame back are not
+    // the same instant. Tuning in is always a mid-file seek ("resume
+    // wherever this would really be right now"), which costs real time that
+    // the schedule goes on counting through — so the picture settles behind
+    // its own scheduled position and simply stays there, since nothing
+    // re-checked after the seek and checkScheduleDrift's 3s tolerance never
+    // sees a gap this small. Measured live on CH 7: a rock-steady 0.724s
+    // behind for the whole file. Every break then cut in ~0.7s before the
+    // picture reached the point the schedule meant, and the last second of
+    // every file never aired — the "breaks are slightly out of sync" report.
+    //
+    // Correcting here, on the first decoded frame, means it happens while
+    // the screen is still held on tuning static or faded to black, so the
+    // jump is never visible; the reveal waits for the frame after it. The
+    // corrective seek costs its own latency too — much smaller, since it is
+    // a sub-second hop rather than a jump across the file — so it aims that
+    // far PAST the target instead of at it, and learns the real figure from
+    // what each correction actually costs.
+    let corrected = false;
+    function catchUpToSchedule() {
+      if (corrected) return false;
+      corrected = true;
+      if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
+      // A bumper owns the player during a break; this is content's own catch-up.
+      if (S.activeBreakKey) return false;
+      if (!Number.isFinite(player.duration) || player.duration <= 0) return false;
+      const fresh = computeLiveContentPosition(ch);
+      // A boundary crossed while this file was loading — the normal
+      // content-ended machinery is about to move on, so leave it alone.
+      if (!fresh || !fresh.file || fresh.file.path !== posFile.path) return false;
+      const delta = fresh.offset - player.currentTime;
+      if (Math.abs(delta) < CATCH_UP_MIN_S) return false;
+      const target = fresh.offset + correctionLeadMs / 1000;
+      // Same reasoning as the drift watchdog's own tail guard: this close to
+      // the end, the boundary resolves the transition properly on its own.
+      if (target >= player.duration - DRIFT_TAIL_GUARD_S) return false;
+      player.currentTime = target;
+      const cbId2 = player.requestVideoFrameCallback(() => {
+        // Closed loop on the thing that actually matters: whatever gap is
+        // STILL there once the corrected frame is on screen is exactly how
+        // much further ahead the next correction should have aimed. Feeding
+        // the residual back (damped, so a one-off slow seek doesn't yank the
+        // estimate around) drives it to zero within a few file loads,
+        // whatever the seek really costs on this machine — measuring the
+        // seek's own duration instead only ever converges on the cost, which
+        // is not the same number.
+        const after = computeLiveContentPosition(ch);
+        const residualS = (after && after.file && after.file.path === posFile.path)
+          ? after.offset - player.currentTime
+          : 0;
+        correctionLeadMs = Math.max(0, Math.min(CORRECTION_LEAD_MAX_MS,
+          Math.round(correctionLeadMs + residualS * 1000 * CORRECTION_LEAD_DAMPING)));
+        if (tuneTimingEnabled()) {
+          console.log(`[tune] CH${ch.number} caught up ${delta > 0 ? '+' : ''}${delta.toFixed(3)}s, `
+            + `${residualS.toFixed(3)}s left (lead now ${correctionLeadMs}ms)`);
+        }
+        revealContent();
+      });
+      // A correction that never produces a frame must not leave the screen
+      // held on static forever.
+      setTimeout(() => {
+        if (revealed) return;
+        try { player.cancelVideoFrameCallback(cbId2); } catch (e) { /* already fired */ }
+        revealContent();
+      }, CATCH_UP_FRAME_TIMEOUT_MS);
+      return true;
+    }
+
     function startFrameWatch() {
       if (seekSettled || handled) return;
       seekSettled = true;
@@ -418,18 +526,13 @@ export async function playChannelLive(ch, opts) {
       const cbId = player.requestVideoFrameCallback(() => {
         gotFrame = true;
         if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} first decoded frame +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
-        // First real decoded frame of the resumed content — the actual
-        // "ready" signal fadeInOnReady callers (endBreak) want, instead of
-        // revealing as soon as src is set while the video is still seeking.
-        // Also the tuning static's own "ready" signal — this is the earliest
-        // point a channel change actually has something to show.
-        if (opts.fadeInOnReady) fadeInPlayer();
-        markStaticReady();
+        if (catchUpToSchedule()) return; // it owns the reveal now
+        revealContent();
       });
       setTimeout(() => {
         if (!gotFrame) {
           try { player.cancelVideoFrameCallback(cbId); } catch (e) {}
-          if (opts.fadeInOnReady) fadeInPlayer(); // don't leave the screen stuck faded on failure
+          revealContent(); // don't leave the screen stuck faded on failure
           handleUnplayable();
         }
       }, decodeTimeoutMs);
