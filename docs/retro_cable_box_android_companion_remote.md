@@ -8,6 +8,13 @@ metadata:
   modified: 2026-08-09T23:39:27.987Z
 ---
 
+> **Stale as of 2026-09-12.** The native-Kotlin UI described below was
+> later replaced by a thin WebView shell around the page the desktop
+> companion-app plugin serves, so Android and a phone browser show the
+> same UI and a desktop update needs no new APK. `ApiClient.kt`, the
+> native client this note describes, has been deleted. See
+> `COMPANION_APP_AUDIT_2026-09-11.md` Part 2.
+
 Built a native Kotlin Android app (`android-remote-client/`) as a companion remote, alongside (not replacing) the existing phone-web remote (`remote/`) — see [[retro_cable_box_universal_remote]]. User explicitly chose "native Kotlin app" over a WebView wrapper when asked, and selected all four settings-scope options offered (quick-access channels, playback/display toggles, basic remote, full config editor), so v1 scope was deliberately broad.
 
 **Why:** user wanted one-tap buttons for specific channels at gatherings (a "party channel" or "public access" style channel) plus broader on-app settings control — the existing phone-web remote only does digit-entry channel surfing, no direct jump and no settings surface at all.
