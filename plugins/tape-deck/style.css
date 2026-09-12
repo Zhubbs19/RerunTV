@@ -626,6 +626,18 @@
   pointer-events: none;
 }
 
+/* The deck being transparent is not enough on its own: the tape plays in
+   core's shared #player, which sits BELOW the plugin channel container
+   (overlays.css gives .plugin-channel-container z-index 5 and an opaque
+   black background, while #player keeps z-index:auto). Left as it was, the
+   container painted flat black over a perfectly good picture — the tape
+   played, with sound, and nothing was on screen. Reaching for a core class
+   name from a plugin stylesheet is not ideal, but it is the element core
+   hands us and the only one in a position to cover the video. */
+.plugin-channel-container:has(.tape-playing) {
+  background: transparent;
+}
+
 /* The beat of blue every deck showed between engaging and locking on. */
 .tape-bluescreen {
   position: absolute;
