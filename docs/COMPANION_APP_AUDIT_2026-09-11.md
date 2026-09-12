@@ -1,11 +1,19 @@
 # Companion App — Feature and Usability Audit
 
-Date: 2026-09-11
-Scope: `plugins/companion-app/` — the LAN control surface served to the Android
-companion and to any phone browser (`remote/index.html`, `remote/remote.js`,
-`remote/style.css`), plus the routes and state contract behind it
-(`main.js`, `renderer/js/power.js`'s `pushRemoteState`, `app.js`'s
-`onCompanionApplySettings`).
+Date: 2026-09-11, Part 2 added 2026-09-12
+
+Scope, in two parts:
+
+- **Part 1 — the UI.** `plugins/companion-app/` — the LAN control surface
+  served to the Android companion and to any phone browser
+  (`remote/index.html`, `remote/remote.js`, `remote/style.css`), plus the
+  routes and state contract behind it (`main.js`,
+  `renderer/js/power.js`'s `pushRemoteState`, `app.js`'s
+  `onCompanionApplySettings`).
+- **Part 2 — the Android app.** `android-companion-client/`, the shell that
+  displays that UI on a phone. It is a WebView wrapper, so Part 1 is most of
+  what the Android app *is* — but the shell has its own findings, at the
+  bottom of this document.
 
 ## Status — most of this shipped on 2026-09-12
 
@@ -307,3 +315,129 @@ layout above 850px so a tablet is not just a stretched phone.
    that tab.
 5. NOW/NEXT in the Guide tab (finding 6), which needs a new route and is the
    biggest genuine feature gap.
+
+---
+
+# Part 2 — the Android shell (`android-companion-client/`)
+
+Added 2026-09-12, after the first part was mistaken for the whole audit. Part 1
+covers the UI; this covers the app that displays it.
+
+## The thing to know first
+
+The Android companion is **a thin WebView shell around the very page Part 1
+audits**. It was a native Kotlin client once — the doc note in
+`docs/retro_cable_box_android_companion_remote.md` still describes that
+choice — but the UI was later moved to the served page so the two clients
+could not drift, and the shell kept only what a browser cannot do: LAN
+discovery, a remembered host, native downloads, and Back.
+
+Two consequences:
+
+- **Everything in Part 1 reaches the Android app with no new APK.** Update the
+  desktop app and the phone shows the new UI on its next load.
+- The commit that shipped Part 1 justifies keeping `/channels` a bare array by
+  saying the Android client parses it with `org.json`. That parser was already
+  dead code (see finding A1). Keeping the array shape is still right — a
+  released APK may be running against a much newer box, and the route is a
+  public LAN contract — but not for the reason given there.
+
+The shell only needs rebuilding when the shell itself changes, which the fixes
+below did: **v3.1.0, versionCode 5**, built and staged at
+`dist/RerunTV-Companion-3.1.0-debug.apk`.
+
+## Findings
+
+### A1. 252 lines of dead code that describe a contract the app no longer uses
+
+`ApiClient.kt` — pairing, `/command`, `/tune`, `/channels`, `/api/config`,
+`/api/settings`, `/api/roots`, the lot — is referenced by nothing. `Prefs.token`
+existed only to serve it. Worse than clutter: it reads like the app's API layer,
+so anyone reasoning about what the APK does gets the wrong answer, which is
+exactly what happened when Part 1 shipped.
+
+**Fixed** — deleted, along with the token property, whose replacement (a WebView
+session cookie) is now named in its place.
+
+### A2. The connect bar never goes away
+
+The host field, FIND and OPEN sat above the WebView permanently — roughly 90dp
+of a phone screen given over forever to a job you do once, stacked on top of a
+page that already has its own header and tab strip to fit.
+
+**Fixed** — it collapses on a successful load, leaving the status line and a
+HOST button that brings it back. Back closes it before it closes the app.
+
+### A3. The page was re-downloaded on every launch
+
+`cacheMode = LOAD_NO_CACHE` meant the page, its CSS, its JS and its icon came
+down again every single time, which is latency at exactly the moment someone
+wants the remote right now.
+
+**Fixed** — `LOAD_DEFAULT`. The live data routes are already `no-store` on the
+server, so the cache can only ever hold the static shell.
+
+### A4. A failed connection was a dead end
+
+`onReceivedError` wrote "CONNECTION FAILED" into a 10sp label. Nothing to tap,
+no retry, no pull-to-refresh — even though `swiperefreshlayout` was already a
+declared dependency and unused. It also overrode only the deprecated
+`onReceivedError`, which cannot tell a failed main document from a
+sub-resource that merely 404'd.
+
+**Fixed** — a real failure panel naming the address it tried, with TRY AGAIN
+and FIND MY BOX, plus pull-to-refresh on the page, on the modern overload.
+
+### A5. Pairing could be lost to a process death
+
+The pairing session is a WebView cookie. `CookieManager.flush()` was never
+called, and Android writes cookies to disk on its own schedule — so being
+killed at the wrong moment sent the user back to the TV for a fresh code.
+
+**Fixed** — flushed in `onPause`.
+
+### A6. Discovery took whichever box answered first
+
+`Discovery.find()` returned at the first reply carrying a `companionPort`. A
+house with two boxes got whichever won the race, with no sign the other
+existed and no way to reach it but typing its address.
+
+**Fixed** — `findAll()` runs the whole 2.5s window, dedupes by address and
+port, and the shell asks which one when more than one answers. A malformed
+reply is skipped rather than ending the scan, and a socket timeout ends it
+cleanly instead of being caught as a general failure.
+
+### A7. The screen dimmed while you were holding the remote
+
+No `FLAG_KEEP_SCREEN_ON`, so a phone being used as a remote locked itself after
+the usual thirty seconds.
+
+**Fixed** — held while connected, cleared on a failed load.
+
+### A8. Smaller things
+
+- **Back always quit.** The rule was `webView.canGoBack()`, but the page is one
+  document with JS tabs, so there was never any history. **Improved** — Back
+  now closes the connect bar first; beyond that it still exits, because the
+  shell cannot see which tab the page is on. Closing that properly needs the
+  page to tell it, which is the same missing "what screen is showing" signal
+  as Part 1's finding 7.
+- **An unused `constraintlayout` dependency.** **Removed**; nothing in the app
+  uses it.
+- **No version anywhere.** A phone could not say which shell it was running
+  while the served UI changed underneath it. **Fixed** — the status line reads
+  `CONNECTED TO <BOX> · v3.1.0`.
+- **`allowBackup="true"`** still ships the saved host and port into Android
+  cloud backups. Left as-is now that the pairing token is gone; the remaining
+  data is a LAN address.
+- **Debug-signed APKs only.** Everything in `dist/` is `assembleDebug` output.
+  Fine for sideloading, but there is no release signing config, so this cannot
+  be distributed any other way.
+
+## Verifying
+
+`./gradlew.bat assembleDebug` in `android-companion-client/` builds clean
+against the installed SDK on this machine (three obsolete-source-level
+warnings, no errors). The shell was not run on a device as part of this pass —
+the desktop-side contract it depends on is what `test/verify-companion-app.mjs`
+covers, and it passes 14/14.

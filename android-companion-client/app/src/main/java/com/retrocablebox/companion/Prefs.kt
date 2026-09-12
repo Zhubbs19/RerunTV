@@ -4,8 +4,7 @@ import android.content.Context
 
 /**
  * Persists which desktop host to talk to (IP + companion-app port) across
- * launches — set manually on the CONNECT tab (see MainActivity.saveHost).
- * Mirrors android-remote-client's Prefs.kt.
+ * launches — set from the connect bar, or filled in by LAN discovery.
  */
 class Prefs(context: Context) {
     private val prefs = context.getSharedPreferences("companion_prefs", Context.MODE_PRIVATE)
@@ -22,13 +21,11 @@ class Prefs(context: Context) {
         get() = prefs.getString("hostName", null)
         set(value) = prefs.edit().putString("hostName", value).apply()
 
-    // Bearer session token from the host's pairing flow (main-lan-security.js).
-    // Cleared whenever the host rejects it (401) so the user is re-prompted.
-    // The host persists accepted sessions for 90 days, so ordinary desktop
-    // restarts do not make a paired phone reconnect from scratch.
-    var token: String?
-        get() = prefs.getString("token", null)
-        set(value) = prefs.edit().putString("token", value).apply()
+    // No token field here any more. Pairing is a session COOKIE held by the
+    // WebView (main-lan-security.js issues it, MainActivity flushes it on
+    // pause), not a bearer token this shell manages — the token property and
+    // the native ApiClient that read it went away together when the UI moved
+    // to the served page.
 
     fun baseUrl(): String? {
         val h = host ?: return null

@@ -6,74 +6,166 @@
     android:background="#090B0D"
     android:fitsSystemWindows="true">
 
+    <!-- The status line is always visible and is also the way back to the
+         connect controls: once a host is connected the bar below collapses,
+         because picking a box is a once-ever job and the page underneath has
+         its own header and tab strip to fit on the same phone screen. -->
     <LinearLayout
+        android:id="@+id/statusRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#101417"
         android:paddingStart="12dp"
-        android:paddingTop="10dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="8dp"
-        android:background="#101417">
+        android:paddingTop="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp">
 
         <TextView
             android:id="@+id/statusText"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:text="RERUNTV COMPANION"
             android:textColor="#65D7DD"
             android:textStyle="bold"
             android:textSize="10sp"
             android:letterSpacing="0.1" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:layout_marginTop="5dp">
-
-            <EditText
-                android:id="@+id/hostInput"
-                android:layout_width="0dp"
-                android:layout_height="44dp"
-                android:layout_weight="1"
-                android:singleLine="true"
-                android:hint="RerunTV host or IP"
-                android:inputType="textUri"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:textColor="#F0EEE6"
-                android:textColorHint="#7E8991"
-                android:background="@drawable/input_bg" />
-
-            <Button
-                android:id="@+id/discoverButton"
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/btn_bg"
-                android:text="FIND"
-                android:textColor="#F0EEE6"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/openButton"
-                android:layout_width="wrap_content"
-                android:layout_height="44dp"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/btn_bg_gold"
-                android:text="OPEN"
-                android:textColor="#171006"
-                android:textStyle="bold" />
-        </LinearLayout>
+        <Button
+            android:id="@+id/toggleConnectButton"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:minWidth="64dp"
+            android:background="@drawable/btn_bg"
+            android:text="HOST"
+            android:textSize="10sp"
+            android:textColor="#F0EEE6"
+            android:textStyle="bold" />
     </LinearLayout>
 
-    <WebView
-        android:id="@+id/companionWebView"
+    <LinearLayout
+        android:id="@+id/connectBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="#101417"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="10dp">
+
+        <EditText
+            android:id="@+id/hostInput"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1"
+            android:singleLine="true"
+            android:hint="RerunTV host or IP"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:textColor="#F0EEE6"
+            android:textColorHint="#7E8991"
+            android:background="@drawable/input_bg" />
+
+        <Button
+            android:id="@+id/discoverButton"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/btn_bg"
+            android:text="FIND"
+            android:textColor="#F0EEE6"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/openButton"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/btn_bg_gold"
+            android:text="OPEN"
+            android:textColor="#171006"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Pull down to reload the served page. The dependency for this was
+         already declared and unused; a failed load previously left a text
+         label reading CONNECTION FAILED and no way to try again. -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:background="#090B0D" />
+        android:layout_weight="1">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent">
+
+            <WebView
+                android:id="@+id/companionWebView"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="#090B0D" />
+
+            <LinearLayout
+                android:id="@+id/errorPanel"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="28dp"
+                android:background="#090B0D"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/errorText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="COULD NOT REACH THE BOX"
+                    android:textColor="#F0EEE6"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:letterSpacing="0.08" />
+
+                <TextView
+                    android:id="@+id/errorDetail"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:textColor="#7E8991"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/retryButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="18dp"
+                    android:paddingStart="26dp"
+                    android:paddingEnd="26dp"
+                    android:background="@drawable/btn_bg_gold"
+                    android:text="TRY AGAIN"
+                    android:textColor="#171006"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/errorFindButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="8dp"
+                    android:paddingStart="26dp"
+                    android:paddingEnd="26dp"
+                    android:background="@drawable/btn_bg"
+                    android:text="FIND MY BOX"
+                    android:textColor="#F0EEE6"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </FrameLayout>
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </LinearLayout>
