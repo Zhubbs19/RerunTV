@@ -222,6 +222,12 @@ export const S = {
   sapMode: 'stereo',
   activePod: null,
   activePodIndex: 0,
+  // {at, applied[], rejected[{section, reason}]} for the most recent
+  // settings patch the companion app sent (onCompanionApplySettings,
+  // app.js). Read straight back out by pushRemoteState (power.js) so the
+  // phone can report what actually happened instead of assuming success —
+  // the HTTP route that took the patch has already answered by then.
+  lastCompanionSettingsResult: null,
 };
 
 export const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

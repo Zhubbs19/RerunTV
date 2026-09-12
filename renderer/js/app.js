@@ -1,6 +1,6 @@
 import { S, viewNow, saveConfigDebounced, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
 import { runConfigMigrations } from './config-schema.js';
-import { randomInterstitialId } from './util.js';
+import { randomInterstitialId, getDisplayTitle } from './util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
   guideOverlay, channelEntryEl, stationIdBarEl, triviaCardEl, channelFilterEl, shortcutsOverlayEl, detailsOverlayEl,
@@ -552,9 +552,26 @@ window.api.onCompanionApplySettings?.((patch) => {
   if (!patch || typeof patch !== 'object') return;
   const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
   const changedSections = new Set();
+  // Every section this handler declines, and why. The HTTP route that
+  // delivered this patch answered 202/204 the moment it relayed it — it
+  // cannot know what happened here — so the phone used to report "changes
+  // accepted" for a patch that was silently dropped in full, then reload
+  // the config and watch the value snap back with no explanation. Reporting
+  // the outcome in the next pushed remote state (see pushRemoteState,
+  // power.js) is what makes that honest: the companion polls /state every
+  // 1.5s anyway, so the truth reaches it within one tick without a new IPC
+  // channel (which would need a fresh capability approval) or a request/
+  // response round trip the one-way relay can't do.
+  const rejected = [];
   for (const [section, values] of Object.entries(patch)) {
-    if (BLOCKED_SECTIONS.has(section)) continue;
-    if (!(section in S.config)) continue;
+    if (BLOCKED_SECTIONS.has(section)) {
+      rejected.push({ section, reason: 'edited from the box itself, not the companion' });
+      continue;
+    }
+    if (!(section in S.config)) {
+      rejected.push({ section, reason: 'no such setting on this box' });
+      continue;
+    }
     const target = S.config[section];
     const targetIsPlainObject = target !== null && typeof target === 'object' && !Array.isArray(target);
     const valuesIsPlainObject = values !== null && typeof values === 'object' && !Array.isArray(values);
@@ -566,7 +583,10 @@ window.api.onCompanionApplySettings?.((patch) => {
     // aspectMode, volume, and others) used to be silently skipped here
     // because the old handler only accepted object/object pairs. Arrays are
     // also legitimate leaf values from the Companion's generic editor.
-    if (!sameConfigShape(target, values)) continue;
+    if (!sameConfigShape(target, values)) {
+      rejected.push({ section, reason: 'wrong kind of value for this setting' });
+      continue;
+    }
     const equal = Array.isArray(target)
       ? JSON.stringify(target) === JSON.stringify(values)
       : Object.is(target, values);
@@ -575,9 +595,19 @@ window.api.onCompanionApplySettings?.((patch) => {
       changedSections.add(section);
     }
   }
-  if (!changedSections.size) return;
+  S.lastCompanionSettingsResult = {
+    at: Date.now(), // a real timestamp so the phone can tell one save from the next
+    applied: [...changedSections],
+    rejected,
+  };
+  if (!changedSections.size) {
+    // Nothing to save or re-render, but the phone still needs to hear that
+    // — this is exactly the case that used to report success.
+    pushRemoteState();
+    return;
+  }
   saveConfigDebounced();
-  applyCompanionSettingsLive(changedSections);
+  applyCompanionSettingsLive(changedSections); // ends with its own pushRemoteState()
 });
 
 // Companion app's ALERTS section (REMOTE tab) — dedicated relays rather than
@@ -600,6 +630,61 @@ window.api.onCompanionSetTicker?.((data) => {
   saveConfigDebounced();
   if (window.applyTickerState) window.applyTickerState();
 });
+
+// ---------- Companion lineup snapshot ----------
+// What each channel is showing now and next, pushed to the companion app's
+// cached state so its GUIDE tab can list real programming instead of bare
+// channel names. Rides on the existing 'remote:state' push (pushRemoteState,
+// power.js) rather than a channel of its own: the companion plugin merges
+// what arrives, so a new IPC channel — and the fresh capability approval a
+// manifest change would demand of every paired install — isn't needed for
+// what is really just more of the same status.
+//
+// Only the tuned box computes this; a LAN viewer resolves its own schedule
+// and has no companion server to feed. Deliberately a snapshot on a slow
+// timer, not a live feed: a phone guide that is 30s stale is fine, and the
+// per-channel schedule sweep is the same one guide.js already runs on its
+// own 30s tick.
+const COMPANION_LINEUP_PUSH_MS = 30000;
+const COMPANION_LINEUP_MAX_CHANNELS = 300;
+function pushCompanionLineup() {
+  if (!window.api || typeof window.api.sendRemoteState !== 'function') return;
+  const now = viewNow();
+  const lineup = [];
+  for (const ch of sortedChannels(S.config.channels || [])) {
+    if (lineup.length >= COMPANION_LINEUP_MAX_CHANNELS) break;
+    if (ch.hidden) continue;
+    const row = {
+      number: ch.number,
+      name: ch.name || '',
+      favorite: !!ch.favorite,
+      quickAccess: !!ch.quickAccess,
+      now: '', next: '', endsAtMs: null,
+    };
+    try {
+      // Three hours is enough to always contain a "next" even for a long
+      // movie, and short enough that the walk stays cheap.
+      const entries = getChannelSchedule(ch, now, now + 3 * 3600000);
+      if (entries[0]) {
+        row.now = getDisplayTitle(entries[0].file);
+        row.endsAtMs = entries[0].end;
+      }
+      if (entries[1]) row.next = getDisplayTitle(entries[1].file);
+    } catch (e) {
+      // A channel whose folders have gone missing shouldn't cost the rest
+      // of the lineup its listing — it just has no programming to report.
+    }
+    lineup.push(row);
+  }
+  window.api.sendRemoteState({ lineup, lineupAt: Date.now() });
+}
+
+function startCompanionLineupPushes() {
+  pushCompanionLineup();
+  setInterval(() => {
+    try { pushCompanionLineup(); } catch (e) { console.error('[companion] lineup push failed:', e); }
+  }, COMPANION_LINEUP_PUSH_MS);
+}
 
 const pinCancelBtnEl = document.getElementById('pin-cancel-btn');
 if (pinCancelBtnEl) pinCancelBtnEl.addEventListener('click', hidePinLockScreen);
@@ -1143,6 +1228,8 @@ async function init() {
   // channel up/down — the honest equivalent of next/previous track on a box
   // with no tracks. See initMediaSession (playback-broadcast-fx.js).
   initMediaSession((delta) => changeChannel(delta));
+  // Host only — a viewer has no companion server listening for these.
+  if (!window.__isViewer) startCompanionLineupPushes();
   // The set boots powered on, so claim the wake lock now rather than waiting
   // for the first powerOn() — which only ever fires on a transition out of
   // standby and would otherwise never run at all in a normal session.

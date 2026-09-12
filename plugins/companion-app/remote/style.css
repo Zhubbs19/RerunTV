@@ -21,3 +21,52 @@ html:not([data-companion-scale="100"]) .tab-panel[data-panel=remote].active,html
 html:not([data-companion-scale="100"]) .app-header{flex-wrap:wrap}
 html:not([data-companion-scale="100"]) .panel-heading{flex-wrap:wrap}
 html:not([data-companion-scale="100"]) .action-grid,html:not([data-companion-scale="100"]) .transport-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+/* ---------- Live box state on the controls that change it ---------- */
+/* Every one of these renders a value the box was already reporting in its
+   /state poll and the page used to discard — see applyBoxState (remote.js). */
+.control-state{display:block;margin-top:3px;color:var(--amber);font-size:9px;font-style:normal;font-weight:800;letter-spacing:.1em}
+.action-grid button.has-state,.control.has-state{padding-top:7px;padding-bottom:7px}
+.control.is-on{border-color:var(--amber);box-shadow:inset 0 0 0 1px var(--amber),inset 0 1px rgba(255,255,255,.13),0 2px 0 #050607}
+.volume-readout{color:var(--amber);font-size:15px;font-weight:900;letter-spacing:.06em;min-width:56px;text-align:right}
+.volume-readout.is-muted{color:var(--red)}
+.volume-meter{margin-top:10px;height:5px;border-radius:999px;background:#0a0d10;border:1px solid #2b333a;overflow:hidden}
+.volume-meter span{display:block;height:100%;width:0;background:var(--amber);transition:width .15s linear}
+.now-program{display:block;max-width:52vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cyan);font-size:9px;letter-spacing:.09em}
+
+/* Tab strip is wider than a phone; fade the right edge so the tabs past it
+   read as "there is more here" rather than as the end of the row. */
+.tab-bar{position:sticky;-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+
+/* ---------- Guide rows: what is actually on ---------- */
+.guide-row{display:block;width:100%;text-align:left;padding:11px 12px;border:1px solid #303940;border-radius:6px;background:#12171b}
+.guide-row.is-watching{border-color:var(--amber);background:#1a1a14}
+.guide-row-head{display:flex;align-items:baseline;gap:8px}
+.guide-row-head b{color:var(--amber);flex:0 0 auto}
+.guide-row-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.guide-row-star{flex:0 0 auto;color:var(--amber);font-style:normal}
+.guide-row-now{margin-top:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:400;letter-spacing:.02em}
+.guide-row-now.is-unknown{color:var(--dim);font-style:italic}
+.guide-row-next{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);font-size:10px;font-weight:400;letter-spacing:.04em}
+
+/* ---------- Channel flag toggles ---------- */
+/* Were 18px checkboxes with 9px labels — the only controls on the page under
+   the 44px minimum everything else already met, on the tab whose entire
+   purpose is toggling them. */
+.flag-toggle{min-width:46px;padding:0 12px;font-size:16px;line-height:1;color:var(--dim)}
+.flag-toggle.is-on{border-color:var(--amber);color:var(--amber);background:linear-gradient(#3a3222,#241f14)}
+
+/* ---------- Settings help ---------- */
+.field-help{display:block;margin-top:2px;color:var(--dim);font-size:10px;font-weight:400;letter-spacing:.03em;line-height:1.45;text-transform:none}
+.more-actions{margin-top:12px}
+.more-actions>summary{cursor:pointer;list-style:none;padding:11px 2px;color:var(--cyan);font-size:10px;font-weight:800;letter-spacing:.17em}
+.more-actions>summary::-webkit-details-marker{display:none}
+.more-actions>summary:before{content:"▸ ";display:inline-block}
+.more-actions[open]>summary:before{content:"▾ "}
+
+/* ---------- File rows with size and date ---------- */
+.file-text{display:block;min-width:0;flex:1 1 auto}
+.file-text b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700}
+.file-text small{display:block;margin-top:2px;color:var(--dim);font-size:10px;font-weight:400;letter-spacing:.05em}
+.file-row a{flex:0 0 auto;margin-left:10px;min-height:44px;display:flex;align-items:center;padding:0 10px}
+.empty .mini{margin-top:10px}

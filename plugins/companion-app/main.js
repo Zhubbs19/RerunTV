@@ -191,8 +191,17 @@ async function activate(ctx) {
   // without it.
   const partyReactionEmoji = ctx.services.partyReactionEmoji || null;
 
+  // Merged, not replaced. The renderer has two senders on this channel:
+  // pushRemoteState (power.js) on every state-changing action, carrying the
+  // full "what is the box doing" snapshot, and pushCompanionLineup (app.js)
+  // on a slow timer, carrying only the lineup listing. Replacing wholesale
+  // meant whichever fired last erased the other's fields — the lineup would
+  // appear for a moment and vanish on the next volume keypress. Every field
+  // either sender owns is always present in its own payload, so a merge
+  // never leaves a stale value standing.
   ipcMain.on('remote:state', (event, state) => {
-    latestRemoteState = state && typeof state === 'object' ? state : { number: null, name: null };
+    if (!state || typeof state !== 'object') { latestRemoteState = { number: null, name: null }; return; }
+    latestRemoteState = { ...latestRemoteState, ...state };
   });
 
   const config = await loadConfig();
@@ -368,11 +377,30 @@ async function activate(ctx) {
     // ch.hidden (setup-channels.js's HIDE FROM TUNING toggle) — same rule
     // the guide/channel-surf already apply (channels.js/playback.js).
     if (req.method === 'GET' && url.pathname === '/channels') {
+      // The renderer's own lineup snapshot when it has pushed one — same
+      // rows, plus what each channel is showing now and next, which only
+      // the renderer can work out (schedule resolution lives there). Falls
+      // back to the disk read below whenever it hasn't: a box that just
+      // started, a renderer that is between pushes, or a headless host with
+      // no renderer at all. The disk read stays the source of truth for the
+      // flags, since those can be edited on the box between snapshots.
       const cfg = await loadConfig();
-      const channels = (cfg.channels || []).filter((ch) => !ch.hidden).map((ch) => ({
-        number: ch.number, name: ch.name, favorite: !!ch.favorite, quickAccess: !!ch.quickAccess,
-      })).sort((a, b) => a.number - b.number);
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(channels));
+      const live = Array.isArray(latestRemoteState.lineup) ? latestRemoteState.lineup : null;
+      const programByNumber = new Map((live || []).map((row) => [row.number, row]));
+      const channels = (cfg.channels || []).filter((ch) => !ch.hidden).map((ch) => {
+        const program = programByNumber.get(ch.number);
+        return {
+          number: ch.number, name: ch.name, favorite: !!ch.favorite, quickAccess: !!ch.quickAccess,
+          now: (program && program.now) || '', next: (program && program.next) || '',
+          endsAtMs: (program && program.endsAtMs) || null,
+        };
+      }).sort((a, b) => a.number - b.number);
+      // Still a bare array, with the new fields added per row. The Android
+      // companion reads this same route and indexes the response directly,
+      // so wrapping it in an object would break every installed copy of it
+      // for the sake of one timestamp nothing needs.
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(channels));
       return;
     }
 
@@ -443,6 +471,28 @@ async function activate(ctx) {
       } catch (e) {
         res.writeHead(400).end('Bad request');
       }
+      return;
+    }
+
+    // Lets a phone browser install this to the home screen and run it
+    // without browser chrome, which for a page whose only purpose is to be
+    // a remote is most of the difference between "a bookmark" and "the
+    // remote". Generated rather than shipped as a file so the name and
+    // colors stay in one place with the page they describe.
+    if (req.method === 'GET' && url.pathname === '/manifest.webmanifest') {
+      res.writeHead(200, { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({
+          name: 'RerunTV Companion',
+          short_name: 'RerunTV',
+          description: 'Remote, guide and settings for a RerunTV box on this network.',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          orientation: 'portrait',
+          background_color: '#090b0d',
+          theme_color: '#090b0d',
+          icons: [{ src: '/icon.png', sizes: '256x256', type: 'image/png', purpose: 'any' }],
+        }));
       return;
     }
 

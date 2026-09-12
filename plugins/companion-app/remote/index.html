@@ -4,22 +4,41 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#090b0d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="RerunTV">
 <title>RerunTV Companion</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon.png">
+<link rel="icon" href="/icon.png">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <header class="app-header">
     <div><div class="eyebrow">RERUNTV // HEADEND CONTROL</div><h1>COMPANION</h1></div>
-    <div class="live-status" id="live-status" data-state="connecting"><span class="status-lamp"></span><div><small>NOW WATCHING</small><strong id="now-watching">CONNECTING…</strong></div></div>
+    <div class="live-status" id="live-status" data-state="connecting"><span class="status-lamp"></span><div><small>NOW WATCHING</small><strong id="now-watching">CONNECTING…</strong><small class="now-program" id="now-program"></small></div></div>
   </header>
-  <nav class="tab-bar" aria-label="Companion sections">
-    <button class="tab active" data-tab="remote">REMOTE</button><button class="tab" data-tab="guide">GUIDE</button><button class="tab" data-tab="channels">CHANNELS</button><button class="tab" data-tab="settings">SETTINGS</button><button class="tab" data-tab="tools">TOOLS</button>
+  <nav class="tab-bar" id="tab-bar" role="tablist" aria-label="Companion sections">
+    <button class="tab active" role="tab" aria-selected="true" aria-controls="panel-remote" id="tab-remote" data-tab="remote">REMOTE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-guide" id="tab-guide" data-tab="guide">GUIDE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-channels" id="tab-channels" data-tab="channels">LINEUP</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-settings" id="tab-settings" data-tab="settings">SETTINGS</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-tools" id="tab-tools" data-tab="tools">TOOLS</button>
   </nav>
   <main class="app-shell">
-    <section class="tab-panel active" data-panel="remote">
+    <section class="tab-panel active" role="tabpanel" id="panel-remote" aria-labelledby="tab-remote" data-panel="remote">
       <div class="hero-controls">
-        <button class="control danger" data-key="p"><span>POWER</span><b>⏻</b></button><button class="control" data-key="m"><span>MUTE</span><b>◖</b></button><button class="control" data-key="g"><span>GUIDE</span><b>▦</b></button><button class="control" data-key="i"><span>INFO</span><b>i</b></button>
+        <button class="control danger" data-key="p"><span>POWER</span><b>⏻</b></button><button class="control" data-key="m" data-live="muted"><span>MUTE</span><b>◖</b><i class="control-state" data-live-text="muted"></i></button><button class="control" data-key="g"><span>GUIDE</span><b>▦</b></button><button class="control" data-key="i"><span>INFO</span><b>i</b></button>
       </div>
+
+      <!-- Volume and channel sit above the keypad on purpose: they are the
+           two controls a viewer actually reaches for, and burying them under
+           a numpad and a D-pad put them below the fold on a phone. -->
+      <article class="panel">
+        <div class="panel-heading"><div><span>EVERY FEW SECONDS</span><h2>VOLUME &amp; CHANNEL</h2></div><output class="volume-readout" id="volume-readout" aria-live="off">—</output></div>
+        <div class="rocker-row"><div class="rocker"><small>CHANNEL</small><button class="repeat" data-key="ArrowUp">CH +</button><button class="repeat" data-key="ArrowDown">CH −</button></div><div class="rocker"><small>VOLUME</small><button class="repeat" data-key="+">VOL +</button><button class="repeat" data-key="-">VOL −</button></div></div>
+        <div class="volume-meter" aria-hidden="true"><span id="volume-meter-fill"></span></div>
+      </article>
+
+      <article class="panel"><div class="panel-heading"><div><span>ONE-TOUCH</span><h2>QUICK CHANNELS</h2></div><button class="mini" data-action="refresh-channels">REFRESH</button></div><div id="quick-channels" class="channel-grid"><div class="empty">LOADING CHANNELS…</div></div></article>
+
       <article class="panel remote-face">
         <div class="panel-heading"><div><span>PRIMARY CONTROL</span><h2>CABLE BOX REMOTE</h2></div><button class="mini" data-key="Backspace">LAST</button></div>
         <div class="remote-layout">
@@ -28,36 +47,54 @@
           </div>
           <div class="navigation-cluster">
             <div class="dpad" aria-label="Navigation pad"><button class="up repeat" data-key="ArrowUp" aria-label="Up">▲</button><button class="left repeat" data-key="ArrowLeft" aria-label="Left">◀</button><button class="ok" data-key="Enter">OK</button><button class="right repeat" data-key="ArrowRight" aria-label="Right">▶</button><button class="down repeat" data-key="ArrowDown" aria-label="Down">▼</button></div>
-            <div class="rocker-row"><div class="rocker"><small>CHANNEL</small><button class="repeat" data-key="ArrowUp">CH +</button><button class="repeat" data-key="ArrowDown">CH −</button></div><div class="rocker"><small>VOLUME</small><button class="repeat" data-key="+">VOL +</button><button class="repeat" data-key="-">VOL −</button></div></div>
           </div>
         </div>
       </article>
-      <article class="panel"><div class="panel-heading"><div><span>ONE-TOUCH</span><h2>QUICK CHANNELS</h2></div><button class="mini" data-action="refresh-channels">REFRESH</button></div><div id="quick-channels" class="channel-grid"><div class="empty">LOADING CHANNELS…</div></div></article>
-      <article class="panel"><div class="panel-heading"><div><span>BOX FUNCTIONS</span><h2>EVERYDAY CONTROLS</h2></div><button class="primary" data-action="watch-tv">WATCH TV / EXIT SETUP</button></div><div class="action-grid"><button data-key="Escape">BACK</button><button data-key="?">TV MENU</button><button data-key="h">HINT BAR</button><button data-key="k">CAPTIONS</button><button data-key="s">SETUP</button><button data-key="f">FULLSCREEN</button><button data-key="o">OVERLAY EDITOR</button><button data-key="c">CRT EFFECT</button><button data-key="v">PICTURE MODE</button><button data-key="a">ASPECT RATIO</button><button data-key="m" data-shift="1">AUDIO MODE</button><button data-key="z">SLEEP TIMER</button><button data-key="ArrowUp" data-shift="1">NEXT FAVORITE</button><button data-key="ArrowDown" data-shift="1">PREV FAVORITE</button></div></article>
+
+      <article class="panel"><div class="panel-heading"><div><span>WHILE WATCHING</span><h2>PICTURE &amp; SOUND</h2></div><button class="primary" data-action="watch-tv">WATCH TV / EXIT SETUP</button></div>
+        <div class="action-grid">
+          <button data-key="k">CAPTIONS</button>
+          <button data-key="v" data-live-text="pictureMode">PICTURE MODE</button>
+          <button data-key="a" data-live-text="aspectMode">ASPECT RATIO</button>
+          <button data-key="c" data-live-text="crt">CRT EFFECT</button>
+          <button data-key="m" data-shift="1" data-live-text="audioMode">AUDIO MODE</button>
+          <button data-key="z">SLEEP TIMER</button>
+          <button data-key="ArrowUp" data-shift="1">NEXT FAVORITE</button>
+          <button data-key="ArrowDown" data-shift="1">PREV FAVORITE</button>
+        </div>
+        <details class="more-actions">
+          <summary>SET UP THE BOX</summary>
+          <div class="action-grid compact"><button data-key="Escape">BACK</button><button data-key="?">TV MENU</button><button data-key="s">SETUP</button><button data-key="h">HINT BAR</button><button data-key="o">OVERLAY EDITOR</button><button data-key="f">FULLSCREEN</button></div>
+        </details>
+      </article>
     </section>
-    <section class="tab-panel" data-panel="guide">
+
+    <section class="tab-panel" role="tabpanel" id="panel-guide" aria-labelledby="tab-guide" data-panel="guide">
+      <article class="panel"><div class="panel-heading"><div><span>WHAT'S ON</span><h2>NOW &amp; NEXT</h2></div><input id="guide-channel-search" class="search" placeholder="Search channel…" aria-label="Search the lineup"></div><div id="guide-channels" class="channel-list"><div class="empty">LOADING LINEUP…</div></div></article>
       <article class="panel guide-card">
         <div class="panel-heading"><div><span>ON-SCREEN GUIDE</span><h2>NAVIGATE THE GRID</h2></div><button class="primary" data-key="g">OPEN / CLOSE GUIDE</button></div>
-        <p class="helper">The arrows move the highlighted channel and time slot on the TV. Select tunes the highlighted program.</p>
+        <p class="helper">These move the highlighted channel and time slot on the TV itself, so they only do something while the on-screen guide is open.</p>
         <div class="guide-nav"><button class="repeat" data-key="ArrowUp">CHANNEL ▲</button><button class="repeat" data-key="ArrowLeft">◀ EARLIER</button><button class="primary" data-key="Enter">SELECT / TUNE</button><button class="repeat" data-key="ArrowRight">LATER ▶</button><button class="repeat" data-key="ArrowDown">CHANNEL ▼</button></div>
         <div class="action-grid compact"><button data-key="i">PROGRAM DETAILS</button><button data-key="b">SHOW / HIDE BREAKS</button><button data-key="d">DOCK / FULL GUIDE</button><button data-key="Escape">CLOSE GUIDE</button></div>
       </article>
-      <article class="panel"><div class="panel-heading"><div><span>DIRECT TUNE</span><h2>ALL CHANNELS</h2></div><input id="guide-channel-search" class="search" placeholder="Search channel…"></div><div id="guide-channels" class="channel-list"><div class="empty">LOADING LINEUP…</div></div></article>
-      <article class="panel"><div class="panel-heading"><div><span>DVR-STYLE CONTROL</span><h2>TIME MACHINE</h2></div><button class="primary" data-key="t">ENTER / PLAY / EXIT</button></div><div class="transport-grid"><button class="repeat" data-key="ArrowLeft">◀◀ REWIND</button><button data-key="Enter">▶ PLAY</button><button class="repeat" data-key="ArrowRight">FAST FORWARD ▶▶</button><button data-key="[">⏮ PREV BREAK</button><button data-key="l">● LIVE</button><button data-key="]">NEXT BREAK ⏭</button></div><div class="jump-grid"><button data-key="1" data-ctrl="1">SAVE 1</button><button class="accent" data-key="1" data-alt="1">GO 1</button><button data-key="2" data-ctrl="1">SAVE 2</button><button class="accent" data-key="2" data-alt="1">GO 2</button><button data-key="3" data-ctrl="1">SAVE 3</button><button class="accent" data-key="3" data-alt="1">GO 3</button><button data-key="4" data-ctrl="1">SAVE 4</button><button class="accent" data-key="4" data-alt="1">GO 4</button></div></article>
+      <article class="panel"><div class="panel-heading"><div><span>DVR-STYLE CONTROL</span><h2>TIME MACHINE</h2></div><button class="primary" data-key="t">ENTER / PLAY / EXIT</button></div><div class="transport-grid"><button class="repeat" data-key="ArrowLeft">◀◀ REWIND</button><button data-key="Enter">▶ PLAY</button><button class="repeat" data-key="ArrowRight">FAST FORWARD ▶▶</button><button data-key="[">⏮ PREV BREAK</button><button data-key="l">● LIVE</button><button data-key="]">NEXT BREAK ⏭</button></div><div class="jump-grid" id="jump-grid"><button data-key="1" data-ctrl="1">SAVE 1</button><button class="accent" data-key="1" data-alt="1" data-slot="1">GO 1</button><button data-key="2" data-ctrl="1">SAVE 2</button><button class="accent" data-key="2" data-alt="1" data-slot="2">GO 2</button><button data-key="3" data-ctrl="1">SAVE 3</button><button class="accent" data-key="3" data-alt="1" data-slot="3">GO 3</button><button data-key="4" data-ctrl="1">SAVE 4</button><button class="accent" data-key="4" data-alt="1" data-slot="4">GO 4</button></div></article>
     </section>
-    <section class="tab-panel" data-panel="channels"><article class="panel"><div class="panel-heading"><div><span>LINEUP CONTROL</span><h2>CHANNELS</h2></div><input id="channel-search" class="search" placeholder="Number or name…"></div><p class="helper">Tune instantly, mark favorites, or add channels to the Remote quick grid.</p><div id="channel-manager" class="channel-list"><div class="empty">LOADING LINEUP…</div></div></article></section>
-    <section class="tab-panel" data-panel="settings">
+
+    <section class="tab-panel" role="tabpanel" id="panel-channels" aria-labelledby="tab-channels" data-panel="channels"><article class="panel"><div class="panel-heading"><div><span>LINEUP CONTROL</span><h2>CHANNELS</h2></div><input id="channel-search" class="search" placeholder="Number or name…" aria-label="Search channels"></div><p class="helper">Tap a channel to tune it. Use the two buttons on each row to mark it a favorite or add it to the Remote tab's quick grid.</p><div id="channel-manager" class="channel-list"><div class="empty">LOADING LINEUP…</div></div></article></section>
+
+    <section class="tab-panel" role="tabpanel" id="panel-settings" aria-labelledby="tab-settings" data-panel="settings">
       <article class="panel">
         <div class="panel-heading"><div><span>THIS DEVICE ONLY</span><h2>COMPANION APPEARANCE</h2></div></div>
         <label class="field"><span>COMPANION INTERFACE SIZE</span><select id="companion-ui-scale"><option value="100">100% (DEFAULT)</option><option value="125">125%</option><option value="150">150%</option><option value="175">175%</option><option value="200">200%</option></select></label>
         <p class="helper">Saved on this device. To resize the TV interface or change its theme, use TV APPEARANCE below, then SAVE CHANGES.</p>
       </article>
       <div class="settings-toolbar"><div><span class="eyebrow">LIVE BOX CONFIGURATION</span><h2>ALL SETTINGS</h2></div><div class="toolbar-actions"><button data-action="reload-settings">RELOAD</button><button class="primary" data-action="save-settings" disabled>SAVE CHANGES</button></div></div>
-      <input id="settings-search" class="search wide" placeholder="Search every setting…"><div id="settings-status" class="notice">Settings are loaded directly from this RerunTV installation.</div><div id="settings-editor" class="settings-groups"><div class="empty">LOADING SETTINGS…</div></div>
+      <input id="settings-search" class="search wide" placeholder="Search every setting…" aria-label="Search settings"><div id="settings-status" class="notice">Settings are loaded directly from this RerunTV installation.</div><div id="settings-editor" class="settings-groups"><div class="empty">LOADING SETTINGS…</div></div>
     </section>
-    <section class="tab-panel" data-panel="tools">
-      <article class="panel"><div class="panel-heading"><div><span>LIVE INSERTS</span><h2>ALERTS &amp; AUTOMATION</h2></div></div><label class="field"><span>BREAKING NEWS HEADLINE</span><input id="news-headline" maxlength="180" placeholder="Optional custom headline"></label><div class="action-grid"><button class="danger" data-action="trigger-news">TRIGGER NEWS</button><button data-key="e">RUN EAS TEST</button><button data-action="trigger-trivia">TRIGGER TRIVIA</button><button data-key="b">PLUGIN NEWS HOTKEY</button></div><label class="field"><span>ON-SCREEN TICKER</span><textarea id="ticker-text" rows="3" placeholder="Ticker message"></textarea></label><div class="action-grid compact"><button class="primary" data-action="ticker-on">SHOW TICKER</button><button data-action="ticker-off">HIDE TICKER</button></div><label class="field"><span>PLUGIN / CUSTOM HOTKEY</span><input id="custom-hotkey" maxlength="1" placeholder="Single key registered by a plugin"></label><button data-action="send-hotkey">SEND CUSTOM HOTKEY</button></article>
-      <article class="panel"><div class="panel-heading"><div><span>MEDIA LIBRARY</span><h2>CHANNEL FILES</h2></div><button class="mini" data-action="load-roots">REFRESH</button></div><div id="file-browser" class="file-browser"><div class="empty">SELECT REFRESH TO LOAD CHANNEL FOLDERS</div></div></article>
+
+    <section class="tab-panel" role="tabpanel" id="panel-tools" aria-labelledby="tab-tools" data-panel="tools">
+      <article class="panel"><div class="panel-heading"><div><span>LIVE INSERTS</span><h2>ALERTS &amp; AUTOMATION</h2></div></div><p class="helper">These interrupt whatever is on screen right now.</p><label class="field"><span>BREAKING NEWS HEADLINE</span><input id="news-headline" maxlength="180" placeholder="Optional custom headline"></label><div class="action-grid"><button class="danger" data-action="trigger-news" data-confirm="Interrupt what's on screen with a breaking news alert?">TRIGGER NEWS</button><button data-key="e" data-confirm="Run an Emergency Alert System test on the TV?">RUN EAS TEST</button><button data-action="trigger-trivia">TRIGGER TRIVIA</button><button data-key="b">PLUGIN NEWS HOTKEY</button></div><label class="field"><span>ON-SCREEN TICKER</span><textarea id="ticker-text" rows="3" placeholder="Ticker message"></textarea></label><div class="action-grid compact"><button class="primary" data-action="ticker-on">SHOW TICKER</button><button data-action="ticker-off">HIDE TICKER</button></div><label class="field"><span>PLUGIN / CUSTOM HOTKEY</span><input id="custom-hotkey" maxlength="1" placeholder="Single key registered by a plugin"></label><button data-action="send-hotkey">SEND CUSTOM HOTKEY</button></article>
+      <article class="panel"><div class="panel-heading"><div><span>MEDIA LIBRARY</span><h2>CHANNEL FILES</h2></div><button class="mini" data-action="load-roots">REFRESH</button></div><input id="file-search" class="search wide" placeholder="Filter this folder…" aria-label="Filter files" hidden><div id="file-browser" class="file-browser"><div class="empty">SELECT REFRESH TO LOAD CHANNEL FOLDERS</div></div></article>
     </section>
   </main>
   <div id="command-feedback" class="command-feedback" role="status" aria-live="polite"></div>

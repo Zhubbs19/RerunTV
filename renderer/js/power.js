@@ -45,6 +45,18 @@ export function pushRemoteState() {
     timeMachineOn: !!S.timeMachineOn,
     shuttleDir: S.shuttleDir || 0,
     quickJumpSlots: { ...S.quickJumpSlots },
+    // What is actually on screen this second, so a remote can say so rather
+    // than only naming the channel. Break-aware on purpose: a phone showing
+    // the episode title while a commercial is airing is worse than saying
+    // nothing, because it makes the viewer think the remote is stale.
+    onAir: S.activeBreakKind ? 'break' : 'content',
+    breakKind: S.activeBreakKind || null,
+    // The outcome of the last settings patch the companion sent (see
+    // onCompanionApplySettings, app.js). Rides along here because the HTTP
+    // route that accepted the patch answers before this side has decided
+    // anything, so this is the only path by which the phone can learn what
+    // really happened without a new IPC channel.
+    settingsResult: S.lastCompanionSettingsResult || null,
   });
 }
 
