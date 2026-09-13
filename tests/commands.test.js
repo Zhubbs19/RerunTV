@@ -423,3 +423,84 @@ test('blocks are a channel-scoped list: inverses keep the channel, and commitInP
   state.performUndo();
   assert.deepEqual(state.S.config.channels[1].blocks[0].trigger.days, []);
 });
+
+// ---------- schedule block commands (docs/design/02 §4.1) ----------
+
+function blockConfig() {
+  const config = sampleConfig();
+  config.channels[0].broadcastHours = { enabled: false, startHour: 6, endHour: 0 };
+  config.channels[0].blocks = [
+    { id: 'sat', name: 'Saturday Cartoons', priority: 0, trigger: { type: 'dayOfWeek', startHour: 8, endHour: 12, days: [6] }, files: [{ path: 'x.mp4', duration: 60 }], dayOverrides: {} },
+    { id: 'xmas', name: '', priority: 10, trigger: { type: 'dateRange', startMonth: 12, startDay: 1, endMonth: 12, endDay: 25 }, mode: 'daily', files: [], dayOverrides: { '12-03': { file: null, skip: true } } },
+  ];
+  return config;
+}
+
+test('block commands undo exactly, and each is safe to apply twice', async () => {
+  const { applyCommand, cloneJson } = await load('commands.js');
+  const cases = [
+    { type: 'block.create', channel: 5, block: { id: 'new', name: 'Mornings', trigger: { type: 'dayOfWeek', startHour: 7, endHour: 11, days: [6] }, files: [] } },
+    { type: 'block.create', channel: 7, index: 0, block: { id: 'first', trigger: { type: 'dayOfWeek', startHour: 1, endHour: 2, days: [] } } },
+    { type: 'block.remove', channel: 5, id: 'sat' },
+    { type: 'block.setHours', channel: 5, id: 'sat', startHour: 7, endHour: 11 },
+    { type: 'block.setHours', channel: 5, id: 'xmas', startHour: 18, endHour: 22 },
+    { type: 'block.setDays', channel: 5, id: 'sat', days: [6, 0] },
+    { type: 'block.setPriority', channel: 5, id: 'sat', priority: 11 },
+    { type: 'block.overrideDay', channel: 5, id: 'xmas', key: '12-10', override: { file: 'x.mp4', title: 'Special', skip: false } },
+    { type: 'block.overrideDay', channel: 5, id: 'xmas', key: '12-03', override: null },
+    { type: 'channel.setBroadcastHours', channel: 5, broadcastHours: { enabled: true, startHour: 6, endHour: 2 } },
+  ];
+  for (const cmd of cases) {
+    const config = blockConfig();
+    const original = cloneJson(config);
+    const inverse = applyCommand(config, cmd);
+    assert.notDeepEqual(config, original, `${cmd.type} changed something`);
+    const once = cloneJson(config);
+    if (!/create|remove/.test(cmd.type)) {
+      applyCommand(config, cmd);
+      assert.deepEqual(config, once, `${cmd.type} applied twice is the same as once`);
+    }
+    inverse.slice().reverse().forEach((inv) => applyCommand(config, inv));
+    if (cmd.channel === 7) delete config.channels[2].blocks; // block.create makes the list it inserts into
+    assert.deepEqual(config, original, `${cmd.type} undone`);
+  }
+});
+
+test('block commands describe themselves and refuse what does not fit', async () => {
+  const { applyCommand, describeCommand, cloneJson } = await load('commands.js');
+  const config = blockConfig();
+  assert.equal(describeCommand(config, { type: 'block.setHours', channel: 5, id: 'sat', startHour: 7, endHour: 11 }), 'Set "Saturday Cartoons" to 7 AM–11 AM');
+  assert.equal(describeCommand(config, { type: 'block.setDays', channel: 5, id: 'sat', days: [2, 6] }), 'Air "Saturday Cartoons" on Tue, Sat');
+  assert.equal(describeCommand(config, { type: 'channel.setBroadcastHours', channel: 5, broadcastHours: { enabled: true, startHour: 6, endHour: 2 } }), 'Sign CH 5 off 2 AM–6 AM');
+  assert.equal(describeCommand(config, { type: 'block.create', channel: 5, block: { id: 'z', name: 'Cartoons', trigger: {} } }), 'Add "Cartoons" to CH 5');
+
+  const original = cloneJson(config);
+  assert.throws(() => applyCommand(config, { type: 'block.setHours', channel: 5, id: 'sat', startHour: 7, endHour: 24 }), /whole hours/);
+  assert.throws(() => applyCommand(config, { type: 'block.setHours', channel: 5, id: 'gone', startHour: 7, endHour: 9 }), /no block/);
+  assert.throws(() => applyCommand(config, { type: 'block.setDays', channel: 5, id: 'sat', days: [7] }), /weekdays/);
+  assert.throws(() => applyCommand(config, { type: 'block.create', channel: 5, block: { id: 'sat', trigger: {} } }), /already exists/);
+  assert.throws(() => applyCommand(config, { type: 'block.overrideDay', channel: 5, id: 'xmas', key: '2026-12-10', override: null }), /MM-DD/);
+  assert.throws(() => applyCommand(config, { type: 'channel.setBroadcastHours', channel: 5, broadcastHours: { enabled: 'yes', startHour: 6, endHour: 2 } }), /enabled/);
+  assert.deepEqual(config, original);
+
+  applyCommand(config, { type: 'block.setDays', channel: 5, id: 'sat', days: [0, 1, 2, 3, 4, 5, 6, 6] });
+  assert.deepEqual(config.channels[0].blocks[0].trigger.days, [], 'all seven days is every day');
+});
+
+test('a dispatched block batch is one undo step that restores config exactly', async () => {
+  const { cloneJson } = await load('commands.js');
+  const state = await load('state.js');
+  state.S.config = blockConfig();
+  state.resetUndoBaseline();
+  const before = cloneJson(state.S.config);
+  const liveBlocks = state.S.config.channels[0].blocks;
+  state.dispatch([
+    { type: 'block.create', channel: 5, block: { id: 'am', name: 'Mornings', priority: 1, trigger: { type: 'dayOfWeek', startHour: 7, endHour: 11, days: [6] }, files: [{ path: 'x.mp4', duration: 60 }] } },
+    { type: 'block.setPriority', channel: 5, id: 'sat', priority: 2 },
+  ], { label: 'Make Saturday mornings' });
+  assert.equal(state.undoLabel(), 'Make Saturday mornings');
+  assert.equal(state.S.config.channels[0].blocks.length, 3);
+  state.performUndo();
+  assert.deepEqual(state.S.config, before);
+  assert.equal(state.S.config.channels[0].blocks, liveBlocks, 'undo rewinds in place');
+});

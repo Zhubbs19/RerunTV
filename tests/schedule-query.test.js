@@ -185,3 +185,102 @@ test('explainAt agrees with the program querySchedule says is airing', async () 
   assert.equal(info.onAir, true);
   assert.ok(info.commercials && info.commercials.commercials);
 });
+
+// ---------- editing support (docs/design/02 §4) ----------
+
+function blockChannel(anchor) {
+  const ch = makeChannel(anchor);
+  ch.blocks = [{
+    id: 'sat', name: 'Saturday Cartoons', priority: 0, mode: 'loop', anchor,
+    trigger: { type: 'dayOfWeek', startHour: 8, endHour: 12, days: [6] },
+    files: [{ path: 'toon1.mp4', duration: 660 }, { path: 'toon2.mp4', duration: 720 }],
+    commercials: { enabled: true, timing: 'post', podMin: 1, podMax: 1 },
+  }];
+  return ch;
+}
+
+test('proposeEdit leaves live config alone, and undoing the edit diffs empty', async () => {
+  const { state, query } = await setup();
+  const commands = await load('commands.js');
+  const saturday = localMidnight(2026, 8, 19); // a Saturday
+  const live = blockChannel(saturday - 30 * 86400000);
+  state.S.config.channels = [live];
+  const snapshot = commands.cloneJson(state.S.config);
+
+  const edit = { type: 'block.setHours', channel: 5, id: 'sat', startHour: 7, endHour: 11 };
+  const { config, channel } = query.proposeEdit(state.S.config, 5, edit);
+  assert.deepEqual(state.S.config, snapshot, 'live config untouched');
+  assert.notEqual(channel, live);
+  assert.equal(config.interstitials, state.S.config.interstitials, 'a channel edit shares box-wide programming');
+
+  const diff = query.diffSchedules(live, channel, saturday, query.addDays(saturday, 1), { afterConfig: config });
+  assert.equal(diff.identical, false);
+  // Around the moved edges only: a program already airing at 7 is cut short, and one running past 11 ends early.
+  assert.ok(diff.changed.every((r) => r.start >= saturday + 6 * HOUR && r.end <= saturday + 13 * HOUR), 'only the morning can change');
+
+  const undone = query.proposeEdit(config, 5, { type: 'block.setHours', channel: 5, id: 'sat', startHour: 8, endHour: 12 });
+  assert.equal(query.diffSchedules(live, undone.channel, saturday, query.addDays(saturday, 7), { afterConfig: undone.config }).identical, true);
+});
+
+test('a proposed preset edit is resolved against the proposal, without poisoning the live ad policy', async () => {
+  const { state, query, schedule } = await setup();
+  const d0 = localMidnight(2026, 8, 21);
+  const live = makeChannel(d0 - 3 * HOUR);
+  state.S.config.channels = [live];
+  const t = d0 + 10 * HOUR;
+  const liveKey = schedule.resolveActiveCommercials(live, t).key;
+
+  const preset = { id: 'quiet', name: 'No breaks', enabled: true, channels: [5], contentTags: [], timing: 'breakpoints', breakpoints: [] };
+  const { config, channel } = query.proposeEdit(state.S.config, 5, { type: 'item.insert', collection: 'presets', item: preset });
+  assert.notEqual(config.interstitials, state.S.config.interstitials, 'box-wide lists are copied when edited');
+  assert.equal(state.S.config.interstitials.presets.length, 0);
+
+  const diff = query.diffSchedules(live, channel, d0 + 9 * HOUR, d0 + 13 * HOUR, { afterConfig: config });
+  assert.ok(diff.breaksRemoved.length > 0, 'the preview sees the interval pods go');
+  assert.equal(diff.breaksAdded.length, 0);
+  assert.equal(schedule.resolveActiveCommercials(live, t).key, liveKey, 'the live channel\'s cached policy is unchanged');
+  assert.equal(schedule.resolveActiveCommercials(channel, t).key, liveKey, 'outside the preview the copy reads live config again');
+});
+
+test('explainLayers names every layer that matched, and its winners agree with the resolvers', async () => {
+  const { state, query, schedule } = await setup();
+  const saturday = localMidnight(2026, 8, 19);
+  const ch = blockChannel(saturday - 9 * 86400000);
+  ch.broadcastHours = { enabled: true, startHour: 6, endHour: 2 };
+  ch.blocks.push(
+    { id: 'empty', name: 'No folder yet', priority: 5, trigger: { type: 'dayOfWeek', startHour: 9, endHour: 10, days: [] }, files: [] },
+    { id: 'low', name: 'Weekend filler', priority: -1, anchor: ch.anchor, trigger: { type: 'dayOfWeek', startHour: 0, endHour: 0, days: [0, 6] }, files: [{ path: 'fill.mp4', duration: 900 }] },
+  );
+  state.S.config.channels = [ch];
+  state.S.config.interstitials.presets = [{ id: 'film', enabled: true, channels: [5], contentTags: [], timing: 'interval', intervalMinutes: 20 }];
+  state.bumpConfigGeneration();
+
+  const at9 = query.explainLayers(ch, saturday + 9 * HOUR + 15 * 60000);
+  const kinds = at9.layers.map((l) => `${l.group}:${l.kind}:${l.item ? l.item.id : '-'}:${l.role}`);
+  assert.deepEqual(kinds, [
+    'content:broadcastHours:-:passes',
+    'content:block:sat:wins',
+    'content:block:low:outranked',
+    'content:block:empty:skipped',
+    'content:default:-:outranked',
+    'breaks:preset:film:wins',
+    'breaks:blockAds:sat:outranked',
+    'breaks:globalAds:-:outranked',
+  ]);
+
+  const at3 = query.explainLayers(ch, saturday + 3 * HOUR);
+  assert.equal(at3.layers[0].role, 'wins', 'signed off at 3 AM');
+  assert.ok(at3.layers.filter((l) => l.group === 'content').slice(1).every((l) => l.role !== 'wins'));
+
+  // Agreement over a whole weekend, every 7 minutes.
+  for (let t = saturday; t < saturday + 48 * HOUR; t += 7 * 60000) {
+    const { layers, onAir } = query.explainLayers(ch, t);
+    const source = schedule.resolveActiveSource(ch, t);
+    const contentWinners = layers.filter((l) => l.group === 'content' && l.role === 'wins');
+    assert.equal(contentWinners.length, 1, `one content winner at ${new Date(t).toISOString()}`);
+    if (!onAir) assert.equal(contentWinners[0].kind, 'broadcastHours');
+    else if (source.block) assert.equal(contentWinners[0].item, source.block);
+    else assert.equal(contentWinners[0].kind, 'default');
+    assert.equal(layers.filter((l) => l.group === 'breaks' && l.role === 'wins').length, 1, 'one ad-policy winner');
+  }
+});

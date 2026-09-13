@@ -416,19 +416,28 @@ export function prevBroadcastHoursBoundary(ch, fromMs) {
 // outlive the edit that invalidated it. Capped in size so a long session
 // scanning many distinct timestamps within one generation can't grow this
 // unbounded.
+//
+// Per channel OBJECT, not ch.number: an edit preview (schedule-query.js
+// diffSchedules) resolves a proposed copy of a channel that shares its number,
+// and a number key would hand the copy the live channel's ad policy.
 const RAC_CACHE_MAX = 2000;
-let racCache = new Map();
+let racCaches = new WeakMap();
 let racCacheGen = -1;
 
 export function resolveActiveCommercials(ch, atMs, fileTags) {
   if (S.configGeneration !== racCacheGen) {
-    racCache = new Map();
+    racCaches = new WeakMap();
     racCacheGen = S.configGeneration;
+  }
+  let racCache = racCaches.get(ch);
+  if (!racCache) {
+    racCache = new Map();
+    racCaches.set(ch, racCache);
   } else if (racCache.size > RAC_CACHE_MAX) {
     racCache.clear();
   }
   const tagKey = fileTags && fileTags.length ? fileTags.join(',') : '';
-  const cacheKey = `${ch.number}|${atMs}|${tagKey}`;
+  const cacheKey = `${atMs}|${tagKey}`;
   const cached = racCache.get(cacheKey);
   if (cached) return cached;
   const result = computeActiveCommercials(ch, atMs, fileTags);
@@ -441,9 +450,9 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // all on this channel regardless of flows, presets, or block overrides.
   if (ch.adsEnabled === false) return { commercials: { enabled: false }, key: 'disabled' };
 
-  const flows = (S.config.interstitials && S.config.interstitials.flows) || [];
   const tags = fileTags || [];
-  
+  const flow = matchingFlows(ch, tags)[0];
+
   // Channel and content-tag constraints are independent gates, both applied
   // whenever set (AND, not "tags only matter if there's no channel scope") —
   // matching flowStepPreviewPaths' own channel+tag filtering (setup-
@@ -467,17 +476,7 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // untagged libraries — this is what "mid-show cadence never plays" turned
   // out to be. A flow's contentTags still fully differentiates once files
   // ARE tagged; it just no longer excludes content nobody has tagged yet.
-  const flow = flows.find((f) => {
-    if (f.enabled === false) return false;
-    if (f.channels && f.channels.length > 0 && !f.channels.includes(ch.number)) return false;
-
-    if (f.contentTags && f.contentTags.length > 0 && tags.length > 0) {
-      if (!f.contentTags.some((t) => tags.includes(t))) return false;
-    }
-
-    return true;
-  });
-
+  // (The matching itself is matchingFlows, below.)
   if (flow) {
     const steps = flow.steps || [];
     const contentIndices = steps.map((s, i) => (s.type === 'contentSegment' ? i : -1)).filter((i) => i >= 0);
@@ -606,22 +605,11 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // happened — it's what broke the time machine's break navigation). A
   // channel-only preset (no contentTags at all) is unaffected by this and
   // still always matches its channel regardless of tags, same as before.
-  const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
-  const preset = presets.find((p) => {
-    if (p.enabled === false) return false;
-    const hasChannelScope = p.channels && p.channels.length > 0;
-    const hasTagScope = p.contentTags && p.contentTags.length > 0;
-    if (!hasChannelScope && !hasTagScope) return false;
-    if (hasChannelScope && !p.channels.includes(ch.number)) return false;
-    if (hasTagScope && !p.contentTags.some((t) => tags.includes(t))) return false;
-    return true;
-  });
+  // (The matching itself is matchingPresets, below.)
+  const preset = matchingPresets(ch, tags)[0];
   if (preset) return { commercials: preset, key: `preset:${preset.id}` };
-  const candidates = (ch.blocks || [])
-    .map((b, idx) => ({ b, idx }))
-    .filter(({ b }) => b.commercials && matchesTrigger(atMs, b))
-    .sort((x, y) => (y.b.priority || 0) - (x.b.priority || 0) || x.idx - y.idx);
-  if (candidates.length) return { commercials: candidates[0].b.commercials, key: candidates[0].b.id };
+  const adBlock = matchingAdBlocks(ch, atMs)[0];
+  if (adBlock) return { commercials: adBlock.commercials, key: adBlock.id };
   // Post-migration ch.commercials is deleted; fall back to the global default
   // cadence (S.config.commercials) so channels without a flow still get
   // interval-mode breaks, using the interval the Programming tab's GLOBAL
@@ -631,6 +619,48 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // anymore) and would suppress ads for everyone if left as the default false.
   const globalCc = S.config.commercials || {};
   return { commercials: ch.commercials || { ...globalCc, enabled: true }, key: -1 };
+}
+
+// The ad layers resolveActiveCommercials walks, each in its own precedence
+// order, so the winner is always element 0. Exported for the schedule
+// explanation (schedule-query.js explainLayers), which lists the losers too.
+// See computeActiveCommercials above for why flows and presets treat an
+// untagged file differently.
+export function matchingFlows(ch, fileTags) {
+  const tags = fileTags || [];
+  const flows = (S.config.interstitials && S.config.interstitials.flows) || [];
+  return flows.filter((f) => {
+    if (f.enabled === false) return false;
+    if (f.channels && f.channels.length > 0 && !f.channels.includes(ch.number)) return false;
+    if (f.contentTags && f.contentTags.length > 0 && tags.length > 0) {
+      if (!f.contentTags.some((t) => tags.includes(t))) return false;
+    }
+    return true;
+  });
+}
+
+export function matchingPresets(ch, fileTags) {
+  const tags = fileTags || [];
+  const presets = (S.config.interstitials && S.config.interstitials.presets) || [];
+  return presets.filter((p) => {
+    if (p.enabled === false) return false;
+    const hasChannelScope = p.channels && p.channels.length > 0;
+    const hasTagScope = p.contentTags && p.contentTags.length > 0;
+    if (!hasChannelScope && !hasTagScope) return false;
+    if (hasChannelScope && !p.channels.includes(ch.number)) return false;
+    if (hasTagScope && !p.contentTags.some((t) => tags.includes(t))) return false;
+    return true;
+  });
+}
+
+// Blocks carrying their own ad override whose trigger matches — content or
+// not, unlike matchingBlocks.
+export function matchingAdBlocks(ch, atMs) {
+  return (ch.blocks || [])
+    .map((b, idx) => ({ b, idx }))
+    .filter(({ b }) => b.commercials && matchesTrigger(atMs, b))
+    .sort((x, y) => (y.b.priority || 0) - (x.b.priority || 0) || x.idx - y.idx)
+    .map(({ b }) => b);
 }
 
 // Next wall-clock instant where the active commercials config changes —

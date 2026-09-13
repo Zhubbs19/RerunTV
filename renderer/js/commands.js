@@ -656,6 +656,188 @@ registerCommand('item.remove', {
   },
 });
 
+// ---------- Schedule blocks (docs/design/02 §4.1, the editable timeline) ----------
+// Named commands over a channel's blocks, so a timeline edit undoes as what it
+// was ("Set Saturday Cartoons hours") and a remote editor can send the same
+// thing. Each one sets a value rather than appending — a weekday copy sets the
+// whole days list — so applying one twice is harmless, as host replay needs
+// (docs/design/05 §4). A block is addressed by { channel, id }.
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function findBlock(config, cmd) {
+  const ch = findChannel(config, cmd.channel);
+  const index = ch && Array.isArray(ch.blocks) ? ch.blocks.findIndex((b) => b && b.id === cmd.id) : -1;
+  return index === -1 ? null : { ch, index, block: ch.blocks[index] };
+}
+
+function requireBlock(config, cmd) {
+  requireChannel(config, cmd.channel);
+  const found = findBlock(config, cmd);
+  if (!found) throw new Error(`CH ${cmd.channel} has no block ${cmd.id}`);
+  return found;
+}
+
+function blockName(config, cmd) {
+  const found = findBlock(config, cmd);
+  const name = found && found.block.name && found.block.name.trim();
+  return name ? `"${name}"` : 'block';
+}
+
+function hourLabel(h) {
+  const hour = ((h % 24) + 24) % 24;
+  return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+function isHour(value) {
+  return Number.isInteger(value) && value >= 0 && value <= 23;
+}
+
+registerCommand('block.create', {
+  validate(config, cmd) {
+    requireChannel(config, cmd.channel);
+    if (!isObject(cmd.block) || !cmd.block.id || !isObject(cmd.block.trigger)) throw new Error('block.create needs a block with an id and a trigger');
+    if (findBlock(config, { channel: cmd.channel, id: cmd.block.id })) throw new Error(`A block with id ${cmd.block.id} already exists`);
+  },
+  apply(config, cmd) {
+    const ch = findChannel(config, cmd.channel);
+    if (!Array.isArray(ch.blocks)) ch.blocks = [];
+    const index = Math.max(0, Math.min(cmd.index == null ? ch.blocks.length : cmd.index, ch.blocks.length));
+    ch.blocks.splice(index, 0, cloneJson(cmd.block));
+    return [{ type: 'block.remove', channel: cmd.channel, id: cmd.block.id }];
+  },
+  describe(config, cmd) {
+    const name = cmd.block.name && cmd.block.name.trim();
+    return `Add ${name ? `"${name}"` : 'block'} to CH ${cmd.channel}`;
+  },
+});
+
+registerCommand('block.remove', {
+  validate(config, cmd) { requireBlock(config, cmd); },
+  apply(config, cmd) {
+    const { ch, index } = requireBlock(config, cmd);
+    const [removed] = ch.blocks.splice(index, 1);
+    return [{ type: 'block.create', channel: cmd.channel, index, block: cloneJson(removed) }];
+  },
+  describe(config, cmd) {
+    return `Remove ${blockName(config, cmd)} from CH ${cmd.channel}`;
+  },
+});
+
+// Start/end hour of a time block, or of a date-range block's optional hour
+// narrowing. startHour === endHour means all day, as hourInRange reads it.
+// { clear: true } removes a date-range block's narrowing; it exists as the
+// inverse of narrowing one that had no hours, so undo doesn't leave 0–0.
+registerCommand('block.setHours', {
+  validate(config, cmd) {
+    requireBlock(config, cmd);
+    if (!cmd.clear && (!isHour(cmd.startHour) || !isHour(cmd.endHour))) throw new Error('block.setHours needs whole hours 0–23');
+  },
+  apply(config, cmd) {
+    const { block } = requireBlock(config, cmd);
+    const before = { startHour: block.trigger.startHour, endHour: block.trigger.endHour };
+    if (cmd.clear) {
+      delete block.trigger.startHour;
+      delete block.trigger.endHour;
+    } else {
+      block.trigger.startHour = cmd.startHour;
+      block.trigger.endHour = cmd.endHour;
+    }
+    if (before.startHour == null || before.endHour == null) {
+      return [{ type: 'block.setHours', channel: cmd.channel, id: cmd.id, clear: true }];
+    }
+    return [{ type: 'block.setHours', channel: cmd.channel, id: cmd.id, ...before }];
+  },
+  describe(config, cmd) {
+    if (cmd.clear) return `Clear ${blockName(config, cmd)} hours`;
+    return `Set ${blockName(config, cmd)} to ${hourLabel(cmd.startHour)}–${hourLabel(cmd.endHour)}`;
+  },
+});
+
+// Which weekdays a block airs (0 = Sunday). An empty list means every day.
+registerCommand('block.setDays', {
+  validate(config, cmd) {
+    requireBlock(config, cmd);
+    if (!Array.isArray(cmd.days) || cmd.days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) throw new Error('block.setDays needs weekdays 0–6');
+  },
+  apply(config, cmd) {
+    const { block } = requireBlock(config, cmd);
+    const before = Array.isArray(block.trigger.days) ? [...block.trigger.days] : [];
+    // Sorted and de-duplicated, and all seven collapse to "every day", the
+    // same normal form the BLOCKS day buttons keep.
+    const days = [...new Set(cmd.days)].sort((a, b) => a - b);
+    block.trigger.days = days.length === 7 ? [] : days;
+    return [{ type: 'block.setDays', channel: cmd.channel, id: cmd.id, days: before, ...(cmd.label ? { label: cmd.label } : {}) }];
+  },
+  describe(config, cmd) {
+    if (cmd.label) return cmd.label;
+    const days = cmd.days.length && cmd.days.length < 7 ? cmd.days.map((d) => DAY_NAMES[d].slice(0, 3)).join(', ') : 'every day';
+    return `Air ${blockName(config, cmd)} on ${days}`;
+  },
+});
+
+registerCommand('block.setPriority', {
+  validate(config, cmd) {
+    requireBlock(config, cmd);
+    if (!Number.isFinite(cmd.priority)) throw new Error('block.setPriority needs a number');
+  },
+  apply(config, cmd) {
+    const { block } = requireBlock(config, cmd);
+    const before = block.priority || 0;
+    block.priority = cmd.priority;
+    return [{ type: 'block.setPriority', channel: cmd.channel, id: cmd.id, priority: before }];
+  },
+  describe(config, cmd) {
+    return `Set ${blockName(config, cmd)} priority to ${cmd.priority}`;
+  },
+});
+
+// One calendar day's exception on a daily/weekly block (dayOverrides["MM-DD"]):
+// a pinned file, a title, an unlock time, skip. null removes it.
+registerCommand('block.overrideDay', {
+  validate(config, cmd) {
+    requireBlock(config, cmd);
+    if (typeof cmd.key !== 'string' || !/^\d{2}-\d{2}$/.test(cmd.key)) throw new Error('block.overrideDay needs an MM-DD key');
+    if (cmd.override !== null && !isObject(cmd.override)) throw new Error('block.overrideDay needs an override object or null');
+  },
+  apply(config, cmd) {
+    const { block } = requireBlock(config, cmd);
+    if (!isObject(block.dayOverrides) || Array.isArray(block.dayOverrides)) block.dayOverrides = {};
+    const had = Object.prototype.hasOwnProperty.call(block.dayOverrides, cmd.key);
+    const before = had ? cloneJson(block.dayOverrides[cmd.key]) : null;
+    if (cmd.override === null) delete block.dayOverrides[cmd.key];
+    else block.dayOverrides[cmd.key] = cloneJson(cmd.override);
+    return [{ type: 'block.overrideDay', channel: cmd.channel, id: cmd.id, key: cmd.key, override: before }];
+  },
+  describe(config, cmd) {
+    const [m, d] = cmd.key.split('-').map(Number);
+    return `${cmd.override === null ? 'Clear' : 'Override'} ${m}/${d} on ${blockName(config, cmd)}`;
+  },
+});
+
+// The channel's broadcast day: { enabled, startHour, endHour }.
+registerCommand('channel.setBroadcastHours', {
+  validate(config, cmd) {
+    requireChannel(config, cmd.channel);
+    const bh = cmd.broadcastHours;
+    if (!isObject(bh) || typeof bh.enabled !== 'boolean' || !isHour(bh.startHour) || !isHour(bh.endHour)) {
+      throw new Error('channel.setBroadcastHours needs { enabled, startHour, endHour }');
+    }
+  },
+  apply(config, cmd) {
+    const ch = findChannel(config, cmd.channel);
+    const before = isObject(ch.broadcastHours) ? cloneJson(ch.broadcastHours) : { enabled: false, startHour: 6, endHour: 0 };
+    ch.broadcastHours = { ...before, ...cloneJson(cmd.broadcastHours) };
+    return [{ type: 'channel.setBroadcastHours', channel: cmd.channel, broadcastHours: before }];
+  },
+  describe(config, cmd) {
+    const bh = cmd.broadcastHours;
+    return bh.enabled
+      ? `Sign CH ${cmd.channel} off ${hourLabel(bh.endHour)}–${hourLabel(bh.startHour)}`
+      : `Broadcast CH ${cmd.channel} around the clock`;
+  },
+});
+
 // Top-level field changes between a copy of an item taken before an in-place
 // edit and the item now: { fields, previous }, or null when nothing changed.
 // Lets UI code that edits an item directly still record the edit as item.set

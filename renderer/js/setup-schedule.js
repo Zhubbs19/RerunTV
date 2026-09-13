@@ -698,8 +698,14 @@ export function buildSchedulePanel(ch, panelEl) {
   broadcastCheckbox.type = 'checkbox';
   broadcastCheckbox.checked = !!ch.broadcastHours.enabled;
   const broadcastHoursWrap = document.createElement('span');
+  // One command per change (channel.setBroadcastHours), so it saves and undoes
+  // on its own; S.config's broadcastHours object is replaced, so the handlers
+  // below always read ch.broadcastHours fresh rather than holding it.
+  const setBroadcastHours = (fields) => {
+    dispatch({ type: 'channel.setBroadcastHours', channel: ch.number, broadcastHours: { ...ch.broadcastHours, ...fields } });
+  };
   broadcastCheckbox.addEventListener('change', () => {
-    ch.broadcastHours.enabled = broadcastCheckbox.checked;
+    setBroadcastHours({ enabled: broadcastCheckbox.checked });
     renderBroadcastHours();
   });
   broadcastLabel.appendChild(broadcastCheckbox);
@@ -711,12 +717,12 @@ export function buildSchedulePanel(ch, panelEl) {
   function renderBroadcastHours() {
     broadcastHoursWrap.innerHTML = '';
     if (!ch.broadcastHours.enabled) return;
-    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.startHour, (v) => { ch.broadcastHours.startHour = v; }));
+    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.startHour, (v) => setBroadcastHours({ startHour: v })));
     const dashEl = document.createElement('span');
     dashEl.className = 'block-dash';
     dashEl.textContent = '→';
     broadcastHoursWrap.appendChild(dashEl);
-    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.endHour, (v) => { ch.broadcastHours.endHour = v; }));
+    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.endHour, (v) => setBroadcastHours({ endHour: v })));
   }
   renderBroadcastHours();
 
@@ -728,7 +734,7 @@ export function buildSchedulePanel(ch, panelEl) {
   // dayOfWeek trigger's own day filter and by a dateRange trigger's optional
   // narrowing (see matchesDateRangeNarrowing, schedule.js) — same field,
   // same semantics, just layered on top of a date match in the latter case.
-  function buildDaysRow(trigger) {
+  function buildDaysRow(trigger, onChange) {
     const daysRow = document.createElement('div');
     daysRow.className = 'block-days-row';
     if (!trigger.days) trigger.days = [];
@@ -749,6 +755,7 @@ export function buildSchedulePanel(ch, panelEl) {
           else trigger.days.splice(di, 1);
           if (trigger.days.length === 7) trigger.days = [];
         }
+        if (onChange) onChange();
         renderBlocks();
       });
       daysRow.appendChild(dayBtn);
@@ -817,6 +824,7 @@ export function buildSchedulePanel(ch, panelEl) {
         if (!block.theme) block.theme = {};
         block.theme[key] = input.value;
         btn.textContent = 'THEME ✓';
+        commitBlockFields(block, ['theme'], { coalesce: `blocks:${block.id}:theme:${key}` });
       });
       wrap.appendChild(input);
       return wrap;
@@ -831,6 +839,7 @@ export function buildSchedulePanel(ch, panelEl) {
     clearBtn.textContent = 'CLEAR THEME';
     clearBtn.addEventListener('click', () => {
       block.theme = null;
+      commitBlockFields(block, ['theme']);
       btn.textContent = 'THEME';
       renderBlockTheme(block, panelEl, btn);
     });
@@ -871,6 +880,7 @@ export function buildSchedulePanel(ch, panelEl) {
       let key = '12-01', n = 1;
       while (block.dayOverrides[key] && n <= 31) { key = `12-${String(n).padStart(2, '0')}`; n++; }
       block.dayOverrides[key] = { file: null, title: '', unlockTime: '', skip: false, note: '' };
+      commitBlockFields(block, ['dayOverrides'], { label: 'Override a day' });
       renderDayOverrides(block, container);
     });
     container.appendChild(addBtn);
@@ -962,9 +972,9 @@ export function buildSchedulePanel(ch, panelEl) {
       let narrowRow = null;
       let narrowFieldsRow = null;
       if (isDateRange) {
-        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; }));
+        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; commitBlockFields(block, ['trigger']); }));
         scheduleRow.appendChild(dash());
-        scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; }));
+        scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; commitBlockFields(block, ['trigger']); }));
 
         // Optional narrowing layered on top of the date match — "25 Days of
         // Christmas, but only 6-10pm" or "every Friday in October" — same

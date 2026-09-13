@@ -102,6 +102,45 @@ explains, colour keys page weeks). Editing hands off to the web panel (01 §7).
 - Performance: a drag previews against one day only; the full week re-resolves on drop.
 - Plugins: flows and presets owned by plugins aren't editable here, only explained.
 
+### 4.5 Built (step 2)
+
+**Commands.** Named ones in `commands.js`, rather than reusing `item.*` on blocks:
+- The undo label reads as the edit ("Set "Saturday Cartoons" to 7 AM–11 AM").
+- Remote editors (06) get the names doc 05's catalogue already lists.
+- `block.create` and `block.remove` are each other's inverse.
+- `block.setHours`, `block.setDays`, `block.setPriority`, `block.overrideDay` and
+  `channel.setBroadcastHours` each invert to themselves, and each sets a value, so applying one
+  twice is harmless.
+- `block.addDay` from the table above is `block.setDays` with the day added, because an append
+  isn't safe to replay.
+- Break edits are `file.set` plus `item.*` on presets, with their own labels.
+
+**Preview plumbing** (`schedule-query.js`):
+- `proposeEdit(config, channel, commands)` returns a proposed config and channel without
+  touching live config. The channel is always a copy. The box-wide programming lists are copied
+  only when a command edits them.
+- `diffSchedules(…, { afterConfig })` resolves the proposal against that config.
+- `resolveActiveCommercials`' memo moved from `ch.number` to a per-channel-object key. Before,
+  a proposed copy read the live channel's cached ad policy.
+
+**Explanation.** `explainLayers(ch, t)` lists every layer that matched at an instant, in the
+order they're consulted, each marked `wins`, `outranked`, `skipped` or `passes`.
+- The content layers are broadcast hours, blocks, the day override and the default lineup.
+- The break layers are the ads switch, flows, presets, block ad overrides and the default
+  cadence.
+- The matching lists are the resolvers' own: `matchingFlows`, `matchingPresets` and
+  `matchingAdBlocks` were extracted from `computeActiveCommercials`. So the winners agree with
+  playback by construction, and a weekend-long unit test checks it.
+
+**Found on the way.** Several BLOCKS editor controls changed config without recording a
+command, so they saved only with a later edit and were never undoable. This had been true since
+the initial commit. They now record one:
+- the broadcast-hours toggle and its hours;
+- the day buttons;
+- the date-range dates;
+- the THEME colours;
+- "+ ADD DAY OVERRIDE".
+
 ## 5. Step 3 — the rule-stack question
 
 ### 5.1 Candidate model

@@ -20,9 +20,11 @@
 // in-place config edit bumps configGeneration (CLAUDE.md), which retires
 // older entries; a wholesale config replacement produces new channel
 // objects, and the old ones' entries go with them.
+import { applyCommand, cloneJson } from './commands.js';
 import { boundarySlot, breakEntriesInWindow, effectiveContentTags, resolveBreakAt } from './interstitials.js';
 import {
-  computeSourcePosition, getChannelSchedule, isWithinBroadcastHours, resolveActiveCommercials, resolveActiveSource,
+  computeSourcePosition, getChannelSchedule, isWithinBroadcastHours, matchesTrigger, matchingAdBlocks, matchingBlocks,
+  matchingFlows, matchingPresets, mdKey, resolveActiveCommercials, resolveActiveSource,
 } from './schedule.js';
 import { S } from './state.js';
 
@@ -213,16 +215,62 @@ function breakKey(entry) {
   return `${Math.round(entry.start)}|${Math.round(entry.end)}|${entry.breakType}`;
 }
 
+// Resolvers read box-wide programming (presets, flows, the ad pool, station
+// IDs) from S.config, so a proposed edit to any of those is resolved with
+// S.config pointing at the proposal for the duration of one synchronous call.
+function withConfig(config, fn) {
+  if (!config || config === S.config) return fn();
+  const live = S.config;
+  S.config = config;
+  try {
+    return fn();
+  } finally {
+    S.config = live;
+  }
+}
+
+// Commands an edit preview may apply to a shallow copy of config: ones that
+// only touch the one channel (copied) or the box-wide programming lists
+// (copied too). Anything else gets a whole deep copy.
+const CHANNEL_SCOPED_TYPES = new Set([
+  'block.create', 'block.remove', 'block.setHours', 'block.setDays', 'block.setPriority', 'block.overrideDay',
+  'channel.setBroadcastHours', 'channel.set', 'channel.setFields', 'file.set', 'item.set', 'item.insert', 'item.remove',
+]);
+const SHARED_COLLECTIONS = new Set(['pool', 'presets', 'flows']);
+
+// What config and the channel would look like with `commands` applied, without
+// touching either: { config, channel }. The channel is always a fresh copy, so
+// its cached days (and cached ad policy) never mix with the live channel's.
+// Throws, like dispatch, if a command doesn't fit.
+export function proposeEdit(config, channelNumber, commands) {
+  const list = Array.isArray(commands) ? commands : [commands];
+  const shallow = list.every((cmd) => CHANNEL_SCOPED_TYPES.has(cmd.type)
+    && (SHARED_COLLECTIONS.has(cmd.collection) || cmd.channel === channelNumber));
+  let proposed;
+  if (shallow) {
+    proposed = {
+      ...config,
+      channels: (config.channels || []).map((c) => (c.number === channelNumber ? cloneJson(c) : c)),
+    };
+    if (list.some((cmd) => SHARED_COLLECTIONS.has(cmd.collection))) proposed.interstitials = cloneJson(config.interstitials);
+  } else {
+    proposed = cloneJson(config);
+  }
+  list.forEach((cmd) => applyCommand(proposed, cmd));
+  return { config: proposed, channel: (proposed.channels || []).find((c) => c.number === channelNumber) || null };
+}
+
 // What changes in [from, to) between two versions of a channel — the
 // "this edit moves 14 programs" preview. `before` and `after` must be
 // separate objects (typically the live channel and a deep copy with the edit
-// applied); see the caching note at the top of this file.
+// applied); see the caching note at the top of this file. `afterConfig` (from
+// proposeEdit) resolves `after` against proposed box-wide programming.
 //
 // Returns { identical, added, removed, breaksAdded, breaksRemoved, changed },
 // where `changed` is the merged time ranges touched by any difference.
-export function diffSchedules(before, after, from, to, { breaks = true } = {}) {
+export function diffSchedules(before, after, from, to, { breaks = true, afterConfig = null } = {}) {
   const a = querySchedule(before, from, to, { breaks, offAir: true });
-  const b = querySchedule(after, from, to, { breaks, offAir: true });
+  const b = withConfig(afterConfig, () => querySchedule(after, from, to, { breaks, offAir: true }));
   const diff = (listA, listB, key) => {
     const keysB = new Set(listB.map(key));
     return listA.filter((e) => !keysB.has(key(e)));
@@ -246,4 +294,78 @@ export function diffSchedules(before, after, from, to, { breaks = true } = {}) {
     breaksRemoved,
     changed,
   };
+}
+
+// Every layer that had a say in what airs at one instant, in the order they're
+// consulted, each marked with what it did. Data only, like explainAt: the
+// explanation panel words it (docs/design/02 §4.2).
+//
+// Returns { atMs, source, commercials, layers } where each layer is
+//   { group: 'content' | 'breaks', kind, item, role, reason }
+// kind: 'broadcastHours' | 'block' | 'dayOverride' | 'default' |
+//       'adsSwitch' | 'flow' | 'preset' | 'blockAds' | 'channelAds' | 'globalAds'
+// item: the block / flow / preset object (null for channel-wide layers)
+// role: 'wins'     decided the result
+//       'outranked' matched, but a layer above it won
+//       'skipped'   matched, but had nothing to give (no content yet)
+//       'passes'    consulted and let the layers below decide (on the air)
+// Layers that don't match this instant at all aren't listed: they didn't
+// contribute. Winners agree with resolveActiveSource and
+// resolveActiveCommercials by construction, since the matching lists are
+// theirs (schedule.js matchingBlocks/Flows/Presets/AdBlocks).
+export function explainLayers(ch, atMs) {
+  const info = explainAt(ch, atMs);
+  const { source } = info;
+  const layers = [];
+
+  const bh = ch.broadcastHours;
+  if (bh && bh.enabled) {
+    layers.push({ group: 'content', kind: 'broadcastHours', item: null, role: info.onAir ? 'passes' : 'wins', reason: info.onAir ? 'on-air' : 'signed-off' });
+  }
+
+  const candidates = matchingBlocks(ch, atMs);
+  const winnerIndex = source.block ? candidates.indexOf(source.block) : -1;
+  const empty = (ch.blocks || []).filter((b) => !(b.files && b.files.length) && matchesTrigger(atMs, b));
+  const ranked = [...candidates, ...empty];
+  ranked.forEach((block, i) => {
+    let role;
+    let reason;
+    if (i >= candidates.length) { role = 'skipped'; reason = 'no-content'; }
+    else if (i === winnerIndex) { role = info.onAir ? 'wins' : 'outranked'; reason = 'highest-match'; }
+    else if (winnerIndex === -1 || i < winnerIndex) { role = 'skipped'; reason = 'not-started'; }
+    else { role = 'outranked'; reason = 'lower-priority'; }
+    layers.push({ group: 'content', kind: 'block', item: block, role, reason });
+    if (i === winnerIndex && block.dayOverrides && source.key !== block.id) {
+      // A daily/weekly block's current day may carry a calendar exception.
+      const keyDay = String(source.key).slice(block.id.length + 1);
+      const key = /^\d{2}-\d{2}$/.test(keyDay) ? keyDay : mdKey(atMs);
+      if (block.dayOverrides[key]) layers.push({ group: 'content', kind: 'dayOverride', item: block, key, role, reason: 'calendar-day' });
+    }
+  });
+  layers.push({
+    group: 'content', kind: 'default', item: null,
+    role: source.block || !info.onAir ? 'outranked' : 'wins',
+    reason: (ch.files && ch.files.length) ? 'channel-folders' : 'no-content',
+  });
+
+  const tags = effectiveContentTags(ch, info.position && info.position.file);
+  const winnerKey = info.commercials.key;
+  if (ch.adsEnabled === false) {
+    layers.push({ group: 'breaks', kind: 'adsSwitch', item: null, role: 'wins', reason: 'ads-off' });
+  } else {
+    matchingFlows(ch, tags).forEach((flow) => {
+      layers.push({ group: 'breaks', kind: 'flow', item: flow, role: winnerKey === `flow:${flow.id}` ? 'wins' : 'outranked', reason: 'flow-match' });
+    });
+    matchingPresets(ch, tags).forEach((preset) => {
+      layers.push({ group: 'breaks', kind: 'preset', item: preset, role: winnerKey === `preset:${preset.id}` ? 'wins' : 'outranked', reason: 'preset-match' });
+    });
+    matchingAdBlocks(ch, atMs).forEach((block) => {
+      layers.push({ group: 'breaks', kind: 'blockAds', item: block, role: winnerKey === block.id ? 'wins' : 'outranked', reason: 'block-ads' });
+    });
+    layers.push({
+      group: 'breaks', kind: ch.commercials ? 'channelAds' : 'globalAds', item: null,
+      role: winnerKey === -1 ? 'wins' : 'outranked', reason: 'default-cadence',
+    });
+  }
+  return { atMs, source, commercials: info.commercials, onAir: info.onAir, layers };
 }
