@@ -135,3 +135,9 @@ html[data-theme="outrun-synthwave"] .guide-info-title {
   font-family: var(--font-ui);
   font-weight: 700;
 }
+
+/* Setup sidebar: idle sections get a deeper version of the neon fill, so
+   their names read at 4.5:1 (docs/design/03 §9). */
+html[data-theme="outrun-synthwave"] #setup-screen .setup-tab-btn:not(.active) {
+  background-image: linear-gradient(135deg, #7a1462 0%, #43287a 100%);
+}

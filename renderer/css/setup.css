@@ -5071,3 +5071,59 @@ html[data-theme] .btn[aria-disabled="true"] {
 /* Empty collections: one sentence and one primary action (setup-util.js emptyState). */
 #setup-screen .empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 18px 16px; text-transform: none; }
 #setup-screen .empty-state-text { margin: 0; font-family: var(--font-body, var(--font-ui)); font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--paper-dim); }
+
+/* Small text in accent colours (docs/design/03 §9: 4.5:1 in every theme).
+   Theme accents (--cyan, --gold, --danger…) are tuned as accents, not as
+   11–12 px text on a panel, and many packs fell short. Each text-safe variant
+   leans the accent toward the theme's own --paper text colour, so the hue
+   stays recognisable and contrast follows whatever the theme made readable. */
+#setup-screen {
+  --text-accent: color-mix(in srgb, var(--cyan) 55%, var(--paper));
+  --text-gold: color-mix(in srgb, var(--gold) 70%, var(--paper));
+  --text-dim: color-mix(in srgb, var(--paper-dim) 55%, var(--paper));
+  --text-danger: color-mix(in srgb, var(--danger) 50%, var(--paper));
+  --text-good: color-mix(in srgb, var(--good, #5fd68a) 50%, var(--paper));
+}
+#setup-screen .flow-channel-pill.all-chs { color: var(--text-gold); border-color: rgba(var(--gold-rgb), 0.45); }
+#setup-screen .interstitial-tag-chip { color: var(--text-gold); }
+#setup-screen .plugin-row-error { color: var(--text-danger); }
+html[data-theme] #setup-screen .btn.remove-btn:not(:disabled) { color: var(--text-danger); }
+#setup-screen .plugin-row-approved { color: var(--text-good); }
+#setup-screen .channel-row .fix-btn,
+#setup-screen .plugin-row-kind,
+#setup-screen .plugins-results-count,
+#setup-screen .setting-row-control .slider-readout,
+#setup-screen .channel-list-plugins .channel-list-title { color: var(--text-accent); }
+#setup-screen .slider-readout { color: var(--text-gold); }
+#setup-screen .channel-list-number { color: var(--text-gold); }
+#setup-screen .channel-list-sub,
+#setup-screen .interstitial-card-meta,
+#setup-screen .backup-row-detail,
+#setup-screen .backup-reason-tag,
+#setup-screen .setting-row-unit,
+#setup-screen .plugins-category-tabs .setup-subtab-btn-count { color: var(--text-dim); }
+/* Idle sidebar sections: several packs fill every tab button with their
+   button gradient but keep a dim tab-strip text colour, so the names read at
+   2:1. The theme's own --paper is its readable text colour on that fill. */
+#setup-screen .setup-tab-btn:not(.active) { color: var(--paper); }
+#setup-screen .panel-toggle,
+#setup-screen .plugin-row-name,
+#setup-screen .plugin-detail-section-title,
+#setup-screen .setup-breadcrumb .crumb-current { color: var(--text-gold); }
+#setup-screen label.shuffle-toggle,
+#setup-screen .interstitials-group-header,
+#setup-screen .setting-row-value,
+#setup-screen .media-thumbnail-label { color: var(--text-accent); }
+#setup-screen .field-label { color: var(--text-dim); }
+#setup-screen .perf-badge { color: var(--text-good); }
+/* Type pills sit on bright per-type fills in every theme; dark text reads on all of them. */
+#setup-screen .interstitial-type-pill { color: #0b0f19; }
+#setup-screen .setup-subtab-btn:not(.active) { color: var(--paper); }
+#setup-screen .block-count,
+#setup-screen .perf-telemetry-item span { color: var(--text-dim); }
+
+/* Only #setup-content scrolls. overflow: hidden still lets focus() and
+   scrollIntoView() scroll an ancestor (lifting the header and sub-tab row
+   out of place); clip cannot be scrolled at all. */
+#setup-screen .setup-shell,
+#setup-screen .setup-main { overflow: clip; }

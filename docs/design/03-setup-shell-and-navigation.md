@@ -3,6 +3,23 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§9 contrast in every theme)
+
+Scratch `test/verify-setup-contrast.mjs` walks 12 setup pages in all 26 themes and checks every
+text element against the backgrounds behind it (worst gradient stop): 4.5:1, or 3:1 for large
+text. It started at 374 failing text styles across 26 themes; now 0.
+- `#setup-screen` defines text-safe accents (`--text-accent`, `--text-gold`, `--text-dim`,
+  `--text-danger`, `--text-good`) that lean each theme accent toward that theme's `--paper`.
+  Small accent-coloured text (list numbers, tag chips, readouts, REMOVE, plugin notices, panel
+  headings) uses them.
+- Idle sidebar sections and sub-tabs use `--paper`: several packs fill them with their button
+  gradient but kept a dim tab-strip text colour.
+- Theme packs: Outrun's idle sidebar fill is deeper; Aqua Grid '06 has a lighter `--paper-dim`
+  and slightly deeper gradient tops.
+
+Also: the shell and main column are `overflow: clip`, so focus or scrollIntoView can never
+scroll them and lift the header out of place.
+
 ### Built (§5.4 empty states)
 
 `setup-util.js` `emptyState(text, { label, run })`: one plain sentence and one primary button.

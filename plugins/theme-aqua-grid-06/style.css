@@ -15,7 +15,7 @@ html[data-theme="aqua-grid-06"] {
   --gold-ink: #13220c;
   --cyan: #69d7e6;
   --paper: #f7ffff;
-  --paper-dim: #c2e7e9;
+  --paper-dim: #d8f3f4; /* lightened from #c2e7e9: 3.85:1 on the panel top, below AA */
   --line: #83bec7;
   --danger: #f3a6b3; /* lightened from #e95a72: was 2.56:1 against --ink, severely below WCAG AA 4.5:1 */
   --gold-rgb: 223, 242, 125;
@@ -24,8 +24,8 @@ html[data-theme="aqua-grid-06"] {
   --font-display: 'Arial Narrow', 'Archivo Narrow', sans-serif;
   --font-ui: Verdana, Tahoma, system-ui, sans-serif;
   --font-body: Verdana, Tahoma, system-ui, sans-serif;
-  --gradient-page: linear-gradient(180deg, #087c9b 0%, #07516e 45%, #03263e 100%);
-  --gradient-panel: linear-gradient(180deg, #0d7894 0%, #07516e 60%, #03263e 100%);
+  --gradient-page: linear-gradient(180deg, #076a86 0%, #07516e 45%, #03263e 100%);
+  --gradient-panel: linear-gradient(180deg, #0b6a84 0%, #07516e 60%, #03263e 100%);
   --gradient-cell: linear-gradient(180deg, #136787 0%, #0b4d6c 100%);
   --gradient-btn: linear-gradient(180deg, #0d6278 0%, #084f65 58%, #06384f 100%);
   --gradient-gold: linear-gradient(180deg, #f4ffb5 0%, #dff27d 70%, #b8d058 100%);
