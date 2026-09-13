@@ -72,6 +72,15 @@ test('control center is a sidebar shell with one scroll pane and a pinned status
   // Step 2: the lineup is a list beside the selected channel's editor.
   assert.match(markup, /id="channel-list-pane" class="channel-list-pane" role="listbox"[\s\S]*?id="channel-list" class="channel-detail-pane"/);
   assert.match(keyboard, /getAttribute\('aria-orientation'\) === 'vertical'/);
+  // Steps 3-4: settings are SettingRows (label wired to its control) and one
+  // search replaces the separate command palette overlay.
+  const rowLabels = markup.match(/<label class="setting-row-label" for="[^"]+"/g) || [];
+  assert.ok(rowLabels.length >= 60, `settings rows with wired labels: ${rowLabels.length}`);
+  rowLabels.forEach((label) => {
+    const id = label.match(/for="([^"]+)"/)[1];
+    assert.match(markup, new RegExp(`id="${id}"`), `row label for ${id} has its control`);
+  });
+  assert.doesNotMatch(markup, /id="command-palette"/);
   assert.match(displayMode, /display-frame-control-center/);
   assert.match(displayMode, /setupVisible[\s\S]*?--display-frame-width[\s\S]*?availW/);
 });
