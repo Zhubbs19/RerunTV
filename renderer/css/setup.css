@@ -4886,3 +4886,40 @@ html[data-theme] .btn[aria-disabled="true"] {
   color: var(--cyan);
 }
 #setup-screen .setup-search-result:disabled { opacity: 0.45; cursor: default; }
+
+/* ---------- List + detail for collections (docs/design/03 §5.3) ----------
+   Ad pool and ad presets: summaries on the left, the selected item's editor
+   on the right, which stays in view while the list scrolls. */
+#setup-screen .list-detail {
+  display: grid;
+  grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+#setup-screen .list-detail-list { margin: 0; min-width: 0; }
+#setup-screen .list-detail-detail {
+  position: sticky;
+  top: 0;
+  min-width: 0;
+  max-height: calc(100vh - 190px);
+  overflow-y: auto;
+}
+#setup-screen .list-detail-detail:empty { display: none; }
+#setup-screen .list-detail-list .interstitial-card.selected {
+  border-color: var(--gold);
+  background: rgba(var(--gold-rgb), 0.12);
+}
+#setup-screen .list-detail-list .interstitial-card-chevron { visibility: hidden; }
+#setup-screen .list-detail-detail .interstitial-card-chevron { display: none; }
+#setup-screen .list-detail-detail .interstitial-card-summary { cursor: default; }
+@media (max-width: 1000px) {
+  #setup-screen .list-detail { grid-template-columns: minmax(0, 1fr); }
+  #setup-screen .list-detail-detail { position: static; max-height: none; }
+}
+/* In the list, a row is a summary to pick: removing happens in the editor, and
+   the list flows with the page (the editor beside it stays in view). */
+#setup-screen .list-detail-list { max-height: none; overflow: visible; }
+#setup-screen .list-detail-list .interstitial-card-summary .remove-btn { display: none; }
+#setup-screen .list-detail-list .interstitial-card-summary { flex-wrap: nowrap; min-width: 0; }
+#setup-screen .list-detail-list .interstitial-card-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#setup-screen .list-detail-list .interstitials-group-header { flex-wrap: wrap; row-gap: 6px; }

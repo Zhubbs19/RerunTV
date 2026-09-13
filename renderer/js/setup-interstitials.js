@@ -14,9 +14,9 @@ import {
   commercialsIntervalEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
   interstitialsBulkBarEl, interstitialsBulkChannelApplyBtn, interstitialsBulkChannelSelectEl,
   interstitialsBulkCountEl, interstitialsBulkRemoveBtn, interstitialsBulkSelectAllBtn, interstitialsBulkTagApplyBtn,
-  interstitialsBulkTagInputEl, interstitialsBulkToggleBtn, interstitialsCollapseAllBtn, interstitialsExpandAllBtn,
+  interstitialsBulkTagInputEl, interstitialsBulkToggleBtn, interstitialsDetailEl,
   interstitialsFilterChannelEl, interstitialsFilterTypeEl, interstitialsListEl, interstitialsSearchEl,
-  preemptionWindowsEditorEl, presetsAddBtn, presetsCollapseAllBtn, presetsExpandAllBtn, presetsListEl, presetsSearchEl,
+  preemptionWindowsEditorEl, presetsAddBtn, presetsDetailEl, presetsListEl, presetsSearchEl,
   scanProgressEl, standbyEnabledEl, standbyIntervalEl, player,
 } from './dom.js';
 import { getMediaSourcePicker } from './plugins.js';
@@ -509,7 +509,9 @@ const collapsedInterstitialGroups = new Set();
 // .interstitial-card CSS) — this Set tracks which ones the user has
 // expanded to edit, the inverse of collapsedInterstitialGroups above
 // (channel sections default open, individual entries default closed).
-const expandedInterstitialEntries = new Set();
+// The pool is a list + detail (docs/design/03 §5.3): the list shows every
+// entry's summary, the detail pane the selected one's editor.
+let selectedPoolEntryId = null;
 // Set right before a render triggered by an actual expand/collapse click, so
 // buildInterstitialCard can play a reveal fade on just that card's body —
 // NOT on every rebuild (search-filter typing re-renders the whole list on a
@@ -619,11 +621,15 @@ function buildInterstitialThumbnail(entry, typeDef) {
   });
 }
 
-function buildInterstitialCard(entry, idx, pool) {
+// detail: build the open editor for the detail pane; otherwise the compact
+// summary row for the list.
+function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     const typeDef = interstitialTypeDef(entry.type);
     const card = document.createElement('div');
-    const isOpen = expandedInterstitialEntries.has(entry.id);
-    card.className = 'interstitial-card' + (isOpen ? ' open' : '');
+    const isOpen = detail;
+    const isSelected = !detail && selectedPoolEntryId === entry.id;
+    card.className = 'interstitial-card' + (isOpen ? ' open' : '') + (isSelected ? ' selected' : '');
+    card.dataset.itemId = entry.id;
     card.style.borderLeftColor = TYPE_COLORS[entry.type] || 'var(--line)';
 
     // ---------- Collapsed summary (always visible) ----------
@@ -691,17 +697,17 @@ function buildInterstitialCard(entry, idx, pool) {
       const label = (typeDef && typeDef.label) || entry.type || 'this entry';
       if (!(await confirmDialog(`Remove this ${label} pool entry? You can undo this.`))) return;
       dispatch({ type: 'item.remove', collection: 'pool', id: entry.id });
-      expandedInterstitialEntries.delete(entry.id);
+      if (selectedPoolEntryId === entry.id) selectedPoolEntryId = null;
       renderInterstitialsList();
     });
     summary.appendChild(removeBtn);
 
     summary.addEventListener('click', () => {
-      const opening = !expandedInterstitialEntries.has(entry.id);
-      if (opening) expandedInterstitialEntries.add(entry.id);
-      else expandedInterstitialEntries.delete(entry.id);
-      justToggledEntryId = opening ? entry.id : null;
+      if (detail) return;
+      selectedPoolEntryId = entry.id;
+      justToggledEntryId = entry.id;
       renderInterstitialsList();
+      interstitialsListEl.querySelector(`.interstitial-card[data-item-id="${CSS.escape(entry.id)}"] .interstitial-card-summary`)?.focus();
     });
     summary.addEventListener('keydown', (e) => {
       if ((e.key === 'Enter' || e.key === ' ') && e.target === summary) { e.preventDefault(); summary.click(); }
@@ -1115,6 +1121,7 @@ function stopBulkPreview() {
 
 export function renderInterstitialsList() {
   interstitialsListEl.innerHTML = '';
+  if (interstitialsDetailEl) interstitialsDetailEl.innerHTML = '';
   const pool = S.config.interstitials.pool;
   populateInterstitialsFilterOptions();
   renderInterstitialsBulkBar();
@@ -1207,6 +1214,37 @@ export function renderInterstitialsList() {
       interstitialsListEl.appendChild(buildInterstitialCard(entry, idx, pool));
     });
   });
+
+  // The detail pane: the selected entry, or the first one the filters show.
+  const visible = groups.flatMap((group) => group.items);
+  let selected = pool.findIndex((entry) => entry.id === selectedPoolEntryId);
+  // A filter that hides the selected entry moves the selection to what it shows.
+  if (visible.length && (selected === -1 || !visible.some((item) => item.entry.id === selectedPoolEntryId))) {
+    selectedPoolEntryId = visible[0].entry.id;
+    selected = visible[0].idx;
+    interstitialsListEl.querySelector(`.interstitial-card[data-item-id="${CSS.escape(selectedPoolEntryId)}"]`)?.classList.add('selected');
+  }
+  if (interstitialsDetailEl && selected !== -1) {
+    const detailCard = buildInterstitialCard(pool[selected], selected, pool, { detail: true });
+    keepListRowInStep(detailCard, interstitialsListEl, () => {
+      const index = pool.indexOf(pool.find((entry) => entry.id === selectedPoolEntryId));
+      return index === -1 ? null : buildInterstitialCard(pool[index], index, pool);
+    });
+    interstitialsDetailEl.appendChild(detailCard);
+  }
+}
+
+// An edit in a detail pane changes what its list row summarizes (weight,
+// title, tags); rebuild just that row, leaving the editor and its focus alone.
+function keepListRowInStep(detailCard, listEl, buildRow) {
+  const refresh = () => {
+    const id = detailCard.dataset.itemId;
+    const current = listEl.querySelector(`.interstitial-card[data-item-id="${CSS.escape(id)}"]`);
+    const next = buildRow();
+    if (current && next) current.replaceWith(next);
+  };
+  detailCard.addEventListener('change', refresh);
+  detailCard.addEventListener('input', debounce(refresh, 250));
 }
 
 const debouncedRenderInterstitialsList = debounce(() => renderInterstitialsList(), 150);
@@ -1226,17 +1264,7 @@ interstitialsFilterChannelEl.addEventListener('change', () => {
 // Expand/collapse-all — once a pool has dozens of entries across several
 // channel groups, clicking each one open/closed individually to scan or tidy
 // up the whole thing stops being practical.
-interstitialsExpandAllBtn.addEventListener('click', () => {
-  collapsedInterstitialGroups.clear();
-  S.config.interstitials.pool.forEach((entry) => {
-    if (entryMatchesFilters(entry)) expandedInterstitialEntries.add(entry.id);
-  });
-  renderInterstitialsList();
-});
-interstitialsCollapseAllBtn.addEventListener('click', () => {
-  expandedInterstitialEntries.clear();
-  renderInterstitialsList();
-});
+
 
 // ---------- Bulk select mode ----------
 
@@ -1322,7 +1350,7 @@ interstitialsBulkRemoveBtn.addEventListener('click', async () => {
 interstitialsAddEntryBtn.addEventListener('click', () => {
   const entry = newInterstitialPoolEntry({});
   dispatch({ type: 'item.insert', collection: 'pool', item: entry });
-  expandedInterstitialEntries.add(entry.id); // open immediately — a fresh entry has nothing worth summarizing yet
+  selectedPoolEntryId = entry.id; // open it straight away — a fresh entry has nothing worth summarizing yet
   renderInterstitialsList();
 });
 
@@ -1385,7 +1413,8 @@ let presetsSearchText = '';
 // Presets used to always render fully expanded — fine for a handful, but
 // unreadable once there are a couple dozen. Now default-collapsed to a
 // one-line summary, same as pool entries.
-const expandedPresets = new Set();
+// Presets are a list + detail too (see selectedPoolEntryId).
+let selectedPresetId = null;
 // Same scoping as justToggledEntryId above — only an actual click plays the
 // reveal, not a search-driven rebuild.
 let justToggledPresetId = null;
@@ -1396,10 +1425,11 @@ function presetMatchesSearch(preset) {
   return haystack.includes(presetsSearchText);
 }
 
-function buildPresetRow(preset, idx, presets) {
-  const isOpen = expandedPresets.has(preset.id);
+function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
+  const isOpen = detail;
   const card = document.createElement('div');
-  card.className = 'interstitial-card' + (isOpen ? ' open' : '');
+  card.className = 'interstitial-card' + (isOpen ? ' open' : '') + (!detail && selectedPresetId === preset.id ? ' selected' : '');
+  card.dataset.itemId = preset.id;
   card.style.borderLeftColor = 'var(--gold)';
 
   const header = document.createElement('div');
@@ -1469,17 +1499,17 @@ function buildPresetRow(preset, idx, presets) {
     e.stopPropagation();
     if (!(await confirmDialog(`Remove the "${preset.name || 'untitled'}" ad preset? You can undo this.`))) return;
     dispatch({ type: 'item.remove', collection: 'presets', id: preset.id });
-    expandedPresets.delete(preset.id);
+    if (selectedPresetId === preset.id) selectedPresetId = null;
     renderPresetsList();
   });
   header.appendChild(removeBtn);
 
   header.addEventListener('click', () => {
-    const opening = !expandedPresets.has(preset.id);
-    if (opening) expandedPresets.add(preset.id);
-    else expandedPresets.delete(preset.id);
-    justToggledPresetId = opening ? preset.id : null;
+    if (detail) return;
+    selectedPresetId = preset.id;
+    justToggledPresetId = preset.id;
     renderPresetsList();
+    presetsListEl.querySelector(`.interstitial-card[data-item-id="${CSS.escape(preset.id)}"] .interstitial-card-summary`)?.focus();
   });
   header.addEventListener('keydown', (e) => {
     if ((e.key === 'Enter' || e.key === ' ') && e.target === header) { e.preventDefault(); header.click(); }
@@ -1708,6 +1738,7 @@ function buildPresetRow(preset, idx, presets) {
 
 export function renderPresetsList() {
   presetsListEl.innerHTML = '';
+  if (presetsDetailEl) presetsDetailEl.innerHTML = '';
   const presets = S.config.interstitials.presets;
   if (!presets.length) {
     const empty = document.createElement('div');
@@ -1729,6 +1760,20 @@ export function renderPresetsList() {
   visible.forEach(({ preset, idx }) => {
     presetsListEl.appendChild(buildPresetRow(preset, idx, presets));
   });
+  let selected = presets.findIndex((preset) => preset.id === selectedPresetId);
+  if (selected === -1 || !visible.some((item) => item.preset.id === selectedPresetId)) {
+    selectedPresetId = visible[0].preset.id;
+    selected = visible[0].idx;
+    presetsListEl.querySelector(`.interstitial-card[data-item-id="${CSS.escape(selectedPresetId)}"]`)?.classList.add('selected');
+  }
+  if (presetsDetailEl) {
+    const detailCard = buildPresetRow(presets[selected], selected, presets, { detail: true });
+    keepListRowInStep(detailCard, presetsListEl, () => {
+      const index = presets.findIndex((preset) => preset.id === selectedPresetId);
+      return index === -1 ? null : buildPresetRow(presets[index], index, presets);
+    });
+    presetsDetailEl.appendChild(detailCard);
+  }
 }
 
 const debouncedRenderPresetsList = debounce(() => renderPresetsList(), 150);
@@ -1736,19 +1781,12 @@ presetsSearchEl.addEventListener('input', () => {
   presetsSearchText = presetsSearchEl.value.trim().toLowerCase();
   debouncedRenderPresetsList();
 });
-presetsExpandAllBtn.addEventListener('click', () => {
-  S.config.interstitials.presets.forEach((p) => { if (presetMatchesSearch(p)) expandedPresets.add(p.id); });
-  renderPresetsList();
-});
-presetsCollapseAllBtn.addEventListener('click', () => {
-  expandedPresets.clear();
-  renderPresetsList();
-});
+
 
 presetsAddBtn.addEventListener('click', () => {
   const preset = freshPreset();
   dispatch({ type: 'item.insert', collection: 'presets', item: preset });
-  expandedPresets.add(preset.id); // open immediately — a fresh preset has nothing worth summarizing yet
+  selectedPresetId = preset.id; // open it straight away — a fresh preset has nothing worth summarizing yet
   renderPresetsList();
 });
 

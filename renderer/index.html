@@ -757,8 +757,6 @@
               <option value="all">ALL CHANNELS</option>
               <option value="any">UNASSIGNED (ANY CHANNEL)</option>
             </select>
-            <button id="interstitials-expand-all-btn" class="btn">EXPAND ALL</button>
-            <button id="interstitials-collapse-all-btn" class="btn">COLLAPSE ALL</button>
             <button id="interstitials-bulk-toggle-btn" class="btn">SELECT ENTRIES</button>
           </div>
           <div id="interstitials-bulk-bar" class="bulk-actions-bar hidden">
@@ -778,7 +776,12 @@
             </span>
             <button id="interstitials-bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
           </div>
-          <div id="interstitials-list" class="titles-list"></div>
+          <!-- List + detail (docs/design/03 §5.3): entries on the left, the
+               selected one's editor on the right (setup-interstitials.js). -->
+          <div class="list-detail">
+            <div id="interstitials-list" class="titles-list list-detail-list" aria-label="Bumper and ad pool entries"></div>
+            <div id="interstitials-detail" class="list-detail-detail" aria-live="polite"></div>
+          </div>
           <div class="block-row">
             <button id="interstitials-add-folder-btn" class="btn">+ ADD FROM FOLDER</button>
             <button id="interstitials-add-entry-btn" class="btn">+ ADD ENTRY</button>
@@ -832,10 +835,11 @@
           <span class="panel-status">Named break layouts (interval/breakpoints/pod sizes) scoped to specific channels, specific show content tags, or both. Flow templates take precedence over basic presets when active.</span>
           <div class="block-row interstitials-filter-row">
             <input type="text" id="presets-search" class="titles-search" placeholder="SEARCH PRESET NAME / TAG…">
-            <button id="presets-expand-all-btn" class="btn">EXPAND ALL</button>
-            <button id="presets-collapse-all-btn" class="btn">COLLAPSE ALL</button>
           </div>
-          <div id="presets-list" class="titles-list"></div>
+          <div class="list-detail">
+            <div id="presets-list" class="titles-list list-detail-list" aria-label="Ad presets"></div>
+            <div id="presets-detail" class="list-detail-detail" aria-live="polite"></div>
+          </div>
           <div class="block-row">
             <button id="presets-add-btn" class="btn">+ ADD PRESET</button>
           </div>
