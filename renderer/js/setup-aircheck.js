@@ -3,10 +3,9 @@
 // functions live playback and the guide use.
 import { showTvScreen } from './app.js';
 import { getChannel, sortedChannels } from './channels.js';
-import { resolveBreakAt, boundarySlot, effectiveContentTags } from './interstitials.js';
 import { tuneToChannel } from './playback-core.js';
 import { forceInterstitialPreview } from './playback-breaks.js';
-import { computeSourcePosition, isWithinBroadcastHours, resolveActiveCommercials, resolveActiveSource } from './schedule.js';
+import { explainAt } from './schedule-query.js';
 import { S, viewNow } from './state.js';
 import { getDisplayTitle, toDatetimeLocalValue } from './util.js';
 
@@ -41,13 +40,14 @@ export function reasonForCommercials(active) {
   return 'Using the channel/global fallback cadence.';
 }
 
+// explainAt (schedule-query.js) is the shared per-instant resolution; the
+// names below are this console's own, kept so its rows read as before.
 function inspect(ch, atMs) {
-  const source = resolveActiveSource(ch, atMs);
-  const pos = computeSourcePosition(source, atMs, { ignoreContentLost: true });
-  const activeCommercials = resolveActiveCommercials(ch, atMs, effectiveContentTags(ch, pos && pos.file));
-  const resolvedBreak = resolveBreakAt(ch, atMs);
-  const slot = boundarySlot(source, atMs, pos);
-  return { source, pos, activeCommercials, resolvedBreak, slot, onAir: isWithinBroadcastHours(ch, atMs) };
+  const info = explainAt(ch, atMs);
+  return {
+    source: info.source, pos: info.position, activeCommercials: info.commercials,
+    resolvedBreak: info.break, slot: info.slot, onAir: info.onAir,
+  };
 }
 
 function signature(ch, atMs) {

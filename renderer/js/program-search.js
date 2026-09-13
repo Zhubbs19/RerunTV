@@ -1,4 +1,4 @@
-import { getChannelSchedule } from './schedule.js';
+import { querySchedule } from './schedule-query.js';
 import { getDisplayTitle } from './util.js';
 
 function searchableText(file) {
@@ -28,7 +28,9 @@ export function searchUpcomingPrograms(channels, query, fromMs, { horizonMs = 7 
     // Skip schedule expansion entirely when none of its possible source
     // files can match the query.
     if (!channelCouldMatch(channel, q)) continue;
-    const schedule = getChannelSchedule(channel, fromMs, endMs);
+    // Cached per day (schedule-query.js), so the next keystroke's search over
+    // the same seven days reuses them instead of re-expanding every channel.
+    const schedule = querySchedule(channel, fromMs, endMs, { breaks: false, offAir: false }).programs;
     for (const entry of schedule) {
       const title = getDisplayTitle(entry.file);
       const haystack = searchableText(entry.file);

@@ -7,15 +7,13 @@
 // cadence each have their own editor, and until now nothing showed what they
 // add up to except AIR CHECK, one instant at a time. This view is that same
 // question asked for a whole week, so it adds no resolution math of its own:
-// every entry comes from getChannelSchedule / breakEntriesInWindow /
-// isWithinBroadcastHours / resolveActiveCommercials — the functions live
-// playback and the guide already use. "Now" is viewNow(), so it follows the
+// every entry comes from schedule-query.js (queryDay / explainAt), which is
+// itself only the resolvers live playback and the guide already use. "Now" is viewNow(), so it follows the
 // time machine like everything else.
 import { showTvScreen } from './app.js';
-import { breakEntriesInWindow, effectiveContentTags } from './interstitials.js';
 import { GUIDE_BREAK_LABELS } from './guide.js';
 import { tuneToChannel } from './playback-core.js';
-import { getChannelSchedule, isWithinBroadcastHours, resolveActiveCommercials, resolveActiveSource } from './schedule.js';
+import { addDays, explainAt, queryDay, startOfDay } from './schedule-query.js';
 import { reasonForCommercials } from './setup-aircheck.js';
 import { MONTHS, S, WEEKDAYS, viewNow } from './state.js';
 import { formatClock, formatDuration, formatHourLabel, getDisplayTitle } from './util.js';
@@ -34,65 +32,9 @@ const ZOOM_LEVELS = [
   { label: 'DETAIL', pxPerHour: 320 },
 ];
 
-// Per-day results, keyed on the config generation so any edit anywhere
-// (CLAUDE.md's config-mutation rule) invalidates them without this module
-// having to know what changed. Bounded: a week is 7 entries per channel, and
-// paging back and forth through a few weeks shouldn't grow without limit.
-const dayCache = new Map();
-const DAY_CACHE_MAX = 64;
-
-// Local midnight of `ms`'s day, via Date setters rather than ms arithmetic so
-// a DST day is 23 or 25 hours long, exactly as the schedule resolvers see it.
-function startOfDay(ms) {
-  const d = new Date(ms);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-function addDays(dayMs, n) {
-  const d = new Date(dayMs);
-  d.setDate(d.getDate() + n);
-  return d.getTime();
-}
 function startOfWeek(ms) {
   const day = startOfDay(ms);
   return addDays(day, -new Date(day).getDay());
-}
-
-function offAirRanges(ch, dayStart, dayEnd) {
-  const bh = ch.broadcastHours;
-  if (!bh || !bh.enabled) return [];
-  const ranges = [];
-  for (let h = 0; h < 24; h++) {
-    const hourStart = new Date(dayStart); hourStart.setHours(h, 0, 0, 0);
-    const start = hourStart.getTime();
-    if (start >= dayEnd) break;
-    const end = Math.min(new Date(dayStart).setHours(h + 1, 0, 0, 0), dayEnd);
-    if (isWithinBroadcastHours(ch, start + 60000)) continue;
-    const last = ranges[ranges.length - 1];
-    if (last && last.end === start) last.end = end; else ranges.push({ start, end });
-  }
-  return ranges;
-}
-
-function computeDay(ch, dayStart) {
-  const key = `${ch.number}|${dayStart}|${S.configGeneration}`;
-  if (dayCache.has(key)) return dayCache.get(key);
-  const dayEnd = addDays(dayStart, 1);
-  const began = performance.now();
-  const offAir = offAirRanges(ch, dayStart, dayEnd);
-  const programs = getChannelSchedule(ch, dayStart, dayEnd);
-  let breaks = [];
-  try {
-    breaks = breakEntriesInWindow(ch, dayStart, dayEnd);
-  } catch (e) {
-    // A break resolver throwing must not take the whole view down with it —
-    // programs are still worth showing without their break markers.
-    console.warn('[on-air] break scan failed', e);
-  }
-  const result = { dayStart, dayEnd, programs, breaks, offAir, ms: performance.now() - began };
-  if (dayCache.size >= DAY_CACHE_MAX) dayCache.delete(dayCache.keys().next().value);
-  dayCache.set(key, result);
-  return result;
 }
 
 function sourceKey(ch, block) {
@@ -185,8 +127,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
     grid.querySelector(`.onair-program[data-start="${entry.start}"]`)?.classList.add('selected');
 
     const mid = entry.start + Math.max(1, (entry.end - entry.start) / 2);
-    const source = resolveActiveSource(ch, mid);
-    const commercials = resolveActiveCommercials(ch, mid, effectiveContentTags(ch, entry.file));
+    const { source, commercials } = explainAt(ch, mid);
     const breaksInside = day.breaks.filter((b) => b.end > entry.start && b.start < entry.end);
 
     detail.innerHTML = '';
@@ -343,7 +284,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
         status.textContent = `Resolved ${days.reduce((n, d) => n + d.programs.length, 0)} programs and ${days.reduce((n, d) => n + d.breaks.length, 0)} breaks in ${Math.round(totalMs)} ms.`;
         return;
       }
-      const day = computeDay(ch, rows[i].dayStart);
+      const day = queryDay(ch, rows[i].dayStart);
       totalMs += day.ms;
       days.push(day);
       renderDayRow(day, rows[i].row);

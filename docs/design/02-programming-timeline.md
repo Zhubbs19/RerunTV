@@ -44,6 +44,25 @@ Rules: no DOM; "now" is always a parameter (callers pass `viewNow()`); cache key
 scheduling (09), template/builder previews (08), web panel (06, runs in the browser client, so
 no server-side port is needed).
 
+**Built (Phase 1, first piece):** `renderer/js/schedule-query.js` with `startOfDay`,
+`addDays`, `offAirRanges`, `queryDay`, `querySchedule`, `explainAt`, `diffSchedules`; unit tests
+in `tests/schedule-query.test.js`. Moved onto it: ON AIR, Air Check (`explainAt`), and guide
+program search. Findings while verifying against the real lineup:
+- **Float noise.** The same airing's start differs by sub-millisecond amounts depending on
+  which day it was computed from (fractional durations over long playlists). Stitching
+  matches the same file within 1 ms at day junctions, and diff keys round to whole ms. Exact
+  matching duplicated an airing at midnight on 7 of 14 real channels.
+- **`getChannelSchedule` caps at 1000 entries per segment**, so the old 7-day program search
+  silently stopped mid-week on short-clip channels (CH 5, 11, 420). Per-day queries don't hit
+  it, and search now finds those later airings.
+- **The guide stays on `getChannelSchedule`** for its 2–3 h windows. Moving it onto whole-day
+  queries would compute a full day per channel on first open, which is slower than today's
+  small windows and against the guide's one-frame budget. Revisit if the guide gains a
+  multi-day view (11).
+
+Cache keying: per channel **object** (WeakMap) + `configGeneration`, never `ch.number`, so a
+proposed deep copy used by `diffSchedules` can't share or poison the live channel's days.
+
 `diffSchedules` is the key new capability: it runs the query against a *proposed* channel
 object (a deep clone with the command applied) and returns changed intervals. That powers
 "this change will move 14 programs this week" confirmations everywhere.
