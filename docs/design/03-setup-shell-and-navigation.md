@@ -1,7 +1,6 @@
 # 03 — Setup shell and navigation
 
-Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
-state (§4–§7 details) is being built piece by piece below.
+Status: **built** — migration steps 1–5 (§8) and the end state in §3–§9, each section below.
 
 ### Built (§4 long lists)
 
@@ -99,9 +98,11 @@ A channel's editor (`setup-channels.js`) is one page bar: OVERVIEW · CONTENT ·
 The page is remembered per channel; a stored sub-tab id from the old bar maps to its page. Tab
 ids are `channel-<n>-edit-tab-<page>` and the content stays `#channel-<n>-edit-panel`.
 
-Acceptance (§9): renaming channel 7 and setting its rating is now open setup, pick CH 7, type
-the name, pick the rating — four actions with no expanding or scrolling (the rating used to sit
-in the collapsed OPTIONS row). The doc's target is three.
+Acceptance (§9): setup opens with the channel being watched selected (`showSetupScreen`, app.js),
+so renaming channel 7 while watching it and setting its rating is three actions: press S, type
+the name, pick the rating (the rating used to sit in the collapsed OPTIONS row). This assumes
+setup was last left on Channels; it resumes the last section otherwise. Verified with scratch
+`test/verify-rename-rating-actions.mjs`.
 
 Verified live (scratch `test/verify-channel-pages.mjs`, 13 checks); the UI suite now drives the
 LOOK sections (36/36).

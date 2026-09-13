@@ -790,6 +790,12 @@ export async function showSetupScreen() {
   resetSetupTabs();
   S.setupFilterQuery = '';
   channelFilterEl.value = '';
+  // Open on the channel being watched, so "fix this channel" needs no hunting
+  // in the lineup (docs/design/03 §9).
+  if ((S.config.channels || []).some((c) => c.number === S.currentNumber)) {
+    S.bulkSelectedChannels.clear();
+    S.setupSelectedChannel = S.currentNumber;
+  }
   renderChannelList();
   renderCommercialsPanel();
   renderPreemptionWindowsEditor();
