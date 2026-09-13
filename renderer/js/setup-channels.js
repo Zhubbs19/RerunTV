@@ -35,7 +35,7 @@ import {
 } from './plugins.js';
 import { renderChannelDisplaySettings } from './setup-plugin-settings.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
-import { BADGE_COLORS, S, dispatch, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
+import { BADGE_COLORS, S, dispatch, saveConfigDebounced, saveConfigNow, resetUndoBaseline, viewNow } from './state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import { applyLocalFolderRelink } from './library-relink.js';
@@ -2010,7 +2010,7 @@ configImportBtn.addEventListener('click', async () => {
   renderCommercialsPanel();
   renderStandbyPanel();
   renderSettingsPanels();
-  await window.api.saveConfig(S.config);
+  await saveConfigNow();
 });
 
 doneBtn.addEventListener('click', async () => {
@@ -2023,7 +2023,7 @@ doneBtn.addEventListener('click', async () => {
     } catch (e) {}
   }
   S.config.channels = (S.config.channels || []).filter((c) => (c.files && c.files.length > 0) || (c.name && c.name.trim()) || (c.folders && c.folders.length > 0));
-  await window.api.saveConfig(S.config);
+  await saveConfigNow();
   resetUndoBaseline();
   showTvScreen();
 });
@@ -2050,7 +2050,7 @@ if (configRestoreAutoBtn) {
       }
       if (restored && Array.isArray(restored.channels) && restored.channels.length > 0) {
         S.config = applyConfigDefaults(restored);
-        await window.api.saveConfig(S.config);
+        await saveConfigNow();
         resetUndoBaseline();
         S.setupFilterQuery = '';
         if (channelFilterEl) channelFilterEl.value = '';

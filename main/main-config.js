@@ -1,7 +1,9 @@
 const { app, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { compareConfigs, configSummary } = require('./config-diff');
+const { createConfigHost } = require('./config-host');
 const { getMainWindow } = require('./main-window-ref');
 
 // ---------- Portable-install userData migration ----------
@@ -373,6 +375,9 @@ function restoreBackup(file) {
   const parsed = JSON.parse(raw); // throws if somehow corrupt — caller sees the rejection, nothing is overwritten
   backupCurrentConfig(true, 'before-restore'); // the state being replaced is itself worth keeping, forced past the rate limit
   writeConfigFile(raw);
+  // Host edits from before the restore must not be replayed onto the
+  // renderer's next save of the restored config (config-host.js).
+  configHost.noteReset();
   return parsed;
 }
 
@@ -467,34 +472,49 @@ function saveConfig(config) {
   return true;
 }
 
+// The one owner of host-side config edits (config-host.js). Commands come from
+// the same renderer/js/commands.js the renderer uses, loaded as an ES module.
+const configHost = createConfigHost({
+  load: loadConfig,
+  save: saveConfig,
+  broadcast: (update) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents.send('config:applied', update);
+  },
+  loadCommands: () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'commands.js')).href),
+});
+
 // Headless Companion edits have no desktop renderer/autosave owner. Merge
 // only existing, same-shaped settings into the current disk config; never
 // accept a projected viewer config or replace the channel/plugin registry.
-function applyHeadlessSettingsPatch(patch) {
+// Applied as a config.patch of plain value sets (never splices), so it can be
+// replayed onto a later renderer save without doubling anything.
+async function applyHeadlessSettingsPatch(patch) {
   const config = loadConfig();
   if (config._configLoadError) throw new Error('Cannot edit an unreadable config');
   const blocked = new Set(['__proto__', 'prototype', 'constructor']);
   const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-  function merge(target, incoming, root = false) {
-    let changed = false;
+  const ops = [];
+  const undo = [];
+  function merge(target, incoming, pathSoFar, root = false) {
     for (const [key, value] of Object.entries(incoming)) {
       if (blocked.has(key) || key.startsWith('_') || !Object.prototype.hasOwnProperty.call(target, key)) continue;
       if (root && ['channels', 'plugins', 'pluginSettingsMeta'].includes(key)) continue;
       const current = target[key];
       if (object(current) && object(value)) {
-        changed = merge(current, value) || changed;
+        merge(current, value, [...pathSoFar, key]);
       } else if (Array.isArray(current) ? Array.isArray(value)
         : !object(current) && !object(value) && !Array.isArray(value) && typeof current === typeof value) {
         if (JSON.stringify(current) !== JSON.stringify(value)) {
-          target[key] = value;
-          changed = true;
+          ops.push({ p: [...pathSoFar, key], v: JSON.parse(JSON.stringify(value)) });
+          undo.unshift({ p: [...pathSoFar, key], v: JSON.parse(JSON.stringify(current)) });
         }
       }
     }
-    return changed;
   }
   if (!object(patch)) throw new Error('A settings patch object is required');
-  if (merge(config, patch, true)) saveConfig(config);
+  merge(config, patch, [], true);
+  if (ops.length) await configHost.applyCommands({ type: 'config.patch', ops, undo, label: 'Companion settings' }, { source: 'companion' });
   return true;
 }
 
@@ -517,7 +537,11 @@ function registerBackupsIpc(ipcMain) {
 
 function registerConfigIpc(ipcMain) {
   ipcMain.handle('config:load', async () => loadConfig());
-  ipcMain.handle('config:save', async (event, config) => saveConfig(config));
+  // baseRevision: the newest host revision the renderer had applied when it
+  // built `config` — host edits since then are replayed onto it before it's
+  // written (config-host.js).
+  ipcMain.handle('config:save', async (event, config, baseRevision) => configHost.reconcileSave(config, baseRevision));
+  ipcMain.handle('config:revision', async () => configHost.getRevision());
 
   ipcMain.handle('config:export', async (event, config, suggestedName) => {
     const safeName = typeof suggestedName === 'string' && suggestedName.trim()
@@ -552,5 +576,5 @@ function registerConfigIpc(ipcMain) {
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
-  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch,
+  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost,
 };

@@ -32,7 +32,7 @@ const {
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./main-plugin-capabilities');
 const { recordDiagnostic } = require('./main-diagnostics');
-const { loadConfig, saveConfig } = require('./main-config');
+const { configHost } = require('./main-config');
 const { getMainWindow } = require('./main-window-ref');
 const { callMediaService } = require('./main-media-dispatch');
 
@@ -847,13 +847,12 @@ function registerPluginsIpc(ipcMain, deps) {
   // re-prompts instead of silently inheriting a stale approval. Takes effect
   // on next launch, same "restart to activate" convention as installing or
   // enabling a plugin already uses.
+  // Applied as a host command (config-host.js), so a renderer save already
+  // in flight can't revert it; the returned hostUpdate lets the renderer
+  // apply the same change to its own copy straight away.
   ipcMain.handle('plugins:approveCapabilities', async (event, id, signature) => {
-    const config = loadConfig();
-    if (!config.plugins) config.plugins = { disabled: [] };
-    if (!config.plugins.approvedCapabilities) config.plugins.approvedCapabilities = {};
-    config.plugins.approvedCapabilities[id] = signature;
-    saveConfig(config);
-    return true;
+    const hostUpdate = await configHost.applyCommands({ type: 'plugin.setApproval', id, signature }, { source: 'plugins' });
+    return { ok: true, hostUpdate };
   });
 
   // The undo-approval counterpart to plugins:approveCapabilities above —
@@ -861,12 +860,8 @@ function registerPluginsIpc(ipcMain, deps) {
   // approval (same inactive treatment as never having approved it at all, or
   // as being disabled) until re-approved. Also takes effect on next launch.
   ipcMain.handle('plugins:revokeCapabilities', async (event, id) => {
-    const config = loadConfig();
-    if (config.plugins && config.plugins.approvedCapabilities) {
-      delete config.plugins.approvedCapabilities[id];
-      saveConfig(config);
-    }
-    return true;
+    const hostUpdate = await configHost.applyCommands({ type: 'plugin.setApproval', id, signature: null }, { source: 'plugins' });
+    return { ok: true, hostUpdate };
   });
 
   ipcMain.handle('plugins:approveIntegrity', async (event, id, hash) => {
@@ -886,15 +881,7 @@ function registerPluginsIpc(ipcMain, deps) {
   ipcMain.handle('plugins:uninstall', async (event, id) => {
     const result = uninstallPlugin(id);
     if (result.success) {
-      const config = loadConfig();
-      if (config.plugins) {
-        if (Array.isArray(config.plugins.disabled)) {
-          const idx = config.plugins.disabled.indexOf(id);
-          if (idx !== -1) config.plugins.disabled.splice(idx, 1);
-        }
-        if (config.plugins.approvedCapabilities) delete config.plugins.approvedCapabilities[id];
-      }
-      saveConfig(config);
+      result.hostUpdate = await configHost.applyCommands({ type: 'plugin.forget', id }, { source: 'plugins' });
     }
     return result;
   });
@@ -927,14 +914,8 @@ function registerPluginsIpc(ipcMain, deps) {
   });
 
   ipcMain.handle('plugins:setEnabled', async (event, id, enabled) => {
-    const config = loadConfig();
-    if (!config.plugins) config.plugins = { disabled: [] };
-    if (!Array.isArray(config.plugins.disabled)) config.plugins.disabled = [];
-    const idx = config.plugins.disabled.indexOf(id);
-    if (enabled && idx !== -1) config.plugins.disabled.splice(idx, 1);
-    if (!enabled && idx === -1) config.plugins.disabled.push(id);
-    saveConfig(config);
-    return config.plugins.disabled;
+    const hostUpdate = await configHost.applyCommands({ type: 'plugin.setEnabled', id, enabled: !!enabled }, { source: 'plugins' });
+    return { ok: true, hostUpdate };
   });
 }
 

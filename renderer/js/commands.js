@@ -338,6 +338,74 @@ registerCommand('channel.remove', {
   },
 });
 
+// ---------- Plugin registry state (config.plugins) ----------
+// Written by the host process (main-plugins.js), not the setup screen: these
+// used to be load-modify-save IPC handlers whose writes a later renderer save
+// could silently revert. As commands they are applied by the host and replayed
+// onto the renderer's copy (docs/design/05 §2.2). Each one sets a value rather
+// than appending, so applying it twice is harmless — rebasing depends on that.
+
+function pluginsSection(config) {
+  if (!isObject(config.plugins)) config.plugins = { disabled: [] };
+  if (!Array.isArray(config.plugins.disabled)) config.plugins.disabled = [];
+  return config.plugins;
+}
+
+function requirePluginId(cmd) {
+  if (!cmd.id || typeof cmd.id !== 'string') throw new Error(`${cmd.type} needs a plugin id`);
+}
+
+// signature: the approved capability signature, or null to revoke.
+registerCommand('plugin.setApproval', {
+  validate(config, cmd) { requirePluginId(cmd); },
+  apply(config, cmd) {
+    const plugins = pluginsSection(config);
+    const approvals = isObject(plugins.approvedCapabilities) ? plugins.approvedCapabilities : (plugins.approvedCapabilities = {});
+    const before = Object.prototype.hasOwnProperty.call(approvals, cmd.id) ? approvals[cmd.id] : null;
+    if (cmd.signature == null) delete approvals[cmd.id]; else approvals[cmd.id] = cmd.signature;
+    return [{ type: 'plugin.setApproval', id: cmd.id, signature: before }];
+  },
+  describe(config, cmd) {
+    return cmd.signature == null ? `Revoke ${cmd.id} permissions` : `Approve ${cmd.id} permissions`;
+  },
+});
+
+registerCommand('plugin.setEnabled', {
+  validate(config, cmd) { requirePluginId(cmd); },
+  apply(config, cmd) {
+    const plugins = pluginsSection(config);
+    const wasEnabled = !plugins.disabled.includes(cmd.id);
+    // In place (config objects keep identity — CLAUDE.md), and never a
+    // duplicate entry however many times this is applied.
+    for (let i = plugins.disabled.length - 1; i >= 0; i--) if (plugins.disabled[i] === cmd.id) plugins.disabled.splice(i, 1);
+    if (!cmd.enabled) plugins.disabled.push(cmd.id);
+    return [{ type: 'plugin.setEnabled', id: cmd.id, enabled: wasEnabled }];
+  },
+  describe(config, cmd) {
+    return `${cmd.enabled ? 'Enable' : 'Disable'} ${cmd.id}`;
+  },
+});
+
+// After an uninstall: no lingering disabled/approved state for a gone plugin.
+registerCommand('plugin.forget', {
+  validate(config, cmd) { requirePluginId(cmd); },
+  apply(config, cmd) {
+    const plugins = pluginsSection(config);
+    const wasDisabled = plugins.disabled.includes(cmd.id);
+    const approvals = isObject(plugins.approvedCapabilities) ? plugins.approvedCapabilities : null;
+    const signature = approvals && Object.prototype.hasOwnProperty.call(approvals, cmd.id) ? approvals[cmd.id] : null;
+    for (let i = plugins.disabled.length - 1; i >= 0; i--) if (plugins.disabled[i] === cmd.id) plugins.disabled.splice(i, 1);
+    if (approvals) delete approvals[cmd.id];
+    const inverse = [];
+    if (wasDisabled) inverse.push({ type: 'plugin.setEnabled', id: cmd.id, enabled: false });
+    if (signature != null) inverse.push({ type: 'plugin.setApproval', id: cmd.id, signature });
+    return inverse;
+  },
+  describe(config, cmd) {
+    return `Forget ${cmd.id}`;
+  },
+});
+
 registerCommand('channel.insert', {
   validate(config, cmd) {
     if (!isObject(cmd.channel) || cmd.channel.number == null) throw new Error('channel.insert needs a channel');

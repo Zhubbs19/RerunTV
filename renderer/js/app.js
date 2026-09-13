@@ -1,4 +1,4 @@
-import { S, viewNow, saveConfigDebounced, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
+import { S, viewNow, saveConfigDebounced, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
 import { runConfigMigrations } from './config-schema.js';
 import { randomInterstitialId, getDisplayTitle } from './util.js';
 import {
@@ -1253,7 +1253,7 @@ async function init() {
       // Persist the choice before the first setup interaction so the next
       // launch's main-process preflight can enforce it even if the user
       // closes the app without adding a channel.
-      await window.api.saveConfig(S.config);
+      await saveConfigNow();
       resetUndoBaseline();
     }
     showSetupScreen();

@@ -639,7 +639,8 @@ export function cycleSleepTimer() {
 export function toggleCrt() {
   S.config.crtEnabled = S.config.crtEnabled === false ? true : false;
   applyCrtState();
-  window.api.saveConfig(S.config);
+  // A watching action, not a setup edit: saved straight away, no undo step.
+  saveConfigDebounced(0, { skipUndo: true });
   pushRemoteState();
   flashMessage(`CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`, 'crtFlashTimer');
 }

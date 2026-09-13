@@ -360,7 +360,7 @@ function writeConfigSoon(delay) {
   S.saveConfigTimer = setTimeout(() => {
     S.saveConfigTimer = null;
     settlePlainEdits();
-    window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
+    window.api.saveConfig(S.config, hostRevision).then(() => setSaveIndicator('saved'));
   }, delay == null ? 600 : delay);
 }
 
@@ -368,7 +368,60 @@ function writeConfigNow() {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
   setSaveIndicator('saving');
-  window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
+  return window.api.saveConfig(S.config, hostRevision).then((result) => { setSaveIndicator('saved'); return result; });
+}
+
+// For the few places that must reach disk before continuing (first-run
+// onboarding, an import, a window-recreating setting) — the same save as the
+// debounced path, including the host revision, so the host can replay any
+// edit of its own this copy hasn't seen yet instead of losing it.
+export function saveConfigNow() {
+  return writeConfigNow();
+}
+
+// ---------- Host updates ----------
+// The host process applies some edits itself (plugin approval, enable/disable,
+// uninstall, headless Companion settings — main/config-host.js) and sends each
+// one here as { revision, commands }. They are applied to S.config and to the
+// baseline (so they never show up as an undoable edit of this screen's), and
+// hostRevision records the newest one applied, which every save reports.
+//
+// hostRevision only ever advances when an update has actually been APPLIED
+// here. Taking it from a save's reply instead would be wrong: if that reply
+// arrived before the update's own broadcast, the update would then be ignored
+// as already seen, and the next save would quietly revert it.
+let hostRevision = 0;
+
+export function getHostRevision() {
+  return hostRevision;
+}
+
+export function applyHostUpdate(update) {
+  if (!update || !Number.isInteger(update.revision) || update.revision <= hostRevision) return false;
+  (update.commands || []).forEach((cmd) => {
+    // Applying a host command twice is harmless (they only set values); one
+    // that no longer fits this copy is skipped rather than failing the rest.
+    try { applyCommand(S.config, cmd); } catch (e) { console.warn('[host update] skipped for S.config:', e.message); }
+    if (baseline) {
+      try { applyCommand(baseline, cmd); } catch (e) { /* the baseline is re-derived on the next reset */ }
+    }
+  });
+  hostRevision = update.revision;
+  bumpConfigGeneration();
+  return true;
+}
+
+// After a fresh load, adopt the host's current revision: the loaded config
+// already contains every host edit up to it. Only moves forward.
+function syncHostRevisionAfterLoad() {
+  if (typeof window === 'undefined' || !window.api || typeof window.api.getConfigRevision !== 'function') return;
+  Promise.resolve(window.api.getConfigRevision()).then((revision) => {
+    if (Number.isInteger(revision) && revision > hostRevision) hostRevision = revision;
+  }).catch(() => {});
+}
+
+if (typeof window !== 'undefined' && window.api && typeof window.api.onConfigApplied === 'function') {
+  window.api.onConfigApplied((update) => applyHostUpdate(update));
 }
 
 // `opts.skipUndo` is for writes that are real config state but not a
@@ -448,6 +501,7 @@ export function resetUndoBaseline() {
   pendingPlainTracked = false;
   bumpConfigGeneration();
   notifyHistory();
+  syncHostRevisionAfterLoad();
 }
 
 // For the rare call sites that replace S.config wholesale and persist it

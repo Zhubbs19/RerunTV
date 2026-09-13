@@ -429,8 +429,8 @@ app.whenReady().then(async () => {
   pluginDisabledAtBoot = [...disabledPluginIds];
   const approvedCapabilities = (bootConfig.plugins && bootConfig.plugins.approvedCapabilities) || {};
   if (HEADLESS) {
-    pluginServices.applyCompanionSettings = (patch) => {
-      applyHeadlessSettingsPatch(patch);
+    pluginServices.applyCompanionSettings = async (patch) => {
+      await applyHeadlessSettingsPatch(patch);
       // Send only an invalidation, never an unredacted config/credential patch.
       pluginServices.viewerRemoteBridge?.publish('companion:configChanged', null);
       return true;

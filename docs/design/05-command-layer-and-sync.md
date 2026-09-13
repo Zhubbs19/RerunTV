@@ -145,7 +145,34 @@ Deviations from the plan above:
 - A skipUndo write that is still unsaved when a real edit starts joins that edit's step. This
   matches the old snapshot history.
 
-Steps 3–5 (host ownership, SSE, burning down `config.patch` callers) are not started.
+**Step 3 is built, in a narrower form than §2.2.**
+- `main/config-host.js` gives the host a revision and a 200-entry ring of the commands it has
+  applied.
+- Host-side edits are now commands applied there: `plugin.setApproval`, `plugin.setEnabled`,
+  `plugin.forget`, and the headless Companion settings patch as a set-only `config.patch`. Each
+  is broadcast as `config:applied` and also returned to the caller.
+- The renderer applies them to `S.config` and its undo baseline (`applyHostUpdate`), never as
+  undo steps, and reports the newest one it has applied with every save.
+- `config:save` replays onto the incoming config any host commands the renderer hadn't seen,
+  and never replays across a backup restore.
+- This ends the revert race without hand-mirroring: the four mirrors in `setup-plugins.js` are
+  gone, and the six direct `window.api.saveConfig` calls now go through `saveConfigNow()`.
+
+The renderer still sends its whole config on save rather than commands only. That, and the
+host holding config in memory rather than re-reading the file, move with step 5's burn-down of
+`config.patch` callers.
+
+Replaying is safe only because host commands set values rather than append. Any new
+host-applied command must keep that property; the tests check it.
+
+Verification:
+- `tests/config-host.test.js` (8), including the revert race end to end with the real renderer
+  `state.js`.
+- Live (scratch `test/verify-config-host.mjs`, 8/8): a deliberately stale save through real IPC
+  was repaired.
+- The packaged exe loads `commands.js` from `app.asar` and applies host commands.
+
+Steps 4–5 (SSE to LAN clients, burning down `config.patch` callers) are not started.
 
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no

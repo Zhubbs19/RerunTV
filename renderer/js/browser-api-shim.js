@@ -117,6 +117,10 @@
     scanFolder: readOnlyNoop('scanFolder'),
     probeDuration: readOnlyNoop('probeDuration'),
     saveConfig: readOnlyNoop('saveConfig'),
+    // A viewer never writes config, so it has no host revision to track yet
+    // (docs/design/05 step 4 streams host updates to LAN clients).
+    getConfigRevision: () => Promise.resolve(0),
+    onConfigApplied: () => {},
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
     openPrintableManual: readOnlyNoop('openPrintableManual'),

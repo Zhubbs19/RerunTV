@@ -6,7 +6,7 @@ import { applyDisplayMode } from './display-mode.js';
 import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback-broadcast-fx.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
-import { S, dispatch, saveConfigDebounced, pushUndoSnapshot } from './state.js';
+import { S, dispatch, saveConfigDebounced, saveConfigNow, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
@@ -1952,7 +1952,7 @@ displayModeWindowSelect.addEventListener('change', () => {
 // value there and lets the actual host pick it up next time it loads it.
 hideTitleBarEnabledEl.addEventListener('change', async () => {
   S.config.display.hideTitleBar = hideTitleBarEnabledEl.checked;
-  await window.api.saveConfig(S.config);
+  await saveConfigNow();
   if (window.api && window.api.setTitleBarHidden) window.api.setTitleBarHidden(S.config.display.hideTitleBar);
 });
 displayModeResolutionSelect.addEventListener('change', () => {

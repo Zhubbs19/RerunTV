@@ -70,6 +70,14 @@ rewinds `S.config` **in place** (object identity survives). Don't store live con
 inside a command payload that is kept in history — commands copy what they insert, and the
 aliasing bug this prevents was real.
 
+**Main-process config edits go through `configHost.applyCommands()`** (`main/config-host.js`,
+exported from `main-config.js`), never a `loadConfig()`-modify-`saveConfig()` round trip. The
+host broadcasts the applied commands, the renderer applies them via `applyHostUpdate()`, and a
+renderer save that predates them gets them replayed on the host, so neither side reverts the
+other. A host command must only *set* values (never append or splice), because replay can apply
+it twice. Renderer code that needs an immediate save uses `saveConfigNow()` from `state.js`, not
+`window.api.saveConfig()` directly: it carries the host revision.
+
 ## Directory map
 
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by

@@ -14,7 +14,7 @@ import {
   getPluginSettingsSections,
   reloadPlugin,
 } from './plugins.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, applyHostUpdate, saveConfigDebounced } from './state.js';
 import { renderPluginSettings } from './setup-plugin-settings.js';
 
 // Set right before a renderPluginsList() triggered by an approve/revoke, so
@@ -102,17 +102,11 @@ async function promptCapabilityApproval(p) {
   const approved = await confirmDialog({ title: 'PLUGIN PERMISSIONS', message, danger: false, confirmText: 'APPROVE' });
   if (!approved) return;
   const signature = JSON.stringify(p.capabilities);
-  await window.api.pluginsApproveCapabilities(p.id, signature);
-  // The IPC handler above writes straight to disk from its own fresh
-  // loadConfig() — S.config here is a separate in-memory copy the renderer
-  // has held since boot (or since the last load/save), so it still lacks
-  // this entry. Without mirroring it here too, the next unrelated
-  // saveConfigDebounced() (any other settings edit) would overwrite the
-  // disk write with this stale copy, silently reverting the approval and
-  // leaving the button stuck showing even after a restart.
-  if (!S.config.plugins) S.config.plugins = { disabled: [] };
-  if (!S.config.plugins.approvedCapabilities) S.config.plugins.approvedCapabilities = {};
-  S.config.plugins.approvedCapabilities[p.id] = signature;
+  // The host applies this as a command (main/config-host.js) and hands the
+  // same update back, so S.config matches straight away and no later save
+  // can revert it — the old hand-mirroring of each field is no longer needed.
+  const approval = await window.api.pluginsApproveCapabilities(p.id, signature);
+  applyHostUpdate(approval && approval.hostUpdate);
   await alertDialog(`Approved — restart the app to activate ${p.name}.`, { title: 'RESTART NEEDED' });
   lastCapabilityChangedId = p.id;
   renderPluginsList();
@@ -129,11 +123,8 @@ async function revokeCapabilityApproval(p) {
     confirmText: 'REVOKE',
   });
   if (!ok) return;
-  await window.api.pluginsRevokeCapabilities(p.id);
-  // Same stale-S.config concern as promptCapabilityApproval above — mirror
-  // the removal locally so an unrelated later autosave can't resurrect the
-  // signature this IPC call just deleted on disk.
-  if (S.config.plugins.approvedCapabilities) delete S.config.plugins.approvedCapabilities[p.id];
+  const revoked = await window.api.pluginsRevokeCapabilities(p.id);
+  applyHostUpdate(revoked && revoked.hostUpdate);
   await alertDialog(`Revoked — restart the app for ${p.name} to stop activating.`, { title: 'RESTART NEEDED' });
   lastCapabilityChangedId = p.id;
   renderPluginsList();
@@ -159,10 +150,7 @@ async function confirmUninstallPlugin(p) {
     await alertDialog((result && result.error) || `Couldn't uninstall ${p.name}.`, { variant: 'error', title: 'COULD NOT UNINSTALL' });
     return;
   }
-  const disabled = S.config.plugins.disabled || [];
-  const idx = disabled.indexOf(p.id);
-  if (idx !== -1) disabled.splice(idx, 1);
-  if (S.config.plugins.approvedCapabilities) delete S.config.plugins.approvedCapabilities[p.id];
+  applyHostUpdate(result.hostUpdate);
   await alertDialog(`${p.name} uninstalled — restart the app for this to fully take effect.`, { title: 'RESTART NEEDED' });
   renderPluginsList();
 }
@@ -699,14 +687,9 @@ async function commitPendingPluginChanges(plugins, pendingChanges) {
 
   for (const [id, enabled] of pendingChanges) {
     // eslint-disable-next-line no-await-in-loop
-    await window.api.pluginsSetEnabled(id, enabled);
+    const changed = await window.api.pluginsSetEnabled(id, enabled);
+    applyHostUpdate(changed && changed.hostUpdate);
   }
-  if (!S.config.plugins.disabled) S.config.plugins.disabled = [];
-  pendingChanges.forEach((enabled, id) => {
-    const idx = S.config.plugins.disabled.indexOf(id);
-    if (enabled && idx !== -1) S.config.plugins.disabled.splice(idx, 1);
-    if (!enabled && idx === -1) S.config.plugins.disabled.push(id);
-  });
   const savedCount = pendingChanges.size;
   await renderPluginsList();
   // Set after the re-render (which rebuilds the list but never touches this

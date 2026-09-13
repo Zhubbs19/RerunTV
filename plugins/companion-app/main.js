@@ -254,7 +254,7 @@ async function activate(ctx) {
           return;
         }
         if (typeof ctx.services.applyCompanionSettings === 'function') {
-          ctx.services.applyCompanionSettings(body.patch);
+          await ctx.services.applyCompanionSettings(body.patch);
           res.writeHead(204).end();
           return;
         }
