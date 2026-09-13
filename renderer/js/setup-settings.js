@@ -396,43 +396,12 @@ import { renderPluginDiagnostics } from './plugin-diagnostics.js';
 // ---------- Settings screen tabs ----------
 const setupTabBtns = document.querySelectorAll('.setup-tab-btn');
 const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
-const setupWorkspaceBtns = document.querySelectorAll('.setup-workspace-btn');
-const setupWorkspaceDescription = document.getElementById('setup-workspace-description');
-let activeSetupWorkspace = 'viewing';
+// The page body scrolls inside #setup-content; the sidebar, header and status
+// bar stay put (docs/design/03 §4).
+const setupContentEl = document.getElementById('setup-content');
 
-const SETUP_WORKSPACE_COPY = {
-  viewing: 'Everyday channel and picture controls.',
-  headend: 'Scheduling, automation, integrations, storage, and diagnostics.',
-};
-
-function workspaceForTab(tab) {
-  const button = Array.from(setupTabBtns).find((entry) => entry.dataset.tab === tab);
-  const workspaces = (button?.dataset.workspaces || 'viewing headend').split(/\s+/);
-  return workspaces.includes(activeSetupWorkspace) ? activeSetupWorkspace : workspaces[0];
-}
-
-function applySetupWorkspace(workspace, { keepTab = true } = {}) {
-  activeSetupWorkspace = workspace === 'headend' ? 'headend' : 'viewing';
-  setupWorkspaceBtns.forEach((button) => {
-    const active = button.dataset.setupWorkspace === activeSetupWorkspace;
-    button.classList.toggle('active', active);
-    button.setAttribute('aria-pressed', String(active));
-  });
-  setupTabBtns.forEach((button) => {
-    const visible = (button.dataset.workspaces || 'viewing headend').split(/\s+/).includes(activeSetupWorkspace);
-    button.classList.toggle('workspace-hidden', !visible);
-    button.setAttribute('aria-hidden', String(!visible));
-  });
-  if (setupWorkspaceDescription) setupWorkspaceDescription.textContent = SETUP_WORKSPACE_COPY[activeSetupWorkspace];
-  const activeButton = Array.from(setupTabBtns).find((button) => button.classList.contains('active'));
-  if (!keepTab || activeButton?.classList.contains('workspace-hidden')) {
-    document.querySelector('.setup-tab-btn[data-tab="channels"]')?.click();
-  }
-}
-
-setupWorkspaceBtns.forEach((button) => button.addEventListener('click', () => {
-  applySetupWorkspace(button.dataset.setupWorkspace);
-}));
+// Watch TV in the sidebar is the same action as the status bar's button.
+document.getElementById('setup-watch-btn')?.addEventListener('click', () => document.getElementById('done-btn')?.click());
 
 // The original SYSTEM markup mixed audio/power with LAN device access in a
 // single grid. Move the two network cards into their dedicated sub-tab at
@@ -463,8 +432,8 @@ let lastSetupTab = 'channels';
 const SETUP_SECTION_COPY = {
   channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
   display: ['PICTURE & GUIDE', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
-  programming: ['MASTER CONTROL PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
-  audio: ['SYSTEM & STORAGE', 'Control audio, connected viewing, network access, the parental lock, and backups.'],
+  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
+  audio: ['SYSTEM', 'Control audio, connected viewing, network access, the parental lock, and backups.'],
   perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP & UPDATES', 'Find guidance, shortcuts, software updates, and release notes.'],
@@ -507,6 +476,8 @@ function updateBreadcrumb() {
   const activePanel = Array.from(setupTabPanels).find((p) => p.dataset.tabPanel === activeTabBtn.dataset.tab);
   const subBtn = activePanel && activePanel.querySelector('.setup-subtabs .setup-subtab-btn.active');
   if (subBtn) parts.push(subBtn.textContent.trim());
+  // A section with no sub-tabs is already named by the page title.
+  if (parts.length === 1) { setupBreadcrumbEl.textContent = ''; return; }
   setupBreadcrumbEl.innerHTML = parts
     .map((p, i) => (i === parts.length - 1 ? `<span class="crumb-current">${p}</span>` : p))
     .join('<span class="crumb-sep">›</span>');
@@ -530,6 +501,7 @@ setupTabBtns.forEach((btn) => {
     if (tab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
     restoreActiveSubtabPanels();
     updateBreadcrumb();
+    if (setupContentEl) setupContentEl.scrollTop = 0;
   });
 });
 
@@ -548,7 +520,6 @@ export function resetSetupTabs() {
   if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
   restoreActiveSubtabPanels();
   updateBreadcrumb();
-  applySetupWorkspace(workspaceForTab(lastSetupTab));
 }
 
 // ---------- Second-level sub-tabs within a single top-level tab ----------
@@ -1283,7 +1254,6 @@ function allSearchEntries() {
 }
 
 function navigateToSearchEntry(entry) {
-  applySetupWorkspace(workspaceForTab(entry.tab), { keepTab: true });
   const topButton = document.querySelector(`.setup-tab-btn[data-tab="${entry.tab}"]`);
   if (topButton) topButton.click();
   if (entry.subtab) {
@@ -1360,17 +1330,11 @@ document.addEventListener('pointerdown', (event) => {
   if (!event.target.closest('.setup-nav')) closeSettingsSearch();
 });
 
-// The navigation needs an opaque theme surface only while it is actually
-// pinned over scrolling content. Keeping that surface active at scrollTop=0
-// cuts a large solid rectangle through themes whose setup page is a gradient.
+// The header shows a separating shadow once the page under it has scrolled.
 const setupNavEl = setupScreen.querySelector('.setup-nav');
 function syncSetupNavStickySurface() {
-  if (!setupNavEl) return;
-  const stickyTop = parseFloat(getComputedStyle(setupNavEl).top) || 0;
-  const scrollPaddingTop = parseFloat(getComputedStyle(setupScreen).paddingTop) || 0;
-  const stuckEdge = setupScreen.getBoundingClientRect().top + scrollPaddingTop + stickyTop;
-  const isStuck = setupScreen.scrollTop > 0 && setupNavEl.getBoundingClientRect().top <= stuckEdge + 1;
-  setupNavEl.classList.toggle('is-stuck', isStuck);
+  if (!setupNavEl || !setupContentEl) return;
+  setupNavEl.classList.toggle('is-stuck', setupContentEl.scrollTop > 0);
 }
 
 function activeGuideGenreThemeId() {
@@ -1496,7 +1460,7 @@ function renderThemeBrowser() {
   });
   themeBrowserEmpty.classList.toggle('hidden', groups.length > 0);
 }
-setupScreen.addEventListener('scroll', syncSetupNavStickySurface, { passive: true });
+setupContentEl?.addEventListener('scroll', syncSetupNavStickySurface, { passive: true });
 window.addEventListener('resize', syncSetupNavStickySurface);
 syncSetupNavStickySurface();
 

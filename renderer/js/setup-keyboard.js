@@ -78,6 +78,12 @@ window.addEventListener('keydown', (e) => {
 
   const ctrlOrCmd = e.ctrlKey || e.metaKey;
 
+  if (ctrlOrCmd && e.key === 'Enter') {
+    e.preventDefault();
+    document.getElementById('done-btn')?.click();
+    return;
+  }
+
   if (ctrlOrCmd && !e.shiftKey && e.key.toLowerCase() === 'k') {
     e.preventDefault();
     openCommandPalette();
@@ -137,7 +143,8 @@ function controlledPanelForTab(bar, btn) {
 }
 
 function enableTabBarKeyboardNav(bar, btnSelector) {
-  const btns = () => Array.from(bar.querySelectorAll(btnSelector)).filter((btn) => !btn.classList.contains('workspace-hidden'));
+  const btns = () => Array.from(bar.querySelectorAll(btnSelector));
+  const vertical = bar.getAttribute('aria-orientation') === 'vertical';
   bar.setAttribute('role', 'tablist');
   btns().forEach((btn) => {
     btn.setAttribute('role', 'tab');
@@ -169,8 +176,10 @@ function enableTabBarKeyboardNav(bar, btnSelector) {
     const idx = all.indexOf(document.activeElement);
     if (idx === -1) return;
     let target = null;
-    if (e.key === 'ArrowRight') target = all[(idx + 1) % all.length];
-    else if (e.key === 'ArrowLeft') target = all[(idx - 1 + all.length) % all.length];
+    const nextKey = vertical ? 'ArrowDown' : 'ArrowRight';
+    const prevKey = vertical ? 'ArrowUp' : 'ArrowLeft';
+    if (e.key === nextKey) target = all[(idx + 1) % all.length];
+    else if (e.key === prevKey) target = all[(idx - 1 + all.length) % all.length];
     else if (e.key === 'Home') target = all[0];
     else if (e.key === 'End') target = all[all.length - 1];
     if (!target) return;

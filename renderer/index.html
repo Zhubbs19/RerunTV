@@ -125,33 +125,42 @@
          awaited config load resolves, even on a boot that ends up on the TV
          screen. -->
     <div id="setup-screen" class="screen hidden">
-      <div class="setup-panel">
-        <div class="setup-header">
-          <div class="setup-eyebrow">RERUNTV CONTROL CENTER // REV 1.0</div>
-          <h1 id="setup-page-title" class="setup-title">CHANNEL LINEUP</h1>
-          <p id="setup-page-description" class="setup-sub">Build and manage the channel lineup, media folders, schedules, titles, ads, and logos.</p>
-        </div>
+      <!-- Setup shell (docs/design/03): one navigation layer — a sidebar of
+           sections — a compact header, one scroll pane for the page, and a
+           pinned status bar. The tab buttons and panels keep their classes,
+           data-tab values and ids, so every listener, plugin and test that
+           drives them is unchanged. -->
+      <div class="setup-panel setup-shell">
+        <aside class="setup-sidebar" aria-label="Control center">
+          <div class="setup-brand">
+            <span class="setup-brand-name">RERUNTV</span>
+            <span class="setup-eyebrow">CONTROL CENTER</span>
+          </div>
+          <button type="button" id="setup-watch-btn" class="btn setup-sidebar-watch" title="Back to live TV (Ctrl+Enter)">&#9654; WATCH TV</button>
+          <nav class="setup-tabs" id="setup-tabs" aria-label="Settings sections" aria-orientation="vertical">
+            <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
+            <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
+            <button class="setup-tab-btn" data-tab="display">PICTURE &amp; GUIDE</button>
+            <button class="setup-tab-btn" data-tab="audio">SYSTEM</button>
+            <button class="setup-tab-btn" data-tab="perf">STATUS</button>
+            <button class="setup-tab-btn" data-tab="plugins">PLUG-INS</button>
+            <button class="setup-tab-btn" data-tab="help">HELP</button>
+          </nav>
+        </aside>
+        <div class="setup-main">
         <div class="setup-nav">
-        <div class="setup-workspace-switch" role="group" aria-label="Control center workspace">
-          <span class="setup-workspace-label">WORKSPACE</span>
-          <button type="button" class="btn setup-workspace-btn active" data-setup-workspace="viewing" aria-pressed="true">WATCH &amp; LINEUP</button>
-          <button type="button" class="btn setup-workspace-btn" data-setup-workspace="headend" aria-pressed="false">MASTER CONTROL</button>
-          <span id="setup-workspace-description" class="setup-workspace-description">Everyday channel and picture controls.</span>
+          <div class="setup-header">
+            <h1 id="setup-page-title" class="setup-title">CHANNEL LINEUP</h1>
+            <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
+            <p id="setup-page-description" class="setup-sub">Build and manage the channels you watch, their media, identity, and schedule.</p>
+          </div>
+          <div class="setup-search-wrap">
+            <input type="text" id="setup-search" class="titles-search setup-search" placeholder="⌕ FIND A SETTING OR ACTION…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
+            <div id="setup-search-results" class="setup-search-results hidden" role="listbox" aria-label="Settings search results"></div>
+            <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
+          </div>
         </div>
-        <div class="setup-tabs" id="setup-tabs" aria-label="Settings sections">
-          <button class="setup-tab-btn active" data-tab="channels" data-workspaces="viewing headend">LINEUP</button>
-          <button class="setup-tab-btn" data-tab="display" data-workspaces="viewing">PICTURE &amp; GUIDE</button>
-          <button class="setup-tab-btn" data-tab="programming" data-workspaces="headend">PROGRAMMING</button>
-          <button class="setup-tab-btn" data-tab="audio" data-workspaces="headend">SYSTEM &amp; STORAGE</button>
-          <button class="setup-tab-btn" data-tab="perf" data-workspaces="headend">STATUS</button>
-          <button class="setup-tab-btn" data-tab="plugins" data-workspaces="headend">PLUG-INS</button>
-          <button class="setup-tab-btn" data-tab="help" data-workspaces="viewing headend">MANUAL</button>
-        </div>
-        <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
-        <input type="text" id="setup-search" class="titles-search setup-search" placeholder="⌕ JUMP TO ANY SETTING OR ACTION…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
-        <div id="setup-search-results" class="setup-search-results hidden" role="listbox" aria-label="Settings search results"></div>
-        <div id="setup-search-empty" class="titles-empty hidden">NO SETTINGS MATCH THAT SEARCH.</div>
-        </div>
+        <div id="setup-content" class="setup-content">
 
         <div class="setup-tab-panel" data-tab-panel="channels">
           <div class="channel-filter-row">
@@ -898,6 +907,17 @@
         <div class="settings-grid">
 
         <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">EXPORT &amp; IMPORT</label>
+          <span class="panel-status">Export saves every channel and setting to a JSON file you can keep or move to another machine. Import replaces everything currently loaded with an exported file; importing a channel adds one channel package.</span>
+          <div class="backup-restore block-row">
+            <button id="config-export-btn" class="btn">EXPORT CONFIG…</button>
+            <button id="channel-import-btn" class="btn">IMPORT CHANNEL…</button>
+            <button id="config-import-btn" class="btn">IMPORT CONFIG…</button>
+            <button id="config-restore-auto-btn" class="btn">🔄 RESTORE CHANNELS FROM DISK</button>
+          </div>
+        </div>
+
+        <div class="panel span-full">
           <label class="panel-toggle" style="cursor:default">CONFIG BACKUPS</label>
           <span class="panel-status">Automatic snapshots of channels.json — one at the start of each session, plus at most one every 15 minutes while actively editing. Restoring replaces everything currently loaded (a snapshot of the current state is taken first, so a restore is itself undoable).</span>
           <div class="block-row">
@@ -1194,20 +1214,18 @@
           </div>
         </div>
 
-        <div class="setup-footer">
-          <div class="backup-restore" title="Export saves everything currently loaded — all channels and settings — to a JSON file you can keep as a backup or move to another machine. Import replaces everything currently loaded with a previously exported file.">
-            <button id="config-export-btn" class="btn">EXPORT CONFIG…</button>
-            <button id="channel-import-btn" class="btn">IMPORT CHANNEL…</button>
-            <button id="config-import-btn" class="btn">IMPORT CONFIG…</button>
-            <button id="config-restore-auto-btn" class="btn">🔄 RESTORE CHANNELS FROM DISK</button>
-          </div>
+        </div>
+        </div>
+
+        <div class="setup-footer setup-status-bar" role="toolbar" aria-label="Save state and actions">
+          <span id="setup-save-state" class="setup-save-state" data-state="saved">SAVED</span>
           <span class="undo-redo-group">
             <button id="setup-undo-btn" class="btn" title="Undo (Ctrl+Z)" disabled>&#8630; UNDO</button>
             <button id="setup-redo-btn" class="btn" title="Redo (Ctrl+Shift+Z)" disabled>&#8631; REDO</button>
           </span>
           <button id="setup-command-palette-btn" class="btn" title="Command palette (Ctrl+K)">&#8981; COMMANDS</button>
-          <span id="setup-save-state" class="setup-save-state" data-state="saved">SAVED</span>
-          <button id="done-btn" class="btn btn-primary">START WATCHING &#9654;</button>
+          <span class="setup-status-spacer"></span>
+          <button id="done-btn" class="btn btn-primary" title="Back to live TV (Ctrl+Enter)">START WATCHING &#9654;</button>
         </div>
       </div>
 

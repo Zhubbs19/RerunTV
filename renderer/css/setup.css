@@ -33,15 +33,8 @@
 }
 
 /* Control Center is a desktop management surface even when the TV output is
-   emulating a 4:3 or low-resolution box. Keep its information architecture
-   compact enough to scan, while retaining comfortably sized remote/touch
-   targets and the selected theme's chrome. */
-.display-frame-control-center #setup-screen { padding: clamp(18px, 2cqw, 32px); }
-.display-frame-control-center .setup-panel { width: min(97%, 1720px); }
-.display-frame-control-center .setup-header {
-  grid-template-columns: minmax(250px, auto) minmax(320px, 1fr);
-  grid-template-areas: "eyebrow eyebrow" "title description";
-}
+   emulating a 4:3 or low-resolution box; its layout is the setup shell at the
+   end of this file. */
 
 .settings-grid {
   display: grid;
@@ -2095,7 +2088,6 @@ html[data-theme][data-theme] :is(
   .btn,
   .setup-tab-btn,
   .setup-subtab-btn,
-  .setup-workspace-btn,
   .edit-tab-group-btn,
   .edit-tab-btn,
   .tagtaxonomy-category-badge,
@@ -2110,7 +2102,6 @@ html[data-theme][data-theme] .setup-subtab-btn:not(:disabled):not(.active):not([
 html[data-theme][data-theme] :is(
   .setup-tab-btn.active,
   .setup-subtab-btn.active,
-  .setup-workspace-btn.active,
   .edit-tab-group-btn.active,
   .edit-tab-btn.active,
   .btn.active,
@@ -2128,7 +2119,6 @@ html[data-theme][data-theme] :is(
 html[data-theme][data-theme] :is(
   .setup-tab-btn.active,
   .setup-subtab-btn.active,
-  .setup-workspace-btn.active,
   .edit-tab-group-btn.active,
   .edit-tab-btn.active,
   .btn.active,
@@ -2912,36 +2902,6 @@ html[data-theme] .btn[aria-disabled="true"] {
   cursor: move;
   touch-action: none;
 }
-.setup-workspace-switch {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 10px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--line);
-}
-.setup-workspace-label {
-  color: var(--paper-dim);
-  font: 700 11px var(--font-ui);
-  letter-spacing: 1.2px;
-}
-.setup-workspace-btn {
-  min-height: 42px;
-  padding: 7px 12px;
-}
-.setup-workspace-btn.active {
-  color: var(--button-primary-fg);
-  background: var(--gold);
-  border-color: var(--gold);
-}
-.setup-workspace-description {
-  flex: 1 1 240px;
-  color: var(--paper-dim);
-  font: 600 12px/1.35 var(--font-body);
-  text-align: right;
-}
-.setup-tab-btn.workspace-hidden { display: none; }
 .logobug-live-selection:focus-visible {
   outline: 3px solid var(--cyan);
   outline-offset: 4px;
@@ -3446,21 +3406,6 @@ html[data-theme] .btn[aria-disabled="true"] {
   min-height: 14px;
 }
 
-.display-frame-control-center .setup-workspace-switch {
-  margin-bottom: 6px;
-  padding-bottom: 6px;
-}
-.display-frame-control-center .setup-tabs { margin: 10px 0 6px; }
-.display-frame-control-center .setup-breadcrumb { margin: 5px 0 8px 2px; }
-.display-frame-control-center .setup-search { margin-bottom: 10px; }
-
-@media (max-width: 760px) {
-  .display-frame-control-center .setup-header {
-    grid-template-columns: 1fr;
-    grid-template-areas: "eyebrow" "title" "description";
-  }
-  .setup-workspace-description { flex-basis: 100%; text-align: left; }
-}
 .setup-breadcrumb .crumb-sep { margin: 0 6px; opacity: 0.5; }
 .setup-breadcrumb .crumb-current { color: var(--gold); }
 
@@ -4559,3 +4504,163 @@ html[data-theme] .btn[aria-disabled="true"] {
   .onair-facts { grid-template-columns: max-content 1fr; }
   .onair-fact small { grid-column: 1 / -1; }
 }
+
+
+/* ---------- Setup shell (docs/design/03 §4) ----------
+   Sidebar | (compact header over one scroll pane) with a pinned status bar
+   under both. #setup-screen itself no longer scrolls: #setup-content does,
+   so the sidebar, header, save state, undo and START WATCHING never scroll
+   away. ID-scoped so theme packs' horizontal-tab rules don't reshape it. */
+#setup-screen {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+#setup-screen .setup-shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "sidebar main" "status status";
+}
+#setup-screen .setup-sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: var(--setup-nav-bg);
+}
+#setup-screen .setup-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 6px 4px;
+}
+#setup-screen .setup-brand-name {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+#setup-screen .setup-brand .setup-eyebrow { margin: 0; font-size: 11px; }
+#setup-screen .setup-sidebar-watch { width: 100%; justify-content: center; }
+#setup-screen .setup-tabs {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+#setup-screen .setup-tab-btn {
+  width: 100%;
+  text-align: left;
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font-size: 13px;
+  letter-spacing: 1.5px;
+}
+#setup-screen .setup-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+#setup-screen .setup-nav {
+  position: relative;
+  top: auto;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 56px;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  box-shadow: none;
+}
+#setup-screen .setup-nav::before { display: none; }
+#setup-screen .setup-nav.is-stuck { box-shadow: 0 10px 18px -16px var(--setup-overflow-shadow); }
+#setup-screen .setup-header {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: 14px;
+  row-gap: 2px;
+}
+#setup-screen .setup-title { margin: 0; font-size: 22px; white-space: nowrap; }
+#setup-screen .setup-breadcrumb { margin: 0; min-height: 0; }
+#setup-screen .setup-sub {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#setup-screen .setup-search-wrap {
+  position: relative;
+  flex: 0 1 380px;
+  min-width: 220px;
+}
+#setup-screen .setup-search { margin: 0; }
+#setup-screen .setup-search-results { left: 0; right: 0; }
+#setup-screen .setup-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding: 18px 24px 24px;
+}
+#setup-screen .setup-status-bar {
+  grid-area: status;
+  margin: 0;
+  min-height: 48px;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--setup-nav-bg);
+}
+#setup-screen .setup-status-spacer { flex: 1 1 auto; }
+
+@media (max-width: 1100px) {
+  #setup-screen .setup-shell { grid-template-columns: 172px minmax(0, 1fr); }
+  #setup-screen .setup-tab-btn { font-size: 12px; letter-spacing: 1px; padding: 10px; }
+  #setup-screen .setup-search-wrap { flex-basis: 260px; }
+}
+/* Narrow: the sidebar becomes a strip of sections above the page. */
+@media (max-width: 760px) {
+  #setup-screen .setup-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "sidebar" "main" "status";
+  }
+  #setup-screen .setup-sidebar { flex-direction: row; align-items: center; overflow-x: auto; overflow-y: hidden; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px; }
+  #setup-screen .setup-brand { display: none; }
+  #setup-screen .setup-sidebar-watch { width: auto; flex: 0 0 auto; }
+  #setup-screen .setup-tabs { flex-direction: row; }
+  #setup-screen .setup-tab-btn { width: auto; white-space: nowrap; }
+  #setup-screen .setup-nav { flex-wrap: wrap; padding: 8px 12px; }
+  #setup-screen .setup-search-wrap { flex-basis: 100%; }
+  #setup-screen .setup-content { padding: 12px; }
+  #setup-screen .setup-status-bar { flex-wrap: wrap; }
+}
+#setup-screen .setup-status-bar { padding: 4px 16px; min-height: 44px; }
+#setup-screen .setup-status-bar .btn { min-height: 34px; padding-top: 5px; padding-bottom: 5px; }
+#setup-screen .setup-breadcrumb:empty { display: none; }

@@ -353,10 +353,10 @@ into core through `plugins.js`'s extension points (`registerChannelType`,
 and a few more), so installing or removing a plugin folder is the entire surface area of
 adding or dropping a feature.
 
-The Control Center has two workspaces: **Watch & Lineup** keeps everyday channel and
-picture controls concise, while **Headend Studio** contains scheduling, automation,
-integrations, storage, and diagnostics. Global search can still jump directly to either
-workspace.
+The Control Center is one sidebar of sections (Channels, Programming, Picture & Guide,
+System, Status, Plug-ins, Help). The page scrolls between a compact header with global
+search and a pinned status bar holding save state, undo/redo and Start Watching
+(Ctrl+Enter). Export and import live under System › Backups.
 
 The renderer is served over a custom `app://` scheme rather than `file://`, because
 Chromium refuses to load ES modules from a `file://` origin. That choice cascades: a

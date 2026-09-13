@@ -1,6 +1,36 @@
 # 03 — Setup shell and navigation
 
-Status: proposed (P2). Depends on: C1 (01), C3 (05), C4 (04). Consumed by: 06 (web panel is this shell).
+Status: **migration step 1 built** (§8). Steps 2–5 proposed. Depends on: C1 (01), C3 (05),
+C4 (04). Consumed by: 06 (web panel is this shell).
+
+### Built (step 1: the shell)
+
+Layout (`renderer/index.html`, `setup.css` "Setup shell"):
+- A 220 px sidebar with the brand, WATCH TV and the seven sections as one vertical tab list.
+  - Sections: Channels, Programming, Picture & Guide, System, Status, Plug-ins, Help.
+  - ▲▼ roving focus comes from `setup-keyboard.js`, which honours `aria-orientation`.
+  - The sidebar narrows to 172 px below 1100 px and becomes a horizontal strip below 760 px.
+- A 56 px header with the page title, breadcrumb (hidden when it would repeat the title), a
+  one-line description and search.
+- `#setup-content` is the only scroll pane for the page.
+- A 44 px pinned status bar with save state, undo/redo, commands and START WATCHING.
+  Ctrl+Enter watches from anywhere in setup.
+
+Also:
+- The WORKSPACE switch is removed, and every section is always listed.
+- EXPORT/IMPORT CONFIG and RESTORE FROM DISK moved from the footer of every page to a card at
+  the top of System › Backups.
+- Tab buttons, panels, sub-tabs and every id are unchanged, so listeners, plugins, search
+  navigation and the UI suite's selectors work as before. The suite's `scrollAndShot` now
+  scrolls `#setup-content`.
+
+Verified live (scratch `test/verify-setup-shell.mjs`, 14 checks):
+- At 1280×720 the header plus status bar is 100 px, and no section scrolls horizontally.
+- The status bar stays visible at the bottom of the longest page.
+- Sidebar keyboard navigation, WATCH TV and Ctrl+Enter work.
+- A search for "guide slots" lands on the control.
+- Five theme packs keep the sidebar vertical and the header at 56 px.
+- The 34-check UI suite passes.
 
 ## 1. Problem (from the 2026-09-12 audit)
 

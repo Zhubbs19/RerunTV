@@ -37,7 +37,8 @@ async function shot(session, name) {
   return file;
 }
 
-// #setup-screen is an internal overflow-y:auto pane sized to fit the window
+// The setup page scrolls inside #setup-content (the setup shell, docs/design/03;
+// #setup-screen on older builds), an internal overflow-y:auto pane sized to fit the window
 // (not normal document flow), so a viewport screenshot alone silently drops
 // anything below the fold on a tall panel. Shoots once at the current
 // scroll position, then again after scrolling that pane all the way down if
@@ -46,7 +47,7 @@ async function shot(session, name) {
 async function scrollAndShot(session, name) {
   await shot(session, name);
   const scrolled = await evalJs(session, `
-    const el = document.getElementById('setup-screen');
+    const el = document.getElementById('setup-content') || document.getElementById('setup-screen');
     if (!el || el.scrollHeight <= el.clientHeight + 4) return false;
     el.scrollTop = el.scrollHeight;
     return true;
@@ -55,7 +56,7 @@ async function scrollAndShot(session, name) {
     await sleep(150);
     await shot(session, `${name}-scrolled`);
     await evalJs(session, `
-      const el = document.getElementById('setup-screen');
+      const el = document.getElementById('setup-content') || document.getElementById('setup-screen');
       if (el) el.scrollTop = 0;
       return true;
     `);
