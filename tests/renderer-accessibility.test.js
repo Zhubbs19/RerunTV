@@ -52,14 +52,24 @@ test('dynamic channel edit navigation uses correct toolbar and tab semantics', (
   assert.match(source, /enableDynamicBarKeyboard\(editTabBar/);
 });
 
-test('control center separates everyday viewing from headend operations', () => {
+// docs/design/03: one navigation layer (a vertical sidebar of every section,
+// no workspace switch), one scroll pane, and a pinned status bar.
+test('control center is a sidebar shell with one scroll pane and a pinned status bar', () => {
   const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
   const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
+  const keyboard = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-keyboard.js'), 'utf8');
   const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
-  assert.match(markup, /WATCH &amp; LINEUP/);
-  assert.match(markup, /MASTER CONTROL/);
-  assert.match(markup, /data-workspaces="viewing headend"/);
-  assert.match(settings, /applySetupWorkspace/);
+  assert.match(markup, /<aside class="setup-sidebar"/);
+  assert.match(markup, /id="setup-tabs"[^>]*aria-orientation="vertical"/);
+  for (const tab of ['channels', 'programming', 'display', 'audio', 'perf', 'plugins', 'help']) {
+    assert.match(markup, new RegExp(`class="setup-tab-btn[^"]*" data-tab="${tab}"`), `sidebar lists ${tab}`);
+  }
+  assert.doesNotMatch(markup, /setup-workspace-switch|data-workspaces=/);
+  assert.match(markup, /id="setup-content" class="setup-content"/);
+  assert.match(markup, /class="setup-footer setup-status-bar"[\s\S]*?id="setup-undo-btn"[\s\S]*?id="done-btn"/);
+  assert.match(markup, /data-subtab-panel="backups"[\s\S]*?id="config-export-btn"/);
+  assert.doesNotMatch(settings, /applySetupWorkspace/);
+  assert.match(keyboard, /getAttribute\('aria-orientation'\) === 'vertical'/);
   assert.match(displayMode, /display-frame-control-center/);
   assert.match(displayMode, /setupVisible[\s\S]*?--display-frame-width[\s\S]*?availW/);
 });
