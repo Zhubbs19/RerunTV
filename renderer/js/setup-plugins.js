@@ -349,6 +349,16 @@ function renderCategoryTabs(plugins) {
   present.forEach((cat) => makeTab(cat, CATEGORY_LABELS[cat], counts[cat]));
 }
 
+// Counts plugins needing attention for the sidebar badge (setup-sidebar.js)
+// without building the list.
+export async function reportPluginAttention() {
+  try {
+    const plugins = await window.api.pluginsList();
+    currentPluginsForAttention = plugins;
+    window.dispatchEvent(new CustomEvent('reruntv:plugin-attention', { detail: { count: plugins.filter(needsAttention).length } }));
+  } catch (e) { /* the badge just stays as it was */ }
+}
+
 export async function renderPluginsList() {
   if (!pluginsListEl) return;
   let plugins;
@@ -363,6 +373,7 @@ export async function renderPluginsList() {
   }
   pluginsListEl.innerHTML = '';
   currentPluginsForAttention = plugins;
+  window.dispatchEvent(new CustomEvent('reruntv:plugin-attention', { detail: { count: plugins.filter(needsAttention).length } }));
   pluginsEmptyEl.classList.toggle('hidden', plugins.length > 0);
   updateSummary(plugins);
   renderCategoryTabs(plugins);

@@ -3,6 +3,23 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§4 sidebar icons and badges)
+
+`setup-sidebar.js` and `setup.css`:
+- Each section has an icon. Below 1100 px the sidebar is a 64 px icon rail; the section name
+  is in each button's tooltip (with its G-key).
+- Badges count what needs a look: Channels with nothing to play, Library sync warnings (missing
+  files and folder errors from the last run), and Plug-ins needing attention. The count is a
+  `data-badge` attribute drawn by CSS and added to the accessible name, so the button text that
+  the breadcrumb, search and tooltips read stays the section name.
+- Badges refresh on opening setup, on every history change, after a library sync, and whenever
+  the plugin list is fetched.
+
+Electron clamps `font-size: 0` to its minimum font size, so the rail hides names with a
+transparent text fill instead.
+
+Verified live (scratch `test/verify-setup-sidebar.mjs`, 8 checks).
+
 ### Built (§7 keyboard)
 
 `setup-keyboard.js`:

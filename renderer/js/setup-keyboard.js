@@ -11,6 +11,7 @@ import { renderChannelList } from './setup-channels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels, resetSetupTabs } from './setup-settings.js';
 import { openCommandPalette, closeCommandPalette, isCommandPaletteOpen, setUndoRedoHook } from './setup-command-palette.js';
+import { refreshSidebarBadges } from './setup-sidebar.js';
 
 // Full re-render of every setup-screen panel from S.config — used after
 // undo/redo rewinds S.config (in place) under whatever's currently on screen.
@@ -61,7 +62,7 @@ setUndoRedoHook(() => { refreshSetupScreen(); refreshUndoRedoButtons(); });
 // state.js reports every history change (an edit, a settled burst, a
 // dispatched command, undo/redo), so the buttons and their "Undo: …" labels
 // update the moment it happens. The slow poll stays as a backstop only.
-onHistoryChange(() => { if (setupVisible()) refreshUndoRedoButtons(); });
+onHistoryChange(() => { if (setupVisible()) { refreshUndoRedoButtons(); refreshSidebarBadges(); } });
 setInterval(() => { if (setupVisible()) refreshUndoRedoButtons(); }, 2000);
 refreshUndoRedoButtons();
 

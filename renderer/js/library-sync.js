@@ -1,5 +1,6 @@
 // Opt-in channel-folder synchronization. All sources use the same list/probe
 // contract: local folders happen to be one provider, not a special UI path.
+import { refreshSidebarBadges } from './setup-sidebar.js';
 import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { parseMediaRef } from './channels.js';
 import { probeDurationForEntry } from './setup-util.js';
@@ -105,6 +106,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
     commitConfigPatch('Library sync', { delay: 100, skipUndo: !contentChanged });
     if (status) status.textContent = `${summaryText(totals).toUpperCase()} · ${new Date(prefs.lastRunAt).toLocaleString()}`;
     renderResults(rows);
+    refreshSidebarBadges();
     return { ...totals, rows };
   } finally {
     syncRunning = false;

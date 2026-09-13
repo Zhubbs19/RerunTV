@@ -399,7 +399,8 @@ export function renderSettingsPanels() {
 }
 
 import { startPerfMonitor, stopPerfMonitor } from './perf.js';
-import { renderPluginsTab } from './setup-plugins.js';
+import { renderPluginsTab, reportPluginAttention } from './setup-plugins.js';
+import { refreshSidebarBadges } from './setup-sidebar.js';
 import { renderPluginDiagnostics } from './plugin-diagnostics.js';
 
 // ---------- Settings screen tabs ----------
@@ -529,6 +530,8 @@ export function resetSetupTabs() {
   restoreActiveSubtabPanels();
   syncDiagnosticsMonitor();
   updateBreadcrumb();
+  refreshSidebarBadges();
+  reportPluginAttention();
 }
 
 // ---------- Second-level sub-tabs within a single top-level tab ----------
