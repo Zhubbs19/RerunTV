@@ -1208,7 +1208,7 @@ export function buildLogoBugPanel(ch, panelEl) {
     if (ch.logoBugProfiles == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE LOGO SETTINGS (DISPLAY TAB)';
+      hint.textContent = 'USES THE BOX-WIDE LOGO SETTINGS (PICTURE & GUIDE TAB)';
       panelEl.appendChild(hint);
       return;
     }
@@ -1387,7 +1387,7 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
     if (ch.dynamicOverlays == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE DYNAMIC OVERLAYS (DISPLAY TAB)';
+      hint.textContent = 'USES THE BOX-WIDE DYNAMIC OVERLAYS (PICTURE & GUIDE TAB)';
       panelEl.appendChild(hint);
       return;
     }
@@ -1444,7 +1444,7 @@ export function buildTickerLayoutPanel(ch, panelEl) {
     if (ch.tickerLayout == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE TICKER PLACEMENT (DISPLAY TAB)';
+      hint.textContent = 'USES THE BOX-WIDE TICKER PLACEMENT (PICTURE & GUIDE TAB)';
       panelEl.appendChild(hint);
     } else {
       const explanation = document.createElement('p');

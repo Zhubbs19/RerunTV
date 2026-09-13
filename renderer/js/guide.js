@@ -576,7 +576,9 @@ export function renderGuideGrid() {
   lastGuideRenderSig = sig;
   const renderGen = ++S.guideRenderGen;
 
-  guideTimeHeaderEl.style.gridTemplateColumns = `170px repeat(${guideSlots()}, 1fr)`;
+  // Same column token the rows use (guide.css), so a theme or a narrow window
+  // that resizes the channel rail doesn't slide every time label off its slot.
+  guideTimeHeaderEl.style.gridTemplateColumns = `var(--guide-chan-col, 170px) repeat(${guideSlots()}, 1fr)`;
   guideTimeHeaderEl.innerHTML = '<div></div>' + Array.from(
     { length: guideSlots() },
     (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * GUIDE_SLOT_MS)}</div>`

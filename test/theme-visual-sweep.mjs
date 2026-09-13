@@ -49,6 +49,21 @@ if (await page.locator('.onboarding-screen').count()) {
   await page.getByRole('button', { name: 'SAVE & OPEN CHANNEL SETUP' }).click();
   await page.waitForTimeout(600);
 }
+// A real (installed) userData carries an update history, so the post-update
+// WHAT'S NEW dialog opens off an unawaited IPC promise and then covers the
+// whole app — every click below failed against it, for every theme. Await
+// the same IPC so the dialog is already up, then close it (same approach as
+// run-ui-tests.mjs).
+await page.evaluate(async () => {
+  if (window.api && window.api.getPostUpdateNotice) {
+    try { await window.api.getPostUpdateNotice(); } catch (e) { /* no notice */ }
+  }
+});
+await page.waitForTimeout(300);
+if (await page.locator('#update-changelog:not(.hidden)').count()) {
+  await page.locator('#update-changelog-done').click();
+  await page.waitForTimeout(250);
+}
 if (await page.locator('#setup-screen').evaluate((element) => element.classList.contains('hidden'))) {
   await page.keyboard.press('s');
   await page.waitForTimeout(350);

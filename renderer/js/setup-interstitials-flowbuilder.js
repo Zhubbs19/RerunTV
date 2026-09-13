@@ -627,6 +627,8 @@ function renderFlowTimelineCanvas(flow) {
     const moveLeftBtn = document.createElement('button');
     moveLeftBtn.className = 'btn flow-btn-mini';
     moveLeftBtn.textContent = '◄';
+    moveLeftBtn.title = 'Move step earlier';
+    moveLeftBtn.setAttribute('aria-label', 'Move step earlier');
     moveLeftBtn.disabled = idx === 0;
     moveLeftBtn.addEventListener('click', () => {
       [flow.steps[idx - 1], flow.steps[idx]] = [flow.steps[idx], flow.steps[idx - 1]];
@@ -638,6 +640,8 @@ function renderFlowTimelineCanvas(flow) {
     const moveRightBtn = document.createElement('button');
     moveRightBtn.className = 'btn flow-btn-mini';
     moveRightBtn.textContent = '►';
+    moveRightBtn.title = 'Move step later';
+    moveRightBtn.setAttribute('aria-label', 'Move step later');
     moveRightBtn.disabled = idx === flow.steps.length - 1;
     moveRightBtn.addEventListener('click', () => {
       [flow.steps[idx], flow.steps[idx + 1]] = [flow.steps[idx + 1], flow.steps[idx]];
@@ -649,6 +653,8 @@ function renderFlowTimelineCanvas(flow) {
     const delBtn = document.createElement('button');
     delBtn.className = 'btn remove-btn flow-btn-mini';
     delBtn.textContent = '✕';
+    delBtn.title = 'Remove step';
+    delBtn.setAttribute('aria-label', 'Remove step');
     delBtn.addEventListener('click', () => {
       flow.steps.splice(idx, 1);
       updateFlowStatusBanner(flow);

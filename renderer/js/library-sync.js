@@ -45,7 +45,11 @@ function renderResults(rows) {
   const root = document.getElementById('library-sync-results');
   if (!root) return;
   root.innerHTML = '';
-  rows.forEach((row) => {
+  // Warnings first, then folders that changed, then the quiet ones — a single
+  // source warning was otherwise buried somewhere in a long column of "No
+  // library changes found" rows. Stable sort keeps lineup order within each.
+  const rank = (row) => (row.error ? 0 : (row.added || row.renamed || row.removed || row.missing) ? 1 : 2);
+  [...rows].sort((a, b) => rank(a) - rank(b)).forEach((row) => {
     const item = document.createElement('div');
     item.className = 'title-row';
     const label = document.createElement('div');

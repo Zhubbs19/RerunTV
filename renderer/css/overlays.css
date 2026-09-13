@@ -820,6 +820,13 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
   border: 1px solid var(--line);
   box-shadow: var(--shadow-hard);
 }
+.details-poster.details-poster-frame {
+  width: 220px;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #000;
+}
 .details-poster.hidden { display: none; }
 
 .details-title {

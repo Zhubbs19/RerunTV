@@ -46,7 +46,9 @@ function ensurePosterVideo() {
   // Same class as the <img> so it inherits the card's poster sizing/framing
   // rather than needing a parallel rule in the stylesheet.
   posterVideoEl.className = detailsPosterEl.className;
-  posterVideoEl.classList.add('hidden');
+  // ...except its shape: a frame out of the file is widescreen (or 4:3), and
+  // the poster's 2:3 box cropped it down to a sliver of someone's face.
+  posterVideoEl.classList.add('details-poster-frame', 'hidden');
   posterVideoEl.muted = true;
   posterVideoEl.playsInline = true;
   posterVideoEl.preload = 'metadata';

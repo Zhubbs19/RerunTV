@@ -141,6 +141,7 @@ export const standbyEnabledEl = document.getElementById('standby-enabled');
 export const standbyIntervalEl = document.getElementById('standby-interval');
 export const adVolumeSlider = document.getElementById('ad-volume-slider');
 export const contentVolumeSlider = document.getElementById('content-volume-slider');
+export const crtEnabledEl = document.getElementById('crt-enabled');
 export const crtScanlinesSlider = document.getElementById('crt-scanlines-slider');
 export const crtVignetteSlider = document.getElementById('crt-vignette-slider');
 export const crtGrainSlider = document.getElementById('crt-grain-slider');

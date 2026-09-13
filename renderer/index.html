@@ -230,7 +230,10 @@
         <div class="settings-grid">
 
         <div class="panel">
-          <div class="panel-toggle">CRT EFFECT INTENSITY</div>
+          <label class="panel-toggle" title="Same switch as the C key while watching. With it off, the sliders below keep their values but have no effect.">
+            <input type="checkbox" id="crt-enabled" checked>
+            CRT EFFECT INTENSITY
+          </label>
           <div id="crt-preview" class="crt-preview">
             <div class="crt-preview-picture"></div>
             <div class="crt-scanlines"></div>
@@ -801,7 +804,7 @@
             <label class="crt-slider">SHOW/MOVIE CONTENT VOLUME <input type="range" id="content-volume-slider" min="0" max="100" value="100"></label>
             <label class="crt-slider">COMMERCIAL/BUMPER VOLUME <input type="range" id="ad-volume-slider" min="0" max="100" value="100"></label>
           </div>
-          <span class="panel-status">Both are a percentage of the master volume (the +/- keys), applied depending on whether a commercial/bumper break is currently on screen. Lower the commercial slider if ads run louder than your shows, or raise the content slider if shows run quiet. Per-channel volume overrides live on each channel's row in the CHANNELS tab.</span>
+          <span class="panel-status">Both are a percentage of the master volume (the +/- keys), applied depending on whether a commercial/bumper break is currently on screen. Lower the commercial slider if ads run louder than your shows, or raise the content slider if shows run quiet. Per-channel volume overrides live on each channel's row in the LINEUP tab.</span>
         </div>
 
         <div class="panel span-full">

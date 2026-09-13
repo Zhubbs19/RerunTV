@@ -578,8 +578,16 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
      theme-prevue-guide-94's near-white channel ID cards) — the light
      background disappeared on selection, leaving that theme's dark
      --guide-channel-subtle text (tuned for the light background) sitting
-     on the dark grid background behind it instead, unreadable. */
-  background-image: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05));
+     on the dark grid background behind it instead, unreadable.
+     background-image alone only fixed that for a SOLID --guide-channel-bg,
+     though: when the theme's channel cell is itself a gradient (dual-tuner
+     DVR '05's silver rail, and the core default), that gradient IS the
+     background-image, so the wash replaced it and the same dark-text-on-dark
+     result came straight back. Layering the wash over the token in the
+     shorthand covers both, since a final background layer may be a color or
+     an image. */
+  background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05)),
+    var(--guide-channel-bg, var(--gradient-cell));
 }
 
 .guide-row-track {
@@ -620,6 +628,15 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A block too thin for a readable title only ever showed "M", "F." or
+   "T..." fragments. Measured in real pixels (the same 3-minute bumper is a
+   readable cell on a wide window and a sliver on a small one), so a container
+   query rather than a percentage decided in guide.js. The block and its
+   tooltip stay; only the label goes. */
+.guide-entry { container-type: inline-size; }
+@container (max-width: 52px) {
+  .guide-entry-label { visibility: hidden; }
 }
 .guide-entry:nth-child(even) { background: var(--guide-program-alt-bg, var(--cell-alt)); }
 .guide-entry { transition: background-color 120ms ease; }

@@ -18,7 +18,7 @@ const UPDATE_CHOICES = [
   },
   {
     value: 'manual', title: 'ONLY WHEN I CHECK',
-    detail: 'Never check automatically. Use Help → Software Updates → Check Now.',
+    detail: 'Never check automatically. Use MANUAL → UPDATES → Check Now.',
   },
   {
     value: 'off', title: 'NEVER CHECK',
