@@ -29,7 +29,7 @@ import {
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
-import { attachSliderReadout, commitOwnerFields, ownerFieldsCommand, probeDurationForEntry, toggleLazyPanel } from './setup-util.js';
+import { attachSliderReadout, commitOwnerFields, ownerFieldsCommand, probeDurationForEntry } from './setup-util.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
 } from './plugins.js';
@@ -116,49 +116,41 @@ export async function fixChannelPlayback(ch, btn) {
   btn.textContent = 'FIX PLAYBACK';
 }
 
-// Per-channel collapse state for the OPTIONS row (color/shuffle/favorite/
-// VHS/rating/volume) — ephemeral UI state (resets on app restart), keyed by
-// channel number, and only populated once the user actually clicks the
-// toggle. Left absent, a row's default (collapsed vs. expanded) is derived
-// fresh each render from whether it has anything worth showing (see
-// hasCustomChannelOptions) rather than being a fixed default — with 13+
-// near-identical rows this is what keeps a channel with nothing customized
-// from taking up the same vertical space as one that does.
-const channelOptionsCollapse = new Map();
 const openChannelEditTabs = new Map();
 
-// Groups the per-channel edit tabs into three top-level clusters — CONTENT
-// (what plays and when), LOOK (on-screen branding), PLAYBACK (playback-
-// behavior toggles) — added once the flat 9-tab bar (FOLDERS/SCHEDULE/
-// TITLES/ADS/LOGO/CREDITS/OVERLAYS/TICKER/IDENTITY) got too wide to scan at
-// a glance. Only the grouping is new here: every existing tab id/label/
-// build function below is untouched, so this is purely a second layer of
-// navigation on top of the same panels. `openChannelEditTabs` still stores
-// just the leaf tab id (unchanged shape) — the active group is always
-// derived from it (editTabGroupOf below) rather than tracked separately,
-// so switching channels/reopening later needs no migration of old stored
-// values and no second map to keep in sync.
-const EDIT_TAB_GROUP_DEFS = [
-  { id: 'content', label: 'CONTENT', tabIds: ['folders', 'titles', 'schedule'] },
-  { id: 'look', label: 'LOOK', tabIds: ['logo', 'overlays', 'ticker', 'identity'] },
-  { id: 'playback', label: 'PLAYBACK', tabIds: ['ads', 'credits'] },
-];
-
-// Builds this channel's actual groups from its actual editTabs (some tabs,
-// e.g. TITLES, only exist when the channel has files) — a group with no
-// surviving tabs is dropped entirely rather than shown empty.
-function buildEditTabGroups(editTabs) {
-  return EDIT_TAB_GROUP_DEFS
-    .map((g) => ({ ...g, tabs: g.tabIds.map((id) => editTabs.find((t) => t.id === id)).filter(Boolean) }))
-    .filter((g) => g.tabs.length > 0);
+// A channel's editor pages (docs/design/03 §3): OVERVIEW (the common options),
+// CONTENT (folders above titles), SCHEDULE, LOOK (logo, overlays, ticker and
+// identity on one page), BREAKS (ads and end credits) and ADVANCED (the
+// remaining options). openChannelEditTabs remembers the page per channel; it
+// may still hold a sub-tab id from the older two-level bar, mapped here.
+const LEGACY_EDIT_TAB_PAGES = {
+  folders: 'content', titles: 'content', schedule: 'schedule',
+  logo: 'look', overlays: 'look', ticker: 'look', identity: 'look',
+  ads: 'breaks', credits: 'breaks',
+};
+function channelPageFor(id) {
+  return LEGACY_EDIT_TAB_PAGES[id] || id;
 }
 
-function editTabGroupOf(groups, tabId) {
-  return groups.find((g) => g.tabs.some((t) => t.id === tabId)) || groups[0];
+// A page made of several titled sections, each built into its own body.
+function sectionedPage(parts) {
+  return (ch, pageEl) => parts.forEach(([key, title, build]) => {
+    const section = document.createElement('section');
+    section.className = 'edit-section';
+    section.dataset.editSection = key;
+    const heading = document.createElement('h3');
+    heading.className = 'edit-section-title';
+    heading.textContent = title;
+    const body = document.createElement('div');
+    body.className = 'edit-section-body';
+    section.append(heading, body);
+    pageEl.appendChild(section);
+    build(ch, body);
+  });
 }
 
-// The group and leaf bars are created with each channel row, so the static
-// setup-keyboard.js initializer never sees them. Give both bars the same
+// The page bar is created with each channel card, so the static
+// setup-keyboard.js initializer never sees it. Give it the same
 // roving Left/Right/Home/End behavior locally; activation still delegates
 // to each button's normal click handler, keeping mouse and keyboard paths
 // identical.
@@ -177,21 +169,6 @@ function enableDynamicBarKeyboard(bar, buttonSelector) {
     target.focus();
     target.click();
   });
-}
-
-// Only the genuinely uncommon overrides force a row open by default — a
-// per-channel RATING turned out to be something most real setups set on
-// nearly every channel (unlike FAVORITE/VHS/SHUFFLE/a volume override,
-// which stay rare), so gating collapse on it too would leave most rows
-// expanded regardless, defeating the point. summaryParts below still
-// surfaces the rating on a collapsed row's header either way, so nothing
-// already set is ever hidden without a hint.
-function hasCustomChannelOptions(ch) {
-  return !!(ch.favorite || ch.quickAccess || ch.vhsQuality || ch.notSubscribed || ch.hidden || ch.shuffle || ch.volume != null
-    || ch.aspectRatio || ch.resolutionOverride || ch.displayAspectOverride
-    || ch.hideFormatDisclaimer || ch.hideRatingBug || ch.hideEpisodeStatus || ch.hideDaypartChime
-    || ch.hideLocalAvailGlitch || ch.hideContentAdvisory || ch.hideCapabilityBadge
-    || ch.defaultHasCC || ch.defaultHasSAP || ch.defaultHasStereo || ch.vhsWearLoops);
 }
 
 function sortedForSetup() {
@@ -397,30 +374,42 @@ export function renderChannelList() {
       // view". SCHEDULE and CALENDAR used to be two separate entries here;
       // they're now one unified tab (buildUnifiedSchedulePanel, in
       // setup-schedule.js) with an internal BLOCKS/CALENDAR view toggle.
+      const lookCustomized = !!(ch.logoBugProfiles || ch.dynamicOverlays || ch.tickerLayout
+        || (ch.broadcastIdentity && Object.keys(ch.broadcastIdentity).length));
       const editTabs = [
-        { id: 'folders', label: ch.folders.length ? `FOLDERS (${ch.folders.length})` : 'FOLDERS', build: buildFoldersPanel },
+        { id: 'overview', label: 'OVERVIEW', build: (c, p) => p.appendChild(overviewOptions) },
+        {
+          id: 'content',
+          label: ch.files.length ? `CONTENT (${ch.files.length})` : 'CONTENT',
+          build: sectionedPage([
+            ['folders', ch.folders.length ? `FOLDERS (${ch.folders.length})` : 'FOLDERS', buildFoldersPanel],
+            ...(ch.files.length ? [['titles', 'TITLES', buildTitlesPanel]] : []),
+          ]),
+        },
         { id: 'schedule', label: schedCount ? `SCHEDULE (${schedCount})` : 'SCHEDULE', build: buildUnifiedSchedulePanel },
+        {
+          id: 'look',
+          label: lookCustomized ? 'LOOK ✓' : 'LOOK',
+          build: sectionedPage([
+            ['logo', 'LOGO', buildLogoBugPanel],
+            ['overlays', 'OVERLAYS', buildDynamicOverlaysPanel],
+            ['ticker', 'TICKER', buildTickerLayoutPanel],
+            ['identity', 'IDENTITY', buildChannelIdentityPanel],
+          ]),
+        },
+        {
+          id: 'breaks',
+          label: ch.creditsSpeedup && ch.creditsSpeedup.enabled ? 'BREAKS ✓' : 'BREAKS',
+          build: sectionedPage([
+            ['ads', 'ADS', (c, body) => buildChannelAdsPanel(c, body)],
+            ['credits', 'END CREDITS', buildCreditsSpeedupPanel],
+          ]),
+        },
+        { id: 'advanced', label: 'ADVANCED', build: (c, p) => p.appendChild(advancedOptions) },
       ];
-      if (ch.files.length > 0) {
-        editTabs.push({ id: 'titles', label: 'TITLES', build: buildTitlesPanel });
-      }
-      editTabs.push({ id: 'ads', label: 'ADS', build: (c, p) => buildChannelAdsPanel(c, p) });
-      editTabs.push({ id: 'logo', label: 'LOGO', build: buildLogoBugPanel });
-      editTabs.push({ id: 'credits', label: ch.creditsSpeedup && ch.creditsSpeedup.enabled ? 'CREDITS ✓' : 'CREDITS', build: buildCreditsSpeedupPanel });
-      editTabs.push({ id: 'overlays', label: ch.dynamicOverlays ? 'OVERLAYS ✓' : 'OVERLAYS', build: buildDynamicOverlaysPanel });
-      editTabs.push({ id: 'ticker', label: ch.tickerLayout ? 'TICKER ✓' : 'TICKER', build: buildTickerLayoutPanel });
-      editTabs.push({ id: 'identity', label: ch.broadcastIdentity && Object.keys(ch.broadcastIdentity).length ? 'IDENTITY ✓' : 'IDENTITY', build: buildChannelIdentityPanel });
 
       const editPanel = document.createElement('div');
       editPanel.className = 'titles-panel edit-panel hidden';
-
-      const editHeading = document.createElement('div');
-      editHeading.className = 'edit-channel-heading';
-      const editHeadingTitle = document.createElement('strong');
-      editHeadingTitle.textContent = `EDITING CH ${formatChannelNumber(ch.number)} — ${ch.name || 'UNTITLED'}`;
-      const editHeadingSummary = document.createElement('span');
-      editHeadingSummary.textContent = `${ch.files.length} MEDIA FILE${ch.files.length === 1 ? '' : 'S'} · ${ch.folders.length} FOLDER${ch.folders.length === 1 ? '' : 'S'} · ${schedCount} SCHEDULE BLOCK${schedCount === 1 ? '' : 'S'}`;
-      editHeading.append(editHeadingTitle, editHeadingSummary);
 
       // A separate row, never innerHTML-cleared by renderEditTabBar() below
       // (which rebuilds editTabBar's contents on every tab switch) — putting
@@ -501,62 +490,24 @@ export function renderChannelList() {
       copyFromWrap.appendChild(copyFromBtn);
       editHeaderRow.appendChild(copyFromWrap);
 
-      const editTabGroups = buildEditTabGroups(editTabs);
-      const editGroupBar = document.createElement('div');
-      editGroupBar.className = 'edit-tab-group-bar';
-      editGroupBar.setAttribute('role', 'toolbar');
-      editGroupBar.setAttribute('aria-label', `Channel ${ch.number} edit sections`);
       const editTabBar = document.createElement('div');
       editTabBar.className = 'edit-tab-bar';
       editTabBar.setAttribute('role', 'tablist');
-      editTabBar.setAttribute('aria-label', `Channel ${ch.number} edit panels`);
+      editTabBar.setAttribute('aria-label', `Channel ${ch.number} pages`);
       const editTabContent = document.createElement('div');
       editTabContent.className = 'edit-tab-content';
       editTabContent.id = `channel-${ch.number}-edit-panel`;
       editTabContent.setAttribute('role', 'tabpanel');
-      editPanel.appendChild(editHeading);
-      editPanel.appendChild(editHeaderRow);
-      editPanel.appendChild(editGroupBar);
       editPanel.appendChild(editTabBar);
+      editPanel.appendChild(editHeaderRow);
       editPanel.appendChild(editTabContent);
-      enableDynamicBarKeyboard(editGroupBar, '.edit-tab-group-btn');
       enableDynamicBarKeyboard(editTabBar, '.edit-tab-btn');
 
-      let activeEditTab = openChannelEditTabs.get(ch.number) || editTabs[0].id;
-      function renderEditGroupBar() {
-        editGroupBar.innerHTML = '';
-        const activeGroup = editTabGroupOf(editTabGroups, activeEditTab);
-        editTabGroups.forEach((g) => {
-          const groupBtn = document.createElement('button');
-          const groupActive = g.id === activeGroup.id;
-          groupBtn.className = 'btn edit-tab-group-btn' + (groupActive ? ' active' : '');
-          groupBtn.dataset.editGroup = g.id;
-          groupBtn.setAttribute('aria-pressed', String(groupActive));
-          groupBtn.tabIndex = groupActive ? 0 : -1;
-          groupBtn.textContent = g.label;
-          groupBtn.addEventListener('click', () => {
-            if (g.id === activeGroup.id) return;
-            // Switching groups always lands on that group's first tab —
-            // same "pick a fresh default" behavior every other outer/inner
-            // tab pairing in this app already uses (e.g. SCHEDULE's own
-            // BLOCKS/CALENDAR toggle) rather than trying to remember a
-            // second, per-group "last sub-tab" on top of openChannelEditTabs'
-            // existing single leaf-tab-id shape.
-            activeEditTab = g.tabs[0].id;
-            if (openChannelEditTabs.has(ch.number)) {
-              openChannelEditTabs.set(ch.number, activeEditTab);
-            }
-            renderEditGroupBar();
-            renderEditTabBar();
-            renderEditTabContent();
-          });
-          editGroupBar.appendChild(groupBtn);
-        });
-      }
+      let activeEditTab = channelPageFor(openChannelEditTabs.get(ch.number));
+      if (!editTabs.some((t) => t.id === activeEditTab)) activeEditTab = editTabs[0].id;
       function renderEditTabBar() {
         editTabBar.innerHTML = '';
-        const activeGroup = editTabGroupOf(editTabGroups, activeEditTab);
-        activeGroup.tabs.forEach((t) => {
+        editTabs.forEach((t) => {
           const tabBtn = document.createElement('button');
           const tabActive = t.id === activeEditTab;
           tabBtn.className = 'btn edit-tab-btn' + (tabActive ? ' active' : '') + (t.soon ? ' edit-tab-soon' : '');
@@ -584,38 +535,10 @@ export function renderChannelList() {
         t.build(ch, editTabContent);
       }
 
-      const editBtn = document.createElement('button');
-      editBtn.className = 'btn titles-btn edit-btn';
-      // In the detail pane the editor is simply open; the tab last used on
-      // this channel is remembered in openChannelEditTabs.
-      if (!openChannelEditTabs.has(ch.number)) openChannelEditTabs.set(ch.number, activeEditTab);
-      const isInitiallyOpen = true;
-      editBtn.textContent = isInitiallyOpen ? 'EDIT ▾' : 'EDIT';
-      if (isInitiallyOpen) {
-        editBtn.classList.add('edit-btn-open');
-        editPanel.classList.remove('hidden');
-        renderEditGroupBar();
-        renderEditTabBar();
-        renderEditTabContent();
-      }
-
-      editBtn.addEventListener('click', () => {
-        toggleLazyPanel(editPanel, () => {
-          renderEditGroupBar();
-          renderEditTabBar();
-          renderEditTabContent();
-        });
-        const isOpenNow = !editPanel.classList.contains('hidden');
-        if (isOpenNow) {
-          openChannelEditTabs.set(ch.number, activeEditTab);
-        } else {
-          openChannelEditTabs.delete(ch.number);
-        }
-        editBtn.classList.toggle('edit-btn-open', isOpenNow);
-        editBtn.setAttribute('aria-expanded', String(isOpenNow));
-        editBtn.textContent = isOpenNow ? 'EDIT ▾' : 'EDIT';
-      });
-      editBtn.setAttribute('aria-expanded', String(isInitiallyOpen));
+      // In the detail pane the editor is simply open, on the page last used
+      // for this channel. It renders once the options below exist.
+      openChannelEditTabs.set(ch.number, activeEditTab);
+      editPanel.classList.remove('hidden');
 
       const status = document.createElement('div');
       status.className = 'folder-status';
@@ -1020,48 +943,10 @@ export function renderChannelList() {
         volumeReadout.refresh();
       });
 
-      const optionsCollapsed = channelOptionsCollapse.has(ch.number)
-        ? channelOptionsCollapse.get(ch.number)
-        : !hasCustomChannelOptions(ch);
-
-      const optionsHeader = document.createElement('div');
-      optionsHeader.className = 'channel-options-header' + (optionsCollapsed ? ' collapsed' : '');
-      optionsHeader.setAttribute('role', 'button');
-      optionsHeader.setAttribute('aria-expanded', String(!optionsCollapsed));
-      optionsHeader.tabIndex = 0;
-      const optionsChevron = document.createElement('span');
-      optionsChevron.className = 'channel-options-chevron';
-      optionsChevron.textContent = '▾';
-      optionsHeader.appendChild(optionsChevron);
-      optionsHeader.appendChild(document.createTextNode('OPTIONS'));
-      const summaryParts = [];
-      if (ch.favorite) summaryParts.push('FAVORITE');
-      if (ch.quickAccess) summaryParts.push('REMOTE QUICK-TAP');
-      if (ch.rating) summaryParts.push(ch.rating);
-      if (ch.aspectRatio) summaryParts.push(`ASPECT ${ch.aspectRatio.toUpperCase()}`);
-      if (ch.resolutionOverride) summaryParts.push(`RES ${ch.resolutionOverride.toUpperCase()}`);
-      if (ch.displayAspectOverride) summaryParts.push(`DISPLAY ${ch.displayAspectOverride.toUpperCase()}`);
-      if (ch.vhsQuality) summaryParts.push('VHS');
-      if (ch.notSubscribed) summaryParts.push('NOT SUBSCRIBED');
-      if (ch.hidden) summaryParts.push('HIDDEN');
-      if (ch.shuffle) summaryParts.push('SHUFFLE');
-      if (ch.volume != null) summaryParts.push(`VOL ${Math.round(ch.volume * 100)}%`);
-      if (summaryParts.length) {
-        const summary = document.createElement('span');
-        summary.className = 'channel-options-summary';
-        summary.textContent = summaryParts.join(' · ');
-        optionsHeader.appendChild(summary);
-      }
-      optionsHeader.addEventListener('click', () => {
-        channelOptionsCollapse.set(ch.number, !optionsCollapsed);
-        renderChannelList();
-      });
-      optionsHeader.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); optionsHeader.click(); }
-      });
-
-      const options = document.createElement('div');
-      options.className = 'channel-options' + (optionsCollapsed ? ' hidden' : '');
+      const overviewOptions = document.createElement('div');
+      overviewOptions.className = 'channel-options channel-options-overview';
+      const advancedOptions = document.createElement('div');
+      advancedOptions.className = 'channel-options channel-options-advanced';
       const colorLabel = document.createElement('span');
       colorLabel.className = 'option-label';
       colorLabel.textContent = 'COLOR';
@@ -1079,7 +964,7 @@ export function renderChannelList() {
         parts.forEach((part) => field.appendChild(part));
         return field;
       };
-      const optionGroup = (title, items) => {
+      const optionGroup = (into, title, items) => {
         const group = document.createElement('div');
         group.className = 'channel-option-group';
         const heading = document.createElement('div');
@@ -1089,35 +974,32 @@ export function renderChannelList() {
         body.className = 'channel-option-group-items';
         items.forEach((item) => body.appendChild(item));
         group.append(heading, body);
-        options.appendChild(group);
+        into.appendChild(group);
       };
 
-      optionGroup('LINEUP', [
+      optionGroup(overviewOptions, 'LINEUP', [
         optionField(colorLabel, swatches),
         shuffleLabel, favoriteLabel, quickAccessLabel, notSubscribedLabel, hiddenLabel,
       ]);
-      optionGroup('PICTURE', [
+      optionGroup(overviewOptions, 'RATING & VOLUME', [
         optionField(ratingLabel, ratingSelect),
+        optionField(volumeLabel, volumeSlider, volumeReadout.el, volumeResetBtn),
+      ]);
+      optionGroup(advancedOptions, 'PICTURE', [
         optionField(aspectLabel, aspectSelect),
         optionField(resolutionLabel, resolutionSelect),
         optionField(displayAspectLabel, displayAspectSelect),
         vhsLabel,
         optionField(vhsWearLabel, vhsWearInput),
       ]);
-      optionGroup('AUDIO & CAPTIONS', [
+      optionGroup(advancedOptions, 'AUDIO & CAPTIONS', [
         ...defaultCapabilityLabels,
         hideDaypartChimeLabel,
-        optionField(volumeLabel, volumeSlider, volumeReadout.el, volumeResetBtn),
       ]);
-      optionGroup('ON-SCREEN EXTRAS', [
+      optionGroup(advancedOptions, 'ON-SCREEN EXTRAS', [
         hideFormatDisclaimerLabel, hideRatingBugLabel, hideEpisodeStatusLabel,
         hideLocalAvailGlitchLabel, hideContentAdvisoryLabel, hideCapabilityBadgeLabel,
       ]);
-
-      const optionsWrap = document.createElement('div');
-      optionsWrap.className = 'channel-options-wrap';
-      optionsWrap.appendChild(optionsHeader);
-      optionsWrap.appendChild(options);
 
       row.appendChild(badge);
       row.appendChild(numInput);
@@ -1125,7 +1007,8 @@ export function renderChannelList() {
       row.appendChild(status);
       if (nowLine) row.appendChild(nowLine);
       row.appendChild(actions);
-      row.appendChild(optionsWrap);
+      renderEditTabBar();
+      renderEditTabContent();
 
       // Drag-to-reorder — a longer-range sibling to the ▲/▼ swap buttons
       // above, same underlying operation (swap two channels' `ch.number`,

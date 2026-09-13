@@ -3,6 +3,27 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§3 channel pages)
+
+A channel's editor (`setup-channels.js`) is one page bar: OVERVIEW · CONTENT · SCHEDULE · LOOK
+· BREAKS · ADVANCED. The collapsible OPTIONS row and the CONTENT/LOOK/PLAYBACK group bar are gone.
+- **Overview:** LINEUP (color, shuffle, favorite, quick-tap, subscribed, hidden) and RATING &
+  VOLUME, the options set on most channels.
+- **Content:** folders above the titles table. **Schedule:** the ON AIR / BLOCKS / CALENDAR panel.
+- **Look:** logo, overlays, ticker and identity as titled sections on one page
+  (`[data-edit-section]`). **Breaks:** ads and end credits the same way.
+- **Advanced:** picture overrides and VHS, audio and caption defaults, on-screen extras.
+
+The page is remembered per channel; a stored sub-tab id from the old bar maps to its page. Tab
+ids are `channel-<n>-edit-tab-<page>` and the content stays `#channel-<n>-edit-panel`.
+
+Acceptance (§9): renaming channel 7 and setting its rating is now open setup, pick CH 7, type
+the name, pick the rating — four actions with no expanding or scrolling (the rating used to sit
+in the collapsed OPTIONS row). The doc's target is three.
+
+Verified live (scratch `test/verify-channel-pages.mjs`, 13 checks); the UI suite now drives the
+LOOK sections (36/36).
+
 ### Built (§6 plugin search)
 
 - Search has a PLUG-INS group: every installed plugin by name, description and section labels

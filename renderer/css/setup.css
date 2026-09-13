@@ -5038,3 +5038,17 @@ html[data-theme] .btn[aria-disabled="true"] {
   #setup-screen .channel-master-detail:not(.is-detail-open) > .channel-detail-pane,
   #setup-screen .list-detail:not(.is-detail-open) > .list-detail-detail { display: none; }
 }
+
+/* Channel pages (setup-channels.js): one page bar, and pages such as LOOK and
+   BREAKS made of titled sections one after another. */
+#setup-screen .edit-panel > .edit-tab-bar { margin-top: 4px; }
+#setup-screen .edit-section + .edit-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+#setup-screen .edit-section-title {
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--gold);
+}
+#setup-screen .channel-options { padding-top: 4px; }

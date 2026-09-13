@@ -277,71 +277,67 @@ async function main() {
   // card and editor appear in the detail pane.
   await clickSelector(session, '.channel-list-item[data-channel-number="1"]');
   await sleep(300);
-  await clickSelector(session, '.channel-row[data-channel-number="1"] .channel-options-header');
+  // Channel pages (docs/design/03 §3): OVERVIEW holds the common options and
+  // ADVANCED the rest, each as named groups.
+  await clickSelector(session, '#channel-1-edit-tab-overview');
   await sleep(250);
-  const optionGroupCount = await countMatches(session, '.channel-row[data-channel-number="1"] .channel-option-group');
-  record('channel OPTIONS row is split into 4 named groups', optionGroupCount === 4, `found ${optionGroupCount}`);
+  const overviewGroups = await countMatches(session, '#channel-1-edit-panel .channel-option-group');
+  await clickSelector(session, '#channel-1-edit-tab-advanced');
+  await sleep(250);
+  const advancedGroups = await countMatches(session, '#channel-1-edit-panel .channel-option-group');
+  record('channel options are named groups on OVERVIEW (2) and ADVANCED (3)', overviewGroups === 2 && advancedGroups === 3, `found ${overviewGroups} + ${advancedGroups}`);
   // Every label must sit in the same non-wrapping group as the control it
   // names — a bare .option-label directly in the wrap-flow is exactly the
   // orphaning this grouping exists to prevent.
   const orphanLabels = await evalJs(session, `
-    const row = document.querySelector('.channel-row[data-channel-number="1"]');
-    return Array.from(row.querySelectorAll('.option-label'))
+    const panel = document.getElementById('channel-1-edit-panel');
+    return Array.from(panel.querySelectorAll('.option-label'))
       .filter((el) => !el.closest('.channel-option-field'))
       .map((el) => el.textContent.trim());
   `);
   record('no OPTIONS label is orphaned from its control', orphanLabels.length === 0, orphanLabels.join(', '));
   await scrollAndShot(session, 'channel-1-options-expanded');
 
-  // ---------- CHANNELS > edit > LOGO / OVERLAYS tabs ----------
+  // ---------- CHANNELS > LOOK page: logo / overlays / ticker sections ----------
   record('channel edit panel opens', await elementExists(session, '#channel-1-edit-panel'));
   await scrollAndShot(session, 'channel-1-edit-default');
 
-  // #channel-1-edit-panel is the edit panel's inner CONTENT div, and the
-  // CONTENT/LOOK/PLAYBACK group bar is its SIBLING (setup-channels.js) - so
-  // the obvious '#channel-1-edit-panel .edit-tab-group-btn' never matched
-  // anything. Reach the bar through the wrapper that holds both.
-  await clickSelector(session, '.edit-panel:has(> #channel-1-edit-panel) .edit-tab-group-btn[data-edit-group=look]');
-  await sleep(120);
-  await clickSelector(session, '#channel-1-edit-tab-logo');
+  const lookSection = (key) => `#channel-1-edit-panel [data-edit-section="${key}"]`;
+  await clickSelector(session, '#channel-1-edit-tab-look');
   await sleep(200);
   // Default state (fresh channel): logoBugProfiles is null, meaning "inherit
   // the box-wide default" — buildLogoBugPanel shows an explanatory hint
   // instead of the editor in that state, same convention as OVERLAYS below.
-  record('per-channel LOGO tab shows inherit hint by default', await elementExists(session, '#channel-1-edit-panel .titles-empty'));
+  record('per-channel LOGO section shows inherit hint by default', await elementExists(session, `${lookSection('logo')} .titles-empty`));
   await scrollAndShot(session, 'channel-1-edit-logo-inherit');
-  await setCheckbox(session, '#channel-1-edit-panel .shuffle-toggle input[type="checkbox"]', true); // OVERRIDE LOGO BUG FOR THIS CHANNEL
+  await setCheckbox(session, `${lookSection('logo')} .shuffle-toggle input[type="checkbox"]`, true); // OVERRIDE LOGO BUG FOR THIS CHANNEL
   await sleep(200);
-  record('per-channel LOGO override reveals live-editor button', await elementExists(session, '#channel-1-edit-panel .logobug-live-open'));
+  record('per-channel LOGO override reveals live-editor button', await elementExists(session, `${lookSection('logo')} .logobug-live-open`));
   await scrollAndShot(session, 'channel-1-edit-logo-override');
 
-  await clickSelector(session, '#channel-1-edit-tab-overlays');
+  record('per-channel OVERLAYS section shows inherit hint by default', await elementExists(session, `${lookSection('overlays')} .titles-empty`));
+  await setCheckbox(session, `${lookSection('overlays')} .shuffle-toggle input[type="checkbox"]`, true); // OVERRIDE DYNAMIC OVERLAYS FOR THIS CHANNEL
   await sleep(200);
-  record('per-channel OVERLAYS tab shows inherit hint by default', await elementExists(session, '#channel-1-edit-panel .titles-empty'));
-  await setCheckbox(session, '#channel-1-edit-panel .shuffle-toggle input[type="checkbox"]', true); // OVERRIDE DYNAMIC OVERLAYS FOR THIS CHANNEL
-  await sleep(200);
-  record('per-channel OVERLAYS override reveals the rule editor', await elementExists(session, '#channel-1-edit-panel .dynamic-overlays-editor'));
+  record('per-channel OVERLAYS override reveals the rule editor', await elementExists(session, `${lookSection('overlays')} .dynamic-overlays-editor`));
   await scrollAndShot(session, 'channel-1-edit-overlays-override');
   // Uncheck it again so the rest of the suite (which reads/writes
   // S.config.display.dynamicOverlays as the box-wide default) isn't shadowed
   // by a per-channel override on this same test channel.
-  await setCheckbox(session, '#channel-1-edit-panel .shuffle-toggle input[type="checkbox"]', false);
+  await setCheckbox(session, `${lookSection('overlays')} .shuffle-toggle input[type="checkbox"]`, false);
   await sleep(150);
 
   // ---------- Per-channel ticker placement/content override ----------
-  await clickSelector(session, '#channel-1-edit-tab-ticker');
-  await sleep(200);
-  record('per-channel TICKER tab shows inherit hints by default', await elementExists(session, '#channel-1-edit-panel .titles-empty'));
+  record('per-channel TICKER section shows inherit hints by default', await elementExists(session, `${lookSection('ticker')} .titles-empty`));
   await scrollAndShot(session, 'channel-1-edit-ticker-inherit');
-  const tickerCheckboxes = '#channel-1-edit-panel .shuffle-toggle input[type="checkbox"]';
+  const tickerCheckboxes = `${lookSection('ticker')} .shuffle-toggle input[type="checkbox"]`;
   await setCheckbox(session, tickerCheckboxes, true, 0); // OVERRIDE TICKER PLACEMENT FOR THIS CHANNEL
   await sleep(200);
-  record('per-channel TICKER placement override reveals live-editor button', await elementExists(session, '#channel-1-edit-panel .logobug-live-open'));
+  record('per-channel TICKER placement override reveals live-editor button', await elementExists(session, `${lookSection('ticker')} .logobug-live-open`));
   await setCheckbox(session, tickerCheckboxes, true, 1); // OVERRIDE TICKER TEXT/SPEED FOR THIS CHANNEL
   await sleep(200);
-  record('per-channel TICKER content override reveals text/speed fields', await elementExists(session, '#channel-1-edit-panel textarea.pubaccess-slide-input'));
+  record('per-channel TICKER content override reveals text/speed fields', await elementExists(session, `${lookSection('ticker')} textarea.pubaccess-slide-input`));
   await scrollAndShot(session, 'channel-1-edit-ticker-override');
-  await clickSelector(session, '#channel-1-edit-panel .logobug-live-open');
+  await clickSelector(session, `${lookSection('ticker')} .logobug-live-open`);
   await sleep(600);
   record('ticker live editor opens targeted at ticker-bar', await elementExists(session, '.logobug-live-toolbar'));
   await shot(session, 'ticker-live-editor');
@@ -358,9 +354,9 @@ async function main() {
   // LOGO's own override checkbox is still checked from the step above (it
   // wasn't turned back off, unlike OVERLAYS), so this tab already shows the
   // live-editor button without needing to touch the checkbox again.
-  await clickSelector(session, '#channel-1-edit-tab-logo');
+  await clickSelector(session, '#channel-1-edit-tab-look');
   await sleep(200);
-  await clickSelector(session, '#channel-1-edit-panel .logobug-live-open');
+  await clickSelector(session, `${lookSection('logo')} .logobug-live-open`);
   await sleep(600);
   record('live overlay editor opens', await elementExists(session, '.logobug-live-toolbar'));
   record('live overlay editor has an opacity slider', await elementExists(session, '.logobug-live-opacity input[type="range"]'));

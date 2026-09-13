@@ -44,10 +44,14 @@ test('runtime overlay coordinates clamp against the rendered overlay size', () =
   assert.match(source, /clamp\(0px, \$\{rule\.y\}%, calc\(100% - var\(--dynamic-overlay-size\)\)\)/);
 });
 
-test('dynamic channel edit navigation uses correct toolbar and tab semantics', () => {
+// docs/design/03 §3: a channel's editor is one bar of pages.
+test('channel pages use one tab bar with roving tab semantics', () => {
   const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-channels.js'), 'utf8');
-  assert.match(source, /editGroupBar\.setAttribute\('role', 'toolbar'\)/);
-  assert.match(source, /groupBtn\.setAttribute\('aria-pressed'/);
+  assert.match(source, /editTabBar\.setAttribute\('role', 'tablist'\)/);
+  assert.doesNotMatch(source, /editGroupBar/);
+  for (const page of ['overview', 'content', 'schedule', 'look', 'breaks', 'advanced']) {
+    assert.match(source, new RegExp(`id: '${page}'`), `channel page ${page}`);
+  }
   assert.match(source, /tabBtn\.tabIndex = tabActive \? 0 : -1/);
   assert.match(source, /enableDynamicBarKeyboard\(editTabBar/);
 });
