@@ -96,3 +96,11 @@ window.RCBPlugins.registerPluginSettings('prevue', {
     },
   }],
 });
+
+// Lets the setup search find these settings without opening this plugin first.
+window.RCBPlugins.ctx.search?.registerEntries('prevue', [
+  { label: 'Guide station label', keywords: 'prevue name identity', section: 'presentation' },
+  { label: 'Listing crawl speed', keywords: 'prevue scroll pace', section: 'presentation' },
+  { label: 'Rotate the now-playing spotlight', keywords: 'prevue spotlight card', section: 'presentation' },
+  { label: 'Spotlight duration', keywords: 'prevue spotlight seconds', section: 'presentation' },
+]);

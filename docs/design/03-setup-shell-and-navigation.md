@@ -3,6 +3,22 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§6 plugin search)
+
+- Search has a PLUG-INS group: every installed plugin by name, description and section labels
+  (`plugins.js` `getPluginSearchEntries`), found without opening Plug-ins.
+- `ctx.search.registerEntries(id, [{ label, keywords, section }])` (ctx v4, also
+  `RCBPlugins.registerSettingsSearchEntries`) names settings a plugin draws itself; they appear
+  under SETTINGS as `PLUG-INS › <plugin> › <label>`. Prevue registers its four.
+- Choosing either opens Plug-ins with the plugin selected (clearing any filter or category that
+  hides it) and scrolls to the section (`data-section-id`).
+
+Static settings pages were already searchable without being rendered (their rows are in
+`index.html`), so no separate generated manifest was needed. Per-channel editor fields are not
+in search.
+
+Verified live (scratch `test/verify-plugin-search.mjs`, 7 checks).
+
 ### Built (§4 narrow list → detail)
 
 `setup-narrow.js`: below 900 px every list + detail page (channels, pool, presets, flows,

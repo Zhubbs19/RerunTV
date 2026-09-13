@@ -177,6 +177,7 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
     const sectionEl = document.createElement('section');
     sectionEl.className = 'plugin-settings-section';
     sectionEl.dataset.layout = section.layout || 'stack';
+    sectionEl.dataset.sectionId = section.id;
     if (section.label) {
       const heading = document.createElement('label');
       heading.className = 'panel-toggle';

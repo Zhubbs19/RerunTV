@@ -17,7 +17,7 @@ import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
 import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './setup-util.js';
-import { runCoreHooks, themePackEntries, getThemePack } from './plugins.js';
+import { getPluginSearchEntries, runCoreHooks, themePackEntries, getThemePack } from './plugins.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 import { applyGuideDockMode } from './guide.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
@@ -399,7 +399,7 @@ export function renderSettingsPanels() {
 }
 
 import { startPerfMonitor, stopPerfMonitor } from './perf.js';
-import { renderPluginsTab, reportPluginAttention } from './setup-plugins.js';
+import { openPluginFromSearch, renderPluginsTab, reportPluginAttention } from './setup-plugins.js';
 import { refreshSidebarBadges } from './setup-sidebar.js';
 import { renderPluginDiagnostics } from './plugin-diagnostics.js';
 
@@ -1270,6 +1270,7 @@ function searchEntryForRow(row) {
 const SEARCH_GROUPS = [
   ['setting', 'SETTINGS', 8],
   ['channel', 'CHANNELS', 6],
+  ['plugin', 'PLUG-INS', 5],
   ['action', 'ACTIONS', 6],
   ['panel', 'SECTIONS', 5],
   ['program', 'PROGRAMS', 5],
@@ -1301,6 +1302,21 @@ function channelEntries(words) {
       path: `CH ${formatChannelNumber(ch.number)} — ${ch.name || 'UNTITLED'}`,
       preview: `${ch.files.length} video${ch.files.length === 1 ? '' : 's'}`,
       run: () => openChannelFromSearch(ch.number),
+    }));
+}
+
+// Plugins by name and description, and the settings plugins registered
+// search entries for (ctx.search.registerEntries). Both open the plugin in
+// Plug-ins, so its settings need not be on screen to be found.
+function pluginEntries(words) {
+  return getPluginSearchEntries()
+    .filter((entry) => matchesWords(entry.haystack, words))
+    .map((entry) => ({
+      kind: entry.kind,
+      title: entry.label,
+      path: entry.kind === 'plugin' ? `PLUG-INS › ${entry.pluginName}` : `PLUG-INS › ${entry.pluginName} › ${entry.label}`,
+      preview: entry.preview,
+      run: () => openPluginFromSearch(entry.pluginId, entry.section),
     }));
 }
 
@@ -1352,7 +1368,7 @@ function allSearchEntries(query) {
     .filter((entry) => entry.tab && matchesWords(entry.haystack, words))
     .map((entry) => ({ ...entry, kind: 'panel' }));
   const actions = actionEntries().filter((entry) => matchesWords(entry.haystack, words));
-  return [...rows, ...channelEntries(words), ...actions, ...panels, ...programEntries(q)];
+  return [...rows, ...channelEntries(words), ...pluginEntries(words), ...actions, ...panels, ...programEntries(q)];
 }
 
 function navigateToSearchEntry(entry) {

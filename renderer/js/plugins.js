@@ -81,6 +81,10 @@ import {
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
 const settingsSectionRegistry = new Map();
+const settingsSearchRegistry = new Map();
+// id -> { name, description } for every installed plugin, enabled or not,
+// so the setup search can find a plugin without listing plugins again.
+const installedPluginSummaries = new Map();
 const settingsSchemaRegistry = new Map();
 const mediaSourcePickerRegistry = new Map();
 const themePackRegistry = new Map();
@@ -286,6 +290,49 @@ export function registerPluginSettings(id, definition) {
     return { id: section.id, label: section.label || '', layout, render: section.render };
   });
   settingsSectionRegistry.set(id, [...existing, ...sections]);
+}
+
+// Setup search entries for settings a plugin draws itself (docs/design/03 §6).
+// Each is { label, keywords?, section? }: label is what the user reads,
+// keywords are extra words to match, section is a registerPluginSettings
+// section id to scroll to. Replaces the plugin's earlier entries.
+export function registerSettingsSearchEntries(id, entries) {
+  if (!id || typeof id !== 'string') throw new Error('registerSettingsSearchEntries: id must be a non-empty string');
+  if (!Array.isArray(entries)) throw new Error(`registerSettingsSearchEntries("${id}"): entries must be an array`);
+  const clean = entries.map((entry, index) => {
+    if (!entry || typeof entry.label !== 'string' || !entry.label.trim()) {
+      throw new Error(`registerSettingsSearchEntries("${id}"): entry ${index} needs a label`);
+    }
+    return {
+      label: entry.label.trim(),
+      keywords: typeof entry.keywords === 'string' ? entry.keywords : '',
+      section: typeof entry.section === 'string' ? entry.section : null,
+    };
+  });
+  settingsSearchRegistry.set(id, clean);
+}
+
+// Everything the setup search knows about plugins: one entry per installed
+// plugin (its name and description, plus its section labels) and the
+// entries plugins registered for individual settings.
+export function getPluginSearchEntries() {
+  const results = [];
+  installedPluginSummaries.forEach((summary, id) => {
+    const sectionLabels = (settingsSectionRegistry.get(id) || []).map((section) => section.label).filter(Boolean);
+    results.push({
+      pluginId: id, pluginName: summary.name, kind: 'plugin', label: summary.name, section: null,
+      preview: summary.description || '',
+      haystack: [summary.name, id, summary.description, ...sectionLabels].filter(Boolean).join(' ').toLowerCase(),
+    });
+    (settingsSearchRegistry.get(id) || []).forEach((entry) => {
+      results.push({
+        pluginId: id, pluginName: summary.name, kind: 'setting', label: entry.label, section: entry.section,
+        preview: summary.name,
+        haystack: [entry.label, entry.keywords, summary.name].filter(Boolean).join(' ').toLowerCase(),
+      });
+    });
+  });
+  return results;
 }
 
 export function getPluginSettingsSections(id) {
@@ -621,7 +668,9 @@ export function pluginDiagnosticsSnapshot() {
 // plugin needs to walk a channel's real broadcast (content AND the breaks
 // between it) across a time range, rather than only the content the guide
 // lists.
-const CTX_VERSION = 3;
+// v4 added ctx.search.registerEntries (setup search entries for a plugin's
+// own settings).
+const CTX_VERSION = 4;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -633,11 +682,13 @@ function installGlobalApi() {
   };
   const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
   const util = { formatClock, WEEKDAYS, MONTHS };
+  const search = { registerEntries: registerSettingsSearchEntries };
 
   window.RCBPlugins = {
     registerChannelType,
     registerSettingsPanel,
     registerPluginSettings,
+    registerSettingsSearchEntries,
     registerMediaSourcePicker,
     registerThemePack,
     getThemePack,
@@ -695,7 +746,7 @@ function installGlobalApi() {
       // Each group is its own object (not just a re-export of the flat
       // keys) so a plugin can destructure `const { channels } = ctx`
       // without pulling in everything else.
-      core, audio, channels, settings, util,
+      core, audio, channels, settings, util, search,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's
@@ -727,6 +778,7 @@ export async function loadPlugins() {
   const isDisabled = (p) => disabledIds.includes(p.id);
 
   manifests.forEach((p) => {
+    if (!p.error) installedPluginSummaries.set(p.id, { name: p.name || p.id, description: p.description || '' });
     if (p.error) { loadErrors.push({ id: p.dir, name: p.dir, error: p.error }); return; }
     if (isDisabled(p)) return;
     if (p.loadError) { loadErrors.push({ id: p.id, name: p.name, error: `(main process) ${p.loadError}` }); return; }

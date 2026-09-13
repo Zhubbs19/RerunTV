@@ -312,6 +312,31 @@ async function promptIntegrityApproval(p) {
 }
 
 let activeCategory = null;
+let pluginsRender = Promise.resolve();
+
+// Opens Plug-ins on one plugin (from the setup search), clearing any filter
+// that would hide it, and scrolls to one of its settings sections if given.
+export async function openPluginFromSearch(pluginId, sectionId = null) {
+  selectedPluginId = pluginId;
+  activeCategory = 'all';
+  if (pluginsFilterInputEl) pluginsFilterInputEl.value = '';
+  if (pluginsStateFilterEl) pluginsStateFilterEl.value = 'all';
+  document.querySelector('.setup-tab-btn[data-tab="plugins"]')?.click();
+  document.querySelector('[data-tab-panel="plugins"] .setup-subtab-btn[data-subtab="installed"]')?.click();
+  await pluginsRender;
+  const entry = pluginEntries().find((item) => item.dataset.pluginId === pluginId);
+  if (!entry) return;
+  selectPluginEntry(entry);
+  const target = (sectionId && entry.pluginDetail.querySelector(`.plugin-settings-section[data-section-id="${CSS.escape(sectionId)}"]`)) || entry.pluginDetail;
+  requestAnimationFrame(() => {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    target.classList.remove('search-target-flash');
+    void target.offsetWidth;
+    target.classList.add('search-target-flash');
+    setTimeout(() => target.classList.remove('search-target-flash'), 1200);
+  });
+  entry.querySelector('.plugin-row')?.focus({ preventScroll: true });
+}
 
 function renderCategoryTabs(plugins) {
   if (!pluginsCategoryTabsEl) return;
@@ -804,7 +829,7 @@ if (pluginsRescanBtn) {
 
 export function renderPluginsTab() {
   renderCustomCssRow();
-  renderPluginsList();
+  pluginsRender = renderPluginsList();
 }
 
 window.addEventListener('rcb:plugins-loaded', () => {

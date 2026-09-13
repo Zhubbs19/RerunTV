@@ -739,6 +739,7 @@ the piece you need instead of pulling every key off the flat object:
 - `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry, resolveBreakAt, nextBreakBoundary }`
 - `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
 - `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
+- `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)
 
 The flat top-level keys (`ctx.S`, `ctx.player`, `ctx.sortedChannels`, …) stay
 available too — nothing existing breaks — but new code should prefer the
@@ -885,6 +886,23 @@ Each section may set `layout` to `stack` (the default), `two-column`, or
 in narrow windows, so plugins should describe their layout intent instead of
 adding app-wide setup selectors or hardcoding a particular viewport. `wide`
 keeps the section spanning the available settings grid.
+
+### Setup search entries: `ctx.search.registerEntries(id, entries)`
+
+The setup screen's search (Ctrl+K) always finds your plugin by its manifest `name` and
+`description`, and by your sections' labels. Your individual settings are drawn by your own
+`render`, so search can't see them until the plugin is open. Name them once, from `settings.js`:
+
+```js
+window.RCBPlugins.ctx.search?.registerEntries('my-plugin', [
+  { label: 'Crawl speed', keywords: 'scroll pace', section: 'behavior' },
+]);
+```
+
+`label` is what the result shows (sentence case), `keywords` are extra words to match, and
+`section` is a `registerPluginSettings` section id to scroll to. Choosing a result opens your
+plugin in Plug-ins. Calling it again replaces your earlier entries. Available from ctx v4:
+use the `?.` above, or set `"minCtxVersion": 4`. `plugins/prevue/settings.js` has a real example.
 
 ### `registerSettingsPanel(id, definition)` (legacy)
 
