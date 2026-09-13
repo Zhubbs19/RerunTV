@@ -4753,7 +4753,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 @media (max-width: 900px) {
   #setup-screen .channel-master-detail { grid-template-columns: minmax(0, 1fr); }
   #setup-screen .channel-list-column { position: static; max-height: none; }
-  #setup-screen .channel-list-pane { max-height: 40vh; }
+  #setup-screen .channel-list-pane { max-height: none; }
 }
 /* Bulk selection lives on the list rows now; the editor card never has one. */
 #setup-screen #channel-list.select-mode .channel-row {
@@ -5027,3 +5027,13 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .setup-task-spinner { flex: 0 0 12px; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: setup-task-spin 0.8s linear infinite; }
 @keyframes setup-task-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { #setup-screen .setup-task-spinner { animation: none; border-right-color: currentColor; opacity: 0.6; } }
+
+/* Narrow windows: list, then the chosen row's editor with Back (setup-narrow.js). */
+#setup-screen :is(.channel-master-detail, .list-detail) > .list-detail-back { display: none; }
+@media (max-width: 900px) {
+  #setup-screen :is(.channel-master-detail, .list-detail).is-detail-open > .list-detail-back { display: inline-flex; justify-self: start; }
+  #setup-screen .channel-master-detail.is-detail-open > .channel-list-column,
+  #setup-screen .list-detail.is-detail-open > .list-detail-list { display: none; }
+  #setup-screen .channel-master-detail:not(.is-detail-open) > .channel-detail-pane,
+  #setup-screen .list-detail:not(.is-detail-open) > .list-detail-detail { display: none; }
+}

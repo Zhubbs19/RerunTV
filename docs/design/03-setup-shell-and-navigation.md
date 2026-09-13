@@ -3,6 +3,16 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§4 narrow list → detail)
+
+`setup-narrow.js`: below 900 px every list + detail page (channels, pool, presets, flows,
+backups, plugins) shows its list; choosing a row (click or Enter) swaps to that row's editor
+with a ‹ BACK TO LIST button, and Back or Esc returns to the list with the row focused. The
+wrapper carries `is-detail-open`, which wide layouts ignore. Row checkboxes and buttons keep their
+own jobs. The listener runs in the capture phase because a channel row re-renders on click.
+
+Verified live at 820 px (scratch `test/verify-setup-narrow.mjs`, 11 checks).
+
 ### Built (§4 status bar task progress)
 
 `setup-tasks.js`: `beginTask(label)` returns `{ update, end }` and shows a spinner and the

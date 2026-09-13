@@ -12,6 +12,7 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels, resetSetupTabs } from './setup-settings.js';
 import { openCommandPalette, closeCommandPalette, isCommandPaletteOpen, setUndoRedoHook } from './setup-command-palette.js';
 import { refreshSidebarBadges } from './setup-sidebar.js';
+import { closeNarrowDetail } from './setup-narrow.js';
 
 // Full re-render of every setup-screen panel from S.config — used after
 // undo/redo rewinds S.config (in place) under whatever's currently on screen.
@@ -326,6 +327,7 @@ window.addEventListener('keydown', (e) => {
     if (row) {
       e.preventDefault();
       e.stopImmediatePropagation();
+      closeNarrowDetail(list.closest('.channel-master-detail, .list-detail'), { focusRow: false });
       row.focus();
       return;
     }
