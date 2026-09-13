@@ -1,3 +1,5 @@
+import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson } from './commands.js';
+
 // Shared mutable runtime state. Modules read and write through S so the
 // ownership of cross-cutting values (what channel is tuned, whether the box
 // is powered on, how far the viewing clock is shifted) stays in one place.
@@ -270,11 +272,39 @@ function setSaveIndicator(state) {
   }
 }
 
-// True while the currently-pending debounced save already has an undo step
-// queued for it — lets a plain, incidental write that opts out of undo
-// tracking (skipUndo — see below) coalesce into the same pending save as a
-// real edit without either losing that edit's undo step or double-pushing.
-let pendingIsUndoTracked = false;
+// ---------- Saving, commands and undo/redo ----------
+// Every config edit ends up here, one of two ways:
+//
+//   dispatch(command)          a named command from commands.js. It applies
+//                              the change, records its inverse, and saves.
+//   mutate + saveConfigDebounced()   the older in-place style most call sites
+//                              still use. The burst of changes since the last
+//                              settle point becomes one config.patch command
+//                              (a structural diff and its inverse) when the
+//                              save fires, or sooner if undo/dispatch needs
+//                              history to be current.
+//
+// History holds commands and their inverses, not whole-config JSON snapshots.
+// Undo applies inverses to S.config IN PLACE, so object identity survives and
+// configGeneration stays the single invalidation signal (CLAUDE.md).
+//
+// `baseline` is a private deep copy of config as of the last settle point. A
+// patch is always baseline -> S.config, and every change that lands in
+// history is applied to baseline too, so the next diff only sees newer edits.
+
+const MAX_UNDO_ENTRIES = 50;
+// Consecutive dispatches with the same coalesce key this close together (a
+// slider drag, typing a name) are one undo step, as a debounced burst was.
+const COALESCE_WINDOW_MS = 800;
+
+let baseline = null;
+const undoStack = [];
+const redoStack = [];
+// Edits made through saveConfigDebounced since the last settle point...
+let pendingPlain = false;
+// ...and whether any of them asked to be undoable (a burst made only of
+// skipUndo writes, like lastChannel on every tune, settles without an entry).
+let pendingPlainTracked = false;
 
 // Callers that reassign S.config wholesale outside the undo funnel below
 // (a screen-switch or LAN-viewer-poll refetch that isn't a user "edit")
@@ -283,13 +313,70 @@ export function bumpConfigGeneration() {
   S.configGeneration++;
 }
 
+// One listener (the setup screen's undo/redo buttons) told whenever what
+// canUndo/canRedo/undoLabel would return may have changed. state.js stays
+// DOM-free; the listener decides what to redraw.
+let historyListener = null;
+export function onHistoryChange(fn) {
+  historyListener = fn;
+}
+function notifyHistory() {
+  if (!historyListener) return;
+  try { historyListener(); } catch (e) { console.warn('[history] listener failed', e); }
+}
+
+function pushHistory(entry) {
+  undoStack.push(entry);
+  if (undoStack.length > MAX_UNDO_ENTRIES) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function inverseOfPatch(patch) {
+  return [{ type: 'config.patch', ops: patch.undo, undo: patch.ops }];
+}
+
+// Turns pending in-place edits into history. Cheap when nothing is pending.
+function settlePlainEdits() {
+  if (!pendingPlain) return;
+  const tracked = pendingPlainTracked;
+  pendingPlain = false;
+  pendingPlainTracked = false;
+  if (baseline == null) {
+    baseline = cloneJson(S.config);
+    return;
+  }
+  const { ops, undo } = diffJson(baseline, S.config);
+  if (!ops.length) return;
+  applyPatch(baseline, ops);
+  if (!tracked) return;
+  const command = { type: 'config.patch', ops, undo };
+  pushHistory({ label: describeCommand(S.config, command), commands: [command], inverses: inverseOfPatch(command), at: Date.now() });
+  notifyHistory();
+}
+
+function writeConfigSoon(delay) {
+  clearTimeout(S.saveConfigTimer);
+  setSaveIndicator('saving');
+  S.saveConfigTimer = setTimeout(() => {
+    S.saveConfigTimer = null;
+    settlePlainEdits();
+    window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
+  }, delay == null ? 600 : delay);
+}
+
+function writeConfigNow() {
+  clearTimeout(S.saveConfigTimer);
+  S.saveConfigTimer = null;
+  setSaveIndicator('saving');
+  window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
+}
+
 // `opts.skipUndo` is for writes that are real config state but not a
-// meaningful "edit" to step back through — currently just S.config.
-// lastChannel, updated on every single channel tune (playback.js) so the box
-// reopens on the same channel next launch. Without this, casually surfing
-// channels between setup-screen visits would bury actual setup edits under
-// a pile of "last channel changed" undo steps, making Ctrl+Z on the setup
-// screen nearly useless after any TV-watching in between.
+// meaningful "edit" to step back through — S.config.lastChannel on every tune,
+// air checks, library-sync bookkeeping. Without it, casually surfing channels
+// between setup-screen visits would bury actual setup edits under a pile of
+// "last channel changed" undo steps. A skipUndo write that lands inside the
+// same burst as a real edit is part of that edit's step, as before.
 export function saveConfigDebounced(delay, opts) {
   // Fires synchronously, right when the in-place mutation that triggered
   // this call actually happened — not inside the debounced timeout below,
@@ -297,97 +384,138 @@ export function saveConfigDebounced(delay, opts) {
   // on configGeneration needs to see the bump immediately, before whatever
   // re-render the caller does next reads the (already mutated) config.
   bumpConfigGeneration();
-  const skipUndo = !!(opts && opts.skipUndo);
-  // One "burst" of rapid edits (every keystroke in a text field, a slider
-  // being dragged) becomes a single undo step: the snapshot pushed below is
-  // always the config as of the *last completed save*, not the last call to
-  // this function, and it's only pushed once per debounce window rather than
-  // once per keystroke.
-  const alreadyPending = !!S.saveConfigTimer;
-  clearTimeout(S.saveConfigTimer);
-  setSaveIndicator('saving');
-  const needsPush = !skipUndo && !(alreadyPending && pendingIsUndoTracked);
-  if (needsPush && lastSavedSnapshot != null) {
-    undoStack.push(lastSavedSnapshot);
-    if (undoStack.length > MAX_UNDO_ENTRIES) undoStack.shift();
-    redoStack.length = 0;
-    pendingIsUndoTracked = true;
-  } else if (!alreadyPending) {
-    pendingIsUndoTracked = false;
-  }
-  S.saveConfigTimer = setTimeout(() => {
-    S.saveConfigTimer = null;
-    pendingIsUndoTracked = false;
-    window.api.saveConfig(S.config).then(() => {
-      setSaveIndicator('saved');
-      lastSavedSnapshot = JSON.stringify(S.config);
-    });
-  }, delay || 600);
+  pendingPlain = true;
+  if (!(opts && opts.skipUndo)) pendingPlainTracked = true;
+  writeConfigSoon(delay);
+  notifyHistory();
 }
 
-// ---------- Undo/redo ----------
-// Tracks config snapshots (JSON strings, so later in-place mutation of
-// S.config can never corrupt a stacked entry) around the single funnel point
-// almost every setup-screen edit already goes through above. A handful of
-// call sites bypass saveConfigDebounced entirely (wholesale config replace on
-// import/restore, the DONE button's final flush) — those call
-// resetUndoBaseline() instead of pushing a step, since "undo" past a full
-// config replacement isn't a meaningful single edit to step back through.
-let lastSavedSnapshot = null;
-const undoStack = [];
-const redoStack = [];
-const MAX_UNDO_ENTRIES = 50;
+// Applies named command(s) as one undo step and saves.
+//   opts.label      overrides the command's own description
+//   opts.coalesce   key; merges into the previous step if it had the same key
+//                   and was recorded within COALESCE_WINDOW_MS
+//   opts.skipUndo   apply and save without a history entry
+//   opts.delay      save debounce, as saveConfigDebounced
+// Throws, changing nothing, if any command fails validation.
+export function dispatch(commandOrList, opts = {}) {
+  const commands = Array.isArray(commandOrList) ? commandOrList : [commandOrList];
+  settlePlainEdits();
+  if (baseline == null) baseline = cloneJson(S.config);
+  // A batch is validated against a scratch copy first, so it is all or
+  // nothing. A single command needs no copy: applyCommand validates before it
+  // touches anything, and cloning the whole config on every keystroke of a
+  // rename would be felt.
+  if (commands.length > 1) {
+    const scratch = cloneJson(S.config);
+    commands.forEach((cmd) => applyCommand(scratch, cmd));
+  }
+  const inverses = [];
+  commands.forEach((cmd) => {
+    inverses.push(...applyCommand(S.config, cmd));
+    applyCommand(baseline, cmd);
+  });
+  bumpConfigGeneration();
+  if (!opts.skipUndo) {
+    const now = Date.now();
+    const top = undoStack[undoStack.length - 1];
+    if (opts.coalesce && top && top.coalesce === opts.coalesce && now - top.at < COALESCE_WINDOW_MS && !redoStack.length) {
+      top.commands.push(...commands);
+      top.inverses.push(...inverses);
+      top.at = now;
+    } else {
+      pushHistory({
+        label: opts.label || describeCommand(S.config, commands[0]),
+        commands,
+        inverses,
+        coalesce: opts.coalesce || null,
+        at: now,
+      });
+    }
+  }
+  writeConfigSoon(opts.delay);
+  notifyHistory();
+  return true;
+}
 
+// Replaces history's starting point with the config as it is now — after an
+// import, a restore, or the DONE flush, where "undo" past that point isn't a
+// meaningful single edit.
 export function resetUndoBaseline() {
-  lastSavedSnapshot = JSON.stringify(S.config);
+  baseline = cloneJson(S.config);
   undoStack.length = 0;
   redoStack.length = 0;
+  pendingPlain = false;
+  pendingPlainTracked = false;
   bumpConfigGeneration();
+  notifyHistory();
 }
 
 // For the rare call sites that replace S.config wholesale and persist it
 // themselves outside saveConfigDebounced (backup restore, which the main
-// process writes straight to disk) — pushes the config as of the last known
-// snapshot as one undo step, then re-baselines to the just-loaded config.
-// Must be called AFTER S.config has been reassigned to the new value.
+// process writes straight to disk) — records the replacement as one undo
+// step. Must be called AFTER S.config has been reassigned to the new value.
 export function pushUndoSnapshot() {
-  if (lastSavedSnapshot != null) {
-    undoStack.push(lastSavedSnapshot);
-    if (undoStack.length > MAX_UNDO_ENTRIES) undoStack.shift();
-    redoStack.length = 0;
+  const after = cloneJson(S.config);
+  if (baseline != null) {
+    // A copy of `after`, never the object itself: it becomes the new baseline,
+    // which is patched in place from here on, and a history entry must not
+    // change under it. (The old baseline object is retired, so it's safe.)
+    const command = { type: 'config.patch', ops: [{ p: [], v: cloneJson(after) }], undo: [{ p: [], v: baseline }], label: 'Restore backup' };
+    pushHistory({ label: 'Restore backup', commands: [command], inverses: inverseOfPatch(command), at: Date.now() });
   }
-  lastSavedSnapshot = JSON.stringify(S.config);
+  baseline = after;
+  pendingPlain = false;
+  pendingPlainTracked = false;
   bumpConfigGeneration();
+  notifyHistory();
 }
 
-export function canUndo() { return undoStack.length > 0; }
-export function canRedo() { return redoStack.length > 0; }
+export function canUndo() { return undoStack.length > 0 || (pendingPlain && pendingPlainTracked); }
+// A pending undoable edit will clear redo the moment it settles.
+export function canRedo() { return redoStack.length > 0 && !(pendingPlain && pendingPlainTracked); }
 
-function applySnapshot(snapshot) {
-  S.config = JSON.parse(snapshot);
-  lastSavedSnapshot = snapshot;
-  clearTimeout(S.saveConfigTimer);
-  S.saveConfigTimer = null;
-  setSaveIndicator('saving');
-  bumpConfigGeneration();
-  window.api.saveConfig(S.config).then(() => setSaveIndicator('saved'));
+// "Rename CH 7", for the undo/redo buttons' tooltips; null when there's none.
+// Read-only on purpose: settling here would split an in-progress burst of
+// edits into several steps, since the buttons refresh on a timer.
+export function undoLabel() {
+  if (pendingPlain && pendingPlainTracked) return 'Recent edit';
+  return undoStack.length ? undoStack[undoStack.length - 1].label : null;
+}
+export function redoLabel() {
+  return redoStack.length ? redoStack[redoStack.length - 1].label : null;
 }
 
 // Returns true if a step was actually applied — callers use this to decide
 // whether to re-render the setup screen (state.js has no notion of the DOM).
 export function performUndo() {
+  settlePlainEdits();
   if (!undoStack.length) return false;
-  const prev = undoStack.pop();
-  redoStack.push(lastSavedSnapshot);
-  applySnapshot(prev);
+  const entry = undoStack.pop();
+  for (let i = entry.inverses.length - 1; i >= 0; i--) {
+    applyCommand(S.config, entry.inverses[i]);
+    applyCommand(baseline, entry.inverses[i]);
+  }
+  redoStack.push(entry);
+  bumpConfigGeneration();
+  writeConfigNow();
+  notifyHistory();
   return true;
 }
 
 export function performRedo() {
+  settlePlainEdits();
   if (!redoStack.length) return false;
-  const next = redoStack.pop();
-  undoStack.push(lastSavedSnapshot);
-  applySnapshot(next);
+  const entry = redoStack.pop();
+  const inverses = [];
+  entry.commands.forEach((cmd) => {
+    inverses.push(...applyCommand(S.config, cmd));
+    applyCommand(baseline, cmd);
+  });
+  entry.inverses = inverses;
+  undoStack.push(entry);
+  bumpConfigGeneration();
+  writeConfigNow();
+  notifyHistory();
   return true;
 }
 

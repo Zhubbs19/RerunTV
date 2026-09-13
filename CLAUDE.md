@@ -56,7 +56,19 @@ unnoticed by every cache keyed on the generation. Two caches now key on it:
 `resolveActiveCommercials`'s memoization (`schedule.js`) and `guide.js`'s render-signature
 fast path (skips the per-channel `getChannelSchedule()` sweep on the 30s guide tick when
 config/window/filter/selection are all unchanged, just moving the live line and
-`past`-dimming instead).
+`past`-dimming instead). A third, `schedule-query.js`'s per-day cache, keys on the channel
+object plus the generation.
+
+**Commands (`renderer/js/commands.js`, docs/design/05).** New edits should go through
+`dispatch({ type: 'channel.set', channel, field, value })` (or another registered command)
+rather than mutate-then-`saveConfigDebounced()`: a command applies in place, records its
+inverse, bumps the generation, saves, and gives undo a readable label ("Rename CH 7"). Pass
+`{ coalesce: key }` for typing/slider drags so a burst is one undo step. Unconverted call sites
+still work: the burst since the last settle point becomes a `config.patch` structural diff
+when its save fires. Undo history stores commands and inverses, not config snapshots, and undo
+rewinds `S.config` **in place** (object identity survives). Don't store live config objects
+inside a command payload that is kept in history — commands copy what they insert, and the
+aliasing bug this prevents was real.
 
 ## Directory map
 

@@ -35,7 +35,7 @@ import {
 } from './plugins.js';
 import { renderChannelDisplaySettings } from './setup-plugin-settings.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
-import { BADGE_COLORS, S, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
+import { BADGE_COLORS, S, dispatch, saveConfigDebounced, resetUndoBaseline, viewNow } from './state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import { applyLocalFolderRelink } from './library-relink.js';
@@ -347,7 +347,7 @@ export function renderChannelList() {
       nameInput.type = 'text';
       nameInput.placeholder = 'CHANNEL NAME';
       nameInput.value = ch.name || '';
-      nameInput.addEventListener('input', () => { ch.name = nameInput.value; saveConfigDebounced(); });
+      nameInput.addEventListener('input', () => { dispatch({ type: 'channel.rename', channel: ch.number, name: nameInput.value }, { coalesce: `rename:${ch.number}` }); });
 
       const folderBtn = buildChooseSourceControl(ch);
 
@@ -359,9 +359,8 @@ export function renderChannelList() {
         const detail = ch.files.length
           ? ` and its ${ch.files.length} video${ch.files.length === 1 ? '' : 's'}, schedule, and commercial settings`
           : '';
-        if (!(await confirmDialog(`Remove ${label}${detail}? This can't be undone.`))) return;
-        S.config.channels = S.config.channels.filter((c) => c !== ch);
-        saveConfigDebounced();
+        if (!(await confirmDialog(`Remove ${label}${detail}? You can undo this.`))) return;
+        dispatch({ type: 'channel.remove', channel: ch.number });
         renderChannelList();
       });
 
@@ -650,7 +649,7 @@ export function renderChannelList() {
       const favoriteCheckbox = document.createElement('input');
       favoriteCheckbox.type = 'checkbox';
       favoriteCheckbox.checked = !!ch.favorite;
-      favoriteCheckbox.addEventListener('change', () => { ch.favorite = favoriteCheckbox.checked; saveConfigDebounced(); });
+      favoriteCheckbox.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'favorite', value: favoriteCheckbox.checked }); });
       favoriteLabel.appendChild(favoriteCheckbox);
       favoriteLabel.appendChild(document.createTextNode('FAVORITE'));
 
@@ -660,7 +659,7 @@ export function renderChannelList() {
       const quickAccessCheckbox = document.createElement('input');
       quickAccessCheckbox.type = 'checkbox';
       quickAccessCheckbox.checked = !!ch.quickAccess;
-      quickAccessCheckbox.addEventListener('change', () => { ch.quickAccess = quickAccessCheckbox.checked; saveConfigDebounced(); });
+      quickAccessCheckbox.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'quickAccess', value: quickAccessCheckbox.checked }); });
       quickAccessLabel.appendChild(quickAccessCheckbox);
       quickAccessLabel.appendChild(document.createTextNode('REMOTE QUICK-TAP'));
 
@@ -670,7 +669,7 @@ export function renderChannelList() {
       const vhsCheckbox = document.createElement('input');
       vhsCheckbox.type = 'checkbox';
       vhsCheckbox.checked = !!ch.vhsQuality;
-      vhsCheckbox.addEventListener('change', () => { ch.vhsQuality = vhsCheckbox.checked; saveConfigDebounced(); });
+      vhsCheckbox.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'vhsQuality', value: vhsCheckbox.checked }); });
       vhsLabel.appendChild(vhsCheckbox);
       vhsLabel.appendChild(document.createTextNode('VHS'));
 
@@ -695,8 +694,7 @@ export function renderChannelList() {
       vhsWearInput.placeholder = '7';
       vhsWearInput.value = ch.vhsWearLoops || '';
       vhsWearInput.addEventListener('change', () => {
-        ch.vhsWearLoops = vhsWearInput.value.trim() === '' ? null : Math.max(1, parseInt(vhsWearInput.value, 10) || 7);
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'vhsWearLoops', value: vhsWearInput.value.trim() === '' ? null : Math.max(1, parseInt(vhsWearInput.value, 10) || 7) });
       });
 
       const hideFormatDisclaimerLabel = document.createElement('label');
@@ -706,8 +704,7 @@ export function renderChannelList() {
       hideFormatDisclaimerCheckbox.type = 'checkbox';
       hideFormatDisclaimerCheckbox.checked = !!ch.hideFormatDisclaimer;
       hideFormatDisclaimerCheckbox.addEventListener('change', () => {
-        ch.hideFormatDisclaimer = hideFormatDisclaimerCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideFormatDisclaimer', value: hideFormatDisclaimerCheckbox.checked });
       });
       hideFormatDisclaimerLabel.appendChild(hideFormatDisclaimerCheckbox);
       hideFormatDisclaimerLabel.appendChild(document.createTextNode('HIDE FORMAT DISCLAIMER'));
@@ -723,8 +720,7 @@ export function renderChannelList() {
       hideRatingBugCheckbox.type = 'checkbox';
       hideRatingBugCheckbox.checked = !!ch.hideRatingBug;
       hideRatingBugCheckbox.addEventListener('change', () => {
-        ch.hideRatingBug = hideRatingBugCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideRatingBug', value: hideRatingBugCheckbox.checked });
       });
       hideRatingBugLabel.appendChild(hideRatingBugCheckbox);
       hideRatingBugLabel.appendChild(document.createTextNode('HIDE RATING ICON'));
@@ -736,8 +732,7 @@ export function renderChannelList() {
       hideEpisodeStatusCheckbox.type = 'checkbox';
       hideEpisodeStatusCheckbox.checked = !!ch.hideEpisodeStatus;
       hideEpisodeStatusCheckbox.addEventListener('change', () => {
-        ch.hideEpisodeStatus = hideEpisodeStatusCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideEpisodeStatus', value: hideEpisodeStatusCheckbox.checked });
       });
       hideEpisodeStatusLabel.appendChild(hideEpisodeStatusCheckbox);
       hideEpisodeStatusLabel.appendChild(document.createTextNode('HIDE REPEAT ICON'));
@@ -749,8 +744,7 @@ export function renderChannelList() {
       hideDaypartChimeCheckbox.type = 'checkbox';
       hideDaypartChimeCheckbox.checked = !!ch.hideDaypartChime;
       hideDaypartChimeCheckbox.addEventListener('change', () => {
-        ch.hideDaypartChime = hideDaypartChimeCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideDaypartChime', value: hideDaypartChimeCheckbox.checked });
       });
       hideDaypartChimeLabel.appendChild(hideDaypartChimeCheckbox);
       hideDaypartChimeLabel.appendChild(document.createTextNode('HIDE DAYPART CHIME'));
@@ -762,8 +756,7 @@ export function renderChannelList() {
       hideLocalAvailGlitchCheckbox.type = 'checkbox';
       hideLocalAvailGlitchCheckbox.checked = !!ch.hideLocalAvailGlitch;
       hideLocalAvailGlitchCheckbox.addEventListener('change', () => {
-        ch.hideLocalAvailGlitch = hideLocalAvailGlitchCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideLocalAvailGlitch', value: hideLocalAvailGlitchCheckbox.checked });
       });
       hideLocalAvailGlitchLabel.appendChild(hideLocalAvailGlitchCheckbox);
       hideLocalAvailGlitchLabel.appendChild(document.createTextNode('HIDE LOCAL AVAIL GLITCH'));
@@ -778,8 +771,7 @@ export function renderChannelList() {
       hideContentAdvisoryCheckbox.type = 'checkbox';
       hideContentAdvisoryCheckbox.checked = !!ch.hideContentAdvisory;
       hideContentAdvisoryCheckbox.addEventListener('change', () => {
-        ch.hideContentAdvisory = hideContentAdvisoryCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideContentAdvisory', value: hideContentAdvisoryCheckbox.checked });
       });
       hideContentAdvisoryLabel.appendChild(hideContentAdvisoryCheckbox);
       hideContentAdvisoryLabel.appendChild(document.createTextNode('HIDE CONTENT ADVISORY'));
@@ -791,8 +783,7 @@ export function renderChannelList() {
       hideCapabilityBadgeCheckbox.type = 'checkbox';
       hideCapabilityBadgeCheckbox.checked = !!ch.hideCapabilityBadge;
       hideCapabilityBadgeCheckbox.addEventListener('change', () => {
-        ch.hideCapabilityBadge = hideCapabilityBadgeCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hideCapabilityBadge', value: hideCapabilityBadgeCheckbox.checked });
       });
       hideCapabilityBadgeLabel.appendChild(hideCapabilityBadgeCheckbox);
       hideCapabilityBadgeLabel.appendChild(document.createTextNode('HIDE CAPABILITY BADGE'));
@@ -811,8 +802,7 @@ export function renderChannelList() {
           checkbox.type = 'checkbox';
           checkbox.checked = !!ch[field];
           checkbox.addEventListener('change', () => {
-            ch[field] = checkbox.checked;
-            saveConfigDebounced();
+            dispatch({ type: 'channel.set', channel: ch.number, field, value: checkbox.checked });
           });
           label.appendChild(checkbox);
           label.appendChild(document.createTextNode(text));
@@ -825,7 +815,7 @@ export function renderChannelList() {
       const notSubscribedCheckbox = document.createElement('input');
       notSubscribedCheckbox.type = 'checkbox';
       notSubscribedCheckbox.checked = !!ch.notSubscribed;
-      notSubscribedCheckbox.addEventListener('change', () => { ch.notSubscribed = notSubscribedCheckbox.checked; saveConfigDebounced(); });
+      notSubscribedCheckbox.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'notSubscribed', value: notSubscribedCheckbox.checked }); });
       notSubscribedLabel.appendChild(notSubscribedCheckbox);
       notSubscribedLabel.appendChild(document.createTextNode('NOT SUBSCRIBED'));
 
@@ -845,8 +835,7 @@ export function renderChannelList() {
       hiddenCheckbox.type = 'checkbox';
       hiddenCheckbox.checked = !!ch.hidden;
       hiddenCheckbox.addEventListener('change', () => {
-        ch.hidden = hiddenCheckbox.checked;
-        saveConfigDebounced();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'hidden', value: hiddenCheckbox.checked });
         renderChannelList();
       });
       hiddenLabel.appendChild(hiddenCheckbox);
@@ -861,7 +850,7 @@ export function renderChannelList() {
         ratingSelect.appendChild(opt);
       });
       ratingSelect.value = ch.rating || '';
-      ratingSelect.addEventListener('change', () => { ch.rating = ratingSelect.value || null; saveConfigDebounced(); });
+      ratingSelect.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'rating', value: ratingSelect.value || null }); });
 
       // Forces this channel's content into a specific aspect ratio/crop
       // instead of inheriting the box-wide ASPECT RATIO setting (DISPLAY
@@ -878,7 +867,7 @@ export function renderChannelList() {
         aspectSelect.appendChild(opt);
       });
       aspectSelect.value = ch.aspectRatio || '';
-      aspectSelect.addEventListener('change', () => { ch.aspectRatio = aspectSelect.value || null; saveConfigDebounced(); });
+      aspectSelect.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'aspectRatio', value: aspectSelect.value || null }); });
 
       // Forces this channel into a specific simulated RESOLUTION tier
       // instead of AUTO-detecting it (real file resolution, then ERA tag)
@@ -895,7 +884,7 @@ export function renderChannelList() {
         resolutionSelect.appendChild(opt);
       });
       resolutionSelect.value = ch.resolutionOverride || '';
-      resolutionSelect.addEventListener('change', () => { ch.resolutionOverride = resolutionSelect.value || null; saveConfigDebounced(); });
+      resolutionSelect.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'resolutionOverride', value: resolutionSelect.value || null }); });
 
       // Forces this channel to a specific simulated box ASPECT (screen
       // shape, #display-frame) instead of AUTO-detecting it — only takes
@@ -913,7 +902,7 @@ export function renderChannelList() {
         displayAspectSelect.appendChild(opt);
       });
       displayAspectSelect.value = ch.displayAspectOverride || '';
-      displayAspectSelect.addEventListener('change', () => { ch.displayAspectOverride = displayAspectSelect.value || null; saveConfigDebounced(); });
+      displayAspectSelect.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'displayAspectOverride', value: displayAspectSelect.value || null }); });
 
       const swatches = document.createElement('div');
       swatches.className = 'color-swatches';
@@ -925,8 +914,7 @@ export function renderChannelList() {
         sw.setAttribute('aria-label', `Channel accent color ${color}`);
         sw.setAttribute('aria-pressed', String(channelColor(ch) === color));
         sw.addEventListener('click', () => {
-          ch.color = color;
-          saveConfigDebounced();
+          dispatch({ type: 'channel.set', channel: ch.number, field: 'color', value: color });
           renderChannelList();
         });
         swatches.appendChild(sw);
@@ -1006,7 +994,7 @@ export function renderChannelList() {
       volumeSlider.className = 'channel-volume-slider';
       volumeSlider.title = 'This channel\'s content volume, as a percentage of the master volume. Drag away from 100 to override.';
       volumeSlider.value = ch.volume != null ? Math.round(ch.volume * 100) : 100;
-      volumeSlider.addEventListener('input', () => { ch.volume = parseInt(volumeSlider.value, 10) / 100; saveConfigDebounced(); });
+      volumeSlider.addEventListener('input', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'volume', value: parseInt(volumeSlider.value, 10) / 100 }, { coalesce: `volume:${ch.number}` }); });
       const volumeReadout = attachSliderReadout(volumeSlider, { suffix: '%' });
 
       const volumeResetBtn = document.createElement('button');
@@ -1014,10 +1002,9 @@ export function renderChannelList() {
       volumeResetBtn.textContent = 'RESET';
       volumeResetBtn.title = 'Clear this channel\'s override and inherit the master volume again';
       volumeResetBtn.addEventListener('click', () => {
-        ch.volume = null;
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'volume', value: null });
         volumeSlider.value = 100;
         volumeReadout.refresh();
-        saveConfigDebounced();
       });
 
       const optionsCollapsed = channelOptionsCollapse.has(ch.number)

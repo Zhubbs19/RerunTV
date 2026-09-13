@@ -6,7 +6,7 @@ import { applyDisplayMode } from './display-mode.js';
 import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback-broadcast-fx.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
-import { S, saveConfigDebounced, pushUndoSnapshot } from './state.js';
+import { S, dispatch, saveConfigDebounced, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
@@ -1848,40 +1848,33 @@ initBackups((restored) => {
 });
 
 crtEnabledEl.addEventListener('change', () => {
-  S.config.crtEnabled = crtEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['crtEnabled'], value: crtEnabledEl.checked });
   applyCrtState();
   refreshDependentControls();
-  saveConfigDebounced();
 });
 crtScanlinesSlider.addEventListener('input', () => {
-  S.config.crtIntensity.scanlines = parseInt(crtScanlinesSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'scanlines'], value: parseInt(crtScanlinesSlider.value, 10) }, { coalesce: 'crt:scanlines' });
   applyCrtState();
-  saveConfigDebounced();
 });
 crtVignetteSlider.addEventListener('input', () => {
-  S.config.crtIntensity.vignette = parseInt(crtVignetteSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'vignette'], value: parseInt(crtVignetteSlider.value, 10) }, { coalesce: 'crt:vignette' });
   applyCrtState();
-  saveConfigDebounced();
 });
 crtGrainSlider.addEventListener('input', () => {
-  S.config.crtIntensity.grain = parseInt(crtGrainSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'grain'], value: parseInt(crtGrainSlider.value, 10) }, { coalesce: 'crt:grain' });
   applyCrtState();
-  saveConfigDebounced();
 });
 crtFlickerSlider.addEventListener('input', () => {
-  S.config.crtIntensity.flicker = parseInt(crtFlickerSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'flicker'], value: parseInt(crtFlickerSlider.value, 10) }, { coalesce: 'crt:flicker' });
   applyCrtState();
-  saveConfigDebounced();
 });
 crtCurvatureSlider.addEventListener('input', () => {
-  S.config.crtIntensity.curvature = parseInt(crtCurvatureSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'curvature'], value: parseInt(crtCurvatureSlider.value, 10) }, { coalesce: 'crt:curvature' });
   applyCrtState();
-  saveConfigDebounced();
 });
 crtBurninSlider.addEventListener('input', () => {
-  S.config.crtIntensity.burnIn = parseInt(crtBurninSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'burnIn'], value: parseInt(crtBurninSlider.value, 10) }, { coalesce: 'crt:burnIn' });
   refreshLogoBugGhost();
-  saveConfigDebounced();
 });
 clock24El.addEventListener('change', () => {
   S.config.display.clock24 = clock24El.checked;

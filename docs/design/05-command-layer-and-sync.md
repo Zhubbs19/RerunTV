@@ -123,6 +123,30 @@ which is how plugin settings stay undoable and remote-editable.
 
 ## 4. Migration
 
+**Status:** steps 1–2 are built.
+- `renderer/js/commands.js` is pure: a registry, `diffJson`/`applyPatch` with inverses,
+  identity-aware array splices, and `config.patch`, `settings.set`, `channel.set`,
+  `channel.rename`, `channel.remove`, `channel.insert`.
+- History and `dispatch()` live in `state.js`, next to `saveConfigDebounced`.
+- Converted call sites: every plain per-channel option (18 fields plus the CC/SAP/stereo
+  defaults and volume), rename (coalesced), remove, and the CRT toggle and sliders (each drag
+  coalesced).
+- Undo/redo tooltips and the command palette show the step's label.
+- Tests: `tests/commands.test.js`, which includes a 300-case randomized diff round-trip.
+
+Verified live against the installed lineup (scratch `test/verify-commands.mjs`):
+- every path undoes, and config was byte-identical after a full edit-then-undo sequence;
+- settling a burst on the 1.2 MB config costs about 1 ms;
+- the 34-check UI suite passes.
+
+Deviations from the plan above:
+- The in-place label for an unsettled burst reads "Recent edit", because settling just to
+  label it would split a burst on the button refresh timer.
+- A skipUndo write that is still unsaved when a real edit starts joins that edit's step. This
+  matches the old snapshot history.
+
+Steps 3–5 (host ownership, SSE, burning down `config.patch` callers) are not started.
+
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no
    caller changes.

@@ -4,7 +4,7 @@
 // has a real, working UI control wired up elsewhere (setup-channels.js,
 // setup-interstitials.js, setup-settings.js), so reusing it means this file
 // can't drift out of sync with what those buttons actually do.
-import { canUndo, canRedo, performUndo, performRedo } from './state.js';
+import { canUndo, canRedo, performUndo, performRedo, redoLabel, undoLabel } from './state.js';
 
 const paletteEl = document.getElementById('command-palette');
 const inputEl = document.getElementById('command-palette-input');
@@ -58,11 +58,11 @@ function staticCommands() {
     { label: 'Start watching (exit setup)', hint: 'DONE', run: click('done-btn') },
   ];
   cmds.push({
-    label: 'Undo', hint: 'CTRL+Z', disabled: !canUndo(),
+    label: undoLabel() ? `Undo: ${undoLabel()}` : 'Undo', hint: 'CTRL+Z', disabled: !canUndo(),
     run: () => { if (performUndo()) onUndoRedo(); },
   });
   cmds.push({
-    label: 'Redo', hint: 'CTRL+SHIFT+Z', disabled: !canRedo(),
+    label: redoLabel() ? `Redo: ${redoLabel()}` : 'Redo', hint: 'CTRL+SHIFT+Z', disabled: !canRedo(),
     run: () => { if (performRedo()) onUndoRedo(); },
   });
   // Every sub-tab currently in the DOM, labeled "Parent Tab › Sub Tab" —

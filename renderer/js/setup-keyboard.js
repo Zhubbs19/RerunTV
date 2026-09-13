@@ -5,7 +5,7 @@
 // everything here drives existing buttons via .click() so this file never
 // has to duplicate what setup-channels.js/setup-interstitials.js already do
 // when a mouse click hits the same element.
-import { S, canUndo, canRedo, performUndo, performRedo } from './state.js';
+import { S, canUndo, canRedo, onHistoryChange, performUndo, performRedo, redoLabel, undoLabel } from './state.js';
 import { setupScreen } from './dom.js';
 import { renderChannelList } from './setup-channels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
@@ -13,7 +13,7 @@ import { renderSettingsPanels, resetSetupTabs } from './setup-settings.js';
 import { openCommandPalette, closeCommandPalette, isCommandPaletteOpen, setUndoRedoHook } from './setup-command-palette.js';
 
 // Full re-render of every setup-screen panel from S.config — used after
-// undo/redo swaps S.config out from under whatever's currently on screen.
+// undo/redo rewinds S.config (in place) under whatever's currently on screen.
 // Deliberately the same five calls showSetupScreen (app.js) makes, minus the
 // TV-screen teardown/breadcrumb-reset parts of it that only matter when the
 // setup screen is first opening, not while it's already open and just had
@@ -35,8 +35,16 @@ const undoBtn = document.getElementById('setup-undo-btn');
 const redoBtn = document.getElementById('setup-redo-btn');
 
 export function refreshUndoRedoButtons() {
-  if (undoBtn) undoBtn.disabled = !canUndo();
-  if (redoBtn) redoBtn.disabled = !canRedo();
+  if (undoBtn) {
+    undoBtn.disabled = !canUndo();
+    const label = undoLabel();
+    undoBtn.title = label ? `Undo: ${label} (Ctrl+Z)` : 'Undo (Ctrl+Z)';
+  }
+  if (redoBtn) {
+    redoBtn.disabled = !canRedo();
+    const label = redoLabel();
+    redoBtn.title = label ? `Redo: ${label} (Ctrl+Shift+Z)` : 'Redo (Ctrl+Shift+Z)';
+  }
 }
 
 function doUndo() {
@@ -50,13 +58,11 @@ if (undoBtn) undoBtn.addEventListener('click', doUndo);
 if (redoBtn) redoBtn.addEventListener('click', doRedo);
 setUndoRedoHook(() => { refreshSetupScreen(); refreshUndoRedoButtons(); });
 
-// canUndo()/canRedo() only change as a side effect of saveConfigDebounced,
-// which fires on nearly every edit — polling at a lazy interval is far
-// simpler than threading a "the stack changed" callback through state.js
-// into every one of the dozens of call sites that mutate config, and the
-// setup screen is never so latency-sensitive that a half-second lag on a
-// button's enabled state would be noticeable.
-setInterval(() => { if (setupVisible()) refreshUndoRedoButtons(); }, 500);
+// state.js reports every history change (an edit, a settled burst, a
+// dispatched command, undo/redo), so the buttons and their "Undo: …" labels
+// update the moment it happens. The slow poll stays as a backstop only.
+onHistoryChange(() => { if (setupVisible()) refreshUndoRedoButtons(); });
+setInterval(() => { if (setupVisible()) refreshUndoRedoButtons(); }, 2000);
 refreshUndoRedoButtons();
 
 // ---------- Global setup-screen shortcuts ----------
