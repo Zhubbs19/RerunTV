@@ -147,5 +147,15 @@ Otherwise keep the current model; the timeline already hides the layers.
 - `breakEntriesInWindow` correctness underpins the view (a phantom-break bug was found and
   fixed while building step 1). Break enumeration gets its own unit tests in `tests/` against
   synthetic channels before step 2.
+  **Done:** `tests/break-enumeration.test.js` checks it against a one-second brute-force scan
+  of `resolveBreakAt` (nothing missed, nothing invented) over fixed cases and seeded random
+  channels. It found two more bugs, both fixed in `interstitials.js`:
+  - **Sign-off bumpers were never found.** The bumper ends at the broadcast-hours boundary,
+    and only the boundary itself was a candidate, where the channel is already off the air.
+    Live playback's break timer used the same candidates, so the bumper aired only if you
+    tuned in during it. Its start is now a candidate too.
+  - **A pod starting under a text-only station-ID bar was skipped.** Stepping over the bar
+    skipped its whole contiguous run, and the pod was part of that run. Now only the bar's own
+    window is skipped (this also fixes the time machine's jump-to-next-break there).
 - The real installed lineup has no blocks at all today; step 2 must be exercised with
   scratch blocks in the throwaway userData, never the real config.

@@ -971,6 +971,16 @@ function nextCandidateBoundary(ch, fromMs) {
   if (ch.broadcastHours && ch.broadcastHours.enabled) {
     const boundary = nextBroadcastHoursBoundary(ch, fromMs);
     if (isFinite(boundary)) candidates.push(boundary);
+    // The sign-off bumper ENDS at the boundary, so the boundary alone is never
+    // a moment it's on screen (the channel is already off the air there).
+    // Its own start has to be a candidate too, worked out the same way
+    // resolveBreakAt does, or it's only ever seen by tuning in during it.
+    if (isFinite(boundary) && isWithinBroadcastHours(ch, fromMs)) {
+      const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
+      const win = windowEndingAt(pool, 'signOff', ch, source.block, `signOff:${ch.number}`, boundary, boundary, SIGNOFF_DURATION_S);
+      const signOffStart = win ? win.windowStart : boundary - SIGNOFF_DURATION_S * 1000;
+      if (signOffStart >= fromMs) candidates.push(signOffStart);
+    }
   }
 
   return candidates.length ? Math.min(...candidates) : null;
@@ -1069,10 +1079,13 @@ export function nextBreakStart(ch, fromMs, deadlineMs) {
   let safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
     if (Date.now() > deadline) return Infinity;
+    // A non-jumpable station-ID bar is stepped over by its own window only,
+    // not its whole run: a pod that starts while the bar is still up is
+    // contiguous with it, and skipping the run skipped the pod too.
     const atT = resolveBreakAt(ch, t);
     if (atT) {
       if (isJumpableBreak(atT)) return t;
-      t = endOfBreakRun(ch, atT);
+      t = atT.windowEnd;
       safety++;
       continue;
     }
@@ -1080,7 +1093,7 @@ export function nextBreakStart(ch, fromMs, deadlineMs) {
     if (candidate == null) return Infinity;
     const atCandidate = resolveBreakAt(ch, candidate);
     if (atCandidate && isJumpableBreak(atCandidate)) return candidate;
-    t = atCandidate ? endOfBreakRun(ch, atCandidate) : candidate + 1;
+    t = atCandidate ? atCandidate.windowEnd : candidate + 1;
     safety++;
   }
   return Infinity;
@@ -1225,8 +1238,17 @@ export function breakEntriesInWindow(ch, windowStart, windowEnd) {
     const brk = resolveBreakAt(ch, start);
     if (!brk) break; // shouldn't happen given nextBreakStart's own contract, but avoid ever looping forever
     const runEnd = endOfBreakRun(ch, brk);
+    // nextBreakStart can hand back a moment just after a station-ID bar ends,
+    // partway into a pod that began under it; walk back to the pod's first
+    // real segment (not into the bar).
+    let podStart = brk.windowStart;
+    for (let back = 0; back < BOUNDARY_SAFETY_CAP; back++) {
+      const prev = resolveBreakAt(ch, podStart - 1);
+      if (!prev || !isJumpableBreak(prev) || prev.windowStart >= podStart) break;
+      podStart = prev.windowStart;
+    }
     entries.push({
-      start: Math.max(brk.windowStart, windowStart),
+      start: Math.max(podStart, windowStart),
       end: Math.min(runEnd, windowEnd),
       isBreak: true,
       breakType: brk.type,
