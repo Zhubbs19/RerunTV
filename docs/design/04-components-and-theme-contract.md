@@ -1,0 +1,120 @@
+# 04 — Components and theme contract
+
+Status: proposed (P1). Owns contract **C4**. Consumed by: 01, 03, 06, 10, plugins.
+
+## 1. Problem
+
+The renderer builds UI by hand-assembling DOM in each `setup-*.js` file, with styling in one
+4,500-line `setup.css` and 26 theme packs overriding broad selectors after it. Consequences
+seen in the 2026-09-12 audit:
+- Bugs that only exist in *some* themes. The guide's selected row lost a gradient background
+  only where a theme's rail was a gradient.
+- Specificity arms races. A hover rule carries eight `:not()`s and `!important` so themes
+  can't break selected states.
+- Near-duplicate controls: three kinds of "remove" button, several select styles, ad-hoc label
+  rows.
+- No density concept, so TV mode (01) would mean restyling everything again.
+
+## 2. Decision: in-house kit, no framework
+
+Keep the renderer's constraints: plain ES modules over `app://`, no bundler, offline, plugins
+import nothing from core except through `ctx`. A small kit of functions that return DOM
+elements, not a virtual DOM.
+
+Reasons over Lit/Preact:
+- zero build step;
+- plugins already receive DOM containers;
+- existing panel builders can adopt components incrementally;
+- no second rendering model to teach plugin authors.
+
+Revisit if the kit passes ~1.5k lines or if 03's list/detail needs keyed reconciliation
+beyond a small `reconcileList` helper.
+
+## 3. Kit (`renderer/js/ui/`)
+
+| Component | Replaces | Notes |
+|---|---|---|
+| `Button({ label, variant: 'default'\|'primary'\|'danger'\|'quiet', icon, onPress })` | `.btn` variants, `.remove-btn`, `.titles-btn` | `onPress` fires on click, Enter, Space and the TV `ok` action |
+| `IconButton({ icon, label })` | ◄ ► ✕ mini buttons | `label` required (aria + tooltip) |
+| `Field({ label, help, control })` | label + input pairs | wires `for`/`id`, error text |
+| `SettingRow({ label, help, control, dependsOn })` | panel-toggle + panel-status paragraphs | disables when dependency off (03 §5.1) |
+| `Toggle`, `Slider({ format })`, `Select`, `Segmented`, `ColorPick`, `NumberStepper` | native controls restyled per page | Slider has readout and TV Left/Right stepping |
+| `Tabs({ items, orientation })` | setup/edit/schedule tab bars | roving focus, `aria-selected` |
+| `ListDetail({ items, renderRow, renderDetail, reorder, multiSelect })` | channel list, pool, presets, backups, plugins | virtualized list, one scroll container |
+| `Menu`/`MenuButton` | MORE… menus | destructive group styled danger |
+| `Dialog({ title, body, actions, defaultAction })` | `setup-dialogs.js` confirms | FocusScope, never defaults to destructive |
+| `Toast`, `StatusBar` | flash messages, save state | |
+| `FocusScope`, `SpatialFocus` | — | TV focus engine (01) |
+| `EmptyState({ message, action })` | `.titles-empty` strings | |
+| `Badge`, `Chip` (non-interactive) | tag chips that looked like buttons | |
+
+Every component:
+- reads density from `html[data-mode]` (01) — no per-call density prop;
+- registers into the settings search manifest when given a `searchId` (03 §6);
+- has a focus style defined once, derived from tokens.
+
+## 4. Tokens and theme contract
+
+### 4.1 Layers
+```
+core defaults (tokens.css)  →  theme pack tokens  →  era overlay (10)  →  channel identity  →  density scale (mode)
+```
+Themes set **tokens only** under `html[data-theme="x"]`: palette, fonts, radii, shadows,
+motion, guide surfaces (the existing `--guide-*` set). Structural selectors (`.btn`,
+`.setup-tab-btn`, `.guide-row-chan`) are no longer an override surface. A theme may add
+decorative rules scoped to documented **slots** (`[data-slot="guide-topbar"]`,
+`[data-slot="power-fx"]`) that don't change layout or state colours.
+
+### 4.2 Semantic tokens (new, required)
+`--surface-0..3`, `--text`, `--text-muted`, `--accent`, `--accent-text`, `--selected-bg`,
+`--selected-text`, `--focus-ring`, `--danger`, `--danger-text`, `--warning`, `--success`,
+`--guide-rail-bg`, `--guide-rail-text`, `--guide-cell-bg`, `--guide-cell-text`,
+`--guide-selected-bg`, `--guide-selected-text`. Existing tokens (`--ink`, `--gold`,
+`--paper-dim`…) become aliases so current packs keep working during migration.
+
+### 4.3 Density tokens
+`--space-1..6`, `--control-h`, `--font-body`, `--font-label`, `--target-min`, `--radius-*`
+defined for `desktop` and multiplied for `tv` (1080p logical canvas: body 24 px, targets
+64 px, spacing ×1.75). Themes never set density.
+
+### 4.4 Theme validation (load-time and CI-style)
+`theme-check.js` resolves each theme's tokens in a hidden probe and checks pairs:
+
+| Pair | Minimum |
+|---|---|
+| `--text` on `--surface-*` | 4.5:1 |
+| `--text-muted` on `--surface-1` | 4.5:1 |
+| `--selected-text` on `--selected-bg` | 4.5:1 |
+| `--guide-*-text` on matching `-bg` (gradients sampled at stops) | 4.5:1 |
+| `--focus-ring` against `--surface-0` and `--selected-bg` | 3:1 |
+| `--danger-text` on `--surface-1` | 4.5:1 |
+
+In the app: a failing theme still loads; the theme gallery shows a "Low contrast" badge and
+Plug-ins › Diagnostics lists failures. In the test harness: the theme sweep fails on any
+error. Gradient backgrounds are sampled at every stop, closing the gap the audit's heuristic
+check had (it treated gradients as unknown).
+
+## 5. Plugin surface
+
+- `ctx.ui` (new, `CTX_VERSION` 4) exposes the kit to plugin settings panels and channel UIs.
+- Declarative plugin settings (`plugin-settings-schema.js`) render through the kit, so they
+  get TV density, search entries and validation for free.
+- Plugin CSS keeps working but is scoped: core wraps a plugin's panel in
+  `[data-plugin="id"]` and documents that global selectors are unsupported.
+
+## 6. Migration
+
+1. Add semantic + density tokens with aliases; no visual change (theme sweep must be
+   pixel-similar; allow ≤ 1% diff per screenshot).
+2. Build kit primitives; use them first in the new shell (03) and ON AIR's toolbar.
+3. Convert one theme pack to tokens-only as the reference (dual-tuner-dvr-05, the user's
+   theme); write the conversion guide into `PLUGIN_DEVELOPMENT.md`.
+4. Convert remaining first-party packs; theme-check gates each.
+5. Remove structural overrides and the `:not()` chains in `setup.css` once no pack needs them.
+
+## 7. Risks
+
+- Theme packs lose some freedom (layout overrides). Mitigation: documented slots; eras (10)
+  cover the "whole different look" use case at a higher level.
+- Contrast rules may fail beloved retro palettes (VT323 on dim green). Mitigation: themes
+  may declare `contrastExempt` per pair with a reason; gallery still badges it.
