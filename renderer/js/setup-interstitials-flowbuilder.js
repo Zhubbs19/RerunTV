@@ -16,6 +16,7 @@ import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, emptyState, parsePositiveInt } from './setup-util.js';
 import { cloneJson } from './commands.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
+import { RowMenu } from './ui/row-menu.js';
 
 export function ensureFlowsConfig() {
   if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [], flows: [] };
@@ -221,9 +222,9 @@ function renderFlowPicker(flows) {
   listEl.innerHTML = '';
   flows.forEach((flow) => {
     const selected = flow.id === activeFlowId;
-    const item = document.createElement('button');
-    item.type = 'button';
+    const item = document.createElement('div');
     item.className = `flow-list-item${selected ? ' selected' : ''}${flow.enabled === false ? ' is-off' : ''}`;
+    item.dataset.rowMenu = '';
     item.dataset.flowId = flow.id;
     item.setAttribute('role', 'option');
     item.setAttribute('aria-selected', String(selected));
@@ -236,10 +237,47 @@ function renderFlowPicker(flows) {
     const steps = (flow.steps || []).length;
     const channels = (flow.channels || []).length ? (flow.channels || []).map((n) => `CH ${formatChannelNumber(n)}`).join(', ') : 'ALL CHANNELS';
     meta.textContent = `${steps} step${steps === 1 ? '' : 's'} · ${flow.enabled === false ? 'OFF' : 'ON'} · ${channels}`;
-    item.append(name, meta);
-    item.addEventListener('click', () => selectFlow(flow.id));
+    const text = document.createElement('span');
+    text.className = 'flow-list-text';
+    text.append(name, meta);
+    const menu = RowMenu({
+      label: `Actions for ${flow.name || 'untitled flow'}`,
+      groups: [
+        [{ label: 'Duplicate', run: () => duplicateFlow(flow) }],
+        [{ label: 'Delete flow…', run: () => deleteFlow(flow), danger: true, disabled: flows.length <= 1 }],
+      ],
+    });
+    item.append(text, menu.button);
+    item.addEventListener('click', (e) => { if (!e.target.closest('.row-menu-btn')) selectFlow(flow.id); });
+    item.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === item) { e.preventDefault(); selectFlow(flow.id); } });
     listEl.appendChild(item);
   });
+}
+
+function duplicateFlow(flow) {
+  const stamp = Date.now();
+  const copy = {
+    ...cloneJson(flow),
+    id: `flow-${stamp}`,
+    name: `${flow.name || 'Untitled flow'} copy`,
+    steps: (flow.steps || []).map((step, i) => ({ ...cloneJson(step), id: `s-${stamp}-${i + 1}` })),
+  };
+  dispatch({ type: 'item.insert', collection: 'flows', item: copy }, { label: 'Duplicate flow' });
+  activeFlowId = copy.id;
+  renderFlowsList();
+}
+
+async function deleteFlow(flow) {
+  ensureFlowsConfig();
+  const flows = S.config.interstitials.flows;
+  if (flows.length <= 1) {
+    alertDialog('Cannot delete the last flow template.');
+    return;
+  }
+  if (!(await confirmDialog(`Delete flow "${flow.name || 'untitled'}"? You can undo this.`))) return;
+  dispatch({ type: 'item.remove', collection: 'flows', id: flow.id });
+  if (activeFlowId === flow.id) activeFlowId = flows[0] ? flows[0].id : null;
+  renderFlowsList();
 }
 
 function selectFlow(id) {
@@ -1135,11 +1173,7 @@ export function initFlowBuilder() {
         return;
       }
       const activeFlow = flows.find((f) => f.id === activeFlowId);
-      if (!activeFlow) return;
-      if (!(await confirmDialog(`Delete flow "${activeFlow.name || 'untitled'}"? You can undo this.`))) return;
-      dispatch({ type: 'item.remove', collection: 'flows', id: activeFlow.id });
-      activeFlowId = flows[0] ? flows[0].id : null;
-      renderFlowsList();
+      if (activeFlow) deleteFlow(activeFlow);
     });
   }
 

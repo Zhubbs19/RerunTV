@@ -2,6 +2,7 @@
 import { backupsListEl, backupsRefreshBtn, backupsSnapshotNowBtn } from './dom.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
 import { emptyState } from './setup-util.js';
+import { RowMenu } from './ui/row-menu.js';
 
 let justSnapshotted = false;
 let restoreHandler = null;
@@ -69,6 +70,34 @@ function button(label, onClick, className = 'btn') {
   return btn;
 }
 
+// A snapshot's actions, shared by its detail pane and its list row's ⋯ menu.
+async function restoreBackupFile(backup) {
+  if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
+  try { if (restoreHandler) restoreHandler(await window.api.restoreBackup(backup.file)); }
+  catch (error) { alertDialog(`Restore failed: ${error.message}`, { variant: 'error' }); }
+}
+
+async function labelBackupFile(backup) {
+  const next = await promptDialog({ title: 'BACKUP LABEL', message: 'Label this backup — blank to clear:', defaultValue: backup.label || '' });
+  if (next === null) return;
+  try { await window.api.setBackupLabel(backup.file, next); renderBackupsList(); }
+  catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
+}
+
+async function pinBackupFile(backup) {
+  try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
+  catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
+}
+
+async function deleteBackupFile(backup) {
+  if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
+  try {
+    await window.api.deleteBackup(backup.file);
+    if (selectedBackupFile === backup.file) selectedBackupFile = null;
+    renderBackupsList();
+  } catch (error) { alertDialog(`Delete failed: ${error.message}`, { variant: 'error' }); }
+}
+
 function renderBackupDetail(backup) {
   const detailEl = document.getElementById('backups-detail');
   if (!detailEl) return;
@@ -92,29 +121,10 @@ function renderBackupDetail(backup) {
   const actions = document.createElement('div');
   actions.className = 'block-row backup-detail-actions';
   actions.append(
-    button('RESTORE', async () => {
-      if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
-      try { if (restoreHandler) restoreHandler(await window.api.restoreBackup(backup.file)); }
-      catch (error) { alertDialog(`Restore failed: ${error.message}`, { variant: 'error' }); }
-    }, 'btn btn-primary'),
-    button(backup.label ? 'RELABEL' : '+ LABEL', async () => {
-      const next = await promptDialog({ title: 'BACKUP LABEL', message: 'Label this backup — blank to clear:', defaultValue: backup.label || '' });
-      if (next === null) return;
-      try { await window.api.setBackupLabel(backup.file, next); renderBackupsList(); }
-      catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
-    }),
-    button(backup.pinned ? 'UNPIN' : 'PIN', async () => {
-      try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
-      catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
-    }),
-    button('DELETE', async () => {
-      if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
-      try {
-        await window.api.deleteBackup(backup.file);
-        if (selectedBackupFile === backup.file) selectedBackupFile = null;
-        renderBackupsList();
-      } catch (error) { alertDialog(`Delete failed: ${error.message}`, { variant: 'error' }); }
-    }, 'btn remove-btn'),
+    button('RESTORE', () => restoreBackupFile(backup), 'btn btn-primary'),
+    button(backup.label ? 'RELABEL' : '+ LABEL', () => labelBackupFile(backup)),
+    button(backup.pinned ? 'UNPIN' : 'PIN', () => pinBackupFile(backup)),
+    button('DELETE', () => deleteBackupFile(backup), 'btn remove-btn'),
   );
 
   const previewEl = document.createElement('div');
@@ -180,7 +190,20 @@ export function renderBackupsList() {
         label.appendChild(tag);
       }
       row.appendChild(label);
-      row.addEventListener('click', () => {
+      row.dataset.rowMenu = '';
+      row.appendChild(RowMenu({
+        label: `Actions for the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}`,
+        groups: [
+          [{ label: 'Restore…', run: () => restoreBackupFile(backup) }],
+          [
+            { label: backup.label ? 'Relabel…' : 'Add label…', run: () => labelBackupFile(backup) },
+            { label: backup.pinned ? 'Unpin' : 'Pin', run: () => pinBackupFile(backup) },
+          ],
+          [{ label: 'Delete snapshot…', run: () => deleteBackupFile(backup), danger: true }],
+        ],
+      }).button);
+      row.addEventListener('click', (event) => {
+        if (event.target.closest('.row-menu-btn')) return;
         selectedBackupFile = backup.file;
         backupsListEl.querySelectorAll('.backup-list-item').forEach((item) => {
           const on = item.dataset.backupFile === backup.file;

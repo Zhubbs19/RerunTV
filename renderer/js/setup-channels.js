@@ -30,6 +30,7 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
 import { attachSliderReadout, commitOwnerFields, emptyState, ownerFieldsCommand, probeDurationForEntry } from './setup-util.js';
+import { RowMenu } from './ui/row-menu.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
 } from './plugins.js';
@@ -224,16 +225,10 @@ export function renderChannelList() {
   const selectable = [...list.map((c) => c.number), ...(pluginEntries.length ? ['plugins'] : [])];
   if (!selectable.includes(S.setupSelectedChannel)) S.setupSelectedChannel = selectable.length ? selectable[0] : null;
   renderChannelListPane(list, pluginEntries);
-  // Precomputed once per render rather than inside the per-row loop below —
-  // fullList.indexOf(ch) and a fresh sortedChannels() call per row were both
-  // O(n) (the latter O(n log n)), making the whole render O(n^2) on channel
-  // count; a large channel list made this render loop visibly slower than
-  // it needs to be.
-  const fullIndexOf = new Map(fullList.map((c, i) => [c, i]));
+  // sortedChannels() once per render, not per card.
   const allChannelsForCopyFrom = sortedChannels();
   // The selected channel's editor card (was one card per channel, stacked).
   const buildCard = (ch) => {
-      const fullIdx = fullIndexOf.get(ch);
       const row = document.createElement('div');
       row.className = 'channel-row' + (ch.hidden ? ' channel-row-hidden' : '');
       row.dataset.channelNumber = String(ch.number);
@@ -294,36 +289,6 @@ export function renderChannelList() {
         renderChannelList();
       });
 
-      const moveUpBtn = document.createElement('button');
-      moveUpBtn.className = 'btn move-btn';
-      moveUpBtn.textContent = '▲';
-      moveUpBtn.title = 'Swap with the channel above';
-      moveUpBtn.disabled = fullIdx === 0;
-      moveUpBtn.addEventListener('click', () => {
-        const neighbor = fullList[fullIdx - 1];
-        if (!neighbor) return;
-        const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
-        [ch.number, neighbor.number] = [neighbor.number, ch.number];
-        commitInPlace(swap);
-        S.setupSelectedChannel = ch.number;
-        renderChannelList();
-      });
-
-      const moveDownBtn = document.createElement('button');
-      moveDownBtn.className = 'btn move-btn';
-      moveDownBtn.textContent = '▼';
-      moveDownBtn.title = 'Swap with the channel below';
-      moveDownBtn.disabled = fullIdx === fullList.length - 1;
-      moveDownBtn.addEventListener('click', () => {
-        const neighbor = fullList[fullIdx + 1];
-        if (!neighbor) return;
-        const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
-        [ch.number, neighbor.number] = [neighbor.number, ch.number];
-        commitInPlace(swap);
-        S.setupSelectedChannel = ch.number;
-        renderChannelList();
-      });
-
       const nameInput = document.createElement('input');
       nameInput.type = 'text';
       nameInput.placeholder = 'CHANNEL NAME';
@@ -331,21 +296,6 @@ export function renderChannelList() {
       nameInput.addEventListener('input', () => { dispatch({ type: 'channel.rename', channel: ch.number, name: nameInput.value }, { coalesce: `rename:${ch.number}` }); });
 
       const folderBtn = buildChooseSourceControl(ch);
-
-      const removeBtn = document.createElement('button');
-      removeBtn.className = 'btn remove-btn';
-      removeBtn.textContent = 'REMOVE';
-      removeBtn.addEventListener('click', async () => {
-        const label = ch.name && ch.name.trim() ? `"${ch.name.trim()}"` : `channel ${ch.number}`;
-        const detail = ch.files.length
-          ? ` and its ${ch.files.length} video${ch.files.length === 1 ? '' : 's'}, schedule, and commercial settings`
-          : '';
-        if (!(await confirmDialog(`Remove ${label}${detail}? You can undo this.`))) return;
-        const next = fullList[fullIdx + 1] || fullList[fullIdx - 1];
-        dispatch({ type: 'channel.remove', channel: ch.number });
-        S.setupSelectedChannel = next ? next.number : null;
-        renderChannelList();
-      });
 
       let fixBtn = null;
       if (ch.files.length > 0) {
@@ -852,21 +802,6 @@ export function renderChannelList() {
         swatches.appendChild(sw);
       });
 
-      const duplicateBtn = document.createElement('button');
-      duplicateBtn.className = 'btn titles-btn';
-      duplicateBtn.textContent = 'DUPLICATE';
-      duplicateBtn.title = 'Clone this channel\'s folders, schedule, and settings as a new channel';
-      duplicateBtn.addEventListener('click', () => {
-        const clone = deepClone(ch);
-        clone.number = nextChannelNumber();
-        clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
-        dispatch({ type: 'channel.insert', channel: clone }, { label: `Duplicate CH ${ch.number}` });
-        S.setupSelectedChannel = clone.number;
-        S.setupFilterQuery = '';
-        channelFilterEl.value = '';
-        renderChannelList();
-      });
-
       const previewBtn = document.createElement('button');
       previewBtn.className = 'btn titles-btn';
       previewBtn.textContent = 'PREVIEW';
@@ -876,23 +811,14 @@ export function renderChannelList() {
 
       const actions = document.createElement('div');
       actions.className = 'channel-actions';
-      actions.appendChild(moveUpBtn);
-      actions.appendChild(moveDownBtn);
+      // Reorder is drag in the list or Move up/down in the ⋯ menu (docs/design/03 §4);
+      // Remove sits in the menu's last group.
       actions.appendChild(folderBtn);
       actions.appendChild(previewBtn);
-      const more = document.createElement('details');
-      more.className = 'channel-more';
-      const moreSummary = document.createElement('summary');
-      moreSummary.className = 'btn';
-      moreSummary.textContent = 'MORE…';
-      moreSummary.setAttribute('aria-label', `More actions for channel ${ch.number}`);
-      const moreMenu = document.createElement('div');
-      moreMenu.className = 'channel-more-menu';
-      if (fixBtn) moreMenu.appendChild(fixBtn);
-      moreMenu.appendChild(duplicateBtn);
-      moreMenu.appendChild(removeBtn);
-      more.append(moreSummary, moreMenu);
-      actions.appendChild(more);
+      if (fixBtn) actions.appendChild(fixBtn);
+      const cardMenu = channelRowMenu(ch);
+      cardMenu.button.classList.add('channel-card-menu-btn');
+      actions.appendChild(cardMenu.button);
 
       const ratingLabel = document.createElement('span');
       ratingLabel.className = 'option-label';
@@ -1064,6 +990,67 @@ export function renderChannelList() {
 // reorder (the same two-channel number swap the ▲▼ buttons make) and accept
 // dropped video files (setup-dragdrop.js); Ctrl/Shift+click selects several
 // (see Multi-select below).
+// ---------- Channel row actions (list ⋯ menu and the card's) ----------
+function moveSetupChannel(ch, direction) {
+  const list = sortedForSetup();
+  const neighbor = list[list.indexOf(ch) + direction];
+  if (!neighbor) return;
+  const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
+  [ch.number, neighbor.number] = [neighbor.number, ch.number];
+  commitInPlace(swap);
+  S.bulkSelectedChannels.clear();
+  S.setupSelectedChannel = ch.number;
+  renderChannelList();
+  channelListPaneEl?.querySelector('.channel-list-item.selected')?.focus();
+}
+
+function duplicateSetupChannel(ch) {
+  const clone = deepClone(ch);
+  clone.number = nextChannelNumber();
+  clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
+  dispatch({ type: 'channel.insert', channel: clone }, { label: `Duplicate CH ${ch.number}` });
+  S.bulkSelectedChannels.clear();
+  S.setupSelectedChannel = clone.number;
+  S.setupFilterQuery = '';
+  channelFilterEl.value = '';
+  renderChannelList();
+}
+
+async function removeSetupChannel(ch) {
+  const label = ch.name && ch.name.trim() ? `"${ch.name.trim()}"` : `channel ${ch.number}`;
+  const detail = ch.files.length
+    ? ` and its ${ch.files.length} video${ch.files.length === 1 ? '' : 's'}, schedule, and commercial settings`
+    : '';
+  if (!(await confirmDialog(`Remove ${label}${detail}? You can undo this.`))) return;
+  const list = sortedForSetup();
+  const at = list.indexOf(ch);
+  const next = list[at + 1] || list[at - 1];
+  dispatch({ type: 'channel.remove', channel: ch.number });
+  S.bulkSelectedChannels.clear();
+  S.setupSelectedChannel = next ? next.number : null;
+  renderChannelList();
+}
+
+function channelRowMenu(ch) {
+  const list = sortedForSetup();
+  const at = list.indexOf(ch);
+  return RowMenu({
+    label: `Actions for CH ${formatChannelNumber(ch.number)}`,
+    groups: [
+      [
+        { label: 'Move up', run: () => moveSetupChannel(ch, -1), disabled: at <= 0 },
+        { label: 'Move down', run: () => moveSetupChannel(ch, 1), disabled: at < 0 || at >= list.length - 1 },
+      ],
+      [
+        { label: 'Add folder…', run: () => addFolderToChannel(ch) },
+        { label: 'Preview…', run: () => openPreviewModal(ch), disabled: !ch.files.length },
+        { label: 'Duplicate', run: () => duplicateSetupChannel(ch) },
+      ],
+      [{ label: 'Remove channel…', run: () => removeSetupChannel(ch), danger: true }],
+    ],
+  });
+}
+
 function selectSetupChannel(value, { focus = false } = {}) {
   S.bulkSelectedChannels.clear();
   S.setupSelectedChannel = value;
@@ -1130,7 +1117,17 @@ function renderChannelListPane(list, pluginEntries) {
       item.appendChild(flagEl);
     }
 
+    const rowMenu = channelRowMenu(ch);
+    item.dataset.rowMenu = '';
+    item.appendChild(rowMenu.button);
+    item.addEventListener('contextmenu', (e) => {
+      if (isMultiSelecting()) return;
+      if (S.setupSelectedChannel !== ch.number) selectSetupChannel(ch.number);
+      channelListPaneEl.querySelector(`.channel-list-item[data-channel-number="${ch.number}"] .row-menu-btn`)?.click();
+      e.preventDefault();
+    });
     item.addEventListener('click', (e) => {
+      if (e.target.closest('.row-menu-btn')) return;
       if (e.ctrlKey || e.metaKey) toggleMultiSelect(ch.number);
       else if (e.shiftKey) extendMultiSelect(ch.number);
       else selectSetupChannel(ch.number, { focus: true });

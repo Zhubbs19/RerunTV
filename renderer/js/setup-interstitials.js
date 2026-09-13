@@ -28,6 +28,7 @@ import {
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
 import { basenameNoExt } from './util.js';
+import { RowMenu } from './ui/row-menu.js';
 
 // ---------- Media sources (import bumpers/ads from a plugin folder) ----------
 // Mirrors setup-channels.js's own CHOOSE SOURCE flow (addPluginSourceToChannel)
@@ -689,18 +690,37 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     meta.textContent = `${chLabel} · WT ${entry.weight || 1}`;
     summary.appendChild(meta);
 
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'btn remove-btn';
-    removeBtn.textContent = 'REMOVE';
-    removeBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
+    const removeEntry = async () => {
       const label = (typeDef && typeDef.label) || entry.type || 'this entry';
       if (!(await confirmDialog(`Remove this ${label} pool entry? You can undo this.`))) return;
       dispatch({ type: 'item.remove', collection: 'pool', id: entry.id });
       if (selectedPoolEntryId === entry.id) selectedPoolEntryId = null;
       renderInterstitialsList();
-    });
-    summary.appendChild(removeBtn);
+    };
+    if (detail) {
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'btn remove-btn';
+      removeBtn.textContent = 'REMOVE';
+      removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removeEntry(); });
+      summary.appendChild(removeBtn);
+    } else {
+      card.dataset.rowMenu = '';
+      summary.appendChild(RowMenu({
+        label: `Actions for ${title.textContent || 'this entry'}`,
+        groups: [
+          [{
+            label: 'Duplicate',
+            run: () => {
+              const copy = { ...cloneJson(entry), id: newInterstitialPoolEntry({}).id };
+              dispatch({ type: 'item.insert', collection: 'pool', item: copy }, { label: 'Duplicate ad pool entry' });
+              selectedPoolEntryId = copy.id;
+              renderInterstitialsList();
+            },
+          }],
+          [{ label: 'Remove entry…', run: removeEntry, danger: true }],
+        ],
+      }).button);
+    }
 
     summary.addEventListener('click', () => {
       if (detail) return;
@@ -1497,17 +1517,36 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
   meta.textContent = preset.enabled === false ? 'DISABLED' : (preset.timing || 'interval').toUpperCase();
   header.appendChild(meta);
 
-  const removeBtn = document.createElement('button');
-  removeBtn.className = 'btn remove-btn';
-  removeBtn.textContent = 'REMOVE';
-  removeBtn.addEventListener('click', async (e) => {
-    e.stopPropagation();
+  const removePreset = async () => {
     if (!(await confirmDialog(`Remove the "${preset.name || 'untitled'}" ad preset? You can undo this.`))) return;
     dispatch({ type: 'item.remove', collection: 'presets', id: preset.id });
     if (selectedPresetId === preset.id) selectedPresetId = null;
     renderPresetsList();
-  });
-  header.appendChild(removeBtn);
+  };
+  if (detail) {
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn remove-btn';
+    removeBtn.textContent = 'REMOVE';
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); removePreset(); });
+    header.appendChild(removeBtn);
+  } else {
+    card.dataset.rowMenu = '';
+    header.appendChild(RowMenu({
+      label: `Actions for ${preset.name || 'untitled preset'}`,
+      groups: [
+        [{
+          label: 'Duplicate',
+          run: () => {
+            const copy = { ...cloneJson(preset), id: freshPreset().id, name: `${preset.name || 'Untitled'} copy` };
+            dispatch({ type: 'item.insert', collection: 'presets', item: copy }, { label: 'Duplicate ad preset' });
+            selectedPresetId = copy.id;
+            renderPresetsList();
+          },
+        }],
+        [{ label: 'Remove preset…', run: removePreset, danger: true }],
+      ],
+    }).button);
+  }
 
   header.addEventListener('click', () => {
     if (detail) return;

@@ -3,6 +3,22 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§5.3 row ⋯ menus)
+
+`renderer/js/ui/row-menu.js` `RowMenu({ label, groups })`: a ⋯ button and a popup menu. Groups are
+separated by a rule; the last group holds destructive items (danger). ▲▼ Home End move, Enter
+runs, Esc/Tab or an outside click closes back to ⋯; Shift+F10 or the ContextMenu key opens the
+menu of the focused row (`[data-row-menu]`).
+- Channel list rows (also right-click) and the channel card: Move up/down, Add folder, Preview,
+  Duplicate, Remove channel. The card's ▲▼ buttons and MORE… menu are gone; reorder is drag or
+  Move up/down.
+- Bumper & ad pool and preset rows: Duplicate, Remove. The selected item's editor keeps REMOVE.
+- Flow rows: Duplicate, Delete flow (off for the last flow). Rows are `div role=option` now, so
+  the menu button isn't nested in a button.
+- Backup rows: Restore, Add label/Relabel, Pin/Unpin, Delete snapshot.
+
+Verified live (scratch `test/verify-row-menus.mjs`, 23 checks).
+
 ### Built (§9 contrast in every theme)
 
 Scratch `test/verify-setup-contrast.mjs` walks 12 setup pages in all 26 themes and checks every
