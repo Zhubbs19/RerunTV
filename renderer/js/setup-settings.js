@@ -618,7 +618,7 @@ const HELP_GUIDE = [
   { group: 'SECTION 3 — CHANNELS', title: '3.3 Previewing, Fixing Problems, and Editing Multiple Channels', body: [
     'PREVIEW (on every channel row) shows you what that channel would look like at any date and time, right in the setup screen — no need to actually tune to it. Use the quick-jump buttons to skip to the start of a show, the next ad break, an hour later, and so on.',
     'CAUTION: If you move, rename, or delete video files outside the app, the channel won\'t know where they went. Click "CHECK CHANNELS" to scan for anything missing, and "FIX PLAYBACK" to relink or remove those files.',
-    'Need to change something on a bunch of channels at once — like favoriting several, or bulk-deleting? Click "SELECT CHANNELS" to turn on checkboxes for the whole list.',
+    'Need to change something on a bunch of channels at once — like favoriting several, or bulk-deleting? Ctrl+click channels in the list to pick several (Shift+click picks a range, Ctrl+A picks them all) and the editor turns into bulk actions for the selection. Esc goes back to one channel.',
   ] },
   { group: 'SECTION 3 — CHANNELS', title: '3.4 Playback Order, Channel Packages, and Broadcast Identity', body: [
     'The TITLES editor can sort naturally, reverse, restore folder order, create a repeatable seeded shuffle, or accept drag-and-drop ordering. Every automatic reorder previews the change and asks before it re-anchors the live channel.',

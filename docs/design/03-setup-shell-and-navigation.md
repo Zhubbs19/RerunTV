@@ -3,6 +3,17 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§4 channel multi-select)
+
+SELECT CHANNELS and its row checkboxes are gone. In the lineup list (`setup-channels.js`):
+- Ctrl/Cmd+click toggles a channel, Shift+click selects a range from the last one toggled.
+- From the keyboard: Ctrl+Space toggles, Shift+▲▼ extends, Ctrl+A takes every listed channel.
+- With two or more selected, the detail pane shows how many and which, the bulk bar (moved in
+  from above the list) and CLEAR SELECTION. Esc or a plain click goes back to one channel.
+- Bulk actions stay one undo step each and keep the selection.
+
+Verified live (scratch `test/verify-channel-multiselect.mjs`, 12 checks).
+
 ### Built (§3 channel pages)
 
 A channel's editor (`setup-channels.js`) is one page bar: OVERVIEW · CONTENT · SCHEDULE · LOOK
@@ -182,7 +193,7 @@ The list, `#channel-list-pane`:
 - It stays sticky beside a long editor.
 - ▲▼/Home/End move the selection and Enter jumps into the editor.
 - Rows drag to reorder (the same number swap as ▲▼) and accept dropped videos.
-- SELECT CHANNELS puts its checkboxes here.
+- (Later replaced by Ctrl/Shift multi-select, see above.)
 - Plugin channels are one "PLUGIN CHANNELS (n)" entry.
 
 The detail pane, `#channel-list`:

@@ -37,7 +37,7 @@ export function searchActions() {
     { label: 'Check channel health', hint: 'CHANNELS', run: click('health-check-btn'), keywords: 'missing files broken' },
     { label: 'Search the media library', hint: 'CHANNELS', run: click('library-search-toggle-btn'), keywords: 'find episode file' },
     { label: 'Show what’s on now and next', hint: 'CHANNELS', run: click('now-next-toggle-btn'), keywords: 'dashboard now next' },
-    { label: 'Select several channels', hint: 'CHANNELS', run: click('bulk-select-toggle-btn'), keywords: 'bulk multiple' },
+    { label: 'Select all channels', hint: 'CTRL+A IN THE LIST', run: () => window.dispatchEvent(new CustomEvent('reruntv:select-all-channels')), keywords: 'bulk multiple several' },
     { label: 'Rescan all folders', hint: 'CHANNELS', run: click('rescan-all-btn'), keywords: 'refresh scan' },
     { label: 'Add an ad pool entry', hint: 'PROGRAMMING', run: click('interstitials-add-entry-btn'), keywords: 'commercial bumper interstitial' },
     { label: 'Add an ad pool folder', hint: 'PROGRAMMING', run: click('interstitials-add-folder-btn'), keywords: 'commercial bumper interstitial' },

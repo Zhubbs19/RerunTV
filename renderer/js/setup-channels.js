@@ -12,7 +12,7 @@ import {
 } from './channels.js';
 import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
-  bulkRatingSelect, bulkRemoveBtn, bulkSelectAllBtn, bulkSelectedCountEl, bulkSelectToggleBtn, bulkShuffleOffBtn,
+  bulkRatingSelect, bulkRemoveBtn, bulkSelectAllBtn, bulkSelectedCountEl, bulkShuffleOffBtn,
   bulkShuffleOnBtn, bulkVolumeApplyBtn, bulkVolumeInheritBtn, bulkVolumeSlider,
   channelFilterEl, channelImportBtn, channelListEl, channelListPaneEl, configExportBtn, configImportBtn, doneBtn,
   previewBannerEl, previewModalBlockEl, previewModalCancelBtn, previewModalChannelLabelEl, previewModalDatetimeEl,
@@ -191,12 +191,9 @@ export function renderChannelList() {
   if (!channelListEl) return;
   if (subChannelsEnabledEl) subChannelsEnabledEl.checked = subChannelsEnabled();
   ensureMediaSourceProvidersLoaded();
+  parkBulkActionsBar();
   channelListEl.innerHTML = '';
-  channelListEl.classList.toggle('select-mode', !!S.bulkSelectMode);
-  if (channelListPaneEl) {
-    channelListPaneEl.innerHTML = '';
-    channelListPaneEl.classList.toggle('select-mode', !!S.bulkSelectMode);
-  }
+  if (channelListPaneEl) channelListPaneEl.innerHTML = '';
 
   if (!S.config || !Array.isArray(S.config.channels)) {
     if (S.config) S.config.channels = [];
@@ -1052,7 +1049,9 @@ export function renderChannelList() {
       channelListEl.appendChild(row);
       channelListEl.appendChild(editPanel);
     };
-  if (S.setupSelectedChannel === 'plugins') {
+  if (isMultiSelecting()) {
+    renderMultiSelectDetail();
+  } else if (S.setupSelectedChannel === 'plugins') {
     renderPluginChannelSection(pluginEntries);
   } else {
     const selected = list.find((c) => c.number === S.setupSelectedChannel);
@@ -1065,9 +1064,10 @@ export function renderChannelList() {
 // One compact row per channel: badge, number, name, and what's on now.
 // Selecting a row shows that channel's editor in the detail pane. Rows drag to
 // reorder (the same two-channel number swap the ▲▼ buttons make) and accept
-// dropped video files (setup-dragdrop.js); in SELECT CHANNELS mode each row
-// carries its bulk checkbox.
+// dropped video files (setup-dragdrop.js); Ctrl/Shift+click selects several
+// (see Multi-select below).
 function selectSetupChannel(value, { focus = false } = {}) {
+  S.bulkSelectedChannels.clear();
   S.setupSelectedChannel = value;
   renderChannelList();
   const item = channelListPaneEl && channelListPaneEl.querySelector('.channel-list-item.selected');
@@ -1084,28 +1084,15 @@ function selectSetupChannel(value, { focus = false } = {}) {
 function renderChannelListPane(list, pluginEntries) {
   if (!channelListPaneEl) return;
   list.forEach((ch) => {
-    const selected = S.setupSelectedChannel === ch.number;
+    const multi = isMultiSelecting();
+    const selected = multi ? false : S.setupSelectedChannel === ch.number;
+    const inMulti = multi && S.bulkSelectedChannels.has(ch.number);
     const item = document.createElement('div');
-    item.className = 'channel-list-item' + (selected ? ' selected' : '') + (ch.hidden ? ' is-hidden' : '');
+    item.className = 'channel-list-item' + (selected ? ' selected' : '') + (inMulti ? ' multi-selected' : '') + (ch.hidden ? ' is-hidden' : '');
     item.dataset.channelNumber = String(ch.number);
     item.setAttribute('role', 'option');
-    item.setAttribute('aria-selected', String(selected));
-    item.tabIndex = selected ? 0 : -1;
-
-    if (S.bulkSelectMode) {
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.className = 'channel-select-checkbox';
-      checkbox.checked = S.bulkSelectedChannels.has(ch.number);
-      checkbox.setAttribute('aria-label', `Select channel ${ch.number}`);
-      checkbox.addEventListener('click', (e) => e.stopPropagation());
-      checkbox.addEventListener('change', () => {
-        if (checkbox.checked) S.bulkSelectedChannels.add(ch.number);
-        else S.bulkSelectedChannels.delete(ch.number);
-        renderBulkActionsBar();
-      });
-      item.appendChild(checkbox);
-    }
+    item.setAttribute('aria-selected', String(selected || inMulti));
+    item.tabIndex = (selected || (multi && ch.number === multiSelectFocus)) ? 0 : -1;
 
     const badge = buildChannelBadge(ch);
     badge.classList.add('channel-list-badge');
@@ -1145,7 +1132,11 @@ function renderChannelListPane(list, pluginEntries) {
       item.appendChild(flagEl);
     }
 
-    item.addEventListener('click', () => selectSetupChannel(ch.number, { focus: true }));
+    item.addEventListener('click', (e) => {
+      if (e.ctrlKey || e.metaKey) toggleMultiSelect(ch.number);
+      else if (e.shiftKey) extendMultiSelect(ch.number);
+      else selectSetupChannel(ch.number, { focus: true });
+    });
 
     item.draggable = true;
     item.addEventListener('dragstart', (e) => {
@@ -1207,6 +1198,30 @@ channelListPaneEl?.addEventListener('keydown', (e) => {
   if (!e.target.matches || !e.target.matches('.channel-list-item')) return;
   const items = Array.from(channelListPaneEl.querySelectorAll('.channel-list-item'));
   const index = items.indexOf(e.target);
+  const numberOf = (el) => (el && el.dataset.channelNumber !== 'plugins' ? parseChannelNumber(el.dataset.channelNumber) : null);
+  // Multi-select from the keyboard: Shift+▲▼ extends, Ctrl+Space toggles,
+  // Ctrl+A takes every listed channel, Esc goes back to one.
+  if (e.shiftKey && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+    const next = numberOf(items[index + (e.key === 'ArrowDown' ? 1 : -1)]);
+    if (next != null) { e.preventDefault(); extendMultiSelect(next); }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key === ' ') {
+    const here = numberOf(e.target);
+    if (here != null) { e.preventDefault(); toggleMultiSelect(here); }
+    return;
+  }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+    e.preventDefault();
+    selectAllListedChannels();
+    return;
+  }
+  if (e.key === 'Escape' && isMultiSelecting()) {
+    e.preventDefault();
+    e.stopPropagation();
+    selectSetupChannel(numberOf(e.target) ?? multiSelectFocus, { focus: true });
+    return;
+  }
   let target = null;
   if (e.key === 'ArrowDown') target = items[index + 1];
   else if (e.key === 'ArrowUp') target = items[index - 1];
@@ -1371,21 +1386,110 @@ function renderPluginChannelSection(list) {
 // checked, so it's not a permanent fixture crowding the CHANNELS tab.
 function renderBulkActionsBar() {
   const count = S.bulkSelectedChannels.size;
-  bulkActionsBar.classList.toggle('hidden', !S.bulkSelectMode || count === 0);
+  bulkActionsBar.classList.toggle('hidden', count < 2);
   bulkSelectedCountEl.textContent = `${count} SELECTED`;
+}
+
+// ---------- Multi-select (docs/design/03 §4) ----------
+// Ctrl/Cmd+click toggles a channel, Shift+click selects a range. With more
+// than one channel selected the detail pane shows the bulk bar in place of
+// a single channel's editor; a plain click goes back to one channel.
+let multiSelectAnchor = null;
+let multiSelectFocus = null;
+const bulkActionsBarHome = document.createComment('bulk actions bar');
+bulkActionsBar.before(bulkActionsBarHome);
+
+function isMultiSelecting() {
+  return S.bulkSelectedChannels.size > 1;
+}
+
+// The bar lives in the detail pane only while it is needed; renderChannelList
+// clears that pane, so it goes back to its place in the page first.
+function parkBulkActionsBar() {
+  if (bulkActionsBar.parentNode !== bulkActionsBarHome.parentNode) bulkActionsBarHome.after(bulkActionsBar);
+}
+
+function listedChannelNumbers() {
+  return filteredSetupChannels(sortedForSetup()).map((c) => c.number);
+}
+
+function settleMultiSelect(focusNumber) {
+  if (S.bulkSelectedChannels.size === 1) {
+    const [only] = S.bulkSelectedChannels;
+    S.bulkSelectedChannels.clear();
+    S.setupSelectedChannel = only;
+  }
+  multiSelectFocus = focusNumber;
+  renderChannelList();
+  channelListPaneEl?.querySelector(`.channel-list-item[data-channel-number="${focusNumber}"]`)?.focus();
+}
+
+function toggleMultiSelect(number) {
+  if (!isMultiSelecting()) {
+    S.bulkSelectedChannels.clear();
+    if (typeof S.setupSelectedChannel === 'number') S.bulkSelectedChannels.add(S.setupSelectedChannel);
+    multiSelectAnchor = S.setupSelectedChannel;
+  }
+  if (S.bulkSelectedChannels.has(number)) S.bulkSelectedChannels.delete(number);
+  else S.bulkSelectedChannels.add(number);
+  multiSelectAnchor = number;
+  if (S.bulkSelectedChannels.size === 0) S.setupSelectedChannel = number;
+  settleMultiSelect(number);
+}
+
+function extendMultiSelect(number) {
+  const listed = listedChannelNumbers();
+  const anchor = isMultiSelecting() && multiSelectAnchor != null ? multiSelectAnchor
+    : (typeof S.setupSelectedChannel === 'number' ? S.setupSelectedChannel : number);
+  multiSelectAnchor = anchor;
+  const from = listed.indexOf(anchor);
+  const to = listed.indexOf(number);
+  if (from < 0 || to < 0) return;
+  S.bulkSelectedChannels = new Set(listed.slice(Math.min(from, to), Math.max(from, to) + 1));
+  settleMultiSelect(number);
+}
+
+function selectAllListedChannels() {
+  const listed = listedChannelNumbers();
+  if (listed.length < 2) return;
+  multiSelectAnchor = listed[0];
+  S.bulkSelectedChannels = new Set(listed);
+  settleMultiSelect(multiSelectFocus ?? listed[0]);
+}
+
+function renderMultiSelectDetail() {
+  const card = document.createElement('div');
+  card.className = 'channel-multi-detail';
+  const heading = document.createElement('div');
+  heading.className = 'channel-multi-heading';
+  const title = document.createElement('strong');
+  title.textContent = `${S.bulkSelectedChannels.size} CHANNELS SELECTED`;
+  const names = document.createElement('span');
+  names.textContent = selectedChannels().sort((a, b) => a.number - b.number)
+    .map((c) => `${formatChannelNumber(c.number)} ${c.name || 'UNTITLED'}`).join(' · ');
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'btn';
+  clear.textContent = 'CLEAR SELECTION';
+  clear.addEventListener('click', () => selectSetupChannel(multiSelectFocus, { focus: true }));
+  heading.append(title, clear);
+  const hint = document.createElement('p');
+  hint.className = 'channel-multi-hint';
+  hint.textContent = 'Ctrl+click adds or removes a channel, Shift+click selects a range, Esc goes back to one channel.';
+  card.append(heading, names, bulkActionsBar, hint);
+  channelListEl.appendChild(card);
+}
+
+window.addEventListener('reruntv:select-all-channels', () => selectAllChannelsFromSearch());
+export function selectAllChannelsFromSearch() {
+  document.querySelector('.setup-tab-btn[data-tab="channels"]')?.click();
+  selectAllListedChannels();
 }
 
 function selectedChannels() {
   return S.config.channels.filter((c) => S.bulkSelectedChannels.has(c.number));
 }
 
-bulkSelectToggleBtn.addEventListener('click', () => {
-  S.bulkSelectMode = !S.bulkSelectMode;
-  if (!S.bulkSelectMode) S.bulkSelectedChannels.clear();
-  bulkSelectToggleBtn.classList.toggle('active', S.bulkSelectMode);
-  bulkSelectToggleBtn.textContent = S.bulkSelectMode ? 'DONE SELECTING' : 'SELECT CHANNELS';
-  renderChannelList();
-});
 
 // ---------- Cross-channel library search ----------
 // The existing Titles-tab filter and channel-list filter both search within
@@ -1480,8 +1584,11 @@ librarySearchInputEl.addEventListener('input', () => {
 bulkSelectAllBtn.addEventListener('click', () => {
   const visible = filteredSetupChannels(sortedForSetup());
   const allSelected = visible.every((c) => S.bulkSelectedChannels.has(c.number));
-  if (allSelected) visible.forEach((c) => S.bulkSelectedChannels.delete(c.number));
-  else visible.forEach((c) => S.bulkSelectedChannels.add(c.number));
+  if (allSelected) {
+    selectSetupChannel(multiSelectFocus, { focus: true });
+    return;
+  }
+  visible.forEach((c) => S.bulkSelectedChannels.add(c.number));
   renderChannelList();
 });
 
@@ -1526,6 +1633,7 @@ bulkRemoveBtn.addEventListener('click', async () => {
   dispatch(targets.map((c) => ({ type: 'channel.remove', channel: c.number })),
     { label: `Remove ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
   S.bulkSelectedChannels.clear();
+  S.setupSelectedChannel = null;
   renderChannelList();
 });
 

@@ -4708,7 +4708,6 @@ html[data-theme] .btn[aria-disabled="true"] {
   cursor: pointer;
   color: var(--paper);
 }
-#setup-screen .channel-list-pane.select-mode .channel-list-item { grid-template-columns: auto auto minmax(0, 1fr) auto; }
 #setup-screen .channel-list-item:hover { border-color: var(--line); background: rgba(var(--gold-rgb), 0.06); }
 #setup-screen .channel-list-item.selected {
   border-color: var(--gold);
@@ -4755,12 +4754,6 @@ html[data-theme] .btn[aria-disabled="true"] {
   #setup-screen .channel-list-column { position: static; max-height: none; }
   #setup-screen .channel-list-pane { max-height: none; }
 }
-/* Bulk selection lives on the list rows now; the editor card never has one. */
-#setup-screen #channel-list.select-mode .channel-row {
-  grid-template-columns: 44px 72px 1fr;
-  grid-template-areas: "badge num  name" "path  path path" "now   now  now" "acts  acts acts" "opts  opts opts";
-}
-#setup-screen .channel-list-pane.select-mode .channel-select-checkbox { display: block; width: 16px; height: 16px; margin: 0; }
 
 /* ---------- SettingRow (docs/design/03 §5.1, renderer/js/ui/setting-row.js) ----------
    Label (sentence case) · control on one line, one muted line of help under
@@ -5052,3 +5045,12 @@ html[data-theme] .btn[aria-disabled="true"] {
   color: var(--gold);
 }
 #setup-screen .channel-options { padding-top: 4px; }
+
+/* Channel multi-select (setup-channels.js): marked rows, and the bulk bar in the detail pane. */
+#setup-screen .channel-list-item.multi-selected { border-color: var(--cyan); background: rgba(var(--cyan-rgb), 0.14); }
+#setup-screen .channel-multi-detail { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--gradient-panel); }
+#setup-screen .channel-multi-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+#setup-screen .channel-multi-heading strong { font-family: var(--font-ui); letter-spacing: 1px; color: var(--gold); }
+#setup-screen .channel-multi-detail > span { color: var(--paper-dim); font-size: 12px; line-height: 1.5; }
+#setup-screen .channel-multi-detail .bulk-actions-bar { margin: 0; }
+#setup-screen .channel-multi-hint { margin: 0; color: var(--paper-dim); font-size: 12px; }

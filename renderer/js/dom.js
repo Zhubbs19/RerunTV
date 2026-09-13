@@ -60,7 +60,6 @@ export const boxStatusBackupEl = document.getElementById('box-status-backup');
 export const boxStatusIssuesEl = document.getElementById('box-status-issues');
 export const boxStatusCheckBtn = document.getElementById('box-status-check-btn');
 export const setupSearchEmptyEl = document.getElementById('setup-search-empty');
-export const bulkSelectToggleBtn = document.getElementById('bulk-select-toggle-btn');
 export const bulkActionsBar = document.getElementById('bulk-actions-bar');
 export const bulkSelectedCountEl = document.getElementById('bulk-selected-count');
 export const bulkSelectAllBtn = document.getElementById('bulk-select-all-btn');

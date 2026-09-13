@@ -87,9 +87,8 @@ export const S = {
   // a newer render and stop appending instead of racing it.
   guideRenderGen: 0,
   setupFilterQuery: '',
-  // Bulk-select mode on the CHANNELS tab — ephemeral UI state, not part of
-  // S.config, cleared whenever the mode is turned off (never persisted).
-  bulkSelectMode: false,
+  // Channels multi-selected in the lineup list (Ctrl/Shift+click). Ephemeral
+  // UI state, never persisted; more than one entry means multi-select is on.
   bulkSelectedChannels: new Set(),
   batchFixRunning: null,
   batchFixCancel: false,
