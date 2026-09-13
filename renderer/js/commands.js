@@ -232,16 +232,22 @@ registerCommand('config.patch', {
 
 // Box-wide setting at a path under an allowed top-level section. The allow-list
 // keeps this from becoming a second, unvalidated config.patch.
-const SETTINGS_SECTIONS = new Set([
-  'crtEnabled', 'crtIntensity', 'staticEffect', 'contentVolume', 'adVolume', 'display', 'upNext', 'details',
-  'timeMachine', 'stationId', 'trivia', 'theme', 'pictureMode', 'aspectMode',
-]);
 const SETTING_LABELS = {
   crtEnabled: 'CRT effect', crtIntensity: 'CRT', staticEffect: 'channel static', contentVolume: 'content volume',
   adVolume: 'commercial volume', display: 'display', upNext: 'up next banner', details: 'details page',
   timeMachine: 'time machine', stationId: 'station ID', trivia: 'trivia', theme: 'theme',
-  pictureMode: 'picture mode', aspectMode: 'aspect',
+  pictureMode: 'picture mode', aspectMode: 'aspect', displayMode: 'display mode', updates: 'updates',
+  network: 'network', reminders: 'reminders', reminderAutoTune: 'reminder auto-tune',
+  reminderNotify: 'reminder notifications', reminderLeadMinutes: 'reminder lead time',
+  viewingHistory: 'viewing history', keepDisplayAwake: 'keep display awake', playbackResync: 'playback resync',
+  customSounds: 'sounds', pinLock: 'PIN lock',
 };
+const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));
+
+// "hintBarShowDuration" -> "hint bar show duration", for undo labels.
+function humanizeKey(key) {
+  return String(key).replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+}
 
 function readPath(root, path) {
   let node = root;
@@ -273,7 +279,7 @@ registerCommand('settings.set', {
   },
   describe(config, cmd) {
     const section = SETTING_LABELS[cmd.path[0]] || cmd.path[0];
-    return cmd.path.length > 1 ? `Change ${section} ${cmd.path[cmd.path.length - 1]}` : `Change ${section}`;
+    return cmd.path.length > 1 ? `Change ${section} ${humanizeKey(cmd.path[cmd.path.length - 1])}` : `Change ${section}`;
   },
 });
 
@@ -403,6 +409,53 @@ registerCommand('plugin.forget', {
   },
   describe(config, cmd) {
     return `Forget ${cmd.id}`;
+  },
+});
+
+// ---------- Per-file metadata (the TITLES panel) ----------
+// A file lives in a channel's pool or in one of its schedule blocks' pools and
+// is addressed by its path there: { channel, block?, file: path }. `fields`
+// sets several at once, so an edit that has to keep two in step (facets and
+// the tags mirrored from them) is one command. null clears a field.
+const FILE_FIELDS = {
+  title: 'title', tags: 'tags', description: 'description', facets: 'facets', rating: 'rating',
+  advisory: 'advisory', advisoryCues: 'scene cues', creditsLeadS: 'credits lead', creditsSqueezeBgImage: 'credits backdrop',
+  hasCC: 'CC', hasSAP: 'SAP', hasStereo: 'stereo',
+};
+
+function findFileOwner(config, cmd) {
+  const ch = findChannel(config, cmd.channel);
+  if (!ch) return null;
+  if (cmd.block == null) return ch;
+  return (ch.blocks || []).find((b) => b.id === cmd.block) || null;
+}
+
+function findFile(config, cmd) {
+  const owner = findFileOwner(config, cmd);
+  return owner && Array.isArray(owner.files) ? owner.files.find((f) => f.path === cmd.file) : null;
+}
+
+registerCommand('file.set', {
+  validate(config, cmd) {
+    if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('file.set needs fields');
+    const bad = Object.keys(cmd.fields).find((field) => !Object.prototype.hasOwnProperty.call(FILE_FIELDS, field));
+    if (bad) throw new Error(`file.set: "${bad}" isn't an editable file field`);
+    if (!findFileOwner(config, cmd)) throw new Error(`CH ${cmd.channel}${cmd.block ? ` block ${cmd.block}` : ''} doesn't exist`);
+    if (!findFile(config, cmd)) throw new Error(`CH ${cmd.channel} has no file ${cmd.file}`);
+  },
+  apply(config, cmd) {
+    const file = findFile(config, cmd);
+    const before = {};
+    Object.keys(cmd.fields).forEach((field) => {
+      before[field] = Object.prototype.hasOwnProperty.call(file, field) ? cloneJson(file[field]) : undefined;
+      const value = cmd.fields[field];
+      if (value === undefined) delete file[field]; else file[field] = cloneJson(value);
+    });
+    return [{ type: 'file.set', channel: cmd.channel, block: cmd.block, file: cmd.file, fields: before }];
+  },
+  describe(config, cmd) {
+    const fields = Object.keys(cmd.fields);
+    return `Change CH ${cmd.channel} file ${fields.length === 1 ? FILE_FIELDS[fields[0]] : 'details'}`;
   },
 });
 

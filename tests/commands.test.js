@@ -121,6 +121,8 @@ test('each named command undoes exactly', async () => {
     { type: 'settings.set', path: ['crtEnabled'], value: true },
     { type: 'settings.set', path: ['crtIntensity', 'grain'], value: 70 },
     { type: 'settings.set', path: ['display', 'clock24'], value: true },
+    { type: 'file.set', channel: 5, file: 'b.mp4', fields: { title: 'Episode 2', tags: ['cartoon'] } },
+    { type: 'file.set', channel: 5, file: 'a.mp4', fields: { advisory: 'EDITED FOR TIME', rating: null } },
   ];
   for (const cmd of cases) {
     const config = sampleConfig();
@@ -141,7 +143,25 @@ test('invalid commands throw before changing anything', async () => {
   assert.throws(() => applyCommand(config, { type: 'channel.set', channel: 99, field: 'favorite', value: true }), /doesn't exist/);
   assert.throws(() => applyCommand(config, { type: 'settings.set', path: ['channels'], value: [] }), /settings section/);
   assert.throws(() => applyCommand(config, { type: 'nope' }), /Unknown command/);
+  assert.throws(() => applyCommand(config, { type: 'file.set', channel: 5, file: 'a.mp4', fields: { path: 'x.mp4' } }), /editable file field/);
+  assert.throws(() => applyCommand(config, { type: 'file.set', channel: 5, file: 'nope.mp4', fields: { title: 'x' } }), /no file/);
+  assert.throws(() => applyCommand(config, { type: 'file.set', channel: 5, block: 'blk-gone', file: 'a.mp4', fields: { title: 'x' } }), /doesn't exist/);
   assert.deepEqual(config, original);
+});
+
+test('file.set reaches a file in a schedule block by block id, and a settings label reads as words', async () => {
+  const { applyCommand, describeCommand, cloneJson } = await load('commands.js');
+  const config = sampleConfig();
+  config.channels[0].blocks = [{ id: 'blk-1', files: [{ path: 'a.mp4', duration: 30 }] }];
+  const original = cloneJson(config);
+  const cmd = { type: 'file.set', channel: 5, block: 'blk-1', file: 'a.mp4', fields: { title: 'Block copy' } };
+  const inverse = applyCommand(config, cmd);
+  assert.equal(config.channels[0].blocks[0].files[0].title, 'Block copy');
+  assert.equal(config.channels[0].files[0].title, undefined, 'the channel pool file with the same path is untouched');
+  inverse.forEach((inv) => applyCommand(config, inv));
+  assert.deepEqual(config, original);
+  assert.equal(describeCommand(config, cmd), 'Change CH 5 file title');
+  assert.equal(describeCommand(config, { type: 'settings.set', path: ['display', 'hintBarShowDuration'], value: 1 }), 'Change display hint bar show duration');
 });
 
 // ---------- history (state.js) ----------

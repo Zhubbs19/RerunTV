@@ -200,7 +200,34 @@ Not in this step:
 - **`POST /api/commands` with a `control` scope.** That write path belongs with the web control
   panel (doc 06 phase 1), which is its only consumer.
 
-Step 5 (burning down `config.patch` callers) is not started.
+**Step 5 is under way, one file at a time.**
+
+Burn-down tracking:
+- `node scripts/audit-config-writes.js` counts the untyped `saveConfigDebounced()` writes left in
+  each `renderer/js` file.
+- `tests/config-writes.test.js` fails if any file goes above its ceiling in
+  `tests/config-writes-ceiling.json`. After converting a file, lower its ceiling with `--update`.
+- The count started at 297 and is now 219.
+
+Converted so far:
+- **`setup-settings.js` (61 → 2).** Every box setting is `settings.set`. Its allow-list now
+  covers every section the SETTINGS tab writes, and labels read as words ("Change display hint
+  bar show duration"). Sliders and text fields coalesce. Resetting the no-signal copy is one
+  batch. The two left are the logo-bug and dynamic-overlay array editors, which mutate the
+  array they were handed, so they need their own commands.
+- **`setup-panels.js`, the TITLES panel (49 → 33).** It uses a new `file.set`
+  (`{ channel, block?, file: path, fields }`, with a field allow-list), and every per-row edit
+  is one command.
+  - A facet change sets `facets` and the tags mirrored from them together.
+  - Each bulk action is one labelled batch ("Tag 1329 files"). Live, that batch took 430 ms on
+    the real 1329-file channel, and one undo removed it.
+  - The panel falls back to the in-place edit when a pool holds the same path twice.
+
+Left, largest first: `setup-interstitials.js`, `setup-panels.js` (reorder, commercials, logo,
+identity panels), `setup-interstitials-flowbuilder.js`, `setup-util.js`, `setup-channels.js`,
+`setup-schedule.js`. Those need new commands for flows, presets, blocks and pools rather than
+setters. Once `config.patch` is only legacy import/restore, the renderer can send commands
+instead of whole-config saves (§2.2).
 
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no

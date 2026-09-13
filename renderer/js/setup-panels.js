@@ -7,7 +7,7 @@ import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacet
 import { applyLogoBugPlacement } from './playback-broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
-import { S, saveConfigDebounced, viewNow } from './state.js';
+import { S, dispatch, saveConfigDebounced, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from './util.js';
 import {
   attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor,
@@ -85,6 +85,46 @@ async function downloadFileToLocal(target, file, btn) {
   } finally {
     unsubscribe();
   }
+}
+
+// Per-file metadata edits go through file.set (commands.js): one named undo
+// step per user action, however many files it touches. `target` is the
+// channel or schedule block whose pool the files are in, found in S.config by
+// identity. `fieldsFor(file)` returns the fields to set on that file, or null
+// to leave it alone. Returns whether anything changed.
+function setFileFields(target, files, fieldsFor, opts = {}) {
+  const changes = files.map((file) => [file, fieldsFor(file)]).filter(([, fields]) => fields);
+  if (!changes.length) return false;
+  const channels = (S.config && S.config.channels) || [];
+  let address = null;
+  if (channels.includes(target)) {
+    address = { channel: target.number };
+  } else {
+    const owner = channels.find((ch) => (ch.blocks || []).includes(target));
+    if (owner && target.id) address = { channel: owner.number, block: target.id };
+  }
+  // file.set finds a file by path, so a pool holding the same path twice (or
+  // a panel for something no longer in config) keeps the in-place edit.
+  const ambiguous = changes.some(([file]) => (target.files || []).filter((f) => f.path === file.path).length !== 1);
+  if (!address || ambiguous) {
+    changes.forEach(([file, fields]) => Object.assign(file, fields));
+    saveConfigDebounced();
+    return true;
+  }
+  dispatch(changes.map(([file, fields]) => ({ type: 'file.set', ...address, file: file.path, fields })), opts);
+  return true;
+}
+
+// The facets a file would have after `mutate`, and the tags mirrored from
+// them (mirrorFacetsIntoTags), without touching the file itself.
+function facetFields(file, mutate) {
+  const next = {
+    facets: JSON.parse(JSON.stringify(file.facets || freshFileFacets())),
+    tags: file.tags ? [...file.tags] : file.tags,
+  };
+  mutate(next.facets);
+  mirrorFacetsIntoTags(next);
+  return next;
 }
 
 // `target` just needs a `.files` array — works for a channel (ch.files) or
@@ -221,12 +261,12 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     // File order (not Set insertion order) so numbering follows the list
     // on screen regardless of the order rows were clicked/selected in.
     const ordered = target.files.filter((f) => selected.has(f));
-    ordered.forEach((f, i) => {
-      f.title = template.includes('{n}') ? template.replace(/\{n\}/g, String(i + 1)) : template;
-    });
+    const numberOf = new Map(ordered.map((f, i) => [f, i + 1]));
+    setFileFields(target, ordered, (f) => ({
+      title: template.includes('{n}') ? template.replace(/\{n\}/g, String(numberOf.get(f))) : template,
+    }), { label: `Set title for ${ordered.length} file${ordered.length === 1 ? '' : 's'}` });
     bulkTitleInput.value = '';
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   const bulkTagInput = document.createElement('input');
@@ -242,14 +282,10 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkApplyBtn.addEventListener('click', () => {
     const toAdd = bulkTagInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     if (!toAdd.length || !selected.size) return;
-    selected.forEach((f) => {
-      const existing = new Set(f.tags || []);
-      toAdd.forEach((t) => existing.add(t));
-      f.tags = Array.from(existing);
-    });
+    setFileFields(target, Array.from(selected), (f) => ({ tags: Array.from(new Set([...(f.tags || []), ...toAdd])) }),
+      { label: `Tag ${selected.size} file${selected.size === 1 ? '' : 's'}` });
     bulkTagInput.value = '';
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   const bulkClearTagsBtn = document.createElement('button');
@@ -259,9 +295,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkClearTagsBtn.addEventListener('click', async () => {
     if (!selected.size) return;
     if (!(await confirmDialog(`Remove all tags from ${selected.size} selected file(s)?`))) return;
-    selected.forEach((f) => { f.tags = null; });
+    setFileFields(target, Array.from(selected), () => ({ tags: null }), { label: `Clear tags from ${selected.size} file${selected.size === 1 ? '' : 's'}` });
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   // Bulk release-tag cleanup — for libraries pulled straight from a
@@ -286,9 +321,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       alertDialog('Every selected file already has a title set — nothing to clean up. Clear a title first if you want it re-derived from the filename.');
       return;
     }
-    files.forEach((f) => { f.title = stripReleaseTags(basenameNoExt(f.path)); });
+    setFileFields(target, files, (f) => ({ title: stripReleaseTags(basenameNoExt(f.path)) }), { label: 'Strip release tags' });
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   // Auto-tag suggestions (suggestFacetsFromPath, util.js) — an *addition*
@@ -305,26 +339,22 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkSuggestBtn.title = 'Guess genre/era/content type for the selected files from each one\'s own filename and folder path. Only fills in a facet that\'s currently empty — never overwrites anything you (or a prior suggestion) already set.';
   bulkSuggestBtn.addEventListener('click', () => {
     if (!selected.size) return;
-    let touched = 0;
-    selected.forEach((f) => {
+    const touched = setFileFields(target, Array.from(selected), (f) => {
       const suggestion = suggestFacetsFromPath(f.path);
-      if (!suggestion.genre.length && !suggestion.era && !suggestion.contentType) return;
-      const facets = f.facets || freshFileFacets();
+      if (!suggestion.genre.length && !suggestion.era && !suggestion.contentType) return null;
       let changed = false;
-      if (suggestion.genre.length && !facets.genre.length) { facets.genre = suggestion.genre; changed = true; }
-      if (suggestion.era && !facets.era) { facets.era = suggestion.era; changed = true; }
-      if (suggestion.contentType && !facets.contentType) { facets.contentType = suggestion.contentType; changed = true; }
-      if (!changed) return;
-      f.facets = facets;
-      mirrorFacetsIntoTags(f);
-      touched += 1;
-    });
+      const fields = facetFields(f, (facets) => {
+        if (suggestion.genre.length && !facets.genre.length) { facets.genre = suggestion.genre; changed = true; }
+        if (suggestion.era && !facets.era) { facets.era = suggestion.era; changed = true; }
+        if (suggestion.contentType && !facets.contentType) { facets.contentType = suggestion.contentType; changed = true; }
+      });
+      return changed ? fields : null;
+    }, { label: 'Suggest facets' });
     if (!touched) {
       alertDialog('No new facet suggestions for the selected files — either nothing in their paths matched, or they already have every facet set.');
       return;
     }
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   // Bulk facets — same idea as the free-tag bulk bar above, but for the
@@ -380,17 +410,14 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     const era = bulkEraInput.value.trim().toLowerCase();
     const contentType = bulkContentTypeSelect.value;
     if (!genresToAdd.length && !moodsToAdd.length && !era && !contentType) return;
-    selected.forEach((f) => {
-      f.facets = f.facets || freshFileFacets();
-      if (genresToAdd.length) f.facets.genre = Array.from(new Set([...f.facets.genre, ...genresToAdd]));
-      if (moodsToAdd.length) f.facets.mood = Array.from(new Set([...f.facets.mood, ...moodsToAdd]));
-      if (era) f.facets.era = era;
-      if (contentType) f.facets.contentType = contentType;
-      mirrorFacetsIntoTags(f);
-    });
+    setFileFields(target, Array.from(selected), (f) => facetFields(f, (facets) => {
+      if (genresToAdd.length) facets.genre = Array.from(new Set([...facets.genre, ...genresToAdd]));
+      if (moodsToAdd.length) facets.mood = Array.from(new Set([...facets.mood, ...moodsToAdd]));
+      if (era) facets.era = era;
+      if (contentType) facets.contentType = contentType;
+    }), { label: `Set facets on ${selected.size} file${selected.size === 1 ? '' : 's'}` });
     bulkGenreInput.value = ''; bulkMoodInput.value = ''; bulkEraInput.value = ''; bulkContentTypeSelect.value = '';
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   const bulkFacetsClearBtn = document.createElement('button');
@@ -401,9 +428,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkFacetsClearBtn.addEventListener('click', async () => {
     if (!selected.size) return;
     if (!(await confirmDialog(`Clear facets (genre/mood/era/content type) from ${selected.size} selected file(s)? Their free TAGS field is left untouched.`))) return;
-    selected.forEach((f) => { f.facets = freshFileFacets(); });
+    setFileFields(target, Array.from(selected), () => ({ facets: freshFileFacets() }), { label: `Clear facets from ${selected.size} file${selected.size === 1 ? '' : 's'}` });
     renderRows(search.value);
-    saveConfigDebounced();
   });
 
   bulkFacetsBar.appendChild(bulkGenreWrap);
@@ -493,8 +519,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       input.placeholder = guessCleanTitle(base);
       input.value = file.title || '';
       input.addEventListener('input', () => {
-        file.title = input.value;
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ title: input.value }), { coalesce: `file:${file.path}:title` });
       });
 
       // Tags a specific ad's CONTENT TAGS field (PROGRAMMING tab,
@@ -508,8 +533,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       tagsInput.value = tags.join(', ');
       tagsInput.addEventListener('change', () => {
         const parsed = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
-        file.tags = parsed.length ? parsed : null;
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ tags: parsed.length ? parsed : null }));
       });
       const tagsWrap = attachTagAutocomplete(tagsInput);
 
@@ -530,8 +554,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       descInput.placeholder = 'DESCRIPTION / SYNOPSIS — SHOWN ON THE DETAILS PAGE (PRESS I WHILE WATCHING)';
       descInput.value = file.description || '';
       descInput.addEventListener('input', () => {
-        file.description = descInput.value;
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ description: descInput.value }), { coalesce: `file:${file.path}:description` });
       });
       descToggleBtn.addEventListener('click', () => {
         const nowHidden = descInput.classList.toggle('hidden');
@@ -558,11 +581,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       facetsRow.className = 'title-row-facets' + (hasFacets ? '' : ' hidden');
 
       function commitFacet(mutate) {
-        file.facets = file.facets || freshFileFacets();
-        mutate(file.facets);
-        mirrorFacetsIntoTags(file);
+        setFileFields(target, [file], () => facetFields(file, mutate));
         tagsInput.value = (file.tags || []).join(', ');
-        saveConfigDebounced();
       }
 
       const genreInput = document.createElement('input');
@@ -627,8 +647,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       });
       ratingSelect.value = file.rating || '';
       ratingSelect.addEventListener('change', () => {
-        file.rating = ratingSelect.value || null;
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ rating: ratingSelect.value || null }));
       });
 
       // Content advisory disclaimer — distinct from the rating VALUE above:
@@ -644,8 +663,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       advisoryInput.title = 'Shown as its own disclaimer card once per airing, e.g. "CONTAINS SCENES OF A GRAPHIC NATURE" or "EDITED FOR CONTENT AND TO FIT THE TIME ALLOTTED".';
       advisoryInput.value = file.advisory || '';
       advisoryInput.addEventListener('change', () => {
-        file.advisory = advisoryInput.value.trim() || null;
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ advisory: advisoryInput.value.trim() || null }));
       });
 
       // Mid-program scene-specific cues — same disclaimer card as
@@ -662,7 +680,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       cuesInput.title = 'Mid-program content warnings at specific timestamps ("M:SS text" or "H:MM:SS text" per line), shown via the same disclaimer card as ADVISORY above.';
       cuesInput.value = (file.advisoryCues || []).map((c) => `${formatDuration(c.offsetS)} ${c.text}`).join('\n');
       cuesInput.addEventListener('change', () => {
-        file.advisoryCues = cuesInput.value.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+        const advisoryCues = cuesInput.value.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
           const m = line.match(/^(\d+):(\d{2})(?::(\d{2}))?\s+(.+)$/);
           if (!m) return null;
           const offsetS = m[3]
@@ -670,7 +688,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
             : parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
           return { id: randomId('cue'), offsetS, text: m[4] };
         }).filter(Boolean);
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ advisoryCues }));
       });
 
       // End-credits speedup override (ch.creditsSpeedup's channel-wide
@@ -686,8 +704,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       creditsLeadInput.title = 'Seconds before this file ends where its credits start — overrides the channel\'s default lead time. 0 disables the speedup for this file specifically.';
       creditsLeadInput.value = file.creditsLeadS != null ? file.creditsLeadS : '';
       creditsLeadInput.addEventListener('change', () => {
-        file.creditsLeadS = creditsLeadInput.value.trim() === '' ? null : parsePositiveInt(creditsLeadInput.value, 0);
-        saveConfigDebounced();
+        setFileFields(target, [file], () => ({ creditsLeadS: creditsLeadInput.value.trim() === '' ? null : parsePositiveInt(creditsLeadInput.value, 0) }));
       });
 
       const creditsBgBtn = document.createElement('button');
@@ -698,9 +715,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       creditsBgBtn.addEventListener('click', async () => {
         const path = await window.api.selectImage();
         if (!path) return;
-        file.creditsSqueezeBgImage = path;
+        setFileFields(target, [file], () => ({ creditsSqueezeBgImage: path }));
         creditsBgBtn.textContent = basenameNoExt(path);
-        saveConfigDebounced();
       });
 
       facetsRow.appendChild(genreWrap);
@@ -732,8 +748,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
         });
         capSelect.value = file[field] === true ? 'yes' : file[field] === false ? 'no' : '';
         capSelect.addEventListener('change', () => {
-          file[field] = capSelect.value === '' ? null : capSelect.value === 'yes';
-          saveConfigDebounced();
+          setFileFields(target, [file], () => ({ [field]: capSelect.value === '' ? null : capSelect.value === 'yes' }));
         });
         capabilityWrap.appendChild(capSelect);
       });

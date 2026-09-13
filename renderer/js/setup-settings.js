@@ -134,12 +134,10 @@ function renderHintBarItemsList() {
     checkbox.type = 'checkbox';
     checkbox.checked = !hidden.includes(key);
     checkbox.addEventListener('change', () => {
-      if (!Array.isArray(S.config.display.hintBarHidden)) S.config.display.hintBarHidden = [];
-      const idx = S.config.display.hintBarHidden.indexOf(key);
-      if (checkbox.checked && idx !== -1) S.config.display.hintBarHidden.splice(idx, 1);
-      if (!checkbox.checked && idx === -1) S.config.display.hintBarHidden.push(key);
+      const current = Array.isArray(S.config.display.hintBarHidden) ? S.config.display.hintBarHidden : [];
+      const next = checkbox.checked ? current.filter((entry) => entry !== key) : [...new Set([...current, key])];
+      dispatch({ type: 'settings.set', path: ['display', 'hintBarHidden'], value: next });
       applyHintBarState();
-      saveConfigDebounced();
     });
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode(span.textContent + (pluginName ? ' *' : '')));
@@ -271,16 +269,15 @@ function renderCustomSoundSettings() {
     choose.addEventListener('click', async () => {
       const path = await window.api.selectAudio();
       if (!path) return;
-      S.config.customSounds[slot] = path;
-      saveConfigDebounced();
+      dispatch({ type: 'settings.set', path: ['customSounds', slot], value: path });
       refresh();
     });
     const builtIn = document.createElement('button');
     builtIn.type = 'button'; builtIn.className = 'btn'; builtIn.textContent = 'BUILT-IN';
-    builtIn.addEventListener('click', () => { delete S.config.customSounds[slot]; saveConfigDebounced(); refresh(); });
+    builtIn.addEventListener('click', () => { dispatch({ type: 'settings.set', path: ['customSounds', slot], value: undefined }); refresh(); });
     const silent = document.createElement('button');
     silent.type = 'button'; silent.className = 'btn'; silent.textContent = 'SILENT';
-    silent.addEventListener('click', () => { S.config.customSounds[slot] = false; saveConfigDebounced(); refresh(); });
+    silent.addEventListener('click', () => { dispatch({ type: 'settings.set', path: ['customSounds', slot], value: false }); refresh(); });
     row.append(name, status, choose, builtIn, silent);
     root.appendChild(row);
     refresh();
@@ -1085,9 +1082,7 @@ function initUpdateSettingsPanel() {
   if (updateModeSelect) {
     updateModeSelect.value = (S.config.updates && S.config.updates.strategy) || 'startup-auto';
     updateModeSelect.addEventListener('change', () => {
-      S.config.updates = S.config.updates || {};
-      S.config.updates.strategy = updateModeSelect.value;
-      saveConfigDebounced();
+      dispatch({ type: 'settings.set', path: ['updates', 'strategy'], value: updateModeSelect.value });
       refreshUpdateModeUI();
       setUpdateStatus('');
     });
@@ -1390,11 +1385,7 @@ function updateGuideGenreTheme(mutator) {
   const current = guideGenreThemeConfig(S.config, themeId);
   const next = { enabled: current.enabled, colors: { ...current.colors } };
   mutator(next);
-  S.config.display.guideGenreStyles = {
-    ...(S.config.display.guideGenreStyles || {}),
-    [themeId]: next,
-  };
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'guideGenreStyles', themeId], value: next });
   renderGuideGenreSettings();
 }
 
@@ -1526,9 +1517,7 @@ export function renderViewerUrlStatus() {
 }
 
 viewerEnabledEl.addEventListener('change', () => {
-  if (!S.config.network) S.config.network = { viewerEnabled: false, remoteEnabled: false };
-  S.config.network.viewerEnabled = viewerEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['network', 'viewerEnabled'], value: viewerEnabledEl.checked });
   viewerUrlStatusEl.textContent = `${viewerEnabledEl.checked ? 'Viewer access will start' : 'Viewer access will stop'} after RerunTV restarts.`;
 });
 
@@ -1664,8 +1653,7 @@ export function renderRemindersPanel() {
     remove.className = 'btn';
     remove.textContent = 'REMOVE';
     remove.addEventListener('click', () => {
-      S.config.reminders = (S.config.reminders || []).filter((entry) => entry.id !== reminder.id);
-      saveConfigDebounced();
+      dispatch({ type: 'settings.set', path: ['reminders'], value: (S.config.reminders || []).filter((entry) => entry.id !== reminder.id) }, { label: 'Remove reminder' });
       renderRemindersPanel();
     });
     row.append(label, remove);
@@ -1674,13 +1662,11 @@ export function renderRemindersPanel() {
 }
 
 reminderAutoTuneEl?.addEventListener('change', () => {
-  S.config.reminderAutoTune = reminderAutoTuneEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['reminderAutoTune'], value: reminderAutoTuneEl.checked });
 });
 
 reminderNotifyEl?.addEventListener('change', () => {
-  S.config.reminderNotify = reminderNotifyEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['reminderNotify'], value: reminderNotifyEl.checked });
 });
 
 remindersClearAllBtn?.addEventListener('click', async () => {
@@ -1692,8 +1678,7 @@ remindersClearAllBtn?.addEventListener('click', async () => {
     confirmText: 'CLEAR ALL',
   });
   if (!ok) return;
-  S.config.reminders = [];
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['reminders'], value: [] }, { label: 'Clear reminders' });
   renderRemindersPanel();
 });
 
@@ -1744,9 +1729,7 @@ export function renderViewingHistoryPanel() {
 }
 
 viewingHistoryEnabledEl?.addEventListener('change', () => {
-  S.config.viewingHistory = S.config.viewingHistory || {};
-  S.config.viewingHistory.enabled = viewingHistoryEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['viewingHistory', 'enabled'], value: viewingHistoryEnabledEl.checked });
 });
 
 historyRefreshBtn?.addEventListener('click', () => renderViewingHistoryPanel());
@@ -1814,17 +1797,15 @@ airChecksClearAllBtn?.addEventListener('click', async () => {
 });
 
 keepDisplayAwakeEl?.addEventListener('change', () => {
-  S.config.keepDisplayAwake.enabled = keepDisplayAwakeEl.checked;
+  dispatch({ type: 'settings.set', path: ['keepDisplayAwake', 'enabled'], value: keepDisplayAwakeEl.checked });
   // Applied immediately rather than at the next power transition — the
   // setting is only meaningful as a live claim on the OS, so leaving the old
   // one held until the next standby would read as the toggle not working.
   applyDisplayWakeLock();
-  saveConfigDebounced();
 });
 
 playbackResyncEnabledEl?.addEventListener('change', () => {
-  S.config.playbackResync.enabled = playbackResyncEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['playbackResync', 'enabled'], value: playbackResyncEnabledEl.checked });
 });
 
 // ---------- Config backups (AUDIO & SYSTEM tab) ----------
@@ -1877,68 +1858,55 @@ crtBurninSlider.addEventListener('input', () => {
   refreshLogoBugGhost();
 });
 clock24El.addEventListener('change', () => {
-  S.config.display.clock24 = clock24El.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'clock24'], value: clock24El.checked });
 });
 hintBarEnabledEl.addEventListener('change', () => {
-  S.config.display.hintBar = hintBarEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'hintBar'], value: hintBarEnabledEl.checked });
   applyHintBarState();
-  saveConfigDebounced();
 });
 hintBarCompactEl.addEventListener('change', () => {
-  S.config.display.hintBarCompact = hintBarCompactEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'hintBarCompact'], value: hintBarCompactEl.checked });
   applyHintBarState();
-  saveConfigDebounced();
 });
 adVolumeSlider.addEventListener('input', () => {
-  S.config.adVolume = parseInt(adVolumeSlider.value, 10) / 100;
+  dispatch({ type: 'settings.set', path: ['adVolume'], value: parseInt(adVolumeSlider.value, 10) / 100 }, { coalesce: 'settings:adVolume' });
   applyVolume();
-  saveConfigDebounced();
 });
 contentVolumeSlider.addEventListener('input', () => {
-  S.config.contentVolume = parseInt(contentVolumeSlider.value, 10) / 100;
+  dispatch({ type: 'settings.set', path: ['contentVolume'], value: parseInt(contentVolumeSlider.value, 10) / 100 }, { coalesce: 'settings:contentVolume' });
   applyVolume();
-  saveConfigDebounced();
 });
 guideSlotsSelect.addEventListener('change', () => {
-  S.config.display.guideSlots = parseInt(guideSlotsSelect.value, 10) || 3;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'guideSlots'], value: parseInt(guideSlotsSelect.value, 10) || 3 });
 });
 uiScaleSelect.addEventListener('change', () => {
-  S.config.display.uiScale = uiScaleSelect.value;
+  dispatch({ type: 'settings.set', path: ['display', 'uiScale'], value: uiScaleSelect.value });
   if (window.api && window.api.setUiScale) window.api.setUiScale(S.config.display.uiScale);
-  saveConfigDebounced();
 });
 pictureModeSelect.addEventListener('change', () => {
-  S.config.pictureMode = pictureModeSelect.value;
+  dispatch({ type: 'settings.set', path: ['pictureMode'], value: pictureModeSelect.value });
   applyPictureMode();
-  saveConfigDebounced();
 });
 aspectModeSelect.addEventListener('change', () => {
-  S.config.aspectMode = aspectModeSelect.value;
+  dispatch({ type: 'settings.set', path: ['aspectMode'], value: aspectModeSelect.value });
   applyAspectMode();
   if (player.videoWidth && player.videoHeight) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
-  saveConfigDebounced();
 });
 movieModeEnabledEl.addEventListener('change', () => {
-  S.config.display.movieMode = movieModeEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'movieMode'], value: movieModeEnabledEl.checked });
   if (player.videoWidth && player.videoHeight) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
   runCoreHooks('theme-audio-refresh');
-  saveConfigDebounced();
 });
 daypartChimeEnabledEl.addEventListener('change', () => {
-  S.config.display.daypartChimeEnabled = daypartChimeEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'daypartChimeEnabled'], value: daypartChimeEnabledEl.checked });
 });
 displayModeAspectSelect.addEventListener('change', () => {
-  S.config.displayMode.aspect = displayModeAspectSelect.value;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'aspect'], value: displayModeAspectSelect.value });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 displayModeWindowSelect.addEventListener('change', () => {
-  S.config.displayMode.windowMode = displayModeWindowSelect.value;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'windowMode'], value: displayModeWindowSelect.value });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 // Unlike every other DISPLAY-tab toggle, this one needs the main process to
 // actually close and reopen the OS window (frame is a BrowserWindow
@@ -1956,104 +1924,86 @@ hideTitleBarEnabledEl.addEventListener('change', async () => {
   if (window.api && window.api.setTitleBarHidden) window.api.setTitleBarHidden(S.config.display.hideTitleBar);
 });
 displayModeResolutionSelect.addEventListener('change', () => {
-  S.config.displayMode.resolution = displayModeResolutionSelect.value;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'resolution'], value: displayModeResolutionSelect.value });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 displayModeAutoPrioritySelect.addEventListener('change', () => {
-  S.config.displayMode.autoPriority = displayModeAutoPrioritySelect.value;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'autoPriority'], value: displayModeAutoPrioritySelect.value });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 displayModeOverlaysNativeSizeEl.addEventListener('change', () => {
-  S.config.displayMode.overlaysNativeSize = displayModeOverlaysNativeSizeEl.checked;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'overlaysNativeSize'], value: displayModeOverlaysNativeSizeEl.checked });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 displayModeUiExtentSelect.addEventListener('change', () => {
-  S.config.displayMode.uiExtent = displayModeUiExtentSelect.value;
+  dispatch({ type: 'settings.set', path: ['displayMode', 'uiExtent'], value: displayModeUiExtentSelect.value });
   applyDisplayMode();
-  saveConfigDebounced();
 });
 logoBugMotionSelect.addEventListener('change', () => {
-  S.config.display.logoBugMotion = logoBugMotionSelect.value;
+  dispatch({ type: 'settings.set', path: ['display', 'logoBugMotion'], value: logoBugMotionSelect.value });
   applyLogoBugMotion();
-  saveConfigDebounced();
 });
 crtOverlayWholeScreenEnabledEl.addEventListener('change', () => {
-  S.config.crtIntensity.overlayScope = crtOverlayWholeScreenEnabledEl.checked ? 'wholeScreen' : 'video';
+  dispatch({ type: 'settings.set', path: ['crtIntensity', 'overlayScope'], value: crtOverlayWholeScreenEnabledEl.checked ? 'wholeScreen' : 'video' });
   applyCrtState();
-  saveConfigDebounced();
 });
 ignoreThemeCrtBiasEnabledEl.addEventListener('change', () => {
-  S.config.display.ignoreThemeCrtBias = ignoreThemeCrtBiasEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'ignoreThemeCrtBias'], value: ignoreThemeCrtBiasEnabledEl.checked });
   applyCrtState();
-  saveConfigDebounced();
 });
 bezelInsetScaleSlider?.addEventListener('input', () => {
-  S.config.display.bezelInsetScale = parseInt(bezelInsetScaleSlider.value, 10);
+  dispatch({ type: 'settings.set', path: ['display', 'bezelInsetScale'], value: parseInt(bezelInsetScaleSlider.value, 10) }, { coalesce: 'settings:display.bezelInsetScale' });
   if (player.videoWidth && player.videoHeight) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
-  saveConfigDebounced();
 });
 bootPowerAnimEnabledEl.addEventListener('change', () => {
-  S.config.display.bootPowerOnAnim = bootPowerAnimEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'bootPowerOnAnim'], value: bootPowerAnimEnabledEl.checked });
 });
 guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
-  S.config.display.guideOpenCloseAnim = guideOpenCloseAnimEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'guideOpenCloseAnim'], value: guideOpenCloseAnimEnabledEl.checked });
   refreshDependentControls();
-  saveConfigDebounced();
 });
 guideLivePreviewEnabledEl.addEventListener('change', () => {
-  S.config.display.guideLivePreview = guideLivePreviewEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'guideLivePreview'], value: guideLivePreviewEnabledEl.checked });
   applyGuideDockMode();
-  saveConfigDebounced();
 });
 guideAnimSpeedSlider.addEventListener('input', () => {
-  S.config.display.guideOpenCloseAnimMs = parseInt(guideAnimSpeedSlider.value, 10);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'guideOpenCloseAnimMs'], value: parseInt(guideAnimSpeedSlider.value, 10) }, { coalesce: 'settings:display.guideOpenCloseAnimMs' });
 });
 guideCardDurationSlider?.addEventListener('input', () => {
-  S.config.display.guideCardDuration = parseInt(guideCardDurationSlider.value, 10) || 4000;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'guideCardDuration'], value: parseInt(guideCardDurationSlider.value, 10) || 4000 }, { coalesce: 'settings:display.guideCardDuration' });
 });
 reminderLeadMinutesSlider?.addEventListener('input', () => {
-  S.config.reminderLeadMinutes = parseInt(reminderLeadMinutesSlider.value, 10) || 1;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['reminderLeadMinutes'], value: parseInt(reminderLeadMinutesSlider.value, 10) || 1 }, { coalesce: 'settings:reminderLeadMinutes' });
 });
 hintBarSlideEnabledEl.addEventListener('change', () => {
-  S.config.display.hintBarSlide = hintBarSlideEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['display', 'hintBarSlide'], value: hintBarSlideEnabledEl.checked });
   hintBarShowDurationEl.disabled = !hintBarSlideEnabledEl.checked;
   hintBarHideDurationEl.disabled = !hintBarSlideEnabledEl.checked;
   applyHintBarState();
-  saveConfigDebounced();
 });
 hintBarShowDurationEl.addEventListener('input', () => {
-  S.config.display.hintBarShowDuration = parseInt(hintBarShowDurationEl.value, 10);
+  dispatch({ type: 'settings.set', path: ['display', 'hintBarShowDuration'], value: parseInt(hintBarShowDurationEl.value, 10) }, { coalesce: 'settings:display.hintBarShowDuration' });
   hintBarShowDurationValEl.textContent = `${S.config.display.hintBarShowDuration}ms`;
   applyHintBarState();
-  saveConfigDebounced();
 });
 hintBarHideDurationEl.addEventListener('input', () => {
-  S.config.display.hintBarHideDuration = parseInt(hintBarHideDurationEl.value, 10);
+  dispatch({ type: 'settings.set', path: ['display', 'hintBarHideDuration'], value: parseInt(hintBarHideDurationEl.value, 10) }, { coalesce: 'settings:display.hintBarHideDuration' });
   hintBarHideDurationValEl.textContent = `${S.config.display.hintBarHideDuration}ms`;
   applyHintBarState();
-  saveConfigDebounced();
 });
 noSignalTitleInput.addEventListener('input', () => {
-  S.config.display.noSignalTitle = noSignalTitleInput.value.slice(0, 48);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'noSignalTitle'], value: noSignalTitleInput.value.slice(0, 48) }, { coalesce: 'settings:display.noSignalTitle' });
 });
 noSignalMessageInput.addEventListener('input', () => {
-  S.config.display.noSignalMessage = noSignalMessageInput.value.slice(0, 120);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['display', 'noSignalMessage'], value: noSignalMessageInput.value.slice(0, 120) }, { coalesce: 'settings:display.noSignalMessage' });
 });
 noSignalCopyReset.addEventListener('click', () => {
-  S.config.display.noSignalTitle = '';
-  S.config.display.noSignalMessage = '';
+  dispatch([
+    { type: 'settings.set', path: ['display', 'noSignalTitle'], value: '' },
+    { type: 'settings.set', path: ['display', 'noSignalMessage'], value: '' },
+  ], { label: 'Reset no-signal message' });
   noSignalTitleInput.value = '';
   noSignalMessageInput.value = '';
-  saveConfigDebounced();
 });
 document.getElementById('guide-genre-colors-enabled')?.addEventListener('change', (event) => {
   updateGuideGenreTheme((entry) => { entry.enabled = event.target.checked; });
@@ -2070,12 +2020,11 @@ document.getElementById('guide-genre-reset-btn')?.addEventListener('click', () =
   updateGuideGenreTheme((entry) => { entry.colors = {}; });
 });
 themeSelect.addEventListener('change', () => {
-  S.config.theme = themeSelect.value;
+  dispatch({ type: 'settings.set', path: ['theme'], value: themeSelect.value });
   applyTheme();
   renderThemeBrowser();
   renderGuideGenreSettings();
   renderThemeFontSettingsInline();
-  saveConfigDebounced();
 });
 if (themeBrowserToggle) {
   themeBrowserToggle.addEventListener('click', () => {
@@ -2117,58 +2066,47 @@ document.addEventListener('pointerdown', (event) => {
   closeThemeBrowser();
 });
 timeMachineEnabledEl.addEventListener('change', () => {
-  S.config.timeMachine.enabled = timeMachineEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['timeMachine', 'enabled'], value: timeMachineEnabledEl.checked });
   if (!S.config.timeMachine.enabled && S.timeMachineOn) exitTimeMachine({ toLive: true });
-  saveConfigDebounced();
 });
 upNextEnabledEl.addEventListener('change', () => {
-  S.config.upNext.enabled = upNextEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['upNext', 'enabled'], value: upNextEnabledEl.checked });
 });
 upNextDurationSlider?.addEventListener('input', () => {
-  S.config.upNext.duration = parseInt(upNextDurationSlider.value, 10) || 8000;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['upNext', 'duration'], value: parseInt(upNextDurationSlider.value, 10) || 8000 }, { coalesce: 'settings:upNext.duration' });
 });
 detailsEnabledEl.addEventListener('change', () => {
-  S.config.details.enabled = detailsEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['details', 'enabled'], value: detailsEnabledEl.checked });
 });
 stationIdEnabledEl.addEventListener('change', () => {
-  S.config.stationId.enabled = stationIdEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['stationId', 'enabled'], value: stationIdEnabledEl.checked });
 });
 stationIdIntervalEl.addEventListener('change', () => {
-  S.config.stationId.intervalMinutes = parsePositiveInt(stationIdIntervalEl.value, 15);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['stationId', 'intervalMinutes'], value: parsePositiveInt(stationIdIntervalEl.value, 15) });
 });
 staticEnabledEl.addEventListener('change', () => {
-  S.config.staticEffect.enabled = staticEnabledEl.checked;
+  dispatch({ type: 'settings.set', path: ['staticEffect', 'enabled'], value: staticEnabledEl.checked });
   refreshDependentControls();
-  saveConfigDebounced();
 });
 staticIntensitySlider.addEventListener('input', () => {
-  S.config.staticEffect.intensity = parseInt(staticIntensitySlider.value, 10);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['staticEffect', 'intensity'], value: parseInt(staticIntensitySlider.value, 10) }, { coalesce: 'settings:staticEffect.intensity' });
 });
 if (staticDurationSlider) {
   staticDurationSlider.addEventListener('input', () => {
     const ms = parseInt(staticDurationSlider.value, 10);
-    S.config.staticEffect.durationMs = ms;
+    dispatch({ type: 'settings.set', path: ['staticEffect', 'durationMs'], value: ms }, { coalesce: 'settings:staticEffect.durationMs' });
     if (staticDurationVal) staticDurationVal.textContent = ms === 0 ? '0ms (INSTANT)' : `${ms}ms`;
-    saveConfigDebounced();
   });
 }
 triviaEnabledEl.addEventListener('change', () => {
-  S.config.trivia.enabled = triviaEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['trivia', 'enabled'], value: triviaEnabledEl.checked });
 });
 triviaIntervalEl.addEventListener('change', () => {
-  S.config.trivia.intervalMinutes = parsePositiveInt(triviaIntervalEl.value, 20);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['trivia', 'intervalMinutes'], value: parsePositiveInt(triviaIntervalEl.value, 20) });
 });
 
-if (pinLockEnabledEl) pinLockEnabledEl.addEventListener('change', () => { if (!S.config.pinLock) S.config.pinLock = {}; S.config.pinLock.enabled = pinLockEnabledEl.checked; saveConfigDebounced(); });
-if (pinCodeInputEl) pinCodeInputEl.addEventListener('input', () => { if (!S.config.pinLock) S.config.pinLock = {}; S.config.pinLock.code = pinCodeInputEl.value.trim() || '1234'; saveConfigDebounced(); });
+if (pinLockEnabledEl) pinLockEnabledEl.addEventListener('change', () => { dispatch({ type: 'settings.set', path: ['pinLock', 'enabled'], value: pinLockEnabledEl.checked }); });
+if (pinCodeInputEl) pinCodeInputEl.addEventListener('input', () => { dispatch({ type: 'settings.set', path: ['pinLock', 'code'], value: pinCodeInputEl.value.trim() || '1234' }, { coalesce: 'settings:pinLock.code', label: 'Change PIN' }); });
 // The PIN is masked by default — it sits on a settings page that is itself
 // reachable without the lock, so a plain text input meant anyone glancing at
 // the screen could read the code the lock exists to keep. SHOW is for the

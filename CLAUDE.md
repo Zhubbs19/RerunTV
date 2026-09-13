@@ -65,7 +65,10 @@ rather than mutate-then-`saveConfigDebounced()`: a command applies in place, rec
 inverse, bumps the generation, saves, and gives undo a readable label ("Rename CH 7"). Pass
 `{ coalesce: key }` for typing/slider drags so a burst is one undo step. Unconverted call sites
 still work: the burst since the last settle point becomes a `config.patch` structural diff
-when its save fires. Undo history stores commands and inverses, not config snapshots, and undo
+when its save fires. Don't add new ones: `tests/config-writes.test.js` caps each file's untyped
+writes (`node scripts/audit-config-writes.js` reports them; lower a file's ceiling with
+`--update` after converting it). Box settings are `settings.set`, and per-file TITLES metadata is
+`file.set`. Undo history stores commands and inverses, not config snapshots, and undo
 rewinds `S.config` **in place** (object identity survives). Don't store live config objects
 inside a command payload that is kept in history — commands copy what they insert, and the
 aliasing bug this prevents was real.
