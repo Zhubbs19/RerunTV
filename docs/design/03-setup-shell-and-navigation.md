@@ -3,6 +3,15 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§4 status bar task progress)
+
+`setup-tasks.js`: `beginTask(label)` returns `{ update, end }` and shows a spinner and the
+latest task in the status bar ("(+n MORE)" when several run), so progress follows you to other
+sections. Library sync and the channel health check report through it. The channel page's own
+`#scan-progress` line (add folder, rescan all, batch fixes, relink) is mirrored while it shows.
+
+Verified live (scratch `test/verify-setup-tasks.mjs`, 7 checks).
+
 ### Built (§4 sidebar icons and badges)
 
 `setup-sidebar.js` and `setup.css`:

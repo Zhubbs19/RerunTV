@@ -1,6 +1,7 @@
 // Opt-in channel-folder synchronization. All sources use the same list/probe
 // contract: local folders happen to be one provider, not a special UI path.
 import { refreshSidebarBadges } from './setup-sidebar.js';
+import { beginTask } from './setup-tasks.js';
 import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { parseMediaRef } from './channels.js';
 import { probeDurationForEntry } from './setup-util.js';
@@ -67,6 +68,7 @@ function renderResults(rows) {
 export async function runLibrarySync({ reason = 'manual' } = {}) {
   if (syncRunning || window.__isViewer) return null;
   syncRunning = true;
+  const task = beginTask('SYNCING LIBRARY FOLDERS…');
   const status = document.getElementById('library-sync-status');
   if (status) status.textContent = 'CHECKING LINKED FOLDERS…';
   const prefs = settings();
@@ -77,6 +79,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
     for (const channel of S.config.channels || []) {
       for (const folder of channel.folders || []) {
         const tracked = (channel.files || []).filter((file) => file.folder === folder.id);
+        task.update(`SYNCING CH ${channel.number}: ${folder.label || folder.ref}…`);
         try {
           const scanned = await scanFolder(folder, tracked);
           const result = reconcileFolderFiles(channel.files || [], scanned, folder.id, !!prefs.removeMissing);
@@ -110,6 +113,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
     return { ...totals, rows };
   } finally {
     syncRunning = false;
+    task.end();
   }
 }
 

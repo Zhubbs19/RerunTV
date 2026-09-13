@@ -7,6 +7,7 @@
 // remains in setup-channels.js beyond a handful of shared dom.js element
 // references (the NOW/NEXT and library-search toggle buttons are mutually
 // exclusive — each file's own listener closes the other's panel).
+import { beginTask } from './setup-tasks.js';
 import { findFolderEntry, mediaRefId, parseMediaRef, sortedChannels } from './channels.js';
 import {
   boxStatusBackupEl, boxStatusChannelsEl, boxStatusCheckBtn, boxStatusFilesEl, boxStatusIssuesEl,
@@ -233,6 +234,15 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
 }
 
 export async function checkChannelHealth() {
+  const task = beginTask('CHECKING CHANNEL FILES…');
+  try {
+    return await runChannelHealthCheck();
+  } finally {
+    task.end();
+  }
+}
+
+async function runChannelHealthCheck() {
   healthCheckBtn.disabled = true;
   healthCheckResultsEl.classList.remove('hidden');
   healthCheckResultsEl.innerHTML = '<div class="health-check-summary">SCANNING…</div>';

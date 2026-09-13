@@ -5019,3 +5019,11 @@ html[data-theme] .btn[aria-disabled="true"] {
   #setup-screen .setup-shell { grid-template-columns: minmax(0, 1fr); }
   #setup-screen .setup-tab-btn { width: 44px; flex: 0 0 44px; }
 }
+
+/* Background task line in the status bar (setup-tasks.js). */
+#setup-screen .setup-task-status { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 42vw; font-family: var(--font-ui); font-size: 11px; font-weight: 700; letter-spacing: 0.6px; color: var(--cyan); }
+#setup-screen .setup-task-status[hidden] { display: none; }
+#setup-screen .setup-task-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#setup-screen .setup-task-spinner { flex: 0 0 12px; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: setup-task-spin 0.8s linear infinite; }
+@keyframes setup-task-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #setup-screen .setup-task-spinner { animation: none; border-right-color: currentColor; opacity: 0.6; } }
