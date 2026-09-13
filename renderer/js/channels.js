@@ -1,6 +1,6 @@
 import { changeChannel } from './playback-core.js';
 import { renderChannelList } from './setup.js';
-import { BADGE_COLORS, S, saveConfigDebounced } from './state.js';
+import { BADGE_COLORS, S, commitInPlace } from './state.js';
 import {
   hashString, randomId, randomInterstitialId, shuffleArray,
 } from './util.js';
@@ -673,7 +673,7 @@ export function buildChannelBadge(ch, opts) {
       const imgPath = await window.api.selectImage();
       if (!imgPath) return;
       ch.icon = imgPath;
-      saveConfigDebounced();
+      commitInPlace({ type: 'channel.setFields', channel: ch.number, fields: { icon: imgPath } });
       renderChannelList();
     });
   }
@@ -829,11 +829,17 @@ export function addFilesToChannel(ch, entries) {
 // blockAffinity/weight) — `fields` overrides any of those plus file/text.
 // Shared by setup-interstitials.js and setup-dragdrop.js, and exposed to
 // plugins via ctx.addInterstitialPoolEntry.
-export function addInterstitialPoolEntry(fields) {
-  const entry = {
+// A pool entry with defaults, not yet in config — for callers that add it
+// through a command (item.insert) so the add is undoable.
+export function newInterstitialPoolEntry(fields) {
+  return {
     id: randomInterstitialId(), type: 'commercial', channelAffinity: 'any', blockAffinity: null, weight: 1,
     file: null, text: null, ...fields,
   };
+}
+
+export function addInterstitialPoolEntry(fields) {
+  const entry = newInterstitialPoolEntry(fields);
   S.config.interstitials.pool.push(entry);
   return entry;
 }

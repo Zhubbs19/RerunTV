@@ -14,7 +14,7 @@ import {
   getPluginSettingsSections,
   reloadPlugin,
 } from './plugins.js';
-import { S, applyHostUpdate, saveConfigDebounced } from './state.js';
+import { S, applyHostUpdate, commitInPlace } from './state.js';
 import { renderPluginSettings } from './setup-plugin-settings.js';
 
 // Set right before a renderPluginsList() triggered by an approve/revoke, so
@@ -36,7 +36,7 @@ if (customCssChooseBtn) {
     S.config.display.customCssPath = path;
     renderCustomCssRow();
     applyCustomCss();
-    saveConfigDebounced();
+    commitInPlace({ type: 'settings.set', path: ['display','customCssPath'], value: path });
   });
 }
 
@@ -46,7 +46,7 @@ if (customCssRemoveBtn) {
     S.config.display.customCssPath = null;
     renderCustomCssRow();
     applyCustomCss();
-    saveConfigDebounced();
+    commitInPlace({ type: 'settings.set', path: ['display','customCssPath'], value: null }, { label: 'Remove custom stylesheet' });
   });
 }
 

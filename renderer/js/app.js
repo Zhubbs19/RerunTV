@@ -1,4 +1,4 @@
-import { S, viewNow, saveConfigDebounced, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS } from './state.js';
+import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace } from './state.js';
 import { runConfigMigrations } from './config-schema.js';
 import { randomInterstitialId, getDisplayTitle } from './util.js';
 import {
@@ -395,7 +395,8 @@ export function handleKey(e) {
         setProfiles: (profiles) => {
           if (ch.logoBugProfiles != null) ch.logoBugProfiles = profiles;
           else { S.config.display = S.config.display || {}; S.config.display.logoBugProfiles = profiles; }
-          saveConfigDebounced();
+          if (ch.logoBugProfiles != null) commitInPlace({ type: 'channel.setFields', channel: ch.number, fields: { logoBugProfiles: ch.logoBugProfiles } }, { coalesce: `ch:${ch.number}:logoBugProfiles` });
+          else commitInPlace({ type: 'settings.set', path: ['display', 'logoBugProfiles'], value: profiles }, { coalesce: 'display:logoBugProfiles' });
         },
         onLiveChange: () => applyLogoBugPlacement(ch),
         channelNumber: ch.number,
@@ -474,7 +475,7 @@ window.api.onRemoteSetChannelFlag((data) => {
   const ch = getChannel(data.number);
   if (!ch || (data.field !== 'favorite' && data.field !== 'quickAccess')) return;
   ch[data.field] = !!data.value;
-  saveConfigDebounced();
+  commitInPlace({ type: 'channel.set', channel: ch.number, field: data.field, value: ch[data.field] });
 });
 // Recursively merges `patch` into `target` in place, at any depth, but only
 // ever assigns a leaf onto a key that already exists on `target` — never
@@ -606,7 +607,7 @@ window.api.onCompanionApplySettings?.((patch) => {
     pushRemoteState();
     return;
   }
-  saveConfigDebounced();
+  commitConfigPatch('Companion settings');
   applyCompanionSettingsLive(changedSections); // ends with its own pushRemoteState()
 });
 
@@ -627,7 +628,7 @@ window.api.onCompanionSetTicker?.((data) => {
   if (!S.config.ticker) S.config.ticker = { enabled: false, text: '', speed: 30 };
   if (typeof data.text === 'string') S.config.ticker.text = data.text;
   if (typeof data.enabled === 'boolean') S.config.ticker.enabled = data.enabled;
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['ticker'], value: S.config.ticker });
   if (window.applyTickerState) window.applyTickerState();
 });
 

@@ -14,7 +14,8 @@ import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
-import { S, saveConfigDebounced } from './state.js';
+import { cloneJson } from './commands.js';
+import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 
 export function ensureFlowsConfig() {
   if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [], flows: [] };
@@ -131,11 +132,12 @@ export function renderFlowsList() {
           removeBtn.className = 'pill-remove';
           removeBtn.textContent = '✕';
           removeBtn.addEventListener('click', (e) => {
+            const prior = cloneJson(activeFlow);
             e.stopPropagation();
             activeFlow.channels = activeFlow.channels.filter((n) => n !== num);
             renderChannelPills();
             updateFlowStatusBanner(activeFlow);
-            saveConfigDebounced();
+            commitItemEdit('flows', [activeFlow, prior]);
           });
           pill.appendChild(removeBtn);
           pillsWrap.appendChild(pill);
@@ -144,6 +146,7 @@ export function renderFlowsList() {
     };
 
     chSelect.addEventListener('change', () => {
+      const prior = cloneJson(activeFlow);
       const val = chSelect.value;
       if (val === 'all') {
         activeFlow.channels = [];
@@ -157,7 +160,7 @@ export function renderFlowsList() {
       chSelect.value = 'all';
       renderChannelPills();
       updateFlowStatusBanner(activeFlow);
-      saveConfigDebounced();
+      commitItemEdit('flows', [activeFlow, prior]);
     });
 
     renderChannelPills();
@@ -183,10 +186,11 @@ export function renderFlowsList() {
       (dead) => `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — UNTIL SOME CONTENT IS, THIS TAG FILTER HAS NO EFFECT: THE FLOW WILL MATCH EVERY UNTAGGED FILE ON ITS TARGET CHANNEL(S), NOT JUST TAGGED ONES.`
     );
     tagsInput.addEventListener('change', () => {
+      const prior = cloneJson(activeFlow);
       activeFlow.contentTags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
       updateFlowStatusBanner(activeFlow);
       deadTagWarning.refresh();
-      saveConfigDebounced();
+      commitItemEdit('flows', [activeFlow, prior]);
     });
     tagsContainer.appendChild(attachTagAutocomplete(tagsInput));
     tagsContainer.appendChild(deadTagWarning.el);
@@ -237,9 +241,10 @@ function renderFlowCadencePanel(flow) {
   enabledCheckbox.type = 'checkbox';
   enabledCheckbox.checked = cadence.enabled === true;
   enabledCheckbox.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.enabled = enabledCheckbox.checked;
     renderFlowCadencePanel(flow);
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   enabledLabel.appendChild(enabledCheckbox);
   enabledLabel.appendChild(document.createTextNode(' ENABLE MID-SHOW AD CADENCE'));
@@ -270,9 +275,10 @@ function renderFlowCadencePanel(flow) {
   });
   timingSelect.value = cadence.timing || 'everyNMinutes';
   timingSelect.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.timing = timingSelect.value;
     renderFlowCadencePanel(flow);
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   grid.appendChild(labeledField('TIMING', timingSelect));
 
@@ -294,9 +300,10 @@ function renderFlowCadencePanel(flow) {
     (dead) => `⚠ NO FILE OR CHANNEL IS TAGGED "${dead.join('", "')}" YET — UNTIL SOME CONTENT IS, THIS TAG FILTER HAS NO EFFECT: THE CADENCE WILL APPLY TO EVERY UNTAGGED SEGMENT, NOT JUST TAGGED ONES.`
   );
   contentTagsInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.contentTags = contentTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     cadenceDeadTagWarning.refresh();
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   grid.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(contentTagsInput), { wide: true }));
   cadenceDeadTagWarning.el.style.gridColumn = '1 / -1';
@@ -309,17 +316,21 @@ function renderFlowCadencePanel(flow) {
     bpInput.placeholder = 'e.g. 20, 45, 70';
     bpInput.value = (cadence.breakpoints || []).join(', ');
     bpInput.addEventListener('change', () => {
+      const prior = cloneJson(flow);
       const pts = bpInput.value.split(',')
         .map((v) => parseFloat(v.trim()))
         .filter((v) => Number.isFinite(v) && v > 0 && v < 100);
       cadence.breakpoints = pts;
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior]);
       renderFlowCadencePanel(flow);
     });
     grid.appendChild(labeledField('BREAK POINTS (%)', bpInput));
     const track = buildBreakpointTrack(
       () => cadence.breakpoints,
-      (pts) => { cadence.breakpoints = pts; saveConfigDebounced(); },
+      (pts) => {
+        cadence.breakpoints = pts;
+        commitInPlace({ type: 'item.set', collection: 'flows', id: flow.id, fields: { cadence: flow.cadence } }, { coalesce: `flows:${flow.id}:cadence-breakpoints` });
+      },
       bpInput,
     );
     grid.appendChild(labeledField('DRAG TO SET', track, { wide: true }));
@@ -331,8 +342,9 @@ function renderFlowCadencePanel(flow) {
     intervalInput.value = cadence.intervalMinutes || '';
     intervalInput.placeholder = '10';
     intervalInput.addEventListener('change', () => {
+      const prior = cloneJson(flow);
       cadence.intervalMinutes = parsePositiveInt(intervalInput.value, 10);
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior]);
     });
     grid.appendChild(labeledField('EVERY (MIN)', intervalInput));
   }
@@ -345,13 +357,14 @@ function renderFlowCadencePanel(flow) {
   podMinInput.className = 'block-priority-input';
   podMinInput.value = cadence.podMin || 1;
   podMinInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.podMin = parsePositiveInt(podMinInput.value, 1);
     if ((cadence.podMax || 1) < cadence.podMin) {
       cadence.podMax = cadence.podMin;
       podMaxInput.value = cadence.podMax;
     }
     podMaxInput.min = cadence.podMin;
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   podRow.appendChild(podMinInput);
   const podSep = document.createElement('span');
@@ -364,9 +377,10 @@ function renderFlowCadencePanel(flow) {
   podMaxInput.className = 'block-priority-input';
   podMaxInput.value = cadence.podMax || 1;
   podMaxInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.podMax = Math.max(parsePositiveInt(podMaxInput.value, 1), cadence.podMin || 1);
     podMaxInput.value = cadence.podMax;
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   podRow.appendChild(podMaxInput);
   grid.appendChild(labeledField('SPOTS PER BREAK', podRow));
@@ -377,9 +391,10 @@ function renderFlowCadencePanel(flow) {
   bumpInInput.placeholder = 'e.g. network';
   bumpInInput.value = (cadence.bumpInTags || []).join(', ');
   bumpInInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.bumpInTags = bumpInInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     updateCadenceMatchBadge();
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   grid.appendChild(labeledField(`BUMP-IN TAGS (matches pool: ${interstitialTypeDef('adBreakIn').label})`, attachTagAutocomplete(bumpInInput)));
 
@@ -389,9 +404,10 @@ function renderFlowCadencePanel(flow) {
   commTagsInput.placeholder = 'e.g. 90s-ads, toys';
   commTagsInput.value = (cadence.commercialTags || []).join(', ');
   commTagsInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.commercialTags = commTagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     updateCadenceMatchBadge();
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   grid.appendChild(labeledField(`COMMERCIAL TAGS (matches pool: ${interstitialTypeDef('commercial').label})`, attachTagAutocomplete(commTagsInput)));
 
@@ -401,9 +417,10 @@ function renderFlowCadencePanel(flow) {
   bumpOutInput.placeholder = 'e.g. show';
   bumpOutInput.value = (cadence.bumpOutTags || []).join(', ');
   bumpOutInput.addEventListener('change', () => {
+    const prior = cloneJson(flow);
     cadence.bumpOutTags = bumpOutInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     updateCadenceMatchBadge();
-    saveConfigDebounced();
+    commitItemEdit('flows', [flow, prior]);
   });
   grid.appendChild(labeledField(`BUMP-OUT TAGS (matches pool: ${interstitialTypeDef('adBreakOut').label})`, attachTagAutocomplete(bumpOutInput)));
 
@@ -597,6 +614,7 @@ function renderFlowTimelineCanvas(flow) {
     });
 
     card.addEventListener('drop', (e) => {
+      const prior = cloneJson(flow);
       e.preventDefault();
       card.classList.remove('drag-over');
       const srcIdxStr = e.dataTransfer.getData('text/plain');
@@ -605,7 +623,7 @@ function renderFlowTimelineCanvas(flow) {
         const [movedStep] = flow.steps.splice(srcIdx, 1);
         flow.steps.splice(idx, 0, movedStep);
         renderFlowTimelineCanvas(flow);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       }
     });
 
@@ -631,9 +649,10 @@ function renderFlowTimelineCanvas(flow) {
     moveLeftBtn.setAttribute('aria-label', 'Move step earlier');
     moveLeftBtn.disabled = idx === 0;
     moveLeftBtn.addEventListener('click', () => {
+      const prior = cloneJson(flow);
       [flow.steps[idx - 1], flow.steps[idx]] = [flow.steps[idx], flow.steps[idx - 1]];
       renderFlowTimelineCanvas(flow);
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior]);
     });
     controls.appendChild(moveLeftBtn);
 
@@ -644,9 +663,10 @@ function renderFlowTimelineCanvas(flow) {
     moveRightBtn.setAttribute('aria-label', 'Move step later');
     moveRightBtn.disabled = idx === flow.steps.length - 1;
     moveRightBtn.addEventListener('click', () => {
+      const prior = cloneJson(flow);
       [flow.steps[idx], flow.steps[idx + 1]] = [flow.steps[idx + 1], flow.steps[idx]];
       renderFlowTimelineCanvas(flow);
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior]);
     });
     controls.appendChild(moveRightBtn);
 
@@ -656,10 +676,11 @@ function renderFlowTimelineCanvas(flow) {
     delBtn.title = 'Remove step';
     delBtn.setAttribute('aria-label', 'Remove step');
     delBtn.addEventListener('click', () => {
+      const prior = cloneJson(flow);
       flow.steps.splice(idx, 1);
       updateFlowStatusBanner(flow);
       renderFlowTimelineCanvas(flow);
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior]);
     });
     controls.appendChild(delBtn);
 
@@ -681,8 +702,9 @@ function renderFlowTimelineCanvas(flow) {
     nameInput.placeholder = 'Step Name';
     nameInput.value = step.name || '';
     nameInput.addEventListener('input', () => {
+      const prior = cloneJson(flow);
       step.name = nameInput.value;
-      saveConfigDebounced();
+      commitItemEdit('flows', [flow, prior], { coalesce: `flows:${flow.id}:step-name:${step.id}` });
     });
     body.appendChild(labeledField('STEP LABEL', nameInput));
 
@@ -693,9 +715,10 @@ function renderFlowTimelineCanvas(flow) {
       tagInput.placeholder = 'e.g. cartoon';
       tagInput.value = (step.tags || []).join(', ');
       tagInput.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.tags = tagInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         renderFlowStepPreviews(previews, flow, step);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField('SHOW TARGET TAGS', attachTagAutocomplete(tagInput)));
     } else if (step.type === 'adPod') {
@@ -705,10 +728,11 @@ function renderFlowTimelineCanvas(flow) {
       bumpInInput.placeholder = 'e.g. network';
       bumpInInput.value = (step.bumpInTags || []).join(', ');
       bumpInInput.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.bumpInTags = bumpInInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
         renderFlowStepPreviews(previews, flow, step);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField(`BUMP-IN IDENT TAGS (matches pool: ${interstitialTypeDef('adBreakIn').label})`, attachTagAutocomplete(bumpInInput)));
 
@@ -720,12 +744,13 @@ function renderFlowTimelineCanvas(flow) {
       minIn.className = 'block-priority-input';
       minIn.value = step.podMin || 3;
       minIn.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.podMin = parsePositiveInt(minIn.value, 1);
         if ((step.podMax || 1) < step.podMin) {
           step.podMax = step.podMin;
           maxIn.value = step.podMax;
         }
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       podRow.appendChild(minIn);
       const sep = document.createElement('span');
@@ -738,8 +763,9 @@ function renderFlowTimelineCanvas(flow) {
       maxIn.className = 'block-priority-input';
       maxIn.value = step.podMax || 4;
       maxIn.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.podMax = Math.max(parsePositiveInt(maxIn.value, 1), step.podMin || 1);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       podRow.appendChild(maxIn);
       const suf = document.createElement('span');
@@ -754,10 +780,11 @@ function renderFlowTimelineCanvas(flow) {
       commTagsIn.placeholder = 'e.g. 90s-ads, toys';
       commTagsIn.value = (step.commercialTags || []).join(', ');
       commTagsIn.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.commercialTags = commTagsIn.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
         renderFlowStepPreviews(previews, flow, step);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField(`COMMERCIAL SPOTS TAGS (matches pool: ${interstitialTypeDef('commercial').label})`, attachTagAutocomplete(commTagsIn)));
 
@@ -767,10 +794,11 @@ function renderFlowTimelineCanvas(flow) {
       bumpOutInput.placeholder = 'e.g. cartoon';
       bumpOutInput.value = (step.bumpOutTags || []).join(', ');
       bumpOutInput.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.bumpOutTags = bumpOutInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
         renderFlowStepPreviews(previews, flow, step);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField(`BUMP-OUT IDENT TAGS (matches pool: ${interstitialTypeDef('adBreakOut').label})`, attachTagAutocomplete(bumpOutInput)));
 
@@ -801,9 +829,10 @@ function renderFlowTimelineCanvas(flow) {
       });
       typeSel.value = step.type || 'upNext';
       typeSel.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.type = typeSel.value;
         renderFlowTimelineCanvas(flow);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField('BUMPER TYPE', typeSel));
 
@@ -813,10 +842,11 @@ function renderFlowTimelineCanvas(flow) {
       tagInput.placeholder = 'e.g. cartoon, network-intro';
       tagInput.value = (step.tags || []).join(', ');
       tagInput.addEventListener('change', () => {
+        const prior = cloneJson(flow);
         step.tags = tagInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         updateMatchBadge();
         renderFlowStepPreviews(previews, flow, step);
-        saveConfigDebounced();
+        commitItemEdit('flows', [flow, prior]);
       });
       body.appendChild(labeledField('BUMPER TAGS (matches the pool type selected above)', attachTagAutocomplete(tagInput)));
 
@@ -1042,10 +1072,9 @@ export function initFlowBuilder() {
           { id: `s-${Date.now()}-5`, type: 'stationId', name: 'Station ID / Outro', tags: ['station-id'] }
         ]
       };
-      S.config.interstitials.flows.push(newFlow);
+      dispatch({ type: 'item.insert', collection: 'flows', item: newFlow });
       activeFlowId = newFlow.id;
       renderFlowsList();
-      saveConfigDebounced();
     });
   }
 
@@ -1058,12 +1087,11 @@ export function initFlowBuilder() {
         return;
       }
       const activeFlow = flows.find((f) => f.id === activeFlowId);
-      if (!(await confirmDialog(`Delete flow "${activeFlow ? activeFlow.name : 'untitled'}"?`))) return;
-      const idx = flows.findIndex((f) => f.id === activeFlowId);
-      if (idx !== -1) flows.splice(idx, 1);
+      if (!activeFlow) return;
+      if (!(await confirmDialog(`Delete flow "${activeFlow.name || 'untitled'}"? You can undo this.`))) return;
+      dispatch({ type: 'item.remove', collection: 'flows', id: activeFlow.id });
       activeFlowId = flows[0] ? flows[0].id : null;
       renderFlowsList();
-      saveConfigDebounced();
     });
   }
 
@@ -1072,10 +1100,10 @@ export function initFlowBuilder() {
       ensureFlowsConfig();
       const activeFlow = S.config.interstitials.flows.find((f) => f.id === activeFlowId);
       if (activeFlow) {
-        activeFlow.name = nameInput.value;
+        dispatch({ type: 'item.set', collection: 'flows', id: activeFlow.id, fields: { name: nameInput.value } },
+          { coalesce: `flows:${activeFlow.id}:name` });
         const opt = selectEl ? selectEl.querySelector(`option[value="${activeFlow.id}"]`) : null;
         if (opt) opt.textContent = activeFlow.name || '(untitled flow)';
-        saveConfigDebounced();
       }
     });
   }
@@ -1085,9 +1113,8 @@ export function initFlowBuilder() {
       ensureFlowsConfig();
       const activeFlow = S.config.interstitials.flows.find((f) => f.id === activeFlowId);
       if (activeFlow) {
-        activeFlow.enabled = enabledCheckbox.checked;
+        dispatch({ type: 'item.set', collection: 'flows', id: activeFlow.id, fields: { enabled: enabledCheckbox.checked } });
         updateFlowStatusBanner(activeFlow);
-        saveConfigDebounced();
       }
     });
   }
@@ -1096,6 +1123,7 @@ export function initFlowBuilder() {
     ensureFlowsConfig();
     const activeFlow = S.config.interstitials.flows.find((f) => f.id === activeFlowId);
     if (!activeFlow) return;
+    const prior = cloneJson(activeFlow);
     if (!activeFlow.steps) activeFlow.steps = [];
     const step = {
       id: `step-${Date.now()}`,
@@ -1111,9 +1139,9 @@ export function initFlowBuilder() {
       step.bumpOutTags = [activeFlow.contentTags[0] || 'show'];
     }
     activeFlow.steps.push(step);
+    commitItemEdit('flows', [activeFlow, prior], { label: `Add ${defaultName}` });
     updateFlowStatusBanner(activeFlow);
     renderFlowTimelineCanvas(activeFlow);
-    saveConfigDebounced();
   };
 
   addBumperBtn && addBumperBtn.addEventListener('click', () => addStep('upNext', 'Coming Up Next Bumper', ['intro']));

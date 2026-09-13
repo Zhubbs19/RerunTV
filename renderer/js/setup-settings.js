@@ -6,7 +6,7 @@ import { applyDisplayMode } from './display-mode.js';
 import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from './playback-broadcast-fx.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
-import { S, dispatch, saveConfigDebounced, saveConfigNow, pushUndoSnapshot } from './state.js';
+import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
@@ -220,7 +220,10 @@ function renderLogoBugEditor() {
   logoBugEditorEl.innerHTML = '';
   logoBugEditorEl.appendChild(buildLogoBugProfileEditor(
     () => S.config.display.logoBugProfiles,
-    (profiles) => { S.config.display.logoBugProfiles = profiles; saveConfigDebounced(); },
+    (profiles) => {
+      S.config.display.logoBugProfiles = profiles;
+      commitInPlace({ type: 'settings.set', path: ['display', 'logoBugProfiles'], value: profiles }, { coalesce: 'display:logoBugProfiles' });
+    },
     () => applyLogoBugPlacement(),
   ));
 }
@@ -231,7 +234,10 @@ function renderDynamicOverlaysEditor() {
   dynamicOverlaysEditorEl.innerHTML = '';
   dynamicOverlaysEditorEl.appendChild(buildDynamicOverlaysEditor(
     () => S.config.display.dynamicOverlays,
-    (rules) => { S.config.display.dynamicOverlays = rules; saveConfigDebounced(); },
+    (rules) => {
+      S.config.display.dynamicOverlays = rules;
+      commitInPlace({ type: 'settings.set', path: ['display', 'dynamicOverlays'], value: rules }, { coalesce: 'display:dynamicOverlays' });
+    },
   ));
 }
 

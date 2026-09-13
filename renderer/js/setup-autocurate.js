@@ -9,7 +9,7 @@
 // preview step entirely and auto-applies.
 import { freshCurationProfile, freshDayPartSlot, sortedChannels } from './channels.js';
 import { applyCurationProposal, curateChannel } from './curation.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitConfigPatch } from './state.js';
 import { deepClone } from './util.js';
 import { attachTagAutocomplete } from './setup-util.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
@@ -336,7 +336,7 @@ function buildProfileEditor(profile) {
   saveBtn.addEventListener('click', () => {
     if (!profile.name || !profile.name.trim()) { alertDialog('Give this profile a name first.'); return; }
     ensureSaved(profile);
-    saveConfigDebounced();
+    commitConfigPatch('Save curation profile');
     renderAutoCurateList();
   });
 
@@ -513,7 +513,7 @@ function buildPreviewCard(profile) {
     applyCurationProposal(previewProposal);
     previewProposal = null;
     editingProfile = null;
-    saveConfigDebounced();
+    commitConfigPatch('Apply curation');
     renderChannelList();
     renderInterstitialsList();
     renderAutoCurateList();
@@ -581,14 +581,14 @@ function buildProfileRow(profile) {
   removeBtn.className = 'btn remove-btn';
   removeBtn.textContent = 'DELETE';
   removeBtn.addEventListener('click', async () => {
-    if (!(await confirmDialog(`Delete the "${profile.name || 'untitled'}" curation profile? This can't be undone.`))) return;
+    if (!(await confirmDialog(`Delete the "${profile.name || 'untitled'}" curation profile? You can undo this.`))) return;
     const idx = S.config.curationProfiles.indexOf(profile);
     if (idx !== -1) S.config.curationProfiles.splice(idx, 1);
     // editingProfile is a clone (see EDIT button above), so compare against
     // editingProfileOriginal — the live entry it was cloned from — not
     // editingProfile itself, which is never === the array's own object.
     if (editingProfileOriginal === profile) { editingProfile = null; editingProfileOriginal = null; previewProposal = null; }
-    saveConfigDebounced();
+    commitConfigPatch('Delete curation profile');
     renderAutoCurateList();
   });
 

@@ -6,7 +6,7 @@ import {
   getPluginChannelDisplaySettings, getPluginSettings, getRedactedPluginSettings,
   updatePluginChannelDisplaySettings, updatePluginSettings,
 } from './plugins.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitInPlace, saveConfigDebounced } from './state.js';
 
 function appendSelectOptions(select, options) {
   options.forEach(({ value, label }) => {
@@ -95,13 +95,13 @@ export function renderThemeFontSettings(container, themeId) {
       if (Object.keys(next).length) S.config.display.themeFontOverrides[themeId] = next;
       else delete S.config.display.themeFontOverrides[themeId];
       applyTheme();
-      saveConfigDebounced();
+      commitInPlace({ type: 'settings.set', path: ['display','themeFontOverrides'], value: S.config.display.themeFontOverrides });
     });
   });
   container.querySelector('[data-el="reset-fonts"]').addEventListener('click', () => {
     delete S.config.display.themeFontOverrides[themeId];
     applyTheme();
-    saveConfigDebounced();
+    commitInPlace({ type: 'settings.set', path: ['display','themeFontOverrides'], value: S.config.display.themeFontOverrides }, { label: 'Reset theme fonts' });
     renderThemeFontSettings(container, themeId);
   });
 }

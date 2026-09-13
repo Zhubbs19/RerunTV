@@ -71,7 +71,7 @@ import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChan
 import { getChannelSchedule } from './schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from './interstitials.js';
 import { alertDialog } from './setup-dialogs.js';
-import { MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
+import { MONTHS, S, WEEKDAYS, commitInPlace, saveConfigDebounced, viewNow } from './state.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from './util.js';
 import { player } from './dom.js';
 import {
@@ -189,7 +189,7 @@ export function updatePluginSettings(id, patch) {
   Object.defineProperty(S.config.pluginSettings, id, {
     value: next, enumerable: true, configurable: true, writable: true,
   });
-  saveConfigDebounced();
+  commitInPlace({ type: 'plugin.setSettings', id, settings: next });
   return S.config.pluginSettings[id];
 }
 
@@ -261,7 +261,10 @@ export function registerPluginSettings(id, definition) {
       S.config.pluginSettings[id] = applied.settings;
       S.config.pluginSettingsMeta = metaRoot;
       metaRoot[id] = { schemaVersion: applied.version };
-      saveConfigDebounced(0, { skipUndo: true });
+      commitInPlace([
+        { type: 'plugin.setSettings', id, settings: applied.settings },
+        { type: 'settings.set', path: ['pluginSettingsMeta'], value: metaRoot },
+      ], { skipUndo: true, delay: 0 });
     }
   }
   const existing = settingsSectionRegistry.get(id) || [];

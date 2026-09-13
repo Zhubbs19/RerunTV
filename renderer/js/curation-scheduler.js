@@ -7,7 +7,7 @@
 // other config mutation, and still add-only (curateChannel/
 // applyCurationProposal, curation.js) so it can never remove anything a
 // scheduled run didn't itself just add.
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitConfigPatch } from './state.js';
 import { applyCurationProposal, curateChannel } from './curation.js';
 import { renderChannelList } from './setup-channels.js';
 import { renderInterstitialsList } from './setup-interstitials.js';
@@ -71,7 +71,7 @@ export function runScheduledCuration() {
     appliedNames.push(profile.name || `channel ${proposal.channelNumber}`);
   });
   if (!appliedNames.length) return;
-  saveConfigDebounced();
+  commitConfigPatch(`Scheduled curation: ${appliedNames.join(', ')}`);
   if (setupVisible()) {
     renderChannelList();
     renderInterstitialsList();

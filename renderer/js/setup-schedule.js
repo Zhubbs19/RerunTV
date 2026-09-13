@@ -22,7 +22,8 @@ import { parsePositiveInt, probeDuration, toggleLazyPanel } from './setup-util.j
 import {
   computeSourcePosition, matchesTrigger, matchingBlocks, mdKey, resolveActiveCommercials, resolveActiveSource,
 } from './schedule.js';
-import { MONTHS, BADGE_COLORS, S, WEEKDAYS, saveConfigDebounced } from './state.js';
+import { cloneJson } from './commands.js';
+import { MONTHS, BADGE_COLORS, S, WEEKDAYS, commitInPlace, commitItemEdit, dispatch } from './state.js';
 import { confirmDialog } from './setup-dialogs.js';
 import { buildOnAirPanel } from './setup-onair.js';
 import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from './util.js';
@@ -31,6 +32,28 @@ import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from '.
 // one, otherwise a description of its trigger. Used by the calendar detail
 // panel, the schedule list's own rows (implicitly, via block.name), and the
 // interstitials pool's blockAffinity picker (setup-interstitials.js).
+// Block edits are item commands on the owning channel's blocks (commands.js),
+// found in S.config by identity since the editors here only hold the block.
+// commitBlockEdit takes a copy made before an in-place edit; commitBlockFields
+// records named fields as they now stand. Either way the live block, and
+// anything nested in it an editor holds, stays the same object. A block that
+// isn't in a channel is saved as a plain edit (commitInPlace's fallback).
+function blockChannelNumber(block) {
+  const ch = (S.config.channels || []).find((c) => (c.blocks || []).includes(block));
+  return ch ? ch.number : null;
+}
+
+function commitBlockEdit(block, prior, opts = {}) {
+  return commitItemEdit('blocks', [block, prior], { ...opts, channel: blockChannelNumber(block) });
+}
+
+function commitBlockFields(block, fields, opts = {}) {
+  return commitInPlace({
+    type: 'item.set', collection: 'blocks', channel: blockChannelNumber(block), id: block.id,
+    fields: Object.fromEntries(fields.map((field) => [field, block[field]])),
+  }, opts);
+}
+
 export function blockPickerLabel(block) {
   if (block.name && block.name.trim()) return block.name.trim();
   const t = block.trigger;
@@ -111,9 +134,10 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   });
   fileSel.value = ov.file || '';
   fileSel.addEventListener('change', () => {
+    const prior = cloneJson(block);
     ov.file = fileSel.value || null;
     if (onChange) onChange();
-    saveConfigDebounced();
+    commitBlockEdit(block, prior);
   });
   row.appendChild(fileSel);
 
@@ -123,8 +147,9 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   titleInput.placeholder = 'TITLE OVERRIDE';
   titleInput.value = ov.title || '';
   titleInput.addEventListener('input', () => {
+    const prior = cloneJson(block);
     ov.title = titleInput.value;
-    saveConfigDebounced();
+    commitBlockEdit(block, prior, { coalesce: `blocks:${block.id}:override-title` });
   });
   row.appendChild(titleInput);
 
@@ -134,10 +159,11 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   unlockInput.className = 'block-text-input block-unlock-input';
   unlockInput.value = ov.unlockTime || '';
   unlockInput.addEventListener('change', () => {
+    const prior = cloneJson(block);
     const v = unlockInput.value.trim();
     ov.unlockTime = /^\d{1,2}:\d{2}$/.test(v) ? v : '';
     unlockInput.value = ov.unlockTime;
-    saveConfigDebounced();
+    commitBlockEdit(block, prior);
   });
   row.appendChild(unlockInput);
 
@@ -147,9 +173,10 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   skipCheckbox.type = 'checkbox';
   skipCheckbox.checked = !!ov.skip;
   skipCheckbox.addEventListener('change', () => {
+    const prior = cloneJson(block);
     ov.skip = skipCheckbox.checked;
     if (onChange) onChange();
-    saveConfigDebounced();
+    commitBlockEdit(block, prior);
   });
   skipLabel.appendChild(skipCheckbox);
   skipLabel.appendChild(document.createTextNode('SKIP'));
@@ -161,8 +188,9 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   noteInput.placeholder = 'NOTE (SETUP ONLY)';
   noteInput.value = ov.note || '';
   noteInput.addEventListener('input', () => {
+    const prior = cloneJson(block);
     ov.note = noteInput.value;
-    saveConfigDebounced();
+    commitBlockEdit(block, prior, { coalesce: `blocks:${block.id}:override-note` });
   });
   row.appendChild(noteInput);
 
@@ -170,8 +198,9 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   removeBtn.className = 'btn remove-btn';
   removeBtn.textContent = 'REMOVE';
   removeBtn.addEventListener('click', () => {
+    const prior = cloneJson(block);
     onRemove();
-    saveConfigDebounced();
+    commitBlockEdit(block, prior);
   });
   row.appendChild(removeBtn);
 
@@ -318,6 +347,7 @@ export function buildCalendarPanel(channels, panelEl, opts) {
       addBtn.textContent = '+ OVERRIDE THIS DAY';
       addBtn.addEventListener('click', () => {
         block.dayOverrides[key] = { file: null, title: '', unlockTime: '', skip: false, note: '' };
+        commitBlockFields(block, ['dayOverrides'], { label: 'Override a day' });
         renderOverrideEditor(ch, block, dayMs, container);
         renderDetail(dayMs);
       });
@@ -420,8 +450,7 @@ export function buildCalendarPanel(channels, panelEl, opts) {
           block.trigger.startDay = d.getDate();
           block.trigger.endMonth = d.getMonth() + 1;
           block.trigger.endDay = d.getDate();
-          if (!ch.blocks) ch.blocks = [];
-          ch.blocks.push(block);
+          dispatch({ type: 'item.insert', collection: 'blocks', channel: ch.number, item: block }, { label: `Add block to CH ${ch.number}` });
           if (opts.onEditBlock) opts.onEditBlock(block);
           else render();
         });
@@ -824,7 +853,11 @@ export function buildSchedulePanel(ch, panelEl) {
       });
       row.prepend(monthDaySelect(m, d, (nm, nd) => {
         const newKey = `${String(nm).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
-        if (newKey !== key) { delete block.dayOverrides[key]; block.dayOverrides[newKey] = ov; }
+        if (newKey !== key) {
+          delete block.dayOverrides[key];
+          block.dayOverrides[newKey] = ov;
+          commitBlockFields(block, ['dayOverrides'], { label: 'Move day override' });
+        }
         renderDayOverrides(block, container);
       }));
 
@@ -874,13 +907,14 @@ export function buildSchedulePanel(ch, panelEl) {
         typeBtn.setAttribute('aria-pressed', String(typeActive));
         typeBtn.textContent = label;
         typeBtn.addEventListener('click', () => {
+          const prior = cloneJson(block);
           if (block.trigger.type === type) return;
           const fresh = freshBlock(type);
           block.trigger = fresh.trigger;
           block.priority = fresh.priority;
           block.mode = 'loop';
           renderBlocks();
-          saveConfigDebounced();
+          commitBlockEdit(block, prior);
         });
         typeRow.appendChild(typeBtn);
       });
@@ -892,8 +926,9 @@ export function buildSchedulePanel(ch, panelEl) {
       nameInput.className = 'block-text-input block-card-name';
       nameInput.value = block.name || '';
       nameInput.addEventListener('input', () => {
+        const prior = cloneJson(block);
         block.name = nameInput.value;
-        saveConfigDebounced();
+        commitBlockEdit(block, prior, { coalesce: `blocks:${block.id}:name` });
       });
       headerRow.appendChild(nameInput);
 
@@ -902,10 +937,9 @@ export function buildSchedulePanel(ch, panelEl) {
       removeBtn.textContent = 'REMOVE';
       removeBtn.addEventListener('click', async () => {
         const label = block.name ? `"${block.name}"` : 'this block';
-        if (!(await confirmDialog(`Remove ${label}? Its trigger, day overrides, theme, and ad overrides can't be recovered.`))) return;
-        ch.blocks.splice(idx, 1);
+        if (!(await confirmDialog(`Remove ${label}, with its trigger, day overrides, theme, and ad overrides? You can undo this.`))) return;
+        dispatch({ type: 'item.remove', collection: 'blocks', channel: ch.number, id: block.id });
         renderBlocks();
-        saveConfigDebounced();
       });
       headerRow.appendChild(removeBtn);
 
@@ -948,6 +982,7 @@ export function buildSchedulePanel(ch, panelEl) {
         narrowCheckbox.type = 'checkbox';
         narrowCheckbox.checked = narrowed;
         narrowCheckbox.addEventListener('change', () => {
+          const prior = cloneJson(block);
           if (narrowCheckbox.checked) {
             block.trigger.startHour = 18;
             block.trigger.endHour = 22;
@@ -958,7 +993,7 @@ export function buildSchedulePanel(ch, panelEl) {
             delete block.trigger.days;
           }
           renderBlocks();
-          saveConfigDebounced();
+          commitBlockEdit(block, prior);
         });
         narrowLabel.appendChild(narrowCheckbox);
         narrowLabel.appendChild(document.createTextNode('ALSO LIMIT TO SPECIFIC HOURS/DAYS'));
@@ -967,16 +1002,16 @@ export function buildSchedulePanel(ch, panelEl) {
         if (narrowed) {
           narrowFieldsRow = document.createElement('div');
           narrowFieldsRow.className = 'block-card-row';
-          narrowFieldsRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; saveConfigDebounced(); }));
+          narrowFieldsRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }));
           narrowFieldsRow.appendChild(dash());
-          narrowFieldsRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; saveConfigDebounced(); }));
-          narrowFieldsRow.appendChild(buildDaysRow(block.trigger, () => saveConfigDebounced()));
+          narrowFieldsRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }));
+          narrowFieldsRow.appendChild(buildDaysRow(block.trigger, () => commitBlockFields(block, ['trigger'])));
         }
       } else {
-        scheduleRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; saveConfigDebounced(); }));
+        scheduleRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }));
         scheduleRow.appendChild(dash());
-        scheduleRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; saveConfigDebounced(); }));
-        scheduleRow.appendChild(buildDaysRow(block.trigger, () => saveConfigDebounced()));
+        scheduleRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }));
+        scheduleRow.appendChild(buildDaysRow(block.trigger, () => commitBlockFields(block, ['trigger'])));
       }
 
       const priorityLabel = document.createElement('label');
@@ -987,8 +1022,9 @@ export function buildSchedulePanel(ch, panelEl) {
       priorityInput.className = 'block-priority-input';
       priorityInput.value = block.priority || 0;
       priorityInput.addEventListener('change', () => {
+        const prior = cloneJson(block);
         block.priority = parseInt(priorityInput.value, 10) || 0;
-        saveConfigDebounced();
+        commitBlockEdit(block, prior);
       });
       priorityLabel.appendChild(priorityInput);
       scheduleRow.appendChild(priorityLabel);
@@ -1022,9 +1058,10 @@ export function buildSchedulePanel(ch, panelEl) {
         });
         modeSelect.value = modeOptions.some(([v]) => v === block.mode) ? block.mode : 'loop';
         modeSelect.addEventListener('change', () => {
+          const prior = cloneJson(block);
           block.mode = modeSelect.value;
           renderBlocks();
-          saveConfigDebounced();
+          commitBlockEdit(block, prior);
         });
         modeRow.appendChild(modeSelect);
 
@@ -1042,8 +1079,9 @@ export function buildSchedulePanel(ch, panelEl) {
           finaleCheckbox.type = 'checkbox';
           finaleCheckbox.checked = !!block.finale;
           finaleCheckbox.addEventListener('change', () => {
+            const prior = cloneJson(block);
             block.finale = finaleCheckbox.checked ? { unlockAll: true, mode: 'marathon' } : null;
-            saveConfigDebounced();
+            commitBlockEdit(block, prior);
           });
           finaleLabel.appendChild(finaleCheckbox);
           finaleLabel.appendChild(document.createTextNode('UNLOCK ALL + MARATHON ON FINAL DAY'));
@@ -1079,6 +1117,7 @@ export function buildSchedulePanel(ch, panelEl) {
       folderBtn.className = 'btn';
       folderBtn.textContent = block.folder ? 'CHANGE FOLDER' : 'CHOOSE FOLDER';
       folderBtn.addEventListener('click', async () => {
+        const prior = cloneJson(block);
         const folder = await window.api.selectFolder();
         if (!folder) return;
         block.folder = folder;
@@ -1099,7 +1138,7 @@ export function buildSchedulePanel(ch, panelEl) {
         block.anchor = Date.now();
         scanProgressEl.classList.add('hidden');
         renderBlocks();
-        saveConfigDebounced();
+        commitBlockEdit(block, prior);
       });
       contentRow.appendChild(folderBtn);
 
@@ -1118,7 +1157,7 @@ export function buildSchedulePanel(ch, panelEl) {
         toggleLazyPanel(commercialsPanel, () => {
           buildCommercialsPanel(block, commercialsPanel, {
             allowInherit: true,
-            onChange: () => { commercialsBtn.textContent = block.commercials ? 'ADS ✓' : 'ADS'; saveConfigDebounced(); },
+            onChange: () => { commercialsBtn.textContent = block.commercials ? 'ADS ✓' : 'ADS'; commitBlockFields(block, ['commercials']); },
           });
         });
       });
@@ -1227,8 +1266,7 @@ export function buildSchedulePanel(ch, panelEl) {
     item.className = 'btn block-add-menu-item';
     item.textContent = preset.label;
     item.addEventListener('click', () => {
-      if (!ch.blocks) ch.blocks = [];
-      ch.blocks.push(preset.build());
+      dispatch({ type: 'item.insert', collection: 'blocks', channel: ch.number, item: preset.build() }, { label: `Add ${preset.label.toLowerCase()} block` });
       addMenu.classList.add('hidden');
       renderBlocks();
     });

@@ -32,7 +32,7 @@ import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
   resolveActiveSource,
 } from './schedule.js';
-import { S, saveConfigDebounced, viewNow } from './state.js';
+import { S, viewNow, commitInPlace } from './state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import { isEnabledByDefault } from './util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
@@ -850,7 +850,7 @@ export async function tuneToChannel(number, opts) {
   if (isVirtualChannel(number)) {
     markStaticReady(); // virtual channels have their own playback path, not gated by playChannelLive's frame watchdog
     S.config.lastChannel = number;
-    saveConfigDebounced(600, { skipUndo: true });
+    commitInPlace({ type: 'settings.set', path: ['lastChannel'], value: number }, { skipUndo: true });
     updateLogoBug(null);
     window.applyTickerState?.();
     // The virtual channels have no schedule to shuttle through.
@@ -876,7 +876,7 @@ export async function tuneToChannel(number, opts) {
   }
 
   S.config.lastChannel = number;
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['lastChannel'], value: number }, { skipUndo: true });
 
   updateLogoBug(ch);
   // ch.tickerContent (per-channel override, null = inherit) — re-evaluate on

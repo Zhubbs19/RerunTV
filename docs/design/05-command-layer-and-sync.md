@@ -200,34 +200,60 @@ Not in this step:
 - **`POST /api/commands` with a `control` scope.** That write path belongs with the web control
   panel (doc 06 phase 1), which is its only consumer.
 
-**Step 5 is under way, one file at a time.**
+**Step 5 is built: the renderer has no untyped config writes left.** `saveConfigDebounced()`
+callers in `renderer/js` went from 297 to 0, and `tests/config-writes.test.js` keeps it at 0.
+`node scripts/audit-config-writes.js` reports what's left.
 
-Burn-down tracking:
-- `node scripts/audit-config-writes.js` counts the untyped `saveConfigDebounced()` writes left in
-  each `renderer/js` file.
-- `tests/config-writes.test.js` fails if any file goes above its ceiling in
-  `tests/config-writes-ceiling.json`. After converting a file, lower its ceiling with `--update`.
-- The count started at 297 and is now 219.
+How edits are recorded now:
+- **`dispatch(command)`** for edits a command can make itself: a setting, a channel field, an
+  added or removed item.
+- **`commitInPlace(command)`** for editors that already changed the live objects and keep
+  references to them: a rule row, a flow's cadence, a block's trigger, a days row.
+  - The command states the value as it now stands and is applied only to the undo baseline.
+    That gives its inverse, and S.config keeps the same objects, so an editor never ends up
+    holding a detached copy.
+  - A command that changes nothing in the baseline is dropped.
+  - `commitItemEdit(collection, [item, before])` is the list-item form. It works out which
+    top-level fields changed from a copy taken before the edit.
+- **`commitConfigPatch(label)`** for transforms that rewrite many parts of config at once. It
+  records one labelled `config.patch`. There are 11 call sites: applying or saving a curation
+  profile, the scheduled curation run, renaming or removing a tag everywhere, a library resync,
+  a channel package import, a folder relink, Companion settings and a dropped batch of pool
+  files.
+- **Watching state** from the TV screen (last channel, mute, volume, picture and aspect mode,
+  CRT, hint bar, air checks, expired reminders) goes through `commitInPlace` with
+  `skipUndo`: saved, never an undo step.
 
-Converted so far:
-- **`setup-settings.js` (61 → 2).** Every box setting is `settings.set`. Its allow-list now
-  covers every section the SETTINGS tab writes, and labels read as words ("Change display hint
-  bar show duration"). Sliders and text fields coalesce. Resetting the no-signal copy is one
-  batch. The two left are the logo-bug and dynamic-overlay array editors, which mutate the
-  array they were handed, so they need their own commands.
-- **`setup-panels.js`, the TITLES panel (49 → 33).** It uses a new `file.set`
-  (`{ channel, block?, file: path, fields }`, with a field allow-list), and every per-row edit
-  is one command.
-  - A facet change sets `facets` and the tags mirrored from them together.
-  - Each bulk action is one labelled batch ("Tag 1329 files"). Live, that batch took 430 ms on
-    the real 1329-file channel, and one undo removed it.
-  - The panel falls back to the in-place edit when a pool holds the same path twice.
+New commands:
+- `channel.setFields`, `channel.renumber`, `channel.swapNumbers`.
+- `file.set`.
+- `item.set` / `item.insert` / `item.remove` on id-addressed lists: `pool`, `presets`,
+  `flows`, and `blocks`, which is scoped to a channel.
+- `plugin.setSettings`.
+- `settings.set`'s allow-list now covers every box-level section the renderer writes.
 
-Left, largest first: `setup-interstitials.js`, `setup-panels.js` (reorder, commercials, logo,
-identity panels), `setup-interstitials-flowbuilder.js`, `setup-util.js`, `setup-channels.js`,
-`setup-schedule.js`. Those need new commands for flows, presets, blocks and pools rather than
-setters. Once `config.patch` is only legacy import/restore, the renderer can send commands
-instead of whole-config saves (§2.2).
+Behaviour that changed for users:
+- Removing a block, a pool entry, a preset, a flow, a curation profile or several channels at
+  once can now be undone, and the confirmation dialogs say so.
+- Several edits that never saved on their own now save immediately: adding a preset block, a
+  day override, a calendar block, or moving a day override.
+
+Verified live against the installed lineup through the real listeners (scratch
+`test/verify-step5-commands.mjs`, `-lists.mjs`, `-rest.mjs`, 30 checks):
+- bulk-tagging the 205-entry pool and the 1329-file channel is one step each;
+- the cadence and block objects the panels hold survive their edits;
+- after undoing every step, config was byte-identical;
+- no history fallbacks were logged.
+The 34-check UI suite, `verify-config-host` and `verify-viewer-config-push` all pass.
+
+Found while testing: `plugins.js` and `setup-plugin-settings.js` pass `saveConfigDebounced`
+by reference into plugin contexts. A write-count audit must not drop that import.
+
+Still to do for §2.2: the renderer sends whole-config saves rather than commands. Every edit now
+has a command, so sending the history's commands to the host is the remaining change. It
+belongs with the web control panel (doc 06), which is the second client that needs it.
+Plugins' own `settings.js` files still call `ctx.saveConfigDebounced` and are recorded as
+patches, until `ctx.commands.register` exists.
 
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no

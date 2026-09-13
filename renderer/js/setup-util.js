@@ -6,7 +6,7 @@ import {
   DYNAMIC_OVERLAY_CORNERS, DYNAMIC_OVERLAY_TRIGGERS, newDynamicOverlayId, normalizeDynamicOverlays,
   normalizeIconOverrides, sortedChannels,
 } from './channels.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitInPlace } from './state.js';
 import { basenameNoExt, randomId, toDatetimeLocalValue, deepClone } from './util.js';
 import { openDynamicOverlayPositionEditor } from './setup-overlay-position-editor.js';
 
@@ -232,6 +232,22 @@ export function toggleLazyPanel(panelEl, buildFn) {
 // Parses a string as a positive integer, falling back when it isn't one —
 // used by every box-wide interval field (commercials/standby/stationId/
 // ticker/trivia/screensaver) plus the per-block ads interval.
+// Records top-level fields of a channel or a schedule block as they now stand
+// (after an in-place edit) as one command: channel.setFields for a channel,
+// item.set on its channel's blocks for a block. Both are found in S.config by
+// identity, the way the setup panels hold them. See state.js commitInPlace.
+export function ownerFieldsCommand(owner, fields) {
+  const values = Object.fromEntries(fields.map((field) => [field, owner[field]]));
+  const channels = (S.config && S.config.channels) || [];
+  if (channels.includes(owner)) return { type: 'channel.setFields', channel: owner.number, fields: values };
+  const ch = channels.find((c) => (c.blocks || []).includes(owner));
+  return { type: 'item.set', collection: 'blocks', channel: ch ? ch.number : null, id: owner.id, fields: values };
+}
+
+export function commitOwnerFields(owner, fields, opts = {}) {
+  return commitInPlace(ownerFieldsCommand(owner, fields), opts);
+}
+
 export function parsePositiveInt(str, fallback) {
   const n = parseInt(str, 10);
   return (Number.isFinite(n) && n > 0) ? n : fallback;
@@ -897,7 +913,14 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       displayMode.applyDisplayModeSettled();
     } else {
       S.config.display.logoBugAutoAdjust = autoAdjust.checked;
-      saveConfigDebounced();
+      // Everything the live editor moved, as one step. The editor worked on
+      // the live objects, so they're recorded in place (commitInPlace).
+      commitInPlace([
+        { type: 'settings.set', path: ['display', 'logoBugAutoAdjust'], value: S.config.display.logoBugAutoAdjust },
+        { type: 'settings.set', path: ['display', 'overlaySnapIncrement'], value: S.config.display.overlaySnapIncrement },
+        { type: 'settings.set', path: ['display', 'overlayLayouts'], value: S.config.display.overlayLayouts },
+        { type: 'settings.set', path: ['displayMode'], value: S.config.displayMode },
+      ], { label: 'Adjust on-screen layout' });
     }
     if (logoWasHidden) logo.classList.add('hidden');
     previewElements.forEach((_, id) => restorePreviewElement(id));
@@ -1000,7 +1023,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       triggerSelect.addEventListener('change', () => {
         rule.trigger = triggerSelect.value;
         setRules(rules);
-        saveConfigDebounced();
       });
 
       const mediaField = document.createElement('div');
@@ -1017,7 +1039,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
         if (!path) return;
         rule.mediaPath = path;
         setRules(rules);
-        saveConfigDebounced();
         render();
       });
       const vidBtn = document.createElement('button');
@@ -1029,7 +1050,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
         if (!path) return;
         rule.mediaPath = path;
         setRules(rules);
-        saveConfigDebounced();
         render();
       });
       mediaBtnRow.append(imgBtn, vidBtn);
@@ -1049,7 +1069,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       cornerSelect.addEventListener('change', () => {
         rule.corner = cornerSelect.value;
         setRules(rules);
-        saveConfigDebounced();
         render();
       });
 
@@ -1069,7 +1088,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
           rule.x = x;
           rule.y = y;
           setRules(rules);
-          saveConfigDebounced();
           render();
         },
       }));
@@ -1084,7 +1102,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       sizeInput.addEventListener('change', () => {
         rule.size = parsePositiveInt(sizeInput.value, 160);
         setRules(rules);
-        saveConfigDebounced();
       });
 
       const durationInput = document.createElement('input');
@@ -1096,7 +1113,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       durationInput.addEventListener('change', () => {
         rule.durationMs = Math.max(0, parsePositiveInt(durationInput.value, 0) * 1000);
         setRules(rules);
-        saveConfigDebounced();
       });
 
       // Scopes the rule to content carrying at least one of these tags (see
@@ -1112,7 +1128,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       tagsInput.addEventListener('change', () => {
         rule.contentTags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
         setRules(rules);
-        saveConfigDebounced();
       });
 
       const removeBtn = document.createElement('button');
@@ -1123,7 +1138,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       removeBtn.setAttribute('aria-label', 'Remove overlay rule');
       removeBtn.addEventListener('click', () => {
         setRules(getRules().filter((r) => r.id !== rule.id));
-        saveConfigDebounced();
         render();
       });
 
@@ -1156,7 +1170,6 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
     setRules([...rules, {
       id: newDynamicOverlayId(), trigger: 'tuneIn', mediaPath: '', corner: 'bottom-right', size: 160, durationMs: 0,
     }]);
-    saveConfigDebounced();
     render();
   });
 
@@ -1201,7 +1214,6 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
         input.addEventListener('change', () => {
           onChange(parsePositiveInt(input.value, 1));
           setOverrides(overrides);
-          saveConfigDebounced();
         });
         return input;
       }
@@ -1223,7 +1235,6 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
         if (!path) return;
         o.icon = path;
         setOverrides(overrides);
-        saveConfigDebounced();
         render();
       });
       const mediaName = document.createElement('span');
@@ -1239,7 +1250,6 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
       removeBtn.setAttribute('aria-label', 'Remove seasonal icon');
       removeBtn.addEventListener('click', () => {
         setOverrides((getOverrides() || []).filter((x) => x.id !== o.id));
-        saveConfigDebounced();
         render();
       });
 
@@ -1268,7 +1278,6 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
     setOverrides([...overrides, {
       id: newDynamicOverlayId(), startMonth: 12, startDay: 1, endMonth: 12, endDay: 25, icon: '',
     }]);
-    saveConfigDebounced();
     render();
   });
 
@@ -1314,7 +1323,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
       labelInput.addEventListener('change', () => {
         w.label = labelInput.value.trim();
         setWindows(windows);
-        saveConfigDebounced();
       });
 
       const channelSelect = document.createElement('select');
@@ -1332,7 +1340,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
       channelSelect.addEventListener('change', () => {
         w.channelNumber = channelSelect.value === '' ? null : Number(channelSelect.value);
         setWindows(windows);
-        saveConfigDebounced();
       });
 
       // ONE-TIME (absolute start/end) vs WEEKLY (a standing weekday/time
@@ -1350,7 +1357,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
       kindSelect.addEventListener('change', () => {
         w.kind = kindSelect.value;
         setWindows(windows);
-        saveConfigDebounced();
         render();
       });
 
@@ -1368,7 +1374,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         weekdaySelect.addEventListener('change', () => {
           w.weekday = Number(weekdaySelect.value);
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         const hourInput = document.createElement('input');
@@ -1380,7 +1385,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         hourInput.addEventListener('change', () => {
           w.startHour = Math.min(23, Math.max(0, parsePositiveInt(hourInput.value, 13)));
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         const minuteInput = document.createElement('input');
@@ -1392,7 +1396,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         minuteInput.addEventListener('change', () => {
           w.startMinute = Math.min(59, Math.max(0, parsePositiveInt(minuteInput.value, 0)));
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         const durationInput = document.createElement('input');
@@ -1403,7 +1406,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         durationInput.addEventListener('change', () => {
           w.durationMin = Math.max(1, parsePositiveInt(durationInput.value, 30));
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         fields.push(
@@ -1420,7 +1422,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
           const ms = new Date(startInput.value).getTime();
           if (!isNaN(ms)) w.startMs = ms;
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         const endInput = document.createElement('input');
@@ -1430,7 +1431,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
           const ms = new Date(endInput.value).getTime();
           if (!isNaN(ms)) w.endMs = ms;
           setWindows(windows);
-          saveConfigDebounced();
         });
 
         fields.push(labeledMiniPreemption('START', startInput), labeledMiniPreemption('END', endInput));
@@ -1444,7 +1444,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
       removeBtn.setAttribute('aria-label', 'Remove preemption window');
       removeBtn.addEventListener('click', () => {
         setWindows((getWindows() || []).filter((x) => x.id !== w.id));
-        saveConfigDebounced();
         render();
       });
 
@@ -1468,7 +1467,6 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
       id: randomId('preempt'), label: '', channelNumber: null, kind: 'once', startMs: now, endMs: now + 15 * 60000,
       weekday: 0, startHour: 13, startMinute: 0, durationMin: 30,
     }]);
-    saveConfigDebounced();
     render();
   });
 

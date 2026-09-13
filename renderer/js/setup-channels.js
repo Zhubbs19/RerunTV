@@ -29,13 +29,13 @@ import {
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
-import { toggleLazyPanel, probeDurationForEntry, attachSliderReadout } from './setup-util.js';
+import { attachSliderReadout, commitOwnerFields, ownerFieldsCommand, probeDurationForEntry, toggleLazyPanel } from './setup-util.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
 } from './plugins.js';
 import { renderChannelDisplaySettings } from './setup-plugin-settings.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from './schedule.js';
-import { BADGE_COLORS, S, dispatch, saveConfigDebounced, saveConfigNow, resetUndoBaseline, viewNow } from './state.js';
+import { BADGE_COLORS, S, commitInPlace, dispatch, saveConfigNow, resetUndoBaseline, viewNow, commitConfigPatch } from './state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import { applyLocalFolderRelink } from './library-relink.js';
@@ -313,7 +313,7 @@ export function renderChannelList() {
           openChannelEditTabs.set(v, openChannelEditTabs.get(oldNum));
           openChannelEditTabs.delete(oldNum);
         }
-        saveConfigDebounced();
+        commitInPlace({ type: 'channel.renumber', from: oldNum, to: v });
         renderChannelList();
       });
 
@@ -325,8 +325,9 @@ export function renderChannelList() {
       moveUpBtn.addEventListener('click', () => {
         const neighbor = fullList[fullIdx - 1];
         if (!neighbor) return;
+        const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
         [ch.number, neighbor.number] = [neighbor.number, ch.number];
-        saveConfigDebounced();
+        commitInPlace(swap);
         renderChannelList();
       });
 
@@ -338,8 +339,9 @@ export function renderChannelList() {
       moveDownBtn.addEventListener('click', () => {
         const neighbor = fullList[fullIdx + 1];
         if (!neighbor) return;
+        const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
         [ch.number, neighbor.number] = [neighbor.number, ch.number];
-        saveConfigDebounced();
+        commitInPlace(swap);
         renderChannelList();
       });
 
@@ -483,7 +485,7 @@ export function renderChannelList() {
         ch.broadcastHours = deepClone(src.broadcastHours || freshBroadcastHours());
         ch.adsEnabled = src.adsEnabled;
         ch.logoBugProfiles = src.logoBugProfiles ? deepClone(src.logoBugProfiles) : null;
-        saveConfigDebounced();
+        commitOwnerFields(ch, ['blocks', 'broadcastHours', 'adsEnabled', 'logoBugProfiles'], { label: `Copy CH ${src.number} settings to CH ${ch.number}` });
         renderChannelList();
       });
       copyFromWrap.appendChild(copyFromSelect);
@@ -639,7 +641,7 @@ export function renderChannelList() {
         const wasOn = !!ch.shuffle;
         ch.shuffle = shuffleCheckbox.checked;
         if (ch.shuffle && !wasOn && ch.files.length > 1) shuffleArray(ch.files);
-        saveConfigDebounced();
+        commitOwnerFields(ch, ch.shuffle && !wasOn ? ['shuffle', 'files'] : ['shuffle']);
       });
       shuffleLabel.appendChild(shuffleCheckbox);
       shuffleLabel.appendChild(document.createTextNode('SHUFFLE ORDER'));
@@ -928,10 +930,9 @@ export function renderChannelList() {
         const clone = deepClone(ch);
         clone.number = nextChannelNumber();
         clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
-        S.config.channels.push(clone);
+        dispatch({ type: 'channel.insert', channel: clone }, { label: `Duplicate CH ${ch.number}` });
         S.setupFilterQuery = '';
         channelFilterEl.value = '';
-        saveConfigDebounced();
         renderChannelList();
       });
 
@@ -1148,8 +1149,9 @@ export function renderChannelList() {
         if (!draggedNumber || draggedNumber === ch.number) return;
         const dragged = S.config.channels.find((c) => c.number === draggedNumber);
         if (!dragged) return;
+        const swap = { type: 'channel.swapNumbers', a: dragged.number, b: ch.number };
         [dragged.number, ch.number] = [ch.number, dragged.number];
-        saveConfigDebounced();
+        commitInPlace(swap);
         renderChannelList();
       });
 
@@ -1417,39 +1419,47 @@ bulkSelectAllBtn.addEventListener('click', () => {
   renderChannelList();
 });
 
-bulkFavoriteOnBtn.addEventListener('click', () => { selectedChannels().forEach((c) => { c.favorite = true; }); saveConfigDebounced(); renderChannelList(); });
-bulkFavoriteOffBtn.addEventListener('click', () => { selectedChannels().forEach((c) => { c.favorite = false; }); saveConfigDebounced(); renderChannelList(); });
+// Bulk actions: one undo step for however many channels are selected.
+function setOnSelected(field, value, label) {
+  const targets = selectedChannels();
+  if (!targets.length) return;
+  dispatch(targets.map((c) => ({ type: 'channel.set', channel: c.number, field, value })),
+    { label: `${label} on ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
+}
+bulkFavoriteOnBtn.addEventListener('click', () => { setOnSelected('favorite', true, 'Favorite'); renderChannelList(); });
+bulkFavoriteOffBtn.addEventListener('click', () => { setOnSelected('favorite', false, 'Unfavorite'); renderChannelList(); });
 bulkShuffleOnBtn.addEventListener('click', () => {
-  selectedChannels().forEach((c) => { c.shuffle = true; if (c.files.length > 1) shuffleArray(c.files); });
-  saveConfigDebounced();
+  const targets = selectedChannels();
+  targets.forEach((c) => { c.shuffle = true; if (c.files.length > 1) shuffleArray(c.files); });
+  if (targets.length) commitInPlace(targets.map((c) => ownerFieldsCommand(c, ['shuffle', 'files'])), { label: `Shuffle ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
   renderChannelList();
 });
-bulkShuffleOffBtn.addEventListener('click', () => { selectedChannels().forEach((c) => { c.shuffle = false; }); saveConfigDebounced(); renderChannelList(); });
+bulkShuffleOffBtn.addEventListener('click', () => {
+  const targets = selectedChannels();
+  targets.forEach((c) => { c.shuffle = false; });
+  if (targets.length) commitInPlace(targets.map((c) => ownerFieldsCommand(c, ['shuffle'])), { label: `Unshuffle ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
+  renderChannelList();
+});
 bulkRatingApplyBtn.addEventListener('click', () => {
-  const value = bulkRatingSelect.value || null;
-  selectedChannels().forEach((c) => { c.rating = value; });
-  saveConfigDebounced();
+  setOnSelected('rating', bulkRatingSelect.value || null, 'Set rating');
   renderChannelList();
 });
 attachSliderReadout(bulkVolumeSlider, { suffix: '%' });
 bulkVolumeApplyBtn.addEventListener('click', () => {
-  const value = parseInt(bulkVolumeSlider.value, 10) / 100;
-  selectedChannels().forEach((c) => { c.volume = value; });
-  saveConfigDebounced();
+  setOnSelected('volume', parseInt(bulkVolumeSlider.value, 10) / 100, 'Set volume');
   renderChannelList();
 });
 bulkVolumeInheritBtn.addEventListener('click', () => {
-  selectedChannels().forEach((c) => { c.volume = null; });
-  saveConfigDebounced();
+  setOnSelected('volume', null, 'Reset volume');
   renderChannelList();
 });
 bulkRemoveBtn.addEventListener('click', async () => {
   const targets = selectedChannels();
   if (!targets.length) return;
-  if (!(await confirmDialog(`Remove ${targets.length} selected channel${targets.length === 1 ? '' : 's'} and all their content/settings? This can't be undone.`))) return;
-  S.config.channels = S.config.channels.filter((c) => !S.bulkSelectedChannels.has(c.number));
+  if (!(await confirmDialog(`Remove ${targets.length} selected channel${targets.length === 1 ? '' : 's'} and all their content/settings? You can undo this.`))) return;
+  dispatch(targets.map((c) => ({ type: 'channel.remove', channel: c.number })),
+    { label: `Remove ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
   S.bulkSelectedChannels.clear();
-  saveConfigDebounced();
   renderChannelList();
 });
 
@@ -1609,7 +1619,7 @@ export async function addPluginSourceToChannel(ch, providerId) {
   if (ch.shuffle) shuffleArray(ch.files);
   if (!ch.anchor) ch.anchor = Date.now();
   scanProgressEl.classList.add('hidden');
-  saveConfigDebounced();
+  commitOwnerFields(ch, ['folders', 'files', 'anchor'], { label: `Add folder to CH ${ch.number}` });
   renderChannelList();
 }
 
@@ -1653,7 +1663,7 @@ export async function addFolderToChannel(ch) {
   // than restarting the "always live" clock.
   if (!ch.anchor) ch.anchor = Date.now();
   scanProgressEl.classList.add('hidden');
-  saveConfigDebounced();
+  commitOwnerFields(ch, ['folders', 'files', 'anchor'], { label: `Add folder to CH ${ch.number}` });
   renderChannelList();
 }
 
@@ -1721,7 +1731,7 @@ export async function rescanAllFolders() {
 export function removeFolderFromChannel(ch, folderEntry) {
   ch.folders = ch.folders.filter((e) => e.id !== folderEntry.id);
   ch.files = ch.files.filter((f) => f.folder !== folderEntry.id);
-  saveConfigDebounced();
+  commitOwnerFields(ch, ['folders', 'files'], { label: `Remove folder from CH ${ch.number}` });
   renderChannelList();
 }
 
@@ -1884,9 +1894,7 @@ previewModalGoBtn.addEventListener('click', () => {
 });
 
 subChannelsEnabledEl?.addEventListener('change', () => {
-  S.config.subChannels = S.config.subChannels || {};
-  S.config.subChannels.enabled = subChannelsEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['subChannels', 'enabled'], value: subChannelsEnabledEl.checked });
   // Re-render so every number box picks up its new step immediately — the
   // step is set when a row is built, so without this the arrows keep their
   // old behaviour until something else happens to rebuild the list.
@@ -1894,12 +1902,11 @@ subChannelsEnabledEl?.addEventListener('change', () => {
 });
 
 addChannelBtn.addEventListener('click', () => {
-  S.config.channels.push(freshChannel());
+  dispatch({ type: 'channel.insert', channel: freshChannel() });
   // Clear any active filter so the new (nameless) channel is guaranteed to
   // actually show up in the list instead of silently vanishing into it.
   S.setupFilterQuery = '';
   channelFilterEl.value = '';
-  saveConfigDebounced();
   renderChannelList();
 });
 
@@ -1981,7 +1988,7 @@ channelImportBtn.addEventListener('click', async () => {
     });
   }
 
-  saveConfigDebounced();
+  commitConfigPatch(`${result.replaced ? 'Replace' : 'Import'} CH ${targetNumber}`);
   S.setupFilterQuery = '';
   channelFilterEl.value = '';
   renderChannelList();

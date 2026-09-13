@@ -11,7 +11,7 @@ import { showDetailsOverlay } from './details.js';
 import { tuneToChannel } from './playback-core.js';
 import { breakEntriesInWindow } from './interstitials.js';
 import { computeLivePosition, getChannelSchedule } from './schedule.js';
-import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, saveConfigDebounced, viewNow } from './state.js';
+import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, viewNow, commitInPlace } from './state.js';
 import { searchUpcomingPrograms } from './program-search.js';
 import { guideGenreStyleForFile } from './guide-genres.js';
 import { updateTimeShiftBadge } from './timemachine.js';
@@ -118,7 +118,7 @@ function addProgramReminder(result) {
     title: result.title, path: result.entry.file.path,
     start: result.entry.start, end: result.entry.end,
   });
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { label: 'Add reminder' });
 }
 
 function renderProgramResults(query) {
@@ -162,7 +162,7 @@ guideSearchEl.addEventListener('input', () => {
 function removeReminder(id) {
   S.config.reminders = (S.config.reminders || []).filter((reminder) => reminder.id !== id);
   notifiedReminders.delete(id);
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { label: 'Remove reminder' });
 }
 
 function dismissActiveReminder() {
@@ -178,7 +178,7 @@ function checkProgramReminders() {
     if (now > reminder.end + 5 * 60000) { changed = true; return false; }
     return true;
   });
-  if (changed) saveConfigDebounced();
+  if (changed) if (changed) commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { skipUndo: true });
   if (activeReminder) return;
   const leadMs = (S.config.reminderLeadMinutes || 1) * 60000;
   const due = (S.config.reminders || []).find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);

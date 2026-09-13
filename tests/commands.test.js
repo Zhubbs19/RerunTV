@@ -323,3 +323,103 @@ test('the history listener hears edits, commands and undo', async () => {
   state.onHistoryChange(null);
   assert.ok(calls >= 3, `listener called ${calls} times`);
 });
+
+// ---------- id-addressed lists (step 5, round 2) ----------
+
+function listConfig() {
+  const config = sampleConfig();
+  config.interstitials = {
+    pool: [{ id: 'p1', type: 'commercial', weight: 1 }, { id: 'p2', type: 'bumper', weight: 2 }, { id: 'p3', type: 'commercial', weight: 1 }],
+    presets: [],
+    flows: [{ id: 'f1', name: 'Flow', steps: [{ id: 's1', name: 'Intro' }], cadence: { enabled: false, podMin: 1 } }],
+  };
+  return config;
+}
+
+test('item.set / item.insert / item.remove undo exactly, and removals in a batch restore their order', async () => {
+  const { applyCommand, cloneJson } = await load('commands.js');
+  const cases = [
+    [{ type: 'item.set', collection: 'pool', id: 'p2', fields: { weight: 5, contentTags: ['x'], type: undefined } }],
+    [{ type: 'item.insert', collection: 'presets', item: { id: 'pr1', name: 'New' } }],
+    [{ type: 'item.remove', collection: 'pool', id: 'p1' }, { type: 'item.remove', collection: 'pool', id: 'p3' }],
+    [{ type: 'item.set', collection: 'flows', id: 'f1', fields: { steps: [{ id: 's1', name: 'Intro' }, { id: 's2', name: 'Pod' }] } }],
+  ];
+  for (const batch of cases) {
+    const config = listConfig();
+    const original = cloneJson(config);
+    const inverses = [];
+    batch.forEach((cmd) => inverses.push(...applyCommand(config, cmd)));
+    assert.notDeepEqual(config, original);
+    inverses.slice().reverse().forEach((inv) => applyCommand(config, inv));
+    assert.deepEqual(config, original, JSON.stringify(batch));
+  }
+  const config = listConfig();
+  assert.throws(() => applyCommand(config, { type: 'item.set', collection: 'pool', id: 'nope', fields: { weight: 1 } }), /No ad pool entry/);
+  assert.throws(() => applyCommand(config, { type: 'item.set', collection: 'pool', id: 'p1', fields: { id: 'x' } }), /id/);
+  assert.throws(() => applyCommand(config, { type: 'item.set', collection: 'channels', id: 'p1', fields: { weight: 1 } }), /isn't a list/);
+  assert.throws(() => applyCommand(config, { type: 'item.insert', collection: 'pool', item: { id: 'p1' } }), /already exists/);
+});
+
+test('commitItemEdit records an in-place item edit as one step without replacing the live objects', async () => {
+  const state = await load('state.js');
+  const { cloneJson } = await load('commands.js');
+  state.S.config = listConfig();
+  state.resetUndoBaseline();
+  const original = JSON.stringify(state.S.config);
+
+  const flow = state.S.config.interstitials.flows[0];
+  const cadence = flow.cadence;
+  const steps = flow.steps;
+  const prior = cloneJson(flow);
+  cadence.enabled = true;
+  steps.push({ id: 's2', name: 'Pod' });
+  assert.equal(state.commitItemEdit('flows', [flow, prior]), true);
+  assert.equal(flow.cadence, cadence, 'the nested object the UI holds is still the one in config');
+  assert.equal(flow.steps, steps);
+  assert.equal(state.undoLabel(), 'Change flow settings');
+  assert.equal(state.commitItemEdit('flows', [flow, cloneJson(flow)]), false, 'nothing changed, nothing recorded');
+
+  // A burst of typing on one entry coalesces into one step.
+  const entry = state.S.config.interstitials.pool[1];
+  for (const text of ['a', 'ab', 'abc']) {
+    const before = cloneJson(entry);
+    entry.text = text;
+    state.commitItemEdit('pool', [entry, before], { coalesce: 'pool:p2:text' });
+  }
+  assert.equal(state.undoLabel(), 'Change ad pool entry text');
+  state.performUndo();
+  assert.equal(entry.text, undefined);
+  state.performUndo();
+  assert.equal(JSON.stringify(state.S.config), original);
+  state.performRedo();
+  assert.equal(state.S.config.interstitials.flows[0].cadence.enabled, true);
+});
+
+test('blocks are a channel-scoped list: inverses keep the channel, and commitInPlace drops a no-op', async () => {
+  const { applyCommand, cloneJson } = await load('commands.js');
+  const config = sampleConfig();
+  config.channels[1].blocks = [{ id: 'b1', name: 'Prime', trigger: { type: 'dayOfWeek', startHour: 20, days: [] } }];
+  const original = cloneJson(config);
+  const inverses = [];
+  inverses.push(...applyCommand(config, { type: 'item.set', collection: 'blocks', channel: 6, id: 'b1', fields: { name: 'Late', trigger: { type: 'dayOfWeek', startHour: 23, days: [5] } } }));
+  inverses.push(...applyCommand(config, { type: 'item.insert', collection: 'blocks', channel: 7, item: { id: 'b2', name: 'New' } }));
+  inverses.push(...applyCommand(config, { type: 'item.remove', collection: 'blocks', channel: 6, id: 'b1' }));
+  assert.ok(inverses.every((inv) => inv.channel === 6 || inv.channel === 7));
+  inverses.slice().reverse().forEach((inv) => applyCommand(config, inv));
+  delete config.channels[2].blocks; // item.insert creates the list it inserts into
+  assert.deepEqual(config, original);
+  assert.throws(() => applyCommand(config, { type: 'item.set', collection: 'blocks', channel: 7, id: 'b1', fields: { name: 'x' } }), /No block/);
+  assert.throws(() => applyCommand(config, { type: 'item.insert', collection: 'blocks', channel: 99, item: { id: 'b9' } }), /doesn't exist/);
+
+  const state = await load('state.js');
+  state.S.config = cloneJson(original);
+  state.resetUndoBaseline();
+  const block = state.S.config.channels[1].blocks[0];
+  const trigger = block.trigger;
+  trigger.days.push(6);
+  assert.equal(state.commitInPlace({ type: 'item.set', collection: 'blocks', channel: 6, id: 'b1', fields: { trigger } }), true);
+  assert.equal(block.trigger, trigger, 'the trigger the days row holds is still the live one');
+  assert.equal(state.commitInPlace({ type: 'item.set', collection: 'blocks', channel: 6, id: 'b1', fields: { trigger } }), false, 'unchanged');
+  state.performUndo();
+  assert.deepEqual(state.S.config.channels[1].blocks[0].trigger.days, []);
+});

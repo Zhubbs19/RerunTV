@@ -1,6 +1,6 @@
 // Opt-in channel-folder synchronization. All sources use the same list/probe
 // contract: local folders happen to be one provider, not a special UI path.
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { parseMediaRef } from './channels.js';
 import { probeDurationForEntry } from './setup-util.js';
 import { confirmDialog } from './setup-dialogs.js';
@@ -102,7 +102,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
     prefs.lastRunAt = new Date().toISOString(); // real wall-clock audit timestamp, not schedule time
     prefs.lastReason = reason;
     prefs.lastSummary = totals;
-    saveConfigDebounced(100, { skipUndo: !contentChanged });
+    commitConfigPatch('Library sync', { delay: 100, skipUndo: !contentChanged });
     if (status) status.textContent = `${summaryText(totals).toUpperCase()} · ${new Date(prefs.lastRunAt).toLocaleString()}`;
     renderResults(rows);
     return { ...totals, rows };
@@ -154,11 +154,11 @@ const intervalEl = document.getElementById('library-sync-interval');
 const nowEl = document.getElementById('library-sync-now-btn');
 enabledEl?.addEventListener('change', () => {
   settings().enabled = enabledEl.checked;
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['librarySync','enabled'], value: settings().enabled });
   schedulePeriodicSync();
   renderLibrarySyncSettings();
 });
-startupEl?.addEventListener('change', () => { settings().runAtStartup = startupEl.checked; saveConfigDebounced(); });
+startupEl?.addEventListener('change', () => { settings().runAtStartup = startupEl.checked; commitInPlace({ type: 'settings.set', path: ['librarySync','runAtStartup'], value: settings().runAtStartup }); });
 removeEl?.addEventListener('change', async () => {
   if (removeEl.checked) {
     const approved = await confirmDialog({
@@ -170,12 +170,12 @@ removeEl?.addEventListener('change', async () => {
     if (!approved) { removeEl.checked = false; return; }
   }
   settings().removeMissing = removeEl.checked;
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['librarySync','removeMissing'], value: settings().removeMissing });
 });
 intervalEl?.addEventListener('change', () => {
   settings().intervalMinutes = Math.max(5, Math.min(1440, Number(intervalEl.value) || 30));
   intervalEl.value = settings().intervalMinutes;
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['librarySync','intervalMinutes'], value: settings().intervalMinutes });
   schedulePeriodicSync();
 });
 nowEl?.addEventListener('click', () => runLibrarySync({ reason: 'manual' }));

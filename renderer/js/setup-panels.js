@@ -7,10 +7,10 @@ import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacet
 import { applyLogoBugPlacement } from './playback-broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from './plugins.js';
 import { removeFolderFromChannel } from './setup-channels.js';
-import { S, dispatch, saveConfigDebounced, viewNow } from './state.js';
+import { S, commitInPlace, dispatch, viewNow } from './state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from './util.js';
 import {
-  attachTagAutocomplete, buildBreakpointTrack, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor,
+  attachTagAutocomplete, buildBreakpointTrack, commitOwnerFields, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor,
   buildMediaThumbnail, openLiveLogoBugEditor, parsePositiveInt,
 } from './setup-util.js';
 import { confirmDialog, alertDialog, promptDialog } from './setup-dialogs.js';
@@ -38,7 +38,7 @@ async function downloadFileToLocal(target, file, btn) {
     destDir = await window.api.selectFolder();
     if (!destDir) return;
     target.downloadDir = destDir;
-    saveConfigDebounced();
+    commitOwnerFields(target, ['downloadDir']);
   }
   const { source, ref } = parseMediaRef(file.path);
   if (!source || source === 'local') return; // the button is only ever shown for a non-local file — defensive only
@@ -76,7 +76,7 @@ async function downloadFileToLocal(target, file, btn) {
     // present — this file is standalone from here on, same as one added
     // without going through any tracked folder at all.
     file.folder = null;
-    saveConfigDebounced();
+    commitOwnerFields(target, ['files'], { label: 'Download file' });
     btn.textContent = 'DOWNLOADED ✓';
   } catch (e) {
     await alertDialog({ title: 'DOWNLOAD FAILED', message: e.message || 'Unknown error.' });
@@ -108,7 +108,7 @@ function setFileFields(target, files, fieldsFor, opts = {}) {
   const ambiguous = changes.some(([file]) => (target.files || []).filter((f) => f.path === file.path).length !== 1);
   if (!address || ambiguous) {
     changes.forEach(([file, fields]) => Object.assign(file, fields));
-    saveConfigDebounced();
+    commitOwnerFields(target, ['files'], opts);
     return true;
   }
   dispatch(changes.map(([file, fields]) => ({ type: 'file.set', ...address, file: file.path, fields })), opts);
@@ -174,7 +174,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     // A channel/block anchor is deliberately real wall-clock state: this
     // user action starts a new continuous broadcast rotation from now.
     target.anchor = Date.now();
-    saveConfigDebounced();
+    commitOwnerFields(target, ['files', 'anchor'], { label: actionLabel });
     renderRows(search.value);
   }
 
@@ -919,7 +919,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
   enabledCheckbox.checked = ch.adsEnabled !== false;
   enabledCheckbox.addEventListener('change', () => {
     ch.adsEnabled = enabledCheckbox.checked;
-    saveConfigDebounced();
+    commitOwnerFields(ch, ['adsEnabled']);
   });
   enabledLabel.appendChild(enabledCheckbox);
   enabledLabel.appendChild(document.createTextNode('ADS ENABLED ON THIS CHANNEL'));
@@ -948,7 +948,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
   tagsInput.value = (ch.contentTags || []).join(', ');
   tagsInput.addEventListener('change', () => {
     ch.contentTags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
-    saveConfigDebounced();
+    commitOwnerFields(ch, ['contentTags']);
   });
   panelEl.appendChild(attachTagAutocomplete(tagsInput));
 
@@ -978,7 +978,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
       inheritCheckbox.addEventListener('change', () => {
         owner.commercials = inheritCheckbox.checked ? freshCommercialsConfig() : null;
         render();
-        saveConfigDebounced();
+        commitOwnerFields(owner, ['commercials']);
       });
       inheritLabel.appendChild(inheritCheckbox);
       inheritLabel.appendChild(document.createTextNode('OVERRIDE ADS DURING THIS BLOCK'));
@@ -1004,7 +1004,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
     enabledCheckbox.addEventListener('change', () => {
       cc.enabled = enabledCheckbox.checked;
       render();
-      saveConfigDebounced();
+      commitOwnerFields(owner, ['commercials']);
     });
     enabledLabel.appendChild(enabledCheckbox);
     enabledLabel.appendChild(document.createTextNode('ADS ENABLED'));
@@ -1044,7 +1044,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
     timingSelect.addEventListener('change', () => {
       cc.timing = timingSelect.value;
       render();
-      saveConfigDebounced();
+      commitOwnerFields(owner, ['commercials']);
     });
     timingRow.appendChild(timingLabel);
     timingRow.appendChild(timingSelect);
@@ -1064,7 +1064,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
       intervalInput.placeholder = String((S.config.commercials && S.config.commercials.intervalMinutes) || 10);
       intervalInput.addEventListener('change', () => {
         cc.intervalMinutes = parsePositiveInt(intervalInput.value, null);
-        saveConfigDebounced();
+        commitOwnerFields(owner, ['commercials']);
       });
       const intervalSuffix = document.createElement('span');
       intervalSuffix.className = 'block-count';
@@ -1091,7 +1091,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
           .map((v) => parseFloat(v.trim()))
           .filter((v) => Number.isFinite(v) && v > 0 && v < 100);
         cc.breakpoints = pts.length ? pts : null;
-        saveConfigDebounced();
+        commitOwnerFields(owner, ['commercials']);
         render(); // re-syncs the drag track below to whatever was just typed
       });
       bpRow.appendChild(bpLabel);
@@ -1100,7 +1100,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
 
       const track = buildBreakpointTrack(
         () => cc.breakpoints,
-        (pts) => { cc.breakpoints = pts; saveConfigDebounced(); },
+        (pts) => { cc.breakpoints = pts; commitOwnerFields(owner, ['commercials'], { coalesce: 'commercials:breakpoints' }); },
         bpInput,
       );
       panelEl.appendChild(track);
@@ -1128,7 +1128,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
       }
       podMaxInput.min = cc.podMin;
       if (opts.onChange) opts.onChange();
-      saveConfigDebounced();
+      commitOwnerFields(owner, ['commercials']);
     });
     const podSep = document.createElement('span');
     podSep.className = 'block-count';
@@ -1142,7 +1142,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
       cc.podMax = Math.max(cc.podMin || 1, parsePositiveInt(podMaxInput.value, 1));
       podMaxInput.value = cc.podMax;
       if (opts.onChange) opts.onChange();
-      saveConfigDebounced();
+      commitOwnerFields(owner, ['commercials']);
     });
     const podSuffix = document.createElement('span');
     podSuffix.className = 'block-count';
@@ -1185,7 +1185,7 @@ export function buildLogoBugPanel(ch, panelEl) {
       }
       applyLogoBugPlacement(ch);
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['logoBugProfiles']);
     });
     inheritLabel.appendChild(inheritCheckbox);
     inheritLabel.appendChild(document.createTextNode('OVERRIDE LOGO BUG FOR THIS CHANNEL'));
@@ -1202,7 +1202,7 @@ export function buildLogoBugPanel(ch, panelEl) {
     hideOnBreakCheckbox.checked = !!ch.logoBugHidesOnBreak;
     hideOnBreakCheckbox.addEventListener('change', () => {
       ch.logoBugHidesOnBreak = hideOnBreakCheckbox.checked;
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['logoBugHidesOnBreak']);
     });
     hideOnBreakLabel.appendChild(hideOnBreakCheckbox);
     hideOnBreakLabel.appendChild(document.createTextNode('HIDE LOGO BUG DURING BREAKS'));
@@ -1217,7 +1217,11 @@ export function buildLogoBugPanel(ch, panelEl) {
     panelEl.appendChild(seasonalHeading);
     panelEl.appendChild(buildIconOverridesEditor(
       () => ch.iconOverrides,
-      (overrides) => { ch.iconOverrides = overrides; saveConfigDebounced(); applyLogoBugPlacement(ch); },
+      (overrides) => {
+        ch.iconOverrides = overrides;
+        commitInPlace({ type: 'channel.set', channel: ch.number, field: 'iconOverrides', value: overrides }, { coalesce: `ch:${ch.number}:iconOverrides` });
+        applyLogoBugPlacement(ch);
+      },
     ));
 
     if (ch.logoBugProfiles == null) {
@@ -1230,7 +1234,10 @@ export function buildLogoBugPanel(ch, panelEl) {
 
     panelEl.appendChild(buildLogoBugProfileEditor(
       () => ch.logoBugProfiles,
-      (profiles) => { ch.logoBugProfiles = profiles; saveConfigDebounced(); },
+      (profiles) => {
+        ch.logoBugProfiles = profiles;
+        commitInPlace({ type: 'channel.set', channel: ch.number, field: 'logoBugProfiles', value: profiles }, { coalesce: `ch:${ch.number}:logoBugProfiles` });
+      },
       () => applyLogoBugPlacement(ch),
       ch,
     ));
@@ -1260,7 +1267,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     enabledCheckbox.addEventListener('change', () => {
       cfg.enabled = enabledCheckbox.checked;
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['creditsSpeedup']);
     });
     enabledLabel.appendChild(enabledCheckbox);
     enabledLabel.appendChild(document.createTextNode('SPEED UP END CREDITS'));
@@ -1284,7 +1291,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     leadInput.value = cfg.leadSeconds || 90;
     leadInput.addEventListener('change', () => {
       cfg.leadSeconds = parsePositiveInt(leadInput.value, 90);
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['creditsSpeedup']);
     });
     grid.appendChild(leadInput);
     const leadLabel = document.createElement('span');
@@ -1301,7 +1308,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     rateInput.value = cfg.rate || 3;
     rateInput.addEventListener('change', () => {
       cfg.rate = Math.max(2, parsePositiveInt(rateInput.value, 3));
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['creditsSpeedup']);
     });
     grid.appendChild(rateInput);
     const rateLabel = document.createElement('span');
@@ -1332,7 +1339,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     modeSelect.addEventListener('change', () => {
       cfg.squeezeMode = modeSelect.value;
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['creditsSpeedup']);
     });
     panelEl.appendChild(modeSelect);
 
@@ -1350,7 +1357,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
         if (!path) return;
         cfg.squeezeBgImage = path;
         render();
-        saveConfigDebounced();
+        commitOwnerFields(ch, ['creditsSpeedup']);
       });
       panelEl.appendChild(bgBtn);
       if (cfg.squeezeBgImage) {
@@ -1361,7 +1368,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
         clearBtn.addEventListener('click', () => {
           cfg.squeezeBgImage = null;
           render();
-          saveConfigDebounced();
+          commitOwnerFields(ch, ['creditsSpeedup']);
         });
         panelEl.appendChild(clearBtn);
       }
@@ -1393,7 +1400,7 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
         ch.dynamicOverlays = null;
       }
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['dynamicOverlays']);
     });
     inheritLabel.appendChild(inheritCheckbox);
     inheritLabel.appendChild(document.createTextNode('OVERRIDE DYNAMIC OVERLAYS FOR THIS CHANNEL'));
@@ -1409,7 +1416,10 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
 
     panelEl.appendChild(buildDynamicOverlaysEditor(
       () => ch.dynamicOverlays,
-      (rules) => { ch.dynamicOverlays = rules; saveConfigDebounced(); },
+      (rules) => {
+        ch.dynamicOverlays = rules;
+        commitInPlace({ type: 'channel.set', channel: ch.number, field: 'dynamicOverlays', value: rules }, { coalesce: `ch:${ch.number}:dynamicOverlays` });
+      },
       ch,
     ));
   }
@@ -1450,7 +1460,7 @@ export function buildTickerLayoutPanel(ch, panelEl) {
         ch.tickerLayout = null;
       }
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['tickerLayout']);
     });
     placementInheritLabel.appendChild(placementInheritCheckbox);
     placementInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER PLACEMENT FOR THIS CHANNEL'));
@@ -1501,7 +1511,7 @@ export function buildTickerLayoutPanel(ch, panelEl) {
       }
       window.applyTickerState?.();
       render();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['tickerContent']);
     });
     contentInheritLabel.appendChild(contentInheritCheckbox);
     contentInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER TEXT/SPEED FOR THIS CHANNEL'));
@@ -1542,17 +1552,17 @@ export function buildTickerLayoutPanel(ch, panelEl) {
     enabledEl.addEventListener('change', () => {
       ch.tickerContent.enabled = enabledEl.checked;
       window.applyTickerState?.();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['tickerContent']);
     });
     textEl.addEventListener('input', () => {
       ch.tickerContent.text = textEl.value;
       window.applyTickerState?.();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['tickerContent'], { coalesce: `ch:${ch.number}:ticker-text` });
     });
     speedEl.addEventListener('change', () => {
       ch.tickerContent.speed = parseInt(speedEl.value, 10) || 30;
       window.applyTickerState?.();
-      saveConfigDebounced();
+      commitOwnerFields(ch, ['tickerContent']);
     });
   }
 
@@ -1565,7 +1575,7 @@ export function buildChannelIdentityPanel(ch, panelEl) {
   const persistIdentity = () => {
     if (Object.keys(identity).length) ch.broadcastIdentity = identity;
     else delete ch.broadcastIdentity;
-    saveConfigDebounced();
+    commitOwnerFields(ch, ['broadcastIdentity'], { coalesce: `ch:${ch.number}:identity` });
   };
   const intro = document.createElement('div');
   intro.className = 'titles-empty';
@@ -1675,6 +1685,6 @@ export function buildChannelIdentityPanel(ch, panelEl) {
   });
   const clear = document.createElement('button');
   clear.className = 'btn'; clear.textContent = 'CLEAR ALL IDENTITY OVERRIDES';
-  clear.addEventListener('click', () => { delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); saveConfigDebounced(); });
+  clear.addEventListener('click', () => { delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); commitOwnerFields(ch, ['broadcastIdentity'], { label: `Clear CH ${ch.number} identity` }); });
   panelEl.append(intro, grid, clear);
 }

@@ -19,7 +19,7 @@ import { getChannel } from './channels.js';
 import { flashMessage } from './power.js';
 import { tuneToChannel } from './playback-core.js';
 import { computeLivePosition } from './schedule.js';
-import { S, saveConfigDebounced, viewNow } from './state.js';
+import { S, viewNow, commitInPlace } from './state.js';
 import { updateTimeShiftBadge } from './timemachine.js';
 import { formatClock, getDisplayTitle } from './util.js';
 
@@ -75,19 +75,19 @@ export function saveAirCheck() {
   // Without it, an evening of surfing would bury real setup edits under a
   // pile of "air check added" steps — the same reasoning that keeps
   // lastChannel out of the undo stack (saveConfigDebounced, state.js).
-  saveConfigDebounced(undefined, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: list }, { skipUndo: true });
   flashMessage(`AIR CHECK SAVED — ${airCheckLabel(mark)}`, 'airCheckFlashTimer');
   return mark;
 }
 
 export function removeAirCheck(id) {
   S.config.airChecks = airCheckArray().filter((mark) => mark.id !== id);
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: S.config.airChecks }, { label: 'Remove air check' });
 }
 
 export function clearAirChecks() {
   S.config.airChecks = [];
-  saveConfigDebounced();
+  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: S.config.airChecks }, { label: 'Clear air checks' });
 }
 
 // Shifts the viewing clock so that `viewNow()` reads the marked instant,

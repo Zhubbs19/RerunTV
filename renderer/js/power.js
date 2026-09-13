@@ -10,7 +10,7 @@ import { tuneToChannel } from './playback-core.js';
 import { cancelUpNextBar, resetActiveBreakState } from './playback-breaks.js';
 import { resetCreditsSpeedup } from './playback-broadcast-fx.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from './plugins.js';
-import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, saveConfigDebounced, viewNow } from './state.js';
+import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, viewNow, commitInPlace } from './state.js';
 import { stopShuttle } from './timemachine.js';
 import { autoHideAfter } from './util.js';
 import { effectiveThemeId } from './broadcast-identity.js';
@@ -112,7 +112,7 @@ export function toggleMute() {
   // Same reasoning as playback.js's lastChannel writes — a remote-control
   // convenience toggled from the TV screen, not a setup edit worth burying
   // real config changes under on the undo stack.
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['muted'], value: S.config.muted }, { skipUndo: true });
   pushRemoteState();
 }
 
@@ -161,7 +161,10 @@ export function adjustVolume(delta) {
     S.config.muted = false;
     applyMuteState();
   }
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace([
+    { type: 'settings.set', path: ['volume'], value: S.config.volume },
+    { type: 'settings.set', path: ['muted'], value: S.config.muted },
+  ], { skipUndo: true });
   sfxVolumeTick(delta > 0);
 
   volumeBarFillEl.style.width = `${Math.round(S.config.volume * 100)}%`;
@@ -210,7 +213,7 @@ export function applyHintBarState() {
 export function toggleHintBar() {
   S.config.display.hintBar = S.config.display.hintBar === false ? true : false;
   applyHintBarState();
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['display','hintBar'], value: S.config.display.hintBar }, { skipUndo: true });
   flashMessage(`HINT BAR: ${S.config.display.hintBar === false ? 'OFF' : 'ON'}`, 'hintBarFlashTimer');
 }
 
@@ -313,7 +316,7 @@ export function cyclePictureMode() {
   const next = PICTURE_ORDER[(idx + 1) % PICTURE_ORDER.length];
   S.config.pictureMode = next;
   applyPictureMode();
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['pictureMode'], value: S.config.pictureMode }, { skipUndo: true });
   pushRemoteState();
   flashMessage(`PICTURE MODE: ${next.toUpperCase()}`, 'pictureModeFlashTimer');
 }
@@ -371,7 +374,7 @@ export function cycleAspectMode() {
   const next = ASPECT_ORDER[(idx + 1) % ASPECT_ORDER.length];
   S.config.aspectMode = next;
   applyAspectMode();
-  saveConfigDebounced(600, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['aspectMode'], value: S.config.aspectMode }, { skipUndo: true });
   pushRemoteState();
   flashMessage(`ASPECT: ${next.toUpperCase()}`, 'aspectModeFlashTimer');
 }
@@ -640,7 +643,7 @@ export function toggleCrt() {
   S.config.crtEnabled = S.config.crtEnabled === false ? true : false;
   applyCrtState();
   // A watching action, not a setup edit: saved straight away, no undo step.
-  saveConfigDebounced(0, { skipUndo: true });
+  commitInPlace({ type: 'settings.set', path: ['crtEnabled'], value: S.config.crtEnabled }, { skipUndo: true, delay: 0 });
   pushRemoteState();
   flashMessage(`CRT EFFECT: ${S.config.crtEnabled === false ? 'OFF' : 'ON'}`, 'crtFlashTimer');
 }

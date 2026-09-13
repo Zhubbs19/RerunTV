@@ -1,4 +1,4 @@
-import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson } from './commands.js';
+import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson, itemFieldChanges } from './commands.js';
 
 // Shared mutable runtime state. Modules read and write through S so the
 // ownership of cross-cutting values (what channel is tuned, whether the box
@@ -336,7 +336,7 @@ function inverseOfPatch(patch) {
 }
 
 // Turns pending in-place edits into history. Cheap when nothing is pending.
-function settlePlainEdits() {
+function settlePlainEdits(label) {
   if (!pendingPlain) return;
   const tracked = pendingPlainTracked;
   pendingPlain = false;
@@ -349,7 +349,7 @@ function settlePlainEdits() {
   if (!ops.length) return;
   applyPatch(baseline, ops);
   if (!tracked) return;
-  const command = { type: 'config.patch', ops, undo };
+  const command = label ? { type: 'config.patch', ops, undo, label } : { type: 'config.patch', ops, undo };
   pushHistory({ label: describeCommand(S.config, command), commands: [command], inverses: inverseOfPatch(command), at: Date.now() });
   notifyHistory();
 }
@@ -443,6 +443,22 @@ export function saveConfigDebounced(delay, opts) {
   notifyHistory();
 }
 
+// For transforms that rewrite many parts of config at once in place — applying
+// a curation proposal, renaming a tag on every file, a library resync, an
+// imported channel package, a folder relink across channels. What changed since
+// the last settle point becomes one config.patch step, named by `label`, right
+// away rather than when the save fires. The one sanctioned structural patch
+// left in the renderer; per-object edits use named commands (dispatch,
+// commitInPlace). opts: skipUndo, delay, as saveConfigDebounced.
+export function commitConfigPatch(label, opts = {}) {
+  bumpConfigGeneration();
+  pendingPlain = true;
+  if (!opts.skipUndo) pendingPlainTracked = true;
+  settlePlainEdits(label);
+  writeConfigSoon(opts.delay);
+  notifyHistory();
+}
+
 // Applies named command(s) as one undo step and saves.
 //   opts.label      overrides the command's own description
 //   opts.coalesce   key; merges into the previous step if it had the same key
@@ -467,6 +483,13 @@ export function dispatch(commandOrList, opts = {}) {
     inverses.push(...applyCommand(S.config, cmd));
     applyCommand(baseline, cmd);
   });
+  recordApplied(commands, inverses, opts);
+  return true;
+}
+
+// History, generation, save and listeners for commands already applied to
+// S.config and the baseline.
+function recordApplied(commands, inverses, opts) {
   bumpConfigGeneration();
   if (!opts.skipUndo) {
     const now = Date.now();
@@ -487,7 +510,66 @@ export function dispatch(commandOrList, opts = {}) {
   }
   writeConfigSoon(opts.delay);
   notifyHistory();
+}
+
+// Records edits the UI has already made in place, as named commands. Editors
+// that keep references to the live objects they edit (a rule row, a flow's
+// cadence, an array they hand back) can't go through dispatch(), which would
+// copy the new values in and leave the editor holding detached objects. Here
+// S.config is left exactly as it is: each command, describing the value as it
+// now stands, is applied only to the baseline, and what that returns is the
+// undo. A command that changes nothing in the baseline is dropped. Returns
+// whether anything was recorded; if it can't be (no baseline, or the command
+// doesn't fit), the edit is saved as a plain edit instead.
+export function commitInPlace(commandOrList, opts = {}) {
+  const commands = Array.isArray(commandOrList) ? commandOrList : [commandOrList];
+  settlePlainEdits();
+  if (baseline == null) {
+    saveConfigDebounced(opts.delay, { skipUndo: opts.skipUndo });
+    return false;
+  }
+  const inverses = [];
+  const kept = [];
+  try {
+    if (commands.length > 1) {
+      const scratch = cloneJson(baseline);
+      commands.forEach((cmd) => applyCommand(scratch, cmd));
+    }
+    commands.forEach((cmd) => {
+      const inverse = applyCommand(baseline, cmd);
+      if (JSON.stringify(inverse) === JSON.stringify([cmd])) return; // already the baseline's value
+      kept.push(cmd);
+      inverses.push(...inverse);
+    });
+  } catch (e) {
+    console.warn('[history] in-place edit kept as a plain edit:', e.message);
+    saveConfigDebounced(opts.delay, { skipUndo: opts.skipUndo });
+    return false;
+  }
+  if (!kept.length) {
+    writeConfigSoon(opts.delay);
+    return false;
+  }
+  recordApplied(kept, inverses, opts);
   return true;
+}
+
+// commitInPlace for list items (ad pool entries, presets, flows — commands.js
+// COLLECTIONS) edited directly: `pairs` is [item, before] or a list of them,
+// `before` a cloneJson copy taken before the edit, used to find which
+// top-level fields changed. Items that changed nothing are skipped.
+export function commitItemEdit(collection, pairs, opts = {}) {
+  const list = Array.isArray(pairs[0]) ? pairs : [pairs];
+  const commands = [];
+  list.forEach(([item, before]) => {
+    const change = itemFieldChanges(before, item);
+    if (!change) return;
+    commands.push(opts.channel != null
+      ? { type: 'item.set', collection, channel: opts.channel, id: item.id, fields: change.fields }
+      : { type: 'item.set', collection, id: item.id, fields: change.fields });
+  });
+  if (!commands.length) return false;
+  return commitInPlace(commands, opts);
 }
 
 // Replaces history's starting point with the config as it is now — after an

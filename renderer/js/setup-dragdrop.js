@@ -7,7 +7,7 @@
 // main process — re-implementing that here for a bare dropped path isn't
 // worth the duplication, so a dropped non-video path is just skipped with a
 // status message pointing at those buttons instead).
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { channelListEl, interstitialsListEl, scanProgressEl } from './dom.js';
 import { probeDuration } from './setup-util.js';
 import { addFilesToChannel, addInterstitialPoolEntry } from './channels.js';
@@ -85,7 +85,7 @@ channelListEl.addEventListener('drop', async (e) => {
   }
   addFilesToChannel(ch, entries);
   flashStatus(`ADDED ${newPaths.length} VIDEO${newPaths.length === 1 ? '' : 'S'} TO CH ${ch.number}`);
-  saveConfigDebounced();
+  commitInPlace({ type: 'channel.setFields', channel: ch.number, fields: { files: ch.files, anchor: ch.anchor } }, { label: `Add ${newPaths.length} video${newPaths.length === 1 ? '' : 's'} to CH ${ch.number}` });
   renderChannelList();
 });
 
@@ -113,7 +113,7 @@ interstitialsListEl.addEventListener('drop', async (e) => {
     addInterstitialPoolEntry({ file: { path: paths[i], duration } });
   }
   flashStatus(`ADDED ${paths.length} POOL ENTR${paths.length === 1 ? 'Y' : 'IES'}`);
-  saveConfigDebounced();
+  commitConfigPatch(`Add ${paths.length} ad pool entr${paths.length === 1 ? 'y' : 'ies'}`);
   renderInterstitialsList();
 });
 

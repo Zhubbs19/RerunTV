@@ -8,7 +8,8 @@
 // self-contained subsystem (own timeline canvas, own simulator) with almost
 // no coupling to the pool/preset/standby UI here beyond the shared
 // labeledField() helper (exported below for that file to reuse).
-import { addInterstitialPoolEntry, formatChannelNumber, getChannel, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
+import { formatChannelNumber, getChannel, newInterstitialPoolEntry, parseMediaRef, sortedChannels, tryGetDisplayName } from './channels.js';
+import { cloneJson } from './commands.js';
 import {
   commercialsIntervalEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
   interstitialsBulkBarEl, interstitialsBulkChannelApplyBtn, interstitialsBulkChannelSelectEl,
@@ -24,7 +25,7 @@ import {
   attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, buildPreemptionWindowsEditor,
   parsePositiveInt, probeDuration, probeDurationForEntry,
 } from './setup-util.js';
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
 import { basenameNoExt } from './util.js';
 
@@ -301,6 +302,7 @@ async function importPoolFromProvider(providerId) {
   const options = await promptBatchImportOptions(refs.length);
   if (!options) return;
   scanProgressEl.classList.remove('hidden');
+  const added = [];
   for (let i = 0; i < refs.length; i++) {
     scanProgressEl.textContent = `PROBING ${i + 1} / ${refs.length}…`;
     const rawRef = parseMediaRef(refs[i]).ref;
@@ -309,16 +311,16 @@ async function importPoolFromProvider(providerId) {
       probeDurationForEntry(providerId, rawRef),
       tryGetDisplayName(providerId, rawRef),
     ]);
-    addInterstitialPoolEntry({
+    added.push(newInterstitialPoolEntry({
       file: { path: refs[i], source: providerId, duration, ...(title ? { title } : {}) },
       type: options.type,
       channelAffinity: options.channelAffinity,
       contentTags: options.contentTags,
-    });
+    }));
   }
   scanProgressEl.classList.add('hidden');
+  addPoolEntries(added);
   renderInterstitialsList();
-  saveConfigDebounced();
 }
 
 // Small select inserted right after the existing (local-only) ADD FOLDER
@@ -389,14 +391,20 @@ function buildMediaSourcePickButton(onPick) {
   return select;
 }
 
+// A folder import's new entries, as one undoable step.
+function addPoolEntries(entries) {
+  if (!entries.length) return;
+  dispatch(entries.map((item) => ({ type: 'item.insert', collection: 'pool', item })),
+    { label: `Import ${entries.length} ad pool entr${entries.length === 1 ? 'y' : 'ies'}` });
+}
+
 export function renderCommercialsPanel() {
   const cm = S.config.commercials;
   commercialsIntervalEl.value = cm.intervalMinutes || 10;
 }
 
 commercialsIntervalEl.addEventListener('change', () => {
-  S.config.commercials.intervalMinutes = parsePositiveInt(commercialsIntervalEl.value, 10);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['commercials', 'intervalMinutes'], value: parsePositiveInt(commercialsIntervalEl.value, 10) });
 });
 
 // Data-driven type table for the interstitials pool editor — one row per
@@ -681,11 +689,10 @@ function buildInterstitialCard(entry, idx, pool) {
     removeBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const label = (typeDef && typeDef.label) || entry.type || 'this entry';
-      if (!(await confirmDialog(`Remove this ${label} pool entry? This can't be undone.`))) return;
-      pool.splice(idx, 1);
+      if (!(await confirmDialog(`Remove this ${label} pool entry? You can undo this.`))) return;
+      dispatch({ type: 'item.remove', collection: 'pool', id: entry.id });
       expandedInterstitialEntries.delete(entry.id);
       renderInterstitialsList();
-      saveConfigDebounced();
     });
     summary.appendChild(removeBtn);
 
@@ -724,6 +731,7 @@ function buildInterstitialCard(entry, idx, pool) {
     });
     typeSelect.value = entry.type;
     typeSelect.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.type = typeSelect.value;
       const def = interstitialTypeDef(entry.type);
       // A dynamic entry's text is its template (still meaningful across a
@@ -737,7 +745,7 @@ function buildInterstitialCard(entry, idx, pool) {
       // instant) despite the UI showing 7.
       if (def.needsLeadDays && entry.leadDays == null) entry.leadDays = 7;
       renderInterstitialsList();
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     mainGrid.appendChild(labeledField('TYPE', typeSelect));
 
@@ -755,13 +763,14 @@ function buildInterstitialCard(entry, idx, pool) {
     });
     channelSelect.value = entry.channelAffinity === 'any' ? 'any' : String(entry.channelAffinity);
     channelSelect.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.channelAffinity = channelSelect.value === 'any' ? 'any' : parseInt(channelSelect.value, 10);
       // A block affinity only means something within the channel it was
       // picked from — switching channels drops it rather than carrying a
       // now-meaningless block id along silently.
       entry.blockAffinity = null;
       renderInterstitialsList();
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     mainGrid.appendChild(labeledField('CHANNEL', channelSelect));
 
@@ -788,8 +797,9 @@ function buildInterstitialCard(entry, idx, pool) {
     }
     blockSelect.value = entry.blockAffinity || 'any';
     blockSelect.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.blockAffinity = blockSelect.value === 'any' ? null : blockSelect.value;
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     mainGrid.appendChild(labeledField('BLOCK', blockSelect));
 
@@ -800,8 +810,9 @@ function buildInterstitialCard(entry, idx, pool) {
     weightInput.title = 'How often this entry is picked relative to others';
     weightInput.value = entry.weight || 1;
     weightInput.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.weight = parseInt(weightInput.value, 10) || 1;
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     mainGrid.appendChild(labeledField('WEIGHT', weightInput));
 
@@ -843,8 +854,9 @@ function buildInterstitialCard(entry, idx, pool) {
       });
       timingSelect.value = entry.contentTiming || '';
       timingSelect.addEventListener('change', () => {
+        const prior = cloneJson(entry);
         entry.contentTiming = timingSelect.value || null;
-        saveConfigDebounced();
+        commitItemEdit('pool', [entry, prior]);
       });
       forcedTimingField = labeledField('FORCED TIMING', timingSelect);
       if (entry.contentTags && entry.contentTags.length) {
@@ -854,6 +866,7 @@ function buildInterstitialCard(entry, idx, pool) {
     }
 
     tagsInput.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       const tags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
       entry.contentTags = tags.length ? tags : null;
       if (!entry.contentTags) entry.contentTiming = null;
@@ -868,7 +881,7 @@ function buildInterstitialCard(entry, idx, pool) {
         }
       }
       deadTagWarning.refresh();
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
 
     if (typeDef.needsLeadDays) {
@@ -879,8 +892,9 @@ function buildInterstitialCard(entry, idx, pool) {
       leadInput.title = 'Starts airing this many days before the target block\'s start date';
       leadInput.value = entry.leadDays != null ? entry.leadDays : 7;
       leadInput.addEventListener('change', () => {
+        const prior = cloneJson(entry);
         entry.leadDays = parsePositiveInt(leadInput.value, 0);
-        saveConfigDebounced();
+        commitItemEdit('pool', [entry, prior]);
       });
       secondGrid.appendChild(labeledField('LEAD DAYS', leadInput));
       secondGridUsed = true;
@@ -902,8 +916,9 @@ function buildInterstitialCard(entry, idx, pool) {
     fadeInInput.placeholder = '220';
     fadeInInput.value = entry.fadeInMs != null ? entry.fadeInMs : '';
     fadeInInput.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.fadeInMs = fadeInInput.value.trim() === '' ? null : parsePositiveInt(fadeInInput.value, 0);
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('FADE IN (MS, BLANK = DEFAULT)', fadeInInput));
 
@@ -915,8 +930,9 @@ function buildInterstitialCard(entry, idx, pool) {
     fadeOutInput.placeholder = '180';
     fadeOutInput.value = entry.fadeOutMs != null ? entry.fadeOutMs : '';
     fadeOutInput.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.fadeOutMs = fadeOutInput.value.trim() === '' ? null : parsePositiveInt(fadeOutInput.value, 0);
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('FADE OUT (MS, BLANK = DEFAULT)', fadeOutInput));
 
@@ -928,8 +944,9 @@ function buildInterstitialCard(entry, idx, pool) {
     waitInput.placeholder = '0';
     waitInput.value = entry.waitMs || '';
     waitInput.addEventListener('change', () => {
+      const prior = cloneJson(entry);
       entry.waitMs = parsePositiveInt(waitInput.value, 0);
-      saveConfigDebounced();
+      commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('WAIT AFTER (MS, BLANK = NONE)', waitInput));
     secondGridUsed = true;
@@ -947,6 +964,7 @@ function buildInterstitialCard(entry, idx, pool) {
       dynamicCheckbox.type = 'checkbox';
       dynamicCheckbox.checked = !!entry.dynamic;
       dynamicCheckbox.addEventListener('change', () => {
+        const prior = cloneJson(entry);
         entry.dynamic = dynamicCheckbox.checked;
         if (entry.dynamic) {
           entry.file = null;
@@ -956,7 +974,7 @@ function buildInterstitialCard(entry, idx, pool) {
           entry.text = null;
         }
         renderInterstitialsList();
-        saveConfigDebounced();
+        commitItemEdit('pool', [entry, prior]);
       });
       dynamicLabel.appendChild(dynamicCheckbox);
       dynamicLabel.appendChild(document.createTextNode('DYNAMIC'));
@@ -967,20 +985,22 @@ function buildInterstitialCard(entry, idx, pool) {
         bgBtn.className = 'btn';
         bgBtn.textContent = entry.bgFile ? interstitialFileLabel(entry.bgFile) : 'CHOOSE BACKGROUND CLIP';
         bgBtn.addEventListener('click', async () => {
+          const prior = cloneJson(entry);
           const path = await window.api.selectVideo();
           if (!path) return;
           entry.bgFile = { path, source: 'local' };
           renderInterstitialsList();
-          saveConfigDebounced();
+          commitItemEdit('pool', [entry, prior]);
         });
         body.appendChild(bgBtn);
         if (cachedMediaSourceProviders.length) {
           body.appendChild(buildMediaSourcePickButton(async (providerId) => {
+            const prior = cloneJson(entry);
             const picked = await pickSingleFileFromProvider(providerId);
             if (!picked) return;
             entry.bgFile = picked;
             renderInterstitialsList();
-            saveConfigDebounced();
+            commitItemEdit('pool', [entry, prior]);
           }));
         }
 
@@ -989,8 +1009,9 @@ function buildInterstitialCard(entry, idx, pool) {
         templateInput.placeholder = '{channel} {time} {nextTitle} {daysUntil} {episodesUntil}';
         templateInput.value = entry.text || '';
         templateInput.addEventListener('input', () => {
+          const prior = cloneJson(entry);
           entry.text = templateInput.value;
-          saveConfigDebounced();
+          commitItemEdit('pool', [entry, prior], { coalesce: `pool:${entry.id}:text` });
         });
         body.appendChild(labeledField('TEMPLATE TEXT', templateInput, { wide: true }));
 
@@ -1001,8 +1022,9 @@ function buildInterstitialCard(entry, idx, pool) {
         durationInput.title = 'How long the looping clip+text plays for — a background has no natural length of its own';
         durationInput.value = entry.durationS || 15;
         durationInput.addEventListener('change', () => {
+          const prior = cloneJson(entry);
           entry.durationS = parsePositiveInt(durationInput.value, 15);
-          saveConfigDebounced();
+          commitItemEdit('pool', [entry, prior]);
         });
         secondGrid.appendChild(labeledField('SECONDS', durationInput));
         secondGridUsed = true;
@@ -1011,21 +1033,23 @@ function buildInterstitialCard(entry, idx, pool) {
         fileBtn.className = 'btn';
         fileBtn.textContent = entry.file ? interstitialFileLabel(entry.file) : 'CHOOSE FILE';
         fileBtn.addEventListener('click', async () => {
+          const prior = cloneJson(entry);
           const path = await window.api.selectVideo();
           if (!path) return;
           const duration = await probeDuration(path);
           entry.file = { path, source: 'local', duration };
           renderInterstitialsList();
-          saveConfigDebounced();
+          commitItemEdit('pool', [entry, prior]);
         });
         body.appendChild(fileBtn);
         if (cachedMediaSourceProviders.length) {
           body.appendChild(buildMediaSourcePickButton(async (providerId) => {
+            const prior = cloneJson(entry);
             const picked = await pickSingleFileFromProvider(providerId);
             if (!picked) return;
             entry.file = picked;
             renderInterstitialsList();
-            saveConfigDebounced();
+            commitItemEdit('pool', [entry, prior]);
           }));
         }
       }
@@ -1035,8 +1059,9 @@ function buildInterstitialCard(entry, idx, pool) {
       textInput.placeholder = typeDef.textPlaceholder || 'TEXT OVERRIDE (BLANK = AUTO)';
       textInput.value = entry.text || '';
       textInput.addEventListener('input', () => {
+        const prior = cloneJson(entry);
         entry.text = textInput.value;
-        saveConfigDebounced();
+        commitItemEdit('pool', [entry, prior], { coalesce: `pool:${entry.id}:text` });
       });
       body.appendChild(labeledField('TEXT', textInput, { wide: true }));
     }
@@ -1259,43 +1284,46 @@ interstitialsBulkSelectAllBtn.addEventListener('click', () => {
 interstitialsBulkChannelApplyBtn.addEventListener('click', () => {
   const val = interstitialsBulkChannelSelectEl.value;
   const channelAffinity = val === 'any' ? 'any' : parseInt(val, 10);
-  selectedInterstitialEntryObjs().forEach((entry) => {
+  const targets = selectedInterstitialEntryObjs();
+  const priors = targets.map((entry) => [entry, cloneJson(entry)]);
+  targets.forEach((entry) => {
     entry.channelAffinity = channelAffinity;
     entry.blockAffinity = null; // stale once the channel changes — see the single-entry channelSelect handler above
   });
+  if (priors.length) commitItemEdit('pool', priors, { label: `Set channel for ${priors.length} ad pool entr${priors.length === 1 ? 'y' : 'ies'}` });
   renderInterstitialsList();
-  saveConfigDebounced();
 });
 
 interstitialsBulkTagApplyBtn.addEventListener('click', () => {
   const tag = interstitialsBulkTagInputEl.value.trim().toLowerCase();
   if (!tag) return;
-  selectedInterstitialEntryObjs().forEach((entry) => {
+  const targets = selectedInterstitialEntryObjs();
+  const priors = targets.map((entry) => [entry, cloneJson(entry)]);
+  targets.forEach((entry) => {
     const tags = new Set(entry.contentTags || []);
     tags.add(tag);
     entry.contentTags = Array.from(tags);
   });
+  if (priors.length) commitItemEdit('pool', priors, { label: `Tag ${priors.length} ad pool entr${priors.length === 1 ? 'y' : 'ies'}` });
   interstitialsBulkTagInputEl.value = '';
   renderInterstitialsList();
-  saveConfigDebounced();
 });
 
 interstitialsBulkRemoveBtn.addEventListener('click', async () => {
   const targets = selectedInterstitialEntryObjs();
   if (!targets.length) return;
-  if (!(await confirmDialog(`Remove ${targets.length} selected pool entr${targets.length === 1 ? 'y' : 'ies'}? This can't be undone.`))) return;
-  const targetIds = new Set(targets.map((e) => e.id));
-  S.config.interstitials.pool = S.config.interstitials.pool.filter((e) => !targetIds.has(e.id));
+  if (!(await confirmDialog(`Remove ${targets.length} selected pool entr${targets.length === 1 ? 'y' : 'ies'}? You can undo this.`))) return;
+  dispatch(targets.map((e) => ({ type: 'item.remove', collection: 'pool', id: e.id })),
+    { label: `Remove ${targets.length} ad pool entr${targets.length === 1 ? 'y' : 'ies'}` });
   selectedInterstitialEntries.clear();
   renderInterstitialsList();
-  saveConfigDebounced();
 });
 
 interstitialsAddEntryBtn.addEventListener('click', () => {
-  const entry = addInterstitialPoolEntry({});
+  const entry = newInterstitialPoolEntry({});
+  dispatch({ type: 'item.insert', collection: 'pool', item: entry });
   expandedInterstitialEntries.add(entry.id); // open immediately — a fresh entry has nothing worth summarizing yet
   renderInterstitialsList();
-  saveConfigDebounced();
 });
 
 interstitialsAddFolderBtn.addEventListener('click', async () => {
@@ -1315,20 +1343,21 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
   const options = await promptBatchImportOptions(paths.length);
   if (!options) return;
   scanProgressEl.classList.remove('hidden');
+  const added = [];
   for (let i = 0; i < paths.length; i++) {
     scanProgressEl.textContent = `PROBING ${i + 1} / ${paths.length}…`;
     // eslint-disable-next-line no-await-in-loop
     const duration = await probeDuration(paths[i]);
-    addInterstitialPoolEntry({
+    added.push(newInterstitialPoolEntry({
       file: { path: paths[i], source: 'local', duration },
       type: options.type,
       channelAffinity: options.channelAffinity,
       contentTags: options.contentTags,
-    });
+    }));
   }
   scanProgressEl.classList.add('hidden');
+  addPoolEntries(added);
   renderInterstitialsList();
-  saveConfigDebounced();
 });
 
 // AD PRESETS — named break layouts targeted at tagged content (see the
@@ -1392,8 +1421,9 @@ function buildPresetRow(preset, idx, presets) {
   enabledCheckbox.checked = preset.enabled !== false;
   enabledCheckbox.addEventListener('click', (e) => e.stopPropagation());
   enabledCheckbox.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     preset.enabled = enabledCheckbox.checked;
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
   enabledLabel.appendChild(enabledCheckbox);
   header.appendChild(enabledLabel);
@@ -1437,11 +1467,10 @@ function buildPresetRow(preset, idx, presets) {
   removeBtn.textContent = 'REMOVE';
   removeBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    if (!(await confirmDialog(`Remove the "${preset.name || 'untitled'}" ad preset? This can't be undone.`))) return;
-    presets.splice(idx, 1);
+    if (!(await confirmDialog(`Remove the "${preset.name || 'untitled'}" ad preset? You can undo this.`))) return;
+    dispatch({ type: 'item.remove', collection: 'presets', id: preset.id });
     expandedPresets.delete(preset.id);
     renderPresetsList();
-    saveConfigDebounced();
   });
   header.appendChild(removeBtn);
 
@@ -1472,9 +1501,10 @@ function buildPresetRow(preset, idx, presets) {
   nameInput.placeholder = 'e.g. 30-MIN CARTOON, 2 EPS';
   nameInput.value = preset.name || '';
   nameInput.addEventListener('input', () => {
+    const prior = cloneJson(preset);
     preset.name = nameInput.value;
     title.textContent = preset.name && preset.name.trim() ? preset.name : '(untitled preset)';
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior], { coalesce: `presets:${preset.id}:name` });
   });
   body.appendChild(labeledField('PRESET NAME', nameInput, { wide: true }));
 
@@ -1516,10 +1546,11 @@ function buildPresetRow(preset, idx, presets) {
         removeBtn.className = 'pill-remove';
         removeBtn.textContent = '✕';
         removeBtn.addEventListener('click', (e) => {
+          const prior = cloneJson(preset);
           e.stopPropagation();
           preset.channels = preset.channels.filter((n) => n !== num);
           renderChannelPills();
-          saveConfigDebounced();
+          commitItemEdit('presets', [preset, prior]);
         });
         pill.appendChild(removeBtn);
         pillsWrap.appendChild(pill);
@@ -1528,6 +1559,7 @@ function buildPresetRow(preset, idx, presets) {
   };
 
   chSelect.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     const val = chSelect.value;
     if (val === 'all') {
       preset.channels = [];
@@ -1540,7 +1572,7 @@ function buildPresetRow(preset, idx, presets) {
     }
     chSelect.value = 'all';
     renderChannelPills();
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
 
   renderChannelPills();
@@ -1555,10 +1587,11 @@ function buildPresetRow(preset, idx, presets) {
   tagsInput.value = (preset.contentTags || []).join(', ');
   const presetDeadTagWarning = buildDeadTagWarning(() => preset.contentTags);
   tagsInput.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     const tags = tagsInput.value.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean);
     preset.contentTags = tags;
     presetDeadTagWarning.refresh();
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
   body.appendChild(labeledField('APPLIES TO CONTENT TAGGED (BLANK = ANY)', attachTagAutocomplete(tagsInput), { wide: true }));
   body.appendChild(presetDeadTagWarning.el);
@@ -1583,9 +1616,10 @@ function buildPresetRow(preset, idx, presets) {
   });
   timingSelect.value = preset.timing || 'interval';
   timingSelect.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     preset.timing = timingSelect.value;
     renderPresetsList();
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
   grid.appendChild(labeledField('TIMING', timingSelect));
 
@@ -1597,8 +1631,9 @@ function buildPresetRow(preset, idx, presets) {
     intervalInput.value = preset.intervalMinutes || '';
     intervalInput.placeholder = '10';
     intervalInput.addEventListener('change', () => {
+      const prior = cloneJson(preset);
       preset.intervalMinutes = parsePositiveInt(intervalInput.value, null);
-      saveConfigDebounced();
+      commitItemEdit('presets', [preset, prior]);
     });
     grid.appendChild(labeledField('EVERY (MIN)', intervalInput));
   }
@@ -1610,17 +1645,21 @@ function buildPresetRow(preset, idx, presets) {
     bpInput.placeholder = 'e.g. 20, 45, 70';
     bpInput.value = (preset.breakpoints || []).join(', ');
     bpInput.addEventListener('change', () => {
+      const prior = cloneJson(preset);
       const pts = bpInput.value.split(',')
         .map((v) => parseFloat(v.trim()))
         .filter((v) => Number.isFinite(v) && v > 0 && v < 100);
       preset.breakpoints = pts.length ? pts : null;
-      saveConfigDebounced();
+      commitItemEdit('presets', [preset, prior]);
       renderPresetsList(); // re-syncs the drag track below to whatever was just typed
     });
     grid.appendChild(labeledField('BREAK POINTS (%)', bpInput));
     const track = buildBreakpointTrack(
       () => preset.breakpoints,
-      (pts) => { preset.breakpoints = pts; saveConfigDebounced(); },
+      (pts) => {
+        preset.breakpoints = pts;
+        commitInPlace({ type: 'item.set', collection: 'presets', id: preset.id, fields: { breakpoints: pts } }, { coalesce: `presets:${preset.id}:breakpoints` });
+      },
       bpInput,
     );
     grid.appendChild(labeledField('DRAG TO SET', track, { wide: true }));
@@ -1634,13 +1673,14 @@ function buildPresetRow(preset, idx, presets) {
   podMinInput.className = 'block-priority-input';
   podMinInput.value = preset.podMin || 1;
   podMinInput.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     preset.podMin = parsePositiveInt(podMinInput.value, 1);
     if ((preset.podMax || 1) < preset.podMin) {
       preset.podMax = preset.podMin;
       podMaxInput.value = preset.podMax;
     }
     podMaxInput.min = preset.podMin;
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
   podRow.appendChild(podMinInput);
   const podSep = document.createElement('span');
@@ -1653,9 +1693,10 @@ function buildPresetRow(preset, idx, presets) {
   podMaxInput.className = 'block-priority-input';
   podMaxInput.value = preset.podMax || 1;
   podMaxInput.addEventListener('change', () => {
+    const prior = cloneJson(preset);
     preset.podMax = Math.max(parsePositiveInt(podMaxInput.value, 1), preset.podMin || 1);
     podMaxInput.value = preset.podMax;
-    saveConfigDebounced();
+    commitItemEdit('presets', [preset, prior]);
   });
   podRow.appendChild(podMaxInput);
   grid.appendChild(labeledField('SPOTS PER BREAK', podRow));
@@ -1706,10 +1747,9 @@ presetsCollapseAllBtn.addEventListener('click', () => {
 
 presetsAddBtn.addEventListener('click', () => {
   const preset = freshPreset();
-  S.config.interstitials.presets.push(preset);
+  dispatch({ type: 'item.insert', collection: 'presets', item: preset });
   expandedPresets.add(preset.id); // open immediately — a fresh preset has nothing worth summarizing yet
   renderPresetsList();
-  saveConfigDebounced();
 });
 
 // Rebuilt each time the setup screen shows, same as renderLogoBugEditor/
@@ -1720,7 +1760,10 @@ export function renderPreemptionWindowsEditor() {
   preemptionWindowsEditorEl.innerHTML = '';
   preemptionWindowsEditorEl.appendChild(buildPreemptionWindowsEditor(
     () => S.config.preemptionWindows,
-    (windows) => { S.config.preemptionWindows = windows; saveConfigDebounced(); },
+    (windows) => {
+      S.config.preemptionWindows = windows;
+      commitInPlace({ type: 'settings.set', path: ['preemptionWindows'], value: windows }, { coalesce: 'preemptionWindows' });
+    },
   ));
 }
 
@@ -1731,12 +1774,10 @@ export function renderStandbyPanel() {
 }
 
 standbyEnabledEl.addEventListener('change', () => {
-  S.config.autoStandby.enabled = standbyEnabledEl.checked;
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['autoStandby', 'enabled'], value: standbyEnabledEl.checked });
 });
 
 standbyIntervalEl.addEventListener('change', () => {
-  S.config.autoStandby.intervalMinutes = parsePositiveInt(standbyIntervalEl.value, 15);
-  saveConfigDebounced();
+  dispatch({ type: 'settings.set', path: ['autoStandby', 'intervalMinutes'], value: parsePositiveInt(standbyIntervalEl.value, 15) });
 });
 

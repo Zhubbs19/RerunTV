@@ -2,7 +2,9 @@
 // Counts the renderer's remaining untyped config writes: call sites that mutate
 // S.config in place and then call saveConfigDebounced(), which the undo layer
 // turns into an anonymous config.patch diff. docs/design/05 step 5 converts
-// these to named commands (dispatch) file by file; this is the burn-down report.
+// these to named commands (dispatch, commitInPlace) file by file; this is the
+// burn-down report. All renderer files reached zero in step 5; the ceiling test
+// keeps it there.
 //
 //   node scripts/audit-config-writes.js           per-file counts, largest first
 //   node scripts/audit-config-writes.js --update  also rewrite the ceiling file
@@ -23,6 +25,17 @@ function stripComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
 }
 
+function countLabelledPatches() {
+  const counts = {};
+  for (const name of fs.readdirSync(RENDERER).sort()) {
+    if (!name.endsWith('.js') || IGNORED.has(name)) continue;
+    const source = stripComments(fs.readFileSync(path.join(RENDERER, name), 'utf8'));
+    const n = (source.match(/(?<![\w.])commitConfigPatch\(/g) || []).length;
+    if (n) counts[name] = n;
+  }
+  return counts;
+}
+
 function countUntypedWrites() {
   const counts = {};
   for (const name of fs.readdirSync(RENDERER).sort()) {
@@ -39,7 +52,7 @@ function readCeiling() {
   try { return JSON.parse(fs.readFileSync(CEILING_FILE, 'utf8')); } catch { return {}; }
 }
 
-module.exports = { countUntypedWrites, readCeiling, CEILING_FILE };
+module.exports = { countUntypedWrites, countLabelledPatches, readCeiling, CEILING_FILE };
 
 if (require.main === module) {
   const counts = countUntypedWrites();
@@ -52,6 +65,10 @@ if (require.main === module) {
     console.log(`${String(n).padStart(4)}  ${name}${delta}`);
   });
   console.log(`${String(total).padStart(4)}  total untyped config writes in renderer/js`);
+  // Not a regression: whole-config transforms (curation, tag rename, resync,
+  // import, relink) recorded as one labelled config.patch on purpose.
+  const patches = Object.entries(countLabelledPatches());
+  console.log(`${String(patches.reduce((sum, [, n]) => sum + n, 0)).padStart(4)}  labelled whole-config patches (commitConfigPatch): ${patches.map(([name, n]) => `${name} ${n}`).join(', ')}`);
   if (process.argv.includes('--update')) {
     fs.writeFileSync(CEILING_FILE, `${JSON.stringify(Object.fromEntries(Object.entries(counts).sort()), null, 2)}\n`);
     console.log(`wrote ${path.relative(ROOT, CEILING_FILE)}`);

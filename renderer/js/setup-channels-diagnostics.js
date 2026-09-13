@@ -17,7 +17,7 @@ import { getChannelSchedule } from './schedule.js';
 import { alertDialog, confirmDialog } from './setup-dialogs.js';
 import { applyLocalFolderRelink, replaceLocalRoot } from './library-relink.js';
 import { collectRealContentTags } from './setup-util.js';
-import { S, saveConfigDebounced, viewNow } from './state.js';
+import { S, viewNow, commitConfigPatch } from './state.js';
 import { formatSlotLabel, getDisplayTitle, titleNeedsMetadata } from './util.js';
 
 // ---------- Cross-channel NOW/NEXT dashboard ----------
@@ -135,7 +135,7 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
         const result = applyLocalFolderRelink(S.config, {
           oldId: entry.id, oldRoot: entry.ref, newId, newRoot,
         });
-        saveConfigDebounced();
+        commitConfigPatch('Relink folder');
         await alertDialog(`Relinked ${result.fileReferences} media reference(s) across ${result.folderEntries} folder entr${result.folderEntries === 1 ? 'y' : 'ies'}.`, { title: 'FOLDER RELINKED' });
         checkChannelHealth();
       });

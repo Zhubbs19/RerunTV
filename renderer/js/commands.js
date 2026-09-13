@@ -240,7 +240,9 @@ const SETTING_LABELS = {
   network: 'network', reminders: 'reminders', reminderAutoTune: 'reminder auto-tune',
   reminderNotify: 'reminder notifications', reminderLeadMinutes: 'reminder lead time',
   viewingHistory: 'viewing history', keepDisplayAwake: 'keep display awake', playbackResync: 'playback resync',
-  customSounds: 'sounds', pinLock: 'PIN lock',
+  customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
+  muted: 'mute', volume: 'volume', lastChannel: 'last channel', librarySync: 'library sync',
+  tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
 };
 const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));
 
@@ -293,6 +295,7 @@ const CHANNEL_FIELDS = {
   notSubscribed: 'not subscribed', hidden: 'hide from tuning', rating: 'rating', aspectRatio: 'aspect ratio',
   resolutionOverride: 'resolution', displayAspectOverride: 'display aspect', color: 'color', volume: 'volume',
   adsEnabled: 'ads', defaultHasCC: 'default CC', defaultHasSAP: 'default SAP', defaultHasStereo: 'default stereo',
+  iconOverrides: 'seasonal icons', logoBugProfiles: 'logo bug placement', dynamicOverlays: 'dynamic overlays',
 };
 
 registerCommand('channel.set', {
@@ -311,6 +314,65 @@ registerCommand('channel.set', {
   },
   describe(config, cmd) {
     return `Change CH ${cmd.channel} ${CHANNEL_FIELDS[cmd.field]}`;
+  },
+});
+
+// Whole top-level fields of one channel (its files, folders, commercials,
+// credits speedup, ticker, identity…), for edits that change more than a plain
+// value. Anything but the number, which identifies the channel: that's
+// channel.renumber / channel.swapNumbers.
+registerCommand('channel.setFields', {
+  validate(config, cmd) {
+    requireChannel(config, cmd.channel);
+    if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('channel.setFields needs fields');
+    if (Object.prototype.hasOwnProperty.call(cmd.fields, 'number')) throw new Error('channel.setFields can\'t change the number; use channel.renumber');
+  },
+  apply(config, cmd) {
+    const ch = findChannel(config, cmd.channel);
+    const before = {};
+    Object.keys(cmd.fields).forEach((field) => {
+      before[field] = Object.prototype.hasOwnProperty.call(ch, field) ? cloneJson(ch[field]) : undefined;
+      if (cmd.fields[field] === undefined) delete ch[field]; else ch[field] = cloneJson(cmd.fields[field]);
+    });
+    return [{ type: 'channel.setFields', channel: cmd.channel, fields: before }];
+  },
+  describe(config, cmd) {
+    const fields = Object.keys(cmd.fields);
+    if (fields.length !== 1) return `Edit CH ${cmd.channel}`;
+    return `Change CH ${cmd.channel} ${CHANNEL_FIELDS[fields[0]] || humanizeKey(fields[0])}`;
+  },
+});
+
+registerCommand('channel.renumber', {
+  validate(config, cmd) {
+    requireChannel(config, cmd.from);
+    if (!Number.isFinite(cmd.to)) throw new Error('channel.renumber needs a number');
+    if (cmd.to !== cmd.from && findChannel(config, cmd.to)) throw new Error(`Channel ${cmd.to} already exists`);
+  },
+  apply(config, cmd) {
+    findChannel(config, cmd.from).number = cmd.to;
+    return [{ type: 'channel.renumber', from: cmd.to, to: cmd.from }];
+  },
+  describe(config, cmd) {
+    return `Renumber CH ${cmd.from} to ${cmd.to}`;
+  },
+});
+
+// Two channels trade numbers (move up/down, drag to reorder).
+registerCommand('channel.swapNumbers', {
+  validate(config, cmd) {
+    requireChannel(config, cmd.a);
+    requireChannel(config, cmd.b);
+  },
+  apply(config, cmd) {
+    const a = findChannel(config, cmd.a);
+    const b = findChannel(config, cmd.b);
+    [a.number, b.number] = [b.number, a.number];
+    // Written the other way round so it never reads as "changes nothing".
+    return [{ type: 'channel.swapNumbers', a: cmd.b, b: cmd.a }];
+  },
+  describe(config, cmd) {
+    return `Swap CH ${cmd.a} and CH ${cmd.b}`;
   },
 });
 
@@ -373,6 +435,26 @@ registerCommand('plugin.setApproval', {
   },
   describe(config, cmd) {
     return cmd.signature == null ? `Revoke ${cmd.id} permissions` : `Approve ${cmd.id} permissions`;
+  },
+});
+
+// A plugin's whole settings object (config.pluginSettings[id]). Defined as an
+// own property, so an id can never reach the object's prototype.
+registerCommand('plugin.setSettings', {
+  validate(config, cmd) {
+    requirePluginId(cmd);
+    if (cmd.settings !== undefined && (!isObject(cmd.settings) || Array.isArray(cmd.settings))) throw new Error('plugin.setSettings needs a settings object');
+  },
+  apply(config, cmd) {
+    if (!isObject(config.pluginSettings) || Array.isArray(config.pluginSettings)) config.pluginSettings = {};
+    const root = config.pluginSettings;
+    const before = Object.prototype.hasOwnProperty.call(root, cmd.id) ? cloneJson(root[cmd.id]) : undefined;
+    if (cmd.settings === undefined) delete root[cmd.id];
+    else Object.defineProperty(root, cmd.id, { value: cloneJson(cmd.settings), enumerable: true, configurable: true, writable: true });
+    return [{ type: 'plugin.setSettings', id: cmd.id, settings: before }];
+  },
+  describe(config, cmd) {
+    return `Change ${cmd.id} settings`;
   },
 });
 
@@ -458,6 +540,145 @@ registerCommand('file.set', {
     return `Change CH ${cmd.channel} file ${fields.length === 1 ? FILE_FIELDS[fields[0]] : 'details'}`;
   },
 });
+
+// ---------- Id-addressed lists (ad pool, ad presets, flows, blocks) ----------
+// Items in these arrays carry a stable `id`, which is how a command finds one
+// no matter where it has moved in the list or what else changed around it.
+// item.set replaces whole top-level fields of one item; nested objects inside a
+// field are replaced as a unit. A channel-scoped list (a channel's schedule
+// blocks) also takes `channel`, the owning channel's number.
+const COLLECTIONS = {
+  pool: { label: 'ad pool entry', plural: 'ad pool entries', path: ['interstitials', 'pool'] },
+  presets: { label: 'ad preset', plural: 'ad presets', path: ['interstitials', 'presets'] },
+  flows: { label: 'flow', plural: 'flows', path: ['interstitials', 'flows'] },
+  blocks: { label: 'block', plural: 'blocks', channelScoped: true, path: ['blocks'] },
+};
+
+function collectionDef(cmd) {
+  const def = COLLECTIONS[cmd.collection];
+  if (!def) throw new Error(`${cmd.type}: "${cmd.collection}" isn't a list commands can edit`);
+  return def;
+}
+
+function collectionArray(config, def, create, cmd) {
+  let node = config;
+  if (def.channelScoped) {
+    node = findChannel(config, cmd && cmd.channel);
+    if (!node) {
+      if (create) throw new Error(`Channel ${cmd && cmd.channel} doesn't exist`);
+      return null;
+    }
+  }
+  for (let i = 0; i < def.path.length; i++) {
+    const key = def.path[i];
+    const last = i === def.path.length - 1;
+    if (last ? !Array.isArray(node[key]) : !isObject(node[key])) {
+      if (!create) return null;
+      node[key] = last ? [] : {};
+    }
+    node = node[key];
+  }
+  return node;
+}
+
+// Carries a channel-scoped command's channel over to its inverse. Key order
+// matches how callers build commands, so an inverse that changes nothing
+// compares equal to the command (state.js commitInPlace relies on it).
+function withScope(inverse, cmd) {
+  if (cmd.channel == null) return inverse;
+  const { type, collection, ...rest } = inverse;
+  return { type, collection, channel: cmd.channel, ...rest };
+}
+
+function requireItem(config, cmd) {
+  const def = collectionDef(cmd);
+  const list = collectionArray(config, def, false, cmd);
+  const index = list ? list.findIndex((item) => item && item.id === cmd.id) : -1;
+  if (index === -1) throw new Error(`No ${def.label} with id ${cmd.id}`);
+  return { def, list, index };
+}
+
+registerCommand('item.set', {
+  validate(config, cmd) {
+    requireItem(config, cmd);
+    if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('item.set needs fields');
+    if (Object.prototype.hasOwnProperty.call(cmd.fields, 'id')) throw new Error("item.set can't change an item's id");
+  },
+  apply(config, cmd) {
+    const { list, index } = requireItem(config, cmd);
+    const item = list[index];
+    const before = {};
+    Object.keys(cmd.fields).forEach((field) => {
+      before[field] = Object.prototype.hasOwnProperty.call(item, field) ? cloneJson(item[field]) : undefined;
+      if (cmd.fields[field] === undefined) delete item[field]; else item[field] = cloneJson(cmd.fields[field]);
+    });
+    return [withScope({ type: 'item.set', collection: cmd.collection, id: cmd.id, fields: before }, cmd)];
+  },
+  describe(config, cmd) {
+    const def = COLLECTIONS[cmd.collection];
+    const fields = Object.keys(cmd.fields);
+    return `Change ${def ? def.label : 'item'} ${fields.length === 1 ? humanizeKey(fields[0]) : 'settings'}`;
+  },
+});
+
+registerCommand('item.insert', {
+  validate(config, cmd) {
+    const def = collectionDef(cmd);
+    if (!isObject(cmd.item) || !cmd.item.id) throw new Error('item.insert needs an item with an id');
+    if (def.channelScoped && !findChannel(config, cmd.channel)) throw new Error(`Channel ${cmd.channel} doesn't exist`);
+    const list = collectionArray(config, def, false, cmd);
+    if (list && list.some((item) => item && item.id === cmd.item.id)) throw new Error(`A ${def.label} with id ${cmd.item.id} already exists`);
+  },
+  apply(config, cmd) {
+    const list = collectionArray(config, collectionDef(cmd), true, cmd);
+    const index = Math.max(0, Math.min(cmd.index == null ? list.length : cmd.index, list.length));
+    list.splice(index, 0, cloneJson(cmd.item));
+    return [withScope({ type: 'item.remove', collection: cmd.collection, id: cmd.item.id }, cmd)];
+  },
+  describe(config, cmd) {
+    const def = COLLECTIONS[cmd.collection];
+    return `Add ${def ? def.label : 'item'}`;
+  },
+});
+
+registerCommand('item.remove', {
+  validate(config, cmd) {
+    requireItem(config, cmd);
+  },
+  apply(config, cmd) {
+    const { list, index } = requireItem(config, cmd);
+    const [removed] = list.splice(index, 1);
+    return [withScope({ type: 'item.insert', collection: cmd.collection, index, item: cloneJson(removed) }, cmd)];
+  },
+  describe(config, cmd) {
+    const def = COLLECTIONS[cmd.collection];
+    return `Remove ${def ? def.label : 'item'}`;
+  },
+});
+
+// Top-level field changes between a copy of an item taken before an in-place
+// edit and the item now: { fields, previous }, or null when nothing changed.
+// Lets UI code that edits an item directly still record the edit as item.set
+// (state.js commitItemEdit) without the command replacing live objects.
+export function itemFieldChanges(before, after) {
+  const fields = {};
+  const previous = {};
+  const keys = new Set([...Object.keys(before || {}), ...Object.keys(after || {})]);
+  keys.forEach((key) => {
+    if (key === 'id') return;
+    const a = before ? before[key] : undefined;
+    const b = after ? after[key] : undefined;
+    if (a === undefined && b === undefined) return;
+    if (deepEqual(a, b)) return;
+    fields[key] = cloneJson(b);
+    previous[key] = cloneJson(a);
+  });
+  return Object.keys(fields).length ? { fields, previous } : null;
+}
+
+export function collectionPlural(name) {
+  return COLLECTIONS[name] ? COLLECTIONS[name].plural : 'items';
+}
 
 registerCommand('channel.insert', {
   validate(config, cmd) {

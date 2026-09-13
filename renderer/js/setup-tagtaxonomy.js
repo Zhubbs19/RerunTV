@@ -4,7 +4,7 @@
 // remove-everywhere tool for tags already in use, since a real library
 // drifts ("scifi" vs "sci-fi") and there was previously no way to fix that
 // without hand-editing every file/entry using the stale spelling.
-import { S, saveConfigDebounced } from './state.js';
+import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { collectTagUsage, removeTagEverywhere, renameTagEverywhere } from './tagtaxonomy.js';
 import { buildMediaThumbnail } from './setup-util.js';
 import { confirmDialog } from './setup-dialogs.js';
@@ -59,7 +59,7 @@ function buildCategoryCard(categoryKey, label) {
     removeBtn.title = `Remove "${tag}" from ${label} (doesn't touch any file/entry already tagged with it)`;
     removeBtn.addEventListener('click', () => {
       S.config.tagTaxonomy[categoryKey] = S.config.tagTaxonomy[categoryKey].filter((t) => t !== tag);
-      saveConfigDebounced();
+      commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',categoryKey], value: S.config.tagTaxonomy[categoryKey] });
       renderTagTaxonomyPanel();
     });
     chip.appendChild(removeBtn);
@@ -82,7 +82,7 @@ function buildCategoryCard(categoryKey, label) {
     if (!t) return;
     if (!S.config.tagTaxonomy[categoryKey].includes(t)) S.config.tagTaxonomy[categoryKey].push(t);
     addInput.value = '';
-    saveConfigDebounced();
+    commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',categoryKey], value: S.config.tagTaxonomy[categoryKey] });
     renderTagTaxonomyPanel();
   };
   addBtn.addEventListener('click', commitAdd);
@@ -140,7 +140,7 @@ function buildUsageRow(entry) {
       const list = S.config.tagTaxonomy[key];
       const idx = list.indexOf(entry.tag);
       if (idx === -1) list.push(entry.tag); else list.splice(idx, 1);
-      saveConfigDebounced();
+      commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',key], value: list });
       renderTagTaxonomyPanel();
     });
     summary.appendChild(badge);
@@ -158,7 +158,7 @@ function buildUsageRow(entry) {
   removeBtn.addEventListener('click', async () => {
     if (!(await confirmDialog(`Remove "${entry.tag}" from every file/entry that carries it (${entry.count} place(s))? This can be undone with Ctrl+Z.`))) return;
     removeTagEverywhere(entry.tag);
-    saveConfigDebounced();
+    commitConfigPatch(`Remove tag "${entry.tag}" everywhere`);
     refreshEverything();
   });
 
@@ -186,7 +186,7 @@ function buildUsageRow(entry) {
     if (newTag === entry.tag) { renameForm.classList.add('hidden'); return; }
     if (!(await confirmDialog(`Rename "${entry.tag}" to "${newTag}" everywhere (${entry.count} place(s))? This can be undone with Ctrl+Z.`))) return;
     renameTagEverywhere(entry.tag, newTag);
-    saveConfigDebounced();
+    commitConfigPatch(`Rename tag "${entry.tag}" to "${newTag}"`);
     refreshEverything();
   };
   renameConfirmBtn.addEventListener('click', commitRename);

@@ -59,19 +59,31 @@ config/window/filter/selection are all unchanged, just moving the live line and
 `past`-dimming instead). A third, `schedule-query.js`'s per-day cache, keys on the channel
 object plus the generation.
 
-**Commands (`renderer/js/commands.js`, docs/design/05).** New edits should go through
-`dispatch({ type: 'channel.set', channel, field, value })` (or another registered command)
-rather than mutate-then-`saveConfigDebounced()`: a command applies in place, records its
-inverse, bumps the generation, saves, and gives undo a readable label ("Rename CH 7"). Pass
-`{ coalesce: key }` for typing/slider drags so a burst is one undo step. Unconverted call sites
-still work: the burst since the last settle point becomes a `config.patch` structural diff
-when its save fires. Don't add new ones: `tests/config-writes.test.js` caps each file's untyped
-writes (`node scripts/audit-config-writes.js` reports them; lower a file's ceiling with
-`--update` after converting it). Box settings are `settings.set`, and per-file TITLES metadata is
-`file.set`. Undo history stores commands and inverses, not config snapshots, and undo
-rewinds `S.config` **in place** (object identity survives). Don't store live config objects
-inside a command payload that is kept in history — commands copy what they insert, and the
-aliasing bug this prevents was real.
+**Commands (`renderer/js/commands.js`, docs/design/05).** Every config edit in `renderer/js` is a
+named command. There are no bare `saveConfigDebounced()` calls left, and
+`tests/config-writes.test.js` fails if one is added. `node scripts/audit-config-writes.js`
+reports them. Pick the right funnel from `state.js`:
+
+- **`dispatch(command, { coalesce, label, skipUndo })`**: the command makes the change itself.
+  Examples: `settings.set`, `channel.set`, `channel.insert`, `item.insert`, `item.remove`,
+  `file.set`. Pass `{ coalesce: key }` for typing or slider drags so a burst is one undo step.
+- **`commitInPlace(command, opts)`**: the UI already changed live objects it keeps references
+  to, e.g. a rule row, a flow's cadence, a block's trigger, or an array an editor hands back.
+  - The command states the value as it now stands, and is applied only to the undo baseline to
+    get its inverse. S.config keeps its objects.
+  - `commitItemEdit(collection, [item, cloneJson(item)-before])` is the list-item form.
+  - `setup-util.js`'s `commitOwnerFields(channelOrBlock, fields)` is the channel-or-block form.
+- **`commitConfigPatch(label, opts)`**: only for transforms that rewrite many parts of config
+  at once (curation, tag rename everywhere, resync, import, relink). It records one labelled
+  structural patch.
+- Watching state written from the TV screen uses `{ skipUndo: true }`.
+
+Undo history stores commands and inverses, not config snapshots, and undo rewinds `S.config`
+**in place** (object identity survives). Don't store live config objects inside a command
+payload that is kept in history. `dispatch` copies what it inserts, and the aliasing bug this
+prevents was real. That copying is also why an editor holding live objects must use
+`commitInPlace`: `dispatch` would leave the editor holding a detached copy.
+`saveConfigDebounced` itself is still exported because plugin contexts use it.
 
 **Main-process config edits go through `configHost.applyCommands()`** (`main/config-host.js`,
 exported from `main-config.js`), never a `loadConfig()`-modify-`saveConfig()` round trip. The
