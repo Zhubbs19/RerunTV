@@ -1,17 +1,15 @@
-// OS-level drag-and-drop of video files from Explorer onto the setup screen
-// — drop onto a channel row to append the file(s) to that channel's
-// playlist, or onto the interstitials pool list to add them as pool
-// entries. Deliberately files only, not folders (a dropped folder resolves
-// to a File object too, but scanning it recursively is what the existing
-// CHOOSE FOLDER / + ADD FOLDER buttons already do via a real fs scan in the
-// main process — re-implementing that here for a bare dropped path isn't
-// worth the duplication, so a dropped non-video path is just skipped with a
-// status message pointing at those buttons instead).
+// OS-level drag-and-drop from Explorer onto the setup screen.
+// - Videos dropped on a channel row (list or editor card) join that channel.
+// - A folder dropped on a channel row is added as one of its folders; a
+//   folder dropped anywhere else on the channels page (including the empty
+//   lineup) becomes a new channel (docs/design/03 §5.4). Folders are scanned
+//   by the same main-process scan + ADD FOLDER uses.
+// - Videos dropped on the bumper & ad pool list become pool entries.
 import { S, commitConfigPatch, commitInPlace } from './state.js';
 import { channelListEl, channelListPaneEl, interstitialsListEl, scanProgressEl } from './dom.js';
 import { probeDuration } from './setup-util.js';
 import { addFilesToChannel, addInterstitialPoolEntry } from './channels.js';
-import { renderChannelList } from './setup-channels.js';
+import { addFolderToChannel, createChannelFromFolder, renderChannelList } from './setup-channels.js';
 import { renderInterstitialsList } from './setup-interstitials.js';
 
 // Mirrors main-media.js's VIDEO_EXTENSIONS — duplicated rather than piped
@@ -37,9 +35,17 @@ function flashStatus(text, ms) {
 // bridge (sandboxed renderers can't read File.path directly — see
 // preload.js) and filters down to ones that look like video files.
 async function resolveDroppedVideoPaths(dataTransfer) {
-  const files = Array.from(dataTransfer.files || []);
-  const paths = files.map((f) => window.api.getPathForFile(f)).filter(Boolean);
-  return paths.filter((p) => VIDEO_EXTENSIONS.has(extOf(p)));
+  return splitDroppedPaths(dataTransfer).videos;
+}
+
+// Videos by extension; everything else is treated as a possible folder (a
+// scan of a plain file just finds nothing).
+function splitDroppedPaths(dataTransfer) {
+  const paths = Array.from(dataTransfer.files || []).map((f) => window.api.getPathForFile(f)).filter(Boolean);
+  return {
+    videos: paths.filter((p) => VIDEO_EXTENSIONS.has(extOf(p))),
+    others: paths.filter((p) => !VIDEO_EXTENSIONS.has(extOf(p))),
+  };
 }
 
 function isFileDrag(e) {
@@ -49,32 +55,46 @@ function isFileDrag(e) {
 // ---------- Channel rows: drop to append to that channel's playlist ----------
 // Either a lineup row (left list) or the selected channel's editor card.
 const CHANNEL_DROP_TARGET = '.channel-row, .channel-list-item:not(.channel-list-plugins)';
-[channelListEl, channelListPaneEl].filter(Boolean).forEach((container) => {
+const channelsPageEl = (channelListEl && channelListEl.closest('.channel-master-detail')) || channelListPaneEl;
+[channelsPageEl].filter(Boolean).forEach((container) => {
 container.addEventListener('dragover', (e) => {
   if (!isFileDrag(e)) return; // internal row-reorder drag (setup-channels.js) handles itself
-  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
-  if (!row) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'copy';
-  row.classList.add('os-drag-over');
+  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
+  container.querySelectorAll('.os-drag-over').forEach((el) => { if (el !== row) el.classList.remove('os-drag-over'); });
+  if (row) row.classList.add('os-drag-over');
+  container.classList.toggle('os-drag-over-page', !row);
 });
 container.addEventListener('dragleave', (e) => {
-  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
-  if (row) row.classList.remove('os-drag-over');
+  if (e.relatedTarget && container.contains(e.relatedTarget)) return;
+  container.querySelectorAll('.os-drag-over').forEach((el) => el.classList.remove('os-drag-over'));
+  container.classList.remove('os-drag-over-page');
 });
 container.addEventListener('drop', async (e) => {
   if (!isFileDrag(e)) return;
-  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
-  if (!row) return;
   e.preventDefault();
-  row.classList.remove('os-drag-over');
+  container.querySelectorAll('.os-drag-over').forEach((el) => el.classList.remove('os-drag-over'));
+  container.classList.remove('os-drag-over-page');
+  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
+  const { videos, others } = splitDroppedPaths(e.dataTransfer);
+
+  // Folders off a row: one new channel each.
+  if (!row) {
+    if (!others.length) { flashStatus('DROP VIDEOS ONTO A CHANNEL, OR A FOLDER HERE TO MAKE A NEW CHANNEL'); return; }
+    // eslint-disable-next-line no-await-in-loop
+    for (const folder of others) await createChannelFromFolder(folder);
+    return;
+  }
 
   const number = parseFloat(row.dataset.channelNumber);
   const ch = S.config.channels.find((c) => c.number === number);
   if (!ch) return;
 
-  const paths = await resolveDroppedVideoPaths(e.dataTransfer);
-  if (!paths.length) { flashStatus('NO VIDEO FILES IN THAT DROP (DROP A FOLDER USING + ADD FOLDER INSTEAD)'); return; }
+  // eslint-disable-next-line no-await-in-loop
+  for (const folder of others) await addFolderToChannel(ch, folder);
+  const paths = videos;
+  if (!paths.length) return;
 
   const existing = new Set(ch.files.map((f) => f.path));
   const newPaths = paths.filter((p) => !existing.has(p));

@@ -205,7 +205,7 @@ export function renderChannelList() {
   const pluginEntries = pluginChannelEntries();
 
   if (fullList.length === 0 && !pluginEntries.length) {
-    channelListEl.appendChild(emptyState('No channels yet. Add one, then give it a folder of videos to make your first channel.',
+    channelListEl.appendChild(emptyState('No channels yet. Drop a folder of videos here to make your first channel, or add one and choose its folder.',
       { label: '+ ADD CHANNEL', run: () => document.getElementById('add-channel-btn')?.click() }));
     renderBulkActionsBar();
     return;
@@ -1797,8 +1797,9 @@ export async function addPluginSourceToChannel(ch, providerId) {
 // channels need the scan to merge in rather than clobber. Always local —
 // see addPluginSourceToChannel above for the plugin-provided-source
 // counterpart CHOOSE SOURCE offers once at least one provider is active.
-export async function addFolderToChannel(ch) {
-  const folder = await window.api.selectFolder();
+// `folderPath` skips the folder picker (a folder dropped onto the channel).
+export async function addFolderToChannel(ch, folderPath = null) {
+  const folder = folderPath || await window.api.selectFolder();
   if (!folder) return;
   if (ch.folders.some((e) => e.source === 'local' && e.ref === folder)) {
     scanProgressEl.classList.remove('hidden');
@@ -1846,6 +1847,40 @@ export async function addFolderToChannel(ch) {
 // off) is skipped with its own error caught per-entry, not per-channel —
 // one broken source shouldn't abort rescanning every other channel's
 // folders in the same pass.
+// A folder dropped on the lineup (setup-dragdrop.js) becomes a new channel
+// named after it, with its videos, as one undo step.
+export async function createChannelFromFolder(folderPath) {
+  scanProgressEl.classList.remove('hidden');
+  scanProgressEl.textContent = 'SCANNING DROPPED FOLDER…';
+  const paths = await window.api.scanFolder('local', folderPath);
+  if (!paths.length) {
+    scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+    return null;
+  }
+  const entry = { id: mediaRefId('local', folderPath), source: 'local', ref: folderPath, label: null };
+  const files = [];
+  for (let i = 0; i < paths.length; i++) {
+    scanProgressEl.textContent = `PROBING VIDEO ${i + 1} / ${paths.length}…`;
+    // eslint-disable-next-line no-await-in-loop
+    const duration = await probeDurationForEntry('local', paths[i]);
+    files.push({ path: paths[i], duration, folder: entry.id, source: 'local' });
+  }
+  const channel = freshChannel();
+  channel.name = folderPath.split(/[\\/]/).filter(Boolean).pop() || '';
+  channel.folders = [entry];
+  channel.files = files;
+  channel.anchor = Date.now(); // channel anchor: real time, when the folder was scanned
+  scanProgressEl.classList.add('hidden');
+  dispatch({ type: 'channel.insert', channel }, { label: `Add channel from folder ${channel.name}` });
+  S.bulkSelectedChannels.clear();
+  S.setupSelectedChannel = channel.number;
+  S.setupFilterQuery = '';
+  channelFilterEl.value = '';
+  renderChannelList();
+  return channel.number;
+}
+
 export async function rescanAllFolders() {
   const targets = S.config.channels.filter((c) => c.folders && c.folders.length > 0);
   if (targets.length === 0) return;

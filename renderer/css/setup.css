@@ -5175,3 +5175,6 @@ html[data-theme] #setup-screen .btn.remove-btn:not(:disabled) { color: var(--tex
 #setup-screen :is(.list-detail-list .interstitial-card, .flow-list-item, .backup-list-item) .row-menu-btn { flex-shrink: 0; margin-left: auto; opacity: 0; }
 #setup-screen :is(.list-detail-list .interstitial-card, .flow-list-item, .backup-list-item):is(:hover, :focus-within, .selected) .row-menu-btn,
 #setup-screen .row-menu-btn[aria-expanded="true"] { opacity: 1; }
+
+/* A folder dragged over the channels page (not onto a row) makes a new channel. */
+#setup-screen .channel-master-detail.os-drag-over-page { outline: 2px dashed var(--cyan); outline-offset: 6px; border-radius: var(--radius-md); }

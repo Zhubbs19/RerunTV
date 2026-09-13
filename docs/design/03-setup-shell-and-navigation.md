@@ -44,7 +44,10 @@ scroll them and lift the header out of place.
 - Presets: none yet (+ ADD PRESET) and no matches (CLEAR SEARCH).
 - A flow with no steps (+ SHOW SEGMENT), backups (+ SNAPSHOT NOW), plug-ins (a sentence).
 
-Not done: the empty lineup accepting a dropped folder.
+A folder dropped on the channels page (the empty lineup included) becomes a new channel named
+after it (`createChannelFromFolder`, one undo step); dropped on a channel row it is added to that
+channel. Videos dropped on a row still join that channel. Verified with scratch
+`test/verify-folder-drop.mjs` (9 checks; an OS drag itself can't be driven over CDP).
 
 Verified live (scratch `test/verify-empty-states.mjs`, 9 checks).
 
