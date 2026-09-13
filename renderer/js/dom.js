@@ -14,6 +14,9 @@ export const tvScreen = document.getElementById('tv-screen');
 export const displayFrameEl = document.getElementById('display-frame');
 export const screenCrtOverlayEl = document.getElementById('screen-crt-overlay');
 export const channelListEl = document.getElementById('channel-list');
+// The compact lineup list beside #channel-list, which is now the selected
+// channel's detail pane (setup-channels.js renderChannelListPane).
+export const channelListPaneEl = document.getElementById('channel-list-pane');
 export const channelFilterEl = document.getElementById('channel-filter');
 export const setupSearchEl = document.getElementById('setup-search');
 export const setupSearchResultsEl = document.getElementById('setup-search-results');

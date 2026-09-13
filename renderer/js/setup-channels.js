@@ -14,7 +14,7 @@ import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
   bulkRatingSelect, bulkRemoveBtn, bulkSelectAllBtn, bulkSelectedCountEl, bulkSelectToggleBtn, bulkShuffleOffBtn,
   bulkShuffleOnBtn, bulkVolumeApplyBtn, bulkVolumeInheritBtn, bulkVolumeSlider,
-  channelFilterEl, channelImportBtn, channelListEl, configExportBtn, configImportBtn, doneBtn,
+  channelFilterEl, channelImportBtn, channelListEl, channelListPaneEl, configExportBtn, configImportBtn, doneBtn,
   previewBannerEl, previewModalBlockEl, previewModalCancelBtn, previewModalChannelLabelEl, previewModalDatetimeEl,
   previewModalEl, previewModalGoBtn, previewModalNowBtn, previewModalQuickEl, rescanAllBtn, scanProgressEl,
   subChannelsEnabledEl,
@@ -206,30 +206,39 @@ function filteredSetupChannels(fullList) {
   return fullList.filter((ch) => (ch.name || '').toLowerCase().includes(q) || String(ch.number || '').includes(q));
 }
 
+// The CHANNELS page is a list + detail (docs/design/03 §4): renderChannelList
+// draws the compact lineup into #channel-list-pane and the selected channel's
+// full editor into #channel-list (the detail pane). S.setupSelectedChannel is a
+// channel number, 'plugins' for the plugin-channels section, or null.
 export function renderChannelList() {
   if (!channelListEl) return;
   if (subChannelsEnabledEl) subChannelsEnabledEl.checked = subChannelsEnabled();
   ensureMediaSourceProvidersLoaded();
   channelListEl.innerHTML = '';
   channelListEl.classList.toggle('select-mode', !!S.bulkSelectMode);
-  
+  if (channelListPaneEl) {
+    channelListPaneEl.innerHTML = '';
+    channelListPaneEl.classList.toggle('select-mode', !!S.bulkSelectMode);
+  }
+
   if (!S.config || !Array.isArray(S.config.channels)) {
     if (S.config) S.config.channels = [];
   }
 
   const fullList = sortedForSetup();
   const list = filteredSetupChannels(fullList);
+  const pluginEntries = pluginChannelEntries();
 
-  if (fullList.length === 0) {
+  if (fullList.length === 0 && !pluginEntries.length) {
     const empty = document.createElement('div');
     empty.className = 'titles-empty';
-    empty.textContent = 'NO CHANNELS LOADED — CLICK "🔄 RESTORE CHANNELS FROM DISK" BELOW TO RELOAD YOUR CHANNELS';
+    empty.textContent = 'NO CHANNELS YET — + ADD CHANNEL TO MAKE ONE, OR RESTORE A BACKUP FROM SYSTEM › BACKUPS';
     channelListEl.appendChild(empty);
     renderBulkActionsBar();
     return;
   }
 
-  if (list.length === 0) {
+  if (list.length === 0 && !pluginEntries.length) {
     const empty = document.createElement('div');
     empty.className = 'titles-empty';
     empty.textContent = 'NO CHANNELS MATCH THAT FILTER';
@@ -237,6 +246,12 @@ export function renderChannelList() {
     renderBulkActionsBar();
     return;
   }
+
+  // Keep the selection if it's still listed (filtering can hide it), else
+  // select the first thing that is.
+  const selectable = [...list.map((c) => c.number), ...(pluginEntries.length ? ['plugins'] : [])];
+  if (!selectable.includes(S.setupSelectedChannel)) S.setupSelectedChannel = selectable.length ? selectable[0] : null;
+  renderChannelListPane(list, pluginEntries);
   // Precomputed once per render rather than inside the per-row loop below —
   // fullList.indexOf(ch) and a fresh sortedChannels() call per row were both
   // O(n) (the latter O(n log n)), making the whole render O(n^2) on channel
@@ -244,23 +259,12 @@ export function renderChannelList() {
   // it needs to be.
   const fullIndexOf = new Map(fullList.map((c, i) => [c, i]));
   const allChannelsForCopyFrom = sortedChannels();
-  list
-    .forEach((ch) => {
+  // The selected channel's editor card (was one card per channel, stacked).
+  const buildCard = (ch) => {
       const fullIdx = fullIndexOf.get(ch);
       const row = document.createElement('div');
       row.className = 'channel-row' + (ch.hidden ? ' channel-row-hidden' : '');
       row.dataset.channelNumber = String(ch.number);
-
-      const selectCheckbox = document.createElement('input');
-      selectCheckbox.type = 'checkbox';
-      selectCheckbox.className = 'channel-select-checkbox';
-      selectCheckbox.checked = S.bulkSelectedChannels.has(ch.number);
-      selectCheckbox.addEventListener('change', () => {
-        if (selectCheckbox.checked) S.bulkSelectedChannels.add(ch.number);
-        else S.bulkSelectedChannels.delete(ch.number);
-        renderBulkActionsBar();
-      });
-      row.appendChild(selectCheckbox);
 
       const badge = buildChannelBadge(ch);
 
@@ -314,6 +318,7 @@ export function renderChannelList() {
           openChannelEditTabs.delete(oldNum);
         }
         commitInPlace({ type: 'channel.renumber', from: oldNum, to: v });
+        S.setupSelectedChannel = v;
         renderChannelList();
       });
 
@@ -328,6 +333,7 @@ export function renderChannelList() {
         const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
         [ch.number, neighbor.number] = [neighbor.number, ch.number];
         commitInPlace(swap);
+        S.setupSelectedChannel = ch.number;
         renderChannelList();
       });
 
@@ -342,6 +348,7 @@ export function renderChannelList() {
         const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
         [ch.number, neighbor.number] = [neighbor.number, ch.number];
         commitInPlace(swap);
+        S.setupSelectedChannel = ch.number;
         renderChannelList();
       });
 
@@ -362,7 +369,9 @@ export function renderChannelList() {
           ? ` and its ${ch.files.length} video${ch.files.length === 1 ? '' : 's'}, schedule, and commercial settings`
           : '';
         if (!(await confirmDialog(`Remove ${label}${detail}? You can undo this.`))) return;
+        const next = fullList[fullIdx + 1] || fullList[fullIdx - 1];
         dispatch({ type: 'channel.remove', channel: ch.number });
+        S.setupSelectedChannel = next ? next.number : null;
         renderChannelList();
       });
 
@@ -577,7 +586,10 @@ export function renderChannelList() {
 
       const editBtn = document.createElement('button');
       editBtn.className = 'btn titles-btn edit-btn';
-      const isInitiallyOpen = openChannelEditTabs.has(ch.number);
+      // In the detail pane the editor is simply open; the tab last used on
+      // this channel is remembered in openChannelEditTabs.
+      if (!openChannelEditTabs.has(ch.number)) openChannelEditTabs.set(ch.number, activeEditTab);
+      const isInitiallyOpen = true;
       editBtn.textContent = isInitiallyOpen ? 'EDIT ▾' : 'EDIT';
       if (isInitiallyOpen) {
         editBtn.classList.add('edit-btn-open');
@@ -931,6 +943,7 @@ export function renderChannelList() {
         clone.number = nextChannelNumber();
         clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
         dispatch({ type: 'channel.insert', channel: clone }, { label: `Duplicate CH ${ch.number}` });
+        S.setupSelectedChannel = clone.number;
         S.setupFilterQuery = '';
         channelFilterEl.value = '';
         renderChannelList();
@@ -948,7 +961,6 @@ export function renderChannelList() {
       actions.appendChild(moveUpBtn);
       actions.appendChild(moveDownBtn);
       actions.appendChild(folderBtn);
-      actions.appendChild(editBtn);
       actions.appendChild(previewBtn);
       const more = document.createElement('details');
       more.className = 'channel-more';
@@ -1124,7 +1136,6 @@ export function renderChannelList() {
       // that references a channel number by ID (channelAffinity/
       // blockAffinity), which is a much bigger and riskier operation than
       // this UI is asking for.
-      row.draggable = true;
       row.addEventListener('dragstart', (e) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(ch.number));
@@ -1157,10 +1168,177 @@ export function renderChannelList() {
 
       channelListEl.appendChild(row);
       channelListEl.appendChild(editPanel);
-    });
-  renderPluginChannelSection();
+    };
+  if (S.setupSelectedChannel === 'plugins') {
+    renderPluginChannelSection(pluginEntries);
+  } else {
+    const selected = list.find((c) => c.number === S.setupSelectedChannel);
+    if (selected) buildCard(selected);
+  }
   renderBulkActionsBar();
 }
+
+// ---------- Lineup list (the left pane) ----------
+// One compact row per channel: badge, number, name, and what's on now.
+// Selecting a row shows that channel's editor in the detail pane. Rows drag to
+// reorder (the same two-channel number swap the ▲▼ buttons make) and accept
+// dropped video files (setup-dragdrop.js); in SELECT CHANNELS mode each row
+// carries its bulk checkbox.
+function selectSetupChannel(value, { focus = false } = {}) {
+  S.setupSelectedChannel = value;
+  renderChannelList();
+  const item = channelListPaneEl && channelListPaneEl.querySelector('.channel-list-item.selected');
+  if (focus && item) item.focus({ preventScroll: false });
+  // Start the editor at its top when the page had been scrolled down a long
+  // one; the list itself stays where it is.
+  const content = document.getElementById('setup-content');
+  if (content && channelListEl) {
+    const top = channelListEl.getBoundingClientRect().top - content.getBoundingClientRect().top;
+    if (top < 0) content.scrollTop += top;
+  }
+}
+
+function renderChannelListPane(list, pluginEntries) {
+  if (!channelListPaneEl) return;
+  list.forEach((ch) => {
+    const selected = S.setupSelectedChannel === ch.number;
+    const item = document.createElement('div');
+    item.className = 'channel-list-item' + (selected ? ' selected' : '') + (ch.hidden ? ' is-hidden' : '');
+    item.dataset.channelNumber = String(ch.number);
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+
+    if (S.bulkSelectMode) {
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.className = 'channel-select-checkbox';
+      checkbox.checked = S.bulkSelectedChannels.has(ch.number);
+      checkbox.setAttribute('aria-label', `Select channel ${ch.number}`);
+      checkbox.addEventListener('click', (e) => e.stopPropagation());
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) S.bulkSelectedChannels.add(ch.number);
+        else S.bulkSelectedChannels.delete(ch.number);
+        renderBulkActionsBar();
+      });
+      item.appendChild(checkbox);
+    }
+
+    const badge = buildChannelBadge(ch);
+    badge.classList.add('channel-list-badge');
+    item.appendChild(badge);
+
+    const text = document.createElement('div');
+    text.className = 'channel-list-text';
+    const title = document.createElement('div');
+    title.className = 'channel-list-title';
+    const num = document.createElement('span');
+    num.className = 'channel-list-number';
+    num.textContent = formatChannelNumber(ch.number);
+    const name = document.createElement('span');
+    name.className = 'channel-list-name';
+    name.textContent = ch.name || 'UNTITLED';
+    title.append(num, name);
+    const sub = document.createElement('div');
+    sub.className = 'channel-list-sub';
+    if (!ch.files.length && !(ch.blocks || []).some((b) => b.files && b.files.length)) {
+      sub.textContent = ch.folders.length ? 'NO VIDEOS FOUND' : 'NO FOLDER YET';
+      item.classList.add('needs-content');
+    } else {
+      const pos = computeLivePosition(ch);
+      sub.textContent = pos && pos.file ? getDisplayTitle(pos.file) : '—';
+    }
+    text.append(title, sub);
+    item.appendChild(text);
+
+    const flags = [];
+    if (ch.favorite) flags.push('★');
+    if (ch.hidden) flags.push('HIDDEN');
+    if (ch.notSubscribed) flags.push('LOCKED');
+    if (flags.length) {
+      const flagEl = document.createElement('span');
+      flagEl.className = 'channel-list-flags';
+      flagEl.textContent = flags.join(' ');
+      item.appendChild(flagEl);
+    }
+
+    item.addEventListener('click', () => selectSetupChannel(ch.number, { focus: true }));
+
+    item.draggable = true;
+    item.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(ch.number));
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => item.classList.remove('dragging'));
+    item.addEventListener('dragover', (e) => {
+      if (Array.from(e.dataTransfer.types || []).includes('Files')) return; // dropped videos: setup-dragdrop.js
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', (e) => {
+      if (Array.from(e.dataTransfer.types || []).includes('Files')) return;
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const draggedNumber = parseChannelNumber(e.dataTransfer.getData('text/plain'));
+      if (!Number.isFinite(draggedNumber) || draggedNumber === ch.number) return;
+      const dragged = S.config.channels.find((c) => c.number === draggedNumber);
+      if (!dragged) return;
+      const swap = { type: 'channel.swapNumbers', a: dragged.number, b: ch.number };
+      [dragged.number, ch.number] = [ch.number, dragged.number];
+      commitInPlace(swap);
+      S.setupSelectedChannel = dragged.number;
+      renderChannelList();
+    });
+
+    channelListPaneEl.appendChild(item);
+  });
+
+  if (pluginEntries.length) {
+    const selected = S.setupSelectedChannel === 'plugins';
+    const item = document.createElement('div');
+    item.className = 'channel-list-item channel-list-plugins' + (selected ? ' selected' : '');
+    item.dataset.channelNumber = 'plugins';
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    const text = document.createElement('div');
+    text.className = 'channel-list-text';
+    const title = document.createElement('div');
+    title.className = 'channel-list-title';
+    title.textContent = `PLUGIN CHANNELS (${pluginEntries.length})`;
+    const sub = document.createElement('div');
+    sub.className = 'channel-list-sub';
+    sub.textContent = pluginEntries.map((entry) => entry.override.number).join(' · ');
+    text.append(title, sub);
+    item.appendChild(text);
+    item.addEventListener('click', () => selectSetupChannel('plugins', { focus: true }));
+    channelListPaneEl.appendChild(item);
+  }
+}
+
+// ▲▼ / Home / End move the selection through the list, like any list box.
+channelListPaneEl?.addEventListener('keydown', (e) => {
+  if (!e.target.matches || !e.target.matches('.channel-list-item')) return;
+  const items = Array.from(channelListPaneEl.querySelectorAll('.channel-list-item'));
+  const index = items.indexOf(e.target);
+  let target = null;
+  if (e.key === 'ArrowDown') target = items[index + 1];
+  else if (e.key === 'ArrowUp') target = items[index - 1];
+  else if (e.key === 'Home') target = items[0];
+  else if (e.key === 'End') target = items[items.length - 1];
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    channelListEl.querySelector('input, select, button')?.focus();
+    return;
+  }
+  if (!target) return;
+  e.preventDefault();
+  const value = target.dataset.channelNumber === 'plugins' ? 'plugins' : parseChannelNumber(target.dataset.channelNumber);
+  selectSetupChannel(value, { focus: true });
+});
 
 // Per-plugin-channel expand state — mirrors openChannelEditTabs' role for
 // real channels below, but there's only ever one panel (CHANNEL DISPLAY) per
@@ -1178,9 +1356,9 @@ const openPluginChannelPanels = new Set();
 // settings row already offers (renderChannelDisplaySettings, imported from
 // setup-plugin-settings.js) — no FOLDERS/SCHEDULE/TITLES/ADS tabs, since
 // none of those concepts exist for a plugin-supplied channel.
-function renderPluginChannelSection() {
+function pluginChannelEntries() {
   const ids = pluginChannelTypeIds();
-  if (!ids.length) return;
+  if (!ids.length) return [];
 
   const realNums = new Set((S.config.channels || []).map((c) => c.number));
   const entries = ids
@@ -1198,9 +1376,13 @@ function renderPluginChannelSection() {
   const list = q
     ? entries.filter(({ override }) => override.name.toLowerCase().includes(q) || String(override.number).includes(q))
     : entries;
-  if (!list.length) return;
+  return list.sort((a, b) => a.override.number - b.override.number);
+}
 
-  list.sort((a, b) => a.override.number - b.override.number);
+function renderPluginChannelSection(list) {
+  if (!list.length) return;
+  const ids = pluginChannelTypeIds();
+  const realNums = new Set((S.config.channels || []).map((c) => c.number));
 
   const heading = document.createElement('div');
   heading.className = 'plugin-channel-section-heading';
@@ -1371,10 +1553,11 @@ function renderLibrarySearchResults(query) {
       librarySearchToggleBtn.classList.remove('active');
       S.setupFilterQuery = String(ch.number);
       channelFilterEl.value = String(ch.number);
+      S.setupSelectedChannel = ch.number;
       renderChannelList();
       requestAnimationFrame(() => {
         const row = channelListEl.querySelector(`[data-channel-number="${ch.number}"]`);
-        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
     });
     row.appendChild(chan);
@@ -1902,7 +2085,9 @@ subChannelsEnabledEl?.addEventListener('change', () => {
 });
 
 addChannelBtn.addEventListener('click', () => {
-  dispatch({ type: 'channel.insert', channel: freshChannel() });
+  const fresh = freshChannel();
+  dispatch({ type: 'channel.insert', channel: fresh });
+  S.setupSelectedChannel = fresh.number;
   // Clear any active filter so the new (nameless) channel is guaranteed to
   // actually show up in the list instead of silently vanishing into it.
   S.setupFilterQuery = '';

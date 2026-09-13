@@ -274,6 +274,10 @@ async function main() {
   // so a fresh test channel never shows it without an explicit expand.
   await clickSelector(session, '.setup-tab-btn[data-tab="channels"]');
   await sleep(300);
+  // List + detail (docs/design/03): pick channel 1 in the lineup list; its
+  // card and editor appear in the detail pane.
+  await clickSelector(session, '.channel-list-item[data-channel-number="1"]');
+  await sleep(300);
   await clickSelector(session, '.channel-row[data-channel-number="1"] .channel-options-header');
   await sleep(250);
   const optionGroupCount = await countMatches(session, '.channel-row[data-channel-number="1"] .channel-option-group');
@@ -291,8 +295,6 @@ async function main() {
   await scrollAndShot(session, 'channel-1-options-expanded');
 
   // ---------- CHANNELS > edit > LOGO / OVERLAYS tabs ----------
-  await clickSelector(session, '.channel-row[data-channel-number="1"] .edit-btn');
-  await sleep(300);
   record('channel edit panel opens', await elementExists(session, '#channel-1-edit-panel'));
   await scrollAndShot(session, 'channel-1-edit-default');
 

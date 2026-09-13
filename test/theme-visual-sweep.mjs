@@ -105,7 +105,7 @@ const screenStates = await page.evaluate(() => {
 
 async function settle() {
   await page.waitForTimeout(90);
-  await page.locator('#setup-screen').evaluate((element) => { element.scrollTop = 0; });
+  await page.evaluate(() => { const el = document.getElementById('setup-content') || document.getElementById('setup-screen'); el.scrollTop = 0; });
 }
 
 async function capture(dir, fileName) {
@@ -117,7 +117,10 @@ async function capture(dir, fileName) {
 }
 
 async function activateState(state) {
-  await page.locator(`.setup-workspace-btn[data-setup-workspace="${state.workspace}"]`).click();
+  // Older builds grouped tabs into workspaces; the setup shell (docs/design/03)
+  // lists every section in its sidebar, so there is nothing to switch first.
+  const workspaceBtn = page.locator(`.setup-workspace-btn[data-setup-workspace="${state.workspace}"]`);
+  if (await workspaceBtn.count()) await workspaceBtn.click();
   await page.locator(`.setup-tab-btn[data-tab="${state.tab}"]`).click();
   if (state.subtab) {
     const panel = page.locator(`.setup-tab-panel[data-tab-panel="${state.tab}"]`);

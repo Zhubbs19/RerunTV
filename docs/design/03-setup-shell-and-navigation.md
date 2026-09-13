@@ -1,6 +1,40 @@
 # 03 — Setup shell and navigation
 
-Status: **migration step 1 built** (§8). Steps 2–5 proposed. Depends on: C1 (01), C3 (05),
+Status: **migration steps 1 and 2 built** (§8). Steps 3–5 proposed.
+
+### Built (step 2: Channels list + detail)
+
+The CHANNELS page (`setup-channels.js`) is a list beside a detail pane.
+
+The list, `#channel-list-pane`:
+- Each row is 52 px: badge, number, name, and what's on now, or "NO FOLDER YET" in gold. Before,
+  each channel was a 270–480 px card.
+- It stays sticky beside a long editor.
+- ▲▼/Home/End move the selection and Enter jumps into the editor.
+- Rows drag to reorder (the same number swap as ▲▼) and accept dropped videos.
+- SELECT CHANNELS puts its checkboxes here.
+- Plugin channels are one "PLUGIN CHANNELS (n)" entry.
+
+The detail pane, `#channel-list`:
+- It shows only the selected channel's card, with the editor already open. The EDIT toggle is
+  gone, and the last-used editor tab is remembered per channel.
+- `S.setupSelectedChannel` follows renumbering, swaps, add, duplicate and remove (a neighbour
+  is selected), library-search jumps and filtering.
+- The card keeps `.channel-row[data-channel-number]` and every editor id.
+
+Below 900 px the list stacks above the editor.
+
+Verified live on the installed 14-channel lineup (scratch `test/verify-channels-list-detail.mjs`,
+13 checks):
+- the list is 779 px for 14 channels, with one card;
+- click and keyboard selection, and rename reflected in the list;
+- a swap keeps the selection;
+- add selects the new channel and remove selects a neighbour;
+- bulk checkboxes, filter, and plugin channels;
+- at 1280×720 the list stays on screen with no horizontal scroll.
+
+The UI suite now selects channel 1 in the list before using its card (34/34). The tracked theme
+sweep no longer needs the workspace switch. Depends on: C1 (01), C3 (05),
 C4 (04). Consumed by: 06 (web panel is this shell).
 
 ### Built (step 1: the shell)

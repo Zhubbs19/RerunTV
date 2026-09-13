@@ -69,6 +69,8 @@ test('control center is a sidebar shell with one scroll pane and a pinned status
   assert.match(markup, /class="setup-footer setup-status-bar"[\s\S]*?id="setup-undo-btn"[\s\S]*?id="done-btn"/);
   assert.match(markup, /data-subtab-panel="backups"[\s\S]*?id="config-export-btn"/);
   assert.doesNotMatch(settings, /applySetupWorkspace/);
+  // Step 2: the lineup is a list beside the selected channel's editor.
+  assert.match(markup, /id="channel-list-pane" class="channel-list-pane" role="listbox"[\s\S]*?id="channel-list" class="channel-detail-pane"/);
   assert.match(keyboard, /getAttribute\('aria-orientation'\) === 'vertical'/);
   assert.match(displayMode, /display-frame-control-center/);
   assert.match(displayMode, /setupVisible[\s\S]*?--display-frame-width[\s\S]*?availW/);

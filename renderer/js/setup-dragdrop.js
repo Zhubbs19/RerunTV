@@ -8,7 +8,7 @@
 // worth the duplication, so a dropped non-video path is just skipped with a
 // status message pointing at those buttons instead).
 import { S, commitConfigPatch, commitInPlace } from './state.js';
-import { channelListEl, interstitialsListEl, scanProgressEl } from './dom.js';
+import { channelListEl, channelListPaneEl, interstitialsListEl, scanProgressEl } from './dom.js';
 import { probeDuration } from './setup-util.js';
 import { addFilesToChannel, addInterstitialPoolEntry } from './channels.js';
 import { renderChannelList } from './setup-channels.js';
@@ -47,26 +47,29 @@ function isFileDrag(e) {
 }
 
 // ---------- Channel rows: drop to append to that channel's playlist ----------
-channelListEl.addEventListener('dragover', (e) => {
+// Either a lineup row (left list) or the selected channel's editor card.
+const CHANNEL_DROP_TARGET = '.channel-row, .channel-list-item:not(.channel-list-plugins)';
+[channelListEl, channelListPaneEl].filter(Boolean).forEach((container) => {
+container.addEventListener('dragover', (e) => {
   if (!isFileDrag(e)) return; // internal row-reorder drag (setup-channels.js) handles itself
-  const row = e.target.closest && e.target.closest('.channel-row');
+  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
   if (!row) return;
   e.preventDefault();
   e.dataTransfer.dropEffect = 'copy';
   row.classList.add('os-drag-over');
 });
-channelListEl.addEventListener('dragleave', (e) => {
-  const row = e.target.closest && e.target.closest('.channel-row');
+container.addEventListener('dragleave', (e) => {
+  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
   if (row) row.classList.remove('os-drag-over');
 });
-channelListEl.addEventListener('drop', async (e) => {
+container.addEventListener('drop', async (e) => {
   if (!isFileDrag(e)) return;
-  const row = e.target.closest && e.target.closest('.channel-row');
+  const row = e.target.closest && e.target.closest(CHANNEL_DROP_TARGET);
   if (!row) return;
   e.preventDefault();
   row.classList.remove('os-drag-over');
 
-  const number = parseInt(row.dataset.channelNumber, 10);
+  const number = parseFloat(row.dataset.channelNumber);
   const ch = S.config.channels.find((c) => c.number === number);
   if (!ch) return;
 
@@ -87,6 +90,7 @@ channelListEl.addEventListener('drop', async (e) => {
   flashStatus(`ADDED ${newPaths.length} VIDEO${newPaths.length === 1 ? '' : 'S'} TO CH ${ch.number}`);
   commitInPlace({ type: 'channel.setFields', channel: ch.number, fields: { files: ch.files, anchor: ch.anchor } }, { label: `Add ${newPaths.length} video${newPaths.length === 1 ? '' : 's'} to CH ${ch.number}` });
   renderChannelList();
+});
 });
 
 // ---------- Interstitials pool: drop to add pool entries ----------
