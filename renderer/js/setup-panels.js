@@ -458,7 +458,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkBar.appendChild(bulkFacetsToggleBtn);
 
   const list = document.createElement('div');
-  list.className = 'titles-list';
+  list.className = 'titles-list title-rows-list';
 
   // A plugin's own per-file action (e.g. a metadata lookup) — core has no
   // idea what, if anything, is registered here; see registerTitleRowAction
@@ -478,16 +478,27 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     bulkBar.appendChild(container);
   });
 
+  // In-flow virtualization (docs/design/03 §4): rows are built a chunk at a
+  // time as the list nears the bottom of the page. Every row carries a video
+  // thumbnail and a dozen inputs, and a 1,300-file channel used to take over a
+  // second (80,000 nodes) to open. Filtering, select-all and reordering work on
+  // the data, so they see every file whether its row is built yet or not.
+  const TITLE_ROW_CHUNK = 60;
+  let rowObserver = null;
+
   function renderRows(filter) {
     list.innerHTML = '';
+    if (rowObserver) { rowObserver.disconnect(); rowObserver = null; }
     const q = filter.trim().toLowerCase();
-    const visibleFiles = [];
-    target.files.forEach((file) => {
+    const visibleFiles = target.files.filter((file) => {
       const base = basenameNoExt(file.path);
       const tags = file.tags || [];
-      if (q && !base.toLowerCase().includes(q) && !(file.title || '').toLowerCase().includes(q) &&
-        !tags.some((t) => t.includes(q))) return;
-      visibleFiles.push(file);
+      return !q || base.toLowerCase().includes(q) || (file.title || '').toLowerCase().includes(q) || tags.some((t) => t.includes(q));
+    });
+
+    const buildRow = (file) => {
+      const base = basenameNoExt(file.path);
+      const tags = file.tags || [];
 
       const row = document.createElement('div');
       row.className = 'title-row';
@@ -833,8 +844,30 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       wrap.appendChild(descInput);
       wrap.appendChild(facetsRow);
       list.appendChild(wrap);
-    });
-    if (list.children.length === 0) {
+    };
+
+    let built = 0;
+    const sentinel = document.createElement('div');
+    sentinel.className = 'title-rows-more';
+    const buildMore = () => {
+      sentinel.remove();
+      const end = Math.min(built + TITLE_ROW_CHUNK, visibleFiles.length);
+      for (; built < end; built += 1) buildRow(visibleFiles[built]);
+      if (built >= visibleFiles.length) return;
+      sentinel.textContent = `Showing ${built} of ${visibleFiles.length} — scroll for more`;
+      list.appendChild(sentinel);
+      // Re-observing reports the sentinel's position straight away, so a
+      // sentinel still inside the margin builds the next chunk too.
+      if (rowObserver) { rowObserver.unobserve(sentinel); rowObserver.observe(sentinel); }
+    };
+    buildMore();
+    if (built < visibleFiles.length && typeof IntersectionObserver === 'function') {
+      rowObserver = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting) && sentinel.isConnected) buildMore();
+      }, { root: document.getElementById('setup-content'), rootMargin: '0px 0px 1200px 0px' });
+      rowObserver.observe(sentinel);
+    }
+    if (visibleFiles.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'titles-empty';
       empty.textContent = 'NO FILES MATCH';

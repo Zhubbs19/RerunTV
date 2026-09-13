@@ -3,6 +3,20 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§4 long lists)
+
+- The channel titles table (`setup-panels.js` `buildTitlesPanel`) builds 60 rows at a time; an
+  IntersectionObserver on `#setup-content` builds the next chunk as the list nears the bottom, with
+  a "Showing n of N" line meanwhile. Search, SELECT VISIBLE and drag reordering work on the data.
+  Opening a 1,329-file channel's CONTENT page went from ~1,150 ms (80,000 nodes, 1,329
+  videos) to ~60 ms. The table now flows in the page instead of scrolling in its own box.
+- Channel list, pool, backup, plugin and title rows use `content-visibility: auto`, so rows out
+  of view skip layout and paint.
+
+A true windowed list pane was not needed at today's sizes (14 channels, 205 pool entries).
+
+Verified live (scratch `test/verify-titles-chunks.mjs`, 6 checks).
+
 ### Built (§5.3 row ⋯ menus)
 
 `renderer/js/ui/row-menu.js` `RowMenu({ label, groups })`: a ⋯ button and a popup menu. Groups are

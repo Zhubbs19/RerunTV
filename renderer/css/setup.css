@@ -5178,3 +5178,13 @@ html[data-theme] #setup-screen .btn.remove-btn:not(:disabled) { color: var(--tex
 
 /* A folder dragged over the channels page (not onto a row) makes a new channel. */
 #setup-screen .channel-master-detail.os-drag-over-page { outline: 2px dashed var(--cyan); outline-offset: 6px; border-radius: var(--radius-md); }
+
+/* Titles list: the "scroll for more" line while rows are still being built (setup-panels.js). */
+#setup-screen .title-rows-more { padding: 12px; text-align: center; font-size: 12px; color: var(--text-dim, var(--paper-dim)); }
+/* The titles list flows in the page (its rows are built in chunks), rather than scrolling in its own box. */
+#setup-screen .title-rows-list { max-height: none; overflow: visible; }
+/* Long collection lists skip layout and paint for rows scrolled out of view. */
+#setup-screen :is(.channel-list-item, .list-detail-list .interstitial-card, .backup-list-item, .plugins-list .plugin-entry, .title-row-wrap) {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 52px;
+}
