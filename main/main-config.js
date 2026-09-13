@@ -3,7 +3,8 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { compareConfigs, configSummary } = require('./config-diff');
-const { createConfigHost } = require('./config-host');
+const crypto = require('crypto');
+const { createChangeAnnouncer, createConfigHost } = require('./config-host');
 const { getMainWindow } = require('./main-window-ref');
 
 // ---------- Portable-install userData migration ----------
@@ -378,6 +379,7 @@ function restoreBackup(file) {
   // Host edits from before the restore must not be replayed onto the
   // renderer's next save of the restored config (config-host.js).
   configHost.noteReset();
+  configChanges.written(parsed);
   return parsed;
 }
 
@@ -469,7 +471,30 @@ function loadConfig() {
 function saveConfig(config) {
   backupCurrentConfig(false, 'automatic'); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
   writeConfigFile(JSON.stringify(config, null, 2));
+  configChanges.written(config);
   return true;
+}
+
+// Listeners for "a write changed something a LAN viewer would care about"
+// (config-host.js's createChangeAnnouncer). main.js publishes it on the viewer
+// event bus.
+const configWrittenListeners = new Set();
+const configChanges = createChangeAnnouncer({
+  hash: (text) => crypto.createHash('sha1').update(text).digest('hex'),
+  notify: () => configWrittenListeners.forEach((fn) => {
+    try { fn(); } catch (e) { console.warn('[config] change listener failed:', e.message); }
+  }),
+});
+let configChangesPrimed = false;
+
+function onViewerRelevantConfigChange(fn) {
+  configWrittenListeners.add(fn);
+  if (!configChangesPrimed) {
+    configChangesPrimed = true;
+    const current = loadConfig();
+    if (!current._configLoadError && !current._isFirstRun) configChanges.prime(current);
+  }
+  return () => configWrittenListeners.delete(fn);
 }
 
 // The one owner of host-side config edits (config-host.js). Commands come from
@@ -576,5 +601,5 @@ function registerConfigIpc(ipcMain) {
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
-  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost,
+  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost, onViewerRelevantConfigChange,
 };

@@ -30,6 +30,9 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   'remote:tune',
   'remote:setChannelFlag',
   'companion:configChanged',
+  // The host wrote a config change a viewer would see (config-host.js's
+  // change announcer). Carries no data; the viewer refetches /api/config.
+  'config:changed',
   // Companion app's party/alerts relays (plugins/companion-app/main.js).
   // In headless/server mode there's no mainWindow to receive these over
   // IPC at all — a paired LAN viewer is the only possible display, so

@@ -58,7 +58,7 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 // that tie all of the above to the renderer.
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./main-protocol');
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./main-media');
-const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch } = require('./main-config');
+const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange } = require('./main-config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./main-lan');
 const { trackConnection, registerConnectionsIpc } = require('./main-connections');
@@ -423,6 +423,11 @@ app.whenReady().then(async () => {
     const viewerStarted = await viewerRuntime.ready;
     if (viewerStarted) {
       viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+      // Paired viewers refetch as soon as the host writes a change they'd
+      // see, instead of waiting for their slow fallback poll. Only a notice
+      // goes out — never config itself; each viewer fetches its own redacted
+      // projection through the normal authenticated /api/config.
+      onViewerRelevantConfigChange(() => pluginServices.viewerRemoteBridge?.publish('config:changed', null));
     }
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];

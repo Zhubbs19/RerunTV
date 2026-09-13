@@ -78,6 +78,12 @@ other. A host command must only *set* values (never append or splice), because r
 it twice. Renderer code that needs an immediate save uses `saveConfigNow()` from `state.js`, not
 `window.api.saveConfig()` directly: it carries the host revision.
 
+Paired LAN viewers learn about config writes from a `config:changed` notice on the viewer event
+bus (`main-config.js`'s `onViewerRelevantConfigChange`) and refetch `/api/config`. Their poll is
+only a 60 s fallback now. If you add a new frequently rewritten piece of host-local watching
+state (like `lastChannel` or `volume`), add it to `HOST_LOCAL_FIELDS` in `main/config-host.js`.
+Otherwise every paired TV will refetch the whole lineup each time it changes.
+
 ## Directory map
 
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by

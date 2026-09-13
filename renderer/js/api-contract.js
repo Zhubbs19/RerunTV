@@ -6,7 +6,7 @@
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
-    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'getConfigRevision', 'onConfigApplied',
+    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
     'transcode', 'toggleFullscreen', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
     'getConnectedDevices', 'onRemoteTune', 'onRemoteSetChannelFlag', 'onPartyTriggerTrivia', 'onPartyPost',

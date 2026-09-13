@@ -121,6 +121,7 @@
     // (docs/design/05 step 4 streams host updates to LAN clients).
     getConfigRevision: () => Promise.resolve(0),
     onConfigApplied: () => {},
+    onConfigChanged: (callback) => onViewerEvent('config:changed', callback),
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
     openPrintableManual: readOnlyNoop('openPrintableManual'),

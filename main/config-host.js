@@ -102,4 +102,41 @@ function createConfigHost({ load, save, broadcast = () => {}, loadCommands }) {
   };
 }
 
-module.exports = { createConfigHost, RING_SIZE };
+// ---------- Telling LAN clients that config changed (doc 05, step 4) ----------
+// Paired viewers (browsers, the Android TV client) used to find out about host
+// edits only by re-downloading the whole config every 10 s. A write now
+// announces itself on the viewer event bus instead — but only when something a
+// viewer would care about changed. These fields are the host's own watching
+// state, rewritten on every channel change or volume tap; a viewer keeps its
+// own, so announcing them would make every TV refetch the whole lineup each
+// time someone surfs on the host.
+const HOST_LOCAL_FIELDS = ['lastChannel', 'muted', 'volume', 'pictureMode', 'aspectMode'];
+const HOST_LOCAL_DISPLAY_FIELDS = ['hintBar'];
+
+function viewerRelevantKey(config, hash) {
+  const rest = { ...config };
+  HOST_LOCAL_FIELDS.forEach((key) => { delete rest[key]; });
+  if (rest.display && typeof rest.display === 'object') {
+    rest.display = { ...rest.display };
+    HOST_LOCAL_DISPLAY_FIELDS.forEach((key) => { delete rest.display[key]; });
+  }
+  return hash(JSON.stringify(rest));
+}
+
+// notify() is called only when a write changed something viewer-relevant.
+function createChangeAnnouncer({ hash, notify }) {
+  let lastKey = null;
+  return {
+    // Adopt what's on disk at boot without announcing it.
+    prime(config) { lastKey = viewerRelevantKey(config, hash); },
+    written(config) {
+      const key = viewerRelevantKey(config, hash);
+      if (key === lastKey) return false;
+      lastKey = key;
+      notify();
+      return true;
+    },
+  };
+}
+
+module.exports = { createConfigHost, createChangeAnnouncer, viewerRelevantKey, RING_SIZE, HOST_LOCAL_FIELDS };

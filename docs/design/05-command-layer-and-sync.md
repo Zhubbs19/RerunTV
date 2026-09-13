@@ -172,7 +172,35 @@ Verification:
   was repaired.
 - The packaged exe loads `commands.js` from `app.asar` and applies host commands.
 
-Steps 4–5 (SSE to LAN clients, burning down `config.patch` callers) are not started.
+**Step 4 is built for viewer read sync, and it deliberately does not add SSE.**
+
+Why no new stream:
+- The viewer server already has an authenticated, cursor-based event channel. Every paired
+  viewer long-polls `/api/remote-events` every 250 ms, and it already carries
+  `companion:configChanged`.
+- A second push transport would have duplicated it.
+
+What is built:
+- **Announcing.** When `channels.json` is written (renderer save, host command, backup restore),
+  `createChangeAnnouncer` in `main/config-host.js` fingerprints the config minus the host's own
+  watching state (`lastChannel`, `muted`, `volume`, `pictureMode`, `aspectMode`,
+  `display.hintBar`). If the fingerprint differs from the last one, it publishes
+  `config:changed` on that channel.
+- **Viewers.** Browsers and the Android TV client refetch their redacted projection on that
+  event. Their 10 s poll is now a 60 s fallback.
+- **No config on the bus.** Only a notice travels on the event bus, never config, so redaction
+  stays in one place (`/api/config`).
+- **Measured.** A real setup edit reached a paired session 669 ms later, most of it the 600 ms
+  save debounce. Surfing and volume changes on the host announced nothing (scratch
+  `test/verify-viewer-config-push.mjs`).
+
+Not in this step:
+- **Streaming commands to viewers.** Viewers see a redacted projection where paths are opaque
+  ids, so host commands can't be replayed on them as-is.
+- **`POST /api/commands` with a `control` scope.** That write path belongs with the web control
+  panel (doc 06 phase 1), which is its only consumer.
+
+Step 5 (burning down `config.patch` callers) is not started.
 
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no

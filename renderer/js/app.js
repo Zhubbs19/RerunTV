@@ -1263,8 +1263,10 @@ async function init() {
 }
 
 // Keeps a LAN viewer's channel/block/interstitial data in sync with edits
-// made on the host, which only ever autosaves to disk (saveConfigDebounced,
-// state.js) — a viewer has no other way to learn about a change. Replaces
+// made on the host. The host announces each write a viewer would see on the
+// viewer event bus (config:changed, main/config-host.js), so a refetch
+// normally follows an edit within a second; the interval below is only a
+// fallback for a missed notice (a server restart, a dropped poll). Replaces
 // S.config wholesale on each successful poll rather than diffing, since
 // every read path (resolveActiveSource, getChannel, etc.) just reads
 // through S.config fresh each time with no cached long-lived references.
@@ -1272,7 +1274,7 @@ async function init() {
 // mid-write on the host) is skipped rather than blanking the viewer's own
 // still-good in-memory config — no alert either, unlike the boot path,
 // since a dialog firing on every failed 10s poll would be unusable.
-const VIEWER_CONFIG_POLL_MS = 10000;
+const VIEWER_CONFIG_POLL_MS = 60000;
 function startViewerConfigPolling() {
   let refreshing = false;
   async function refresh() {
@@ -1301,6 +1303,7 @@ function startViewerConfigPolling() {
       refreshing = false;
     }
   }
+  window.api.onConfigChanged?.(refresh);
   window.api.onCompanionConfigChanged?.(refresh);
   setInterval(refresh, VIEWER_CONFIG_POLL_MS);
 }

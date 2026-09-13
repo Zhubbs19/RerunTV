@@ -84,6 +84,9 @@ contextBridge.exposeInMainWorld('api', {
   saveConfig: (config, baseRevision) => ipcRenderer.invoke('config:save', config, baseRevision),
   getConfigRevision: () => ipcRenderer.invoke('config:revision'),
   onConfigApplied: (cb) => ipcRenderer.on('config:applied', (event, update) => cb(update)),
+  // LAN viewers only (browser-api-shim.js): the host window is the one
+  // writing config, so there is nothing for it to be told.
+  onConfigChanged: () => () => {},
   exportConfig: (config, suggestedName) => ipcRenderer.invoke('config:export', config, suggestedName),
   openPrintableManual: (html) => ipcRenderer.invoke('manual:openPrintable', html),
   importConfig: () => ipcRenderer.invoke('config:import'),

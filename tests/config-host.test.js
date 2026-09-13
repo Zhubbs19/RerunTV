@@ -166,3 +166,43 @@ test('the capability-approval revert race is gone (renderer state.js + host)', a
   onDisk = store.read();
   assert.equal(onDisk.plugins.approvedCapabilities.party, 'sig-1');
 });
+
+// ---------- step 4: announcing viewer-relevant writes ----------
+
+const crypto = require('node:crypto');
+const { createChangeAnnouncer } = require('../main/config-host');
+const { createViewerRemoteBridge } = require('../main/main-viewer-server');
+
+const sha1 = (text) => crypto.createHash('sha1').update(text).digest('hex');
+
+test('only writes a viewer would see are announced', () => {
+  let notices = 0;
+  const announcer = createChangeAnnouncer({ hash: sha1, notify: () => { notices += 1; } });
+  const config = { ...baseConfig(), lastChannel: 5, muted: false, volume: 1, pictureMode: 'standard', aspectMode: 'contain' };
+  config.display.hintBar = true;
+  announcer.prime(config);
+
+  // The host's own watching state: surfing, volume, mute, picture/aspect, hint bar.
+  const watched = { ...config, lastChannel: 7, volume: 0.4, muted: true, pictureMode: 'vivid', aspectMode: 'fill', display: { ...config.display, hintBar: false } };
+  assert.equal(announcer.written(watched), false);
+  assert.equal(notices, 0);
+
+  // A real edit is announced once, and an identical rewrite is not.
+  const edited = { ...watched, channels: [{ number: 5, name: 'Boomerang HD', files: [] }] };
+  assert.equal(announcer.written(edited), true);
+  assert.equal(announcer.written({ ...edited, lastChannel: 9 }), false);
+  assert.equal(notices, 1);
+
+  // A setting inside display that viewers do render is announced.
+  assert.equal(announcer.written({ ...edited, display: { ...edited.display, clock24: true } }), true);
+  assert.equal(notices, 2);
+});
+
+test('the viewer event bus carries config:changed to a viewer polling with a cursor', () => {
+  const bridge = createViewerRemoteBridge();
+  const { cursor } = bridge.read(null);
+  assert.equal(bridge.publish('config:changed', null), true);
+  const { events } = bridge.read(cursor);
+  assert.deepEqual(events.map((e) => e.channel), ['config:changed']);
+  assert.equal(bridge.publish('config:not-a-channel', null), false, 'the allow-list still applies');
+});
