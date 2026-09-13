@@ -13,7 +13,7 @@ import { formatChannelNumber, getChannel, sortedChannels } from './channels.js';
 import { flowCountBadgeEl } from './dom.js';
 import { confirmDialog, alertDialog } from './setup-dialogs.js';
 import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
-import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, parsePositiveInt } from './setup-util.js';
+import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, emptyState, parsePositiveInt } from './setup-util.js';
 import { cloneJson } from './commands.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 
@@ -625,10 +625,8 @@ function renderFlowTimelineCanvas(flow) {
   canvas.setAttribute('aria-label', `${flow.name || 'Untitled flow'} sequence, ${stepCount} step${stepCount === 1 ? '' : 's'}. Scroll horizontally for later steps.`);
 
   if (!flow.steps || !flow.steps.length) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO STEPS IN THIS FLOW YET. CLICK "+ BUMPER", "+ SHOW SEGMENT", OR "+ AD POD" ABOVE TO START BUILDING!';
-    canvas.appendChild(empty);
+    canvas.appendChild(emptyState('This flow has no steps yet. Start with a show segment, then add bumpers and ad pods around it.',
+      { label: '+ SHOW SEGMENT', run: () => document.getElementById('flow-add-segment-btn')?.click() }));
     return;
   }
 

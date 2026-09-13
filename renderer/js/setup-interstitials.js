@@ -23,7 +23,7 @@ import { getMediaSourcePicker } from './plugins.js';
 import { blockPickerLabel } from './setup-schedule.js';
 import {
   attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, buildPreemptionWindowsEditor,
-  parsePositiveInt, probeDuration, probeDurationForEntry,
+  emptyState, parsePositiveInt, probeDuration, probeDurationForEntry,
 } from './setup-util.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
@@ -1127,19 +1127,24 @@ export function renderInterstitialsList() {
   renderInterstitialsBulkBar();
 
   if (pool.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO INTERSTITIALS — STATION ID FALLS BACK TO AUTO TEXT, ADS/TRIVIA STAY SILENT UNTIL YOU ADD SOME.';
-    interstitialsListEl.appendChild(empty);
+    interstitialsListEl.appendChild(emptyState('No bumpers or ads yet. Until you add some, station IDs use plain text and breaks stay silent.',
+      { label: '+ ADD FROM FOLDER', run: () => document.getElementById('interstitials-add-folder-btn')?.click() }));
     return;
   }
 
   const groups = groupInterstitialsByChannel(pool);
   if (groups.length === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO ENTRIES MATCH THE CURRENT FILTER/SEARCH.';
-    interstitialsListEl.appendChild(empty);
+    interstitialsListEl.appendChild(emptyState('No entries match the search and filters.', {
+      label: 'CLEAR FILTERS',
+      run: () => {
+        interstitialsSearchEl.value = '';
+        interstitialsSearchEl.dispatchEvent(new Event('input', { bubbles: true }));
+        interstitialsFilterTypeEl.value = 'any';
+        interstitialsFilterTypeEl.dispatchEvent(new Event('change', { bubbles: true }));
+        interstitialsFilterChannelEl.value = 'all';
+        interstitialsFilterChannelEl.dispatchEvent(new Event('change', { bubbles: true }));
+      },
+    }));
     return;
   }
 
@@ -1741,20 +1746,18 @@ export function renderPresetsList() {
   if (presetsDetailEl) presetsDetailEl.innerHTML = '';
   const presets = S.config.interstitials.presets;
   if (!presets.length) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO AD PRESETS — EVERY SHOW USES ITS CHANNEL/BLOCK\'S OWN ADS SETTINGS.';
-    presetsListEl.appendChild(empty);
+    presetsListEl.appendChild(emptyState('No ad presets yet. Every show uses its own channel\'s ad settings.',
+      { label: '+ ADD PRESET', run: () => presetsAddBtn.click() }));
     return;
   }
   const visible = presets
     .map((preset, idx) => ({ preset, idx }))
     .filter(({ preset }) => presetMatchesSearch(preset));
   if (!visible.length) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO PRESETS MATCH THAT SEARCH.';
-    presetsListEl.appendChild(empty);
+    presetsListEl.appendChild(emptyState('No presets match that search.', {
+      label: 'CLEAR SEARCH',
+      run: () => { presetsSearchEl.value = ''; presetsSearchEl.dispatchEvent(new Event('input', { bubbles: true })); presetsSearchEl.focus(); },
+    }));
     return;
   }
   visible.forEach(({ preset, idx }) => {

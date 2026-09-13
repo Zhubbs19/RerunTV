@@ -29,7 +29,7 @@ import {
 import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitials.js';
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
-import { attachSliderReadout, commitOwnerFields, ownerFieldsCommand, probeDurationForEntry } from './setup-util.js';
+import { attachSliderReadout, commitOwnerFields, emptyState, ownerFieldsCommand, probeDurationForEntry } from './setup-util.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
 } from './plugins.js';
@@ -204,19 +204,17 @@ export function renderChannelList() {
   const pluginEntries = pluginChannelEntries();
 
   if (fullList.length === 0 && !pluginEntries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO CHANNELS YET — + ADD CHANNEL TO MAKE ONE, OR RESTORE A BACKUP FROM SYSTEM › BACKUPS';
-    channelListEl.appendChild(empty);
+    channelListEl.appendChild(emptyState('No channels yet. Add one, then give it a folder of videos to make your first channel.',
+      { label: '+ ADD CHANNEL', run: () => document.getElementById('add-channel-btn')?.click() }));
     renderBulkActionsBar();
     return;
   }
 
   if (list.length === 0 && !pluginEntries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'titles-empty';
-    empty.textContent = 'NO CHANNELS MATCH THAT FILTER';
-    channelListEl.appendChild(empty);
+    channelListEl.appendChild(emptyState('No channels match that filter.', {
+      label: 'CLEAR FILTER',
+      run: () => { S.setupFilterQuery = ''; channelFilterEl.value = ''; renderChannelList(); channelFilterEl.focus(); },
+    }));
     renderBulkActionsBar();
     return;
   }

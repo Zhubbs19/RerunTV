@@ -3,6 +3,18 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§5.4 empty states)
+
+`setup-util.js` `emptyState(text, { label, run })`: one plain sentence and one primary button.
+- Channels: none yet (+ ADD CHANNEL) and no filter matches (CLEAR FILTER).
+- Bumper & ad pool: none yet (+ ADD FROM FOLDER) and no matches (CLEAR FILTERS).
+- Presets: none yet (+ ADD PRESET) and no matches (CLEAR SEARCH).
+- A flow with no steps (+ SHOW SEGMENT), backups (+ SNAPSHOT NOW), plug-ins (a sentence).
+
+Not done: the empty lineup accepting a dropped folder.
+
+Verified live (scratch `test/verify-empty-states.mjs`, 9 checks).
+
 ### Built (§5.5 copy: summaries and Details)
 
 - Plugin rows show a one-line summary: the manifest's new optional `summary`, else the

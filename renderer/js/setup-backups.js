@@ -1,6 +1,7 @@
 // AUDIO & SYSTEM backup list, labeling, restore, deletion, and snapshots.
 import { backupsListEl, backupsRefreshBtn, backupsSnapshotNowBtn } from './dom.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
+import { emptyState } from './setup-util.js';
 
 let justSnapshotted = false;
 let restoreHandler = null;
@@ -142,10 +143,8 @@ export function renderBackupsList() {
   window.api.listBackups().then((backups) => {
     backupsListEl.innerHTML = '';
     if (!backups || !backups.length) {
-      const empty = document.createElement('div');
-      empty.className = 'titles-empty';
-      empty.textContent = 'NO BACKUPS YET — ONE IS TAKEN AUTOMATICALLY AT THE START OF EACH SESSION.';
-      backupsListEl.appendChild(empty);
+      backupsListEl.appendChild(emptyState('No backups yet. One is taken automatically each time RerunTV starts.',
+        { label: '+ SNAPSHOT NOW', run: () => backupsSnapshotNowBtn.click() }));
       renderBackupDetail(null);
       return;
     }

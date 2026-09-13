@@ -223,6 +223,27 @@ export function attachTagAutocomplete(inputEl) {
 // Shared show/hide-and-build-once-revealed pattern for a panel toggled by a
 // button (day-overrides, block ADS, channel EDIT) — avoids building content
 // eagerly for every row up front.
+// An empty collection (docs/design/03 §5.4): one plain sentence and one
+// primary action. `action` is { label, run }; leave it out when there is
+// nothing to do but wait.
+export function emptyState(text, action = null) {
+  const wrap = document.createElement('div');
+  wrap.className = 'titles-empty empty-state';
+  const line = document.createElement('p');
+  line.className = 'empty-state-text';
+  line.textContent = text;
+  wrap.appendChild(line);
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-primary empty-state-action';
+    button.textContent = action.label;
+    button.addEventListener('click', action.run);
+    wrap.appendChild(button);
+  }
+  return wrap;
+}
+
 export function toggleLazyPanel(panelEl, buildFn) {
   const willShow = panelEl.classList.contains('hidden');
   panelEl.classList.toggle('hidden');
