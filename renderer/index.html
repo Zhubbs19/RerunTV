@@ -682,12 +682,18 @@
             </div>
             <div class="flow-selector-bar">
               <span id="flow-count-badge" class="flow-count-badge"></span>
-              <select id="flow-template-select" class="block-hour-select flow-select" aria-label="Flow template"></select>
+              <!-- Kept for older scripts; the flow list below is how flows are picked. -->
+              <select id="flow-template-select" class="block-hour-select flow-select" aria-label="Flow template" hidden></select>
               <button id="flow-create-btn" class="btn">+ NEW FLOW</button>
               <button id="flow-delete-btn" class="btn remove-btn">DELETE</button>
             </div>
           </div>
 
+          <!-- List + detail (docs/design/03 §5.3): flows on the left, the
+               selected flow's settings and canvas on the right. -->
+          <div class="list-detail flow-list-detail">
+          <div id="flow-list" class="flow-list list-detail-list" role="listbox" aria-label="Flows"></div>
+          <div class="list-detail-detail flow-detail">
           <div id="flow-config-header" class="flow-config-header">
             <div class="flow-meta-row">
               <div class="flow-meta-field flow-name-field">
@@ -735,6 +741,8 @@
             </div>
             <div id="flow-sim-progress" class="flow-sim-progress"></div>
             <div id="flow-sim-output" class="flow-sim-output"></div>
+          </div>
+          </div>
           </div>
         </div>
 
@@ -1063,7 +1071,10 @@
             <button id="backups-refresh-btn" class="btn">REFRESH</button>
             <button id="backups-snapshot-now-btn" class="btn">+ SNAPSHOT NOW…</button>
           </div>
-          <div id="backups-list" class="titles-list"></div>
+          <div class="list-detail backups-list-detail">
+            <div id="backups-list" class="titles-list list-detail-list" role="listbox" aria-label="Config backups"></div>
+            <div id="backups-detail" class="list-detail-detail"></div>
+          </div>
         </div>
 
         </div>

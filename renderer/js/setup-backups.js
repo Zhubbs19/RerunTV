@@ -36,6 +36,108 @@ function metricLine(label, current, snapshot) {
   return `${label}: ${current} NOW → ${snapshot} IN SNAPSHOT (${change})`;
 }
 
+// List + detail (docs/design/03 §5.3): snapshots on the left, the selected
+// one's differences from the current config and its actions on the right.
+let selectedBackupFile = null;
+let previewToken = 0;
+
+function previewLines(preview) {
+  const diff = preview.diff;
+  const changed = diff.addedChannels.length || diff.removedChannels.length || diff.renamedChannels.length
+    || diff.fileCountChanges.length || diff.scheduleChanges.length || diff.settingsChanges.length;
+  return [
+    metricLine('CHANNELS', preview.current.channels, preview.snapshot.channels),
+    metricLine('MEDIA FILES', preview.current.files, preview.snapshot.files),
+    metricLine('PROGRAM BLOCKS', preview.current.blocks, preview.snapshot.blocks),
+    ...(diff.addedChannels.length ? [`ADDED IN SNAPSHOT: ${diff.addedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
+    ...(diff.removedChannels.length ? [`REMOVED IN SNAPSHOT: ${diff.removedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
+    ...diff.renamedChannels.map((entry) => `RENAMED: CH ${entry.number} “${entry.from}” → “${entry.to}”`),
+    ...diff.fileCountChanges.map((entry) => `MEDIA: CH ${entry.number} ${entry.current} → ${entry.snapshot} files`),
+    ...(diff.scheduleChanges.length ? [`SCHEDULE CHANGES: ${diff.scheduleChanges.map((entry) => `CH ${entry.number}`).join(', ')}`] : []),
+    ...(diff.settingsChanges.length ? [`SETTINGS/PLUGINS CHANGED: ${diff.settingsChanges.join(', ')}`] : []),
+    ...(changed ? [] : ['NO CONFIGURATION DIFFERENCES FOUND.']),
+  ];
+}
+
+function button(label, onClick, className = 'btn') {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = className;
+  btn.textContent = label;
+  btn.addEventListener('click', onClick);
+  return btn;
+}
+
+function renderBackupDetail(backup) {
+  const detailEl = document.getElementById('backups-detail');
+  if (!detailEl) return;
+  detailEl.innerHTML = '';
+  if (!backup) return;
+  const card = document.createElement('div');
+  card.className = 'backup-detail';
+
+  const heading = document.createElement('div');
+  heading.className = 'backup-row-time';
+  heading.textContent = formatRelativeTime(backup.mtimeMs);
+  if (backup.pinned) heading.prepend('★ ');
+  const reason = document.createElement('span');
+  reason.className = `backup-reason-tag backup-reason-${backup.reason || 'automatic'}`;
+  reason.textContent = BACKUP_REASON_LABELS[backup.reason] || 'AUTO-SAVE';
+  heading.appendChild(reason);
+  const detailLine = document.createElement('div');
+  detailLine.className = 'backup-row-detail';
+  detailLine.textContent = `${formatBackupTimestamp(backup.mtimeMs)} · ${Math.max(1, Math.round(backup.size / 1024))} KB${backup.label ? ` · ${backup.label}` : ''}`;
+
+  const actions = document.createElement('div');
+  actions.className = 'block-row backup-detail-actions';
+  actions.append(
+    button('RESTORE', async () => {
+      if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
+      try { if (restoreHandler) restoreHandler(await window.api.restoreBackup(backup.file)); }
+      catch (error) { alertDialog(`Restore failed: ${error.message}`, { variant: 'error' }); }
+    }, 'btn btn-primary'),
+    button(backup.label ? 'RELABEL' : '+ LABEL', async () => {
+      const next = await promptDialog({ title: 'BACKUP LABEL', message: 'Label this backup — blank to clear:', defaultValue: backup.label || '' });
+      if (next === null) return;
+      try { await window.api.setBackupLabel(backup.file, next); renderBackupsList(); }
+      catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
+    }),
+    button(backup.pinned ? 'UNPIN' : 'PIN', async () => {
+      try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
+      catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
+    }),
+    button('DELETE', async () => {
+      if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
+      try {
+        await window.api.deleteBackup(backup.file);
+        if (selectedBackupFile === backup.file) selectedBackupFile = null;
+        renderBackupsList();
+      } catch (error) { alertDialog(`Delete failed: ${error.message}`, { variant: 'error' }); }
+    }, 'btn remove-btn'),
+  );
+
+  const previewEl = document.createElement('div');
+  previewEl.className = 'backup-preview';
+  previewEl.setAttribute('aria-live', 'polite');
+  previewEl.textContent = 'COMPARING WITH YOUR CURRENT CONFIG…';
+  card.append(heading, detailLine, actions, previewEl);
+  detailEl.appendChild(card);
+
+  // What restoring would change, shown right away (was a PREVIEW dialog).
+  const token = ++previewToken;
+  window.api.previewBackup(backup.file).then((preview) => {
+    if (token !== previewToken) return;
+    previewEl.innerHTML = '';
+    previewLines(preview).forEach((line) => {
+      const lineEl = document.createElement('div');
+      lineEl.textContent = line;
+      previewEl.appendChild(lineEl);
+    });
+  }).catch((error) => {
+    if (token === previewToken) previewEl.textContent = `Couldn't compare that snapshot: ${error.message}`;
+  });
+}
+
 export function renderBackupsList() {
   window.api.listBackups().then((backups) => {
     backupsListEl.innerHTML = '';
@@ -44,11 +146,18 @@ export function renderBackupsList() {
       empty.className = 'titles-empty';
       empty.textContent = 'NO BACKUPS YET — ONE IS TAKEN AUTOMATICALLY AT THE START OF EACH SESSION.';
       backupsListEl.appendChild(empty);
+      renderBackupDetail(null);
       return;
     }
+    if (justSnapshotted || !backups.some((backup) => backup.file === selectedBackupFile)) selectedBackupFile = backups[0].file;
     backups.forEach((backup, index) => {
+      const selected = backup.file === selectedBackupFile;
       const row = document.createElement('div');
-      row.className = 'block-row';
+      row.className = `block-row backup-list-item${selected ? ' selected' : ''}`;
+      row.dataset.backupFile = backup.file;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', String(selected));
+      row.tabIndex = selected ? 0 : -1;
       if (justSnapshotted && index === 0) row.classList.add('reveal');
       const label = document.createElement('div');
       label.className = 'backup-row-info';
@@ -72,69 +181,27 @@ export function renderBackupsList() {
         label.appendChild(tag);
       }
       row.appendChild(label);
-      const labelBtn = document.createElement('button');
-      labelBtn.className = 'btn';
-      labelBtn.textContent = backup.label ? 'RELABEL' : '+ LABEL';
-      labelBtn.addEventListener('click', async () => {
-        const next = await promptDialog({ title: 'BACKUP LABEL', message: 'Label this backup — blank to clear:', defaultValue: backup.label || '' });
-        if (next === null) return;
-        try { await window.api.setBackupLabel(backup.file, next); renderBackupsList(); }
-        catch (error) { alertDialog(`Couldn't save that label: ${error.message}`, { variant: 'error' }); }
+      row.addEventListener('click', () => {
+        selectedBackupFile = backup.file;
+        backupsListEl.querySelectorAll('.backup-list-item').forEach((item) => {
+          const on = item.dataset.backupFile === backup.file;
+          item.classList.toggle('selected', on);
+          item.setAttribute('aria-selected', String(on));
+          item.tabIndex = on ? 0 : -1;
+        });
+        renderBackupDetail(backup);
       });
-      row.appendChild(labelBtn);
-      const pinBtn = document.createElement('button');
-      pinBtn.className = 'btn';
-      pinBtn.textContent = backup.pinned ? 'UNPIN' : 'PIN';
-      pinBtn.title = backup.pinned ? 'Allow this snapshot to rotate out normally' : 'Keep this snapshot outside the rotating backup window';
-      pinBtn.addEventListener('click', async () => {
-        try { await window.api.setBackupPinned(backup.file, !backup.pinned); renderBackupsList(); }
-        catch (error) { alertDialog(`Couldn't update that snapshot: ${error.message}`, { variant: 'error' }); }
+      row.addEventListener('keydown', (event) => {
+        const items = Array.from(backupsListEl.querySelectorAll('.backup-list-item'));
+        const at = items.indexOf(row);
+        const target = event.key === 'ArrowDown' ? items[at + 1] : event.key === 'ArrowUp' ? items[at - 1] : null;
+        if (!target) return;
+        event.preventDefault();
+        target.click();
+        target.focus();
       });
-      row.appendChild(pinBtn);
-      const previewBtn = document.createElement('button');
-      previewBtn.className = 'btn';
-      previewBtn.textContent = 'PREVIEW';
-      previewBtn.addEventListener('click', async () => {
-        try {
-          const preview = await window.api.previewBackup(backup.file);
-          const lines = [
-            metricLine('CHANNELS', preview.current.channels, preview.snapshot.channels),
-            metricLine('MEDIA FILES', preview.current.files, preview.snapshot.files),
-            metricLine('PROGRAM BLOCKS', preview.current.blocks, preview.snapshot.blocks),
-            '',
-            ...(preview.diff.addedChannels.length ? [`ADDED IN SNAPSHOT: ${preview.diff.addedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
-            ...(preview.diff.removedChannels.length ? [`REMOVED IN SNAPSHOT: ${preview.diff.removedChannels.map((entry) => `CH ${entry.number} ${entry.name}`).join(', ')}`] : []),
-            ...(preview.diff.renamedChannels.length ? preview.diff.renamedChannels.map((entry) => `RENAMED: CH ${entry.number} “${entry.from}” → “${entry.to}”`) : []),
-            ...(preview.diff.fileCountChanges.length ? preview.diff.fileCountChanges.map((entry) => `MEDIA: CH ${entry.number} ${entry.current} → ${entry.snapshot} files`) : []),
-            ...(preview.diff.scheduleChanges.length ? [`SCHEDULE CHANGES: ${preview.diff.scheduleChanges.map((entry) => `CH ${entry.number}`).join(', ')}`] : []),
-            ...(preview.diff.settingsChanges.length ? [`SETTINGS/PLUGINS CHANGED: ${preview.diff.settingsChanges.join(', ')}`] : []),
-            ...(!preview.diff.addedChannels.length && !preview.diff.removedChannels.length && !preview.diff.renamedChannels.length && !preview.diff.fileCountChanges.length && !preview.diff.scheduleChanges.length && !preview.diff.settingsChanges.length ? ['NO CONFIGURATION DIFFERENCES FOUND.'] : []),
-            '',
-            'Preview only — nothing has been changed.',
-          ];
-          await alertDialog(lines.join('\n'), { title: `SNAPSHOT · ${formatRelativeTime(backup.mtimeMs)}` });
-        } catch (error) { alertDialog(`Couldn't preview that snapshot: ${error.message}`, { variant: 'error' }); }
-      });
-      row.appendChild(previewBtn);
-      const restoreBtn = document.createElement('button');
-      restoreBtn.className = 'btn';
-      restoreBtn.textContent = 'RESTORE';
-      restoreBtn.addEventListener('click', async () => {
-        if (!(await confirmDialog({ message: `Restore the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This replaces everything currently loaded — a snapshot of the current state is taken first, so this itself can be undone.`, danger: false, confirmText: 'RESTORE' }))) return;
-        try { if (restoreHandler) restoreHandler(await window.api.restoreBackup(backup.file)); }
-        catch (error) { alertDialog(`Restore failed: ${error.message}`, { variant: 'error' }); }
-      });
-      row.appendChild(restoreBtn);
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'btn remove-btn';
-      deleteBtn.textContent = 'DELETE';
-      deleteBtn.addEventListener('click', async () => {
-        if (!(await confirmDialog(`Permanently delete the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}? This can't be undone — it only removes this one backup file, not your live config.`))) return;
-        try { await window.api.deleteBackup(backup.file); renderBackupsList(); }
-        catch (error) { alertDialog(`Delete failed: ${error.message}`, { variant: 'error' }); }
-      });
-      row.appendChild(deleteBtn);
       backupsListEl.appendChild(row);
+      if (selected) renderBackupDetail(backup);
     });
     justSnapshotted = false;
   });

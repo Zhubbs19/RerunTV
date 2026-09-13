@@ -4923,3 +4923,21 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .list-detail-list .interstitial-card-summary { flex-wrap: nowrap; min-width: 0; }
 #setup-screen .list-detail-list .interstitial-card-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #setup-screen .list-detail-list .interstitials-group-header { flex-wrap: wrap; row-gap: 6px; }
+
+/* Flows: the picker list beside the selected flow, which is tall (a canvas), so
+   the short list stays in view instead of the editor. */
+#setup-screen .flow-list-detail { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); margin-top: 12px; }
+#setup-screen .flow-list-detail .flow-detail { position: static; max-height: none; overflow: visible; }
+#setup-screen .flow-list { position: sticky; top: 0; display: flex; flex-direction: column; gap: 4px; }
+#setup-screen .flow-list-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; padding: 8px 10px; text-align: left; background: var(--gradient-panel); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--paper); cursor: pointer; }
+#setup-screen .flow-list-item.selected { border-color: var(--gold); background: rgba(var(--gold-rgb), 0.14); }
+#setup-screen .flow-list-item.is-off .flow-list-name { opacity: 0.6; }
+#setup-screen .flow-list-name { font-family: var(--font-ui); font-weight: 700; font-size: 13px; }
+#setup-screen .flow-list-meta { font-size: 11px; color: var(--paper-dim); }
+
+/* Backups: the selected snapshot and what restoring it would change. */
+#setup-screen .backups-list-detail { grid-template-columns: minmax(280px, 420px) minmax(0, 1fr); }
+#setup-screen .backup-list-item { cursor: pointer; border: 1px solid transparent; border-radius: var(--radius-sm); padding: 6px 8px; }
+#setup-screen .backup-list-item.selected { border-color: var(--gold); background: rgba(var(--gold-rgb), 0.12); }
+#setup-screen .backup-detail { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--gradient-panel); }
+#setup-screen .backup-preview { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--paper-dim); line-height: 1.4; }

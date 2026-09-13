@@ -78,6 +78,7 @@ export function renderFlowsList() {
     selectEl.appendChild(opt);
   });
   selectEl.value = activeFlowId || '';
+  renderFlowPicker(flows);
 
   const activeFlow = flows.find((f) => f.id === activeFlowId);
   if (!activeFlow) return;
@@ -212,6 +213,55 @@ export function renderFlowsList() {
 // boundaries via the timeline canvas above) — so a flow can now do both: an
 // authored intro/outro/mid-roll-pod structure AND a plain wall-clock or
 // percentage-based ad cadence, instead of having to pick one.
+// The flow picker (docs/design/03 §5.3): one row per flow — name, step count,
+// on/off — beside the selected flow's editor. ▲▼ move the selection.
+function renderFlowPicker(flows) {
+  const listEl = document.getElementById('flow-list');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  flows.forEach((flow) => {
+    const selected = flow.id === activeFlowId;
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = `flow-list-item${selected ? ' selected' : ''}${flow.enabled === false ? ' is-off' : ''}`;
+    item.dataset.flowId = flow.id;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    const name = document.createElement('span');
+    name.className = 'flow-list-name';
+    name.textContent = flow.name || '(untitled flow)';
+    const meta = document.createElement('span');
+    meta.className = 'flow-list-meta';
+    const steps = (flow.steps || []).length;
+    const channels = (flow.channels || []).length ? (flow.channels || []).map((n) => `CH ${formatChannelNumber(n)}`).join(', ') : 'ALL CHANNELS';
+    meta.textContent = `${steps} step${steps === 1 ? '' : 's'} · ${flow.enabled === false ? 'OFF' : 'ON'} · ${channels}`;
+    item.append(name, meta);
+    item.addEventListener('click', () => selectFlow(flow.id));
+    listEl.appendChild(item);
+  });
+}
+
+function selectFlow(id) {
+  activeFlowId = id;
+  renderFlowsList();
+  document.querySelector(`#flow-list .flow-list-item[data-flow-id="${CSS.escape(id)}"]`)?.focus();
+}
+
+document.getElementById('flow-list')?.addEventListener('keydown', (event) => {
+  const items = Array.from(event.currentTarget.querySelectorAll('.flow-list-item'));
+  const index = items.indexOf(document.activeElement);
+  if (index === -1) return;
+  let target = null;
+  if (event.key === 'ArrowDown') target = items[index + 1];
+  else if (event.key === 'ArrowUp') target = items[index - 1];
+  else if (event.key === 'Home') target = items[0];
+  else if (event.key === 'End') target = items[items.length - 1];
+  if (!target) return;
+  event.preventDefault();
+  selectFlow(target.dataset.flowId);
+});
+
 function ensureFlowCadence(flow) {
   if (!flow.cadence) {
     flow.cadence = {
@@ -1104,6 +1154,8 @@ export function initFlowBuilder() {
           { coalesce: `flows:${activeFlow.id}:name` });
         const opt = selectEl ? selectEl.querySelector(`option[value="${activeFlow.id}"]`) : null;
         if (opt) opt.textContent = activeFlow.name || '(untitled flow)';
+        const listName = document.querySelector(`#flow-list .flow-list-item[data-flow-id="${CSS.escape(activeFlow.id)}"] .flow-list-name`);
+        if (listName) listName.textContent = activeFlow.name || '(untitled flow)';
       }
     });
   }
