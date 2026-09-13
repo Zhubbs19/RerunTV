@@ -12,3 +12,21 @@ if (/RerunTV-AndroidTV/i.test(navigator.userAgent)) {
   );
   document.documentElement.dataset.tvClient = 'android';
 }
+
+// A first guess at the usage mode, so a TV never paints desktop hints for a
+// frame. usage-mode.js (resolveUsageMode) is the real resolver and re-stamps
+// this as soon as the app starts; keep the precedence here the same: this
+// device's choice, then ?mode=, then a TV user agent.
+(function stampUsageModeEarly() {
+  var mode = null;
+  try {
+    var stored = window.localStorage.getItem('reruntv.usageMode');
+    if (stored === 'tv' || stored === 'desktop') mode = stored;
+  } catch (e) { /* storage unavailable */ }
+  if (!mode) {
+    var flag = /[?&]mode=(tv|desktop)\b/i.exec(location.search);
+    if (flag) mode = flag[1].toLowerCase();
+  }
+  if (!mode && /RerunTV-AndroidTV|Tizen|Web0S|webOS/i.test(navigator.userAgent)) mode = 'tv';
+  document.documentElement.dataset.mode = mode || 'desktop';
+}());

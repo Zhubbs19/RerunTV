@@ -40,6 +40,11 @@ installMainLogCapture();
 // safe with no further changes needed elsewhere. See package.json's
 // "server" script / run-server.bat for how this is meant to be launched.
 const SERVER_CONTROL = process.argv.includes('--server');
+// Usage mode launch flags (docs/design/01 §4, §9): `--mode=tv` starts the
+// renderer in TV mode unless this device already chose a mode in its own
+// settings; `--kiosk` is a mini-PC under a TV — fullscreen, no OS chrome.
+const LAUNCH_MODE = (process.argv.find((arg) => /^--mode=(tv|desktop)$/.test(arg)) || '').slice('--mode='.length) || null;
+const KIOSK = process.argv.includes('--kiosk');
 const HEADLESS = process.argv.includes('--headless') || SERVER_CONTROL;
 // Server-control mode is windowless after boot, but it deliberately uses the
 // updater's small BrowserWindow before opening the local control site. Keep
@@ -139,6 +144,7 @@ function createWindow(overrides = {}) {
     minHeight: 600,
     backgroundColor: '#060606',
     frame: !hideTitleBar,
+    kiosk: KIOSK,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -164,7 +170,9 @@ function createWindow(overrides = {}) {
     if (!url.startsWith('app://bundle/')) event.preventDefault();
   });
   if (saved && saved.isMaximized) mainWindow.maximize();
-  mainWindow.loadURL('app://bundle/renderer/index.html');
+  // The launch flag rides on the page URL, the same ?mode= a browser client
+  // uses, so usage-mode.js has one place to read it from.
+  mainWindow.loadURL(`app://bundle/renderer/index.html${LAUNCH_MODE ? `?mode=${LAUNCH_MODE}` : ''}`);
   mainWindow.webContents.on('did-finish-load', () => applyWindowUiScale(mainWindow, uiScalePreference));
 
   let saveStateTimer = null;
@@ -542,6 +550,13 @@ ipcMain.handle('window:toggleFullscreen', async () => {
   if (!mainWindow) return false;
   mainWindow.setFullScreen(!mainWindow.isFullScreen());
   return mainWindow.isFullScreen();
+});
+
+// TV mode's exit prompt (tv-input.js): Back on bare live TV offers EXIT, so a
+// kiosk box driven only by a remote can still be closed on purpose.
+ipcMain.handle('window:quit', async () => {
+  app.quit();
+  return true;
 });
 
 ipcMain.handle('window:setUiScale', async (event, preference) => {

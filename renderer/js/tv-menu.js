@@ -20,6 +20,7 @@ import {
   cycleSleepTimer, powerOff, toggleHintBar,
 } from './power.js';
 import { S } from './state.js';
+import { isTvMode, setUsageModePreference } from './usage-mode.js';
 
 // Read left-to-right, top-to-bottom — arrow-key navigation below treats the
 // button list as a grid with this many columns per row. Not derived from
@@ -62,6 +63,9 @@ function actions() {
     { label: 'SLEEP TIMER', run: () => cycleSleepTimer() },
     { label: 'FULLSCREEN', run: () => window.api.toggleFullscreen() },
     { label: 'HIDE HINTS', run: () => toggleHintBar() },
+    // Per device (usage-mode.js): the way back from TV mode on a box with only
+    // a remote, and a quick way to try TV mode from a keyboard.
+    { label: isTvMode() ? 'DESKTOP MODE' : 'TV MODE', run: () => setUsageModePreference(isTvMode() ? 'desktop' : 'tv') },
     { label: 'POWER OFF', run: () => powerOff() },
   ];
 }
@@ -92,6 +96,8 @@ function rebuildMenu() {
 export function openTvMenu() {
   if (shortcutsOverlayEl.classList.contains('hidden')) menuPreviouslyFocused = document.activeElement;
   rebuildMenu();
+  const hint = shortcutsOverlayEl.querySelector('.shortcuts-hint');
+  if (hint) hint.textContent = isTvMode() ? '◀ ▲ ▼ ▶ TO MOVE · OK TO SELECT · BACK TO CLOSE' : 'ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE';
   shortcutsOverlayEl.classList.remove('hidden');
   if (buttons[0]) buttons[0].focus();
 }

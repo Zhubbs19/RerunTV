@@ -99,6 +99,23 @@ only a 60 s fallback now. If you add a new frequently rewritten piece of host-lo
 state (like `lastChannel` or `volume`), add it to `HOST_LOCAL_FIELDS` in `main/config-host.js`.
 Otherwise every paired TV will refetch the whole lineup each time it changes.
 
+## Usage modes (desktop / TV)
+
+`html[data-mode]` is `desktop` or `tv`, resolved per device by `renderer/js/usage-mode.js`
+(docs/design/01, contract C1). It is never stored in `channels.json`.
+
+- **In TV mode**, remote buttons are normalized (`remote-input.js`, pure) and routed by on-screen
+  context in `tv-input.js`, which runs before `handleKey` in `app.js`'s keydown listener.
+- **Reuse the keyboard path.** Route a TV behaviour as `key:<Key>` whenever the keyboard handler
+  already does the job, instead of writing a second implementation.
+- **Desktop keys stay the same.** In desktop mode `routeKeydown` returns false, and keyboard
+  behaviour must stay byte-for-byte unchanged (the UI suite checks it).
+- **Layout and hints** key on `html[data-mode="tv"]` in CSS. Hint-bar spans tagged
+  `data-hint-mode="tv"` replace the letter hints in TV mode.
+- **Android client.** It speaks to `window.RerunTVInput.native({ key, longPress, repeat })`
+  when the page reports `RerunTVInput.version` ≥ 1, and falls back to injected keyboard events
+  otherwise. Bump the version only for an incompatible change to that call.
+
 ## Directory map
 
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by

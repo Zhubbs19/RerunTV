@@ -208,6 +208,10 @@
     // tab, which the letterbox/pillarbox CSS already handles regardless. A
     // no-op here just means a viewer never attempts the OS-window lock.
     setAspectLock: () => Promise.resolve(false),
+    // A browser tab can't close itself; TV mode's exit prompt leaves EXIT out
+    // (tv-input.js exitCapability). The Android client exits through
+    // AndroidRemoteBridge.exitApp instead.
+    quitApp: null,
     // CSS zoom scales all chrome in Chromium/WebView, with a compensating
     // layout canvas so the TV picture continues to fill its viewport.
     setUiScale: (preference) => {

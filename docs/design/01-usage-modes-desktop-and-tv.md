@@ -1,7 +1,66 @@
 # 01 — Usage modes: Desktop and TV
 
-Status: proposed. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11, plugins.
-Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
+Status: **Phase A built; the Phase B bridge is written and compiles but isn't on hardware yet.**
+Phases C–E are proposed. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
+
+### Built (Phase A, and the JS side of Phase B)
+
+Modules:
+- `renderer/js/usage-mode.js`: `resolveUsageMode`, `initUsageMode`, `setUsageModePreference`,
+  `onUsageModeChange`, `isTvMode`. It follows §4's precedence: this device's choice in
+  localStorage, then `?mode=` (Electron's `--mode=tv` adds it to the page URL), then the Android
+  TV / Tizen / webOS user agent, then desktop. It stamps `html[data-mode]`, and
+  `tv-client-viewport.js` makes the same guess in `<head>` so a TV never paints a desktop frame.
+- `renderer/js/remote-input.js` (pure): the RemoteKey vocabulary and `normalizeKey`, covering
+  keyboard names, TV-browser key names and Tizen/webOS keyCodes. Also per-context action tables
+  (§5.1) and the long-press tracker.
+- `renderer/js/tv-input.js`: reads the context off the page (watching, time machine, guide,
+  menu, details, text field, plugin channel, exit prompt) and runs actions.
+  - Anything the keyboard handler already does is routed as `key:<Key>` into `handleKey`, so
+    there is one implementation.
+  - In desktop mode it returns false and `handleKey` sees every event as before.
+
+TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
+- ◀ opens the guide and ▶ shows the channel banner.
+- Holding OK opens the TV menu; a short OK still acts like Enter.
+- Play/Pause, Menu and Settings toggle the TV menu.
+- CH± pages the guide a screenful while ▲▼ move one row.
+- A held channel key changes one channel per 300 ms.
+- Back closes the top overlay. On bare live TV it opens a modal "LEAVE RERUNTV?" prompt with
+  KEEP WATCHING (focused), STANDBY, and EXIT where the client can close itself.
+- The cursor hides after 3 s without pointer movement.
+- The hint bar shows remote hints instead of letters.
+- The TV menu gets DESKTOP MODE / TV MODE.
+- Settings › Interface has USAGE MODE (THIS DEVICE).
+- Electron takes `--mode=tv` and `--kiosk`. `window:quit` lets EXIT close a kiosk box.
+
+Android bridge (`MainActivity.kt`):
+- After a page load, the client probes `window.RerunTVInput.version`.
+- At version 1+ it posts RemoteKey names through `RerunTVInput.native()`:
+  - the CH rocker as `chUp`/`chDown`, distinct from the D-pad;
+  - OK as a short press on release, or `longPress` once held 500 ms;
+  - Back on release, falling back to `finish()` if the page can't answer.
+  - EXIT in the prompt calls `AndroidRemoteBridge.exitApp()`.
+- At version 0 (an older host) it injects keyboard events exactly as before.
+- Play/Pause and Settings still open the native overlay.
+- `./gradlew assembleDebug` builds it. It has not been installed on the Hisense 50QD6030G, and
+  step B0 (capturing the real button map) is still to do before relying on it there.
+
+Verified:
+- `tests/usage-modes.test.js` covers resolver precedence, normalization, routing, a
+  D-pad+OK+Back reachability check and long-press timing.
+- The live driver (scratch `test/verify-usage-modes.mjs`, 25 checks with trusted CDP key
+  events) covers desktop being unchanged and every TV behaviour above. It also covers the bridge
+  entry point and `?mode=tv`.
+- The 34-check UI suite passes unchanged in desktop mode.
+
+Not built yet:
+- the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C);
+- TV setup and QR handoff (Phase D);
+- gamepad, CEC, Tizen/webOS packaging (Phase E);
+- learn mode and observed-profile hints (§5.2);
+- the "Switch to TV mode?" suggestion heuristic.
 
 ## 1. Problem
 

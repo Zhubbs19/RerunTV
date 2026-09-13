@@ -8,7 +8,7 @@
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
     'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
-    'transcode', 'toggleFullscreen', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
+    'transcode', 'toggleFullscreen', 'quitApp', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
     'getConnectedDevices', 'onRemoteTune', 'onRemoteSetChannelFlag', 'onPartyTriggerTrivia', 'onPartyPost',
     'onPartyAnnounce', 'onPartyNews', 'onPartyBingo', 'onPartySoundboardPlay', 'onPartyEffect',
     'onPartyCheckin', 'onPartyVote', 'onPartyReaction', 'sendPartyVoteState', 'captureVideoFrame',

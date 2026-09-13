@@ -1334,3 +1334,67 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
 
 
 
+
+/* ---------- Usage modes (docs/design/01, usage-mode.js / tv-input.js) ----------
+   html[data-mode] is "desktop" or "tv", per device. TV mode is for a remote
+   across the room: remote-button hints instead of letters, a focus ring that
+   is always visible (a remote has no hover), larger menu targets, and a
+   cursor that hides when the pointer is idle. */
+.hint-bar > [data-hint-mode="tv"] { display: none; }
+html[data-mode="tv"] .hint-bar > :not([data-hint-mode="tv"]) { display: none; }
+html[data-mode="tv"] .hint-bar > [data-hint-mode="tv"] { display: inline; }
+html[data-mode="tv"] .hint-bar { font-size: 14px; column-gap: 30px; }
+
+html[data-mode="tv"] button:focus,
+html[data-mode="tv"] select:focus,
+html[data-mode="tv"] [tabindex]:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+html[data-mode="tv"] .tv-menu-btn { min-height: 64px; font-size: 16px; }
+html[data-mode="tv"] .tv-menu-btn:focus { border-color: var(--gold); color: var(--gold); }
+html[data-mode="tv"] .shortcuts-hint { font-size: 14px; }
+
+html[data-mode="tv"].cursor-idle,
+html[data-mode="tv"].cursor-idle * { cursor: none !important; }
+
+/* Back on bare live TV (tv-input.js showExitPrompt). Above the TV menu. */
+.tv-exit-prompt {
+  position: absolute;
+  inset: 0;
+  z-index: 16;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 10, 32, 0.72);
+}
+.tv-exit-prompt.hidden { display: none; }
+.crt.power-off .tv-exit-prompt { display: none; }
+.tv-exit-prompt-panel {
+  background: var(--gradient-panel);
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--gold);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--bevel-raised), var(--shadow-hard);
+  padding: 26px 34px;
+  min-width: min(520px, 80vw);
+}
+.tv-exit-prompt-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.6vw, 28px);
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+.tv-exit-prompt-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+.tv-exit-prompt-actions .tv-menu-btn { flex: 1; }
+.tv-exit-prompt-hint {
+  margin-top: 14px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--paper-dim);
+}

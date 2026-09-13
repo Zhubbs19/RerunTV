@@ -104,6 +104,7 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('media:downloadProgress', listener);
   },
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
+  quitApp: () => ipcRenderer.invoke('window:quit'),
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.
   setAspectLock: (aspect) => ipcRenderer.invoke('window:setAspectLock', { aspect }),

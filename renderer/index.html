@@ -370,6 +370,15 @@
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-enabled" checked>SHOW HINT BAR (H TO TOGGLE)</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-compact" checked>COMPACT HINT BAR (CORE CONTROLS + TV MENU)</label>
             <label class="shuffle-toggle"><input type="checkbox" id="hintbar-slide-enabled" checked>SLIDE HINT BAR IN / OUT</label>
+            <label class="panel-interval" title="How this device is used. TV is for a remote across the room: D-pad and OK reach everything, the left arrow opens the guide, holding OK opens the TV menu, Back asks before leaving, and the cursor hides itself. Saved on this device only, so a laptop and a living-room box can differ. AUTO picks TV for the Android TV client and TV browsers.">
+              USAGE MODE (THIS DEVICE)
+              <select id="usage-mode-select">
+                <option value="auto" selected>AUTO</option>
+                <option value="desktop">DESKTOP</option>
+                <option value="tv">TV (REMOTE)</option>
+              </select>
+              <span id="usage-mode-status" class="panel-status"></span>
+            </label>
             <label class="panel-interval" title="AUTO enlarges the complete interface on high-resolution displays while respecting your operating system's display scaling.">
               INTERFACE SIZE
               <select id="ui-scale-select">
@@ -1506,6 +1515,13 @@
         <span data-hint-key="sap-audio" data-plugin-hint="true" data-hint-secondary="true">U AUDIO TRACK</span>
         <span data-hint-key="tv-menu">? TV MENU</span>
         <span data-hint-key="hide-hints">H HIDE HINTS</span>
+        <!-- TV mode (html[data-mode="tv"], usage-mode.js) shows these instead:
+             remote buttons only, never letters a remote doesn't have. -->
+        <span data-hint-mode="tv" data-hint-key="tv-channel">&#9650;&#9660; CHANNEL</span>
+        <span data-hint-mode="tv" data-hint-key="tv-guide">&#9664; GUIDE</span>
+        <span data-hint-mode="tv" data-hint-key="tv-banner">&#9654; NOW PLAYING</span>
+        <span data-hint-mode="tv" data-hint-key="tv-menu-hold">HOLD OK: MENU</span>
+        <span data-hint-mode="tv" data-hint-key="tv-back">BACK: EXIT</span>
       </div>
 
       <!-- LAN-viewer-only cross-link to the party guest page (party.js's

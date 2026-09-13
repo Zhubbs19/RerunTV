@@ -7,6 +7,7 @@ import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from '
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
+import { getUsageModePreference, onUsageModeChange, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
@@ -125,7 +126,7 @@ function renderHintBarItemsList() {
   const hidden = S.config.display.hintBarHidden || [];
   Array.from(hintBarEl.children).forEach((span) => {
     const key = span.dataset.hintKey;
-    if (!key) return;
+    if (!key || span.dataset.hintMode === 'tv') return; // TV-mode hints aren't per-item toggles
     const label = document.createElement('label');
     label.className = 'shuffle-toggle';
     const pluginName = PLUGIN_DEPENDENT_HINT_NAMES[key];
@@ -314,6 +315,7 @@ export function renderSettingsPanels() {
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
   uiScaleSelect.value = S.config.display.uiScale || 'auto';
+  renderUsageModeSetting();
   logoBugMotionSelect.value = S.config.display.logoBugMotion || 'none';
   renderLogoBugEditor();
   renderDynamicOverlaysEditor();
@@ -1195,7 +1197,7 @@ function renderHelpTab() {
 
   if (helpShortcutsGridEl && hintBarEl) {
     helpShortcutsGridEl.innerHTML = '';
-    Array.from(hintBarEl.children).forEach((span) => {
+    Array.from(hintBarEl.children).filter((span) => span.dataset.hintMode !== 'tv').forEach((span) => {
       const item = document.createElement('div');
       item.className = 'help-shortcut-item';
       item.innerHTML = span.innerHTML;
@@ -1885,6 +1887,22 @@ contentVolumeSlider.addEventListener('input', () => {
 guideSlotsSelect.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideSlots'], value: parseInt(guideSlotsSelect.value, 10) || 3 });
 });
+// Usage mode is per device (usage-mode.js), not config: a laptop and the
+// living-room box sharing one channels.json can be in different modes.
+const usageModeSelectEl = document.getElementById('usage-mode-select');
+const usageModeStatusEl = document.getElementById('usage-mode-status');
+function renderUsageModeSetting() {
+  if (!usageModeSelectEl) return;
+  usageModeSelectEl.value = getUsageModePreference();
+  if (usageModeStatusEl) usageModeStatusEl.textContent = `NOW: ${usageMode().toUpperCase()} (${usageModeSource().toUpperCase()})`;
+}
+usageModeSelectEl?.addEventListener('change', () => {
+  setUsageModePreference(usageModeSelectEl.value);
+  renderUsageModeSetting();
+});
+onUsageModeChange(() => renderUsageModeSetting());
+renderUsageModeSetting();
+
 uiScaleSelect.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'uiScale'], value: uiScaleSelect.value });
   if (window.api && window.api.setUiScale) window.api.setUiScale(S.config.display.uiScale);

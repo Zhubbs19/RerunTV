@@ -125,6 +125,15 @@ class MainActivity : AppCompatActivity() {
     // repeat rate.
     private var lastChannelChangeMs = 0L
 
+    // The page's remote-input API version (window.RerunTVInput, renderer
+    // tv-input.js), probed after each page load. 0 = an older host: keep
+    // injecting keyboard events exactly as before. 1+ = post RemoteKey names
+    // and let the page own Back, long-press OK and the CH rocker
+    // (docs/design/01 §5.1, Phase B).
+    @Volatile private var pageInputVersion = 0
+    private var okDownAtMs = 0L
+    private var okLongSent = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureTvWindow()
@@ -305,6 +314,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun reportState(json: String) {
             latestState = json
+        }
+
+        // TV mode's exit prompt (tv-input.js): Back from live TV asks first,
+        // and only the EXIT choice there closes the app.
+        @JavascriptInterface
+        fun exitApp() {
+            runOnUiThread { finish() }
         }
     }
 
@@ -527,6 +543,13 @@ class MainActivity : AppCompatActivity() {
                 showSetupOverlay()
                 return true
             }
+            if (pageInputVersion >= 1) {
+                val remoteKey = remoteKeyFor(event.keyCode)
+                if (remoteKey != null) {
+                    postRemoteKey(remoteKey, event)
+                    return true
+                }
+            }
             val jsKey = mapKeyCode(event.keyCode)
             if (jsKey != null) {
                 if (jsKey == "ArrowUp" || jsKey == "ArrowDown") {
@@ -540,9 +563,106 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
-        // Deliberately NOT intercepting BACK — it should behave normally
-        // (leave the app), same as any other TV app's dedicated back button.
+        if (pageInputVersion >= 1 && event.action == KeyEvent.ACTION_UP) {
+            val remoteKey = remoteKeyFor(event.keyCode)
+            if (remoteKey != null) {
+                postRemoteKey(remoteKey, event)
+                return true
+            }
+        }
+        // An older host (pageInputVersion 0) doesn't own BACK — it behaves
+        // normally and leaves the app, as it always has.
         return super.dispatchKeyEvent(event)
+    }
+
+    // Physical buttons -> the page's RemoteKey vocabulary (remote-input.js).
+    // Play/Pause, Settings and Menu stay native (they open this app's own
+    // overlay, handled above); Home and the OS-reserved buttons never arrive.
+    private fun remoteKeyFor(keyCode: Int): String? = when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_UP -> "up"
+        KeyEvent.KEYCODE_DPAD_DOWN -> "down"
+        KeyEvent.KEYCODE_DPAD_LEFT -> "left"
+        KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
+        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> "ok"
+        KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> "back"
+        KeyEvent.KEYCODE_CHANNEL_UP -> "chUp"
+        KeyEvent.KEYCODE_CHANNEL_DOWN -> "chDown"
+        KeyEvent.KEYCODE_LAST_CHANNEL -> "last"
+        KeyEvent.KEYCODE_INFO -> "info"
+        KeyEvent.KEYCODE_GUIDE -> "guide"
+        KeyEvent.KEYCODE_PROG_RED -> "red"
+        KeyEvent.KEYCODE_PROG_GREEN -> "green"
+        KeyEvent.KEYCODE_PROG_YELLOW -> "yellow"
+        KeyEvent.KEYCODE_PROG_BLUE -> "blue"
+        KeyEvent.KEYCODE_MEDIA_REWIND -> "rewind"
+        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "fastForward"
+        KeyEvent.KEYCODE_CAPTIONS -> "captions"
+        KeyEvent.KEYCODE_0 -> "digit0"
+        KeyEvent.KEYCODE_1 -> "digit1"
+        KeyEvent.KEYCODE_2 -> "digit2"
+        KeyEvent.KEYCODE_3 -> "digit3"
+        KeyEvent.KEYCODE_4 -> "digit4"
+        KeyEvent.KEYCODE_5 -> "digit5"
+        KeyEvent.KEYCODE_6 -> "digit6"
+        KeyEvent.KEYCODE_7 -> "digit7"
+        KeyEvent.KEYCODE_8 -> "digit8"
+        KeyEvent.KEYCODE_9 -> "digit9"
+        else -> null
+    }
+
+    // Long-press is decided here only because Android's repeatCount is the
+    // reliable signal on TV hardware; the threshold matches the page's
+    // LONG_PRESS_MS. OK acts on release (short) or once the hold crosses
+    // the threshold (long). Back acts on release and, if the page is gone
+    // or can't answer, falls back to leaving the app. Everything else acts
+    // on press, with channel repeats debounced as before.
+    private fun postRemoteKey(remoteKey: String, event: KeyEvent) {
+        val now = SystemClock.uptimeMillis()
+        when (remoteKey) {
+            "ok" -> {
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    if (event.repeatCount == 0) {
+                        okDownAtMs = now
+                        okLongSent = false
+                    } else if (!okLongSent && now - okDownAtMs >= LONG_PRESS_MS) {
+                        okLongSent = true
+                        sendRemoteKey("ok", longPress = true, repeat = false)
+                    }
+                } else if (event.action == KeyEvent.ACTION_UP && !okLongSent) {
+                    sendRemoteKey("ok", longPress = false, repeat = false)
+                }
+            }
+            "back" -> {
+                if (event.action != KeyEvent.ACTION_UP) return
+                webView.evaluateJavascript(
+                    "(window.RerunTVInput && window.RerunTVInput.native({key:'back'})) || 'missing'",
+                ) { result ->
+                    if (result == null || result.contains("missing")) finish()
+                }
+            }
+            else -> {
+                if (event.action != KeyEvent.ACTION_DOWN) return
+                if (remoteKey == "up" || remoteKey == "down" || remoteKey == "chUp" || remoteKey == "chDown") {
+                    if (event.repeatCount > 0 && now - lastChannelChangeMs < CHANNEL_DEBOUNCE_MS) return
+                    lastChannelChangeMs = now
+                }
+                sendRemoteKey(remoteKey, longPress = false, repeat = event.repeatCount > 0)
+            }
+        }
+    }
+
+    private fun sendRemoteKey(remoteKey: String, longPress: Boolean, repeat: Boolean) {
+        // remoteKey only ever comes from remoteKeyFor's fixed literals.
+        webView.evaluateJavascript(
+            "window.RerunTVInput && window.RerunTVInput.native({key:'$remoteKey',longPress:$longPress,repeat:$repeat})",
+            null,
+        )
+    }
+
+    private fun probePageInputVersion(view: WebView) {
+        view.evaluateJavascript("(window.RerunTVInput && window.RerunTVInput.version) || 0") { result ->
+            pageInputVersion = result?.trim('"')?.toDoubleOrNull()?.toInt() ?: 0
+        }
     }
 
     private fun mapKeyCode(keyCode: Int): String? = when (keyCode) {
@@ -628,6 +748,7 @@ class MainActivity : AppCompatActivity() {
             hasLoadedSuccessfully = true
             retryHandler.removeCallbacks(retryRunnable)
             connectionLostOverlay.visibility = View.GONE
+            pageInputVersion = 0
             view.evaluateJavascript(
                 "document.querySelector('form[action=\"/_pair\"] input[name=\"code\"]') !== null",
             ) { result ->
@@ -645,6 +766,10 @@ class MainActivity : AppCompatActivity() {
                     // commit it to disk now rather than waiting for a clean
                     // onPause, which a killed background process never gets.
                     CookieManager.getInstance().flush()
+                    // The page's input API installs as its modules run;
+                    // probe now and once more after a slow first load.
+                    probePageInputVersion(view)
+                    retryHandler.postDelayed({ probePageInputVersion(view) }, 3000L)
                 }
             }
         }
@@ -707,6 +832,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREF_HOST = "host_url"
         private const val RETRY_DELAY_MS = 4000L
         private const val CHANNEL_DEBOUNCE_MS = 200L
+        private const val LONG_PRESS_MS = 500L
         private const val DISCOVERY_PORT = 41234
         private const val DISCOVERY_MAGIC = "RETRO_CABLE_BOX_DISCOVER"
         private const val DISCOVERY_REPLY_MAGIC = "RETRO_CABLE_BOX_HELLO"

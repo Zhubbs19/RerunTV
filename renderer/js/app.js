@@ -46,6 +46,12 @@ import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
+import { initUsageMode } from './usage-mode.js';
+import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
+
+// Before anything renders: html[data-mode] decides layout and input model for
+// the whole app (docs/design/01, contract C1).
+initUsageMode();
 import { initLibrarySync } from './library-sync.js';
 import {
   renderChannelList, renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
@@ -426,7 +432,15 @@ export function handleKey(e) {
   }
 }
 
-window.addEventListener('keydown', handleKey);
+// TV mode routes remote buttons to actions first (tv-input.js); whatever it
+// doesn't claim — and everything in desktop mode — reaches handleKey exactly as
+// a keystroke always has.
+window.addEventListener('keydown', (e) => {
+  if (routeKeydown(e)) return;
+  if (exitPromptOpen()) { e.preventDefault(); return; } // modal over live TV
+  handleKey(e);
+});
+installTvInput({ handleKey });
 // An explicit route back to live TV for remote clients. Escape remains a
 // context-sensitive "back" key inside Setup, so overloading it as an exit
 // would make text fields, dialogs, and nested setup panels unpredictable.
