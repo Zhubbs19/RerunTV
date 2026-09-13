@@ -1198,7 +1198,13 @@ export function breakEntriesInWindow(ch, windowStart, windowEnd) {
   const entries = [];
   const current = resolveBreakAt(ch, windowStart);
   let t = windowStart;
-  if (current) {
+  // isJumpableBreak here too, not only in the nextBreakStart loop below: a
+  // text-only station-ID bar is an overlay on the program, not a break, and
+  // the loop already skips every one of them — except the one that happened
+  // to be on screen exactly at windowStart, which used to be listed. With a
+  // top-of-hour ID cadence that meant one phantom break per guide window
+  // (and one per day in SCHEDULE > ON AIR) on channels with no breaks at all.
+  if (current && isJumpableBreak(current)) {
     // windowStart can land anywhere inside a pod (it's an arbitrary guide-
     // window boundary, not break-aware) — startOfBreakRun/endOfBreakRun
     // (above) give the WHOLE pod's true bounds so this shows one block per

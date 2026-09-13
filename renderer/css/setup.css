@@ -4343,3 +4343,219 @@ html[data-theme] .btn[aria-disabled="true"] {
   .programming-path-actions .btn { flex: 1; }
   .settings-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* SCHEDULE > ON AIR (setup-onair.js) — the resolved broadcast week, one
+   horizontally scrolling strip per day. Program blocks take their source's
+   colour as a left edge + tint so the text on them stays on the theme's own
+   readable surface instead of on an arbitrary badge colour. */
+.onair-intro {
+  color: var(--paper-dim);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 10px;
+  max-width: 78ch;
+}
+.onair-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.onair-week-label {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: var(--gold);
+  margin: 0 8px;
+}
+.onair-zoom { display: inline-flex; gap: 4px; margin-left: auto; }
+.onair-scroller {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+.onair-grid { display: grid; width: max-content; min-width: 100%; }
+.onair-row {
+  display: grid;
+  grid-template-columns: 92px auto;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.onair-row:last-child { border-bottom: none; }
+.onair-row.today .onair-day-label { color: var(--gold); }
+.onair-day-label {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--panel-2);
+  border-right: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.onair-track {
+  position: relative;
+  height: 46px;
+  /* Hour gridlines — the pxPerHour step comes from the inline width/24. */
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: calc(100% / 24) 100%;
+}
+.onair-row.loading .onair-track {
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
+}
+.onair-hours .onair-track { height: 26px; background-image: none; }
+.onair-corner { background: var(--panel-2); }
+.onair-hour-tick {
+  position: absolute;
+  top: 6px;
+  padding-left: 4px;
+  border-left: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+  white-space: nowrap;
+}
+.onair-program {
+  position: absolute;
+  top: 4px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  min-width: 2px;
+  padding: 0 6px;
+  overflow: hidden;
+  container-type: inline-size;
+  border: none;
+  border-left: 3px solid var(--onair-source, var(--line));
+  border-right: 1px solid rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--onair-source, var(--cell)) 38%, var(--cell));
+  color: var(--paper);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.onair-program:hover { filter: brightness(1.18); }
+.onair-program.past { opacity: 0.55; }
+.onair-program.selected {
+  z-index: 2;
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.onair-program-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 44px) {
+  .onair-program-label { visibility: hidden; }
+}
+.onair-break {
+  position: absolute;
+  bottom: 3px;
+  height: 5px;
+  border-radius: 1px;
+  background: var(--accent-pod);
+  pointer-events: auto;
+}
+.onair-break-channelId,
+.onair-break-localAvail { background: var(--accent-stationid); }
+.onair-break-upNext,
+.onair-break-promo { background: var(--cyan); }
+.onair-offair {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: repeating-linear-gradient(135deg, rgba(0, 0, 0, 0.35) 0 6px, rgba(255, 255, 255, 0.04) 6px 12px);
+  color: var(--paper-dim);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+}
+.onair-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  z-index: 2;
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(var(--danger-rgb), 0.7);
+  pointer-events: none;
+}
+.onair-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 10px;
+}
+.onair-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--paper-dim);
+}
+.onair-legend-swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.onair-legend-break { height: 5px; background: var(--accent-pod); }
+.onair-status {
+  margin-top: 6px;
+  color: var(--paper-dim);
+  font-size: 11px;
+}
+.onair-detail:empty { display: none; }
+.onair-detail {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+}
+.onair-detail-title {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--gold);
+}
+.onair-detail-when {
+  margin: 2px 0 10px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--cyan);
+}
+.onair-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(140px, max-content) 1fr;
+  gap: 6px 14px;
+  align-items: baseline;
+}
+.onair-fact { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; }
+.onair-fact strong { color: var(--gold); font-size: 12px; letter-spacing: 1px; }
+.onair-fact span { color: var(--paper); font-weight: 700; overflow-wrap: anywhere; }
+.onair-fact small { color: var(--paper-dim); font-family: var(--font-body); font-size: 12px; }
+.onair-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+@media (max-width: 760px) {
+  .onair-facts { grid-template-columns: max-content 1fr; }
+  .onair-fact small { grid-column: 1 / -1; }
+}

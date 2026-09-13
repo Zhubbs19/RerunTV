@@ -357,7 +357,7 @@ export function toggleGuideShowBreaks() {
 // Display copy for a break overlay block (buildChannelRow below) — mirrors
 // real guides' "Paid Programming"/local-avail labeling rather than naming
 // the app's own internal type ids.
-const GUIDE_BREAK_LABELS = {
+export const GUIDE_BREAK_LABELS = {
   commercial: 'PAID PROGRAMMING', adBreakIn: 'PAID PROGRAMMING', adBreakOut: 'PAID PROGRAMMING',
   channelId: 'STATION ID', trivia: 'LOCAL PROGRAMMING', upNext: 'UP NEXT', promo: 'PROMO',
   signOff: 'SIGN-OFF', signOn: 'SIGN-ON', premiereJingle: 'SPECIAL PRESENTATION', localAvail: 'LOCAL AVAIL',

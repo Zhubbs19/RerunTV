@@ -25,10 +25,18 @@ function chosenTime() {
   return Number.isFinite(value) ? value : viewNow();
 }
 
-function reasonForCommercials(active) {
+// A flow/preset by its NAME where it has one — the resolver key only carries
+// the generated id (preset:preset-mtg…), which told nobody which one matched.
+function interstitialName(kind, id) {
+  const list = (S.config.interstitials && S.config.interstitials[kind]) || [];
+  const found = list.find((item) => item.id === id);
+  return found && found.name ? `"${found.name}"` : id;
+}
+
+export function reasonForCommercials(active) {
   if (active.key === 'disabled') return 'Channel ads are disabled.';
-  if (typeof active.key === 'string' && active.key.startsWith('flow:')) return `Matched show/ad flow ${active.key.slice(5)}.`;
-  if (typeof active.key === 'string' && active.key.startsWith('preset:')) return `Matched tagged-content preset ${active.key.slice(7)}.`;
+  if (typeof active.key === 'string' && active.key.startsWith('flow:')) return `Matched show/ad flow ${interstitialName('flows', active.key.slice(5))}.`;
+  if (typeof active.key === 'string' && active.key.startsWith('preset:')) return `Matched tagged-content preset ${interstitialName('presets', active.key.slice(7))}.`;
   if (active.key !== -1) return `Matched block override ${active.key}.`;
   return 'Using the channel/global fallback cadence.';
 }

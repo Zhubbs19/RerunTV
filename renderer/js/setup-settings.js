@@ -623,6 +623,7 @@ const HELP_GUIDE = [
   { group: 'SECTION 3 — THE LINEUP TAB', title: '3.2 Programming Blocks and the Calendar', body: [
     'A PROGRAMMING BLOCK is just a time slot with its own lineup — for example, "cartoons, weekdays, 4–6 PM." You can trigger a block two ways: by day of the week and time (repeats every week), or by a specific date range (great for holidays or a limited-time marathon).',
     'TIP: Turn on WEEKLY ROTATION on a block if you want its lineup to change from week to week instead of repeating the exact same shows every time.',
+    'ON AIR (the first view in SCHEDULE) shows the week this channel will actually broadcast, with every show, ad break and sign-off after blocks, calendar days, presets and flows are all applied. Click any program to see which block or preset produced it, the breaks inside it, and a WATCH FROM HERE button.',
     'The CALENDAR (same tab as SCHEDULE) shows you a full month at once, color-coded by what\'s playing each day. It automatically flags anything that conflicts, and you can override a single day without messing up your regular schedule.',
   ] },
   { group: 'SECTION 3 — THE LINEUP TAB', title: '3.3 Previewing, Fixing Problems, and Editing Multiple Channels', body: [

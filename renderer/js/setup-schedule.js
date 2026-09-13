@@ -24,6 +24,7 @@ import {
 } from './schedule.js';
 import { MONTHS, BADGE_COLORS, S, WEEKDAYS, saveConfigDebounced } from './state.js';
 import { confirmDialog } from './setup-dialogs.js';
+import { buildOnAirPanel } from './setup-onair.js';
 import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from './util.js';
 
 // Short human label for a block — the block's own name if the user gave it
@@ -57,7 +58,7 @@ export function blockPickerLabel(block) {
 // so the grid can group days by color at a glance instead of relying on
 // squeezed-in text alone, and so the legend and the day-detail swatch stay
 // visually consistent with each other.
-function calendarSourceColor(key) {
+export function calendarSourceColor(key) {
   let hash = 0;
   for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return BADGE_COLORS[hash % BADGE_COLORS.length];
@@ -1242,7 +1243,9 @@ export function buildSchedulePanel(ch, panelEl) {
   panelEl.appendChild(addWrap);
 }
 
-// Unified SCHEDULE tab — a TIMELINE/BLOCKS/CALENDAR view toggle over
+// Unified SCHEDULE tab — an ON AIR/TIMELINE/BLOCKS/CALENDAR view toggle over
+// buildOnAirPanel (setup-onair.js, the resolved week — what the other three
+// views add up to) and
 // buildTimelinePanel/buildSchedulePanel/buildCalendarPanel instead of
 // separate channel-EDIT tabs. TIMELINE is first since it's the natural
 // starting point (build the standing weekly lineup, then fine-tune specific
@@ -1255,6 +1258,10 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   const viewToggle = document.createElement('div');
   viewToggle.className = 'edit-tab-bar schedule-view-toggle';
   viewToggle.setAttribute('role', 'tablist');
+  const onAirBtn = document.createElement('button');
+  onAirBtn.className = 'btn edit-tab-btn';
+  onAirBtn.textContent = 'ON AIR';
+  onAirBtn.setAttribute('role', 'tab');
   const timelineBtn = document.createElement('button');
   timelineBtn.className = 'btn edit-tab-btn';
   timelineBtn.textContent = 'TIMELINE';
@@ -1267,6 +1274,7 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   calendarBtn.className = 'btn edit-tab-btn';
   calendarBtn.textContent = 'CALENDAR';
   calendarBtn.setAttribute('role', 'tab');
+  viewToggle.appendChild(onAirBtn);
   viewToggle.appendChild(timelineBtn);
   viewToggle.appendChild(blocksBtn);
   viewToggle.appendChild(calendarBtn);
@@ -1274,14 +1282,17 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   const body = document.createElement('div');
   body.id = `channel-${ch.number}-schedule-panel`;
   body.setAttribute('role', 'tabpanel');
-  [timelineBtn, blocksBtn, calendarBtn].forEach((button) => button.setAttribute('aria-controls', body.id));
+  [onAirBtn, timelineBtn, blocksBtn, calendarBtn].forEach((button) => button.setAttribute('aria-controls', body.id));
+  onAirBtn.id = `channel-${ch.number}-schedule-tab-onair`;
   timelineBtn.id = `channel-${ch.number}-schedule-tab-timeline`;
   blocksBtn.id = `channel-${ch.number}-schedule-tab-blocks`;
   calendarBtn.id = `channel-${ch.number}-schedule-tab-calendar`;
   panelEl.appendChild(viewToggle);
   panelEl.appendChild(body);
 
-  let activeView = 'timeline';
+  // ON AIR first: it answers the question every other view is a means to —
+  // what this channel will actually broadcast.
+  let activeView = 'onair';
 
   function jumpToBlock(block) {
     activeView = 'blocks';
@@ -1295,6 +1306,8 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   }
 
   function renderView() {
+    onAirBtn.classList.toggle('active', activeView === 'onair');
+    onAirBtn.setAttribute('aria-selected', String(activeView === 'onair'));
     timelineBtn.classList.toggle('active', activeView === 'timeline');
     blocksBtn.classList.toggle('active', activeView === 'blocks');
     calendarBtn.classList.toggle('active', activeView === 'calendar');
@@ -1303,7 +1316,9 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
     calendarBtn.setAttribute('aria-selected', String(activeView === 'calendar'));
     body.setAttribute('aria-labelledby', `channel-${ch.number}-schedule-tab-${activeView}`);
     body.innerHTML = '';
-    if (activeView === 'timeline') {
+    if (activeView === 'onair') {
+      buildOnAirPanel(ch, body, { onEditBlock: jumpToBlock, colorFor: calendarSourceColor, blockLabel: blockPickerLabel });
+    } else if (activeView === 'timeline') {
       buildTimelinePanel(ch, body, { onEditBlock: jumpToBlock });
     } else if (activeView === 'blocks') {
       buildSchedulePanel(ch, body);
@@ -1312,6 +1327,7 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
     }
   }
 
+  onAirBtn.addEventListener('click', () => { activeView = 'onair'; renderView(); });
   timelineBtn.addEventListener('click', () => { activeView = 'timeline'; renderView(); });
   blocksBtn.addEventListener('click', () => { activeView = 'blocks'; renderView(); });
   calendarBtn.addEventListener('click', () => { activeView = 'calendar'; renderView(); });
