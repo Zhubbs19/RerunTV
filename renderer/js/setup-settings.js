@@ -709,8 +709,9 @@ const HELP_GUIDE = [
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.1 Undo, Redo, the Command Palette, and Keyboard Shortcuts', body: [
     'Made a mistake? Press Ctrl+Z to undo your last change, and Ctrl+Shift+Z (or Ctrl+Y) to redo it. There are also UNDO/REDO buttons at the bottom of the screen — they gray out automatically when there\'s nothing to undo or redo.',
     'NOTE: Regular watching — changing the channel, adjusting volume, switching picture mode — doesn\'t count as a "setting" and won\'t show up in this undo history.',
-    'Press Ctrl+K, or the COMMANDS button, to open a searchable list of everything you can do on this screen — jump to a tab, add a channel, run a diagnostic, export your settings, and more, all without hunting through menus.',
-    'TIP: You can also get around this whole screen with just the keyboard. Arrow keys move between tabs and list rows, Enter selects, Delete removes, and Ctrl+F jumps straight to the search box.',
+    'Press Ctrl+K, or the SEARCH button, to search everything on this screen — settings, channels, upcoming programs, and actions like adding a channel or exporting your settings.',
+    'TIP: You can also get around this whole screen with just the keyboard. Arrow keys (or J and K) move between sections and list rows, Enter selects a row and Enter again moves into its editor, Esc goes back to the list, Delete removes, and Ctrl+Enter starts watching.',
+    'Press G and then a letter to jump to a section: C Channels, P Programming, L Library, S Picture & Sound, G Guide & Theme, H Household, Y System, U Plug-ins, ? Help.',
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
     'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',

@@ -282,5 +282,93 @@ function enableRovingList(containerEl, rowSelector, activateSelector, deleteSele
   });
 }
 
+// ---------- Section jumps, J/K and Esc (docs/design/03 §7) ----------
+// G then a letter opens a section. The letter lives on the sidebar button as
+// data-go-key so the tooltip and this map can't disagree.
+const GO_KEYS = { channels: 'c', programming: 'p', library: 'l', display: 's', guide: 'g', household: 'h', audio: 'y', plugins: 'u', help: '?' };
+document.querySelectorAll('#setup-tabs .setup-tab-btn').forEach((btn) => {
+  const key = GO_KEYS[btn.dataset.tab];
+  if (!key) return;
+  btn.dataset.goKey = key;
+  btn.title = `${btn.textContent.trim()} (G then ${key.toUpperCase()})`;
+});
+
+// A list beside a detail pane: its rows, and which one is selected.
+const LIST_PANES = '#channel-list-pane, .list-detail-list, #flow-list';
+const DETAIL_PANES = '#channel-list, .list-detail-detail, .flow-detail';
+const SELECTED_ROW = '.channel-list-item.selected, .interstitial-card.selected .interstitial-card-summary, .flow-list-item.selected, .backup-list-item.selected, .plugin-entry.selected .plugin-row';
+
+function listForDetail(detail) {
+  if (detail.id === 'channel-list') return document.getElementById('channel-list-pane');
+  const wrap = detail.closest('.list-detail');
+  return wrap && wrap.querySelector(LIST_PANES);
+}
+
+function isTypingTarget(el) {
+  if (!el) return false;
+  if (el.isContentEditable) return true;
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+  return el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes(el.type);
+}
+
+let goPendingUntil = 0;
+window.addEventListener('keydown', (e) => {
+  if (!setupVisible() || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+  const active = document.activeElement;
+  if (document.querySelector('.confirm-dialog')) return;
+
+  // Esc inside a detail pane goes back to the selected row of its list.
+  if (e.key === 'Escape' && active && active !== document.body) {
+    const detail = active.closest(DETAIL_PANES);
+    const list = detail && listForDetail(detail);
+    const row = list && list.querySelector(SELECTED_ROW);
+    if (row) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      row.focus();
+      return;
+    }
+  }
+  if (isTypingTarget(active)) return;
+
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (goPendingUntil > Date.now()) { // UI gesture timing, not schedule time
+    goPendingUntil = 0;
+    const btn = document.querySelector(`#setup-tabs .setup-tab-btn[data-go-key="${CSS.escape(key)}"]`);
+    if (btn) {
+      e.preventDefault();
+      btn.click();
+      btn.focus();
+    }
+    return;
+  }
+  if (key === 'g' && !e.shiftKey) {
+    goPendingUntil = Date.now() + 1500;
+    return;
+  }
+
+  // J/K are ▼/▲ in a list; Enter on a list row moves into its detail pane.
+  const list = active && active.closest(LIST_PANES);
+  if (list && (key === 'j' || key === 'k')) {
+    e.preventDefault();
+    active.dispatchEvent(new KeyboardEvent('keydown', { key: key === 'j' ? 'ArrowDown' : 'ArrowUp', bubbles: true, cancelable: true }));
+    return;
+  }
+  // Enter on the row that is already selected opens it: focus lands on the
+  // first control of its detail pane. Enter on any other row selects it as before.
+  if (list && e.key === 'Enter' && active.matches(SELECTED_ROW)) {
+    const wrap = list.closest('.list-detail');
+    const detail = list.id === 'channel-list-pane' ? document.getElementById('channel-list') : wrap && wrap.querySelector(DETAIL_PANES);
+    const usable = (el) => !el.disabled && el.offsetParent !== null && el.type !== 'hidden';
+    const first = detail && (Array.from(detail.querySelectorAll('input, select, textarea, button')).find(usable)
+      || Array.from(detail.querySelectorAll('[tabindex="0"]')).find(usable));
+    if (first) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      first.focus();
+    }
+  }
+}, true);
+
 enableRovingList(document.getElementById('channel-list'), '.channel-row', '.edit-btn', '.remove-btn');
 enableRovingList(document.getElementById('interstitials-list'), '.interstitial-card', '.interstitial-card-summary', '.remove-btn');

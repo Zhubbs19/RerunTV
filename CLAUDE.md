@@ -119,7 +119,8 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 ## Setup screen patterns
 
 - **Shell:** sidebar sections, a `#setup-content` scroll pane and a pinned status bar
-  (docs/design/03).
+  (docs/design/03). Section `data-tab` ids are older than their names: `display` is Picture &
+  Sound and `audio` is System. Keep ids when moving panels between sections.
 - **Channels:** a list plus the selected channel's editor. `S.setupSelectedChannel` picks which
   channel; set it before `renderChannelList()` whenever numbers change.
 - **New box-level settings:** write a `.setting-row` (`renderer/js/ui/setting-row.js`) with a

@@ -3,6 +3,18 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§7 keyboard)
+
+`setup-keyboard.js`:
+- G then a letter opens a section: C, P, L, S (picture & sound), G (guide & theme), H, Y (system),
+  U (plug-ins), ? (help). The letter is on each sidebar button as `data-go-key` and in its tooltip.
+  Keys typed into text fields are never taken.
+- J and K are ▼ and ▲ in any list + detail list.
+- Enter on the row that is already selected moves focus to the first control of its detail pane;
+  Esc anywhere in a detail pane returns focus to the selected row.
+
+Verified live (scratch `test/verify-setup-keyboard.mjs`, 8 checks).
+
 ### Built (§3 sections)
 
 The sidebar is Channels, Programming, Library, Picture & sound, Guide & theme, Household,
