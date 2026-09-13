@@ -615,6 +615,9 @@ select {
   box-shadow: var(--bevel-inset);
   color: var(--gold);
   font-weight: 600;
+  /* appearance: none drops Chromium's own inner padding, so a select without
+     its own padding rule showed its value flush against the left border. */
+  padding-left: 10px;
   padding-right: 26px !important;
   box-sizing: border-box;
   cursor: pointer;

@@ -2746,7 +2746,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   color: var(--gold);
   font-family: var(--font-ui);
   font-weight: 600;
-  padding: 5px;
+  padding: 5px 5px 5px 8px;
 }
 .block-dash { color: var(--paper-dim); font-family: var(--font-ui); }
 /* WEIGHT/LEAD DAYS/dynamic-entry SEC (setup-interstitials.js) and a block's
@@ -3217,7 +3217,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 11px;
-  padding: 5px;
+  padding: 5px 5px 5px 8px;
 }
 
 .folder-row {
@@ -4863,6 +4863,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .setting-row-control select {
   height: 30px;
   box-sizing: border-box;
+  padding-left: 10px;
   background-color: var(--ink-deep);
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
