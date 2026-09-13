@@ -4954,3 +4954,17 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .plugin-detail-heading .plugin-row-name { font-size: 16px; }
 #setup-screen .plugin-detail-section-title { font-family: var(--font-ui); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; color: var(--gold); margin-top: 6px; }
 #setup-screen .plugin-detail .plugin-settings-panel { margin-top: 0; }
+
+/* docs/design/03 §9: the header is a fixed 56 px whatever the page, and
+   status/history/log lists sit in the page's own scroll instead of scrolling
+   inside it. List + detail panes keep their own scroll: that is the pattern. */
+#setup-screen .setup-nav { flex: 0 0 56px; height: 56px; min-height: 56px; box-sizing: border-box; padding-top: 6px; padding-bottom: 6px; }
+#setup-screen .setup-header { align-items: center; row-gap: 1px; }
+#setup-screen .setup-title { font-size: 20px; line-height: 24px; }
+#setup-screen .setup-breadcrumb { line-height: 24px; }
+#setup-screen .setup-sub { line-height: 16px; }
+#setup-screen #library-sync-results,
+#setup-screen #tagtaxonomy-root .titles-list,
+#setup-screen #history-list,
+#setup-screen .help-changelog-list,
+#setup-screen .plugin-diagnostics-log { max-height: none; overflow: visible; }

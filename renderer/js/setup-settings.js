@@ -413,19 +413,6 @@ installSettingDependencies(setupScreen);
 // Watch TV in the sidebar is the same action as the status bar's button.
 document.getElementById('setup-watch-btn')?.addEventListener('click', () => document.getElementById('done-btn')?.click());
 
-// The original SYSTEM markup mixed audio/power with LAN device access in a
-// single grid. Move the two network cards into their dedicated sub-tab at
-// boot; keeping their existing elements/ids means all listeners and config
-// contracts remain unchanged.
-const networkSettingsGrid = document.getElementById('network-settings-grid');
-if (networkSettingsGrid) {
-  const viewerPanel = viewerEnabledEl?.closest('.panel');
-  const startupServerPanel = startupServerEnabledEl?.closest('.panel');
-  const devicesPanel = connectedDevicesListEl?.closest('.panel');
-  if (viewerPanel) networkSettingsGrid.appendChild(viewerPanel);
-  if (startupServerPanel) networkSettingsGrid.appendChild(startupServerPanel);
-  if (devicesPanel) networkSettingsGrid.appendChild(devicesPanel);
-}
 
 // ---------- Breadcrumb + session resume ----------
 // Session resume is deliberately in-memory only (not written to
@@ -439,15 +426,32 @@ if (networkSettingsGrid) {
 // whichever sub-tab is currently marked active.
 let lastSetupTab = 'channels';
 
+// Sections follow docs/design/03 §3. The data-tab ids are older than the
+// names: display is Picture & sound, audio is System.
 const SETUP_SECTION_COPY = {
   channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
-  display: ['PICTURE & GUIDE', 'Tune picture behavior, display simulation, guide presentation, and on-screen identity.'],
-  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, automation, and the tags that connect them.'],
-  audio: ['SYSTEM', 'Control audio, connected viewing, network access, the parental lock, and backups.'],
-  perf: ['STATUS & DIAGNOSTICS', 'Check library health, playback performance, and system activity.'],
+  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, and automation.'],
+  library: ['LIBRARY', 'Keep channel folders in sync and tidy the tags that connect your media.'],
+  display: ['PICTURE & SOUND', 'Picture, the CRT look, display mode, volume, and sounds.'],
+  guide: ['GUIDE & THEME', 'The theme, the guide, the clock and hint bar, reminders, and on-screen overlays.'],
+  household: ['HOUSEHOLD', 'The parental lock, this device, and the other screens that watch along.'],
+  audio: ['SYSTEM', 'Power, updates, backups, air checks, and diagnostics.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
-  help: ['HELP & UPDATES', 'Find guidance, shortcuts, software updates, and release notes.'],
+  help: ['HELP', 'How the box works, keyboard shortcuts, and what’s new.'],
 };
+
+// System › Diagnostics refreshes every second while it is on screen, and only then.
+function syncDiagnosticsMonitor() {
+  const statusPanel = document.querySelector('.setup-subtab-panel[data-subtab-panel="status"]');
+  const tabPanel = statusPanel?.closest('.setup-tab-panel');
+  const visible = statusPanel && !statusPanel.classList.contains('hidden') && !tabPanel.classList.contains('hidden');
+  if (visible) {
+    startPerfMonitor();
+    renderBoxStatus();
+  } else {
+    stopPerfMonitor();
+  }
+}
 
 function updateSetupHeading(tab) {
   const [title, description] = SETUP_SECTION_COPY[tab] || SETUP_SECTION_COPY.channels;
@@ -501,15 +505,10 @@ setupTabBtns.forEach((btn) => {
     setupTabBtns.forEach((b) => b.classList.toggle('active', b === btn));
     setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== tab));
     revealPanel(Array.from(setupTabPanels).find((p) => p.dataset.tabPanel === tab));
-    if (tab === 'perf') {
-      startPerfMonitor();
-      renderBoxStatus();
-    } else {
-      stopPerfMonitor();
-    }
     if (tab === 'help') renderHelpTab();
     if (tab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
     restoreActiveSubtabPanels();
+    syncDiagnosticsMonitor();
     updateBreadcrumb();
     if (setupContentEl) setupContentEl.scrollTop = 0;
   });
@@ -526,9 +525,9 @@ export function resetSetupTabs() {
   setupTabBtns.forEach((b) => b.classList.toggle('active', b.dataset.tab === lastSetupTab));
   setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== lastSetupTab));
   if (lastSetupTab === 'help') renderHelpTab();
-  if (lastSetupTab === 'perf') { startPerfMonitor(); renderBoxStatus(); }
   if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
   restoreActiveSubtabPanels();
+  syncDiagnosticsMonitor();
   updateBreadcrumb();
 }
 
@@ -548,6 +547,7 @@ document.querySelectorAll('.setup-subtabs').forEach((bar) => {
         p.classList.toggle('hidden', p.dataset.subtabPanel !== btn.dataset.subtab);
       });
       revealPanel(parent.querySelector(`:scope > .setup-subtab-panel[data-subtab-panel="${btn.dataset.subtab}"]`));
+      syncDiagnosticsMonitor();
       updateBreadcrumb();
     });
   });
@@ -597,7 +597,7 @@ const HELP_GUIDE = [
     'TIP: Checking "SHUFFLE ORDER" mixes up the playback order once. It won\'t keep re-shuffling every time the channel loops — uncheck and recheck it whenever you want a new shuffle.',
     'STEP 4: When you\'re ready, click "START WATCHING" in the bottom-right corner to leave this screen and start watching. That\'s it!',
   ] },
-  { group: 'SECTION 3 — THE LINEUP TAB', title: '3.1 Editing a Channel: Folders, Schedule, Titles, Ads, and Logo', body: [
+  { group: 'SECTION 3 — CHANNELS', title: '3.1 Editing a Channel: Folders, Schedule, Titles, Ads, and Logo', body: [
     'Click "EDIT" on any channel to open its full settings. Its tabs are grouped under CONTENT (FOLDERS, TITLES, SCHEDULE), LOOK (LOGO, OVERLAYS, TICKER, IDENTITY) and PLAYBACK (ADS, CREDITS). The main ones:',
     'FOLDERS — add or remove which video folders feed this channel.',
     'SCHEDULE — set up a real broadcast-style schedule using PROGRAMMING BLOCKS, plus a CALENDAR for marking special dates.',
@@ -606,23 +606,23 @@ const HELP_GUIDE = [
     'LOGO — show a small logo in the corner of the screen while this channel is playing, like a real TV network watermark.',
     'NOTE: If you don\'t set up any BLOCKS, the channel just plays through its whole library on a loop. Blocks are completely optional — only bother with them once you want an actual schedule, like "cartoons in the morning, movies at night."',
   ] },
-  { group: 'SECTION 3 — THE LINEUP TAB', title: '3.2 Programming Blocks and the Calendar', body: [
+  { group: 'SECTION 3 — CHANNELS', title: '3.2 Programming Blocks and the Calendar', body: [
     'A PROGRAMMING BLOCK is just a time slot with its own lineup — for example, "cartoons, weekdays, 4–6 PM." You can trigger a block two ways: by day of the week and time (repeats every week), or by a specific date range (great for holidays or a limited-time marathon).',
     'TIP: Turn on WEEKLY ROTATION on a block if you want its lineup to change from week to week instead of repeating the exact same shows every time.',
     'ON AIR (the first view in SCHEDULE) shows the week this channel will actually broadcast, with every show, ad break and sign-off after blocks, calendar days, presets and flows are all applied. Click any program to see which block or preset produced it, the breaks inside it, and a WATCH FROM HERE button.',
     'The CALENDAR (same tab as SCHEDULE) shows you a full month at once, color-coded by what\'s playing each day. It automatically flags anything that conflicts, and you can override a single day without messing up your regular schedule.',
   ] },
-  { group: 'SECTION 3 — THE LINEUP TAB', title: '3.3 Previewing, Fixing Problems, and Editing Multiple Channels', body: [
+  { group: 'SECTION 3 — CHANNELS', title: '3.3 Previewing, Fixing Problems, and Editing Multiple Channels', body: [
     'PREVIEW (on every channel row) shows you what that channel would look like at any date and time, right in the setup screen — no need to actually tune to it. Use the quick-jump buttons to skip to the start of a show, the next ad break, an hour later, and so on.',
     'CAUTION: If you move, rename, or delete video files outside the app, the channel won\'t know where they went. Click "CHECK CHANNELS" to scan for anything missing, and "FIX PLAYBACK" to relink or remove those files.',
     'Need to change something on a bunch of channels at once — like favoriting several, or bulk-deleting? Click "SELECT CHANNELS" to turn on checkboxes for the whole list.',
   ] },
-  { group: 'SECTION 3 — THE LINEUP TAB', title: '3.4 Playback Order, Channel Packages, and Broadcast Identity', body: [
+  { group: 'SECTION 3 — CHANNELS', title: '3.4 Playback Order, Channel Packages, and Broadcast Identity', body: [
     'The TITLES editor can sort naturally, reverse, restore folder order, create a repeatable seeded shuffle, or accept drag-and-drop ordering. Every automatic reorder previews the change and asks before it re-anchors the live channel.',
     'EXPORT CHANNEL creates a portable package containing that channel and the programming resources it directly uses. IMPORT CHANNEL merges one into your current box, remaps conflicting channel/resource numbers, and can relink missing local folders without replacing unrelated settings.',
     'IDENTITY lets one channel override the box theme, tune sound, static style, and accent colors. Leave any choice on INHERIT to keep following the box-wide theme.',
   ] },
-  { group: 'SECTION 3 — THE LINEUP TAB', title: '3.5 Sub-Channels (7.1, 7.2)', body: [
+  { group: 'SECTION 3 — CHANNELS', title: '3.5 Sub-Channels (7.1, 7.2)', body: [
     'Off by default. Most lineups are whole numbers all the way through, and there is no reason to put decimal points in front of everyone who does not want them.',
     'Switch on ALLOW SUB-CHANNELS at the bottom of the LINEUP tab and a channel number can then carry one decimal place, so you can run 7.1 and 7.2 alongside 7 the way a digital broadcast station carries sub-channels. Type the number into a channel\'s number box as 7.1.',
     'To tune one from the remote, type the main number, press the period key, then the sub-channel digit: 7 . 1. Everything else treats it as an ordinary channel — it sorts straight after 7, appears in the guide, takes blocks and breaks, and can be marked as a favorite.',
@@ -647,49 +647,49 @@ const HELP_GUIDE = [
     'AIR CHECK is the broadcast resolver console. Pick a channel and time to see which source, show position, schedule block, ad policy, and output RerunTV resolves, plus why that result won. Previous/next boundary buttons make timing problems easier to isolate.',
     'The pool inspector shows which bumper and ad entries are eligible. FORCE ON TV previews one selected entry without rewriting the real schedule.',
   ] },
-  { group: 'SECTION 5 — THE PICTURE & GUIDE TAB', title: '5.1 Picture Adjustments and the CRT Look', body: [
+  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
     'Press V any time to cycle through picture-color presets (P is POWER), or press A to cycle how the picture fits the screen: STANDARD (safe letterboxing, with a border for non-widescreen content if your theme has one), STRETCH (deliberately distorted, like squeezing a widescreen picture onto an old TV), and FILL (zooms in to fill the whole screen, cropping the edges).',
   ] },
-  { group: 'SECTION 5 — THE PICTURE & GUIDE TAB', title: '5.2 Themes and the Channel Logo', body: [
+  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.2 Themes and the Channel Logo', body: [
     'GUIDE THEME (INTERFACE sub-tab, CLOCK & GUIDE panel) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
     'CHANNEL LOGO shows a small logo in a corner of the screen while you\'re watching. TIP: Leave it in the same spot long enough and it develops a faint "burn-in" ghost, just like a real old TV — that\'s intentional, not a bug.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.1 Volume Controls', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.1 Volume Controls', body: [
     'The box has two separate volume levels — CONTENT (your shows) and COMMERCIAL/BUMPER — both set as a percentage you can adjust live with the +/- keys. Turn up the commercial volume if your ads always sound quiet, or down if they blast.',
     'NOTE: Any individual channel or block can set its own volume, which always overrides the two sliders above.',
     'VINTAGE CRT AUDIO FILTER & SFX softens the sound a bit and can add a faint hum and mechanical click sounds, for that old-TV-speaker feel.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
     'Enable PHONE REMOTE LAN ACCESS in the Universal Remote plugin, save, and restart. Its pairing link opens a full remote in any browser on the same WiFi; the short code is exchanged for a private session before controls or channel data are available.',
     'NOTE: This only works on your home WiFi, not over cellular data or from outside the house.',
     'TIP: If the remote page won\'t load, double check your phone is on the exact same WiFi network as the box (not a guest network) — that\'s the most common issue.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.3 Watching on Other Screens (The LAN Viewer)', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.3 Watching on Other Screens (The LAN Viewer)', body: [
     'WATCH ON OTHER DEVICES is off by default. Enable it, save, and restart, then open its pairing link on a laptop, tablet, or second TV. The viewer receives schedule data and opaque media ids, never host filesystem paths.',
     'NOTE: Each paired viewer is an independent read-only instance of the channel lineup and can tune locally without changing the main box.',
     'There\'s also an early Android TV app included in this project for a proper big-screen version of the same viewer, if you\'re comfortable building it yourself.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.4 The Party Page (Guest Bulletin & Jukebox)', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.4 The Party Page (Guest Bulletin & Jukebox)', body: [
     'When the PARTY channel (see SECTION 7) is enabled and RerunTV restarted, it shows a pairing QR code for the guest page. Guests need no account, but must use that host-issued link before posting or controlling party features.',
     'From that page, a guest can: post a photo or short video to the screen, send a text-to-speech announcement, play a sound effect, join a trivia round, submit a caption contest entry, vote for what plays next, check in on the guest wall, and — if the jukebox is turned on — add or vote to skip a song.',
     'TIP: The QR code shows right on screen whenever the PARTY channel is idle, so guests can just scan it — no need to read a URL out loud over the music.',
     'NOTE: Anything posted from the party page only lasts for that session — it\'s not saved permanently, and clears out the next time the box restarts.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.5 The Android Companion App and Connected Devices', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.5 The Android Companion App and Connected Devices', body: [
     'There\'s also a separate Android app (different from the browser remote above) with quick-tap favorite channels you set up yourself, plus the same core remote controls — a faster option if you\'re often using just one hand.',
     'CONNECTED DEVICES shows every remote, viewer, and party guest currently active on your network. NOTE: A device drops off this list about 30 seconds after it stops checking in — think of it as "who\'s active right now," not a permanent list.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.6 Backing Up Your Settings', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.6 Backing Up Your Settings', body: [
     'CAUTION: Your settings are backed up automatically on a rotating basis, and you can also click "snapshot now" any time for a manual backup. If something ever goes wrong, click "RESTORE" next to any backup to roll back to it — and if that wasn\'t what you wanted, Ctrl+Z undoes even that (see SECTION 8).',
     'TIP: Give an important backup a LABEL (like "before reorganizing cartoons") and PIN it so automatic rotation never removes it. PREVIEW shows channel, title-count, schedule, and box-setting differences before you restore.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.7 Opt-In Library Synchronization', body: [
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.7 Opt-In Library Synchronization', body: [
     'LIBRARY SYNC is off by default. When enabled, it checks only the folders already linked to your channels, either after startup or at your chosen interval, and adds new titles automatically.',
     'Likely renames preserve your title, tags, and other metadata only when the match is unambiguous. Missing titles are reported but kept by default; automatic removal is a separate warned option you must explicitly enable.',
   ] },
-  { group: 'SECTION 6 — SYSTEM & STORAGE', title: '6.8 Staying On Schedule and Staying Awake', body: [
-    'Two settings on the SYSTEM & STORAGE tab, under AUDIO & POWER, keep a long unattended session honest.',
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.8 Staying On Schedule and Staying Awake', body: [
+    'Two settings in SYSTEM › POWER keep a long unattended session honest.',
     'KEEP THE DISPLAY AWAKE holds off your monitor\'s screensaver and sleep timer while the set is powered on. Playing video normally keeps a screen up by itself, but a plugin channel, a NO SIGNAL card, or an open guide is a still picture as far as your computer is concerned. Powering the set off, including into AUTO STANDBY, releases it again immediately.',
     'KEEP PLAYBACK IN SYNC re-checks every 20 seconds that the picture is still at the point the schedule says it should be, and eases it back if it has fallen behind. This matters most after the computer sleeps and wakes, when the wall clock has moved on but the video has not. It also covers a file that stalls long enough to lose its place.',
     'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
@@ -715,18 +715,18 @@ const HELP_GUIDE = [
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
     'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',
     'SET REMINDER creates a local reminder. When the viewing clock reaches the program, a toast offers TUNE NOW or DISMISS; reminders follow the time-machine clock just like the schedule itself.',
-    'Everything you have pending is listed under PROGRAM REMINDERS on the PICTURE & GUIDE tab, in the INTERFACE section. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
+    'Everything you have pending is listed under PROGRAM REMINDERS in GUIDE & THEME. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
     'Two options live with that list. TUNE AUTOMATICALLY changes the channel for you the moment a reminder comes due. The desktop-notification option covers the case this box is built for — still broadcasting behind whatever you are actually working in, where an on-screen toast is invisible. It only fires when the RerunTV window is not the one you are looking at.',
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.3 Air Checks — Marking a Moment', body: [
     'Press X while watching, or pick MARK AIR CHECK from the TV menu, and the box remembers exactly where you were: which channel, and what moment of its schedule was on screen.',
     'To go back, open the TV menu and choose one of the AIR CHECK entries listed there. The viewing clock shifts to that instant and the channel tunes, so the programme picks up exactly where it was.',
     'Nothing is recorded and nothing is copied. Because a channel plays the same thing at the same time no matter when you ask, a channel number and a timestamp already describe the moment completely. A mark costs a few dozen bytes.',
-    'CAUTION: re-scanning a channel\'s folder or changing its playback order re-anchors that channel. Marks made before that will land on whatever airs at that time afterwards, which may be something else. The full list, with a REMOVE button on each, is under AIR CHECKS on the PICTURE & GUIDE tab.',
+    'CAUTION: re-scanning a channel\'s folder or changing its playback order re-anchors that channel. Marks made before that will land on whatever airs at that time afterwards, which may be something else. The full list, with a REMOVE button on each, is under SYSTEM › AIR CHECK.',
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.4 Channel Scan and the Viewing Log', body: [
     'Press N to start SCAN. The box holds on each channel for about eight seconds and then moves on, showing the channel banner as it goes, exactly like the SCAN button on an old cable box. Pressing any key stops it on whatever is on screen.',
-    'The STATUS tab keeps a VIEWING HISTORY: one row for each programme that actually reached the screen, with an estimated watch time and your most-watched channel and programme.',
+    'SYSTEM › DIAGNOSTICS keeps a VIEWING HISTORY: one row for each programme that actually reached the screen, with an estimated watch time and your most-watched channel and programme.',
     'That log lives in its own file, separate from your channel configuration. It is never included in a config backup or export, which also means CLEAR HISTORY cannot be undone by restoring a backup. Turn the whole thing off with the checkbox on that panel if you would rather nothing were logged.',
   ] },
   { group: 'SECTION 9 — THE PLUG-INS TAB', title: '9.1 Installing, Turning On/Off, and Removing Plugins', body: [
@@ -1716,7 +1716,7 @@ export function renderConnectedDevices() {
 }
 
 
-// ---------- Program reminders (PICTURE & GUIDE > INTERFACE) ----------
+// ---------- Program reminders (GUIDE & THEME) ----------
 // Reminders are created from the guide's program search (guide.js's
 // addProgramReminder) and used to be invisible from the moment they were set
 // until the moment they fired — no list, no way to cancel one added by
@@ -1784,7 +1784,7 @@ remindersClearAllBtn?.addEventListener('click', async () => {
   renderRemindersPanel();
 });
 
-// ---------- Viewing history (STATUS tab) ----------
+// ---------- Viewing history (SYSTEM > DIAGNOSTICS) ----------
 // Reads from main-history.js's own file rather than from S.config, so this
 // panel is the only thing in the setup screen that does its own async fetch
 // on render. Kept to the most recent slice: the log holds thousands of rows
@@ -1847,7 +1847,7 @@ historyClearBtn?.addEventListener('click', async () => {
   renderViewingHistoryPanel();
 });
 
-// ---------- Air checks (PICTURE & GUIDE > INTERFACE) ----------
+// ---------- Air checks (SYSTEM > AIR CHECK) ----------
 // The TV menu offers the most recent few as one-press recalls; this is the
 // full list, and the only place a mark can be deleted. Same shape as the
 // reminders list above on purpose — both are "things you marked while

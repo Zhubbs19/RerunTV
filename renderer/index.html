@@ -140,9 +140,11 @@
           <nav class="setup-tabs" id="setup-tabs" aria-label="Settings sections" aria-orientation="vertical">
             <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
             <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
-            <button class="setup-tab-btn" data-tab="display">PICTURE &amp; GUIDE</button>
+            <button class="setup-tab-btn" data-tab="library">LIBRARY</button>
+            <button class="setup-tab-btn" data-tab="display">PICTURE &amp; SOUND</button>
+            <button class="setup-tab-btn" data-tab="guide">GUIDE &amp; THEME</button>
+            <button class="setup-tab-btn" data-tab="household">HOUSEHOLD</button>
             <button class="setup-tab-btn" data-tab="audio">SYSTEM</button>
-            <button class="setup-tab-btn" data-tab="perf">STATUS</button>
             <button class="setup-tab-btn" data-tab="plugins">PLUG-INS</button>
             <button class="setup-tab-btn" data-tab="help">HELP</button>
           </nav>
@@ -236,13 +238,303 @@
           <div id="health-check-results" class="health-check-results hidden"></div>
         </div>
 
+        <div class="setup-tab-panel hidden" data-tab-panel="programming">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="presets">CADENCE &amp; PRESETS</button>
+          <button class="setup-subtab-btn" data-subtab="flows">FLOWS</button>
+          <button class="setup-subtab-btn" data-subtab="pool">BUMPER &amp; AD POOL</button>
+          <button class="setup-subtab-btn" data-subtab="onscreen">EXTRAS</button>
+          <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
+        </div>
+
+<div class="setup-subtab-panel" data-subtab-panel="presets">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <div class="panel-toggle">BREAK CADENCE</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="commercials-interval" data-synonyms="commercial interval ads frequency">
+              <label class="setting-row-label" for="commercials-interval">Ad break every</label>
+              <div class="setting-row-control"><input type="number" id="commercials-interval" min="1" value="10"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">The default for every channel. Flows and channels can override it.</p>
+            </div>
+            <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
+              <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
+              <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>
+            </div>
+            <div class="setting-row" data-setting="stationid-interval" data-depends-on="stationid-enabled">
+              <label class="setting-row-label" for="stationid-interval">Station ID every</label>
+              <div class="setting-row-control"><input type="number" id="stationid-interval" min="1" value="15"> <span class="setting-row-unit">min</span></div>
+            </div>
+            <div class="setting-row" data-setting="trivia-enabled">
+              <label class="setting-row-label" for="trivia-enabled">Trivia cards</label>
+              <div class="setting-row-control"><input type="checkbox" id="trivia-enabled"></div>
+            </div>
+            <div class="setting-row" data-setting="trivia-interval" data-depends-on="trivia-enabled">
+              <label class="setting-row-label" for="trivia-interval">Trivia every</label>
+              <div class="setting-row-control"><input type="number" id="trivia-interval" min="1" value="20"> <span class="setting-row-unit">min</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">SHOW &amp; AD PRESETS</label>
+          <span class="panel-status">Named break layouts (interval/breakpoints/pod sizes) scoped to specific channels, specific show content tags, or both. Flow templates take precedence over basic presets when active.</span>
+          <div class="block-row interstitials-filter-row">
+            <input type="text" id="presets-search" class="titles-search" placeholder="SEARCH PRESET NAME / TAG…">
+          </div>
+          <div class="list-detail">
+            <div id="presets-list" class="titles-list list-detail-list" aria-label="Ad presets"></div>
+            <div id="presets-detail" class="list-detail-detail" aria-live="polite"></div>
+          </div>
+          <div class="block-row">
+            <button id="presets-add-btn" class="btn">+ ADD PRESET</button>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="flows">
+        <div class="settings-grid">
+
+        <div class="panel span-full flow-builder-panel">
+          <div class="flow-builder-header">
+            <div>
+              <label class="panel-toggle" style="cursor:default">INTERACTIVE SHOW &amp; AD FLOW BUILDER</label>
+              <span class="panel-status">Design custom interactive broadcast flows (bumpers, show segments, network idents, ad pods, bump-outs) using tags — e.g. a 30-min cartoon episode with a "Coming Up Next" intro, mid-roll network bump-in, 3-4 retro ads, bump-out, and station ID.</span>
+            </div>
+            <div class="flow-selector-bar">
+              <span id="flow-count-badge" class="flow-count-badge"></span>
+              <!-- Kept for older scripts; the flow list below is how flows are picked. -->
+              <select id="flow-template-select" class="block-hour-select flow-select" aria-label="Flow template" hidden></select>
+              <button id="flow-create-btn" class="btn">+ NEW FLOW</button>
+              <button id="flow-delete-btn" class="btn remove-btn">DELETE</button>
+            </div>
+          </div>
+
+          <!-- List + detail (docs/design/03 §5.3): flows on the left, the
+               selected flow's settings and canvas on the right. -->
+          <div class="list-detail flow-list-detail">
+          <div id="flow-list" class="flow-list list-detail-list" role="listbox" aria-label="Flows"></div>
+          <div class="list-detail-detail flow-detail">
+          <div id="flow-config-header" class="flow-config-header">
+            <div class="flow-meta-row">
+              <div class="flow-meta-field flow-name-field">
+                <span class="flow-label">FLOW NAME</span>
+                <input type="text" id="flow-name-input" class="title-row-input" placeholder="e.g. 30-Min Dual Episode Cartoon Flow">
+              </div>
+              <div class="flow-meta-field flow-channels-field">
+                <span class="flow-label">TARGET CHANNELS</span>
+                <div id="flow-target-channels-container"></div>
+              </div>
+              <div class="flow-meta-field flow-tags-field">
+                <span class="flow-label">APPLIES TO CONTENT TAGGED</span>
+                <div id="flow-target-tags-container"></div>
+              </div>
+              <div class="flow-meta-field flow-enabled-field">
+                <span class="flow-label">STATUS</span>
+                <label class="shuffle-toggle">
+                  <input type="checkbox" id="flow-enabled-checkbox" checked>
+                  ENABLE FLOW
+                </label>
+              </div>
+            </div>
+            <div id="flow-status-banner" class="flow-status-banner" role="status" aria-live="polite"></div>
+            <div id="flow-cadence-container" class="flow-cadence-panel"></div>
+          </div>
+
+          <div class="flow-timeline-header">
+            <span class="flow-timeline-title">INTERACTIVE VISUAL SEQUENCE CANVAS</span>
+            <div class="flow-timeline-actions">
+              <button id="flow-add-bumper-btn" class="btn flow-add-btn">+ BUMPER</button>
+              <button id="flow-add-segment-btn" class="btn flow-add-btn">+ SHOW SEGMENT</button>
+              <button id="flow-add-pod-btn" class="btn flow-add-btn">+ AD POD</button>
+              <button id="flow-add-stationid-btn" class="btn flow-add-btn">+ STATION ID</button>
+              <button id="flow-sim-btn" class="btn flow-sim-trigger-btn">► RUN FLOW SIMULATION</button>
+            </div>
+          </div>
+
+          <div id="flow-timeline-canvas" class="flow-timeline-canvas"></div>
+
+          <!-- Live Flow Simulator Drawer -->
+          <div id="flow-simulator-drawer" class="flow-simulator-drawer hidden">
+            <div class="flow-sim-header">
+              <span class="flow-sim-title">REAL-TIME FLOW RESOLUTION SIMULATOR</span>
+              <button id="flow-sim-close-btn" class="btn remove-btn">CLOSE SIMULATOR</button>
+            </div>
+            <div id="flow-sim-progress" class="flow-sim-progress"></div>
+            <div id="flow-sim-output" class="flow-sim-output"></div>
+          </div>
+          </div>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="pool">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">BUMPER &amp; AD POOL</label>
+          <span class="panel-status">A shared pool of bumpers, station IDs, promos, and trivia facts — tagged by type and channel/block/content tags. Used by your Show Flows, Ad Presets, and Channel Ad Cadences to resolve media during playback.</span>
+          <div class="block-row interstitials-filter-row">
+            <input type="text" id="interstitials-search" class="titles-search" placeholder="SEARCH FILENAME / TEXT…">
+            <select id="interstitials-filter-type" class="block-hour-select" aria-label="Filter bumper and ad pool by type">
+              <option value="any">ALL TYPES</option>
+            </select>
+            <select id="interstitials-filter-channel" class="block-hour-select" aria-label="Filter bumper and ad pool by channel">
+              <option value="all">ALL CHANNELS</option>
+              <option value="any">UNASSIGNED (ANY CHANNEL)</option>
+            </select>
+            <button id="interstitials-bulk-toggle-btn" class="btn">SELECT ENTRIES</button>
+          </div>
+          <div id="interstitials-bulk-bar" class="bulk-actions-bar hidden">
+            <span id="interstitials-bulk-count" class="bulk-selected-count">0 SELECTED</span>
+            <button id="interstitials-bulk-select-all-btn" class="btn">SELECT ALL VISIBLE</button>
+            <span class="bulk-action-group">
+              CHANNEL
+              <select id="interstitials-bulk-channel-select">
+                <option value="any">ANY CHANNEL</option>
+              </select>
+              <button id="interstitials-bulk-channel-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              ADD TAG
+              <input type="text" id="interstitials-bulk-tag-input" class="title-row-input" placeholder="e.g. halloween">
+              <button id="interstitials-bulk-tag-apply-btn" class="btn">APPLY</button>
+            </span>
+            <button id="interstitials-bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
+          </div>
+          <!-- List + detail (docs/design/03 §5.3): entries on the left, the
+               selected one's editor on the right (setup-interstitials.js). -->
+          <div class="list-detail">
+            <div id="interstitials-list" class="titles-list list-detail-list" aria-label="Bumper and ad pool entries"></div>
+            <div id="interstitials-detail" class="list-detail-detail" aria-live="polite"></div>
+          </div>
+          <div class="block-row">
+            <button id="interstitials-add-folder-btn" class="btn">+ ADD FROM FOLDER</button>
+            <button id="interstitials-add-entry-btn" class="btn">+ ADD ENTRY</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-toggle">SPECIAL EVENT PREEMPTION WINDOWS</div>
+          <div class="panel-body">
+            <div id="preemption-windows-editor"></div>
+          </div>
+          <span class="panel-status">Cut away from the regular schedule entirely for a real-clock time window (a "special report") using a PREEMPTION / SPECIAL REPORT pool entry above — unlike every other break type, the show resumes afterward wherever the schedule says it would be right now, not where it was interrupted.</span>
+        </div>
+
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="onscreen">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <div class="panel-toggle">ON-SCREEN EXTRAS</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="upnext-enabled">
+              <label class="setting-row-label" for="upnext-enabled">Up next banner</label>
+              <div class="setting-row-control"><input type="checkbox" id="upnext-enabled" checked></div>
+              <p class="setting-row-help">Shows “UP NEXT” with the next title about 45 seconds before a show ends.</p>
+            </div>
+            <div class="setting-row" data-setting="upnext-duration" data-depends-on="upnext-enabled">
+              <label class="setting-row-label" for="upnext-duration-slider">Up next time on screen</label>
+              <div class="setting-row-control"><input type="range" id="upnext-duration-slider" min="3000" max="15000" step="500" value="8000"></div>
+            </div>
+            <div class="setting-row" data-setting="details-enabled" data-synonyms="info description">
+              <label class="setting-row-label" for="details-enabled">Details page</label>
+              <div class="setting-row-control"><input type="checkbox" id="details-enabled" checked></div>
+              <p class="setting-row-help">Press I for the current show’s title, description and tags.</p>
+            </div>
+            <div class="setting-row" data-setting="timemachine-enabled" data-synonyms="vcr shuttle rewind dvr">
+              <label class="setting-row-label" for="timemachine-enabled">Time machine</label>
+              <div class="setting-row-control"><input type="checkbox" id="timemachine-enabled"></div>
+              <p class="setting-row-help">Press T to shuttle back and forward through the schedule; [ and ] jump between breaks.</p>
+            </div>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">AUTO-CURATE</label>
+          <span class="panel-status">Generate or refresh a channel's programming, ad-preset tagging, and bumpers from a saved profile matched against your tagged content (see each file's FACETS in a channel's EDIT &gt; TITLES tab). Nothing is written until you press APPLY on a preview.</span>
+          <div id="autocurate-root"></div>
+        </div>
+
+        </div>
+        </div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="library">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="librarysync">SYNC</button>
+          <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAGS</button>
+        </div>
+
+<div class="setup-subtab-panel" data-subtab-panel="librarysync">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <div class="panel-toggle">LIBRARY SYNC</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="library-sync" data-synonyms="rescan watch folder refresh">
+              <label class="setting-row-label" for="library-sync-enabled">Keep channel folders in sync</label>
+              <div class="setting-row-control"><input type="checkbox" id="library-sync-enabled"></div>
+              <p class="setting-row-help">Check each channel’s own folders for new, removed and renamed files. Nothing else is scanned.</p>
+            </div>
+            <div class="setting-row" data-setting="library-sync-startup" data-depends-on="library-sync-enabled">
+              <label class="setting-row-label" for="library-sync-startup">Check when RerunTV starts</label>
+              <div class="setting-row-control"><input type="checkbox" id="library-sync-startup"></div>
+            </div>
+            <div class="setting-row" data-setting="library-sync-remove" data-depends-on="library-sync-enabled">
+              <label class="setting-row-label" for="library-sync-remove-missing">Remove files that disappear</label>
+              <div class="setting-row-control"><input type="checkbox" id="library-sync-remove-missing"></div>
+              <p class="setting-row-help">Otherwise missing files are only reported.</p>
+            </div>
+            <div class="setting-row" data-setting="library-sync-interval" data-depends-on="library-sync-enabled">
+              <label class="setting-row-label" for="library-sync-interval">Check every</label>
+              <div class="setting-row-control"><input id="library-sync-interval" type="number" min="5" max="1440" value="30"> <span class="setting-row-unit">minutes</span></div>
+            </div>
+          </div>
+          <div class="block-row">
+            <button id="library-sync-now-btn" class="btn btn-primary">RUN SYNC NOW</button>
+          </div>
+          <div id="library-sync-status" class="panel-status" role="status" aria-live="polite">SYNC IS OFF.</div>
+          <div id="library-sync-results" class="titles-list"></div>
+        </div>
+
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="tagtaxonomy">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">TAG TAXONOMY</label>
+          <span class="panel-status">Maintain a curated genre/era/mood vocabulary for autocomplete, and clean up tag drift (e.g. "scifi" vs "sci-fi") across every file, bumper, ad preset, and curation profile at once.</span>
+          <div id="tagtaxonomy-root"></div>
+        </div>
+
+        </div>
+        </div>
+        </div>
+
         <div class="setup-tab-panel hidden" data-tab-panel="display">
         <div class="setup-subtabs">
           <button class="setup-subtab-btn active" data-subtab="picture">PICTURE</button>
-          <button class="setup-subtab-btn" data-subtab="interface">INTERFACE</button>
+          <button class="setup-subtab-btn" data-subtab="sound">SOUND</button>
         </div>
 
-        <div class="setup-subtab-panel" data-subtab-panel="picture">
+<div class="setup-subtab-panel" data-subtab-panel="picture">
         <div class="settings-grid">
 
         <div class="panel">
@@ -439,70 +731,36 @@
         </div>
         </div>
 
-        <div class="setup-subtab-panel hidden" data-subtab-panel="interface">
+        <div class="setup-subtab-panel hidden" data-subtab-panel="sound">
         <div class="settings-grid">
-
-        <div class="panel">
-          <div class="panel-toggle">THIS DEVICE</div>
+<div class="panel">
+          <div class="panel-toggle">VOLUME</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="usage-mode" data-synonyms="tv mode remote desktop mode 10-foot" title="TV is for a remote across the room: the D-pad and OK reach everything, the left arrow opens the guide, holding OK opens the TV menu, and Back asks before leaving. Saved on this device only.">
-              <label class="setting-row-label" for="usage-mode-select">Usage mode</label>
-              <div class="setting-row-control"><select id="usage-mode-select">
-                <option value="auto" selected>AUTO</option>
-                <option value="desktop">DESKTOP</option>
-                <option value="tv">TV (REMOTE)</option>
-              </select></div>
-              <p class="setting-row-help" id="usage-mode-status"></p>
+            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio">
+              <label class="setting-row-label" for="content-volume-slider">Shows and movies</label>
+              <div class="setting-row-control"><input type="range" id="content-volume-slider" min="0" max="100" value="100"></div>
+              <p class="setting-row-help">A share of the master volume (the + and − keys).</p>
             </div>
-            <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
-              <label class="setting-row-label" for="ui-scale-select">Interface size</label>
-              <div class="setting-row-control"><select id="ui-scale-select">
-                <option value="auto" selected>AUTO (RECOMMENDED)</option>
-                <option value="100">100%</option>
-                <option value="125">125%</option>
-                <option value="150">150%</option>
-                <option value="175">175%</option>
-                <option value="200">200%</option>
-              </select></div>
-              <p class="setting-row-help">AUTO enlarges everything on high-resolution displays.</p>
+            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads">
+              <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
+              <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
+              <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
             </div>
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="clock24" data-synonyms="time format military">
-              <label class="setting-row-label" for="clock24-enabled">24-hour clock</label>
-              <div class="setting-row-control"><input type="checkbox" id="clock24-enabled"></div>
-              <p class="setting-row-help">Show 18:30 instead of 6:30 PM.</p>
-            </div>
-            <div class="setting-row" data-setting="hintbar">
-              <label class="setting-row-label" for="hintbar-enabled">Show the hint bar</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-enabled" checked></div>
-              <p class="setting-row-help">The strip of shortcuts along the bottom. H hides it while watching.</p>
-            </div>
-            <div class="setting-row" data-setting="hintbar-compact">
-              <label class="setting-row-label" for="hintbar-compact">Compact hint bar</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-compact" checked></div>
-              <p class="setting-row-help">Only the core controls and the TV menu.</p>
-            </div>
-            <div class="setting-row" data-setting="hintbar-slide">
-              <label class="setting-row-label" for="hintbar-slide-enabled">Slide the hint bar in and out</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-slide-enabled" checked></div>
-            </div>
-            <div class="setting-row" data-setting="hintbar-show-duration" data-depends-on="hintbar-slide-enabled">
-              <label class="setting-row-label" for="hintbar-show-duration">Slide up time</label>
-              <div class="setting-row-control"><input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val" class="setting-row-value">250ms</span></div>
-            </div>
-            <div class="setting-row" data-setting="hintbar-hide-duration" data-depends-on="hintbar-slide-enabled">
-              <label class="setting-row-label" for="hintbar-hide-duration">Slide down time</label>
-              <div class="setting-row-control"><input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val" class="setting-row-value">200ms</span></div>
-            </div>
-          </div>
+<div class="panel span-full">
+          <div class="panel-toggle">CUSTOM SOUND PROFILE</div>
+          <span class="panel-status">Replace individual interface, tuning, power, guide, card, and notification sounds with your own audio files. Each event can use the built-in sound, a custom file, or silence.</span>
+          <div id="custom-sounds-list" class="custom-sound-grid"></div>
+        </div>
+        </div>
+        </div>
         </div>
 
-        <div class="panel">
+        <div class="setup-tab-panel hidden" data-tab-panel="guide">
+        <div class="settings-grid">
+<div class="panel">
           <div class="panel-toggle">GUIDE</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="guide-slots" data-synonyms="guide slots columns hours">
@@ -560,6 +818,41 @@
           <div id="display-theme-font-settings" class="plugin-settings-section"></div>
         </div>
 
+<div class="panel">
+          <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="clock24" data-synonyms="time format military">
+              <label class="setting-row-label" for="clock24-enabled">24-hour clock</label>
+              <div class="setting-row-control"><input type="checkbox" id="clock24-enabled"></div>
+              <p class="setting-row-help">Show 18:30 instead of 6:30 PM.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar">
+              <label class="setting-row-label" for="hintbar-enabled">Show the hint bar</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-enabled" checked></div>
+              <p class="setting-row-help">The strip of shortcuts along the bottom. H hides it while watching.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar-compact">
+              <label class="setting-row-label" for="hintbar-compact">Compact hint bar</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-compact" checked></div>
+              <p class="setting-row-help">Only the core controls and the TV menu.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar-slide">
+              <label class="setting-row-label" for="hintbar-slide-enabled">Slide the hint bar in and out</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-slide-enabled" checked></div>
+            </div>
+            <div class="setting-row" data-setting="hintbar-show-duration" data-depends-on="hintbar-slide-enabled">
+              <label class="setting-row-label" for="hintbar-show-duration">Slide up time</label>
+              <div class="setting-row-control"><input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val" class="setting-row-value">250ms</span></div>
+            </div>
+            <div class="setting-row" data-setting="hintbar-hide-duration" data-depends-on="hintbar-slide-enabled">
+              <label class="setting-row-label" for="hintbar-hide-duration">Slide down time</label>
+              <div class="setting-row-control"><input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val" class="setting-row-value">200ms</span></div>
+            </div>
+          </div>
+        </div>
+
+        
+
         <div class="panel span-full">
           <div class="panel-toggle">PROGRAM REMINDERS</div>
           <span class="panel-status">Reminders set from the guide's program search (open the guide with G, then press / and search). Each one fires once and clears itself a few minutes after its program ends. REMINDER LEAD TIME above controls how early.</span>
@@ -581,14 +874,7 @@
           </div>
         </div>
 
-        <div class="panel span-full">
-          <div class="panel-toggle">AIR CHECKS</div>
-          <span class="panel-status">Moments you marked while watching, with X or MARK AIR CHECK in the TV menu (?). Choosing one shifts the viewing clock back to that instant on that channel. Nothing is recorded — a mark is just a channel and a point in time, so it costs no disk space. Re-scanning or re-ordering a channel's folders re-anchors it, and marks made before that will land on whatever airs at that time afterwards.</span>
-          <div id="airchecks-list" class="titles-list"></div>
-          <div class="panel-body">
-            <button id="airchecks-clear-all" class="btn" type="button">CLEAR ALL AIR CHECKS</button>
-          </div>
-        </div>
+        
 
         <div class="panel">
           <div class="panel-toggle">NO SIGNAL SCREEN</div>
@@ -654,323 +940,55 @@
           <span class="panel-status">Show an animated image or video clip in a screen corner at a specific moment — channel tune-in, a program starting, or a commercial/up-next/station-ID/trivia break. Box-wide default; a channel can override its own list from CHANNELS &gt; edit &gt; OVERLAYS.</span>
           <div id="dynamic-overlays-editor"></div>
         </div>
-
-        </div>
-        </div>
-        </div>
-
-        <div class="setup-tab-panel hidden" data-tab-panel="programming">
-        <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="presets">CADENCE &amp; PRESETS</button>
-          <button class="setup-subtab-btn" data-subtab="flows">ADVANCED FLOWS</button>
-          <button class="setup-subtab-btn" data-subtab="pool">BUMPER &amp; AD POOL</button>
-          <button class="setup-subtab-btn" data-subtab="onscreen">ON-SCREEN EXTRAS</button>
-          <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
-          <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAG TAXONOMY</button>
-          <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
-        </div>
-
-        <!-- SHOW & AD FLOWS (INTERACTIVE VISUAL FLOW BUILDER) -->
-        <div class="setup-subtab-panel hidden" data-subtab-panel="flows">
-        <div class="settings-grid">
-
-        <div class="panel span-full flow-builder-panel">
-          <div class="flow-builder-header">
-            <div>
-              <label class="panel-toggle" style="cursor:default">INTERACTIVE SHOW &amp; AD FLOW BUILDER</label>
-              <span class="panel-status">Design custom interactive broadcast flows (bumpers, show segments, network idents, ad pods, bump-outs) using tags — e.g. a 30-min cartoon episode with a "Coming Up Next" intro, mid-roll network bump-in, 3-4 retro ads, bump-out, and station ID.</span>
-            </div>
-            <div class="flow-selector-bar">
-              <span id="flow-count-badge" class="flow-count-badge"></span>
-              <!-- Kept for older scripts; the flow list below is how flows are picked. -->
-              <select id="flow-template-select" class="block-hour-select flow-select" aria-label="Flow template" hidden></select>
-              <button id="flow-create-btn" class="btn">+ NEW FLOW</button>
-              <button id="flow-delete-btn" class="btn remove-btn">DELETE</button>
-            </div>
-          </div>
-
-          <!-- List + detail (docs/design/03 §5.3): flows on the left, the
-               selected flow's settings and canvas on the right. -->
-          <div class="list-detail flow-list-detail">
-          <div id="flow-list" class="flow-list list-detail-list" role="listbox" aria-label="Flows"></div>
-          <div class="list-detail-detail flow-detail">
-          <div id="flow-config-header" class="flow-config-header">
-            <div class="flow-meta-row">
-              <div class="flow-meta-field flow-name-field">
-                <span class="flow-label">FLOW NAME</span>
-                <input type="text" id="flow-name-input" class="title-row-input" placeholder="e.g. 30-Min Dual Episode Cartoon Flow">
-              </div>
-              <div class="flow-meta-field flow-channels-field">
-                <span class="flow-label">TARGET CHANNELS</span>
-                <div id="flow-target-channels-container"></div>
-              </div>
-              <div class="flow-meta-field flow-tags-field">
-                <span class="flow-label">APPLIES TO CONTENT TAGGED</span>
-                <div id="flow-target-tags-container"></div>
-              </div>
-              <div class="flow-meta-field flow-enabled-field">
-                <span class="flow-label">STATUS</span>
-                <label class="shuffle-toggle">
-                  <input type="checkbox" id="flow-enabled-checkbox" checked>
-                  ENABLE FLOW
-                </label>
-              </div>
-            </div>
-            <div id="flow-status-banner" class="flow-status-banner" role="status" aria-live="polite"></div>
-            <div id="flow-cadence-container" class="flow-cadence-panel"></div>
-          </div>
-
-          <div class="flow-timeline-header">
-            <span class="flow-timeline-title">INTERACTIVE VISUAL SEQUENCE CANVAS</span>
-            <div class="flow-timeline-actions">
-              <button id="flow-add-bumper-btn" class="btn flow-add-btn">+ BUMPER</button>
-              <button id="flow-add-segment-btn" class="btn flow-add-btn">+ SHOW SEGMENT</button>
-              <button id="flow-add-pod-btn" class="btn flow-add-btn">+ AD POD</button>
-              <button id="flow-add-stationid-btn" class="btn flow-add-btn">+ STATION ID</button>
-              <button id="flow-sim-btn" class="btn flow-sim-trigger-btn">► RUN FLOW SIMULATION</button>
-            </div>
-          </div>
-
-          <div id="flow-timeline-canvas" class="flow-timeline-canvas"></div>
-
-          <!-- Live Flow Simulator Drawer -->
-          <div id="flow-simulator-drawer" class="flow-simulator-drawer hidden">
-            <div class="flow-sim-header">
-              <span class="flow-sim-title">REAL-TIME FLOW RESOLUTION SIMULATOR</span>
-              <button id="flow-sim-close-btn" class="btn remove-btn">CLOSE SIMULATOR</button>
-            </div>
-            <div id="flow-sim-progress" class="flow-sim-progress"></div>
-            <div id="flow-sim-output" class="flow-sim-output"></div>
-          </div>
-          </div>
-          </div>
-        </div>
-
         </div>
         </div>
 
-        <!-- BUMPER & AD POOL -->
-        <div class="setup-subtab-panel hidden" data-subtab-panel="pool">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <label class="panel-toggle" style="cursor:default">BUMPER &amp; AD POOL</label>
-          <span class="panel-status">A shared pool of bumpers, station IDs, promos, and trivia facts — tagged by type and channel/block/content tags. Used by your Show Flows, Ad Presets, and Channel Ad Cadences to resolve media during playback.</span>
-          <div class="block-row interstitials-filter-row">
-            <input type="text" id="interstitials-search" class="titles-search" placeholder="SEARCH FILENAME / TEXT…">
-            <select id="interstitials-filter-type" class="block-hour-select" aria-label="Filter bumper and ad pool by type">
-              <option value="any">ALL TYPES</option>
-            </select>
-            <select id="interstitials-filter-channel" class="block-hour-select" aria-label="Filter bumper and ad pool by channel">
-              <option value="all">ALL CHANNELS</option>
-              <option value="any">UNASSIGNED (ANY CHANNEL)</option>
-            </select>
-            <button id="interstitials-bulk-toggle-btn" class="btn">SELECT ENTRIES</button>
-          </div>
-          <div id="interstitials-bulk-bar" class="bulk-actions-bar hidden">
-            <span id="interstitials-bulk-count" class="bulk-selected-count">0 SELECTED</span>
-            <button id="interstitials-bulk-select-all-btn" class="btn">SELECT ALL VISIBLE</button>
-            <span class="bulk-action-group">
-              CHANNEL
-              <select id="interstitials-bulk-channel-select">
-                <option value="any">ANY CHANNEL</option>
-              </select>
-              <button id="interstitials-bulk-channel-apply-btn" class="btn">APPLY</button>
-            </span>
-            <span class="bulk-action-group">
-              ADD TAG
-              <input type="text" id="interstitials-bulk-tag-input" class="title-row-input" placeholder="e.g. halloween">
-              <button id="interstitials-bulk-tag-apply-btn" class="btn">APPLY</button>
-            </span>
-            <button id="interstitials-bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
-          </div>
-          <!-- List + detail (docs/design/03 §5.3): entries on the left, the
-               selected one's editor on the right (setup-interstitials.js). -->
-          <div class="list-detail">
-            <div id="interstitials-list" class="titles-list list-detail-list" aria-label="Bumper and ad pool entries"></div>
-            <div id="interstitials-detail" class="list-detail-detail" aria-live="polite"></div>
-          </div>
-          <div class="block-row">
-            <button id="interstitials-add-folder-btn" class="btn">+ ADD FROM FOLDER</button>
-            <button id="interstitials-add-entry-btn" class="btn">+ ADD ENTRY</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-toggle">SPECIAL EVENT PREEMPTION WINDOWS</div>
-          <div class="panel-body">
-            <div id="preemption-windows-editor"></div>
-          </div>
-          <span class="panel-status">Cut away from the regular schedule entirely for a real-clock time window (a "special report") using a PREEMPTION / SPECIAL REPORT pool entry above — unlike every other break type, the show resumes afterward wherever the schedule says it would be right now, not where it was interrupted.</span>
-        </div>
-
-        </div>
-        </div>
-
-        <!-- CADENCE & PRESETS (CONSOLIDATED AD SETTINGS) -->
-        <div class="setup-subtab-panel" data-subtab-panel="presets">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <div class="panel-toggle">BREAK CADENCE</div>
+        <div class="setup-tab-panel hidden" data-tab-panel="household">
+        <div id="network-settings-grid" class="settings-grid">
+<div class="panel">
+          <div class="panel-toggle">PARENTAL LOCK</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="commercials-interval" data-synonyms="commercial interval ads frequency">
-              <label class="setting-row-label" for="commercials-interval">Ad break every</label>
-              <div class="setting-row-control"><input type="number" id="commercials-interval" min="1" value="10"> <span class="setting-row-unit">min</span></div>
-              <p class="setting-row-help">The default for every channel. Flows and channels can override it.</p>
+            <div class="setting-row" data-setting="pin-lock" data-synonyms="pin password child kids rating block">
+              <label class="setting-row-label" for="pin-lock-enabled">Parental lock</label>
+              <div class="setting-row-control"><input type="checkbox" id="pin-lock-enabled"></div>
+              <p class="setting-row-help">Ask for a PIN before tuning to a channel or rating you restrict.</p>
             </div>
-            <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
-              <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
-              <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>
-            </div>
-            <div class="setting-row" data-setting="stationid-interval" data-depends-on="stationid-enabled">
-              <label class="setting-row-label" for="stationid-interval">Station ID every</label>
-              <div class="setting-row-control"><input type="number" id="stationid-interval" min="1" value="15"> <span class="setting-row-unit">min</span></div>
-            </div>
-            <div class="setting-row" data-setting="trivia-enabled">
-              <label class="setting-row-label" for="trivia-enabled">Trivia cards</label>
-              <div class="setting-row-control"><input type="checkbox" id="trivia-enabled"></div>
-            </div>
-            <div class="setting-row" data-setting="trivia-interval" data-depends-on="trivia-enabled">
-              <label class="setting-row-label" for="trivia-interval">Trivia every</label>
-              <div class="setting-row-control"><input type="number" id="trivia-interval" min="1" value="20"> <span class="setting-row-unit">min</span></div>
+            <div class="setting-row" data-setting="pin-code">
+              <label class="setting-row-label" for="pin-code-input">PIN</label>
+              <div class="setting-row-control"><input type="password" id="pin-code-input" class="pin-code-input" inputmode="numeric" autocomplete="off" maxlength="4" value="1234"> <button type="button" id="pin-code-reveal-btn" class="btn pin-code-reveal-btn" aria-pressed="false" aria-label="Show PIN">SHOW</button></div>
+              <p class="setting-row-help">Four digits. It starts as 1234.</p>
             </div>
           </div>
         </div>
 
-        <div class="panel span-full">
-          <label class="panel-toggle" style="cursor:default">SHOW &amp; AD PRESETS</label>
-          <span class="panel-status">Named break layouts (interval/breakpoints/pod sizes) scoped to specific channels, specific show content tags, or both. Flow templates take precedence over basic presets when active.</span>
-          <div class="block-row interstitials-filter-row">
-            <input type="text" id="presets-search" class="titles-search" placeholder="SEARCH PRESET NAME / TAG…">
-          </div>
-          <div class="list-detail">
-            <div id="presets-list" class="titles-list list-detail-list" aria-label="Ad presets"></div>
-            <div id="presets-detail" class="list-detail-detail" aria-live="polite"></div>
-          </div>
-          <div class="block-row">
-            <button id="presets-add-btn" class="btn">+ ADD PRESET</button>
-          </div>
-        </div>
-
-        </div>
-        </div>
-
-        <div class="setup-subtab-panel hidden" data-subtab-panel="onscreen">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <div class="panel-toggle">ON-SCREEN EXTRAS</div>
+<div class="panel">
+          <div class="panel-toggle">THIS DEVICE</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="upnext-enabled">
-              <label class="setting-row-label" for="upnext-enabled">Up next banner</label>
-              <div class="setting-row-control"><input type="checkbox" id="upnext-enabled" checked></div>
-              <p class="setting-row-help">Shows “UP NEXT” with the next title about 45 seconds before a show ends.</p>
+            <div class="setting-row" data-setting="usage-mode" data-synonyms="tv mode remote desktop mode 10-foot" title="TV is for a remote across the room: the D-pad and OK reach everything, the left arrow opens the guide, holding OK opens the TV menu, and Back asks before leaving. Saved on this device only.">
+              <label class="setting-row-label" for="usage-mode-select">Usage mode</label>
+              <div class="setting-row-control"><select id="usage-mode-select">
+                <option value="auto" selected>AUTO</option>
+                <option value="desktop">DESKTOP</option>
+                <option value="tv">TV (REMOTE)</option>
+              </select></div>
+              <p class="setting-row-help" id="usage-mode-status"></p>
             </div>
-            <div class="setting-row" data-setting="upnext-duration" data-depends-on="upnext-enabled">
-              <label class="setting-row-label" for="upnext-duration-slider">Up next time on screen</label>
-              <div class="setting-row-control"><input type="range" id="upnext-duration-slider" min="3000" max="15000" step="500" value="8000"></div>
-            </div>
-            <div class="setting-row" data-setting="details-enabled" data-synonyms="info description">
-              <label class="setting-row-label" for="details-enabled">Details page</label>
-              <div class="setting-row-control"><input type="checkbox" id="details-enabled" checked></div>
-              <p class="setting-row-help">Press I for the current show’s title, description and tags.</p>
-            </div>
-            <div class="setting-row" data-setting="timemachine-enabled" data-synonyms="vcr shuttle rewind dvr">
-              <label class="setting-row-label" for="timemachine-enabled">Time machine</label>
-              <div class="setting-row-control"><input type="checkbox" id="timemachine-enabled"></div>
-              <p class="setting-row-help">Press T to shuttle back and forward through the schedule; [ and ] jump between breaks.</p>
-            </div>
-          </div>
-        </div>
-
-        </div>
-        </div>
-
-        <div class="setup-subtab-panel hidden" data-subtab-panel="aircheck">
-          <div class="settings-grid">
-            <div class="panel span-full aircheck-panel">
-              <label class="panel-toggle" style="cursor:default">BROADCAST AIR-CHECK CONSOLE</label>
-              <span class="panel-status">Inspect exactly what a channel resolves at any time, step across schedule/content/break boundaries, and force a pool item for a real TV-screen preview.</span>
-              <div class="aircheck-controls">
-                <label>CHANNEL <select id="aircheck-channel" class="block-hour-select"></select></label>
-                <label>AS OF <input id="aircheck-datetime" class="title-row-input" type="datetime-local"></label>
-                <button id="aircheck-now" class="btn">NOW</button>
-                <button id="aircheck-prev" class="btn">◀ PREVIOUS BOUNDARY</button>
-                <button id="aircheck-next" class="btn">NEXT BOUNDARY ▶</button>
-                <button id="aircheck-run" class="btn btn-primary">RESOLVE</button>
-              </div>
-              <div id="aircheck-summary" class="aircheck-summary" aria-live="polite"></div>
-              <div class="aircheck-force-row">
-                <label>FORCE POOL ITEM <select id="aircheck-pool-entry" class="block-hour-select"><option value="">— choose an eligible entry —</option></select></label>
-                <button id="aircheck-force" class="btn" disabled>FORCE ON TV ▶</button>
-              </div>
+            <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
+              <label class="setting-row-label" for="ui-scale-select">Interface size</label>
+              <div class="setting-row-control"><select id="ui-scale-select">
+                <option value="auto" selected>AUTO (RECOMMENDED)</option>
+                <option value="100">100%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+                <option value="175">175%</option>
+                <option value="200">200%</option>
+              </select></div>
+              <p class="setting-row-help">AUTO enlarges everything on high-resolution displays.</p>
             </div>
           </div>
         </div>
 
-        <!-- AUTO-CURATE -->
-        <div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <label class="panel-toggle" style="cursor:default">AUTO-CURATE</label>
-          <span class="panel-status">Generate or refresh a channel's programming, ad-preset tagging, and bumpers from a saved profile matched against your tagged content (see each file's FACETS in a channel's EDIT &gt; TITLES tab). Nothing is written until you press APPLY on a preview.</span>
-          <div id="autocurate-root"></div>
-        </div>
-
-        </div>
-        </div>
-
-        <!-- TAG TAXONOMY -->
-        <div class="setup-subtab-panel hidden" data-subtab-panel="tagtaxonomy">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <label class="panel-toggle" style="cursor:default">TAG TAXONOMY</label>
-          <span class="panel-status">Maintain a curated genre/era/mood vocabulary for autocomplete, and clean up tag drift (e.g. "scifi" vs "sci-fi") across every file, bumper, ad preset, and curation profile at once.</span>
-          <div id="tagtaxonomy-root"></div>
-        </div>
-
-        </div>
-        </div>
-
-        </div>
-
-        <div class="setup-tab-panel hidden" data-tab-panel="audio">
-        <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="system">AUDIO &amp; POWER</button>
-          <button class="setup-subtab-btn" data-subtab="network">NETWORK &amp; ACCESS</button>
-          <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
-          <button class="setup-subtab-btn" data-subtab="librarysync">LIBRARY SYNC</button>
-        </div>
-
-        <div class="setup-subtab-panel" data-subtab-panel="system">
-        <div class="settings-grid">
-
-        <div class="panel">
-          <div class="panel-toggle">VOLUME</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio">
-              <label class="setting-row-label" for="content-volume-slider">Shows and movies</label>
-              <div class="setting-row-control"><input type="range" id="content-volume-slider" min="0" max="100" value="100"></div>
-              <p class="setting-row-help">A share of the master volume (the + and − keys).</p>
-            </div>
-            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads">
-              <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
-              <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
-              <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel span-full">
-          <div class="panel-toggle">CUSTOM SOUND PROFILE</div>
-          <span class="panel-status">Replace individual interface, tuning, power, guide, card, and notification sounds with your own audio files. Each event can use the built-in sound, a custom file, or silence.</span>
-          <div id="custom-sounds-list" class="custom-sound-grid"></div>
-        </div>
-
-        <div class="panel">
+<div class="panel">
           <div class="panel-toggle">WATCH ON OTHER DEVICES</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="viewer-enabled" data-synonyms="lan viewer browser tv client android">
@@ -981,7 +999,28 @@
           </div>
         </div>
 
-        <div class="panel">
+<div class="panel">
+          <div class="panel-toggle">CONNECTED DEVICES</div>
+          <div class="panel-body">
+            <div id="connected-devices-list" class="titles-list"></div>
+          </div>
+          <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
+        </div>
+        </div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="audio">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="system">POWER</button>
+          <button class="setup-subtab-btn" data-subtab="updates">UPDATES</button>
+          <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
+          <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
+          <button class="setup-subtab-btn" data-subtab="status">DIAGNOSTICS</button>
+        </div>
+
+<div class="setup-subtab-panel" data-subtab-panel="system">
+        <div class="settings-grid">
+<div class="panel">
           <div class="panel-toggle">BACKGROUND SERVER</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="startup-server" data-synonyms="headless boot startup">
@@ -992,13 +1031,16 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-toggle">CONNECTED DEVICES</div>
-          <div class="panel-body">
-            <div id="connected-devices-list" class="titles-list"></div>
-          </div>
-          <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
-        </div>
+
+        
+
+        
+
+        
+
+        
+
+        
 
         <div class="panel">
           <div class="panel-toggle">POWER &amp; PLAYBACK</div>
@@ -1028,29 +1070,30 @@
         </div>
         </div>
 
-        <div class="setup-subtab-panel hidden" data-subtab-panel="network">
-          <div id="network-settings-grid" class="settings-grid">
-
-        <div class="panel">
-          <div class="panel-toggle">PARENTAL LOCK</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="pin-lock" data-synonyms="pin password child kids rating block">
-              <label class="setting-row-label" for="pin-lock-enabled">Parental lock</label>
-              <div class="setting-row-control"><input type="checkbox" id="pin-lock-enabled"></div>
-              <p class="setting-row-help">Ask for a PIN before tuning to a channel or rating you restrict.</p>
+<div class="setup-subtab-panel hidden" data-subtab-panel="updates">
+            <div class="settings-grid">
+              <div class="panel span-full" id="update-settings-panel">
+                <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
+                <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
+                <div class="setting-rows">
+            <div class="setting-row" data-setting="update-policy" data-synonyms="upgrade version auto update">
+              <label class="setting-row-label" for="update-mode-select">Update policy</label>
+              <div class="setting-row-control"><select id="update-mode-select" class="block-hour-select">
+                    <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
+                    <option value="background-auto">AFTER APP OPENS — INSTALL WHEN I QUIT</option>
+                    <option value="background-notify">AFTER APP OPENS — ASK WHEN READY</option>
+                    <option value="manual">ONLY WHEN I ASK</option>
+                    <option value="off">NEVER</option>
+                  </select> <button id="check-updates-btn" class="btn">CHECK NOW</button></div>
+              <p class="setting-row-help">When RerunTV checks for a new version and how it installs.</p>
             </div>
-            <div class="setting-row" data-setting="pin-code">
-              <label class="setting-row-label" for="pin-code-input">PIN</label>
-              <div class="setting-row-control"><input type="password" id="pin-code-input" class="pin-code-input" inputmode="numeric" autocomplete="off" maxlength="4" value="1234"> <button type="button" id="pin-code-reveal-btn" class="btn pin-code-reveal-btn" aria-pressed="false" aria-label="Show PIN">SHOW</button></div>
-              <p class="setting-row-help">Four digits. It starts as 1234.</p>
+                </div>
+                <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
+              </div>
             </div>
           </div>
-        </div>
 
-          </div>
-        </div>
-
-        <div class="setup-subtab-panel hidden" data-subtab-panel="backups">
+<div class="setup-subtab-panel hidden" data-subtab-panel="backups">
         <div class="settings-grid">
 
         <div class="panel span-full">
@@ -1080,48 +1123,39 @@
         </div>
         </div>
 
-        <div class="setup-subtab-panel hidden" data-subtab-panel="librarysync">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <div class="panel-toggle">LIBRARY SYNC</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="library-sync" data-synonyms="rescan watch folder refresh">
-              <label class="setting-row-label" for="library-sync-enabled">Keep channel folders in sync</label>
-              <div class="setting-row-control"><input type="checkbox" id="library-sync-enabled"></div>
-              <p class="setting-row-help">Check each channel’s own folders for new, removed and renamed files. Nothing else is scanned.</p>
-            </div>
-            <div class="setting-row" data-setting="library-sync-startup" data-depends-on="library-sync-enabled">
-              <label class="setting-row-label" for="library-sync-startup">Check when RerunTV starts</label>
-              <div class="setting-row-control"><input type="checkbox" id="library-sync-startup"></div>
-            </div>
-            <div class="setting-row" data-setting="library-sync-remove" data-depends-on="library-sync-enabled">
-              <label class="setting-row-label" for="library-sync-remove-missing">Remove files that disappear</label>
-              <div class="setting-row-control"><input type="checkbox" id="library-sync-remove-missing"></div>
-              <p class="setting-row-help">Otherwise missing files are only reported.</p>
-            </div>
-            <div class="setting-row" data-setting="library-sync-interval" data-depends-on="library-sync-enabled">
-              <label class="setting-row-label" for="library-sync-interval">Check every</label>
-              <div class="setting-row-control"><input id="library-sync-interval" type="number" min="5" max="1440" value="30"> <span class="setting-row-unit">minutes</span></div>
-            </div>
-          </div>
-          <div class="block-row">
-            <button id="library-sync-now-btn" class="btn btn-primary">RUN SYNC NOW</button>
-          </div>
-          <div id="library-sync-status" class="panel-status" role="status" aria-live="polite">SYNC IS OFF.</div>
-          <div id="library-sync-results" class="titles-list"></div>
-        </div>
-
-        </div>
-        </div>
-        </div>
-
-        <!-- PERFORMANCE MONITOR TAB PANEL -->
-        <div class="setup-tab-panel hidden" data-tab-panel="perf">
-          <!-- One page, not three sub-tabs: each of these was a single panel
-               on an otherwise empty screen, so reading "is the box healthy"
-               meant clicking through all three. -->
+<div class="setup-subtab-panel hidden" data-subtab-panel="aircheck">
           <div class="settings-grid">
+<div class="panel span-full">
+          <div class="panel-toggle">AIR CHECKS</div>
+          <span class="panel-status">Moments you marked while watching, with X or MARK AIR CHECK in the TV menu (?). Choosing one shifts the viewing clock back to that instant on that channel. Nothing is recorded — a mark is just a channel and a point in time, so it costs no disk space. Re-scanning or re-ordering a channel's folders re-anchors it, and marks made before that will land on whatever airs at that time afterwards.</span>
+          <div id="airchecks-list" class="titles-list"></div>
+          <div class="panel-body">
+            <button id="airchecks-clear-all" class="btn" type="button">CLEAR ALL AIR CHECKS</button>
+          </div>
+        </div>
+
+            <div class="panel span-full aircheck-panel">
+              <label class="panel-toggle" style="cursor:default">BROADCAST AIR-CHECK CONSOLE</label>
+              <span class="panel-status">Inspect exactly what a channel resolves at any time, step across schedule/content/break boundaries, and force a pool item for a real TV-screen preview.</span>
+              <div class="aircheck-controls">
+                <label>CHANNEL <select id="aircheck-channel" class="block-hour-select"></select></label>
+                <label>AS OF <input id="aircheck-datetime" class="title-row-input" type="datetime-local"></label>
+                <button id="aircheck-now" class="btn">NOW</button>
+                <button id="aircheck-prev" class="btn">◀ PREVIOUS BOUNDARY</button>
+                <button id="aircheck-next" class="btn">NEXT BOUNDARY ▶</button>
+                <button id="aircheck-run" class="btn btn-primary">RESOLVE</button>
+              </div>
+              <div id="aircheck-summary" class="aircheck-summary" aria-live="polite"></div>
+              <div class="aircheck-force-row">
+                <label>FORCE POOL ITEM <select id="aircheck-pool-entry" class="block-hour-select"><option value="">— choose an eligible entry —</option></select></label>
+                <button id="aircheck-force" class="btn" disabled>FORCE ON TV ▶</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="status">
+<div class="settings-grid">
 
             <div class="panel span-full">
               <label class="panel-toggle"><input type="checkbox" id="viewing-history-enabled" checked> 📼 VIEWING HISTORY</label>
@@ -1229,6 +1263,13 @@
 
           </div>
         </div>
+        </div>
+
+        
+
+        
+
+        
 
         <!-- PLUGINS TAB PANEL -->
         <div class="setup-tab-panel hidden" data-tab-panel="plugins">
@@ -1320,7 +1361,6 @@
           <div class="setup-subtabs">
             <button class="setup-subtab-btn active" data-subtab="guide">FEATURE GUIDE</button>
             <button class="setup-subtab-btn" data-subtab="shortcuts">SHORTCUTS</button>
-            <button class="setup-subtab-btn" data-subtab="updates">UPDATES</button>
             <button class="setup-subtab-btn" data-subtab="releases">WHAT'S NEW</button>
           </div>
 
@@ -1348,28 +1388,7 @@
             </div>
           </div>
 
-          <div class="setup-subtab-panel hidden" data-subtab-panel="updates">
-            <div class="settings-grid">
-              <div class="panel span-full" id="update-settings-panel">
-                <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
-                <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
-                <div class="setting-rows">
-            <div class="setting-row" data-setting="update-policy" data-synonyms="upgrade version auto update">
-              <label class="setting-row-label" for="update-mode-select">Update policy</label>
-              <div class="setting-row-control"><select id="update-mode-select" class="block-hour-select">
-                    <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
-                    <option value="background-auto">AFTER APP OPENS — INSTALL WHEN I QUIT</option>
-                    <option value="background-notify">AFTER APP OPENS — ASK WHEN READY</option>
-                    <option value="manual">ONLY WHEN I ASK</option>
-                    <option value="off">NEVER</option>
-                  </select> <button id="check-updates-btn" class="btn">CHECK NOW</button></div>
-              <p class="setting-row-help">When RerunTV checks for a new version and how it installs.</p>
-            </div>
-                </div>
-                <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
-              </div>
-            </div>
-          </div>
+          
 
           <div class="setup-subtab-panel hidden" data-subtab-panel="releases">
             <div class="settings-grid">

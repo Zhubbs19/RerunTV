@@ -753,7 +753,7 @@ export function renderChannelList() {
 
       const hideDaypartChimeLabel = document.createElement('label');
       hideDaypartChimeLabel.className = 'shuffle-toggle';
-      hideDaypartChimeLabel.title = 'Never play the dayparting transition chime on this channel, even when it\'s enabled box-wide (PICTURE & GUIDE tab).';
+      hideDaypartChimeLabel.title = 'Never play the dayparting transition chime on this channel, even when it\'s enabled box-wide (PICTURE & SOUND).';
       const hideDaypartChimeCheckbox = document.createElement('input');
       hideDaypartChimeCheckbox.type = 'checkbox';
       hideDaypartChimeCheckbox.checked = !!ch.hideDaypartChime;
@@ -890,7 +890,7 @@ export function renderChannelList() {
       // ch.aspectRatio has to the box-wide ASPECT RATIO setting.
       const resolutionSelect = document.createElement('select');
       resolutionSelect.className = 'resolution-select';
-      resolutionSelect.title = 'Only takes effect while the box-wide RESOLUTION setting (PICTURE & GUIDE tab) is set to AUTO — forces this channel to a specific tier instead of auto-detecting it from the currently-playing file\'s real resolution/ERA tag.';
+      resolutionSelect.title = 'Only takes effect while the box-wide RESOLUTION setting (PICTURE & SOUND) is set to AUTO — forces this channel to a specific tier instead of auto-detecting it from the currently-playing file\'s real resolution/ERA tag.';
       CHANNEL_RESOLUTION_OPTIONS.forEach(({ value, label }) => {
         const opt = document.createElement('option');
         opt.value = value;
@@ -908,7 +908,7 @@ export function renderChannelList() {
       // above, which crops/fits video CONTENT inside #player.
       const displayAspectSelect = document.createElement('select');
       displayAspectSelect.className = 'display-aspect-select';
-      displayAspectSelect.title = 'Only takes effect while the box-wide ASPECT setting (PICTURE & GUIDE tab) is set to AUTO — forces this channel\'s simulated screen shape instead of auto-detecting it from the currently-playing file\'s real aspect ratio/ERA tag. Not the same as ASPECT RATIO above, which only affects how video content fits inside the player.';
+      displayAspectSelect.title = 'Only takes effect while the box-wide ASPECT setting (PICTURE & SOUND) is set to AUTO — forces this channel\'s simulated screen shape instead of auto-detecting it from the currently-playing file\'s real aspect ratio/ERA tag. Not the same as ASPECT RATIO above, which only affects how video content fits inside the player.';
       CHANNEL_DISPLAY_ASPECT_OPTIONS.forEach(({ value, label }) => {
         const opt = document.createElement('option');
         opt.value = value;

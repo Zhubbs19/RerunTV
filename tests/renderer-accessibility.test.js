@@ -61,10 +61,14 @@ test('control center is a sidebar shell with one scroll pane and a pinned status
   const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
   assert.match(markup, /<aside class="setup-sidebar"/);
   assert.match(markup, /id="setup-tabs"[^>]*aria-orientation="vertical"/);
-  for (const tab of ['channels', 'programming', 'display', 'audio', 'perf', 'plugins', 'help']) {
+  for (const tab of ['channels', 'programming', 'library', 'display', 'guide', 'household', 'audio', 'plugins', 'help']) {
     assert.match(markup, new RegExp(`class="setup-tab-btn[^"]*" data-tab="${tab}"`), `sidebar lists ${tab}`);
   }
   assert.doesNotMatch(markup, /setup-workspace-switch|data-workspaces=/);
+  // docs/design/03 §3 sections: the old STATUS tab is System › Diagnostics.
+  assert.doesNotMatch(markup, /data-tab="perf"/);
+  assert.match(markup, /data-tab-panel="audio"[\s\S]*?data-subtab-panel="status"[\s\S]*?id="box-status-check-btn"/);
+  assert.match(markup, /data-tab-panel="household"[\s\S]*?id="pin-lock-enabled"[\s\S]*?id="viewer-enabled"/);
   assert.match(markup, /id="setup-content" class="setup-content"/);
   assert.match(markup, /class="setup-footer setup-status-bar"[\s\S]*?id="setup-undo-btn"[\s\S]*?id="done-btn"/);
   assert.match(markup, /data-subtab-panel="backups"[\s\S]*?id="config-export-btn"/);

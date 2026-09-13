@@ -203,14 +203,14 @@ async function main() {
   // ---------- Full tab/subtab screenshot sweep ----------
   const TABS = [
     { id: 'channels', subtabs: [] },
-    { id: 'display', subtabs: ['picture', 'interface'] },
-    { id: 'programming', subtabs: ['presets', 'flows', 'pool', 'onscreen', 'autocurate', 'tagtaxonomy', 'aircheck'] },
-    { id: 'audio', subtabs: ['system', 'network', 'backups', 'librarysync'] },
-    // STATUS is a single page now - its three former sub-tabs each held one
-    // panel on an otherwise empty screen.
-    { id: 'perf', subtabs: [] },
+    { id: 'programming', subtabs: ['presets', 'flows', 'pool', 'onscreen', 'autocurate'] },
+    { id: 'library', subtabs: ['librarysync', 'tagtaxonomy'] },
+    { id: 'display', subtabs: ['picture', 'sound'] },
+    { id: 'guide', subtabs: [] },
+    { id: 'household', subtabs: [] },
+    { id: 'audio', subtabs: ['system', 'updates', 'backups', 'aircheck', 'status'] },
     { id: 'plugins', subtabs: ['installed', 'appearance', 'diagnostics'] },
-    { id: 'help', subtabs: ['guide', 'shortcuts', 'updates', 'releases'] },
+    { id: 'help', subtabs: ['guide', 'shortcuts', 'releases'] },
   ];
   for (const tab of TABS) {
     await clickSelector(session, `.setup-tab-btn[data-tab="${tab.id}"]`);
@@ -227,9 +227,8 @@ async function main() {
     }
   }
 
-  // ---------- DISPLAY > INTERFACE: logo motion + dynamic overlays UI ----------
-  await clickSelector(session, '.setup-tab-btn[data-tab="display"]');
-  await clickSelector(session, '.setup-tab-panel[data-tab-panel="display"] .setup-subtab-btn[data-subtab="interface"]');
+  // ---------- GUIDE & THEME: logo motion + dynamic overlays UI ----------
+  await clickSelector(session, '.setup-tab-btn[data-tab="guide"]');
   await sleep(300);
 
   const motionOptionCount = await countMatches(session, '#logo-bug-motion-select option');

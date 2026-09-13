@@ -1,6 +1,32 @@
 # 03 — Setup shell and navigation
 
-Status: **migration steps 1–5 built** (§8).
+Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
+state (§4–§7 details) is being built piece by piece below.
+
+### Built (§3 sections)
+
+The sidebar is Channels, Programming, Library, Picture & sound, Guide & theme, Household,
+System, Plug-ins, Help. Whole panels moved; every control id is unchanged.
+- **Programming:** cadence & presets, flows, bumper & ad pool, extras, auto-curate.
+- **Library:** sync, tags (the tag taxonomy).
+- **Picture & sound:** picture, and a new sound page (volume, custom sound profile).
+- **Guide & theme:** the old Interface page, with the guide and theme card first.
+- **Household:** parental lock, this device (usage mode, interface size), watching on other
+  devices, connected devices.
+- **System:** power (with the background server), updates, backups, air check (the console
+  and the marks list), diagnostics (the old STATUS tab).
+
+The `data-tab` ids predate the names: `display` is Picture & sound and `audio` is System.
+Diagnostics refreshes once a second only while it is on screen. Viewing history stays in
+Diagnostics until Household profiles exist (09).
+
+Also for §9: the header is a fixed 56 px, and the history, sync results, tag list, changelog
+and plugin log sit in the page's own scroll. List + detail panes keep theirs.
+
+Verified live (scratch `test/verify-setup-sections.mjs`):
+- all 23 pages at 1280×720 have no horizontal scroll, 100 px of header plus status bar, and no
+  nested scroll box;
+- search lands on settings in their new sections.
 
 ### Built (step 5: collections as list + detail)
 
