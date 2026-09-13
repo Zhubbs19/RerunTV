@@ -1,6 +1,43 @@
 # 03 — Setup shell and navigation
 
-Status: **migration steps 1 and 2 built** (§8). Steps 3–5 proposed.
+Status: **migration steps 1–4 built** (§8). Step 5 proposed.
+
+### Built (steps 3–4: SettingRow and one search)
+
+**SettingRow** (`renderer/js/ui/setting-row.js`, "SettingRow" in `setup.css`):
+- Each setting is a sentence-case label wired to its control with `for`, plus one muted help
+  line. A longer explanation stays on the row's title. `data-setting` is its search id and
+  `data-synonyms` adds search words.
+- A `data-depends-on="<checkbox id>"` row indents, dims and disables its controls while that
+  switch is off; it is never hidden.
+- `SettingRow()` builds the same markup at runtime.
+
+70 static settings are now rows, and every control id is unchanged:
+- **Picture & Guide:** Picture and Interface.
+- **Programming:** Cadence & Presets, and On-screen extras.
+- **System:** Audio & Power, Network & Access, and Library sync.
+- **Help:** Updates.
+
+Toggles that used to sit in card headings became the first row of their card, and the old
+all-caps paragraphs became one-line help. Plugin settings panels still build their own markup.
+
+**Unified search** (`setup-settings.js`, `setup-command-palette.js`):
+- The header search replaces the separate Ctrl+K palette overlay. Ctrl+K and the status bar's
+  SEARCH button focus it, and while it's empty it lists actions.
+- Typed results are grouped: SETTINGS (single rows, label matches ranked first), CHANNELS
+  (opens the channel in list + detail), ACTIONS (the old palette's commands and every section),
+  SECTIONS (whole cards on pages not yet on rows), and PROGRAMS (the next 7 days, through
+  `program-search.js`).
+- Choosing a setting opens its page and focuses the control.
+
+Verified live (scratch `test/verify-setting-rows-search.mjs`, 12 checks):
+- no loose old-style rows remain on the converted pages;
+- a dependency disables without hiding, and clicking a label toggles its control;
+- Ctrl+K lists actions, and "gu" lists Guide width under SETTINGS;
+- Enter on "guide slots" focuses the control;
+- channel, action and program groups work, as does the SEARCH button.
+
+The 34-check UI suite and the earlier step 5, usage-mode and shell drivers all pass.
 
 ### Built (step 2: Channels list + detail)
 

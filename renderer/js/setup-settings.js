@@ -8,6 +8,11 @@ import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, ap
 import { applyTheme } from './themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
 import { getUsageModePreference, onUsageModeChange, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
+import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from './ui/setting-row.js';
+import { searchActions } from './setup-command-palette.js';
+import { searchUpcomingPrograms } from './program-search.js';
+import { viewNow } from './state.js';
+import { formatChannelNumber } from './channels.js';
 import { getChannel } from './channels.js';
 import { exitTimeMachine } from './timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from './util.js';
@@ -94,7 +99,9 @@ function effectiveGuideLivePreview() {
 function setDependentControlState(control, enabled) {
   if (!control) return;
   control.disabled = !enabled;
-  control.closest('label, .panel-interval')?.classList.toggle('control-disabled', !enabled);
+  const row = control.closest('.setting-row');
+  if (row) row.classList.toggle('is-disabled', !enabled);
+  else control.closest('label, .panel-interval')?.classList.toggle('control-disabled', !enabled);
 }
 
 function refreshDependentControls() {
@@ -105,6 +112,8 @@ function refreshDependentControls() {
   // show them as unavailable rather than letting them look live.
   [crtScanlinesSlider, crtVignetteSlider, crtGrainSlider, crtFlickerSlider, crtCurvatureSlider]
     .forEach((slider) => setDependentControlState(slider, crtEnabledEl.checked));
+  // Every other data-depends-on row (ui/setting-row.js).
+  syncSettingDependencies(setupScreen);
 }
 
 // Built from the live #hint-bar spans themselves (same "one source of
@@ -399,6 +408,7 @@ const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
 // The page body scrolls inside #setup-content; the sidebar, header and status
 // bar stay put (docs/design/03 §4).
 const setupContentEl = document.getElementById('setup-content');
+installSettingDependencies(setupScreen);
 
 // Watch TV in the sidebar is the same action as the status bar's button.
 document.getElementById('setup-watch-btn')?.addEventListener('click', () => document.getElementById('done-btn')?.click());
@@ -1206,16 +1216,9 @@ function searchableUnits() {
   return Array.from(document.querySelectorAll('.setup-tab-panel .panel'));
 }
 
-const SEARCH_ACTIONS = [
-  ['channels', null, '#add-channel-btn', 'Add channel'],
-  ['channels', null, '#library-search-toggle-btn', 'Search media library'],
-  ['channels', null, '#now-next-toggle-btn', 'Open Now and Next dashboard'],
-  ['channels', null, '#bulk-select-toggle-btn', 'Select and edit multiple channels'],
-  ['channels', null, '#health-check-btn', 'Check channel health'],
-  ['plugins', null, '#plugins-install-zip-btn', 'Install plugin from ZIP'],
-  ['perf', null, '#box-status-check-btn', 'Run health check'],
-  ['help', 'updates', '#check-updates-btn', 'Check for software updates'],
-];
+function searchableRows() {
+  return Array.from(document.querySelectorAll('.setup-tab-panel .setting-row'));
+}
 
 function cleanSearchText(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
@@ -1239,21 +1242,122 @@ function searchEntryForPanel(panel) {
   };
 }
 
-function allSearchEntries() {
-  const panels = searchableUnits().map(searchEntryForPanel).filter((entry) => entry.tab);
-  const actions = SEARCH_ACTIONS.map(([tab, subtab, selector, title]) => {
-    const target = document.querySelector(selector);
-    const topButton = document.querySelector(`.setup-tab-btn[data-tab="${tab}"]`);
-    return target && {
-      tab, subtab, target, title,
-      path: `${cleanSearchText(topButton && topButton.textContent)} › ${title}`,
-      preview: 'Action', haystack: `${title} ${cleanSearchText(target.title)}`.toLowerCase(),
-    };
-  }).filter(Boolean);
-  return [...actions, ...panels];
+// A single setting (ui/setting-row.js): its label, help and synonyms are what
+// search matches; opening it focuses the control itself.
+function searchEntryForRow(row) {
+  const panelEntry = searchEntryForPanel(row.closest('.panel') || row);
+  const { label, help, haystack } = settingRowSearchText(row);
+  return {
+    tab: panelEntry.tab,
+    subtab: panelEntry.subtab,
+    target: row,
+    focus: settingRowControl(row),
+    title: label,
+    path: [panelEntry.path, label].filter(Boolean).join(' › '),
+    preview: help,
+    haystack,
+    kind: 'setting',
+  };
+}
+
+// One search (docs/design/03 §6), results grouped: settings, channels,
+// actions, sections, then upcoming programs. Settings are single rows
+// (ui/setting-row.js); sections are whole cards for pages not on rows yet.
+const SEARCH_GROUPS = [
+  ['setting', 'SETTINGS', 8],
+  ['channel', 'CHANNELS', 6],
+  ['action', 'ACTIONS', 6],
+  ['panel', 'SECTIONS', 5],
+  ['program', 'PROGRAMS', 5],
+];
+
+function matchesWords(haystack, words) {
+  return words.every((word) => haystack.includes(word));
+}
+
+function actionEntries() {
+  return searchActions().map((action) => ({
+    kind: 'action',
+    title: action.label,
+    path: action.label,
+    preview: action.hint,
+    disabled: !!action.disabled,
+    run: action.run,
+    haystack: `${action.label} ${action.hint} ${action.keywords || ''}`.toLowerCase(),
+  }));
+}
+
+function channelEntries(words) {
+  return ((S.config && S.config.channels) || [])
+    .filter((ch) => matchesWords(`ch ${ch.number} ${formatChannelNumber(ch.number)} ${ch.name || ''}`.toLowerCase(), words))
+    .sort((a, b) => a.number - b.number)
+    .map((ch) => ({
+      kind: 'channel',
+      title: ch.name || 'UNTITLED',
+      path: `CH ${formatChannelNumber(ch.number)} — ${ch.name || 'UNTITLED'}`,
+      preview: `${ch.files.length} video${ch.files.length === 1 ? '' : 's'}`,
+      run: () => openChannelFromSearch(ch.number),
+    }));
+}
+
+function programEntries(query) {
+  if (query.length < 3) return [];
+  let results = [];
+  try {
+    results = searchUpcomingPrograms((S.config && S.config.channels) || [], query, viewNow(), { limit: 5 });
+  } catch (e) {
+    return [];
+  }
+  return results.map(({ channel, entry, title }) => ({
+    kind: 'program',
+    title,
+    path: title,
+    preview: `CH ${formatChannelNumber(channel.number)} · ${new Date(entry.start).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' })}`,
+    run: () => openChannelFromSearch(channel.number),
+  }));
+}
+
+function openChannelFromSearch(number) {
+  S.setupSelectedChannel = number;
+  S.setupFilterQuery = '';
+  const filter = document.getElementById('channel-filter');
+  if (filter) filter.value = '';
+  document.querySelector('.setup-tab-btn[data-tab="channels"]')?.click();
+  renderChannelList();
+  document.querySelector(`#channel-list-pane .channel-list-item[data-channel-number="${number}"]`)?.focus();
+}
+
+function allSearchEntries(query) {
+  const q = query.trim().toLowerCase();
+  const words = q.split(/\s+/).filter(Boolean);
+  if (!words.length) return actionEntries().filter((entry) => !entry.disabled);
+  // A label that starts with the query beats one that contains it, which
+  // beats a match only in help text or synonyms.
+  const rowScore = (entry) => {
+    const label = entry.title.toLowerCase();
+    if (label.startsWith(q)) return 0;
+    if (words.every((word) => label.includes(word))) return 1;
+    return 2;
+  };
+  const rows = searchableRows().map(searchEntryForRow)
+    .filter((entry) => entry.tab && entry.title && matchesWords(entry.haystack, words))
+    .map((entry, order) => ({ entry, order, score: rowScore(entry) }))
+    .sort((a, b) => a.score - b.score || a.order - b.order)
+    .map(({ entry }) => entry);
+  const panels = searchableUnits().map(searchEntryForPanel)
+    .filter((entry) => entry.tab && matchesWords(entry.haystack, words))
+    .map((entry) => ({ ...entry, kind: 'panel' }));
+  const actions = actionEntries().filter((entry) => matchesWords(entry.haystack, words));
+  return [...rows, ...channelEntries(words), ...actions, ...panels, ...programEntries(q)];
 }
 
 function navigateToSearchEntry(entry) {
+  if (entry.run) {
+    setupSearchEl.value = '';
+    closeSettingsSearch();
+    if (!entry.disabled) entry.run();
+    return;
+  }
   const topButton = document.querySelector(`.setup-tab-btn[data-tab="${entry.tab}"]`);
   if (topButton) topButton.click();
   if (entry.subtab) {
@@ -1264,6 +1368,7 @@ function navigateToSearchEntry(entry) {
   closeSettingsSearch();
   requestAnimationFrame(() => {
     entry.target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (entry.focus && !entry.focus.disabled) entry.focus.focus({ preventScroll: true });
     entry.target.classList.remove('search-target-flash');
     void entry.target.offsetWidth;
     entry.target.classList.add('search-target-flash');
@@ -1272,34 +1377,59 @@ function navigateToSearchEntry(entry) {
 }
 
 function renderSettingsSearch() {
-  const q = setupSearchEl.value.trim().toLowerCase();
+  const query = setupSearchEl.value;
+  const showActionsOnly = !query.trim();
   setupSearchResultsEl.innerHTML = '';
-  if (!q) { closeSettingsSearch(); return; }
-  const words = q.split(/\s+/).filter(Boolean);
-  const matches = allSearchEntries().filter((entry) => words.every((word) => entry.haystack.includes(word))).slice(0, 30);
-  setupSearchEmptyEl.classList.toggle('hidden', matches.length > 0);
-  setupSearchResultsEl.classList.toggle('hidden', matches.length === 0);
-  setupSearchEl.setAttribute('aria-expanded', String(matches.length > 0));
-  matches.forEach((entry, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.id = `setup-search-result-${index}`;
-    button.className = `setup-search-result${index === 0 ? ' active' : ''}`;
-    button.setAttribute('role', 'option');
-    button.setAttribute('aria-selected', String(index === 0));
-    const pathEl = document.createElement('span');
-    pathEl.className = 'setup-search-result-path';
-    pathEl.textContent = entry.path;
-    const preview = document.createElement('span');
-    preview.className = 'setup-search-result-preview';
-    preview.textContent = entry.preview || 'Open this setting';
-    button.append(pathEl, preview);
-    button.addEventListener('click', () => navigateToSearchEntry(entry));
-    setupSearchResultsEl.appendChild(button);
+  if (showActionsOnly && document.activeElement !== setupSearchEl) { closeSettingsSearch(); return; }
+  const entries = allSearchEntries(query);
+  const byKind = new Map();
+  entries.forEach((entry) => {
+    const kind = entry.kind || 'panel';
+    if (!byKind.has(kind)) byKind.set(kind, []);
+    byKind.get(kind).push(entry);
   });
-  if (matches.length) setupSearchEl.setAttribute('aria-activedescendant', 'setup-search-result-0');
+  let index = 0;
+  SEARCH_GROUPS.forEach(([kind, heading, limit]) => {
+    const group = (byKind.get(kind) || []).slice(0, showActionsOnly ? 12 : limit);
+    if (!group.length) return;
+    const headingEl = document.createElement('div');
+    headingEl.className = 'setup-search-group';
+    headingEl.setAttribute('role', 'presentation');
+    headingEl.textContent = showActionsOnly ? 'ACTIONS — OR TYPE TO FIND A SETTING, CHANNEL OR PROGRAM' : heading;
+    setupSearchResultsEl.appendChild(headingEl);
+    group.forEach((entry) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.id = `setup-search-result-${index}`;
+      button.className = `setup-search-result${index === 0 ? ' active' : ''}`;
+      button.setAttribute('role', 'option');
+      button.setAttribute('aria-selected', String(index === 0));
+      if (entry.disabled) button.disabled = true;
+      const pathEl = document.createElement('span');
+      pathEl.className = 'setup-search-result-path';
+      pathEl.textContent = entry.path;
+      const preview = document.createElement('span');
+      preview.className = 'setup-search-result-preview';
+      preview.textContent = entry.preview || 'Open this setting';
+      button.append(pathEl, preview);
+      button.addEventListener('click', () => navigateToSearchEntry(entry));
+      setupSearchResultsEl.appendChild(button);
+      index += 1;
+    });
+  });
+  setupSearchEmptyEl.classList.toggle('hidden', index > 0);
+  setupSearchResultsEl.classList.toggle('hidden', index === 0);
+  setupSearchEl.setAttribute('aria-expanded', String(index > 0));
+  if (index) setupSearchEl.setAttribute('aria-activedescendant', 'setup-search-result-0');
   else setupSearchEl.removeAttribute('aria-activedescendant');
 }
+
+// Ctrl+K and the status bar's SEARCH button (setup-command-palette.js).
+window.addEventListener('reruntv:open-setup-search', () => {
+  setupSearchEl.focus();
+  setupSearchEl.select();
+  renderSettingsSearch();
+});
 
 setupSearchEl.addEventListener('input', renderSettingsSearch);
 setupSearchEl.addEventListener('keydown', (event) => {
@@ -1513,7 +1643,7 @@ export async function renderStartupServerStatus(statusOverride = null) {
   }
   startupServerEnabledEl.checked = !!status.enabled;
   startupServerEnabledEl.disabled = !status.supported;
-  startupServerEnabledEl.closest('label')?.classList.toggle('control-disabled', !status.supported);
+  startupServerEnabledEl.closest('.setting-row')?.classList.toggle('is-disabled', !status.supported);
 
   if (status.reason === 'windows-only') {
     startupServerStatusEl.textContent = 'Automatic server startup is currently available on Windows PCs.';

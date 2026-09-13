@@ -116,6 +116,19 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   when the page reports `RerunTVInput.version` ≥ 1, and falls back to injected keyboard events
   otherwise. Bump the version only for an incompatible change to that call.
 
+## Setup screen patterns
+
+- **Shell:** sidebar sections, a `#setup-content` scroll pane and a pinned status bar
+  (docs/design/03).
+- **Channels:** a list plus the selected channel's editor. `S.setupSelectedChannel` picks which
+  channel; set it before `renderChannelList()` whenever numbers change.
+- **New box-level settings:** write a `.setting-row` (`renderer/js/ui/setting-row.js`) with a
+  sentence-case label wired `for` its control and a one-line help.
+  - Use `data-depends-on` for settings that only apply while a switch is on.
+  - Add `data-synonyms` for words people would search for.
+- **Search:** rows become search results automatically, and new setup actions go in
+  `setup-command-palette.js`'s `searchActions()`.
+
 ## Directory map
 
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by

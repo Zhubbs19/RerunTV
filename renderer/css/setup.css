@@ -4761,3 +4761,128 @@ html[data-theme] .btn[aria-disabled="true"] {
   grid-template-areas: "badge num  name" "path  path path" "now   now  now" "acts  acts acts" "opts  opts opts";
 }
 #setup-screen .channel-list-pane.select-mode .channel-select-checkbox { display: block; width: 16px; height: 16px; margin: 0; }
+
+/* ---------- SettingRow (docs/design/03 §5.1, renderer/js/ui/setting-row.js) ----------
+   Label (sentence case) · control on one line, one muted line of help under
+   the label. A dependent row dims and disables while its parent switch is
+   off; it is never hidden. */
+#setup-screen .setting-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#setup-screen .setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "label control" "help help";
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(var(--gold-rgb), 0.08);
+}
+#setup-screen .setting-rows > .setting-row:first-child { border-top: 0; }
+#setup-screen .setting-row[data-depends-on] { padding-left: 18px; }
+#setup-screen .setting-row-label {
+  grid-area: label;
+  min-width: 0;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+  text-transform: none;
+  color: var(--paper);
+  cursor: default;
+}
+#setup-screen label.setting-row-label { cursor: pointer; }
+#setup-screen .setting-row-control {
+  grid-area: control;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+#setup-screen .setting-row-control select { max-width: min(320px, 100%); }
+#setup-screen .setting-row-control input[type="range"] { width: 150px; accent-color: var(--gold); }
+#setup-screen .setting-row-control input[type="number"] { width: 72px; }
+#setup-screen .setting-row-control input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
+#setup-screen .setting-row-control .title-row-input { width: min(260px, 100%); }
+#setup-screen .setting-row-value,
+#setup-screen .setting-row-control .slider-readout {
+  min-width: 48px;
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: 12px;
+  text-align: right;
+}
+#setup-screen .setting-row-unit { color: var(--paper-dim); font-size: 12px; }
+#setup-screen .setting-row-help {
+  grid-area: help;
+  margin: 0;
+  font-family: var(--font-body, var(--font-ui));
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--paper-dim);
+}
+#setup-screen .setting-row.is-disabled .setting-row-label,
+#setup-screen .setting-row.is-disabled .setting-row-control { opacity: 0.45; }
+#setup-screen .setting-row.is-disabled label.setting-row-label { cursor: not-allowed; }
+/* A wide control (the theme picker) takes the full row under its label. */
+#setup-screen .setting-row-wide { grid-template-areas: "label label" "control control" "help help"; }
+#setup-screen .setting-row-wide .setting-row-control { justify-content: flex-start; }
+@media (max-width: 760px) {
+  #setup-screen .setting-row { grid-template-areas: "label" "control" "help"; grid-template-columns: minmax(0, 1fr); }
+  #setup-screen .setting-row-control { justify-content: flex-start; }
+}
+/* Rows always span their card; a panel body holding rows stacks them. */
+#setup-screen .panel-body:has(> .setting-row) {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 2px;
+}
+#setup-screen .setting-rows { align-items: stretch; }
+#setup-screen .setting-row {
+  width: 100%;
+  box-sizing: border-box;
+  grid-template-columns: minmax(150px, 1fr) auto;
+  text-align: left;
+}
+#setup-screen .setting-row-control input[type="range"] { width: 130px; }
+#setup-screen .setting-row-control { flex-wrap: nowrap; }
+#setup-screen .setting-row-control .slider-readout,
+#setup-screen .setting-row-value { min-width: 44px; flex: 0 0 auto; }
+#setup-screen .setting-row-control input[type="range"] { flex: 0 1 130px; min-width: 70px; }
+#setup-screen .setting-row-control input[type="number"],
+#setup-screen .setting-row-control input[type="password"],
+#setup-screen .setting-row-control select {
+  height: 30px;
+  box-sizing: border-box;
+  background-color: var(--ink-deep);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--gold);
+  font-family: var(--font-ui);
+  font-weight: 700;
+}
+#setup-screen .setting-row-control input[type="number"],
+#setup-screen .setting-row-control input[type="password"] {
+  text-align: center;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+/* Unified search (docs/design/03 §6): results grouped by kind. */
+#setup-screen .setup-search-group {
+  padding: 8px 10px 4px;
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: var(--cyan);
+}
+#setup-screen .setup-search-result:disabled { opacity: 0.45; cursor: default; }
