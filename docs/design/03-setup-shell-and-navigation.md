@@ -1,6 +1,28 @@
 # 03 — Setup shell and navigation
 
-Status: **migration steps 1–4 built** (§8). Step 5 proposed.
+Status: **migration steps 1–5 built** (§8).
+
+### Built (step 5: collections as list + detail)
+
+Every collection page is a `.list-detail`: compact rows on the left and the selected item's
+editor on the right. ▲▼ move the selection, and a filter that hides the selection selects the
+first item it shows.
+- **Ad pool and presets** (`setup-interstitials.js`): the selected entry's card opens in
+  `#interstitials-detail` / `#presets-detail`. Edits there rebuild the entry's list row. The
+  expand/collapse-all buttons are gone.
+- **Flows** (`setup-interstitials-flowbuilder.js`): `#flow-list` rows show name, step count,
+  on/off and channels beside the flow editor and canvas. The old template select is hidden but
+  still populated.
+- **Backups** (`setup-backups.js`): rows show age, reason, time and size. The detail pane has
+  RESTORE / LABEL / PIN / DELETE and shows the restore diff inline instead of behind a PREVIEW
+  dialog.
+- **Plugins** (`setup-plugins.js`): one-line rows keep the enable checkbox. The detail pane
+  holds the description, integrity, permissions, dependencies, RELOAD and the plugin's settings,
+  rendered on selection. The +DETAILS and SETTINGS toggles are gone. The selection survives
+  RESCAN.
+
+Verified live (scratch `test/verify-collections-list-detail.mjs`,
+`verify-flows-backups-list-detail.mjs`, `verify-plugins-list-detail.mjs`).
 
 ### Built (steps 3–4: SettingRow and one search)
 

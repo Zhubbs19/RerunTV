@@ -238,14 +238,62 @@ function isOnlyUnapprovedPermissions(p) {
 
 let currentPluginsForAttention = [];
 
-// Which plugin rows have been manually expanded this session — persists
-// across a renderPluginsList() rebuild (RESCAN, a checkbox toggle, an
-// approve/revoke) the same way openChannelEditTabs (setup-channels.js)
-// remembers an open channel-edit tab across re-renders, so expanding a row
-// to read its description isn't undone by the very next unrelated click.
-// Session-only (not saved to config) — this is pure UI state, not a
-// setting.
-const expandedPluginIds = new Set();
+// The plugin whose details and settings fill the detail pane. Kept across
+// renderPluginsList() rebuilds (RESCAN, approve/revoke, a save) so the pane
+// doesn't jump back to the top of the list. Session-only UI state.
+let selectedPluginId = null;
+
+function pluginEntries() {
+  return Array.from(pluginsListEl.querySelectorAll('.plugin-entry'));
+}
+
+// Shows one entry's detail element in the pane and marks its row selected.
+// The detail is built once per render and parked on the entry, so moving the
+// selection never loses a half-edited settings field in another plugin.
+function selectPluginEntry(entry, { focus = false } = {}) {
+  const detailEl = document.getElementById('plugins-detail');
+  selectedPluginId = entry ? entry.dataset.pluginId : null;
+  pluginEntries().forEach((item) => {
+    const on = item === entry;
+    item.classList.toggle('selected', on);
+    const row = item.querySelector('.plugin-row');
+    row.setAttribute('aria-selected', String(on));
+    row.tabIndex = on ? 0 : -1;
+  });
+  if (!detailEl) return;
+  detailEl.replaceChildren();
+  if (!entry) return;
+  detailEl.appendChild(entry.pluginDetail);
+  if (entry.showPluginSettings) entry.showPluginSettings();
+  if (focus) entry.querySelector('.plugin-row').focus();
+}
+
+function ensureVisibleSelection() {
+  const visible = pluginEntries().filter((entry) => !entry.classList.contains('filtered-out'));
+  const current = visible.find((entry) => entry.dataset.pluginId === selectedPluginId);
+  const already = document.getElementById('plugins-detail')?.firstChild;
+  if (current && already === current.pluginDetail) return;
+  selectPluginEntry(current || visible[0] || null);
+}
+
+pluginsListEl?.addEventListener('keydown', (event) => {
+  if (!event.target.classList?.contains('plugin-row')) return;
+  const rows = pluginEntries().filter((entry) => !entry.classList.contains('filtered-out'));
+  const index = rows.findIndex((entry) => entry.dataset.pluginId === selectedPluginId);
+  let target = null;
+  if (event.key === 'ArrowDown') target = rows[index + 1];
+  else if (event.key === 'ArrowUp') target = rows[index - 1];
+  else if (event.key === 'Home') target = rows[0];
+  else if (event.key === 'End') target = rows[rows.length - 1];
+  else if (event.key === ' ' || event.key === 'Enter') {
+    const checkbox = event.target.querySelector('input[type=checkbox]');
+    if (checkbox && event.key === ' ') { event.preventDefault(); checkbox.click(); }
+    return;
+  }
+  if (!target) return;
+  event.preventDefault();
+  selectPluginEntry(target, { focus: true });
+});
 
 async function promptIntegrityApproval(p) {
   const changed = p.integrityStatus === 'modified';
@@ -345,6 +393,10 @@ export async function renderPluginsList() {
   sortPluginsForDisplay(plugins).forEach((p) => {
     const row = document.createElement('div');
     row.className = 'plugin-row' + (p.error || p.loadError ? ' has-error' : '');
+    row.setAttribute('role', 'option');
+    row.tabIndex = -1;
+    const detail = document.createElement('div');
+    detail.className = 'plugin-detail panel';
     if (lastCapabilityChangedId === p.id) row.classList.add('block-row-flash');
 
     if (!p.error) {
@@ -402,31 +454,22 @@ export async function renderPluginsList() {
       row.dataset.attention = String(attention);
     }
 
-    // The description/integrity/permission/capability/dependency block below
-    // is collapsed by default — with 50+ plugins installed, always rendering
-    // every row's full paragraph made this tab mostly scrolling. A row that
-    // needs attention (an error, an unapproved permission/integrity change,
-    // a broken dependency) or one the user has already expanded this session
-    // (expandedPluginIds above) stays open instead — the two cases where
-    // collapsing would actually hide something worth seeing right away.
-    let detailsExpanded = !p.error && (attention || expandedPluginIds.has(p.id));
-    let detailsToggleBtn = null;
-    if (!p.error) {
-      detailsToggleBtn = document.createElement('button');
-      detailsToggleBtn.type = 'button';
-      detailsToggleBtn.className = 'btn btn-small plugin-row-details-toggle';
-      nameLine.appendChild(detailsToggleBtn);
-    }
+    // The row stays one line (name, version, status); everything else —
+    // description, integrity, permissions, dependencies, actions, settings —
+    // is the detail pane's, shown for the selected plugin only.
     info.appendChild(nameLine);
+    const detailHeading = nameLine.cloneNode(true);
+    detailHeading.classList.add('plugin-detail-heading');
+    detail.appendChild(detailHeading);
 
-    const detailsTarget = p.error ? info : document.createElement('div');
-    if (!p.error) detailsTarget.className = 'plugin-row-details';
+    const detailsTarget = document.createElement('div');
+    detailsTarget.className = 'plugin-row-details';
 
     if (p.error) {
       const err = document.createElement('div');
       err.className = 'plugin-row-error';
       err.textContent = p.error;
-      info.appendChild(err);
+      detail.appendChild(err);
     } else {
       if (p.description) {
         const desc = document.createElement('div');
@@ -544,25 +587,10 @@ export async function renderPluginsList() {
         });
         detailsTarget.appendChild(deps);
       }
-      info.appendChild(detailsTarget);
+      detail.appendChild(detailsTarget);
     }
 
     row.appendChild(info);
-
-    if (detailsToggleBtn) {
-      const setExpanded = (expanded) => {
-        detailsExpanded = expanded;
-        detailsTarget.classList.toggle('collapsed', !expanded);
-        detailsToggleBtn.textContent = expanded ? 'DETAILS ▾' : '+ DETAILS';
-        detailsToggleBtn.setAttribute('aria-expanded', String(expanded));
-      };
-      setExpanded(detailsExpanded);
-      detailsToggleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (detailsExpanded) expandedPluginIds.delete(p.id); else expandedPluginIds.add(p.id);
-        setExpanded(!detailsExpanded);
-      });
-    }
 
     // Live reload — re-fetches this plugin's style/renderer/settings from
     // disk and re-registers them without an app restart (see
@@ -592,7 +620,10 @@ export async function renderPluginsList() {
           alertDialog(`Failed to reload ${p.name}:\n\n${result.error}`, { variant: 'error', title: 'RELOAD FAILED' });
         }
       });
-      row.appendChild(reloadBtn);
+      const reloadRow = document.createElement('div');
+      reloadRow.className = 'plugin-row-perm-actions';
+      reloadRow.appendChild(reloadBtn);
+      detail.appendChild(reloadRow);
     }
 
     // Settings are composed from core-provided sections (currently channel
@@ -604,6 +635,12 @@ export async function renderPluginsList() {
     const hasSettings = !!channelDefinition || p.category === 'theme' || settingsSections.length > 0;
     const entry = document.createElement('div');
     entry.className = 'plugin-entry';
+    entry.dataset.pluginId = p.id || p.dir;
+    entry.pluginDetail = detail;
+    row.addEventListener('click', (event) => {
+      if (event.target.closest('input, button')) return;
+      selectPluginEntry(entry);
+    });
     // Precomputed lowercase haystack for the filter input below — cheaper
     // than re-reading entry.textContent (which also picks up SETTINGS
     // panel contents once expanded) on every keystroke.
@@ -614,33 +651,16 @@ export async function renderPluginsList() {
     entry.appendChild(row);
 
     if (hasSettings) {
-      const settingsBtn = document.createElement('button');
-      settingsBtn.type = 'button';
-      settingsBtn.className = 'btn plugin-settings-toggle-btn';
-      settingsBtn.textContent = 'SETTINGS';
-      settingsBtn.setAttribute('aria-expanded', 'false');
-      row.appendChild(settingsBtn);
-
+      const settingsHeading = document.createElement('div');
+      settingsHeading.className = 'plugin-detail-section-title';
+      settingsHeading.textContent = 'SETTINGS';
       const settingsPanel = document.createElement('div');
-      settingsPanel.className = 'plugin-settings-panel hidden panel';
+      settingsPanel.className = 'plugin-settings-panel';
       settingsPanel.id = `plugin-settings-${p.id}`;
-      settingsBtn.setAttribute('aria-controls', settingsPanel.id);
-      entry.appendChild(settingsPanel);
-
-      settingsBtn.addEventListener('click', () => {
-        const willShow = settingsPanel.classList.contains('hidden');
-        settingsPanel.classList.toggle('hidden', !willShow);
-        settingsBtn.classList.toggle('active', willShow);
-        settingsBtn.setAttribute('aria-expanded', String(willShow));
-        if (willShow) {
-          // Rebuild from current config on every expansion so changes made
-          // elsewhere while collapsed are always reflected.
-          renderPluginSettings(settingsPanel, p, channelDefinition, settingsSections);
-          settingsPanel.classList.remove('panel-reveal');
-          void settingsPanel.offsetWidth;
-          settingsPanel.classList.add('panel-reveal');
-        }
-      });
+      detail.append(settingsHeading, settingsPanel);
+      // Rebuilt from current config each time the plugin is selected, so
+      // changes made elsewhere in the meantime are always reflected.
+      entry.showPluginSettings = () => renderPluginSettings(settingsPanel, p, channelDefinition, settingsSections);
     }
 
     pluginsListEl.appendChild(entry);
@@ -718,6 +738,7 @@ function applyPluginsFilter() {
     if (matches) visibleCount += 1;
   });
   if (pluginsFilterEmptyEl) pluginsFilterEmptyEl.classList.toggle('hidden', visibleCount > 0 || entries.length === 0);
+  ensureVisibleSelection();
   if (pluginsResultsCountEl) {
     pluginsResultsCountEl.textContent = visibleCount === entries.length
       ? ''

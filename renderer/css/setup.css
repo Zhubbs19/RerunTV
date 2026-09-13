@@ -4941,3 +4941,16 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .backup-list-item.selected { border-color: var(--gold); background: rgba(var(--gold-rgb), 0.12); }
 #setup-screen .backup-detail { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--gradient-panel); }
 #setup-screen .backup-preview { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--paper-dim); line-height: 1.4; }
+
+/* Plugins: compact rows beside the selected plugin's detail + settings. */
+#setup-screen .plugins-list-detail { grid-template-columns: minmax(280px, 400px) minmax(0, 1fr); margin-top: 6px; }
+#setup-screen .plugins-list-detail .plugins-list { grid-template-columns: 1fr; gap: 6px; margin-top: 0; }
+#setup-screen .plugins-list .plugin-entry .plugin-row { height: auto; padding: 8px 10px; gap: 10px; cursor: pointer; }
+#setup-screen .plugins-list .plugin-entry.selected .plugin-row { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+#setup-screen .plugins-list .plugin-entry.selected .plugin-row.pending-change { border-color: var(--cyan); }
+#setup-screen .plugins-list .plugin-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#setup-screen .plugin-detail { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; margin: 0; }
+#setup-screen .plugin-detail .plugin-row-details { max-height: none; opacity: 1; overflow: visible; }
+#setup-screen .plugin-detail-heading .plugin-row-name { font-size: 16px; }
+#setup-screen .plugin-detail-section-title { font-family: var(--font-ui); font-weight: 700; font-size: 12px; letter-spacing: 0.08em; color: var(--gold); margin-top: 6px; }
+#setup-screen .plugin-detail .plugin-settings-panel { margin-top: 0; }

@@ -1283,9 +1283,16 @@
                 <span id="plugins-save-status" class="plugins-save-status" role="status" aria-live="polite"></span>
                 <button id="plugins-save-btn" class="btn btn-primary hidden">SAVE CHANGES</button>
               </div>
-              <div id="plugins-list" class="plugins-list"></div>
-              <div id="plugins-empty" class="plugins-empty hidden">NO PLUGINS INSTALLED YET.</div>
-              <div id="plugins-filter-empty" class="plugins-empty hidden">NO PLUGINS MATCH YOUR FILTER.</div>
+              <!-- List + detail (docs/design/03 §5.3): plugins on the left, the
+                   selected one's permissions, actions and settings on the right. -->
+              <div class="list-detail plugins-list-detail">
+                <div class="list-detail-list">
+                  <div id="plugins-list" class="plugins-list" role="listbox" aria-label="Installed plugins"></div>
+                  <div id="plugins-empty" class="plugins-empty hidden">NO PLUGINS INSTALLED YET.</div>
+                  <div id="plugins-filter-empty" class="plugins-empty hidden">NO PLUGINS MATCH YOUR FILTER.</div>
+                </div>
+                <div id="plugins-detail" class="list-detail-detail plugins-detail"></div>
+              </div>
             </div>
 
           </div>
