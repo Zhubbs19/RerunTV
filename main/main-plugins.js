@@ -331,6 +331,8 @@ function discoverPlugins() {
         name: manifest.name || manifest.id,
         version: manifest.version || '0.0.0',
         description: manifest.description || '',
+        // Optional one-line version of description for the plugin list.
+        summary: typeof manifest.summary === 'string' ? manifest.summary : '',
         // Optional grouping hint for the PLUGINS tab UI — one of
         // 'channel'/'onscreen'/'system'. Purely cosmetic (no behavior keys
         // off it), so an unset or unrecognized value just falls into an

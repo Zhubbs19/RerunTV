@@ -243,6 +243,16 @@ let currentPluginsForAttention = [];
 // doesn't jump back to the top of the list. Session-only UI state.
 let selectedPluginId = null;
 
+// One line for the plugin list (docs/design/03 §5.5): the manifest's summary,
+// else the description's first sentence, capped. The full description stays
+// in the detail pane.
+export function pluginSummary(p) {
+  const source = (p.summary || p.description || '').trim();
+  if (!source) return '';
+  const first = p.summary ? source : source.split(/(?<=[.!?])\s+(?=[A-Z])|\s+—\s+/)[0];
+  return first.length > 110 ? `${first.slice(0, 107).trimEnd()}…` : first;
+}
+
 function pluginEntries() {
   return Array.from(pluginsListEl.querySelectorAll('.plugin-entry'));
 }
@@ -497,9 +507,32 @@ export async function renderPluginsList() {
     const detailHeading = nameLine.cloneNode(true);
     detailHeading.classList.add('plugin-detail-heading');
     detail.appendChild(detailHeading);
+    const summaryText = p.error ? '' : pluginSummary(p);
+    if (summaryText) {
+      const summaryEl = document.createElement('div');
+      summaryEl.className = 'plugin-row-summary';
+      summaryEl.textContent = summaryText;
+      summaryEl.title = p.description || summaryText;
+      info.appendChild(summaryEl);
+    }
 
     const detailsTarget = document.createElement('div');
     detailsTarget.className = 'plugin-row-details';
+    // Developer-facing facts (how it was verified, which entry points it has,
+    // its id and folder) sit behind a Details disclosure (docs/design/03 §5.5).
+    const devDetails = document.createElement('details');
+    devDetails.className = 'plugin-dev-details';
+    const devSummary = document.createElement('summary');
+    devSummary.textContent = 'DETAILS';
+    const devBody = document.createElement('div');
+    devBody.className = 'plugin-dev-details-body';
+    devDetails.append(devSummary, devBody);
+    if (!p.error) {
+      const idLine = document.createElement('div');
+      idLine.className = 'plugin-row-approved';
+      idLine.textContent = `ID ${p.id} · FOLDER ${p.dir} · VERSION ${p.version}`;
+      devBody.appendChild(idLine);
+    }
 
     if (p.error) {
       const err = document.createElement('div');
@@ -540,7 +573,7 @@ export async function renderPluginsList() {
           : p.bundled
             ? 'Locally modified built-in files match the trusted SHA-256 record.'
             : 'Installed files match the trusted SHA-256 record.';
-        detailsTarget.appendChild(integrity);
+        devBody.appendChild(integrity);
       }
       // Declared capabilities.ipc/spawn/net that don't match what's in
       // config.plugins.approvedCapabilities yet (a first install, or an
@@ -593,7 +626,7 @@ export async function renderPluginsList() {
       if (p.renderer) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'UI — FULL RENDERER ACCESS'; kinds.appendChild(k); }
       if (p.settings) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SETTINGS'; kinds.appendChild(k); }
       if (p.main) { const k = document.createElement('span'); k.className = 'plugin-row-kind'; k.textContent = 'SYSTEM'; kinds.appendChild(k); }
-      if (kinds.children.length) detailsTarget.appendChild(kinds);
+      if (kinds.children.length) devBody.appendChild(kinds);
 
       // Surfaces manifest `dependsOn` right on the row — previously only
       // enforced (via the disable-confirm above), never actually shown, so
@@ -623,6 +656,7 @@ export async function renderPluginsList() {
         });
         detailsTarget.appendChild(deps);
       }
+      detailsTarget.appendChild(devDetails);
       detail.appendChild(detailsTarget);
     }
 

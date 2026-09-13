@@ -1297,13 +1297,14 @@
           <div class="settings-grid">
             <div class="panel span-full">
               <label class="panel-toggle" style="cursor:default">🧩 INSTALLED PLUGINS</label>
-              <span class="panel-status">
-                Drop a plugin folder (with a manifest.json) into the plugins folder, then RESCAN — or use INSTALL FROM ZIP. Many plugins
-                run fully isolated in their own process, restricted by the operating system to exactly what they declared and approved
-                below; a few simpler ones still share the app's own process instead. Either way, only install plugins you trust the
-                source of. Enabling/disabling and newly added plugins take effect on next restart — a bundled plugin removed in a later
-                app update cleans up its own leftover install automatically, no action needed from you.
-              </span>
+              <span class="panel-status">Plugins add channels, themes and on-screen features. Turning one on or off, or adding one, takes effect after a restart. Only install plugins from sources you trust.</span>
+              <details class="setup-details">
+                <summary>DETAILS</summary>
+                <p>Drop a plugin folder (with a manifest.json) into the plugins folder, then RESCAN, or use INSTALL FROM ZIP. Many plugins
+                run isolated in their own process, restricted by the operating system to exactly what they declared and you approved;
+                a few simpler ones share the app's own process. A bundled plugin removed in a later app update cleans up its own
+                leftover install automatically.</p>
+              </details>
               <div class="plugins-toolbar">
                 <input type="text" id="plugins-filter-input" class="titles-search" placeholder="FILTER PLUGINS…">
                 <select id="plugins-state-filter" class="plugins-state-filter" aria-label="Filter plugins by status">

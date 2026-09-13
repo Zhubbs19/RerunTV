@@ -3,6 +3,15 @@
 Status: **migration steps 1–5 built** (§8), plus the §3 sections. The rest of the end
 state (§4–§7 details) is being built piece by piece below.
 
+### Built (§5.5 copy: summaries and Details)
+
+- Plugin rows show a one-line summary: the manifest's new optional `summary`, else the
+  description's first sentence (capped). The full description stays on the plugin's page.
+- A plugin's id, folder, version, integrity record and entry points sit behind a DETAILS
+  disclosure; permissions, errors and dependencies stay visible.
+- `.setup-details` is the shared disclosure for the technical half of a card's help. The
+  Installed Plugins intro is the first user: one plain sentence, the rest behind DETAILS.
+
 ### Built (§4 channel multi-select)
 
 SELECT CHANNELS and its row checkboxes are gone. In the lineup list (`setup-channels.js`):

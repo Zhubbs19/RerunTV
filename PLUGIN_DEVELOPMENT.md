@@ -117,7 +117,8 @@ make that call.
 | `id` | yes | A stable, unique, lowercase-hyphenated string. This is your plugin's install-folder name, its `registerChannelType`/`registerSettingsPanel` key, and how other plugins refer to you in `dependsOn`. Don't change it after release — it's how the app recognizes an update vs. a reinstall. |
 | `name` | no | Human-readable, shown in the PLUGINS tab. Falls back to `id`. |
 | `version` | no | Free-form string, shown next to the name. Not currently used for update checks. |
-| `description` | no | One sentence, shown in the PLUGINS tab. |
+| `description` | no | What the plugin does, shown in full on its page in Plug-ins. |
+| `summary` | no | One short line for the plugin list (under ~100 characters). Without it the list shows the description's first sentence. |
 | `category` | no | One of `"channel"` (registers a real channel number), `"theme"` (a `registerThemePack` entry — see below), `"onscreen"` (an overlay/effect, not tuned to), or `"system"` (background service, remote control, integration — no on-screen presence of its own). Purely a grouping hint for the PLUGINS tab's category tabs — omit or use anything else and your plugin just lands in an "OTHER" tab, nothing breaks. |
 | `style` | no | Path to a CSS file, loaded globally (as a real `<link>`) whenever the plugin is enabled. Omit if you have no CSS of your own. |
 | `renderer` | no | Path to the runtime JS entry point loaded as an ES module in the renderer process. This is where channel, theme, overlay, and other runtime registrations normally go. Omit for a settings-only or main-process-only plugin. |
