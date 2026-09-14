@@ -26,7 +26,7 @@
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled',
-    'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
+    'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',

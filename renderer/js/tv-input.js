@@ -589,6 +589,10 @@ export function installTvInput({ handleKey }) {
   });
   if (isTvMode()) onPointerMove();
   applyKnownRemoteKeys();
+  // HDMI-CEC (--cec, main-cec.js): the TV's own remote, through HDMI.
+  if (window.api && typeof window.api.onCecKey === 'function') {
+    window.api.onCecKey((press) => { if (press && press.key) nativeInput({ source: 'cec', key: press.key, code: press.code }); });
+  }
   window.RerunTVInput = Object.freeze({
     // 2: the client posts raw Android KeyEvent codes ({ source: 'android',
     // keyCode, action, repeatCount, longPress }) and this side normalizes.

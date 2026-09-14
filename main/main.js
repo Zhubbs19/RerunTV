@@ -100,6 +100,7 @@ const { initAutoUpdater, registerThemeIpc, getLatestThemeList } = require('./mai
 // ffmpeg-static's path has to be resolved here and handed over too).
 const busboy = require('busboy');
 const QRCode = require('qrcode');
+const { startCecHelper } = require('./main-cec');
 
 // The renderer is served over a custom app:// scheme rather than file://
 // because Chromium refuses to load ES modules from a file:// origin. That
@@ -518,6 +519,15 @@ app.whenReady().then(async () => {
 
   createWindow();
   interactiveBootInProgress = false;
+  // HDMI-CEC for a mini-PC under a TV (docs/design/01 Phase E): opt-in with
+  // --cec, needs libcec's cec-client installed. Presses go to whichever window
+  // is current, as remote keys (main-cec.js).
+  if (app.commandLine.hasSwitch('cec')) {
+    startCecHelper({
+      onKey: (press) => { const win = getMainWindow(); if (win && !win.isDestroyed()) win.webContents.send('cec:key', press); },
+      onError: (e) => console.warn('[cec] cec-client unavailable:', e.message),
+    });
+  }
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

@@ -122,6 +122,8 @@ contextBridge.exposeInMainWorld('api', {
   // renderer's hint-bar-hiding stays correct even when fullscreen is
   // triggered by an OS-level control instead of the app's own shortcut.
   onFullscreenChange: (cb) => ipcRenderer.on('window:fullscreenChanged', (event, isFullscreen) => cb(isFullscreen)),
+  // HDMI-CEC remote presses from main-cec.js (launched with --cec).
+  onCecKey: (cb) => ipcRenderer.on('cec:key', (event, press) => cb(press)),
   // Companion app (phone-browser remote + Android app; remote control,
   // Settings, Files, all one plugin/port now — see plugins/companion-app/
   // main.js). onRemoteCommand fires for every button press relayed from the

@@ -1,7 +1,7 @@
 # 01 — Usage modes: Desktop and TV
 
 Status: **Phases A and B built** (B's APK compiles; it has not been installed on the reference
-TV yet — the owner does that). Phases C and D built; E in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+TV yet — the owner does that). Phases C, D and E built. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
 plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 
 ### Built (Phase A, and the JS side of Phase B)
@@ -59,6 +59,24 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - **Learn mode** (TV menu › CUSTOMIZE BUTTONS): pick an action, press a button, done; reset clears.
 - **Back exits at once** (§12 risk): a per-device option in the TV menu; Back then leaves (or drops
   to standby where the client can't close itself) instead of asking.
+
+### Built (Phase E, 2026-09-14) — unit-tested, not verified on hardware
+
+- **Game controllers** (`gamepad.js`): the Gamepad API standard mapping — A=OK, B/Select=Back, X=Info,
+  Y=Guide, LB/RB=CH−/CH+, LT/RT=rewind/fast-forward, Start=TV menu, D-pad and left stick with a 0.5
+  deadzone and repeat (400 ms delay, 120 ms rate). TV mode posts them through `RerunTVInput.native`
+  (`source: 'gamepad'`, so learn mode can remap a button); desktop mode turns them into the keys the
+  keyboard handler knows (§8 remote-in-desktop). Android TV controllers arrive as `KEYCODE_BUTTON_*`
+  and `ANDROID_KEYCODES` maps them the same way.
+- **Samsung Tizen / LG webOS** (`tv-platform.js`): on Tizen, registers every key RerunTV understands that
+  `tvinputdevice.getSupportedKeys()` offers; webOS needs no registration (its keyCodes were already
+  normalized). On both, the page going hidden puts RerunTV in standby and coming back wakes it. Not
+  packaged as a hosted app yet (§9 "later").
+- **HDMI-CEC on an Electron mini-PC** (`main/main-cec.js`): launch with `--cec` and, if libcec's
+  `cec-client` is installed, TV-remote presses arriving over HDMI become remote keys (`cec:key` IPC →
+  `window.api.onCecKey`, host-only → `RerunTVInput.native({ source: 'cec' })`). A missing
+  `cec-client` logs once and changes nothing. Most PC HDMI ports can't do CEC without an adapter.
+- The kiosk flag already existed (`--mode=tv --kiosk`).
 
 ### Built (Phase D, 2026-09-14)
 
@@ -148,7 +166,7 @@ Verified:
 Not built yet:
 - ~~the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C)~~ built;
 - ~~TV setup and QR handoff (Phase D)~~ built (deep links wait for doc 06);
-- gamepad, CEC, Tizen/webOS packaging (Phase E);
+- ~~gamepad, CEC, Tizen/webOS (Phase E)~~ built, unit-tested only; hosted-app packaging for Tizen/webOS not done;
 - ~~learn mode and observed-profile hints (§5.2)~~ built;
 - ~~the "Switch to TV mode?" suggestion heuristic~~ built.
 

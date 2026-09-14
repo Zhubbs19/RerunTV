@@ -49,6 +49,8 @@ import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
 import { initUsageMode, isTvMode } from './usage-mode.js';
 import { installTvSuggestion } from './tv-suggest.js';
 import { showTvWizard } from './tv-wizard.js';
+import { installGamepad } from './gamepad.js';
+import { installTvPlatform } from './tv-platform.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
@@ -445,6 +447,13 @@ window.addEventListener('keydown', (e) => {
 installTvInput({ handleKey });
 // Never switches on its own — it only offers (docs/design/01 §4).
 installTvSuggestion(() => document.documentElement.dataset.mode || 'desktop');
+// Phase E platforms (docs/design/01): game controllers anywhere, and a
+// Samsung/LG TV browser's key registration and standby-on-hide.
+installGamepad({ isTvMode });
+installTvPlatform(window, document, {
+  standby: () => { if (S.isPoweredOn) powerOff(); },
+  wake: () => { if (!S.isPoweredOn) powerOn(); },
+});
 // An explicit route back to live TV for remote clients. Escape remains a
 // context-sensitive "back" key inside Setup, so overloading it as an exit
 // would make text fields, dialogs, and nested setup panels unpredictable.
