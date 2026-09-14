@@ -586,6 +586,15 @@ window.RCBPlugins.registerChannelType('my-plugin', {
     // it (e.g. arrow-key game controls), false/undefined to let normal key
     // handling continue.
   },
+  onAction(action, ctx) {
+    // optional (ctx v5) — in TV mode, remote buttons arrive here as actions
+    // instead of keys: 'move.up', 'move.down', 'move.left', 'move.right',
+    // 'select', 'back', 'info'. Return true if you handled it; otherwise core
+    // does what it would have (▲▼ change channel, Back asks to leave). The
+    // simplest adoption forwards to your existing onKey:
+    //   const key = ctx.input.keyForAction(action); return key ? this.onKey(key, ctx) : false;
+    // onKey keeps working everywhere; desktop mode never calls onAction.
+  },
   viewerLink: {
     // optional — offer a "watch live" link on the LAN viewer page whenever
     // this channel is the one actually live (installed, enabled, not
@@ -1023,7 +1032,11 @@ power state), `'draw-test-pattern'` (fired instead of the plain no-signal
 card, for an unconfigured channel number), `'guide-channel-cell'` (fired as
 each programme-guide row is built, with `{ channel, cell }`, so a plugin can
 decorate that channel's cell — append to `cell` and core neither knows nor
-cares what you added).
+cares what you added), `'guide-program-actions'` (fired when someone holds OK
+on a program in the guide, with `{ channel, entry, actions }` — push
+`{ label, run }` onto `actions` to add an item to that program's actions menu;
+`entry` is a schedule entry `{ file, start, end }`, and `run` is called after
+the menu closes. `plugins/tape-deck/renderer.js` adds RECORD this way).
 
 One thing to know about `'guide-channel-cell'`: the guide does NOT rebuild
 its rows on its 30-second tick (see the render-signature fast path in

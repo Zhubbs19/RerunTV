@@ -7,7 +7,7 @@ import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from '
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
-import { getUsageModePreference, onUsageModeChange, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
+import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from './ui/setting-row.js';
 import { searchActions } from './setup-command-palette.js';
 import { searchUpcomingPrograms } from './program-search.js';
@@ -347,6 +347,12 @@ export function renderSettingsPanels() {
   guideOpenCloseAnimEnabledEl.checked = !!S.config.display.guideOpenCloseAnim;
   guideAnimSpeedSlider.value = S.config.display.guideOpenCloseAnimMs || 180;
   guideLivePreviewEnabledEl.checked = effectiveGuideLivePreview();
+  const specialsTopEl = document.getElementById('guide-specials-top-enabled');
+  if (specialsTopEl) specialsTopEl.checked = !!S.config.display.guideSpecialsAtTop;
+  const channelNamesEl = document.getElementById('guide-channel-names-select');
+  if (channelNamesEl) channelNamesEl.value = S.config.display.guideChannelNames === 'short' ? 'short' : 'full';
+  const mergeShortsEl = document.getElementById('guide-merge-shorts-enabled');
+  if (mergeShortsEl) mergeShortsEl.checked = S.config.display.guideMergeShorts !== false;
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }
@@ -2015,6 +2021,11 @@ usageModeSelectEl?.addEventListener('change', () => {
   renderUsageModeSetting();
 });
 onUsageModeChange(() => renderUsageModeSetting());
+// Preview TV mode (docs/design/01 §8): session only, straight to live TV.
+document.getElementById('tv-preview-btn')?.addEventListener('click', () => {
+  setTvPreview(true);
+  window.dispatchEvent(new CustomEvent('reruntv:watch-tv'));
+});
 renderUsageModeSetting();
 
 uiScaleSelect.addEventListener('change', () => {
@@ -2103,6 +2114,21 @@ guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
 guideLivePreviewEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideLivePreview'], value: guideLivePreviewEnabledEl.checked });
   applyGuideDockMode();
+});
+// Where special (plugin) channels sit in the guide (docs/design/11 §2.1).
+const guideSpecialsTopEnabledEl = document.getElementById('guide-specials-top-enabled');
+// Full names or abbreviated call letters in the guide rail (docs/design/11 §2.2).
+const guideChannelNamesSelect = document.getElementById('guide-channel-names-select');
+guideChannelNamesSelect?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideChannelNames'], value: guideChannelNamesSelect.value === 'short' ? 'short' : 'full' });
+});
+// Runs of very short programs merged into one "Shorts & bumpers" cell.
+const guideMergeShortsEl = document.getElementById('guide-merge-shorts-enabled');
+guideMergeShortsEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideMergeShorts'], value: guideMergeShortsEl.checked });
+});
+guideSpecialsTopEnabledEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideSpecialsAtTop'], value: guideSpecialsTopEnabledEl.checked });
 });
 guideAnimSpeedSlider.addEventListener('input', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideOpenCloseAnimMs'], value: parseInt(guideAnimSpeedSlider.value, 10) }, { coalesce: 'settings:display.guideOpenCloseAnimMs' });

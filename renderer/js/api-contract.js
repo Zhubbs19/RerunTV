@@ -17,7 +17,7 @@
     'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'sendPartyJukeboxState', 'onPartyJukeboxAdd', 'onPartyJukeboxSkipVote', 'onPartyJukeboxFun',
     'videoSplicerLaunch',
-    'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'tmdbSearch', 'tmdbGetCredits',
+    'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'saveRemoteProfile', 'getHandoffInfo', 'tmdbSearch', 'tmdbGetCredits',
     'captionsScanForFile', 'captionsExtractTrack', 'noaaGetActiveAlerts', 'noaaGetForecast', 'pluginsList', 'getDiagnostics', 'exportDiagnostics',
     'pluginsOpenFolder', 'pluginsSetEnabled', 'pluginsInstallFromZip', 'pluginsApproveCapabilities',
     'pluginsRevokeCapabilities', 'pluginsApproveIntegrity', 'pluginsUninstall', 'listMediaSourceProviders',
@@ -26,7 +26,7 @@
   const hostOnlyMethods = [
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled',
-    'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange',
+    'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',

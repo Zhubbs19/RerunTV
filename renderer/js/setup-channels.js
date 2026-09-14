@@ -40,6 +40,7 @@ import { BADGE_COLORS, S, commitInPlace, dispatch, saveConfigNow, resetUndoBasel
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from './util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './setup-channel-preview.js';
 import { applyLocalFolderRelink } from './library-relink.js';
+import { CALL_LETTERS_MAX, abbreviateChannelName } from './guide-model.js';
 import {
   librarySearchToggleBtn, librarySearchPanelEl, librarySearchInputEl, librarySearchResultsEl,
   nowNextToggleBtn, nowNextPanelEl,
@@ -293,7 +294,26 @@ export function renderChannelList() {
       nameInput.type = 'text';
       nameInput.placeholder = 'CHANNEL NAME';
       nameInput.value = ch.name || '';
-      nameInput.addEventListener('input', () => { dispatch({ type: 'channel.rename', channel: ch.number, name: nameInput.value }, { coalesce: `rename:${ch.number}` }); });
+      nameInput.addEventListener('input', () => {
+        dispatch({ type: 'channel.rename', channel: ch.number, name: nameInput.value }, { coalesce: `rename:${ch.number}` });
+        callInput.placeholder = abbreviateChannelName(nameInput.value) || 'CALL';
+      });
+
+      // Call letters for the guide's abbreviated channel names (DISPLAY >
+      // Guide > Channel names). Empty means "derive them from the name", which
+      // the placeholder shows.
+      const callInput = document.createElement('input');
+      callInput.type = 'text';
+      callInput.className = 'call-letters-input';
+      callInput.maxLength = CALL_LETTERS_MAX;
+      callInput.value = ch.callLetters || '';
+      callInput.placeholder = abbreviateChannelName(ch.name) || 'CALL';
+      callInput.title = 'Call letters for the guide when channel names are abbreviated. Leave empty to use the automatic ones.';
+      callInput.setAttribute('aria-label', `CH ${ch.number} call letters`);
+      callInput.addEventListener('input', () => {
+        const value = callInput.value.trim().toUpperCase();
+        dispatch({ type: 'channel.set', channel: ch.number, field: 'callLetters', value: value || undefined }, { coalesce: `callLetters:${ch.number}` });
+      });
 
       const folderBtn = buildChooseSourceControl(ch);
 
@@ -925,6 +945,7 @@ export function renderChannelList() {
       row.appendChild(badge);
       row.appendChild(numInput);
       row.appendChild(nameInput);
+      row.appendChild(callInput);
       row.appendChild(status);
       if (nowLine) row.appendChild(nowLine);
       row.appendChild(actions);

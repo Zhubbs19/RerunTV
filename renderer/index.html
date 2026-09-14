@@ -771,6 +771,24 @@
               </select></div>
               <p class="setting-row-help">How many half-hour columns the guide shows.</p>
             </div>
+            <div class="setting-row" data-setting="guide-channel-names" data-synonyms="channel names call letters abbreviate abbreviation short names station letters retro">
+              <label class="setting-row-label" for="guide-channel-names-select">Channel names</label>
+              <div class="setting-row-control"><select id="guide-channel-names-select">
+                <option value="full">Full names</option>
+                <option value="short">Abbreviated call letters</option>
+              </select></div>
+              <p class="setting-row-help">Show each channel's call letters in the guide, like "TMC", instead of its full name.</p>
+            </div>
+            <div class="setting-row" data-setting="guide-merge-shorts" data-synonyms="bumpers shorts short programs merge group cartoons clutter">
+              <label class="setting-row-label" for="guide-merge-shorts-enabled">Group shorts and bumpers</label>
+              <div class="setting-row-control"><input type="checkbox" id="guide-merge-shorts-enabled" checked></div>
+              <p class="setting-row-help">Show a run of very short programs as one cell you can open.</p>
+            </div>
+            <div class="setting-row" data-setting="guide-specials-top" data-synonyms="special channels plugin channels virtual pinned order">
+              <label class="setting-row-label" for="guide-specials-top-enabled">Special channels at the top</label>
+              <div class="setting-row-control"><input type="checkbox" id="guide-specials-top-enabled"></div>
+              <p class="setting-row-help">List plugin channels above the lineup instead of in number order.</p>
+            </div>
             <div class="setting-row" data-setting="guide-live-preview" data-synonyms="picture in picture pip preview">
               <label class="setting-row-label" for="guide-live-preview-enabled">Live picture in the full guide</label>
               <div class="setting-row-control"><input type="checkbox" id="guide-live-preview-enabled" checked></div>
@@ -971,6 +989,11 @@
                 <option value="tv">TV (REMOTE)</option>
               </select></div>
               <p class="setting-row-help" id="usage-mode-status"></p>
+            </div>
+            <div class="setting-row" data-setting="tv-preview" data-synonyms="preview tv mode try tv layout remote test couch">
+              <label class="setting-row-label" for="tv-preview-btn">Preview TV mode</label>
+              <div class="setting-row-control"><button type="button" class="btn" id="tv-preview-btn">PREVIEW</button></div>
+              <p class="setting-row-help">Try the TV layout here for this session without changing this device. End it from TV menu › System.</p>
             </div>
             <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
               <label class="setting-row-label" for="ui-scale-select">Interface size</label>
@@ -1724,7 +1747,10 @@
              remote buttons only, never letters a remote doesn't have. -->
         <span data-hint-mode="tv" data-hint-key="tv-channel">&#9650;&#9660; CHANNEL</span>
         <span data-hint-mode="tv" data-hint-key="tv-guide">&#9664; GUIDE</span>
-        <span data-hint-mode="tv" data-hint-key="tv-banner">&#9654; NOW PLAYING</span>
+        <span data-hint-mode="tv" data-hint-key="tv-banner">OK: BROWSE CHANNELS</span>
+        <!-- Only once this remote has sent the button (remote-profile.js). -->
+        <span data-hint-mode="tv" data-hint-key="tv-guide-button" data-hint-requires="guide">&#9679; GUIDE</span>
+        <span data-hint-mode="tv" data-hint-key="tv-info-button" data-hint-requires="info">&#9679; INFO</span>
         <span data-hint-mode="tv" data-hint-key="tv-menu-hold">HOLD OK: MENU</span>
         <span data-hint-mode="tv" data-hint-key="tv-back">BACK: EXIT</span>
       </div>
@@ -1813,6 +1839,12 @@
         <span>D DOCK / FULL PAGE</span>
         <span>B SHOW BREAKS</span>
         <span>G / ESC CLOSE</span>
+        <span data-hint-mode="tv">OK TUNE</span>
+        <span data-hint-mode="tv">HOLD OK: OPTIONS</span>
+        <span data-hint-mode="tv">CH &#9650;&#9660; PAGE</span>
+        <span data-hint-mode="tv" data-hint-requires="colour">RED/GREEN &minus;/+ DAY &middot; YELLOW FILTER &middot; BLUE REMINDERS</span>
+        <span data-hint-mode="tv">MENU: DOCK &middot; BREAKS &middot; SEARCH</span>
+        <span data-hint-mode="tv">BACK CLOSE</span>
       </div>
     </div>
 
@@ -1882,7 +1914,7 @@
       </div>
       <div class="vcr-time" id="vcr-time">--:--</div>
       <div class="vcr-prog" id="vcr-prog"></div>
-      <div class="vcr-hint">&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; T PLAY/CLOSE &nbsp; L LIVE &nbsp; ESC CLOSE</div>
+      <div class="vcr-hint"><span>&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; CLICK STRIP TO MOVE &nbsp; T/ENTER PLAY &nbsp; L LIVE &nbsp; ESC CLOSE</span><span data-hint-mode="tv">&#9664;&#9654; STEP (HOLD FASTER) &nbsp; &#9650;&#9660; SHOWS &nbsp; OK PLAY &nbsp; BACK LIVE</span></div>
     </div>
 
     <!-- Pre-end "up next" promo banner -->

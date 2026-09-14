@@ -504,6 +504,8 @@
 }
 
 .channel-row input[type="number"] { text-align: center; font-variant-numeric: tabular-nums; }
+/* Call letters (guide abbreviated names): six characters at most. */
+.channel-row input.call-letters-input { width: 9ch; flex: 0 0 auto; text-transform: uppercase; letter-spacing: 1px; }
 
 .channel-row .folder-btn {
   white-space: nowrap;
@@ -4370,18 +4372,13 @@ html[data-theme] .btn[aria-disabled="true"] {
 @container (max-width: 44px) {
   .onair-program-label { visibility: hidden; }
 }
+/* Colour comes from the shared .tl-break-* palette (guide.css). */
 .onair-break {
   position: absolute;
   bottom: 3px;
   height: 5px;
-  border-radius: 1px;
-  background: var(--accent-pod);
   pointer-events: auto;
 }
-.onair-break-channelId,
-.onair-break-localAvail { background: var(--accent-stationid); }
-.onair-break-upNext,
-.onair-break-promo { background: var(--cyan); }
 .onair-offair {
   position: absolute;
   top: 4px;

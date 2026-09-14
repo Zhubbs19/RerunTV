@@ -122,6 +122,8 @@ contextBridge.exposeInMainWorld('api', {
   // renderer's hint-bar-hiding stays correct even when fullscreen is
   // triggered by an OS-level control instead of the app's own shortcut.
   onFullscreenChange: (cb) => ipcRenderer.on('window:fullscreenChanged', (event, isFullscreen) => cb(isFullscreen)),
+  // HDMI-CEC remote presses from main-cec.js (launched with --cec).
+  onCecKey: (cb) => ipcRenderer.on('cec:key', (event, press) => cb(press)),
   // Companion app (phone-browser remote + Android app; remote control,
   // Settings, Files, all one plugin/port now — see plugins/companion-app/
   // main.js). onRemoteCommand fires for every button press relayed from the
@@ -199,6 +201,10 @@ contextBridge.exposeInMainWorld('api', {
   // viewer page itself is a separate, independent load of this same
   // renderer bundle served over HTTP, not driven through this bridge.
   getViewerUrl: () => ipcRenderer.invoke('viewer:getUrl'),
+  // TV clients (docs/design/01): save a Remote-test capture on the host, and
+  // the phone/computer handoff URL + QR.
+  saveRemoteProfile: (profile) => ipcRenderer.invoke('tvClient:saveRemoteProfile', profile),
+  getHandoffInfo: (opts) => ipcRenderer.invoke('tvClient:getHandoffInfo', opts),
   // TMDB metadata lookup (a plugin's own TITLES-tab match action, see
   // plugins/tmdb-metadata) — handled by that plugin's own main.js, not core.
   tmdbSearch: (opts) => ipcRenderer.invoke('tmdb:search', opts),

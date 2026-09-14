@@ -46,7 +46,11 @@ import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
-import { initUsageMode } from './usage-mode.js';
+import { initUsageMode, isTvMode } from './usage-mode.js';
+import { installTvSuggestion } from './tv-suggest.js';
+import { showTvWizard } from './tv-wizard.js';
+import { installGamepad } from './gamepad.js';
+import { installTvPlatform } from './tv-platform.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
@@ -316,7 +320,7 @@ export function handleKey(e) {
       // since shuttlePlay() with no active shuttle just re-commits the
       // same position and leaves S.timeMachineOn untouched.
       if (!S.timeMachineOn) enterTimeMachine();
-      else if (S.shuttleDir !== 0) shuttlePlay();
+      else if (S.shuttleDir !== 0 || S.scrubPending) shuttlePlay();
       else exitTimeMachine();
       break;
     case 'l':
@@ -326,7 +330,7 @@ export function handleKey(e) {
     case ' ':
     case 'Enter':
       if (triggerVirtualChannelOk(S.currentNumber)) { /* handled by a plugin channel's own onOk */ }
-      else if (S.timeMachineOn && S.shuttleDir !== 0) shuttlePlay();
+      else if (S.timeMachineOn && (S.shuttleDir !== 0 || S.scrubPending)) shuttlePlay();
       else if (S.entryBuffer) commitEntry();
       else {
         const ch = getChannel(S.currentNumber);
@@ -441,6 +445,15 @@ window.addEventListener('keydown', (e) => {
   handleKey(e);
 });
 installTvInput({ handleKey });
+// Never switches on its own — it only offers (docs/design/01 §4).
+installTvSuggestion(() => document.documentElement.dataset.mode || 'desktop');
+// Phase E platforms (docs/design/01): game controllers anywhere, and a
+// Samsung/LG TV browser's key registration and standby-on-hide.
+installGamepad({ isTvMode });
+installTvPlatform(window, document, {
+  standby: () => { if (S.isPoweredOn) powerOff(); },
+  wake: () => { if (!S.isPoweredOn) powerOn(); },
+});
 // An explicit route back to live TV for remote clients. Escape remains a
 // context-sensitive "back" key inside Setup, so overloading it as an exit
 // would make text fields, dialogs, and nested setup panels unpredictable.
@@ -747,7 +760,7 @@ if (pinKeypad) {
 
 guideSearchEl.addEventListener('input', () => {
   S.guideFilterQuery = guideSearchEl.value;
-  S.guideSelRowIdx = 0;
+  S.guideSelNumber = null; // first matching row
   renderGuideGrid();
 });
 
@@ -1267,6 +1280,24 @@ async function init() {
     initViewerAudioUnlock();
     initTouchControls();
     initViewerLiveLink();
+  } else if (S.config.channels.length === 0 && isTvMode()) {
+    // First run on a TV (docs/design/01 §6.5): a remote-driven wizard on the
+    // TV screen instead of the desktop onboarding and setup screen.
+    await showTvScreen();
+    const wizard = await showTvWizard({
+      updateStrategy: S.config.updates.strategy,
+      addFolderChannel: window.api && window.api.selectFolder ? async () => {
+        const folder = await window.api.selectFolder();
+        if (!folder) return null;
+        const { createChannelFromFolder } = await import('./setup-channels.js');
+        return createChannelFromFolder(folder);
+      } : null,
+    });
+    S.config.updates.strategy = wizard.updateStrategy;
+    await saveConfigNow();
+    resetUndoBaseline();
+    const first = S.config.channels.slice().sort((x, y) => x.number - y.number)[0];
+    if (first) tuneToChannel(first.number);
   } else if (S.config.channels.length === 0) {
     if (isFirstRun) {
       const onboarding = await showOnboarding({ updateStrategy: S.config.updates.strategy });

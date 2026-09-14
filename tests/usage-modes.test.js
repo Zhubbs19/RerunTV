@@ -41,7 +41,8 @@ test('the same button means different things per context, and D-pad differs from
   assert.equal(routeRemoteKey('watching', 'up'), 'key:ArrowUp');
   assert.equal(routeRemoteKey('watching', 'chUp'), 'key:ArrowUp');
   assert.equal(routeRemoteKey('watching', 'left'), 'guide.open');
-  assert.equal(routeRemoteKey('watching', 'ok'), 'key:Enter');
+  assert.equal(routeRemoteKey('watching', 'ok'), 'banner.open', 'OK opens the banner hub (doc 01 §6.1)');
+  assert.equal(routeRemoteKey('watching', 'right'), 'banner.open');
   assert.equal(routeRemoteKey('watching', 'ok', { longPress: true }), 'menu.open');
   assert.equal(routeRemoteKey('watching', 'back'), 'exit.prompt');
   assert.equal(routeRemoteKey('watching', 'digit4'), 'key:4');
@@ -49,9 +50,15 @@ test('the same button means different things per context, and D-pad differs from
   assert.equal(routeRemoteKey('guide', 'chUp'), 'guide.pageUp');
   assert.equal(routeRemoteKey('guide', 'back'), 'key:Escape');
   assert.equal(routeRemoteKey('guide', 'digit4'), null);
-  assert.equal(routeRemoteKey('timeMachine', 'left'), 'key:ArrowLeft', 'the time machine keeps ◀▶ for shuttling');
+  assert.equal(routeRemoteKey('timeMachine', 'left'), 'scrub.back', 'the time machine steps the scrubber with ◀▶ (doc 11 §3.1)');
+  assert.equal(routeRemoteKey('timeMachine', 'up'), 'scrub.prevProgram');
+  assert.equal(routeRemoteKey('timeMachine', 'down'), 'scrub.nextProgram');
+  assert.equal(routeRemoteKey('timeMachine', 'rewind'), 'key:ArrowLeft', 'rewind still shuttles');
+  assert.equal(routeRemoteKey('timeMachine', 'chUp'), 'key:ArrowUp', 'CH± still changes channel');
+  assert.equal(routeRemoteKey('timeMachine', 'ok'), 'key:Enter');
+  assert.equal(routeRemoteKey('timeMachine', 'back'), 'key:Escape');
   assert.equal(routeRemoteKey('menu', 'playPause'), 'key:Escape');
-  assert.equal(routeRemoteKey('dialog', 'right'), 'focus.next');
+  assert.equal(routeRemoteKey('dialog', 'right'), 'focus.right');
   assert.equal(routeRemoteKey('text', 'left'), null, 'a text field keeps its arrows');
   assert.equal(routeRemoteKey('text', 'back'), 'key:Escape');
   assert.equal(hasLongPress('watching', 'ok'), true);
@@ -66,7 +73,12 @@ test('D-pad + OK + Back reach the guide, the TV menu and a way out from live TV'
     reached.add(routeRemoteKey('watching', key));
     reached.add(routeRemoteKey('watching', key, { longPress: true }));
   });
-  ['guide.open', 'menu.open', 'exit.prompt', 'key:ArrowUp', 'key:Enter'].forEach((action) => assert.ok(reached.has(action), action));
+  ['guide.open', 'menu.open', 'exit.prompt', 'key:ArrowUp', 'banner.open'].forEach((action) => assert.ok(reached.has(action), action));
+  // From the banner hub, D-pad alone browses channels, tunes and reaches a
+  // programme's actions; Back gets out.
+  const fromBanner = minimal.map((key) => routeRemoteKey('banner', key));
+  ['banner.key.left', 'banner.key.right', 'banner.key.ok', 'banner.key.down', 'banner.key.back'].forEach((action) => assert.ok(fromBanner.includes(action), action));
+  assert.equal(routeRemoteKey('banner', 'chUp'), 'key:ArrowUp', 'the CH rocker still changes channel');
 });
 
 test('long press fires once past the threshold; a quick release is short', async () => {
@@ -83,4 +95,29 @@ test('long press fires once past the threshold; a quick release is short', async
   t.press('ok', 2000);
   assert.equal(t.release('ok', 2600), 'long-late', 'held long but the timer never ran');
   assert.equal(t.release('ok', 2700), null);
+});
+
+test('guide actions follow doc 11 §2.3: hold OK for program actions, colour keys step a day', async () => {
+  const { routeRemoteKey, hasLongPress, optionalGroupOf } = await load('remote-input.js');
+  assert.equal(routeRemoteKey('guide', 'ok'), 'key:Enter', 'a short OK still tunes');
+  assert.equal(routeRemoteKey('guide', 'ok', { longPress: true }), 'guide.programActions');
+  assert.equal(hasLongPress('guide', 'ok'), true);
+  assert.equal(routeRemoteKey('guide', 'red'), 'guide.dayBack');
+  assert.equal(routeRemoteKey('guide', 'green'), 'guide.dayForward');
+  assert.equal(routeRemoteKey('guide', 'info'), 'key:i');
+  assert.equal(routeRemoteKey('guide', 'chDown'), 'guide.pageDown');
+  assert.equal(routeRemoteKey('guide', 'playPause'), 'menu.toggle', 'the TV menu holds dock, breaks and search');
+  assert.equal(optionalGroupOf('blue'), 'colour');
+  assert.equal(optionalGroupOf('ok'), null);
+});
+
+test('plugin channels get actions, which map back to the keys onKey knows (doc 01 §6.6)', async () => {
+  const { pluginActionFor, keyForAction, PLUGIN_CHANNEL_ACTIONS } = await load('remote-input.js');
+  assert.equal(pluginActionFor('up'), 'move.up');
+  assert.equal(pluginActionFor('ok'), 'select');
+  assert.equal(pluginActionFor('chUp'), null, 'the CH rocker stays with core');
+  assert.equal(keyForAction('move.left'), 'ArrowLeft');
+  assert.equal(keyForAction('select'), 'Enter');
+  assert.equal(keyForAction('nope'), null);
+  Object.values(PLUGIN_CHANNEL_ACTIONS).forEach((action) => assert.ok(keyForAction(action), action));
 });

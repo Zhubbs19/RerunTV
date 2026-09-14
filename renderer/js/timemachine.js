@@ -9,7 +9,12 @@ import { playChannelLive, scheduleBlockBoundaryRetune } from './playback-core.js
 import { cancelUpNextBar, checkBreakState, renderDynamicText, resetActiveBreakState } from './playback-breaks.js';
 import { applyTvBezel, pushRemoteState } from './power.js';
 import { computeLivePosition } from './schedule.js';
-import { MONTHS, S, SHUTTLE_SPEEDS, viewNow } from './state.js';
+import { MONTHS, S, SHUTTLE_SPEEDS, WEEKDAYS, viewNow } from './state.js';
+import { querySchedule } from './schedule-query.js';
+import {
+  boundaryAfter, boundaryBefore, isFarJump, programAt, scrubStepMs, scrubWindow,
+} from './scrubber-model.js';
+import { breakMarkEl, spanPercent, timeAtFraction } from './timeline-render.js';
 import { autoHideAfter, formatClock, formatOffset, getDisplayTitle } from './util.js';
 import { isVirtualChannel, virtualChannelSupportsTimeMachine, virtualChannelTimeMachineText } from './virtual.js';
 
@@ -69,6 +74,262 @@ export function updateVcrOsd() {
     vcrProgEl.textContent = virtualChannelTimeMachineText(S.currentNumber, viewNow());
   }
   updateTimeShiftBadge();
+  renderScrubber();
+}
+
+// ---------- Scrubber strip (docs/design/11 §3.1) ----------
+// A window of ±3 h around the viewed time along the bottom of the screen:
+// programs as segments, break pods as ticks (the same marks as SCHEDULE > ON
+// AIR, timeline-render.js), a cursor at the viewed time and a LIVE marker.
+// Built from querySchedule, so it's the same pure schedule live playback and
+// the guide read; nothing is recorded.
+let scrubEl = null;
+let scrubWin = null;
+let scrubSig = '';
+let scrubPrograms = [];
+let scrubDragging = false;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text != null) node.textContent = text;
+  return node;
+}
+
+function dayClock(ms) {
+  const d = new Date(ms);
+  return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${MONTHS[d.getMonth()]} ${d.getDate()} ${formatClock(d)}`;
+}
+
+function ensureScrubber() {
+  if (scrubEl) return scrubEl;
+  scrubEl = el('div', 'tm-scrubber');
+  const labels = el('div', 'tm-scrub-labels');
+  labels.append(el('span', 'tm-scrub-from'), el('span', 'tm-scrub-at'), el('span', 'tm-scrub-to'));
+  const track = el('div', 'tm-scrub-track');
+  track.setAttribute('role', 'slider');
+  track.setAttribute('aria-label', 'Time machine position');
+  track.append(el('div', 'tm-scrub-programs'), el('div', 'tm-scrub-breaks'), el('div', 'tm-scrub-live'), el('div', 'tm-scrub-cursor'));
+  track.querySelector('.tm-scrub-live').appendChild(el('span', 'tm-scrub-live-label', 'LIVE ▶'));
+  const banner = el('div', 'tm-scrub-banner hidden');
+  scrubEl.append(labels, track, banner);
+  installScrubberPointer(track);
+  vcrOsdEl.appendChild(scrubEl);
+  return scrubEl;
+}
+
+function renderScrubber() {
+  if (!S.timeMachineOn) return;
+  const strip = ensureScrubber();
+  const viewed = viewNow();
+  // Held still while a pointer drags, so the strip doesn't slide under it.
+  if (!scrubDragging) scrubWin = scrubWindow(viewed, scrubWin);
+  const { from, to } = scrubWin;
+  const ch = getChannel(S.currentNumber);
+  const sig = [from, to, S.currentNumber, S.configGeneration].join('|');
+  if (sig !== scrubSig) {
+    scrubSig = sig;
+    const programsEl = strip.querySelector('.tm-scrub-programs');
+    const breaksEl = strip.querySelector('.tm-scrub-breaks');
+    programsEl.innerHTML = '';
+    breaksEl.innerHTML = '';
+    scrubPrograms = [];
+    if (ch) {
+      let q = null;
+      try { q = querySchedule(ch, from, to, { offAir: false }); } catch (e) { console.warn('[time machine] scrubber schedule failed', e); }
+      if (q) {
+        scrubPrograms = q.programs;
+        q.programs.forEach((p, i) => {
+          const pos = spanPercent(p.start, p.end, from, to, { minWidthPct: 0.15 });
+          if (!pos) return;
+          const seg = el('div', `tm-scrub-program${i % 2 ? ' alt' : ''}`);
+          seg.style.left = `${pos.left}%`;
+          seg.style.width = `${pos.width}%`;
+          const title = getDisplayTitle(p.file);
+          seg.title = `${formatClock(new Date(p.start))} ${title}`;
+          seg.appendChild(el('span', 'tm-scrub-program-label', title));
+          programsEl.appendChild(seg);
+        });
+        q.breaks.forEach((b) => {
+          const pos = spanPercent(b.start, b.end, from, to, { minWidthPct: 0.25 });
+          if (!pos) return;
+          const mark = breakMarkEl(b, { className: 'tm-scrub-break' });
+          mark.style.left = `${pos.left}%`;
+          mark.style.width = `${pos.width}%`;
+          breaksEl.appendChild(mark);
+        });
+      }
+    }
+    strip.querySelector('.tm-scrub-from').textContent = dayClock(from);
+    strip.querySelector('.tm-scrub-to').textContent = dayClock(to);
+  }
+
+  const pct = (ms) => ((ms - from) / (to - from)) * 100;
+  const cursor = strip.querySelector('.tm-scrub-cursor');
+  cursor.style.left = `${Math.max(0, Math.min(100, pct(viewed)))}%`;
+  // The LIVE marker is real now, deliberately Date.now() rather than
+  // viewNow(): it marks where "return to live" would land, which the viewed
+  // clock by definition isn't.
+  const liveMs = Date.now();
+  const live = strip.querySelector('.tm-scrub-live');
+  live.classList.toggle('hidden', liveMs < from || liveMs > to);
+  live.style.left = `${pct(liveMs)}%`;
+  const current = programAt(scrubPrograms, viewed);
+  const atText = current ? getDisplayTitle(current.file) : vcrProgEl.textContent;
+  strip.querySelector('.tm-scrub-at').textContent = `▲ ${formatClock(new Date(viewed))} (${formatOffset(S.timeOffsetMs)})${atText ? ` · ${atText}` : ''}`;
+  strip.querySelector('.tm-scrub-track').setAttribute('aria-valuetext', dayClock(viewed));
+}
+
+function showScrubBanner(text) {
+  const banner = ensureScrubber().querySelector('.tm-scrub-banner');
+  banner.textContent = text;
+  banner.classList.remove('hidden');
+}
+
+function hideScrubBanner() {
+  if (scrubEl) scrubEl.querySelector('.tm-scrub-banner').classList.add('hidden');
+}
+
+// Desktop pointer: click or drag anywhere on the strip to move there (paused);
+// Enter/T plays from it, like OK on a remote.
+function installScrubberPointer(track) {
+  const moveTo = (event) => {
+    if (!scrubWin) return;
+    const rect = track.getBoundingClientRect();
+    scrubToTime(timeAtFraction((event.clientX - rect.left) / rect.width, scrubWin.from, scrubWin.to));
+  };
+  track.addEventListener('pointerdown', (event) => {
+    if (!S.timeMachineOn) return;
+    scrubDragging = true;
+    try { track.setPointerCapture(event.pointerId); } catch (e) { /* not capturable */ }
+    moveTo(event);
+    event.preventDefault();
+  });
+  track.addEventListener('pointermove', (event) => { if (scrubDragging) moveTo(event); });
+  const end = () => {
+    if (!scrubDragging) return;
+    scrubDragging = false;
+    renderScrubber();
+  };
+  track.addEventListener('pointerup', end);
+  track.addEventListener('pointercancel', end);
+}
+
+// ---------- Scrubbing ----------
+// Paused-and-positioned, not shuttling: S.scrubPending says the viewed time
+// was moved and not yet committed. OK/Enter/T commit it (shuttlePlay), Back
+// returns to live. Entering it clears break tracking exactly like starting a
+// shuttle does (pauseForScrubbing).
+let scrubPreviewTimer = null;
+let holdStartedAt = 0;
+let holdDir = 0;
+let lastBoundaryStepAt = 0;
+const BOUNDARY_REPEAT_MS = 400;
+
+function queueScrubPreview() {
+  if (scrubPreviewTimer) return;
+  scrubPreviewTimer = setTimeout(() => {
+    scrubPreviewTimer = null;
+    if (S.timeMachineOn && S.scrubPending) updateShuttlePreview();
+  }, 150);
+}
+
+function beginScrub() {
+  if (!S.timeMachineOn) return false;
+  if (S.shuttleDir !== 0) {
+    // From shuttling straight into stepping: keep the tape paused where it is.
+    S.shuttleDir = 0;
+    S.shuttleSpeedIdx = 0;
+    if (S.shuttleRAF) cancelAnimationFrame(S.shuttleRAF);
+    S.shuttleRAF = null;
+  }
+  if (!S.scrubPending) {
+    S.scrubPending = true;
+    pauseForScrubbing();
+  }
+  return true;
+}
+
+export function scrubToTime(targetMs) {
+  if (!Number.isFinite(targetMs) || !beginScrub()) return;
+  hideScrubBanner();
+  S.timeOffsetMs = targetMs - Date.now();
+  updateVcrOsd();
+  queueScrubPreview();
+}
+
+export function scrubBy(deltaMs) {
+  scrubToTime(viewNow() + deltaMs);
+}
+
+// ◀▶ in TV mode: 10 s, then 30 s, then 2 min, then whole programs the longer
+// the key is held (scrubber-model.js). repeat is the key's auto-repeat flag;
+// a fresh press restarts the ramp. Hold time is UI gesture timing, so
+// performance.now(), not the viewed clock.
+export function scrubStep(direction, { repeat = false } = {}) {
+  if (!S.timeMachineOn) return;
+  const now = performance.now();
+  if (!repeat || holdDir !== direction) {
+    holdStartedAt = now;
+    holdDir = direction;
+  }
+  const step = scrubStepMs(now - holdStartedAt);
+  if (step === 'boundary') {
+    if (now - lastBoundaryStepAt < BOUNDARY_REPEAT_MS) return;
+    lastBoundaryStepAt = now;
+    scrubProgramBoundary(direction);
+    return;
+  }
+  scrubBy(direction * step);
+}
+
+// ▲▼ in TV mode: the previous/next program start (replacing [ and ] on a
+// remote that has no such buttons).
+export function scrubProgramBoundary(direction) {
+  if (!S.timeMachineOn) return;
+  const ch = getChannel(S.currentNumber);
+  if (!ch) return;
+  const viewed = viewNow();
+  let programs = [];
+  try {
+    programs = querySchedule(ch, viewed - 6 * 3600000, viewed + 6 * 3600000, { breaks: false, offAir: false }).programs;
+  } catch (e) {
+    return;
+  }
+  const target = direction > 0 ? boundaryAfter(programs, viewed) : boundaryBefore(programs, viewed);
+  if (target != null) scrubToTime(target);
+}
+
+// TV menu › Time Machine › Go to… (§3.2). A jump inside the strip's window
+// plays straight away; a far one lands paused on a banner and plays on OK.
+export async function timeMachineGoTo(targetMs, label) {
+  if (!Number.isFinite(targetMs)) return;
+  if (!S.timeMachineOn) enterTimeMachine();
+  if (!S.timeMachineOn) return;
+  const far = isFarJump(viewNow(), targetMs);
+  if (!beginScrub()) return;
+  S.timeOffsetMs = targetMs - Date.now();
+  if (!far) {
+    await shuttlePlay();
+    return;
+  }
+  scrubWin = null;
+  updateVcrOsd();
+  updateShuttlePreview();
+  showScrubBanner(`${label} · ${dayClock(targetMs)} — OK TO PLAY`);
+}
+
+// What's airing at the viewed time on this channel (for "Start of this show").
+export function currentProgramStart() {
+  const ch = getChannel(S.currentNumber);
+  if (!ch) return null;
+  const viewed = viewNow();
+  try {
+    const p = programAt(querySchedule(ch, viewed - 3600000, viewed + 60000, { breaks: false, offAir: false }).programs, viewed);
+    return p ? p.start : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 function hideShuttleBreakOverlays() {
@@ -207,6 +468,21 @@ export function startShuttle(dir) {
     S.shuttleSpeedIdx = 0;
   }
   sfxVolumeTick(dir > 0);
+  if (S.scrubPending) {
+    S.scrubPending = false;
+    hideScrubBanner();
+  }
+  pauseForScrubbing();
+  S.shuttleLastTs = 0;
+  if (S.shuttleRAF) cancelAnimationFrame(S.shuttleRAF);
+  S.shuttleRAF = requestAnimationFrame(shuttleTick);
+  updateVcrOsd();
+  pushRemoteState();
+}
+
+// Everything that has to stop the moment the tape leaves live playback,
+// whether it's shuttling (startShuttle) or stepping/dragging (beginScrub).
+function pauseForScrubbing() {
   cancelUpNextBar();
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
@@ -224,16 +500,16 @@ export function startShuttle(dir) {
   hideShuttleBreakOverlays();
   player.pause();
   tapeFxEl.classList.remove('hidden');
-  S.shuttleLastTs = 0;
-  if (S.shuttleRAF) cancelAnimationFrame(S.shuttleRAF);
-  S.shuttleRAF = requestAnimationFrame(shuttleTick);
-  updateVcrOsd();
-  pushRemoteState();
 }
 
 export function stopShuttle() {
   S.shuttleDir = 0;
   S.shuttleSpeedIdx = 0;
+  S.scrubPending = false;
+  clearTimeout(scrubPreviewTimer);
+  scrubPreviewTimer = null;
+  scrubDragging = false;
+  hideScrubBanner();
   if (S.shuttleRAF) cancelAnimationFrame(S.shuttleRAF);
   S.shuttleRAF = null;
   tapeFxEl.classList.add('hidden');
@@ -389,7 +665,11 @@ export function enterTimeMachine() {
   if (!timeMachineAvailable()) return;
   S.timeMachineOn = true;
   S.shuttlePreviewPath = null;
+  scrubWin = null;
+  scrubSig = '';
+  vcrOsdEl.classList.add('has-scrubber');
   vcrOsdEl.classList.remove('hidden');
+  document.documentElement.classList.add('time-machine-on');
   updateVcrOsd();
   pushRemoteState();
 }
@@ -400,6 +680,7 @@ export async function exitTimeMachine(opts) {
   stopShuttle();
   S.shuttlePreviewPath = null;
   vcrOsdEl.classList.add('hidden');
+  document.documentElement.classList.remove('time-machine-on');
   if (opts.toLive) {
     returnToLive();
     return;

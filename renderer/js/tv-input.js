@@ -20,21 +20,112 @@ import {
 } from './dom.js';
 import { getChannel } from './channels.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { openGuideGrid, renderGuideGrid, showGuideOverlay } from './guide.js';
+import {
+  focusGuideSearch, openGuideGrid, openGuideProgramActions, openGuideReminders, pageGuideSelection,
+  shiftGuideDay, showGuideOverlay,
+} from './guide.js';
 import { powerOff } from './power.js';
 import {
-  CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeKey, routeRemoteKey,
+  CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeAndroidKeyCode, normalizeKey,
+  optionalGroupOf, pluginActionFor, rawKeyId, routeRemoteKey,
 } from './remote-input.js';
+import { createRemoteProfile } from './remote-profile.js';
 import { S } from './state.js';
-import { enterTimeMachine } from './timemachine.js';
+import { enterTimeMachine, scrubProgramBoundary, scrubStep } from './timemachine.js';
 import { closeTvMenu, openTvMenu } from './tv-menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
-import { isVirtualChannel } from './virtual.js';
+import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesActions } from './virtual.js';
+import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
+import { moveFocusSpatially } from './ui/spatial-focus.js';
 
 let keyboardHandler = null;
+
+// ---------- TV modals ----------
+// Any full-screen TV overlay (learn mode, handoff, the on-screen keyboard, the
+// first-run wizard) registers here and gets the dialog context: D-pad moves
+// focus by position, OK presses the focused control, Back cancels. The most
+// recently opened one on screen is the one that answers.
+// var, not const: handoff.js and remote-test.js register while this module is
+// still mid-evaluation (tv-input → tv-menu → handoff → tv-input), and a const
+// would still be in its temporal dead zone then.
+// eslint-disable-next-line no-var
+var tvModals;
+
+export function registerTvModal({ isOpen, element, cancel }) {
+  const modal = { isOpen, element, cancel };
+  tvModals = tvModals || [];
+  tvModals.push(modal);
+  return () => { const i = tvModals.indexOf(modal); if (i !== -1) tvModals.splice(i, 1); };
+}
+
+function openModal() {
+  if (!tvModals) return null;
+  for (let i = tvModals.length - 1; i >= 0; i -= 1) {
+    try { if (tvModals[i].isOpen()) return tvModals[i]; } catch (e) { /* a broken modal can't block input */ }
+  }
+  return null;
+}
 const longPress = createLongPressTracker();
 const holdTimers = new Map();
 let lastChannelKeyAt = 0;
+
+// ---------- This device's remote (docs/design/01 §5.2) ----------
+// Which buttons this remote has actually delivered, plus learn-mode
+// overrides. Stored per client, so hints never advertise a button this
+// remote lacks and a re-mapped button stays re-mapped.
+const profile = createRemoteProfile(safeStorage());
+
+function safeStorage() {
+  try {
+    window.localStorage.getItem('reruntv.probe');
+    return window.localStorage;
+  } catch (e) {
+    return null; // private window or blocked storage: this session only
+  }
+}
+
+export function remoteProfile() {
+  return profile;
+}
+
+// Raw input taps: the Remote test screen watches every event, and learn mode
+// grabs the next button pressed. Both see events before routing, and a sink
+// swallows them so a test/capture can't also change channel.
+const rawListeners = new Set();
+let captureNext = null;
+
+export function onRemoteInput(fn) {
+  rawListeners.add(fn);
+  return () => rawListeners.delete(fn);
+}
+
+// While set, every button goes to fn(info) and nothing is routed.
+let inputSink = null;
+export function setRemoteInputSink(fn) {
+  inputSink = typeof fn === 'function' ? fn : null;
+}
+
+// Learn mode: the next button pressed is handed to fn({ rawId, remoteKey }).
+export function captureNextButton(fn) {
+  captureNext = typeof fn === 'function' ? fn : null;
+  return () => { if (captureNext === fn) captureNext = null; };
+}
+
+function emitRaw(info) {
+  rawListeners.forEach((fn) => { try { fn(info); } catch (e) { console.warn('[tv-input] raw listener failed', e); } });
+}
+
+// Back leaves straight away instead of asking (docs/design/01 §12), per device.
+const BACK_EXITS_KEY = 'reruntv.backExitsImmediately';
+export function backExitsImmediately() {
+  try { return window.localStorage.getItem(BACK_EXITS_KEY) === '1'; } catch (e) { return false; }
+}
+export function setBackExitsImmediately(on) {
+  try {
+    if (on) window.localStorage.setItem(BACK_EXITS_KEY, '1');
+    else window.localStorage.removeItem(BACK_EXITS_KEY);
+  } catch (e) { /* storage unavailable */ }
+}
 
 // ---------- Context ----------
 
@@ -46,7 +137,7 @@ function textFieldFocused() {
 // 'none' means TV routing stands aside and the keyboard handler decides (setup
 // screen, standby wake, PIN entry, a plugin's own modal).
 export function currentContext() {
-  if (exitPromptOpen()) return 'dialog';
+  if (exitPromptOpen() || openModal()) return 'dialog';
   if (!tvScreen || tvScreen.classList.contains('hidden')) return 'none';
   if (!S.isPoweredOn || S.pinLockActive) return 'none';
   if (pluginChannelContainerEl && pluginChannelContainerEl.querySelector('.preview-modal:not(.hidden)')) return 'none';
@@ -54,6 +145,7 @@ export function currentContext() {
   if (textFieldFocused()) return 'text';
   if (!detailsOverlayEl.classList.contains('hidden')) return 'details';
   if (!guideGrid.classList.contains('hidden')) return 'guide';
+  if (bannerHubOpen()) return 'banner';
   if (S.timeMachineOn) return 'timeMachine';
   // A plugin channel owns its own arrows and OK (ctx onKey/onOk); TV mode only
   // adds the ways out of it.
@@ -68,9 +160,18 @@ const PLUGIN_ACTIONS = {
   guide: 'guide.open', 'long:ok': 'menu.open', back: 'exit.prompt',
 };
 
+// When the plugin doesn't take an action, core does what it would have:
+// ▲▼ change channel, ◀▶/OK reach the plugin's onKey, Back asks to leave.
+const PLUGIN_ACTION_FALLBACK = {
+  'move.up': 'key:ArrowUp', 'move.down': 'key:ArrowDown', 'move.left': 'key:ArrowLeft', 'move.right': 'key:ArrowRight',
+  select: 'key:Enter', back: 'exit.prompt', info: 'info.show',
+};
+
 function route(context, remoteKey, longPressed) {
   if (context === 'plugin') {
     if (longPressed && PLUGIN_ACTIONS[`long:${remoteKey}`]) return PLUGIN_ACTIONS[`long:${remoteKey}`];
+    const action = !longPressed && pluginActionFor(remoteKey);
+    if (action && virtualChannelHandlesActions(S.currentNumber)) return `plugin.action:${action}`;
     return PLUGIN_ACTIONS[remoteKey] || null;
   }
   return routeRemoteKey(context, remoteKey, { longPress: longPressed });
@@ -100,11 +201,10 @@ function pageGuide(direction) {
   const rows = guideRowsEl ? Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row')) : [];
   const total = rows.length;
   if (!total) return;
-  const step = Math.max(1, Math.min(total - 1, Math.floor((guideRowsEl.clientHeight || 0) / Math.max(1, rows[0].offsetHeight || 1)) || 6));
-  // Pages stop at the ends rather than wrapping, the way a remote's CH key
-  // pages a list; ▲▼ keep their one-row wrap.
-  S.guideSelRowIdx = Math.max(0, Math.min(total - 1, (S.guideSelRowIdx || 0) + direction * step));
-  renderGuideGrid();
+  // A screenful less the margin row, so the row paged to lands on screen.
+  const perScreen = Math.floor((guideRowsEl.clientHeight || 0) / Math.max(1, rows[0].offsetHeight || 1)) || 6;
+  const step = Math.max(1, Math.min(total - 1, perScreen - 1));
+  pageGuideSelection(direction, step);
 }
 
 function menuButtons() {
@@ -114,6 +214,13 @@ function menuButtons() {
 const ACTIONS = {
   'guide.open': () => openGuideGrid(),
   'banner.show': () => showGuideOverlay(S.currentNumber, getChannel(S.currentNumber)),
+  'banner.open': () => openBannerHub(),
+  'banner.key.left': () => bannerKey('left'),
+  'banner.key.right': () => bannerKey('right'),
+  'banner.key.up': () => bannerKey('up'),
+  'banner.key.down': () => bannerKey('down'),
+  'banner.key.ok': () => bannerKey('ok'),
+  'banner.key.back': () => bannerKey('back'),
   'info.show': () => showDetailsForCurrentChannel(),
   'menu.open': () => openTvMenu(),
   'menu.toggle': () => (shortcutsOverlayEl.classList.contains('hidden') ? openTvMenu() : closeTvMenu()),
@@ -122,28 +229,73 @@ const ACTIONS = {
   'timeMachine.open': () => { if (!S.timeMachineOn) enterTimeMachine(); },
   'guide.pageUp': () => pageGuide(-1),
   'guide.pageDown': () => pageGuide(1),
+  'guide.programActions': () => openGuideProgramActions(),
+  'scrub.back': (source) => scrubStep(-1, { repeat: !!(source && source.repeat) }),
+  'scrub.forward': (source) => scrubStep(1, { repeat: !!(source && source.repeat) }),
+  'scrub.prevProgram': () => scrubProgramBoundary(-1),
+  'scrub.nextProgram': () => scrubProgramBoundary(1),
+  'guide.dayBack': () => shiftGuideDay(-1),
+  'guide.dayForward': () => shiftGuideDay(1),
+  'guide.filter': () => focusGuideSearch(),
+  'guide.reminders': () => openGuideReminders(),
   'exit.prompt': () => showExitPrompt(),
   'focus.prev': () => moveDialogFocus(-1),
   'focus.next': () => moveDialogFocus(1),
-  'focus.activate': () => { const el = document.activeElement; if (exitPromptEl && exitPromptEl.contains(el) && el.click) el.click(); },
-  'dialog.cancel': () => hideExitPrompt(),
+  // Spatial first; a layout with nothing that way falls back to list order.
+  'focus.up': () => moveFocusSpatially(activeDialogEl(), 'up') || moveDialogFocus(-1),
+  'focus.down': () => moveFocusSpatially(activeDialogEl(), 'down') || moveDialogFocus(1),
+  'focus.left': () => moveFocusSpatially(activeDialogEl(), 'left') || moveDialogFocus(-1),
+  'focus.right': () => moveFocusSpatially(activeDialogEl(), 'right') || moveDialogFocus(1),
+  'focus.activate': () => { const el = document.activeElement; const dialog = activeDialogEl(); if (dialog && dialog.contains(el) && el.click) el.click(); },
+  'dialog.cancel': () => {
+    const modal = !exitPromptOpen() && openModal();
+    if (modal) modal.cancel();
+    else hideExitPrompt();
+  },
 };
+
+// Held-key rates (docs/design/01 §5.3): channel changes stay deliberate,
+// focus movement speeds up after 400 ms so a long list isn't a chore, and
+// volume repeats at 8 Hz.
+const FOCUS_ACCELERATE_AFTER_MS = 400;
+const VOLUME_REPEAT_MS = 125;
+let holdStartedAt = new Map();
+let lastVolumeKeyAt = 0;
 
 function runAction(action, source) {
   if (!action) return false;
   if (action.startsWith('key:')) {
     const key = action.slice(4);
-    if ((key === 'ArrowUp' || key === 'ArrowDown') && (currentContext() === 'watching' || currentContext() === 'plugin')) {
-      const now = performance.now();
+    const context = currentContext();
+    const now = performance.now();
+    if ((key === 'ArrowUp' || key === 'ArrowDown') && (context === 'watching' || context === 'plugin' || context === 'banner')) {
       if (source && source.repeat && now - lastChannelKeyAt < CHANNEL_REPEAT_MS) return true;
       lastChannelKeyAt = now;
+    }
+    if (key === '+' || key === '-') {
+      if (source && source.repeat && now - lastVolumeKeyAt < VOLUME_REPEAT_MS) return true;
+      lastVolumeKeyAt = now;
+    }
+    // Focus movement in a list: a held key repeats faster once it has been
+    // down a moment, by sending a second step per repeat.
+    const focusMove = (key === 'ArrowUp' || key === 'ArrowDown') && (context === 'guide' || context === 'menu' || context === 'dialog');
+    if (focusMove) {
+      if (!source || !source.repeat) holdStartedAt.set(key, now);
+      else if (now - (holdStartedAt.get(key) || now) > FOCUS_ACCELERATE_AFTER_MS) sendKey(key, source);
+    } else if (!source || !source.repeat) {
+      holdStartedAt.delete(key);
     }
     sendKey(key, source);
     return true;
   }
+  if (action.startsWith('plugin.action:')) {
+    const name = action.slice('plugin.action:'.length);
+    if (triggerVirtualChannelAction(S.currentNumber, name)) return true;
+    return runAction(PLUGIN_ACTION_FALLBACK[name], source);
+  }
   const fn = ACTIONS[action];
   if (!fn) return false;
-  fn();
+  fn(source);
   return true;
 }
 
@@ -152,9 +304,13 @@ function runAction(action, source) {
 // From app.js's keydown listener. true = handled here; the keyboard handler
 // must not see this event.
 export function routeKeydown(event) {
+  const raw = { source: 'keyboard', key: event.key, keyCode: event.keyCode, code: event.code, repeat: !!event.repeat, action: 'down' };
+  const captured = tapRawInput(raw, normalizeKey(event));
+  if (captured) { if (event.preventDefault) event.preventDefault(); return true; }
   if (!isTvMode()) return false;
-  const remoteKey = normalizeKey(event);
+  const remoteKey = resolveRemoteKey(raw, normalizeKey(event));
   if (!remoteKey) return false;
+  noteRemoteKey(remoteKey);
   const context = currentContext();
   if (context === 'none') return false;
   // The exit prompt is modal: keys it doesn't use must not reach live TV behind it.
@@ -186,9 +342,33 @@ function runShort(context, remoteKey, event) {
   return runAction(action, event);
 }
 
+// A tap for the Remote test screen and learn mode. Returns true when the
+// event was consumed by one of them and must not be routed.
+function tapRawInput(raw, remoteKey) {
+  const rawId = rawKeyId(raw);
+  const info = { ...raw, rawId, remoteKey: remoteKey || null, at: Date.now() };
+  if (rawListeners.size) emitRaw(info);
+  if (captureNext && raw.action === 'down' && !raw.repeat) {
+    const fn = captureNext;
+    captureNext = null;
+    try { fn(info); } catch (e) { console.warn('[tv-input] capture failed', e); }
+    return true;
+  }
+  if (inputSink) {
+    try { inputSink(info); } catch (e) { console.warn('[tv-input] input sink failed', e); }
+    return true;
+  }
+  return false;
+}
+
+// Learn-mode overrides win over the automatic mapping.
+function resolveRemoteKey(raw, fallback) {
+  return profile.overrideFor(rawKeyId(raw)) || fallback;
+}
+
 export function routeKeyup(event) {
   if (!isTvMode()) return false;
-  const remoteKey = normalizeKey(event);
+  const remoteKey = resolveRemoteKey({ source: 'keyboard', key: event.key, keyCode: event.keyCode, code: event.code }, normalizeKey(event));
   if (!remoteKey || !longPress.isDown(remoteKey)) return false;
   clearTimeout(holdTimers.get(remoteKey));
   holdTimers.delete(remoteKey);
@@ -205,8 +385,29 @@ export function routeKeyup(event) {
 // what happened so the client can fall back: 'handled', 'ignored', or 'exit'
 // (only after the person chose EXIT in the prompt).
 function nativeInput(evt) {
-  const remoteKey = evt && typeof evt.key === 'string' ? evt.key : null;
+  if (!evt) return 'ignored';
+  // Version 2 clients post raw Android KeyEvent codes and let this side
+  // normalize (docs/design/01 §5.1); a RemoteKey name is still accepted, which
+  // is what the phone remote and the touch controls send.
+  const raw = {
+    source: evt.source || (evt.keyCode != null ? 'android' : 'bridge'),
+    key: typeof evt.key === 'string' ? evt.key : null,
+    keyCode: evt.keyCode != null ? Number(evt.keyCode) : null,
+    scanCode: evt.scanCode != null ? Number(evt.scanCode) : null,
+    repeat: !!evt.repeat,
+    longPress: !!evt.longPress,
+    holdMs: Number.isFinite(evt.holdMs) ? evt.holdMs : null,
+    action: evt.action === 'up' ? 'up' : 'down',
+  };
+  const automatic = raw.keyCode != null && raw.source === 'android'
+    ? normalizeAndroidKeyCode(raw.keyCode)
+    : (typeof evt.key === 'string' ? evt.key : null);
+  const captured = tapRawInput(raw, automatic);
+  if (captured) return 'handled';
+  const remoteKey = resolveRemoteKey(raw, automatic);
   if (!remoteKey) return 'ignored';
+  if (raw.action === 'up') return 'ignored';
+  noteRemoteKey(remoteKey);
   // Back on the setup screen: close a dialog if one is open, otherwise go
   // back to live TV — setup is a desk task (doc 01 §6.4), not a place to be
   // stranded with a remote.
@@ -232,6 +433,28 @@ function nativeInput(evt) {
   }
   runAction(action, { repeat: !!evt.repeat });
   return 'handled';
+}
+
+// Every delivered button is recorded for this device and marks the page, which
+// un-hides hints for it ([data-hint-requires], guide.css/overlays.css). A hint
+// for a button this remote has never sent stays hidden (docs/design/01 §5.2).
+function noteRemoteKey(remoteKey) {
+  profile.note(remoteKey);
+  markRemoteKey(remoteKey);
+}
+
+function markRemoteKey(remoteKey) {
+  const root = document.documentElement;
+  root.classList.add(`remote-has-${remoteKey}`);
+  const group = optionalGroupOf(remoteKey);
+  if (group) root.classList.add(`remote-has-${group}`);
+  [remoteKey, group].filter(Boolean).forEach((name) => {
+    document.querySelectorAll(`[data-hint-requires="${name}"]`).forEach((el) => el.classList.add('hint-available'));
+  });
+}
+
+function applyKnownRemoteKeys() {
+  profile.seenKeys().forEach(markRemoteKey);
 }
 
 // Keys a context doesn't route still reach the keyboard handler in the shape
@@ -279,6 +502,13 @@ function buildExitPrompt() {
 }
 
 export function showExitPrompt() {
+  // "Back exits immediately" (TV menu › Remote): leave without asking, or
+  // drop to standby where this client can't close itself.
+  if (backExitsImmediately()) {
+    const exit = exitCapability();
+    if (exit) exit(); else powerOff();
+    return;
+  }
   if (!exitPromptEl) exitPromptEl = buildExitPrompt();
   const actions = exitPromptEl.querySelector('.tv-exit-prompt-actions');
   actions.innerHTML = '';
@@ -311,12 +541,22 @@ export function hideExitPrompt() {
   exitPromptReturnFocus = null;
 }
 
+// The modal currently on screen: the exit prompt, or learn mode's list.
+function activeDialogEl() {
+  if (exitPromptOpen()) return exitPromptEl;
+  const modal = openModal();
+  return modal ? modal.element() : null;
+}
+
 function moveDialogFocus(direction) {
-  if (!exitPromptEl) return;
-  const buttons = Array.from(exitPromptEl.querySelectorAll('button'));
+  const dialog = activeDialogEl();
+  if (!dialog) return;
+  const buttons = Array.from(dialog.querySelectorAll('button'));
   if (!buttons.length) return;
   const index = buttons.indexOf(document.activeElement);
-  buttons[(index + direction + buttons.length) % buttons.length].focus();
+  const next = buttons[(index + direction + buttons.length) % buttons.length];
+  next.focus();
+  next.scrollIntoView({ block: 'nearest' });
 }
 
 // ---------- Pointer ----------
@@ -348,8 +588,16 @@ export function installTvInput({ handleKey }) {
     }
   });
   if (isTvMode()) onPointerMove();
+  applyKnownRemoteKeys();
+  // HDMI-CEC (--cec, main-cec.js): the TV's own remote, through HDMI.
+  if (window.api && typeof window.api.onCecKey === 'function') {
+    window.api.onCecKey((press) => { if (press && press.key) nativeInput({ source: 'cec', key: press.key, code: press.code }); });
+  }
   window.RerunTVInput = Object.freeze({
-    version: 1,
+    // 2: the client posts raw Android KeyEvent codes ({ source: 'android',
+    // keyCode, action, repeatCount, longPress }) and this side normalizes.
+    // 1 was RemoteKey names from the client's own Kotlin table.
+    version: 2,
     native: (evt) => {
       try { return nativeInput(evt); } catch (e) { console.warn('[tv-input] native event failed', e); return 'ignored'; }
     },

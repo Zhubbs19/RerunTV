@@ -251,6 +251,49 @@ window.RCBPlugins.registerCoreHook('guide-channel-cell', ({ channel, cell }) => 
   cell.appendChild(dot);
 });
 
+// RECORD in the guide's program actions (hold OK on a program). A program
+// that has started (or finished) at the viewed time is taped now from the
+// schedule, like a record press while the time machine is scrubbed back; one
+// that hasn't started yet becomes a timer, set against the wall clock the way
+// the TIMERS panel's are.
+window.RCBPlugins.registerCoreHook('guide-program-actions', ({ channel, entry, actions }) => {
+  if (!channel || !entry || !Array.isArray(actions)) return;
+  const ctx = window.RCBPlugins.ctx;
+  if (!recorderAvailable()) return;
+  const label = (entry.file && ctx.channels.getDisplayTitle(entry.file)) || channel.name || `CHANNEL ${channel.number}`;
+  if (entry.start > ctx.viewNow()) {
+    actions.push({
+      label: 'RECORD (SET TIMER)',
+      run() {
+        const cfg = settingsFor(ctx);
+        const timer = {
+          // Wall-clock stamp plus a random tail: only an id.
+          id: `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+          channelNumber: channel.number,
+          label,
+          startMs: entry.start,
+          endMs: entry.end,
+          overwriteId: null,
+          done: false,
+        };
+        ctx.settings.updatePluginSettings(PLUGIN_ID, { scheduled: cfg.scheduled.concat([timer]) });
+        flashToast(`TIMER SET · CH ${channel.number} · ${label}`);
+      },
+    });
+    return;
+  }
+  actions.push({
+    label: 'RECORD',
+    run() {
+      if (lastStatus.active) {
+        flashToast(`ALREADY TAPING CH ${lastStatus.active.channelNumber}`);
+        return;
+      }
+      startRecording(ctx, { channel, startMs: entry.start, endMs: entry.end, title: label });
+    },
+  });
+});
+
 function flashToast(message, tone) {
   const el = recOsd();
   clearTimeout(osdHideTimer);
@@ -1359,6 +1402,13 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
   // the viewer made and not a function of the clock. Scrubbing time cannot
   // re-derive it, so the time machine stays off here.
   supportsTimeMachine: false,
+  // TV mode (ctx v5): remote actions arrive here, forwarded to the same
+  // handling onKey already does. Anything not handled goes back to core, so
+  // ▲▼ still change channel and Back still asks to leave.
+  onAction(action, ctx) {
+    const key = ctx && ctx.input ? ctx.input.keyForAction(action) : null;
+    return key ? this.onKey(key, ctx) : false;
+  },
   onKey(key, ctx) {
     if (deckState === 'shelf') {
       const count = shelfItems(ctx).length;

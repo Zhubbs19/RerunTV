@@ -808,6 +808,13 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
   // Station cycling now lives on Left/Right, which core only uses to shuttle
   // and only while the time machine is on — so that case defers too. Nothing
   // else is claimed, in either state.
+  // TV mode (ctx v5): remote actions arrive here, forwarded to the same
+  // handling onKey already does. Anything not handled goes back to core, so
+  // ▲▼ still change channel and Back still asks to leave.
+  onAction(action, ctx) {
+    const key = ctx && ctx.input ? ctx.input.keyForAction(action) : null;
+    return key ? this.onKey(key, ctx) : false;
+  },
   onKey(key, ctx) {
     if (browserOpen) {
       if (key === 'ArrowUp') { browserMove(ctx, -1); return true; }

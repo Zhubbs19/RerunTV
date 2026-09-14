@@ -19,6 +19,7 @@
     <string name="scan">SCAN</string>
     <string name="scan_searching">Searching your network for Retro Cable Box…</string>
     <string name="scan_found">Found it — %1$s. Press CONNECT.</string>
+    <string name="host_too_old">This RerunTV is too old for this TV app — update RerunTV on the computer, then try again.</string>
     <string name="scan_not_found">Nothing found — make sure Retro Cable Box is running, then type the address manually.</string>
     <string name="action_vol_down">VOL −</string>
     <string name="action_vol_up">VOL +</string>

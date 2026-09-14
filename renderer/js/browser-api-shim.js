@@ -308,6 +308,12 @@
     // here either — it's not itself reachable as a further "watch on other
     // devices" source, that's the host's role.
     getViewerUrl: () => Promise.resolve([]),
+    // TV clients (docs/design/01): the host writes the capture and builds the
+    // handoff QR; this viewer is often the Android TV client itself.
+    saveRemoteProfile: (profile) => fetch('/api/remote-profile', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile),
+    }).then((r) => r.json()).catch((e) => ({ ok: false, error: e.message })),
+    getHandoffInfo: () => fetch('/api/handoff-info').then((r) => r.json()).catch(() => ({ url: '', qrDataUrl: '', label: '' })),
 
     // ---- TMDB metadata / NOAA alerts: both go through main.js's fetch+
     // cache helper on the host, not something a viewer can reach on its own.

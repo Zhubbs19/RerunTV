@@ -122,6 +122,13 @@ window.RCBPlugins.registerChannelType('teletext-arcade', {
   label: 'TELETEXT ARCADE',
   nowText: 'Interactive Games & News',
   badge: { bg: '#eab308', label: 'TXT' },
+  // TV mode (ctx v5): remote actions arrive here, forwarded to the same
+  // handling onKey already does. Anything not handled goes back to core, so
+  // ▲▼ still change channel and Back still asks to leave.
+  onAction(action, ctx) {
+    const key = ctx && ctx.input ? ctx.input.keyForAction(action) : null;
+    return key ? this.onKey(key, ctx) : false;
+  },
   onKey(key) {
     if (teletextPage !== 999) return false;
     if (key === 'ArrowUp' && snakeDir.y !== 1) { snakeDir = { x: 0, y: -1 }; return true; }

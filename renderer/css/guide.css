@@ -269,6 +269,53 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   padding-right: 0;
 }
 
+/* Docked rows by mode (docs/design/11 §2.2): at least 5 whole rows on a
+   desktop, 4 at 10-foot size in TV mode. .guide-grid is a size container
+   (container-type: size above), so it can't grow to fit its content —
+   height:auto just collapses to min-height. guide.js (fitDockedGuideHeight)
+   measures the chrome (info line, time header, hints) and sets
+   --guide-docked-h to chrome + that many rows; this uses it, never below the
+   old 46% budget and never above 75%, and re-measures on resize. The rows
+   box stays flex:1 so it still shrinks with a small window.
+   C4 (docs/design/04) will own row density tokens; until then these live here. */
+.guide-grid.docked {
+  --guide-docked-rows: 5;
+  height: min(max(var(--guide-docked-h, 0px), calc(46% * var(--viewer-ui-scale, 1))), 75%);
+}
+html[data-mode="tv"] .guide-grid.docked {
+  --guide-docked-rows: 4;
+}
+html[data-mode="tv"] .guide-grid {
+  --guide-row-height: 64px;
+}
+.guide-grid.docked .guide-topbar {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+}
+.guide-grid.docked .guide-info-panel {
+  flex: 1 1 60%;
+  gap: 12px;
+}
+.guide-grid.docked .guide-info-number {
+  min-width: 0;
+  font-size: clamp(22px, 4cqw, 36px);
+}
+.guide-grid.docked .guide-info-body {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 12px;
+}
+.guide-grid.docked .guide-info-channel { flex: 0 1 auto; }
+.guide-grid.docked .guide-info-title { flex: 0 1 auto; font-size: clamp(17px, 1.15cqw, 24px); }
+.guide-grid.docked .guide-info-time { flex: 0 0 auto; }
+.guide-grid.docked .guide-search-row {
+  flex: 1 1 40%;
+  min-width: 0;
+}
+
 /* Full page: the grid covers the whole screen and the live picture shrinks
    into a preview box pinned top-right, like a full-screen interactive guide. */
 .guide-grid.full {
@@ -530,7 +577,9 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  /* 4px, not 6px: a two-line name (.grc-name) plus the number still fits
+     --guide-row-height at 720p. */
+  padding: 4px 10px;
   background: var(--guide-channel-bg, var(--gradient-cell));
   border: 1px solid var(--line);
   border-right: none;
@@ -553,17 +602,24 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   letter-spacing: 0.3px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
 }
+/* Two lines before truncating (docs/design/11 §2.2): "THE OFFICE C…" at one
+   line hid most of a long name. Width comes from the rail itself
+   (--guide-chan-col via .grc-text's min-width:0), not a separate cap, and the
+   tight line-height keeps a wrapped name inside --guide-row-height. */
 .grc-name {
   font-family: var(--font-ui);
   font-weight: 700;
   color: var(--guide-channel-subtle, var(--paper-dim));
   font-size: clamp(11px, 0.72cqw, 14px);
+  line-height: 1.05;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: clamp(108px, 8.5cqw, 156px);
 }
 
 .guide-row.active-row .guide-row-chan {
@@ -652,28 +708,84 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
    the THEME panel (setup-schedule.js), so an untouched schedule looks
    exactly like it did before block theming existed. */
 .guide-entry-themed { border-left: 3px solid; }
-/* Ad-break overlay (buildChannelRow, guide.js) — drawn on top of whatever
-   program it interrupts (breaks don't carve their own slot out of the
-   content timeline, see interstitials.js), so it needs to read as a
-   distinct interruption at a glance: a diagonal hatch over a darker field,
-   the way some real guides mark a local avail, rather than looking like
-   just another program block. z-index sits above ordinary entries but
-   below .sel so keyboard/click selection still highlights correctly. */
-.guide-entry.guide-entry-break {
-  z-index: 1;
-  background: repeating-linear-gradient(
-    135deg,
-    rgba(0, 0, 0, 0.55) 0px, rgba(0, 0, 0, 0.55) 6px,
-    rgba(0, 0, 0, 0.75) 6px, rgba(0, 0, 0, 0.75) 12px
-  );
-  color: var(--paper-dim, #aab4cf);
-  font-style: italic;
+/* Timeline marks shared by the guide, SCHEDULE > ON AIR and the time
+   machine's scrubber (timeline-render.js): one palette for break pods. */
+.tl-break { background: var(--accent-pod); border-radius: 1px; }
+.tl-break-channelId,
+.tl-break-localAvail { background: var(--accent-stationid); }
+.tl-break-upNext,
+.tl-break-promo { background: var(--cyan); }
+
+/* Break pods (B) as a thin band along the bottom of the row, under the
+   programs they interrupt (docs/design/11 §2.2) — they overlay content time
+   rather than carving out their own slot (interstitials.js). Programs lift
+   off the band so a label never sits on it. */
+.guide-break {
+  position: absolute;
+  bottom: 2px;
+  height: 5px;
+  z-index: 3;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45);
 }
-.guide-entry.guide-entry-break.sel {
+.guide-row-track.has-breaks .guide-entry { bottom: 9px; }
+
+/* A run of shorts and bumpers merged into one cell (guide-model.js
+   mergeMicroPrograms): a stacked edge marks it as several programs. */
+.guide-entry.guide-entry-run {
+  box-shadow: inset 3px 0 0 rgba(255, 255, 255, 0.22), inset 6px 0 0 rgba(0, 0, 0, 0.25);
+  padding-left: 13px;
+}
+.guide-entry.guide-entry-run .guide-entry-label { font-style: italic; }
+
+/* Its list: opened with OK/click, over the grid beside the cell.
+   C4 (docs/design/04) will provide a popover component for this. */
+.guide-run-list {
+  position: absolute;
+  z-index: 40;
+  min-width: min(320px, 90%);
+  max-width: min(460px, 94%);
+  max-height: 55%;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--guide-grid-bg, var(--gradient-page));
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard), 0 10px 26px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-ui);
+}
+.guide-run-heading {
+  padding: 4px 8px 6px;
+  color: var(--gold);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+.guide-run-item {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.guide-run-item.past { color: var(--paper-dim); }
+.guide-run-item.active {
   background: var(--guide-selection-bg, var(--gradient-gold));
   color: var(--guide-selection-fg, #000);
-  font-style: normal;
 }
+.guide-run-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.guide-run-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
 /* Already finished airing — still visible for context, visibly spent. */
 .guide-entry.past { opacity: 0.45; }
 
@@ -758,8 +870,20 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   .guide-now-line { animation: none; }
 }
 
+/* Remote hints (docs/design/01 §5.2, 11 §2.3): TV mode shows the
+   data-hint-mode="tv" spans instead of the letter keys, and a span that needs
+   a button only some remotes have (data-hint-requires="colour") stays hidden
+   until this device has sent one (tv-input.js noteRemoteKey). */
+.guide-hint > [data-hint-mode="tv"] { display: none; }
+html[data-mode="tv"] .guide-hint > :not([data-hint-mode="tv"]) { display: none; }
+html[data-mode="tv"] .guide-hint > [data-hint-mode="tv"] { display: inline; }
+/* Any hint naming a button this remote hasn't delivered yet stays hidden;
+   tv-input.js marks it .hint-available once the button arrives. */
+html[data-mode="tv"] [data-hint-requires]:not(.hint-available) { display: none !important; }
 .guide-hint {
   margin-top: 10px;
+  flex-wrap: wrap;
+  row-gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
   font-family: var(--font-ui);

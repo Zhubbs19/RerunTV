@@ -34,6 +34,17 @@ const BY_KEY = {
   AudioTrack: 'audioTrack', Power: 'power', Backspace: 'last',
 };
 
+// Which RemoteKeys only some remotes have — hints for them stay hidden until
+// this device has actually sent one (doc 01 §5.2: hints show only what the
+// current remote delivers).
+export const OPTIONAL_KEY_GROUPS = {
+  colour: ['red', 'green', 'yellow', 'blue'],
+};
+
+export function optionalGroupOf(remoteKey) {
+  return Object.keys(OPTIONAL_KEY_GROUPS).find((group) => OPTIONAL_KEY_GROUPS[group].includes(remoteKey)) || null;
+}
+
 // Legacy keyCodes some TV browsers report with an unhelpful key ("Unidentified").
 const BY_KEY_CODE = {
   10009: 'back', 461: 'back', // Samsung Return, LG Back
@@ -76,8 +87,10 @@ export function normalizeKey(event) {
 
 const WATCHING = {
   up: 'key:ArrowUp', down: 'key:ArrowDown', chUp: 'key:ArrowUp', chDown: 'key:ArrowDown',
-  left: 'guide.open', right: 'banner.show',
-  ok: 'key:Enter', 'long:ok': 'menu.open',
+  left: 'guide.open', right: 'banner.open',
+  // OK opens the banner hub (docs/design/01 §6.1): browse channels with ◀▶
+  // without tuning, OK tunes, ▼ opens the programme's actions.
+  ok: 'banner.open', 'long:ok': 'menu.open',
   back: 'exit.prompt', exit: 'exit.prompt',
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
   guide: 'guide.open', info: 'info.show', last: 'key:Backspace',
@@ -86,20 +99,39 @@ const WATCHING = {
   dot: 'key:.',
 };
 
+// docs/design/11 §3.1: ◀▶ step the scrubber (accelerating while held), ▲▼ jump
+// program starts, OK plays from there, Back returns to live. Rewind/FF keep
+// the VCR-style shuttle; CH± still changes channel.
 const TIME_MACHINE = {
   ...WATCHING,
-  left: 'key:ArrowLeft', right: 'key:ArrowRight', rewind: 'key:ArrowLeft', fastForward: 'key:ArrowRight',
+  left: 'scrub.back', right: 'scrub.forward', up: 'scrub.prevProgram', down: 'scrub.nextProgram',
+  rewind: 'key:ArrowLeft', fastForward: 'key:ArrowRight',
   back: 'key:Escape', exit: 'key:Escape', ok: 'key:Enter', play: 'key:t', pause: 'key:t',
   red: 'key:[', green: 'key:]',
 };
 
+// docs/design/11 §2.3. Hold OK opens the highlighted program's actions (Info,
+// Record, Remind, Watch from start, ±24 h, TV menu); red/green step a day
+// where a remote has colour keys. Dock/full page and search live in the TV
+// menu while the guide is open (tv-menu.js).
 const GUIDE = {
   up: 'key:ArrowUp', down: 'key:ArrowDown', left: 'key:ArrowLeft', right: 'key:ArrowRight',
   chUp: 'guide.pageUp', chDown: 'guide.pageDown',
-  ok: 'key:Enter', 'long:ok': 'key:i', info: 'key:i',
+  ok: 'key:Enter', 'long:ok': 'guide.programActions', info: 'key:i',
   back: 'key:Escape', exit: 'key:Escape', guide: 'key:Escape',
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
-  yellow: 'key:b', blue: 'key:d',
+  // docs/design/01 §6.2's colour mapping: red/green step a day, yellow filters,
+  // blue lists reminders. Breaks and dock/full page live in the TV menu.
+  red: 'guide.dayBack', green: 'guide.dayForward', yellow: 'guide.filter', blue: 'guide.reminders',
+};
+
+// The banner hub owns its own keys while it is up (banner-hub.js).
+const BANNER = {
+  left: 'banner.key.left', right: 'banner.key.right', up: 'banner.key.up', down: 'banner.key.down',
+  ok: 'banner.key.ok', back: 'banner.key.back', exit: 'banner.key.back',
+  chUp: 'key:ArrowUp', chDown: 'key:ArrowDown',
+  menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
+  guide: 'guide.open', info: 'info.show', 'long:ok': 'menu.open',
 };
 
 const MENU = {
@@ -114,15 +146,17 @@ const DETAILS = {
   menu: 'menu.toggle', playPause: 'menu.toggle',
 };
 
+// Dialogs move focus by on-screen position (ui/spatial-focus.js), so a row, a
+// list or a grid of buttons all work with the D-pad.
 const DIALOG = {
-  left: 'focus.prev', up: 'focus.prev', right: 'focus.next', down: 'focus.next',
+  left: 'focus.left', up: 'focus.up', right: 'focus.right', down: 'focus.down',
   ok: 'focus.activate', back: 'dialog.cancel', exit: 'dialog.cancel',
 };
 
 const TEXT = { back: 'key:Escape', exit: 'key:Escape' };
 
 export const CONTEXT_ACTIONS = {
-  watching: WATCHING, timeMachine: TIME_MACHINE, guide: GUIDE, menu: MENU, details: DETAILS, dialog: DIALOG, text: TEXT,
+  watching: WATCHING, banner: BANNER, timeMachine: TIME_MACHINE, guide: GUIDE, menu: MENU, details: DETAILS, dialog: DIALOG, text: TEXT,
 };
 
 // null means "not a remote concern here": the event goes to the keyboard
@@ -187,3 +221,64 @@ export function createLongPressTracker(thresholdMs = LONG_PRESS_MS) {
 // the source repeats (doc 01 §5.3 — was CHANNEL_DEBOUNCE_MS in the Android
 // client only).
 export const CHANNEL_REPEAT_MS = 300;
+
+// ---------- Android KeyEvent codes ----------
+// The Android TV client posts raw KeyEvent codes (docs/design/01 §5.1, Phase
+// B): normalization lives here, where it is testable and shared, instead of a
+// Kotlin table. Gamepads on Android TV arrive as KEYCODE_BUTTON_* and map to
+// the same RemoteKeys as the browser Gamepad API source (gamepad.js).
+export const ANDROID_KEYCODES = {
+  19: 'up', 20: 'down', 21: 'left', 22: 'right', 23: 'ok', 66: 'ok', 160: 'ok',
+  4: 'back', 111: 'back',
+  166: 'chUp', 167: 'chDown', 92: 'chUp', 93: 'chDown', 229: 'last', 67: 'last',
+  165: 'info', 172: 'guide', 82: 'menu', 176: 'settings', 84: 'search', 170: 'tv',
+  183: 'red', 184: 'green', 185: 'yellow', 186: 'blue',
+  85: 'playPause', 126: 'play', 127: 'pause', 86: 'stop', 89: 'rewind', 90: 'fastForward',
+  87: 'next', 88: 'prev', 130: 'record', 175: 'captions', 222: 'audioTrack',
+  24: 'volUp', 25: 'volDown', 164: 'mute', 91: 'mute', 26: 'power',
+  7: 'digit0', 8: 'digit1', 9: 'digit2', 10: 'digit3', 11: 'digit4', 12: 'digit5', 13: 'digit6', 14: 'digit7', 15: 'digit8', 16: 'digit9',
+  144: 'digit0', 145: 'digit1', 146: 'digit2', 147: 'digit3', 148: 'digit4', 149: 'digit5', 150: 'digit6', 151: 'digit7', 152: 'digit8', 153: 'digit9',
+  56: 'dot', 158: 'dot',
+  // Gamepad buttons (A/B/X/Y, bumpers, triggers, Start/Select).
+  96: 'ok', 97: 'back', 99: 'info', 100: 'guide', 102: 'chDown', 103: 'chUp', 104: 'rewind', 105: 'fastForward', 108: 'menu', 109: 'back',
+};
+
+export function normalizeAndroidKeyCode(keyCode) {
+  return ANDROID_KEYCODES[Number(keyCode)] || null;
+}
+
+// A stable id for "this physical button on this source", which learn mode
+// keys its overrides on (remote-profile.js).
+export function rawKeyId(evt) {
+  if (!evt) return null;
+  if (evt.source === 'android' && Number.isFinite(Number(evt.keyCode))) return `android:${Number(evt.keyCode)}`;
+  if (evt.source === 'gamepad' && evt.button != null) return `gamepad:${evt.button}`;
+  if (evt.source === 'cec' && evt.code != null) return `cec:${evt.code}`;
+  if (typeof evt.key === 'string' && evt.key && evt.key !== 'Unidentified') return `key:${evt.key}`;
+  if (evt.keyCode) return `keyCode:${evt.keyCode}`;
+  return null;
+}
+
+// ---------- Plugin channel actions ----------
+// What a plugin channel's onAction(action, ctx) receives in TV mode
+// (docs/design/01 §6.6): actions, not raw keys, so a plugin never has to
+// guess which remote sent what. keyForAction gives the keyboard key an older
+// onKey plugin already understands, which is how a plugin can adopt actions
+// by forwarding to its existing onKey.
+export const PLUGIN_CHANNEL_ACTIONS = {
+  up: 'move.up', down: 'move.down', left: 'move.left', right: 'move.right',
+  ok: 'select', back: 'back', info: 'info',
+};
+
+const ACTION_KEYS = {
+  'move.up': 'ArrowUp', 'move.down': 'ArrowDown', 'move.left': 'ArrowLeft', 'move.right': 'ArrowRight',
+  select: 'Enter', back: 'Escape', info: 'i',
+};
+
+export function pluginActionFor(remoteKey) {
+  return PLUGIN_CHANNEL_ACTIONS[remoteKey] || null;
+}
+
+export function keyForAction(action) {
+  return ACTION_KEYS[action] || null;
+}
