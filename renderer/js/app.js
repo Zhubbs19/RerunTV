@@ -747,7 +747,7 @@ if (pinKeypad) {
 
 guideSearchEl.addEventListener('input', () => {
   S.guideFilterQuery = guideSearchEl.value;
-  S.guideSelRowIdx = 0;
+  S.guideSelNumber = null; // first matching row
   renderGuideGrid();
 });
 

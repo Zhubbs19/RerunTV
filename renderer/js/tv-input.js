@@ -20,7 +20,7 @@ import {
 } from './dom.js';
 import { getChannel } from './channels.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { openGuideGrid, renderGuideGrid, showGuideOverlay } from './guide.js';
+import { openGuideGrid, pageGuideSelection, showGuideOverlay } from './guide.js';
 import { powerOff } from './power.js';
 import {
   CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeKey, routeRemoteKey,
@@ -100,11 +100,10 @@ function pageGuide(direction) {
   const rows = guideRowsEl ? Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row')) : [];
   const total = rows.length;
   if (!total) return;
-  const step = Math.max(1, Math.min(total - 1, Math.floor((guideRowsEl.clientHeight || 0) / Math.max(1, rows[0].offsetHeight || 1)) || 6));
-  // Pages stop at the ends rather than wrapping, the way a remote's CH key
-  // pages a list; ▲▼ keep their one-row wrap.
-  S.guideSelRowIdx = Math.max(0, Math.min(total - 1, (S.guideSelRowIdx || 0) + direction * step));
-  renderGuideGrid();
+  // A screenful less the margin row, so the row paged to lands on screen.
+  const perScreen = Math.floor((guideRowsEl.clientHeight || 0) / Math.max(1, rows[0].offsetHeight || 1)) || 6;
+  const step = Math.max(1, Math.min(total - 1, perScreen - 1));
+  pageGuideSelection(direction, step);
 }
 
 function menuButtons() {

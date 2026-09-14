@@ -73,7 +73,10 @@ export const S = {
   saveConfigTimer: null,
   timeOffsetMs: 0,
   guideWindowStart: 0,
-  guideSelRowIdx: 0,
+  // The guide's selected row, as a channel number (special channels included)
+  // rather than a row index, so filtering or the specials moving never shifts
+  // the highlight onto a different channel (guide-model.js).
+  guideSelNumber: null,
   guideSelTime: 0,
   guideTickTimer: null,
   guideFilterQuery: '',

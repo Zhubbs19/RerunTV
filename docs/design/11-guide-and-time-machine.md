@@ -1,7 +1,34 @@
 # 11 — Guide and time machine
 
-Status: proposed (P2–P3; small, can start early). Depends on: C2 (02), C1 + actions (01),
-C4 (04). Consumed by: 09 (record from guide).
+Status: **in progress** — phase 1 built (committed locally, live verification at doc end). Depends on:
+C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 09 (record from guide).
+
+### Built (§4 phase 1: specials, selection, layout)
+
+- `renderer/js/guide-model.js` (DOM-free, `tests/guide-model.test.js`): `guideRows(channels, specials,
+  { specialsAtTop, query })` is one ordered row list; a special channel is `{ kind: 'special' }` in its
+  numeric place. Selection is `S.guideSelNumber` (replaces `S.guideSelRowIdx`); `selectedIndex` falls back
+  to the first row, `moveSelection` wraps for ▲▼ and stops at the ends for CH± pages. `rowScrollTop`
+  keeps the selected row whole: one row of margin docked (never a row cut at the top edge), centred on
+  the full page.
+- `guide.js`: special rows are normal focusable rows with one full-width cell from `virtualChannelInfo`
+  (Enter/OK tunes, ◀▶ do nothing). The render signature includes the row numbers; the 30 s fast path
+  refreshes special `nowText` in place. `tv-input.js` pages with `pageGuideSelection`.
+- Settings (Picture & Sound › Guide), all `settings.set` under `display`: **Special channels at the top**
+  (`guideSpecialsAtTop`, default off) and **Channel names** (`guideNameLines`: 2 wraps, 1 truncates with
+  an ellipsis — added at the user's request after seeing long names cut off).
+- Docked height: `.guide-grid` is a CSS size container, so it can't grow to its content.
+  `fitDockedGuideHeight()` measures the chrome and sets `--guide-docked-h` to chrome + `--guide-docked-rows`
+  (5 desktop, 4 TV at a 64 px row) rows, which CSS clamps to 46–75% of the screen; re-measured on window
+  resize. The docked info panel and search share one line. A fixed-height rows box was tried first and
+  pushed the hint bar off-screen and broke window resizing.
+- Names wrap to two lines (`-webkit-line-clamp`) in the `--guide-chan-col` rail.
+- C4 (04) is not built: row density (`--guide-docked-rows`, TV row height) and the row/cell markup live in
+  `guide.css`/`guide.js` and are what a C4 row component replaces later.
+- Render cost unchanged: synchronous `renderGuideGrid` median 11.7 ms docked before, 11.8 ms after
+  (25 rows, 1280×720, real lineup).
+- Not done: the TV-mode "picture shrinks instead of rows" part of §2.2 — the picture still sits behind
+  the taller docked strip.
 
 ## 1. Problems (from the 2026-09-12 audit and TV-remote constraints)
 

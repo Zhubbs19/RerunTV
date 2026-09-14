@@ -269,6 +269,53 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   padding-right: 0;
 }
 
+/* Docked rows by mode (docs/design/11 §2.2): at least 5 whole rows on a
+   desktop, 4 at 10-foot size in TV mode. .guide-grid is a size container
+   (container-type: size above), so it can't grow to fit its content —
+   height:auto just collapses to min-height. guide.js (fitDockedGuideHeight)
+   measures the chrome (info line, time header, hints) and sets
+   --guide-docked-h to chrome + that many rows; this uses it, never below the
+   old 46% budget and never above 75%, and re-measures on resize. The rows
+   box stays flex:1 so it still shrinks with a small window.
+   C4 (docs/design/04) will own row density tokens; until then these live here. */
+.guide-grid.docked {
+  --guide-docked-rows: 5;
+  height: min(max(var(--guide-docked-h, 0px), calc(46% * var(--viewer-ui-scale, 1))), 75%);
+}
+html[data-mode="tv"] .guide-grid.docked {
+  --guide-docked-rows: 4;
+}
+html[data-mode="tv"] .guide-grid {
+  --guide-row-height: 64px;
+}
+.guide-grid.docked .guide-topbar {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+}
+.guide-grid.docked .guide-info-panel {
+  flex: 1 1 60%;
+  gap: 12px;
+}
+.guide-grid.docked .guide-info-number {
+  min-width: 0;
+  font-size: clamp(22px, 4cqw, 36px);
+}
+.guide-grid.docked .guide-info-body {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 12px;
+}
+.guide-grid.docked .guide-info-channel { flex: 0 1 auto; }
+.guide-grid.docked .guide-info-title { flex: 0 1 auto; font-size: clamp(17px, 1.15cqw, 24px); }
+.guide-grid.docked .guide-info-time { flex: 0 0 auto; }
+.guide-grid.docked .guide-search-row {
+  flex: 1 1 40%;
+  min-width: 0;
+}
+
 /* Full page: the grid covers the whole screen and the live picture shrinks
    into a preview box pinned top-right, like a full-screen interactive guide. */
 .guide-grid.full {
@@ -530,7 +577,9 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   flex-direction: row;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  /* 4px, not 6px: a two-line name (.grc-name) plus the number still fits
+     --guide-row-height at 720p. */
+  padding: 4px 10px;
   background: var(--guide-channel-bg, var(--gradient-cell));
   border: 1px solid var(--line);
   border-right: none;
@@ -553,17 +602,32 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
   letter-spacing: 0.3px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
 }
+/* Two lines before truncating (docs/design/11 §2.2): "THE OFFICE C…" at one
+   line hid most of a long name. Width comes from the rail itself
+   (--guide-chan-col via .grc-text's min-width:0), not a separate cap, and the
+   tight line-height keeps a wrapped name inside --guide-row-height. */
 .grc-name {
   font-family: var(--font-ui);
   font-weight: 700;
   color: var(--guide-channel-subtle, var(--paper-dim));
   font-size: clamp(11px, 0.72cqw, 14px);
+  line-height: 1.05;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
+}
+
+/* DISPLAY > Guide > Channel names: "One line, truncated". */
+.guide-grid.guide-names-one-line .grc-name {
+  display: block;
+  white-space: nowrap;
   text-overflow: ellipsis;
-  max-width: clamp(108px, 8.5cqw, 156px);
+  -webkit-line-clamp: unset;
 }
 
 .guide-row.active-row .guide-row-chan {

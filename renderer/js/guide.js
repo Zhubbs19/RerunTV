@@ -19,6 +19,7 @@ import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
 } from './util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from './virtual.js';
+import { guideRows, moveSelection, rowScrollTop, selectedIndex } from './guide-model.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 import { getThemePack, runCoreHooks } from './plugins.js';
 
@@ -100,8 +101,7 @@ function hideProgramResults() {
 function jumpToProgramResult(result) {
   S.guideFilterQuery = '';
   guideSearchEl.value = '';
-  const list = filteredChannels();
-  S.guideSelRowIdx = Math.max(0, list.findIndex((channel) => channel.number === result.channel.number));
+  S.guideSelNumber = result.channel.number;
   S.guideSelTime = result.entry.start + 1;
   S.guideWindowStart = floorToSlot(result.entry.start);
   hideProgramResults();
@@ -243,11 +243,12 @@ export function openGuideGrid() {
   guideOverlay.classList.add('hidden');
   S.guideFilterQuery = '';
   guideSearchEl.value = '';
-  const list = filteredChannels();
   const now = viewNow();
   S.guideWindowStart = floorToSlot(now);
   S.guideSelTime = now;
-  S.guideSelRowIdx = Math.max(0, list.findIndex((c) => c.number === S.currentNumber));
+  // selectedIndex() falls back to the first row if the current channel
+  // isn't listed (hidden, or a special that isn't enabled any more).
+  S.guideSelNumber = S.currentNumber;
   guideAnimToken += 1;
   crtContainer.classList.add('guide-active');
   const animated = guideAnimEnabled();
@@ -339,6 +340,9 @@ export function applyGuideDockMode() {
   crtContainer.classList.remove(`guide-${undockedClass}`);
   crtContainer.classList.add(`guide-${dockedClass}`);
   crtContainer.classList.toggle('guide-preview-hidden', !guideLivePreviewEnabled());
+  // DISPLAY > Guide > Channel names: one line with an ellipsis instead of two.
+  guideGrid.classList.toggle('guide-names-one-line', !!(S.config.display && S.config.display.guideNameLines === 1));
+  fitDockedGuideHeight();
 }
 
 export function toggleGuideDockMode() {
@@ -387,10 +391,10 @@ function setEntryLabel(block, text) {
   block.title = text;
 }
 
-function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
+function buildChannelRow(ch, windowEnd, selRef) {
   const schedule = getChannelSchedule(ch, S.guideWindowStart, windowEnd);
   const row = document.createElement('div');
-  row.className = 'guide-row' + (rowIdx === S.guideSelRowIdx ? ' active-row' : '');
+  row.className = 'guide-row' + (ch.number === S.guideSelNumber ? ' active-row' : '');
 
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
@@ -418,7 +422,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
     if (clampedEnd <= clampedStart) return;
     const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
     const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
-    const isSel = rowIdx === S.guideSelRowIdx && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
+    const isSel = ch.number === S.guideSelNumber && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
     if (isSel) selRef.info = { ch, entry };
 
     const block = document.createElement('div');
@@ -448,7 +452,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
     const displayTitle = getDisplayTitle(entry.file);
     setEntryLabel(block, displayTitle);
     block.addEventListener('click', () => {
-      S.guideSelRowIdx = rowIdx;
+      S.guideSelNumber = ch.number;
       S.guideSelTime = entry.start + 1;
       jumpToGuideEntry(ch, entry);
       closeGuideGrid();
@@ -472,7 +476,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
       if (clampedEnd <= clampedStart) return;
       const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
       const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
-      const isSel = rowIdx === S.guideSelRowIdx && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
+      const isSel = ch.number === S.guideSelNumber && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
 
       const block = document.createElement('div');
       block.className = 'guide-entry guide-entry-break' + (isSel ? ' sel' : '') + (entry.end <= viewNow() ? ' past' : '');
@@ -482,7 +486,7 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
       const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
       setEntryLabel(block, label);
       block.addEventListener('click', () => {
-        S.guideSelRowIdx = rowIdx;
+        S.guideSelNumber = ch.number;
         S.guideSelTime = entry.start + 1;
         jumpToGuideEntry(ch, entry);
         closeGuideGrid();
@@ -496,10 +500,66 @@ function buildChannelRow(ch, rowIdx, windowEnd, selRef) {
   return row;
 }
 
-function renderChannelRowRange(list, windowEnd, startIdx, endIdx, selRef) {
+// A special (plugin/virtual) channel: one full-width cell with the plugin's
+// own "what's on" line, since it has no schedule to lay out. A normal row
+// otherwise — selectable, tuned with Enter/OK (docs/design/11 §2.1).
+function buildSpecialRow(row) {
+  const { number, info } = row;
+  const rowEl = document.createElement('div');
+  rowEl.className = 'guide-row guide-row-special' + (number === S.guideSelNumber ? ' active-row' : '');
+
+  const chanCell = document.createElement('div');
+  chanCell.className = 'guide-row-chan';
+  chanCell.dataset.channelNumber = String(number);
+  chanCell.appendChild(buildChannelBadge({ number, name: info.name, icon: null }, { small: true, editable: false }));
+  const chanText = document.createElement('div');
+  chanText.className = 'grc-text';
+  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(number)}</span><span class="grc-name">${escapeHtml(info.name)}</span>`;
+  chanCell.appendChild(chanText);
+  runCoreHooks('guide-channel-cell', { channel: { number, name: info.name }, cell: chanCell });
+
+  const track = document.createElement('div');
+  track.className = 'guide-row-track';
+  const block = document.createElement('div');
+  block.className = 'guide-entry guide-entry-special' + (number === S.guideSelNumber ? ' sel' : '');
+  block.style.left = '0%';
+  block.style.width = '100%';
+  // Re-read on the fast-path tick (refreshSpecialCells) — a plugin's nowText
+  // can change with its own state while the grid itself stays put.
+  block.dataset.specialNumber = String(number);
+  setEntryLabel(block, info.nowText || info.name);
+  block.addEventListener('click', () => {
+    S.guideSelNumber = number;
+    tuneToChannel(number);
+    closeGuideGrid();
+  });
+  track.appendChild(block);
+
+  rowEl.appendChild(chanCell);
+  rowEl.appendChild(track);
+  return rowEl;
+}
+
+function renderRowRange(rows, windowEnd, startIdx, endIdx, selRef) {
   for (let rowIdx = startIdx; rowIdx < endIdx; rowIdx++) {
-    guideRowsEl.appendChild(buildChannelRow(list[rowIdx], rowIdx, windowEnd, selRef));
+    const row = rows[rowIdx];
+    guideRowsEl.appendChild(row.kind === 'special' ? buildSpecialRow(row) : buildChannelRow(row.ch, windowEnd, selRef));
   }
+}
+
+function specialsAtTop() {
+  return !!(S.config.display && S.config.display.guideSpecialsAtTop);
+}
+
+// Every row the grid shows right now, specials included, in display order.
+export function currentGuideRows() {
+  const specials = virtualChannelNumbers().map((number) => virtualChannelInfo(number));
+  return guideRows(filteredChannels(), specials, { specialsAtTop: specialsAtTop(), query: S.guideFilterQuery });
+}
+
+function selectedRow(rows = currentGuideRows()) {
+  const idx = selectedIndex(rows, S.guideSelNumber);
+  return idx === -1 ? null : rows[idx];
 }
 
 // Renders channels [nextIdx, list.length) a chunk at a time via setTimeout(0)
@@ -511,12 +571,12 @@ function renderChannelRowRange(list, windowEnd, startIdx, endIdx, selRef) {
 // stale chunked pass (from a render that's since been superseded by a newer
 // renderGuideGrid() call — filter change, tick refresh, dock toggle)
 // continuing to append rows into a grid that's moved on.
-function scheduleRemainingRows(list, windowEnd, nextIdx, selRef, renderGen) {
+function scheduleRemainingRows(rows, windowEnd, nextIdx, selRef, renderGen) {
   if (renderGen !== S.guideRenderGen) return;
-  const endIdx = Math.min(list.length, nextIdx + GUIDE_ROW_CHUNK_SIZE);
-  renderChannelRowRange(list, windowEnd, nextIdx, endIdx, selRef);
-  if (endIdx < list.length) {
-    setTimeout(() => scheduleRemainingRows(list, windowEnd, endIdx, selRef, renderGen), 0);
+  const endIdx = Math.min(rows.length, nextIdx + GUIDE_ROW_CHUNK_SIZE);
+  renderRowRange(rows, windowEnd, nextIdx, endIdx, selRef);
+  if (endIdx < rows.length) {
+    setTimeout(() => scheduleRemainingRows(rows, windowEnd, endIdx, selRef, renderGen), 0);
   } else {
     // Rows added after the initial positionNowLine() call grow the rows
     // container's scroll height — re-run it so the now-line stretches
@@ -532,11 +592,73 @@ function scheduleRemainingRows(list, windowEnd, nextIdx, selRef, renderGen) {
 // updated past-dimming (see refreshPastClasses/positionNowLine below).
 let lastGuideRenderSig = null;
 
-function guideRenderSignature(list, windowEnd) {
+// The row numbers are part of it: a plugin channel appearing or the specials
+// switching sides changes which rows exist without touching configGeneration.
+function guideRenderSignature(rows, windowEnd) {
   return [
     S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
-    S.guideDocked, S.guideShowBreaks, guideSlots(), list.length, S.guideSelRowIdx, S.guideSelTime,
+    S.guideDocked, S.guideShowBreaks, guideSlots(), rows.map((r) => r.number).join(','), S.guideSelNumber, S.guideSelTime,
   ].join('|');
+}
+
+function refreshSpecialCells(rows) {
+  guideRowsEl.querySelectorAll('.guide-entry[data-special-number]').forEach((el) => {
+    const row = rows.find((r) => r.kind === 'special' && String(r.number) === el.dataset.specialNumber);
+    const label = el.querySelector('.guide-entry-label');
+    if (!row || !label) return;
+    const text = row.info.nowText || row.info.name;
+    if (label.textContent !== text) { label.textContent = text; el.title = text; }
+  });
+}
+
+// Docked height (docs/design/11 §2.2): the strip holds its chrome (info line,
+// time header, hints) plus --guide-docked-rows whole rows. .guide-grid is a
+// CSS size container, so it can't size itself to content — this measures the
+// chrome and hands guide.css a height (--guide-docked-h), which CSS still
+// keeps between 46% and 75% of the screen. The chrome doesn't depend on the
+// strip's height, so one pass settles.
+function fitDockedGuideHeight() {
+  if (!S.guideDocked || guideGrid.classList.contains('hidden')) return;
+  const rowEls = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
+  const gridStyle = getComputedStyle(guideGrid);
+  const rowsStyle = getComputedStyle(guideRowsEl);
+  const rows = parseFloat(gridStyle.getPropertyValue('--guide-docked-rows')) || 5;
+  const minRow = parseFloat(gridStyle.getPropertyValue('--guide-row-height')) || 52;
+  // The tallest rendered row, so a wrapped name or title doesn't cost a row.
+  const rowH = rowEls.slice(0, 40).reduce((max, el) => Math.max(max, el.offsetHeight), minRow);
+  const gap = parseFloat(rowsStyle.rowGap) || 0;
+  const chrome = guideGrid.offsetHeight - guideRowsEl.clientHeight;
+  const target = Math.ceil(chrome + rows * (rowH + gap) + (parseFloat(rowsStyle.paddingTop) || 0) + 1);
+  const current = parseFloat(guideGrid.style.getPropertyValue('--guide-docked-h')) || 0;
+  if (Math.abs(current - target) > 1) guideGrid.style.setProperty('--guide-docked-h', `${target}px`);
+}
+
+let guideResizeFrame = 0;
+window.addEventListener('resize', () => {
+  if (guideGrid.classList.contains('hidden')) return;
+  cancelAnimationFrame(guideResizeFrame);
+  guideResizeFrame = requestAnimationFrame(() => {
+    fitDockedGuideHeight();
+    const idx = selectedIndex(currentGuideRows(), S.guideSelNumber);
+    if (idx >= 0) scrollSelectedRowIntoView(idx);
+    positionNowLine(S.guideWindowStart + GUIDE_SLOT_MS * guideSlots());
+  });
+});
+
+// Scroll the rows container so the selected row is whole on screen, with a
+// row of margin docked and centred on the full page (guide-model.js).
+function scrollSelectedRowIntoView(selIdx) {
+  const rowEls = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
+  if (!rowEls[selIdx]) return;
+  const top = rowScrollTop({
+    rows: rowEls.map((el) => ({ top: el.offsetTop, height: el.offsetHeight })),
+    selIdx,
+    viewportH: guideRowsEl.clientHeight,
+    scrollTop: guideRowsEl.scrollTop,
+    contentH: guideRowsEl.scrollHeight,
+    mode: S.guideDocked ? 'docked' : 'full',
+  });
+  if (top !== guideRowsEl.scrollTop) guideRowsEl.scrollTop = top;
 }
 
 // Companion to the block.dataset.end stamped in buildChannelRow — moves the
@@ -550,9 +672,9 @@ function refreshPastClasses() {
 }
 
 export function renderGuideGrid() {
-  const list = filteredChannels();
   if (sortedChannels().length === 0) { closeGuideGrid(); return; }
-  if (list.length === 0) {
+  const rows = currentGuideRows();
+  if (rows.length === 0) {
     guideTimeHeaderEl.innerHTML = '';
     guideRowsEl.innerHTML = '';
     guideRowsEl.appendChild(guideGridlinesEl);
@@ -562,15 +684,19 @@ export function renderGuideGrid() {
     giChannelEl.textContent = 'NO MATCHES';
     giTitleEl.textContent = '—';
     giTimeEl.textContent = '';
+    lastGuideRenderSig = null;
     return;
   }
-  S.guideSelRowIdx = Math.min(Math.max(S.guideSelRowIdx, 0), list.length - 1);
+  const selIdx = selectedIndex(rows, S.guideSelNumber);
+  S.guideSelNumber = rows[selIdx].number;
+  guideGrid.classList.toggle('guide-names-one-line', !!(S.config.display && S.config.display.guideNameLines === 1));
   const windowEnd = S.guideWindowStart + GUIDE_SLOT_MS * guideSlots();
 
-  const sig = guideRenderSignature(list, windowEnd);
+  const sig = guideRenderSignature(rows, windowEnd);
   if (sig === lastGuideRenderSig && guideRowsEl.children.length > 0) {
     positionNowLine(windowEnd);
     refreshPastClasses();
+    refreshSpecialCells(rows);
     return;
   }
   lastGuideRenderSig = sig;
@@ -592,90 +718,37 @@ export function renderGuideGrid() {
     `${WEEKDAYS[winDate.getDay()].slice(0, 3)} ${MONTHS[winDate.getMonth()]} ${winDate.getDate()}  ` +
     `${formatSlotLabel(S.guideWindowStart)} – ${formatSlotLabel(windowEnd)}`;
 
+  const previousScrollTop = guideRowsEl.scrollTop;
   guideRowsEl.innerHTML = '';
   guideRowsEl.appendChild(guideGridlinesEl);
   guideRowsEl.appendChild(guideNowLineEl);
 
-  // Virtual channels get single full-width rows at the top. They sit
-  // outside the arrow-key selection model (clickable only) — the guide's
-  // selection math stays anchored to real channels. Cheap (no schedule
-  // computation), so always rendered synchronously.
-  if (!S.guideFilterQuery.trim()) {
-    virtualChannelNumbers().forEach((num) => {
-      const info = virtualChannelInfo(num);
-      const row = document.createElement('div');
-      row.className = 'guide-row';
-
-      const chanCell = document.createElement('div');
-      chanCell.className = 'guide-row-chan';
-      chanCell.dataset.channelNumber = String(num);
-      chanCell.appendChild(buildChannelBadge({ number: num, name: info.name, icon: null }, { small: true, editable: false }));
-      const chanText = document.createElement('div');
-      chanText.className = 'grc-text';
-      chanText.innerHTML = `<span class="grc-num">CH ${String(num).padStart(2, '0')}</span><span class="grc-name">${escapeHtml(info.name)}</span>`;
-      chanCell.appendChild(chanText);
-      runCoreHooks('guide-channel-cell', { channel: { number: num, name: info.name }, cell: chanCell });
-
-      const track = document.createElement('div');
-      track.className = 'guide-row-track';
-      const block = document.createElement('div');
-      block.className = 'guide-entry';
-      block.style.left = '0%';
-      block.style.width = '100%';
-      setEntryLabel(block, info.nowText);
-      block.addEventListener('click', () => {
-        tuneToChannel(num);
-        closeGuideGrid();
-      });
-      track.appendChild(block);
-
-      row.appendChild(chanCell);
-      row.appendChild(track);
-      guideRowsEl.appendChild(row);
-    });
-  }
-
   const selRef = { info: null };
 
   // Visible-first, but only for lists actually big enough to need it (see
-  // GUIDE_LAZY_FILL_THRESHOLD) — render enough real-channel rows to cover
-  // the current viewport synchronously (docked mode shows ~4 rows, full
-  // page more), padded out to at least cover the selected row so it's
-  // guaranteed available for the scroll-into-view/info-panel update right
-  // below. The rest of a large channel list (70+) is filled in afterward
-  // via scheduleRemainingRows so a single open doesn't block the main
-  // thread computing every channel's schedule at once.
-  const initialCount = list.length <= GUIDE_LAZY_FILL_THRESHOLD
-    ? list.length
-    : Math.min(list.length, Math.max(S.guideSelRowIdx + 1, S.guideDocked ? 6 : 24));
-  renderChannelRowRange(list, windowEnd, 0, initialCount, selRef);
+  // GUIDE_LAZY_FILL_THRESHOLD) — render enough rows to cover the current
+  // viewport synchronously, padded out past the selected row (plus its
+  // margin row) so it's guaranteed available for the scroll and info-panel
+  // update right below. The rest of a large lineup (70+) is filled in
+  // afterward via scheduleRemainingRows so a single open doesn't block the
+  // main thread computing every channel's schedule at once. Special rows are
+  // cheap (no schedule), but count toward the batch like any other row.
+  const initialCount = rows.length <= GUIDE_LAZY_FILL_THRESHOLD
+    ? rows.length
+    : Math.min(rows.length, Math.max(selIdx + 2, S.guideDocked ? 7 : 24));
+  renderRowRange(rows, windowEnd, 0, initialCount, selRef);
 
-  // +2 for the gridlines and now-line overlays, plus any prepended
-  // virtual-channel rows.
-  const virtualRowCount = S.guideFilterQuery.trim() ? 0 : virtualChannelNumbers().length;
-  const activeRowEl = guideRowsEl.children[S.guideSelRowIdx + 2 + virtualRowCount];
-  if (activeRowEl) {
-    activeRowEl.scrollIntoView({ block: 'nearest' });
-    // 'nearest' only guarantees activeRowEl itself ends up fully visible —
-    // it does nothing to prevent the row directly above it from landing
-    // half-cut at the scroll container's top edge (a sliver of the next
-    // channel's title peeking in above the timeline header), which reads
-    // as a broken/glitched row rather than an intentional partial scroll.
-    // Rows use min-height (a wrapped program title can make one taller
-    // than --guide-row-height's 52px default), so this walks real offsets
-    // rather than assuming a fixed row-height step — correct at any window
-    // size, not just the one this was noticed at.
-    const rows = Array.from(guideRowsEl.children).filter((el) => el.classList.contains('guide-row'));
-    const top = guideRowsEl.scrollTop;
-    const straddling = rows.find((row) => row.offsetTop < top && row.offsetTop + row.offsetHeight > top);
-    if (straddling) guideRowsEl.scrollTop = straddling.offsetTop + straddling.offsetHeight;
-  }
+  // Rebuilding the rows resets the scroll position; start from where it was
+  // so a one-row move only scrolls as far as it has to.
+  fitDockedGuideHeight();
+  guideRowsEl.scrollTop = previousScrollTop;
+  scrollSelectedRowIntoView(selIdx);
 
   positionNowLine(windowEnd);
-  updateGuideInfoPanel(list[S.guideSelRowIdx], selRef.info);
+  updateGuideInfoPanel(rows[selIdx], selRef.info);
 
-  if (initialCount < list.length) {
-    setTimeout(() => scheduleRemainingRows(list, windowEnd, initialCount, selRef, renderGen), 0);
+  if (initialCount < rows.length) {
+    setTimeout(() => scheduleRemainingRows(rows, windowEnd, initialCount, selRef, renderGen), 0);
   }
 }
 
@@ -707,11 +780,16 @@ export function positionNowLine(windowEnd) {
   guideNowLineEl.classList.remove('hidden');
 }
 
-export function updateGuideInfoPanel(ch, selectedInfo) {
-  if (!ch) return;
+// row: a guideRows() entry (guide-model.js).
+export function updateGuideInfoPanel(row, selectedInfo) {
+  if (!row) return;
+  const ch = row.kind === 'special' ? { number: row.number, name: row.info.name } : row.ch;
   giNumberEl.textContent = formatChannelNumber(ch.number);
   giChannelEl.textContent = ch.name || 'UNTITLED CHANNEL';
-  if (selectedInfo) {
+  if (row.kind === 'special') {
+    giTitleEl.textContent = row.info.nowText || row.info.name;
+    giTimeEl.textContent = '';
+  } else if (selectedInfo) {
     giTitleEl.textContent = getDisplayTitle(selectedInfo.entry.file);
     giTimeEl.textContent = `${formatSlotLabel(selectedInfo.entry.start)} – ${formatSlotLabel(selectedInfo.entry.end)}`;
   } else {
@@ -729,18 +807,28 @@ export function updateGuideInfoPanel(ch, selectedInfo) {
 }
 
 export function moveGuideSelectionRow(direction) {
-  const list = filteredChannels();
-  if (list.length === 0) return;
-  S.guideSelRowIdx = (S.guideSelRowIdx + direction + list.length) % list.length;
+  const rows = currentGuideRows();
+  if (rows.length === 0) return;
+  S.guideSelNumber = moveSelection(rows, S.guideSelNumber, direction);
+  renderGuideGrid();
+}
+
+// A screenful at a time (CH± on a remote). Stops at the ends rather than
+// wrapping, the way a remote's CH key pages a list.
+export function pageGuideSelection(direction, step) {
+  const rows = currentGuideRows();
+  if (rows.length === 0) return;
+  S.guideSelNumber = moveSelection(rows, S.guideSelNumber, direction * Math.max(1, step), { wrap: false });
   renderGuideGrid();
 }
 
 // Move selection to the previous/next show on the current row. Won't move
 // earlier than the show airing right now — a live guide can't rewind.
 export function moveGuideSelectionTime(direction) {
-  const list = filteredChannels();
-  const ch = list[S.guideSelRowIdx];
-  if (!ch) return;
+  const row = selectedRow();
+  // A special row is one full-width cell: there's no other program to move to.
+  if (!row || row.kind !== 'channel') return;
+  const { ch } = row;
   const now = viewNow();
   // The time machine turns the guide into a two-way browser; without it
   // the guide stays live-only and can't scroll into the past.
@@ -777,9 +865,9 @@ export function moveGuideSelectionTime(direction) {
 // channel), matching showDetailsForCurrentChannel's own no-op behavior.
 function showDetailsForGuideSelection() {
   if (!S.config.details || S.config.details.enabled === false) return;
-  const list = filteredChannels();
-  const ch = list[S.guideSelRowIdx];
-  if (!ch) return;
+  const row = selectedRow();
+  if (!row || row.kind !== 'channel') return;
+  const { ch } = row;
   const sched = getChannelSchedule(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
   const entry = sched.find((en) => S.guideSelTime >= en.start && S.guideSelTime < en.end);
   if (!entry) return;
@@ -821,15 +909,17 @@ export function handleGuideGridKey(e) {
     return;
   }
 
-  const list = filteredChannels();
   switch (e.key) {
     case 'ArrowUp': moveGuideSelectionRow(-1); break;
     case 'ArrowDown': moveGuideSelectionRow(1); break;
     case 'ArrowLeft': moveGuideSelectionTime(-1); break;
     case 'ArrowRight': moveGuideSelectionTime(1); break;
     case 'Enter': {
-      const selCh = list[S.guideSelRowIdx];
-      if (selCh) {
+      const row = selectedRow();
+      const selCh = row && row.kind === 'channel' ? row.ch : null;
+      if (row && row.kind === 'special') {
+        tuneToChannel(row.number);
+      } else if (selCh) {
         const sched = getChannelSchedule(selCh, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
         const selEntry = sched.find((en) => S.guideSelTime >= en.start && S.guideSelTime < en.end);
         jumpToGuideEntry(selCh, selEntry);

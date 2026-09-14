@@ -347,6 +347,10 @@ export function renderSettingsPanels() {
   guideOpenCloseAnimEnabledEl.checked = !!S.config.display.guideOpenCloseAnim;
   guideAnimSpeedSlider.value = S.config.display.guideOpenCloseAnimMs || 180;
   guideLivePreviewEnabledEl.checked = effectiveGuideLivePreview();
+  const specialsTopEl = document.getElementById('guide-specials-top-enabled');
+  if (specialsTopEl) specialsTopEl.checked = !!S.config.display.guideSpecialsAtTop;
+  const nameLinesEl = document.getElementById('guide-name-lines-select');
+  if (nameLinesEl) nameLinesEl.value = S.config.display.guideNameLines === 1 ? '1' : '2';
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }
@@ -2103,6 +2107,16 @@ guideOpenCloseAnimEnabledEl.addEventListener('change', () => {
 guideLivePreviewEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideLivePreview'], value: guideLivePreviewEnabledEl.checked });
   applyGuideDockMode();
+});
+// Where special (plugin) channels sit in the guide (docs/design/11 §2.1).
+const guideSpecialsTopEnabledEl = document.getElementById('guide-specials-top-enabled');
+// One-line (truncated) or two-line channel names in the guide rail.
+const guideNameLinesSelect = document.getElementById('guide-name-lines-select');
+guideNameLinesSelect?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideNameLines'], value: guideNameLinesSelect.value === '1' ? 1 : 2 });
+});
+guideSpecialsTopEnabledEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideSpecialsAtTop'], value: guideSpecialsTopEnabledEl.checked });
 });
 guideAnimSpeedSlider.addEventListener('input', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideOpenCloseAnimMs'], value: parseInt(guideAnimSpeedSlider.value, 10) }, { coalesce: 'settings:display.guideOpenCloseAnimMs' });
