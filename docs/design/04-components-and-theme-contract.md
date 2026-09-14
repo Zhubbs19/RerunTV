@@ -1,6 +1,6 @@
 # 04 — Components and theme contract
 
-Status: **in progress** — step 1 (tokens) built; steps 2–5 and §5 underway. Owns contract **C4**.
+Status: **in progress** — steps 1–2 and §5 built; steps 3–5 underway. Owns contract **C4**.
 Consumed by: 01, 03, 06, 10, plugins.
 
 ### Built (§6 step 1: semantic and density tokens, 7c63e55)
@@ -22,6 +22,45 @@ Consumed by: 01, 03, 06, 10, plugins.
   pixels. Theme sweep (`test/sweep-doc04.mjs`, 26 themes × 26 screens at 1280×720, pinned view time): 635/676
   gated screenshots within 1%; each of the other 41 was inspected and is sweep state (viewing log growth,
   selected channel, video frame, now-line drift, hover/animation timing), not a token change.
+
+### Built (§6 step 2: the kit, 28cd9f1; §5 plugin surface)
+
+- `renderer/js/ui/` (≈1.4k lines with comments, ≈1.06k without — under the §2 revisit line):
+  `kit-core.js` (`h`, `bindPress`, pure `rovingIndex`/`stepValue`), `focus.js` (FocusScope, SpatialFocus,
+  `focusDefault`, and the **modal stack** — `tv-input.js`'s `registerTvModal` delegates to it; the module
+  imports nothing, so cycles can't catch it mid-evaluation), `button.js` (Button, IconButton, EmptyState,
+  Badge, Chip), `field.js` (Field, SettingRow), `controls.js` (Toggle, Slider, Select, Segmented,
+  NumberStepper, ColorPick), `tabs.js` (Tabs, `enhanceTabs` for static bars), `menu.js` (Menu, MenuButton,
+  pure `placePopup`/`menuMove`), `dialog.js` (Dialog, ModalSurface), `toast.js` (Toast, StatusBar),
+  `list-detail.js` (ListDetail, `listDetailBehavior`, `reconcileList`). `renderer/css/kit.css` holds only
+  what the kit adds; components keep established classes (`.btn`, `.setting-row`, `.row-menu`,
+  `.guide-run-list`) so pages and themes look the same.
+- Absorbed, files removed: `ui/spatial-focus.js`, `ui/row-menu.js`, `ui/setting-row.js`, `setup-narrow.js`.
+- Adopted: setup dialogs (`setup-dialogs.js` API unchanged), empty states, the status bar's save state and
+  task line, sidebar/sub-tab bars, row ⋯ menus, ON AIR's toolbar (Buttons, Segmented zoom), guide popover and
+  banner hub actions (owner-driven Menus: the guide/banner route keys, the Menu highlights), on-screen
+  keyboard, handoff, learn mode, first-run wizard (ModalSurfaces), the TV flash (Toast). TV guide rows take
+  `--target-min`.
+- **ListDetail is a behaviour, not a re-render of the six collections.** Keys, Esc/J/K/Enter and narrow
+  mode were already one selector-based implementation; they now key on `data-ui-list-detail` /
+  `data-ui-list` / `data-ui-detail` in `index.html`, with row selectors passed in. Rewriting ~6k lines of
+  collection renderers for no visible change was judged not worth the regression risk; new lists use the
+  `ListDetail()` builder.
+- Desktop keys: the tab bars, row menus, guide popover and J/K/Enter/Esc keep their exact key tables
+  (pinned in `tests/ui-kit.test.js`). Two deliberate changes: ON AIR's zoom is now a radio group (one Tab
+  stop, ◀▶ choose) and TV Back on the setup screen cancels the top modal (it used to dispatch Escape on
+  `window`, which the dialog never heard). In TV dialogs ◀▶ on a Slider/Segmented/NumberStepper step it
+  (`data-ui-arrows="horizontal"`) instead of moving focus.
+- Focus: one ring colour can't clear 3:1 on both a navy surface and a gold selection, so focus is a
+  `--focus-ring` outline offset over `--focus-halo` (the surface behind); the theme check pairs
+  ring/surface-0 and ring/halo, not ring/selected-bg.
+- §5: `ctx.ui` (**CTX_VERSION 6**, not 4 as §5 said — v4/v5 were taken by search and input) exposes the kit,
+  frozen. Settings sections may declare `fields` (toggle/slider/number/select/text/colour, dotted keys,
+  `dependsOn`, `synonyms`) that core renders as kit SettingRows; each field is a setup search entry and a
+  rejected `validate` shows inline (`plugin-settings-schema.js` `normalizeSettingsFields`,
+  `settingPathPatch`, `coerceFieldValue`; `tests/plugin-settings-fields.test.js`). Plugin settings panels
+  and the tuned plugin channel container carry `data-plugin="id"`; `PLUGIN_DEVELOPMENT.md` documents the
+  kit, fields and CSS scoping.
 
 ## 1. Problem
 

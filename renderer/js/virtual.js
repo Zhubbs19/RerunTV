@@ -169,7 +169,7 @@ export function hideVirtualChannels() {
       try { def.stop({ ...window.RCBPlugins.ctx, container: pluginChannelContainerEl }); } catch (e) { console.error(`[plugin ${activePluginChannelId}] stop() threw`, e); }
     }
     activePluginChannelId = null;
-    if (pluginChannelContainerEl) pluginChannelContainerEl.innerHTML = '';
+    if (pluginChannelContainerEl) { pluginChannelContainerEl.innerHTML = ''; delete pluginChannelContainerEl.dataset.plugin; }
   }
 }
 
@@ -219,6 +219,8 @@ export function showVirtualChannel(number) {
   if (plugin) {
     activePluginChannelId = plugin.id;
     pluginChannelContainerEl.innerHTML = '';
+    // Plugin CSS scopes itself to [data-plugin="id"] (docs/design/04 §5).
+    pluginChannelContainerEl.dataset.plugin = plugin.id;
     try {
       plugin.def.render(pluginChannelContainerEl, window.RCBPlugins.ctx);
     } catch (e) {

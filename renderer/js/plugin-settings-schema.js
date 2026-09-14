@@ -122,3 +122,85 @@ export function redactPluginSettings(settings, schema, replacement = '[REDACTED]
   });
   return redacted;
 }
+
+// ---------- Declarative fields (docs/design/04 §5) ----------
+// A settings section can list `fields` instead of drawing itself with
+// render(): core builds each one from the component kit (SettingRow plus a
+// Toggle/Slider/NumberStepper/Select/text/colour control), so it gets TV
+// density, D-pad focus, setup search entries and inline validation errors
+// without plugin code.
+//   { key: 'crawl.speed', type: 'slider', label: 'Crawl speed', help: '…',
+//     min: 1, max: 10, step: 1, unit: 'x', dependsOn: 'enabled', synonyms: 'scroll pace' }
+const FIELD_TYPES = new Set(['toggle', 'slider', 'number', 'select', 'text', 'color']);
+
+export function normalizeSettingsFields(pluginId, sectionId, fields) {
+  const where = `registerPluginSettings("${pluginId}", "${sectionId}")`;
+  if (!Array.isArray(fields) || !fields.length) throw new Error(`${where}: fields must be a non-empty array`);
+  const seen = new Set();
+  return fields.map((field, index) => {
+    if (!isPlainObject(field)) throw new Error(`${where}: field ${index} must be an object`);
+    const key = typeof field.key === 'string' ? field.key.trim() : '';
+    if (!key || !/^[A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*$/.test(key)) throw new Error(`${where}: field ${index} needs a dotted key like "crawl.speed"`);
+    if (seen.has(key)) throw new Error(`${where}: duplicate field key "${key}"`);
+    seen.add(key);
+    if (!FIELD_TYPES.has(field.type)) throw new Error(`${where}: field "${key}" type must be one of ${[...FIELD_TYPES].join(', ')}`);
+    if (typeof field.label !== 'string' || !field.label.trim()) throw new Error(`${where}: field "${key}" needs a label`);
+    const out = {
+      key,
+      type: field.type,
+      label: field.label.trim(),
+      help: typeof field.help === 'string' ? field.help : '',
+      synonyms: typeof field.synonyms === 'string' ? field.synonyms : '',
+      dependsOn: typeof field.dependsOn === 'string' ? field.dependsOn : '',
+    };
+    if (field.type === 'slider' || field.type === 'number') {
+      const min = Number(field.min);
+      const max = Number(field.max);
+      const step = field.step == null ? 1 : Number(field.step);
+      if (field.type === 'slider' && (!Number.isFinite(min) || !Number.isFinite(max) || max <= min)) throw new Error(`${where}: slider "${key}" needs min < max`);
+      if (!(step > 0)) throw new Error(`${where}: field "${key}" step must be positive`);
+      Object.assign(out, { min: Number.isFinite(min) ? min : -Infinity, max: Number.isFinite(max) ? max : Infinity, step, unit: typeof field.unit === 'string' ? field.unit : '' });
+    }
+    if (field.type === 'select') {
+      if (!Array.isArray(field.options) || !field.options.length) throw new Error(`${where}: select "${key}" needs options`);
+      out.options = field.options.map((opt) => (isPlainObject(opt) ? { value: opt.value, label: String(opt.label ?? opt.value) } : { value: opt, label: String(opt) }));
+    }
+    if (field.type === 'text') out.placeholder = typeof field.placeholder === 'string' ? field.placeholder : '';
+    return out;
+  });
+}
+
+export function readSettingPath(settings, path) {
+  return path.split('.').reduce((node, part) => (isPlainObject(node) ? node[part] : undefined), settings);
+}
+
+// The top-level patch updatePluginSettings(id, patch) needs to set one dotted
+// path, leaving everything else in that branch as it was.
+export function settingPathPatch(settings, path, value) {
+  const parts = path.split('.');
+  const top = parts[0];
+  if (parts.length === 1) return { [top]: value };
+  const branch = isPlainObject(settings && settings[top]) ? clone(settings[top]) : {};
+  let node = branch;
+  for (let i = 1; i < parts.length - 1; i += 1) {
+    if (!isPlainObject(node[parts[i]])) node[parts[i]] = {};
+    node = node[parts[i]];
+  }
+  node[parts[parts.length - 1]] = value;
+  return { [top]: branch };
+}
+
+// A field's value as a control shows it, and back again for saving.
+export function coerceFieldValue(field, raw) {
+  if (field.type === 'toggle') return !!raw;
+  if (field.type === 'slider' || field.type === 'number') {
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return Number.isFinite(field.min) ? field.min : 0;
+    return Math.min(field.max, Math.max(field.min, n));
+  }
+  if (field.type === 'select') {
+    const match = field.options.find((opt) => String(opt.value) === String(raw));
+    return match ? match.value : field.options[0].value;
+  }
+  return raw == null ? '' : String(raw);
+}

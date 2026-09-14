@@ -750,6 +750,8 @@ the piece you need instead of pulling every key off the flat object:
 - `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
 - `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
 - `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)
+- `ctx.input` — `{ usageMode, keyForAction, actions }` (v5, see `onAction` under `registerChannelType` above)
+- `ctx.ui` — the component kit (v6, see "Building UI with `ctx.ui`" below)
 
 The flat top-level keys (`ctx.S`, `ctx.player`, `ctx.sortedChannels`, …) stay
 available too — nothing existing breaks — but new code should prefer the
@@ -760,6 +762,49 @@ feature newer than some installed base of the app, declare
 is lower refuses to load your `renderer`/`settings` entry with a clear
 one-line error instead of crashing partway through your own top-level code
 on a property that doesn't exist yet.
+
+### Building UI with `ctx.ui` (ctx v6)
+
+Core's own screens are built from a small component kit (docs/design/04 §3), and
+`ctx.ui` hands your settings panel or channel UI the same pieces. Each is a plain
+function that returns a DOM element (no framework), styled by the active theme's
+tokens, sized for the current mode (`html[data-mode="tv"]` gets 10-foot text and
+64 px targets automatically), and D-pad friendly. Prefer them over hand-built
+`<button>`s: you get theme-correct colours, focus rings and TV handling for free.
+
+```js
+const { ui } = window.RCBPlugins.ctx;
+container.append(
+  ui.SettingRow({ label: 'Crawl speed', help: 'How fast the ticker moves.',
+    control: ui.Slider({ min: 1, max: 10, value: 4, format: (v) => `${v}x`, onChange: save }) }),
+  ui.Button({ label: 'TEST CRAWL', variant: 'primary', onPress: runTest }),
+);
+const ok = await ui.Dialog({ title: 'RESET CRAWL?', message: 'Your custom text is removed.',
+  actions: [{ label: 'CANCEL', value: false }, { label: 'RESET', variant: 'danger', value: true }] }).result;
+```
+
+| Component | Returns | Notes |
+|---|---|---|
+| `Button({ label, variant, icon, onPress, disabled, isDefault })` | `<button class="btn">` | variant `default`/`primary`/`danger`/`quiet`; `onPress` fires on click, Enter, Space and the remote's OK |
+| `IconButton({ icon, label, onPress })` | button | `label` required (accessible name and tooltip) |
+| `Field({ label, help, control })`, `SettingRow({ label, help, control, dependsOn })` | element | wires `<label for>`; `Field` has `setError(text)` |
+| `Toggle`, `Slider({ min, max, step, value, format })`, `Select({ options })`, `Segmented({ items, value })`, `NumberStepper`, `ColorPick` | control | ◀▶ step a Slider/Segmented/NumberStepper, in TV dialogs too |
+| `Tabs({ items, orientation, onSelect })` | tab bar | roving focus, `aria-selected` |
+| `ListDetail({ items, key, renderRow, renderDetail, onSelect })` | wrapper | keyed rows; `refresh(items, selected)` |
+| `Menu({ groups, focus })` / `MenuButton({ label, groups })` | controller / `{ button }` | last group is for destructive items (`danger: true`) |
+| `Dialog({ title, message, body, actions })` | `{ result }` | focus starts on the safe action, never a danger one; Back/Escape cancel |
+| `Toast(text, { element, key, duration })` | — | transient one-line readout |
+| `EmptyState({ message, action })`, `Badge({ text, tone })`, `Chip({ text, tone })` | element | badges and chips are never focusable |
+| `FocusScope(container)`, `SpatialFocus.move(container, direction)` | release fn / bool | for a custom full-screen overlay of your own |
+
+Settings section `render(container, ctx)` also receives `ctx.ui`. Use
+`ctx.ui?.Button` or `"minCtxVersion": 6` if you support older app builds.
+
+**Scope your CSS.** Core wraps every plugin settings panel, and a plugin channel's
+container while it's tuned, in `[data-plugin="<id>"]`. Write
+`[data-plugin="my-plugin"] .crawl-preview { … }`; selectors that reach outside
+that element (`.btn`, `#setup-screen …`) are unsupported and can break when core
+or a theme changes.
 
 ### `registerThemePack(id, definition)`
 
@@ -890,6 +935,35 @@ The section context contains `S`, `player`, `saveConfigDebounced`, and
 and the id-bound `updateSettings(patch)` helper. `player` is useful for a
 settings action such as capturing the current frame; runtime playback still
 belongs in the channel's `render`/`stop` lifecycle.
+
+**Declarative fields (ctx v6).** Instead of `render`, a section can list `fields`
+and core draws them from the component kit: sentence-case rows with the right
+control, TV density, D-pad focus, setup search entries for every field (no
+`registerEntries` needed) and inline errors when your `validate` rejects a value.
+
+```js
+sections: [{
+  id: 'behavior',
+  label: 'CRAWL',
+  fields: [
+    { key: 'enabled', type: 'toggle', label: 'Show the crawl' },
+    { key: 'crawl.speed', type: 'slider', label: 'Crawl speed', min: 1, max: 10, step: 1, unit: 'x',
+      dependsOn: 'enabled', synonyms: 'scroll pace', help: 'How fast the ticker moves.' },
+    { key: 'crawl.style', type: 'select', label: 'Style', options: [{ value: 'ticker', label: 'Ticker' }, 'marquee'] },
+    { key: 'lines', type: 'number', label: 'Lines of text', min: 1, max: 3 },
+    { key: 'crawl.text', type: 'text', label: 'Custom text', placeholder: 'Leave blank for headlines' },
+    { key: 'crawl.color', type: 'color', label: 'Text colour' },
+  ],
+}],
+```
+
+`key` is a dotted path into your plugin's settings; each change is one
+`updatePluginSettings` write of that path, so `defaults`, `migrations` and
+`validate` apply exactly as they do for a hand-drawn section. `dependsOn` names
+a toggle field's key: the row is disabled (not hidden) while that toggle is off.
+Types: `toggle`, `slider` (needs `min` < `max`), `number`, `select` (needs
+`options`), `text`, `color`. A section with both `render` and `fields` uses
+`render`.
 
 Each section may set `layout` to `stack` (the default), `two-column`, or
 `wide`. Core owns the responsive breakpoint: `two-column` becomes one column

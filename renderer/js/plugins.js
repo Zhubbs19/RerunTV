@@ -77,8 +77,17 @@ import { player } from './dom.js';
 import { PLUGIN_CHANNEL_ACTIONS, keyForAction } from './remote-input.js';
 import { usageMode } from './usage-mode.js';
 import {
-  applyPluginSettingsSchema, normalizePluginSettingsSchema, redactPluginSettings, validatePluginSettings,
+  applyPluginSettingsSchema, normalizePluginSettingsSchema, normalizeSettingsFields, redactPluginSettings, validatePluginSettings,
 } from './plugin-settings-schema.js';
+import { Badge, Button, Chip, EmptyState, IconButton } from './ui/button.js';
+import { ColorPick, NumberStepper, Segmented, Select, Slider, Toggle } from './ui/controls.js';
+import { Dialog } from './ui/dialog.js';
+import { Field, SettingRow } from './ui/field.js';
+import { FocusScope, SpatialFocus } from './ui/focus.js';
+import { ListDetail } from './ui/list-detail.js';
+import { Menu, MenuButton } from './ui/menu.js';
+import { Tabs } from './ui/tabs.js';
+import { Toast } from './ui/toast.js';
 
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
@@ -281,15 +290,18 @@ export function registerPluginSettings(id, definition) {
       throw new Error(`registerPluginSettings("${id}"): every section needs a string id`);
     }
     if (seen.has(section.id)) throw new Error(`registerPluginSettings("${id}"): duplicate section id "${section.id}"`);
-    if (typeof section.render !== 'function') {
-      throw new Error(`registerPluginSettings("${id}", "${section.id}"): render(container, ctx) is required`);
+    // A section either draws itself (render) or lists fields core builds from
+    // the component kit (docs/design/04 §5).
+    const fields = section.fields != null ? normalizeSettingsFields(id, section.id, section.fields) : null;
+    if (!fields && typeof section.render !== 'function') {
+      throw new Error(`registerPluginSettings("${id}", "${section.id}"): render(container, ctx) or fields is required`);
     }
     const layout = section.layout || 'stack';
     if (!allowedLayouts.has(layout)) {
       throw new Error(`registerPluginSettings("${id}", "${section.id}"): layout must be stack, two-column, or wide`);
     }
     seen.add(section.id);
-    return { id: section.id, label: section.label || '', layout, render: section.render };
+    return { id: section.id, label: section.label || '', layout, render: typeof section.render === 'function' ? section.render : null, fields };
   });
   settingsSectionRegistry.set(id, [...existing, ...sections]);
 }
@@ -326,6 +338,14 @@ export function getPluginSearchEntries() {
       preview: summary.description || '',
       haystack: [summary.name, id, summary.description, ...sectionLabels].filter(Boolean).join(' ').toLowerCase(),
     });
+    // Declarative fields are searchable without the plugin naming them.
+    (settingsSectionRegistry.get(id) || []).forEach((section) => (section.fields || []).forEach((field) => {
+      results.push({
+        pluginId: id, pluginName: summary.name, kind: 'setting', label: field.label, section: section.id,
+        preview: summary.name,
+        haystack: [field.label, field.help, field.synonyms, summary.name].filter(Boolean).join(' ').toLowerCase(),
+      });
+    }));
     (settingsSearchRegistry.get(id) || []).forEach((entry) => {
       results.push({
         pluginId: id, pluginName: summary.name, kind: 'setting', label: entry.label, section: entry.section,
@@ -673,7 +693,9 @@ export function pluginDiagnosticsSnapshot() {
 // v4 added ctx.search.registerEntries (setup search entries for a plugin's
 // own settings).
 // v5 added ctx.input (usageMode, keyForAction) and channel types' onAction.
-const CTX_VERSION = 5;
+// v6 added ctx.ui, the component kit (docs/design/04 §5), and declarative
+// settings fields.
+const CTX_VERSION = 6;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -689,6 +711,12 @@ function installGlobalApi() {
   // docs/design/01 §6.6: which mode this device is in, and the keyboard key an
   // action corresponds to (so onAction can forward to an existing onKey).
   const input = { usageMode, keyForAction, actions: Object.values(PLUGIN_CHANNEL_ACTIONS) };
+  // The component kit (docs/design/04 §3): the same controls core's own
+  // screens are built from, with TV density and D-pad focus built in.
+  const ui = Object.freeze({
+    Button, IconButton, Field, SettingRow, Toggle, Slider, Select, Segmented, NumberStepper, ColorPick,
+    Tabs, ListDetail, Menu, MenuButton, Dialog, Toast, EmptyState, Badge, Chip, FocusScope, SpatialFocus,
+  });
 
   window.RCBPlugins = {
     registerChannelType,
@@ -752,7 +780,7 @@ function installGlobalApi() {
       // Each group is its own object (not just a re-export of the flat
       // keys) so a plugin can destructure `const { channels } = ctx`
       // without pulling in everything else.
-      core, audio, channels, settings, util, search, input,
+      core, audio, channels, settings, util, search, input, ui,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's

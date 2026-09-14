@@ -7,6 +7,65 @@ import {
   updatePluginChannelDisplaySettings, updatePluginSettings,
 } from './plugins.js';
 import { S, commitInPlace, saveConfigDebounced } from './state.js';
+import { coerceFieldValue, readSettingPath, settingPathPatch } from './plugin-settings-schema.js';
+import { NumberStepper, Select, Slider, Toggle } from './ui/controls.js';
+import { SettingRow, syncSettingDependencies } from './ui/field.js';
+import { h } from './ui/kit-core.js';
+
+// ---------- Declarative fields (docs/design/04 §5) ----------
+// A section's fields become SettingRows of kit controls. Each change writes
+// one dotted path through updatePluginSettings, so the plugin's validate()
+// still gates every write; a rejected value shows under its row and the
+// control goes back to the saved value.
+function fieldControl(field, value, onValue, id) {
+  if (field.type === 'toggle') return Toggle({ id, checked: !!value, onChange: onValue });
+  if (field.type === 'slider') {
+    const slider = Slider({ id, min: field.min, max: field.max, step: field.step, value, format: (v) => `${v}${field.unit}`, onChange: onValue, label: field.label });
+    return slider;
+  }
+  if (field.type === 'number') return NumberStepper({ id, value, min: field.min, max: field.max, step: field.step, onChange: onValue, label: field.label });
+  if (field.type === 'select') return Select({ id, options: field.options, value, onChange: (v) => onValue(coerceFieldValue(field, v)) });
+  const input = h('input', { type: field.type === 'color' ? 'color' : 'text', value: value == null ? '' : String(value), className: 'title-row-input', placeholder: field.placeholder || '' });
+  input.id = id;
+  input.addEventListener('change', () => onValue(input.value));
+  return input;
+}
+
+function renderFieldsSection(target, pluginId, section, errors = {}) {
+  target.innerHTML = '';
+  const idFor = (key) => `plugin-${pluginId}-${key.replace(/\./g, '-')}`;
+  section.fields.forEach((field) => {
+    const settings = getPluginSettings(pluginId);
+    const value = coerceFieldValue(field, readSettingPath(settings, field.key));
+    const id = idFor(field.key);
+    const error = h('p', { className: 'setting-row-error', attrs: { role: 'alert' }, text: errors[field.key] || '' });
+    error.hidden = !errors[field.key];
+    const onValue = (next) => {
+      try {
+        updatePluginSettings(pluginId, settingPathPatch(getPluginSettings(pluginId), field.key, coerceFieldValue(field, next)));
+        error.hidden = true;
+        row.classList.remove('has-error');
+        syncSettingDependencies(target);
+      } catch (e) {
+        // Rejected: redraw from what's saved, with the reason under this row.
+        const message = e && e.message ? e.message.replace(/^.*settings are invalid: /, '') : String(e);
+        renderFieldsSection(target, pluginId, section, { [field.key]: message });
+      }
+    };
+    const row = SettingRow({
+      key: `${pluginId}.${field.key}`,
+      label: field.label,
+      help: field.help,
+      synonyms: field.synonyms,
+      dependsOn: field.dependsOn ? idFor(field.dependsOn) : '',
+      control: fieldControl(field, value, onValue, id),
+    });
+    row.classList.toggle('has-error', !!errors[field.key]);
+    row.appendChild(error);
+    target.appendChild(row);
+  });
+  syncSettingDependencies(target);
+}
 
 function appendSelectOptions(select, options) {
   options.forEach(({ value, label }) => {
@@ -108,7 +167,10 @@ export function renderThemeFontSettings(container, themeId) {
 
 export function renderPluginSettings(container, plugin, channelDefinition, sections) {
   container.innerHTML = '';
+  // Plugin CSS scopes itself to [data-plugin="id"]; global selectors are unsupported.
+  container.dataset.plugin = plugin.id;
   const makeContext = () => ({
+    ui: window.RCBPlugins.ctx.ui,
     S,
     player: window.RCBPlugins.ctx.player,
     saveConfigDebounced,
@@ -146,6 +208,7 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
       renderFailure(target, section, error, () => renderSection(target, section));
     };
     try {
+      if (section.fields && !section.render) { renderFieldsSection(target, plugin.id, section); return; }
       const result = section.render(target, makeContext());
       // An async render rejects rather than throwing, so the catch below
       // never sees it: the section silently rendered nothing and the real
