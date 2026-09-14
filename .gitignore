@@ -18,8 +18,14 @@ test/theme-sweep-screenshots/
 test/results.json
 test/report.json
 test/userData.test-backup/
+# run-ui-tests.ps1 parks the real userData here (repo root) during a run.
+/userData.test-backup/
 test/audit/
-test/audit-*/
+test/audit-*
+test/*-report.json
+test/*-out/
+test/*.png
+test/_tmp_*
 test/failed-profile-*/
 test/failed-sweep-profile-*/
 test/startup-login-harness/
