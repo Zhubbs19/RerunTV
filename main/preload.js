@@ -199,6 +199,10 @@ contextBridge.exposeInMainWorld('api', {
   // viewer page itself is a separate, independent load of this same
   // renderer bundle served over HTTP, not driven through this bridge.
   getViewerUrl: () => ipcRenderer.invoke('viewer:getUrl'),
+  // TV clients (docs/design/01): save a Remote-test capture on the host, and
+  // the phone/computer handoff URL + QR.
+  saveRemoteProfile: (profile) => ipcRenderer.invoke('tvClient:saveRemoteProfile', profile),
+  getHandoffInfo: (opts) => ipcRenderer.invoke('tvClient:getHandoffInfo', opts),
   // TMDB metadata lookup (a plugin's own TITLES-tab match action, see
   // plugins/tmdb-metadata) — handled by that plugin's own main.js, not core.
   tmdbSearch: (opts) => ipcRenderer.invoke('tmdb:search', opts),

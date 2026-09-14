@@ -1,7 +1,7 @@
 # 01 — Usage modes: Desktop and TV
 
-Status: **Phase A built; the Phase B bridge is written and compiles but isn't on hardware yet.**
-Phases C–E are proposed. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+Status: **Phases A and B built** (B's APK compiles; it has not been installed on the reference
+TV yet — the owner does that). Phases C–E are in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
 plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 
 ### Built (Phase A, and the JS side of Phase B)
@@ -35,6 +35,31 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - Settings › Interface has USAGE MODE (THIS DEVICE).
 - Electron takes `--mode=tv` and `--kiosk`. `window:quit` lets EXIT close a kiosk box.
 
+### Built (Phase B, finished 2026-09-14)
+
+- **Raw key events, no Kotlin table.** `MainActivity.postRawKey` posts `{ source: 'android',
+  keyCode, scanCode, repeat, longPress, holdMs, action }` and `remote-input.js`'s
+  `ANDROID_KEYCODES`/`normalizeAndroidKeyCode` decide the RemoteKey — including Android gamepad
+  buttons. Kotlin keeps only what JS can't see: OK long-press from `repeatCount`, channel-repeat
+  debouncing, and Back falling back to leaving the app when the page ignores it.
+  `RerunTVInput.version` is **2**; an older host is refused with an on-screen message rather than
+  a half-working client.
+- **The client's own settings** (host address, quick actions) moved to a HELD Play/Pause, so a short
+  press reaches the page's TV menu, plus `AndroidRemoteBridge.openClientSettings()` for the menu.
+- **This device's remote profile** (`remote-profile.js`): every delivered button is recorded in
+  localStorage and marks the page (`html.remote-has-<key>`), so a hint for a button this remote has
+  never sent stays hidden. Learn-mode overrides map a physical button (`android:172`, `key:F5`) to a
+  RemoteKey and win over the automatic mapping.
+- **Remote test (step B0)** (`remote-test.js`, TV menu › REMOTE TEST): swallows all input and lists
+  every press — source, keycode, hold time, and what it normalized to — with a coverage grid.
+  Three quick BACK presses save the capture on the host as
+  `<userData>/remote-profiles/<name>-<when>.json` (`main-tv-client.js`, Electron IPC
+  `tvClient:saveRemoteProfile` and the viewer's `POST /api/remote-profile`), which is the fixture
+  §11 replays. **Running it on the Hisense is still to do.**
+- **Learn mode** (TV menu › CUSTOMIZE BUTTONS): pick an action, press a button, done; reset clears.
+- **Back exits at once** (§12 risk): a per-device option in the TV menu; Back then leaves (or drops
+  to standby where the client can't close itself) instead of asking.
+
 Android bridge (`MainActivity.kt`):
 - After a page load, the client probes `window.RerunTVInput.version`.
 - At version 1+ it posts RemoteKey names through `RerunTVInput.native()`:
@@ -44,8 +69,8 @@ Android bridge (`MainActivity.kt`):
   - EXIT in the prompt calls `AndroidRemoteBridge.exitApp()`.
 - At version 0 (an older host) it injects keyboard events exactly as before.
 - Play/Pause and Settings still open the native overlay.
-- `./gradlew assembleDebug` builds it. It has not been installed on the Hisense 50QD6030G, and
-  step B0 (capturing the real button map) is still to do before relying on it there.
+- `./gradlew assembleDebug` builds it (verified 2026-09-14). It has not been installed on the
+  Hisense 50QD6030G, and step B0 (capturing the real button map) is still to do there.
 
 Verified:
 - `tests/usage-modes.test.js` covers resolver precedence, normalization, routing, a
@@ -57,6 +82,7 @@ Verified:
 
 Not built yet:
 - the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C);
+  (in progress 2026-09-14)
 - TV setup and QR handoff (Phase D);
 - gamepad, CEC, Tizen/webOS packaging (Phase E);
 - learn mode and observed-profile hints (§5.2);

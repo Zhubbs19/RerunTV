@@ -25,6 +25,8 @@ import {
 } from './power.js';
 import { MONTHS, S, WEEKDAYS, viewNow } from './state.js';
 import { isTvMode, setUsageModePreference } from './usage-mode.js';
+import { openLearnMode, openRemoteTest } from './remote-test.js';
+import { backExitsImmediately, setBackExitsImmediately } from './tv-input.js';
 
 // Read left-to-right, top-to-bottom — arrow-key navigation below treats the
 // button list as a grid with this many columns per row. Not derived from
@@ -134,6 +136,11 @@ function actions() {
     // Per device (usage-mode.js): the way back from TV mode on a box with only
     // a remote, and a quick way to try TV mode from a keyboard.
     { label: isTvMode() ? 'DESKTOP MODE' : 'TV MODE', run: () => setUsageModePreference(isTvMode() ? 'desktop' : 'tv') },
+    // Remote (docs/design/01 §5.2): what this remote actually sends, and
+    // reassigning a button the automatic mapping gets wrong.
+    { label: 'REMOTE TEST', run: () => openRemoteTest() },
+    { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
+    { label: backExitsImmediately() ? 'BACK ASKS FIRST' : 'BACK EXITS AT ONCE', run: () => setBackExitsImmediately(!backExitsImmediately()) },
     { label: 'POWER OFF', run: () => powerOff() },
   ];
 }

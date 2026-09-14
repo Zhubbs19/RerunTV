@@ -206,3 +206,40 @@ export function createLongPressTracker(thresholdMs = LONG_PRESS_MS) {
 // the source repeats (doc 01 §5.3 — was CHANNEL_DEBOUNCE_MS in the Android
 // client only).
 export const CHANNEL_REPEAT_MS = 300;
+
+// ---------- Android KeyEvent codes ----------
+// The Android TV client posts raw KeyEvent codes (docs/design/01 §5.1, Phase
+// B): normalization lives here, where it is testable and shared, instead of a
+// Kotlin table. Gamepads on Android TV arrive as KEYCODE_BUTTON_* and map to
+// the same RemoteKeys as the browser Gamepad API source (gamepad.js).
+export const ANDROID_KEYCODES = {
+  19: 'up', 20: 'down', 21: 'left', 22: 'right', 23: 'ok', 66: 'ok', 160: 'ok',
+  4: 'back', 111: 'back',
+  166: 'chUp', 167: 'chDown', 92: 'chUp', 93: 'chDown', 229: 'last', 67: 'last',
+  165: 'info', 172: 'guide', 82: 'menu', 176: 'settings', 84: 'search', 170: 'tv',
+  183: 'red', 184: 'green', 185: 'yellow', 186: 'blue',
+  85: 'playPause', 126: 'play', 127: 'pause', 86: 'stop', 89: 'rewind', 90: 'fastForward',
+  87: 'next', 88: 'prev', 130: 'record', 175: 'captions', 222: 'audioTrack',
+  24: 'volUp', 25: 'volDown', 164: 'mute', 91: 'mute', 26: 'power',
+  7: 'digit0', 8: 'digit1', 9: 'digit2', 10: 'digit3', 11: 'digit4', 12: 'digit5', 13: 'digit6', 14: 'digit7', 15: 'digit8', 16: 'digit9',
+  144: 'digit0', 145: 'digit1', 146: 'digit2', 147: 'digit3', 148: 'digit4', 149: 'digit5', 150: 'digit6', 151: 'digit7', 152: 'digit8', 153: 'digit9',
+  56: 'dot', 158: 'dot',
+  // Gamepad buttons (A/B/X/Y, bumpers, triggers, Start/Select).
+  96: 'ok', 97: 'back', 99: 'info', 100: 'guide', 102: 'chDown', 103: 'chUp', 104: 'rewind', 105: 'fastForward', 108: 'menu', 109: 'back',
+};
+
+export function normalizeAndroidKeyCode(keyCode) {
+  return ANDROID_KEYCODES[Number(keyCode)] || null;
+}
+
+// A stable id for "this physical button on this source", which learn mode
+// keys its overrides on (remote-profile.js).
+export function rawKeyId(evt) {
+  if (!evt) return null;
+  if (evt.source === 'android' && Number.isFinite(Number(evt.keyCode))) return `android:${Number(evt.keyCode)}`;
+  if (evt.source === 'gamepad' && evt.button != null) return `gamepad:${evt.button}`;
+  if (evt.source === 'cec' && evt.code != null) return `cec:${evt.code}`;
+  if (typeof evt.key === 'string' && evt.key && evt.key !== 'Unidentified') return `key:${evt.key}`;
+  if (evt.keyCode) return `keyCode:${evt.keyCode}`;
+  return null;
+}

@@ -133,6 +133,8 @@ class MainActivity : AppCompatActivity() {
     @Volatile private var pageInputVersion = 0
     private var okDownAtMs = 0L
     private var okLongSent = false
+    private var clientSettingsHoldSent = false
+    private var hostTooOldWarned = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -321,6 +323,13 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun exitApp() {
             runOnUiThread { finish() }
+        }
+
+        // TV menu › System › TV CLIENT SETTINGS: this client's own host
+        // address and quick actions, which the page can't show itself.
+        @JavascriptInterface
+        fun openClientSettings() {
+            runOnUiThread { showSetupOverlay() }
         }
     }
 
@@ -527,134 +536,95 @@ class MainActivity : AppCompatActivity() {
         if (connectionLostOverlay.visibility == View.VISIBLE && event.action == KeyEvent.ACTION_DOWN) {
             connectionLostOverlay.visibility = View.GONE
         }
-        if (event.action == KeyEvent.ACTION_DOWN) {
-            // KEYCODE_SETTINGS/KEYCODE_MENU are kept as a best-effort
-            // fallback, but confirmed live on a real Hisense remote: the
-            // system intercepts the dedicated Settings/gear button before
-            // it ever reaches this Activity at all — it opens Android's own
-            // system Settings instead, and no app can override that. So
-            // Play/Pause is now the real, working way to open the TV menu —
-            // it was previously just a redundant duplicate of OK/Center
-            // (both sent "Enter"), so repurposing it costs nothing, and as
-            // a standard media key it isn't reserved by the system the way
-            // the Settings icon apparently is on this hardware.
-            if (event.keyCode == KeyEvent.KEYCODE_SETTINGS || event.keyCode == KeyEvent.KEYCODE_MENU ||
-                event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
+        // The client's own settings (host address, quick actions) hide behind
+        // a HELD Play/Pause, so a short press can reach the page's TV menu —
+        // the Settings/gear button never arrives on this hardware (see the
+        // class comment). Menu/Settings still open it if a remote has them.
+        if (event.keyCode == KeyEvent.KEYCODE_SETTINGS || event.keyCode == KeyEvent.KEYCODE_MENU) {
+            if (event.action == KeyEvent.ACTION_DOWN) showSetupOverlay()
+            return true
+        }
+        if (event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && event.action == KeyEvent.ACTION_DOWN &&
+            event.repeatCount > 0 && event.eventTime - event.downTime >= CLIENT_SETTINGS_HOLD_MS) {
+            if (!clientSettingsHoldSent) {
+                clientSettingsHoldSent = true
                 showSetupOverlay()
-                return true
             }
-            if (pageInputVersion >= 1) {
-                val remoteKey = remoteKeyFor(event.keyCode)
-                if (remoteKey != null) {
-                    postRemoteKey(remoteKey, event)
-                    return true
-                }
-            }
-            val jsKey = mapKeyCode(event.keyCode)
-            if (jsKey != null) {
-                if (jsKey == "ArrowUp" || jsKey == "ArrowDown") {
-                    val now = SystemClock.uptimeMillis()
-                    if (now - lastChannelChangeMs < CHANNEL_DEBOUNCE_MS) {
-                        return true // swallow the repeat; still consumed either way
-                    }
-                    lastChannelChangeMs = now
-                }
-                sendJsKey(jsKey)
-                return true
-            }
+            return true
         }
-        if (pageInputVersion >= 1 && event.action == KeyEvent.ACTION_UP) {
-            val remoteKey = remoteKeyFor(event.keyCode)
-            if (remoteKey != null) {
-                postRemoteKey(remoteKey, event)
-                return true
-            }
+        if (event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && event.action == KeyEvent.ACTION_UP) {
+            val held = clientSettingsHoldSent
+            clientSettingsHoldSent = false
+            if (held) return true
         }
-        // An older host (pageInputVersion 0) doesn't own BACK — it behaves
-        // normally and leaves the app, as it always has.
+        // Every other button is posted raw and normalized by the page
+        // (docs/design/01 §5.1): no keycode table lives here any more. A host
+        // without that routing (version < 2) can't be driven by this client.
+        if (pageInputVersion >= 2) {
+            if (postRawKey(event)) return true
+        } else if (event.action == KeyEvent.ACTION_DOWN && !hostTooOldWarned) {
+            hostTooOldWarned = true
+            showHostTooOld()
+        }
         return super.dispatchKeyEvent(event)
     }
 
-    // Physical buttons -> the page's RemoteKey vocabulary (remote-input.js).
-    // Play/Pause, Settings and Menu stay native (they open this app's own
-    // overlay, handled above); Home and the OS-reserved buttons never arrive.
-    private fun remoteKeyFor(keyCode: Int): String? = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_UP -> "up"
-        KeyEvent.KEYCODE_DPAD_DOWN -> "down"
-        KeyEvent.KEYCODE_DPAD_LEFT -> "left"
-        KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
-        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> "ok"
-        KeyEvent.KEYCODE_BACK, KeyEvent.KEYCODE_ESCAPE -> "back"
-        KeyEvent.KEYCODE_CHANNEL_UP -> "chUp"
-        KeyEvent.KEYCODE_CHANNEL_DOWN -> "chDown"
-        KeyEvent.KEYCODE_LAST_CHANNEL -> "last"
-        KeyEvent.KEYCODE_INFO -> "info"
-        KeyEvent.KEYCODE_GUIDE -> "guide"
-        KeyEvent.KEYCODE_PROG_RED -> "red"
-        KeyEvent.KEYCODE_PROG_GREEN -> "green"
-        KeyEvent.KEYCODE_PROG_YELLOW -> "yellow"
-        KeyEvent.KEYCODE_PROG_BLUE -> "blue"
-        KeyEvent.KEYCODE_MEDIA_REWIND -> "rewind"
-        KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> "fastForward"
-        KeyEvent.KEYCODE_CAPTIONS -> "captions"
-        KeyEvent.KEYCODE_0 -> "digit0"
-        KeyEvent.KEYCODE_1 -> "digit1"
-        KeyEvent.KEYCODE_2 -> "digit2"
-        KeyEvent.KEYCODE_3 -> "digit3"
-        KeyEvent.KEYCODE_4 -> "digit4"
-        KeyEvent.KEYCODE_5 -> "digit5"
-        KeyEvent.KEYCODE_6 -> "digit6"
-        KeyEvent.KEYCODE_7 -> "digit7"
-        KeyEvent.KEYCODE_8 -> "digit8"
-        KeyEvent.KEYCODE_9 -> "digit9"
-        else -> null
-    }
-
-    // Long-press is decided here only because Android's repeatCount is the
-    // reliable signal on TV hardware; the threshold matches the page's
-    // LONG_PRESS_MS. OK acts on release (short) or once the hold crosses
-    // the threshold (long). Back acts on release and, if the page is gone
-    // or can't answer, falls back to leaving the app. Everything else acts
-    // on press, with channel repeats debounced as before.
-    private fun postRemoteKey(remoteKey: String, event: KeyEvent) {
+    // Raw KeyEvents to the page (docs/design/01 §5.1, Phase B). What a button
+    // MEANS is decided in JS (remote-input.js's Android keycode table plus this
+    // device's learned overrides), so a new remote never needs a Kotlin change.
+    // Only what JS cannot see stays here: long-press timing from repeatCount,
+    // channel-repeat debouncing, and Back's fallback to leaving the app.
+    private fun postRawKey(event: KeyEvent): Boolean {
         val now = SystemClock.uptimeMillis()
-        when (remoteKey) {
-            "ok" -> {
-                if (event.action == KeyEvent.ACTION_DOWN) {
-                    if (event.repeatCount == 0) {
-                        okDownAtMs = now
-                        okLongSent = false
-                    } else if (!okLongSent && now - okDownAtMs >= LONG_PRESS_MS) {
-                        okLongSent = true
-                        sendRemoteKey("ok", longPress = true, repeat = false)
-                    }
-                } else if (event.action == KeyEvent.ACTION_UP && !okLongSent) {
-                    sendRemoteKey("ok", longPress = false, repeat = false)
+        val isOk = event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER || event.keyCode == KeyEvent.KEYCODE_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+        val isBack = event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_ESCAPE
+        if (isOk) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                if (event.repeatCount == 0) {
+                    okDownAtMs = now
+                    okLongSent = false
+                } else if (!okLongSent && now - okDownAtMs >= LONG_PRESS_MS) {
+                    okLongSent = true
+                    sendRawKey(event, longPress = true, holdMs = now - okDownAtMs)
                 }
+            } else if (event.action == KeyEvent.ACTION_UP && !okLongSent) {
+                sendRawKey(event, longPress = false, holdMs = now - okDownAtMs)
             }
-            "back" -> {
-                if (event.action != KeyEvent.ACTION_UP) return
-                webView.evaluateJavascript(
-                    "(window.RerunTVInput && window.RerunTVInput.native({key:'back'})) || 'missing'",
-                ) { result ->
-                    if (result == null || result.contains("missing")) finish()
-                }
-            }
-            else -> {
-                if (event.action != KeyEvent.ACTION_DOWN) return
-                if (remoteKey == "up" || remoteKey == "down" || remoteKey == "chUp" || remoteKey == "chDown") {
-                    if (event.repeatCount > 0 && now - lastChannelChangeMs < CHANNEL_DEBOUNCE_MS) return
-                    lastChannelChangeMs = now
-                }
-                sendRemoteKey(remoteKey, longPress = false, repeat = event.repeatCount > 0)
-            }
+            return true
         }
+        if (isBack) {
+            if (event.action != KeyEvent.ACTION_UP) return true
+            val payload = rawPayload(event, longPress = false, holdMs = event.eventTime - event.downTime)
+            webView.evaluateJavascript(
+                "(window.RerunTVInput && window.RerunTVInput.native($payload)) || 'missing'",
+            ) { result ->
+                // No page, or a page that ignored it: leave the app, which is
+                // what Back did before the page owned it.
+                if (result == null || result.contains("missing") || result.contains("ignored")) finish()
+            }
+            return true
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return true
+        val channelKey = event.keyCode == KeyEvent.KEYCODE_DPAD_UP || event.keyCode == KeyEvent.KEYCODE_DPAD_DOWN ||
+            event.keyCode == KeyEvent.KEYCODE_CHANNEL_UP || event.keyCode == KeyEvent.KEYCODE_CHANNEL_DOWN
+        if (channelKey && event.repeatCount > 0 && now - lastChannelChangeMs < CHANNEL_DEBOUNCE_MS) return true
+        if (channelKey) lastChannelChangeMs = now
+        sendRawKey(event, longPress = false, holdMs = event.eventTime - event.downTime)
+        return true
     }
 
-    private fun sendRemoteKey(remoteKey: String, longPress: Boolean, repeat: Boolean) {
-        // remoteKey only ever comes from remoteKeyFor's fixed literals.
+    // The page normalizes this shape (tv-input.js nativeInput).
+    private fun rawPayload(event: KeyEvent, longPress: Boolean, holdMs: Long): String {
+        val action = if (event.action == KeyEvent.ACTION_UP) "up" else "down"
+        val repeat = event.repeatCount > 0
+        return "{source:'android',keyCode:${event.keyCode},scanCode:${event.scanCode}," +
+            "repeat:$repeat,longPress:$longPress,holdMs:$holdMs,action:'$action'}"
+    }
+
+    private fun sendRawKey(event: KeyEvent, longPress: Boolean, holdMs: Long) {
         webView.evaluateJavascript(
-            "window.RerunTVInput && window.RerunTVInput.native({key:'$remoteKey',longPress:$longPress,repeat:$repeat})",
+            "window.RerunTVInput && window.RerunTVInput.native(${rawPayload(event, longPress, holdMs)})",
             null,
         )
     }
@@ -665,36 +635,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun mapKeyCode(keyCode: Int): String? = when (keyCode) {
-        KeyEvent.KEYCODE_DPAD_UP -> "ArrowUp"
-        KeyEvent.KEYCODE_DPAD_DOWN -> "ArrowDown"
-        KeyEvent.KEYCODE_DPAD_LEFT -> "ArrowLeft"
-        KeyEvent.KEYCODE_DPAD_RIGHT -> "ArrowRight"
-        // The remote's dedicated CH rocker — the single most natural
-        // channel-surf button on a typical TV remote, and previously
-        // unmapped entirely. Same target as D-pad Up/Down.
-        KeyEvent.KEYCODE_CHANNEL_UP -> "ArrowUp"
-        KeyEvent.KEYCODE_CHANNEL_DOWN -> "ArrowDown"
-        KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> "Enter"
-        // KEYCODE_MEDIA_PLAY_PAUSE is handled earlier, as a special case
-        // that opens the TV menu (see dispatchKeyEvent) — it never reaches
-        // this table.
-        KeyEvent.KEYCODE_ESCAPE -> "Escape"
-        KeyEvent.KEYCODE_0 -> "0"
-        KeyEvent.KEYCODE_1 -> "1"
-        KeyEvent.KEYCODE_2 -> "2"
-        KeyEvent.KEYCODE_3 -> "3"
-        KeyEvent.KEYCODE_4 -> "4"
-        KeyEvent.KEYCODE_5 -> "5"
-        KeyEvent.KEYCODE_6 -> "6"
-        KeyEvent.KEYCODE_7 -> "7"
-        KeyEvent.KEYCODE_8 -> "8"
-        KeyEvent.KEYCODE_9 -> "9"
-        else -> null
+    // A host older than this client's input protocol: say so once rather than
+    // looking dead, and leave the client's own settings reachable.
+    private fun showHostTooOld() {
+        runOnUiThread {
+            scanStatusText.visibility = View.VISIBLE
+            scanStatusText.text = getString(R.string.host_too_old)
+            showSetupOverlay()
+        }
     }
 
     private fun sendJsKey(key: String, shift: Boolean = false) {
-        // mapKeyCode/runQuickAction only ever pass a fixed literal from a
+        // runQuickAction only ever passes a fixed literal from a
         // whitelist; RemoteServer's onCommand passes whatever a phone
         // remote sent over the network instead — same trust model as
         // main.js's own /command handler (LAN-only, no auth, matches "same
@@ -746,6 +698,7 @@ class MainActivity : AppCompatActivity() {
             // A successful load of the real page — clear any retry state
             // left over from an earlier failed attempt.
             hasLoadedSuccessfully = true
+            hostTooOldWarned = false
             retryHandler.removeCallbacks(retryRunnable)
             connectionLostOverlay.visibility = View.GONE
             pageInputVersion = 0
@@ -833,6 +786,7 @@ class MainActivity : AppCompatActivity() {
         private const val RETRY_DELAY_MS = 4000L
         private const val CHANNEL_DEBOUNCE_MS = 200L
         private const val LONG_PRESS_MS = 500L
+        private const val CLIENT_SETTINGS_HOLD_MS = 700L
         private const val DISCOVERY_PORT = 41234
         private const val DISCOVERY_MAGIC = "RETRO_CABLE_BOX_DISCOVER"
         private const val DISCOVERY_REPLY_MAGIC = "RETRO_CABLE_BOX_HELLO"

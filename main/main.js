@@ -307,6 +307,8 @@ registerThemeIpc(ipcMain);
 registerLanIpc(ipcMain, {
   getViewerAccessUrls: () => viewerAccessUrls,
   getCompanionAccessUrls: () => pluginServicesRef.companionAccessUrls || [],
+  getUserDataDir: () => app.getPath('userData'),
+  QRCode,
 });
 registerDialogIpc(ipcMain);
 registerStartupServerIpc(ipcMain);

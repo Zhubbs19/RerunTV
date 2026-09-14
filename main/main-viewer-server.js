@@ -14,7 +14,8 @@
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
-const { loadConfig } = require('./main-config');
+const { getConfigPath, loadConfig } = require('./main-config');
+const { handoffInfo, saveRemoteProfile, MAX_PROFILE_BYTES } = require('./main-tv-client');
 const { serveFile, serveMediaRef, pipeWebResponse } = require('./main-protocol');
 const { trackConnection } = require('./main-connections');
 const { VIEWER_PORT } = require('./main-lan');
@@ -221,6 +222,26 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       } catch (e) {
         if (!res.writableEnded) res.writeHead(400).end('Bad request');
       }
+      return;
+    }
+
+    // TV clients (docs/design/01, main-tv-client.js): a Remote-test capture
+    // from the Android client, saved on this host.
+    if (url.pathname === '/api/remote-profile' && req.method === 'POST') {
+      try {
+        const profile = await readJsonBody(req, MAX_PROFILE_BYTES);
+        const result = saveRemoteProfile(path.dirname(getConfigPath()), profile);
+        res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+          .end(JSON.stringify(result.ok ? { ok: true } : result));
+      } catch (e) {
+        if (!res.writableEnded) res.writeHead(400).end('Bad request');
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/handoff-info' && req.method === 'GET') {
+      const info = await handoffInfo(services.companionAccessUrls || [], require('qrcode'));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(info));
       return;
     }
 

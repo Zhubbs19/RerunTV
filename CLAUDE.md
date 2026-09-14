@@ -112,9 +112,13 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   behaviour must stay byte-for-byte unchanged (the UI suite checks it).
 - **Layout and hints** key on `html[data-mode="tv"]` in CSS. Hint-bar spans tagged
   `data-hint-mode="tv"` replace the letter hints in TV mode.
-- **Android client.** It speaks to `window.RerunTVInput.native({ key, longPress, repeat })`
-  when the page reports `RerunTVInput.version` ≥ 1, and falls back to injected keyboard events
-  otherwise. Bump the version only for an incompatible change to that call.
+- **Android client.** At `RerunTVInput.version` ≥ 2 it posts RAW Android key events —
+  `native({ source: 'android', keyCode, scanCode, repeat, longPress, holdMs, action })` — and
+  `remote-input.js` decides what each button means (`ANDROID_KEYCODES`, then this device's
+  learn-mode overrides in `remote-profile.js`). There is no keycode table in Kotlin any more, so a
+  new remote is a JS change; a host older than 2 can't drive the client at all. `native({ key })`
+  (a RemoteKey name) still works for the phone remote and touch controls. Bump the version only
+  for an incompatible change to that call.
 
 ## Setup screen patterns
 

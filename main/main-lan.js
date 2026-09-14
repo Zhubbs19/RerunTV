@@ -1,4 +1,5 @@
 const os = require('os');
+const { handoffInfo, saveRemoteProfile } = require('./main-tv-client');
 
 // LAN-facing server ports — the single source of truth, imported by main.js
 // for the actual server.listen() call as well as the URL getter below.
@@ -56,8 +57,13 @@ function getViewerUrls() {
 // main.js, populated inside app.whenReady() well after this handler is
 // registered, so accessor functions (not the current value) are what main.js
 // hands over here — see CLAUDE.md's registerXIpc note on stale closures.
-function registerLanIpc(ipcMain, { getViewerAccessUrls, getCompanionAccessUrls }) {
+function registerLanIpc(ipcMain, { getViewerAccessUrls, getCompanionAccessUrls, getUserDataDir, QRCode }) {
   ipcMain.handle('viewer:getUrl', async () => getViewerAccessUrls());
+
+  // TV clients (docs/design/01, main-tv-client.js): a Remote-test capture
+  // saved under userData/remote-profiles, and the phone/computer handoff.
+  ipcMain.handle('tvClient:saveRemoteProfile', async (_event, profile) => saveRemoteProfile(getUserDataDir(), profile));
+  ipcMain.handle('tvClient:getHandoffInfo', async (_event, opts) => handoffInfo(getCompanionAccessUrls(), QRCode, opts || {}));
 
   // Companion app (remote control + Settings + Files, all merged into one
   // plugin/port — see plugins/companion-app/main.js), same pattern as
