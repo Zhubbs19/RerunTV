@@ -349,8 +349,10 @@ export function renderSettingsPanels() {
   guideLivePreviewEnabledEl.checked = effectiveGuideLivePreview();
   const specialsTopEl = document.getElementById('guide-specials-top-enabled');
   if (specialsTopEl) specialsTopEl.checked = !!S.config.display.guideSpecialsAtTop;
-  const nameLinesEl = document.getElementById('guide-name-lines-select');
-  if (nameLinesEl) nameLinesEl.value = S.config.display.guideNameLines === 1 ? '1' : '2';
+  const channelNamesEl = document.getElementById('guide-channel-names-select');
+  if (channelNamesEl) channelNamesEl.value = S.config.display.guideChannelNames === 'short' ? 'short' : 'full';
+  const mergeShortsEl = document.getElementById('guide-merge-shorts-enabled');
+  if (mergeShortsEl) mergeShortsEl.checked = S.config.display.guideMergeShorts !== false;
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }
@@ -2110,10 +2112,15 @@ guideLivePreviewEnabledEl.addEventListener('change', () => {
 });
 // Where special (plugin) channels sit in the guide (docs/design/11 §2.1).
 const guideSpecialsTopEnabledEl = document.getElementById('guide-specials-top-enabled');
-// One-line (truncated) or two-line channel names in the guide rail.
-const guideNameLinesSelect = document.getElementById('guide-name-lines-select');
-guideNameLinesSelect?.addEventListener('change', () => {
-  dispatch({ type: 'settings.set', path: ['display', 'guideNameLines'], value: guideNameLinesSelect.value === '1' ? 1 : 2 });
+// Full names or abbreviated call letters in the guide rail (docs/design/11 §2.2).
+const guideChannelNamesSelect = document.getElementById('guide-channel-names-select');
+guideChannelNamesSelect?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideChannelNames'], value: guideChannelNamesSelect.value === 'short' ? 'short' : 'full' });
+});
+// Runs of very short programs merged into one "Shorts & bumpers" cell.
+const guideMergeShortsEl = document.getElementById('guide-merge-shorts-enabled');
+guideMergeShortsEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideMergeShorts'], value: guideMergeShortsEl.checked });
 });
 guideSpecialsTopEnabledEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideSpecialsAtTop'], value: guideSpecialsTopEnabledEl.checked });

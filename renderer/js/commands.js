@@ -296,6 +296,7 @@ const CHANNEL_FIELDS = {
   resolutionOverride: 'resolution', displayAspectOverride: 'display aspect', color: 'color', volume: 'volume',
   adsEnabled: 'ads', defaultHasCC: 'default CC', defaultHasSAP: 'default SAP', defaultHasStereo: 'default stereo',
   iconOverrides: 'seasonal icons', logoBugProfiles: 'logo bug placement', dynamicOverlays: 'dynamic overlays',
+  callLetters: 'call letters',
 };
 
 registerCommand('channel.set', {

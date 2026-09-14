@@ -110,3 +110,58 @@ test('full page centres the selected row, clamped at the ends', async () => {
   assert.equal(mid, Math.round(rows[15].top + 26 - 275));
   assert.equal(rowScrollTop({ rows, selIdx: 29, viewportH, contentH, mode: 'full' }), contentH - viewportH);
 });
+
+const MIN = 60000;
+function lineup(durationsMin, start = 0) {
+  let t = start;
+  return durationsMin.map((d, i) => { const e = { file: { path: `f${i}` }, start: t, end: t + d * MIN }; t += d * MIN; return e; });
+}
+
+test('runs of short entries merge into one cell; long shows stay', async () => {
+  const { mergeMicroPrograms } = await load();
+  const cells = mergeMicroPrograms(lineup([30, 2, 3, 1, 2, 22, 4, 30]), 5 * MIN);
+  assert.deepEqual(cells.map((c) => c.kind), ['program', 'run', 'program', 'program', 'program']);
+  assert.equal(cells[1].items.length, 4);
+  assert.equal(cells[1].start, 30 * MIN);
+  assert.equal(cells[1].end, 38 * MIN);
+  assert.equal(cells[3].entry.end - cells[3].entry.start, 4 * MIN, 'a lone short stays a program');
+});
+
+test('merged cells cover the schedule exactly, in order', async () => {
+  const { mergeMicroPrograms } = await load();
+  const entries = lineup([1, 1, 1, 45, 2, 2, 60, 3, 3, 3, 3]);
+  const cells = mergeMicroPrograms(entries, 5 * MIN);
+  const flat = cells.flatMap((c) => (c.kind === 'run' ? c.items : [c.entry]));
+  assert.deepEqual(flat, entries);
+  for (let i = 1; i < cells.length; i++) assert.equal(cells[i].start, cells[i - 1].end);
+});
+
+test('a gap between shorts splits the run, and minMs 0 merges nothing', async () => {
+  const { mergeMicroPrograms, cellIndexAt } = await load();
+  const entries = lineup([2, 2]);
+  const later = lineup([2, 2], 10 * MIN);
+  const cells = mergeMicroPrograms([...entries, ...later], 5 * MIN);
+  assert.deepEqual(cells.map((c) => c.kind), ['run', 'run']);
+  assert.equal(mergeMicroPrograms(entries, 0).length, 2);
+  assert.deepEqual(mergeMicroPrograms([], 5 * MIN), []);
+  assert.equal(cellIndexAt(cells, 11 * MIN), 1);
+  assert.equal(cellIndexAt(cells, 5 * MIN), -1);
+});
+
+test('call letters abbreviate channel names like a period guide', async () => {
+  const { abbreviateChannelName: ab, channelCallLetters } = await load();
+  assert.equal(ab('The Movie Channel'), 'TMC');
+  assert.equal(ab('Star Wars Channel'), 'SWC');
+  assert.equal(ab('WV Sports Channel'), 'WVSC');
+  assert.equal(ab('The Harry Potter Network'), 'HPN');
+  assert.equal(ab('Google Network'), 'GN');
+  assert.equal(ab('Noggin'), 'NOGGIN');
+  assert.equal(ab('Nickelodeon'), 'NCKLDN');
+  assert.equal(ab('Boomerang'), 'BMRNG');
+  assert.equal(ab('The Office Channel'), 'TOC');
+  assert.equal(ab(''), '');
+  assert.ok(ab('Christmas Movies Channel').length <= 6);
+  assert.equal(channelCallLetters({ name: 'Nickelodeon', callLetters: ' nick ' }), 'NICK');
+  assert.equal(channelCallLetters({ name: 'Nickelodeon', callLetters: '' }), 'NCKLDN');
+  assert.equal(channelCallLetters({ name: 'x', callLetters: 'TOOLONGNAME' }), 'TOOLON');
+});

@@ -771,13 +771,18 @@
               </select></div>
               <p class="setting-row-help">How many half-hour columns the guide shows.</p>
             </div>
-            <div class="setting-row" data-setting="guide-name-lines" data-synonyms="channel names truncate wrap cut off ellipsis long names">
-              <label class="setting-row-label" for="guide-name-lines-select">Channel names</label>
-              <div class="setting-row-control"><select id="guide-name-lines-select">
-                <option value="2">Two lines</option>
-                <option value="1">One line, truncated</option>
+            <div class="setting-row" data-setting="guide-channel-names" data-synonyms="channel names call letters abbreviate abbreviation short names station letters retro">
+              <label class="setting-row-label" for="guide-channel-names-select">Channel names</label>
+              <div class="setting-row-control"><select id="guide-channel-names-select">
+                <option value="full">Full names</option>
+                <option value="short">Abbreviated call letters</option>
               </select></div>
-              <p class="setting-row-help">Wrap long channel names in the guide, or keep them to one line ending in "…".</p>
+              <p class="setting-row-help">Show each channel's call letters in the guide, like "TMC", instead of its full name.</p>
+            </div>
+            <div class="setting-row" data-setting="guide-merge-shorts" data-synonyms="bumpers shorts short programs merge group cartoons clutter">
+              <label class="setting-row-label" for="guide-merge-shorts-enabled">Group shorts and bumpers</label>
+              <div class="setting-row-control"><input type="checkbox" id="guide-merge-shorts-enabled" checked></div>
+              <p class="setting-row-help">Show a run of very short programs as one cell you can open.</p>
             </div>
             <div class="setting-row" data-setting="guide-specials-top" data-synonyms="special channels plugin channels virtual pinned order">
               <label class="setting-row-label" for="guide-specials-top-enabled">Special channels at the top</label>

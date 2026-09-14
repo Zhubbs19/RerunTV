@@ -106,3 +106,88 @@ export function rowScrollTop({ rows, selIdx, viewportH, scrollTop = 0, contentH 
   }
   return top;
 }
+
+// ---------- Micro-program runs ----------
+// A stretch of consecutive entries each too short to carry a readable label
+// (bumpers, shorts) becomes one cell, "Shorts & bumpers (N)", that opens
+// into a list (docs/design/11 §2.2). Pure presentation over the schedule:
+// nothing about what airs changes.
+//
+// entries: getChannelSchedule entries ({ file, start, end, ... }), in order.
+// minMs:   an entry shorter than this is "micro". guide.js derives it from the
+//          label-hiding width, so a run merges exactly when its cells would
+//          otherwise have gone label-less.
+// Returns cells: { kind: 'program', entry, start, end } or
+//                { kind: 'run', items: [entry…], start, end }.
+// Whole durations decide, not the part inside the visible window, so a long
+// show cut to a sliver at the window's edge stays itself and the cells don't
+// change as the window scrolls. A run needs at least two entries that follow
+// each other without a gap; a lone short stays a program.
+export const RUN_GAP_TOLERANCE_MS = 1000;
+
+export function mergeMicroPrograms(entries, minMs) {
+  const cells = [];
+  let run = [];
+  const flush = () => {
+    if (run.length >= 2) {
+      cells.push({ kind: 'run', items: run, start: run[0].start, end: run[run.length - 1].end });
+    } else if (run.length === 1) {
+      cells.push({ kind: 'program', entry: run[0], start: run[0].start, end: run[0].end });
+    }
+    run = [];
+  };
+  (entries || []).forEach((entry) => {
+    const micro = minMs > 0 && entry.end - entry.start < minMs;
+    if (!micro) {
+      flush();
+      cells.push({ kind: 'program', entry, start: entry.start, end: entry.end });
+      return;
+    }
+    const last = run[run.length - 1];
+    if (last && Math.abs(entry.start - last.end) > RUN_GAP_TOLERANCE_MS) flush();
+    run.push(entry);
+  });
+  flush();
+  return cells;
+}
+
+// The cell containing an instant, or -1.
+export function cellIndexAt(cells, atMs) {
+  return cells.findIndex((cell) => atMs >= cell.start && atMs < cell.end);
+}
+
+// ---------- Call letters ----------
+// Abbreviated channel names, the way a period cable box's guide showed "TMC"
+// or "NICK" in its channel rail (DISPLAY > Guide > Channel names:
+// Abbreviated). A channel's own `callLetters` wins; otherwise one is derived:
+//   several words → initials ("The Movie Channel" → TMC, "WV Sports Channel"
+//     → WVSC: a word already in capitals, like WV, keeps all its letters);
+//   one word → itself when 6 letters or fewer ("NOGGIN"), else its first
+//     letter plus consonants up to 6 ("Nickelodeon" → NCKLDN).
+// "The" only counts when initials would otherwise be under 3 letters.
+export const CALL_LETTERS_MAX = 6;
+
+export function abbreviateChannelName(name) {
+  const words = String(name || '').toUpperCase().match(/[A-Z0-9]+/g) || [];
+  if (!words.length) return '';
+  const rawWords = String(name || '').match(/[A-Za-z0-9]+/g) || [];
+  const significant = words.filter((w) => w !== 'THE' && w !== 'A' && w !== 'OF' && w !== 'AND');
+  const pick = significant.length ? significant : words;
+  if (pick.length === 1) {
+    const w = pick[0];
+    if (w.length <= CALL_LETTERS_MAX) return w;
+    return (w[0] + w.slice(1).replace(/[AEIOU]/g, '')).slice(0, CALL_LETTERS_MAX);
+  }
+  const initialsOf = (list) => list.map((w) => {
+    const raw = rawWords.find((r) => r.toUpperCase() === w) || w;
+    return raw.length <= 3 && raw === raw.toUpperCase() && /[A-Z]/.test(raw) ? w : w[0];
+  }).join('');
+  let initials = initialsOf(pick);
+  if (initials.length < 3 && pick !== words) initials = initialsOf(words);
+  return initials.slice(0, CALL_LETTERS_MAX);
+}
+
+export function channelCallLetters(ch) {
+  const own = ch && typeof ch.callLetters === 'string' ? ch.callLetters.trim().toUpperCase() : '';
+  return own ? own.slice(0, CALL_LETTERS_MAX) : abbreviateChannelName(ch && ch.name);
+}

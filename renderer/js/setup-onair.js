@@ -22,6 +22,7 @@
 // remote: ◄► programs, ▲▼ days, OK explains, red/green (or CH−/CH+) weeks.
 import { showTvScreen } from './app.js';
 import { GUIDE_BREAK_LABELS } from './guide.js';
+import { breakMarkEl } from './timeline-render.js';
 import { tuneToChannel } from './playback-core.js';
 import { normalizeKey } from './remote-input.js';
 import { addDays, diffSchedules, explainLayers, proposeEdit, queryDay, startOfDay } from './schedule-query.js';
@@ -1114,7 +1115,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
     });
 
     day.breaks.forEach((b) => {
-      const mark = el('div', `onair-break onair-break-${b.breakType}`);
+      const mark = breakMarkEl(b, { className: `onair-break onair-break-${b.breakType}` });
       mark.style.left = `${xFor(day.dayStart, b.start)}px`;
       mark.style.width = `${Math.max(2, xFor(day.dayStart, b.end) - xFor(day.dayStart, b.start))}px`;
       mark.title = `${formatClock(new Date(b.start))} ${breakLabel(b.breakType)}`;

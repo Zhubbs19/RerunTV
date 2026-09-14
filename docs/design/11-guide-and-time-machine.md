@@ -1,6 +1,6 @@
 # 11 — Guide and time machine
 
-Status: **in progress** — phase 1 built (committed locally, live verification at doc end). Depends on:
+Status: **in progress** — phases 1–2 built (committed locally, live verification at doc end). Depends on:
 C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 09 (record from guide).
 
 ### Built (§4 phase 1: specials, selection, layout)
@@ -15,8 +15,8 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   (Enter/OK tunes, ◀▶ do nothing). The render signature includes the row numbers; the 30 s fast path
   refreshes special `nowText` in place. `tv-input.js` pages with `pageGuideSelection`.
 - Settings (Picture & Sound › Guide), all `settings.set` under `display`: **Special channels at the top**
-  (`guideSpecialsAtTop`, default off) and **Channel names** (`guideNameLines`: 2 wraps, 1 truncates with
-  an ellipsis — added at the user's request after seeing long names cut off).
+  (`guideSpecialsAtTop`, default off) and **Channel names** (`guideChannelNames`: `full` wraps to two lines,
+  `short` shows call letters — see phase 2).
 - Docked height: `.guide-grid` is a CSS size container, so it can't grow to its content.
   `fitDockedGuideHeight()` measures the chrome and sets `--guide-docked-h` to chrome + `--guide-docked-rows`
   (5 desktop, 4 TV at a 64 px row) rows, which CSS clamps to 46–75% of the screen; re-measured on window
@@ -29,6 +29,28 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   (25 rows, 1280×720, real lineup).
 - Not done: the TV-mode "picture shrinks instead of rows" part of §2.2 — the picture still sits behind
   the taller docked strip.
+
+### Built (§4 phase 2: shorts & bumpers, break band, call letters)
+
+- `guide-model.js` `mergeMicroPrograms(entries, minMs)`: runs of two or more back-to-back entries each
+  shorter than `minMs` become one `{ kind: 'run', items }` cell; whole durations decide, so a long show cut
+  at the window edge stays itself. `guide.js` `microProgramMs()` turns the label-hiding width (guide.css
+  `@container (max-width: 52px)`) into ms for the current window, measured once per render and part of the
+  render signature; window resize re-renders.
+- A run cell reads "SHORTS & BUMPERS (N)". OK/click opens a list over the grid (▲▼ move, OK tunes that
+  entry — from its start with the time machine on — Back closes); ◀▶ step over a run as one cell, and I does
+  nothing on it. Setting **Group shorts and bumpers** (`display.guideMergeShorts`, default on).
+- Break display draws pods as a 5 px band under the programs (programs lift 9 px off it) instead of full-height
+  hatched blocks; bands aren't selectable, click still jumps to the pod.
+- `renderer/js/timeline-render.js` (tested): `BREAK_LABELS` (re-exported as `GUIDE_BREAK_LABELS`),
+  `clampSpan`, `spanPercent`, `timeAtFraction`, `breakMarkClass`/`breakMarkEl`. ON AIR's break marks and the
+  guide's band both use `breakMarkEl` and the shared `.tl-break-*` palette (guide.css); the scrubber will too.
+- **Call letters** (user request, replacing a truncate option): `display.guideChannelNames: 'short'` shows
+  `channelCallLetters(ch)` — a channel's own `callLetters` (new `channel.set` field, a 6-character box beside
+  the name in the channel editor, placeholder = the automatic value) or `abbreviateChannelName`: initials for
+  several words (The Movie Channel → TMC; a capitalised short word like WV keeps its letters), a word of 6
+  letters or fewer as itself, longer words first letter + consonants (Nickelodeon → NCKLDN). Special rows use
+  the automatic value. The full name stays in the cell's tooltip.
 
 ## 1. Problems (from the 2026-09-12 audit and TV-remote constraints)
 

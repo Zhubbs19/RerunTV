@@ -19,7 +19,10 @@ import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
 } from './util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from './virtual.js';
-import { guideRows, moveSelection, rowScrollTop, selectedIndex } from './guide-model.js';
+import {
+  cellIndexAt, channelCallLetters, abbreviateChannelName, guideRows, mergeMicroPrograms, moveSelection, rowScrollTop, selectedIndex,
+} from './guide-model.js';
+import { BREAK_LABELS, breakMarkEl, spanPercent } from './timeline-render.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 import { getThemePack, runCoreHooks } from './plugins.js';
 
@@ -303,6 +306,7 @@ export function openGuideGrid() {
 }
 
 export function closeGuideGrid() {
+  closeRunList();
   if (guideGrid.classList.contains('hidden')) return;
   sfxGuideToggle(false);
   clearInterval(S.guideTickTimer);
@@ -340,8 +344,6 @@ export function applyGuideDockMode() {
   crtContainer.classList.remove(`guide-${undockedClass}`);
   crtContainer.classList.add(`guide-${dockedClass}`);
   crtContainer.classList.toggle('guide-preview-hidden', !guideLivePreviewEnabled());
-  // DISPLAY > Guide > Channel names: one line with an ellipsis instead of two.
-  guideGrid.classList.toggle('guide-names-one-line', !!(S.config.display && S.config.display.guideNameLines === 1));
   fitDockedGuideHeight();
 }
 
@@ -358,14 +360,9 @@ export function toggleGuideShowBreaks() {
 
 // How many real-channel rows to render per pass once the initial
 // visible-rows batch is done — small enough that each pass stays cheap.
-// Display copy for a break overlay block (buildChannelRow below) — mirrors
-// real guides' "Paid Programming"/local-avail labeling rather than naming
-// the app's own internal type ids.
-export const GUIDE_BREAK_LABELS = {
-  commercial: 'PAID PROGRAMMING', adBreakIn: 'PAID PROGRAMMING', adBreakOut: 'PAID PROGRAMMING',
-  channelId: 'STATION ID', trivia: 'LOCAL PROGRAMMING', upNext: 'UP NEXT', promo: 'PROMO',
-  signOff: 'SIGN-OFF', signOn: 'SIGN-ON', premiereJingle: 'SPECIAL PRESENTATION', localAvail: 'LOCAL AVAIL',
-};
+// Break copy now lives with the other shared timeline marks
+// (timeline-render.js); kept under this name for ON AIR and plugins.
+export const GUIDE_BREAK_LABELS = BREAK_LABELS;
 
 const GUIDE_ROW_CHUNK_SIZE = 12;
 
@@ -391,8 +388,135 @@ function setEntryLabel(block, text) {
   block.title = text;
 }
 
-function buildChannelRow(ch, windowEnd, selRef) {
-  const schedule = getChannelSchedule(ch, S.guideWindowStart, windowEnd);
+// DISPLAY > Guide > Channel names: the full name (wrapping to two lines) or
+// abbreviated call letters, like a period box's channel rail.
+function abbreviatedNames() {
+  return !!(S.config.display && S.config.display.guideChannelNames === 'short');
+}
+
+function railName(ch) {
+  if (!abbreviatedNames()) return ch.name || 'UNTITLED';
+  return channelCallLetters(ch) || ch.name || 'UNTITLED';
+}
+
+function mergeShortsEnabled() {
+  return !(S.config.display && S.config.display.guideMergeShorts === false);
+}
+
+// Width below which guide.css hides a cell's label (@container max-width:
+// 52px), as a duration in the current window — so a run of entries merges
+// exactly when their cells would otherwise have been label-less slivers.
+const LABEL_MIN_PX = 52;
+function microProgramMs() {
+  if (!mergeShortsEnabled()) return 0;
+  const windowMs = GUIDE_SLOT_MS * guideSlots();
+  // The header's first column is the channel rail; before the first render
+  // fills it in, a rendered rail cell (or the rail's ceiling) stands in.
+  const railEl = guideTimeHeaderEl.firstElementChild || guideRowsEl.querySelector('.guide-row-chan');
+  const width = guideTimeHeaderEl.clientWidth || guideRowsEl.clientWidth;
+  const railPx = railEl ? railEl.offsetWidth : Math.min(170, width * 0.22);
+  const trackPx = width - railPx;
+  const ms = trackPx > 0 ? (windowMs * LABEL_MIN_PX) / trackPx : windowMs * 0.03;
+  // Rounded so a few pixels of resize don't change the render signature.
+  return Math.round(ms / 10000) * 10000;
+}
+
+// A channel's cells for a range: programs, with runs of shorts merged.
+function guideCells(ch, from, to, minMs = microProgramMs()) {
+  return mergeMicroPrograms(getChannelSchedule(ch, from, to), minMs);
+}
+
+function runLabel(cell) {
+  return `SHORTS & BUMPERS (${cell.items.length})`;
+}
+
+// ---------- Shorts & bumpers list ----------
+// OK/click on a merged cell opens its entries as a small list; ▲▼ move, OK
+// tunes one (from its start with the time machine on), Back closes.
+let runList = null; // { ch, cell, idx, el }
+
+function closeRunList() {
+  if (!runList) return;
+  runList.el.remove();
+  runList = null;
+}
+
+function highlightRunItem() {
+  if (!runList) return;
+  Array.from(runList.el.querySelectorAll('.guide-run-item')).forEach((item, i) => {
+    const active = i === runList.idx;
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-selected', active ? 'true' : 'false');
+    if (active) item.scrollIntoView({ block: 'nearest' });
+  });
+}
+
+function tuneRunItem(i) {
+  if (!runList) return;
+  const { ch, cell } = runList;
+  const entry = cell.items[i];
+  closeRunList();
+  if (!entry) return;
+  S.guideSelNumber = ch.number;
+  S.guideSelTime = entry.start + 1;
+  jumpToGuideEntry(ch, entry);
+  closeGuideGrid();
+}
+
+function openRunList(ch, cell, anchorEl) {
+  closeRunList();
+  const el = document.createElement('div');
+  el.className = 'guide-run-list';
+  el.setAttribute('role', 'listbox');
+  el.setAttribute('aria-label', `${runLabel(cell)} on CH ${formatChannelNumber(ch.number)}`);
+  const heading = document.createElement('div');
+  heading.className = 'guide-run-heading';
+  heading.textContent = `${runLabel(cell)} · ${formatSlotLabel(cell.start)} – ${formatSlotLabel(cell.end)}`;
+  el.appendChild(heading);
+  const now = viewNow();
+  cell.items.forEach((entry, i) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'guide-run-item' + (entry.end <= now ? ' past' : '');
+    item.setAttribute('role', 'option');
+    item.tabIndex = -1;
+    const time = document.createElement('span');
+    time.className = 'guide-run-time';
+    time.textContent = formatSlotLabel(entry.start);
+    const title = document.createElement('span');
+    title.className = 'guide-run-title';
+    title.textContent = getDisplayTitle(entry.file);
+    item.append(time, title);
+    item.addEventListener('click', () => tuneRunItem(i));
+    item.addEventListener('mousemove', () => { if (runList && runList.idx !== i) { runList.idx = i; highlightRunItem(); } });
+    el.appendChild(item);
+  });
+  guideGrid.appendChild(el);
+  const at = cellIndexAt(cell.items.map((entry) => ({ start: entry.start, end: entry.end })), Math.max(now, cell.start));
+  runList = { ch, cell, idx: at === -1 ? 0 : at, el };
+  // Beside the cell: above it when there's room, else below; kept inside the grid.
+  const grid = guideGrid.getBoundingClientRect();
+  const anchor = anchorEl && anchorEl.isConnected ? anchorEl.getBoundingClientRect() : grid;
+  const box = el.getBoundingClientRect();
+  const left = Math.max(8, Math.min(anchor.left - grid.left, grid.width - box.width - 8));
+  const above = anchor.top - grid.top - box.height - 4;
+  const top = above >= 8 ? above : Math.min(anchor.bottom - grid.top + 4, grid.height - box.height - 8);
+  el.style.left = `${left}px`;
+  el.style.top = `${Math.max(8, top)}px`;
+  highlightRunItem();
+}
+
+function handleRunListKey(e) {
+  switch (e.key) {
+    case 'ArrowUp': runList.idx = Math.max(0, runList.idx - 1); highlightRunItem(); break;
+    case 'ArrowDown': runList.idx = Math.min(runList.cell.items.length - 1, runList.idx + 1); highlightRunItem(); break;
+    case 'Enter': tuneRunItem(runList.idx); break;
+    default: closeRunList(); break;
+  }
+}
+
+function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
+  const cells = guideCells(ch, S.guideWindowStart, windowEnd, minMs);
   const row = document.createElement('div');
   row.className = 'guide-row' + (ch.number === S.guideSelNumber ? ' active-row' : '');
 
@@ -406,7 +530,8 @@ function buildChannelRow(ch, windowEnd, selRef) {
   chanCell.dataset.channelNumber = String(ch.number);
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
-  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(ch.number)}</span><span class="grc-name">${escapeHtml(ch.name || 'UNTITLED')}</span>`;
+  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(ch.number)}</span><span class="grc-name">${escapeHtml(railName(ch))}</span>`;
+  if (abbreviatedNames()) chanText.title = ch.name || '';
   chanCell.appendChild(buildChannelBadge(ch, { small: true, editable: false }));
   chanCell.appendChild(chanText);
   // Generic decoration point: core knows nothing about who listens or what
@@ -416,24 +541,38 @@ function buildChannelRow(ch, windowEnd, selRef) {
   const track = document.createElement('div');
   track.className = 'guide-row-track';
 
-  schedule.forEach((entry) => {
-    const clampedStart = Math.max(entry.start, S.guideWindowStart);
-    const clampedEnd = Math.min(entry.end, windowEnd);
-    if (clampedEnd <= clampedStart) return;
-    const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
-    const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
-    const isSel = ch.number === S.guideSelNumber && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
-    if (isSel) selRef.info = { ch, entry };
+  cells.forEach((cell) => {
+    const pos = spanPercent(cell.start, cell.end, S.guideWindowStart, windowEnd, { minWidthPct: 2 });
+    if (!pos) return;
+    const isSel = ch.number === S.guideSelNumber && S.guideSelTime >= cell.start && S.guideSelTime < cell.end;
+    if (isSel) selRef.info = { ch, entry: cell.entry || null, cell };
 
     const block = document.createElement('div');
-    block.className = 'guide-entry' + (isSel ? ' sel' : '') +
-      (entry.end <= viewNow() ? ' past' : '');
-    block.style.left = leftPct + '%';
-    block.style.width = Math.max(widthPct, 2) + '%';
+    block.className = 'guide-entry' + (cell.kind === 'run' ? ' guide-entry-run' : '') + (isSel ? ' sel' : '') +
+      (cell.end <= viewNow() ? ' past' : '');
+    block.style.left = pos.left + '%';
+    block.style.width = pos.width + '%';
     // Read back by refreshPastClasses() below on the fast-path re-render —
     // lets the "past" dimming keep advancing on the 30s tick without
     // needing to rebuild this block (or recompute the schedule) at all.
-    block.dataset.end = String(entry.end);
+    block.dataset.end = String(cell.end);
+
+    if (cell.kind === 'run') {
+      setEntryLabel(block, runLabel(cell));
+      block.title = cell.items.slice(0, 8).map((entry) => `${formatSlotLabel(entry.start)} ${getDisplayTitle(entry.file)}`).join('\n')
+        + (cell.items.length > 8 ? `\n+${cell.items.length - 8} more` : '');
+      block.addEventListener('click', () => {
+        S.guideSelNumber = ch.number;
+        S.guideSelTime = cell.start + 1;
+        renderGuideGrid();
+        const selected = guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel');
+        openRunList(ch, cell, selected || block);
+      });
+      track.appendChild(block);
+      return;
+    }
+
+    const { entry } = cell;
     const genreStyle = guideGenreStyleForFile(entry.file, S.config, document.documentElement.dataset.theme);
     if (genreStyle) {
       block.classList.add('guide-entry-genre');
@@ -449,8 +588,7 @@ function buildChannelRow(ch, windowEnd, selRef) {
       block.style.borderLeftColor = entry.block.theme.accent;
       block.classList.add('guide-entry-themed');
     }
-    const displayTitle = getDisplayTitle(entry.file);
-    setEntryLabel(block, displayTitle);
+    setEntryLabel(block, getDisplayTitle(entry.file));
     block.addEventListener('click', () => {
       S.guideSelNumber = ch.number;
       S.guideSelTime = entry.start + 1;
@@ -460,38 +598,28 @@ function buildChannelRow(ch, windowEnd, selRef) {
     track.appendChild(block);
   });
 
-  // Ad-break overlays — schedule.js's content entries above are the pure
-  // "as if nothing ever interrupted it" file timeline (breaks are overlaid
-  // on top of content time, never carving out their own slot — see
-  // interstitials.js's own top-of-file comment on this), so these are drawn
-  // AFTER the content blocks, on top of whatever program they interrupt,
-  // rather than trying to splice a gap into the content entries themselves.
-  // Real guides vary on this (some blank the avail, some don't show it at
-  // all) — this at least makes an active cadence visible instead of
-  // silently invisible.
+  // Break pods (B / TV menu toggle) as a thin band along the bottom of the
+  // track, the same marks SCHEDULE > ON AIR draws (timeline-render.js) —
+  // breaks overlay content time rather than carving out their own slot
+  // (interstitials.js), so a band under the program reads right where the old
+  // full-height hatched blocks covered the program they interrupt.
   if (S.guideShowBreaks) {
-    breakEntriesInWindow(ch, S.guideWindowStart, windowEnd).forEach((entry) => {
-      const clampedStart = Math.max(entry.start, S.guideWindowStart);
-      const clampedEnd = Math.min(entry.end, windowEnd);
-      if (clampedEnd <= clampedStart) return;
-      const leftPct = ((clampedStart - S.guideWindowStart) / (windowEnd - S.guideWindowStart)) * 100;
-      const widthPct = ((clampedEnd - clampedStart) / (windowEnd - S.guideWindowStart)) * 100;
-      const isSel = ch.number === S.guideSelNumber && S.guideSelTime >= entry.start && S.guideSelTime < entry.end;
-
-      const block = document.createElement('div');
-      block.className = 'guide-entry guide-entry-break' + (isSel ? ' sel' : '') + (entry.end <= viewNow() ? ' past' : '');
-      block.style.left = leftPct + '%';
-      block.style.width = Math.max(widthPct, 2) + '%';
-      block.dataset.end = String(entry.end);
-      const label = GUIDE_BREAK_LABELS[entry.breakType] || 'PAID PROGRAMMING';
-      setEntryLabel(block, label);
-      block.addEventListener('click', () => {
+    track.classList.add('has-breaks');
+    breakEntriesInWindow(ch, S.guideWindowStart, windowEnd).forEach((brk) => {
+      const pos = spanPercent(brk.start, brk.end, S.guideWindowStart, windowEnd, { minWidthPct: 0.4 });
+      if (!pos) return;
+      const mark = breakMarkEl(brk, { className: 'guide-break' });
+      mark.title = `${formatSlotLabel(brk.start)} ${GUIDE_BREAK_LABELS[brk.breakType] || 'PAID PROGRAMMING'}`;
+      mark.style.left = pos.left + '%';
+      mark.style.width = pos.width + '%';
+      mark.addEventListener('click', (event) => {
+        event.stopPropagation();
         S.guideSelNumber = ch.number;
-        S.guideSelTime = entry.start + 1;
-        jumpToGuideEntry(ch, entry);
+        S.guideSelTime = brk.start + 1;
+        jumpToGuideEntry(ch, brk);
         closeGuideGrid();
       });
-      track.appendChild(block);
+      track.appendChild(mark);
     });
   }
 
@@ -514,7 +642,7 @@ function buildSpecialRow(row) {
   chanCell.appendChild(buildChannelBadge({ number, name: info.name, icon: null }, { small: true, editable: false }));
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
-  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(number)}</span><span class="grc-name">${escapeHtml(info.name)}</span>`;
+  chanText.innerHTML = `<span class="grc-num">CH ${formatChannelNumber(number)}</span><span class="grc-name">${escapeHtml(abbreviatedNames() ? (abbreviateChannelName(info.name) || info.name) : info.name)}</span>`;
   chanCell.appendChild(chanText);
   runCoreHooks('guide-channel-cell', { channel: { number, name: info.name }, cell: chanCell });
 
@@ -540,10 +668,10 @@ function buildSpecialRow(row) {
   return rowEl;
 }
 
-function renderRowRange(rows, windowEnd, startIdx, endIdx, selRef) {
+function renderRowRange(rows, windowEnd, startIdx, endIdx, selRef, minMs) {
   for (let rowIdx = startIdx; rowIdx < endIdx; rowIdx++) {
     const row = rows[rowIdx];
-    guideRowsEl.appendChild(row.kind === 'special' ? buildSpecialRow(row) : buildChannelRow(row.ch, windowEnd, selRef));
+    guideRowsEl.appendChild(row.kind === 'special' ? buildSpecialRow(row) : buildChannelRow(row.ch, windowEnd, selRef, minMs));
   }
 }
 
@@ -571,12 +699,12 @@ function selectedRow(rows = currentGuideRows()) {
 // stale chunked pass (from a render that's since been superseded by a newer
 // renderGuideGrid() call — filter change, tick refresh, dock toggle)
 // continuing to append rows into a grid that's moved on.
-function scheduleRemainingRows(rows, windowEnd, nextIdx, selRef, renderGen) {
+function scheduleRemainingRows(rows, windowEnd, nextIdx, selRef, renderGen, minMs) {
   if (renderGen !== S.guideRenderGen) return;
   const endIdx = Math.min(rows.length, nextIdx + GUIDE_ROW_CHUNK_SIZE);
-  renderRowRange(rows, windowEnd, nextIdx, endIdx, selRef);
+  renderRowRange(rows, windowEnd, nextIdx, endIdx, selRef, minMs);
   if (endIdx < rows.length) {
-    setTimeout(() => scheduleRemainingRows(rows, windowEnd, endIdx, selRef, renderGen), 0);
+    setTimeout(() => scheduleRemainingRows(rows, windowEnd, endIdx, selRef, renderGen, minMs), 0);
   } else {
     // Rows added after the initial positionNowLine() call grow the rows
     // container's scroll height — re-run it so the now-line stretches
@@ -594,10 +722,11 @@ let lastGuideRenderSig = null;
 
 // The row numbers are part of it: a plugin channel appearing or the specials
 // switching sides changes which rows exist without touching configGeneration.
-function guideRenderSignature(rows, windowEnd) {
+function guideRenderSignature(rows, windowEnd, minMs) {
   return [
     S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
     S.guideDocked, S.guideShowBreaks, guideSlots(), rows.map((r) => r.number).join(','), S.guideSelNumber, S.guideSelTime,
+    minMs,
   ].join('|');
 }
 
@@ -638,6 +767,8 @@ window.addEventListener('resize', () => {
   if (guideGrid.classList.contains('hidden')) return;
   cancelAnimationFrame(guideResizeFrame);
   guideResizeFrame = requestAnimationFrame(() => {
+    closeRunList();
+    renderGuideGrid(); // fast path unless the shorts threshold moved
     fitDockedGuideHeight();
     const idx = selectedIndex(currentGuideRows(), S.guideSelNumber);
     if (idx >= 0) scrollSelectedRowIntoView(idx);
@@ -689,10 +820,13 @@ export function renderGuideGrid() {
   }
   const selIdx = selectedIndex(rows, S.guideSelNumber);
   S.guideSelNumber = rows[selIdx].number;
-  guideGrid.classList.toggle('guide-names-one-line', !!(S.config.display && S.config.display.guideNameLines === 1));
   const windowEnd = S.guideWindowStart + GUIDE_SLOT_MS * guideSlots();
 
-  const sig = guideRenderSignature(rows, windowEnd);
+  // Measured once per render: the shorts threshold is a pixel width (see
+  // microProgramMs), and reading layout per row while appending rows would
+  // force a layout for every one.
+  const minMs = microProgramMs();
+  const sig = guideRenderSignature(rows, windowEnd, minMs);
   if (sig === lastGuideRenderSig && guideRowsEl.children.length > 0) {
     positionNowLine(windowEnd);
     refreshPastClasses();
@@ -736,7 +870,7 @@ export function renderGuideGrid() {
   const initialCount = rows.length <= GUIDE_LAZY_FILL_THRESHOLD
     ? rows.length
     : Math.min(rows.length, Math.max(selIdx + 2, S.guideDocked ? 7 : 24));
-  renderRowRange(rows, windowEnd, 0, initialCount, selRef);
+  renderRowRange(rows, windowEnd, 0, initialCount, selRef, minMs);
 
   // Rebuilding the rows resets the scroll position; start from where it was
   // so a one-row move only scrolls as far as it has to.
@@ -748,7 +882,7 @@ export function renderGuideGrid() {
   updateGuideInfoPanel(rows[selIdx], selRef.info);
 
   if (initialCount < rows.length) {
-    setTimeout(() => scheduleRemainingRows(rows, windowEnd, initialCount, selRef, renderGen), 0);
+    setTimeout(() => scheduleRemainingRows(rows, windowEnd, initialCount, selRef, renderGen, minMs), 0);
   }
 }
 
@@ -789,7 +923,10 @@ export function updateGuideInfoPanel(row, selectedInfo) {
   if (row.kind === 'special') {
     giTitleEl.textContent = row.info.nowText || row.info.name;
     giTimeEl.textContent = '';
-  } else if (selectedInfo) {
+  } else if (selectedInfo && selectedInfo.cell && selectedInfo.cell.kind === 'run') {
+    giTitleEl.textContent = runLabel(selectedInfo.cell);
+    giTimeEl.textContent = `${formatSlotLabel(selectedInfo.cell.start)} – ${formatSlotLabel(selectedInfo.cell.end)}`;
+  } else if (selectedInfo && selectedInfo.entry) {
     giTitleEl.textContent = getDisplayTitle(selectedInfo.entry.file);
     giTimeEl.textContent = `${formatSlotLabel(selectedInfo.entry.start)} – ${formatSlotLabel(selectedInfo.entry.end)}`;
   } else {
@@ -835,7 +972,8 @@ export function moveGuideSelectionTime(direction) {
   const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
   const rangeStart = floorToSlot(now) - (canRewind ? GUIDE_SLOT_MS * 8 : 0);
   const rangeEnd = S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6);
-  const schedule = getChannelSchedule(ch, rangeStart, rangeEnd);
+  // Cells, not raw entries: a merged run of shorts is one step.
+  const schedule = guideCells(ch, rangeStart, rangeEnd);
   if (schedule.length === 0) return;
 
   let idx = schedule.findIndex((en) => S.guideSelTime >= en.start && S.guideSelTime < en.end);
@@ -868,8 +1006,9 @@ function showDetailsForGuideSelection() {
   const row = selectedRow();
   if (!row || row.kind !== 'channel') return;
   const { ch } = row;
-  const sched = getChannelSchedule(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
-  const entry = sched.find((en) => S.guideSelTime >= en.start && S.guideSelTime < en.end);
+  const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+  const cell = cells[cellIndexAt(cells, S.guideSelTime)];
+  const entry = cell && cell.kind === 'program' ? cell.entry : null;
   if (!entry) return;
   showDetailsOverlay(entry.file, {
     channelNumber: ch.number,
@@ -903,6 +1042,13 @@ export function handleGuideGridKey(e) {
     return;
   }
 
+  // The shorts & bumpers list is modal while open.
+  if (runList) {
+    handleRunListKey(e);
+    e.preventDefault();
+    return;
+  }
+
   if (e.key === '/') {
     guideSearchEl.focus();
     e.preventDefault();
@@ -920,9 +1066,13 @@ export function handleGuideGridKey(e) {
       if (row && row.kind === 'special') {
         tuneToChannel(row.number);
       } else if (selCh) {
-        const sched = getChannelSchedule(selCh, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
-        const selEntry = sched.find((en) => S.guideSelTime >= en.start && S.guideSelTime < en.end);
-        jumpToGuideEntry(selCh, selEntry);
+        const cells = guideCells(selCh, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+        const selCell = cells[cellIndexAt(cells, S.guideSelTime)];
+        if (selCell && selCell.kind === 'run') {
+          openRunList(selCh, selCell, guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel'));
+          break;
+        }
+        jumpToGuideEntry(selCh, selCell ? selCell.entry : undefined);
       }
       closeGuideGrid();
       break;
