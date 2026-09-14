@@ -570,113 +570,6 @@ export function buildCalendarPanel(channels, panelEl, opts) {
   render();
 }
 
-// A weekly "broadcast clock" — the standard TV/radio scheduling
-// visualization (a template showing the hourly format graphically, so gaps
-// and overlaps are visible instead of read off numbers). This is the
-// counterpart CALENDAR never had: CALENDAR resolves one winner per *day*
-// (right for dateRange blocks), but a dayOfWeek block's hour range had no
-// visual at all before this — you could only read it as text in a block
-// row. TIMELINE is the coarse "build the standing weekly lineup" layer;
-// CALENDAR stays the fine-tuning layer (holiday takeovers, day overrides)
-// on top of it.
-//
-// Sampled the same way CALENDAR samples a day: resolveActiveSource(ch, atMs)
-// at a representative instant per hour, across the current real-world week —
-// a pure function of time, no new resolution math (matches
-// [[retro-cable-box-architecture-constraints]]'s deterministic-scheduling
-// pattern). A dateRange block will show as a flat colored week if it's
-// currently active, which is a real, correct answer — just not this view's
-// primary use case (that's what CALENDAR is for).
-export function buildTimelinePanel(ch, panelEl, opts) {
-  opts = opts || {};
-  panelEl.innerHTML = '';
-
-  const hint = document.createElement('div');
-  hint.className = 'titles-empty';
-  hint.textContent = 'YOUR STANDING WEEKLY LINEUP. BUILD THE DAYPART STRUCTURE HERE, THEN USE CALENDAR TO FINE-TUNE SPECIFIC DATES.';
-  panelEl.appendChild(hint);
-
-  const wrap = document.createElement('div');
-  wrap.className = 'timeline-grid-wrap';
-  panelEl.appendChild(wrap);
-
-  const grid = document.createElement('div');
-  grid.className = 'timeline-grid';
-  wrap.appendChild(grid);
-
-  // Start-of-week (Sunday) for the current real-world week — the timeline
-  // always shows "this week" since a dayOfWeek block's shape doesn't change
-  // week to week (that's the whole point of it being a standing lineup).
-  const now = new Date();
-  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay(), 12, 0, 0, 0);
-
-  // Corner spacer + hour header.
-  const corner = document.createElement('div');
-  corner.className = 'timeline-corner';
-  grid.appendChild(corner);
-  for (let h = 0; h < 24; h++) {
-    const hd = document.createElement('div');
-    hd.className = 'timeline-hour-label';
-    hd.textContent = h % 3 === 0 ? formatHourLabel(h).replace(':00', '') : '';
-    grid.appendChild(hd);
-  }
-
-  const legend = document.createElement('div');
-  legend.className = 'calendar-legend';
-
-  const seenLabels = new Map();
-
-  WEEKDAYS.forEach((wd, dayIdx) => {
-    const dayLabel = document.createElement('div');
-    dayLabel.className = 'timeline-day-label';
-    dayLabel.textContent = wd.slice(0, 3);
-    grid.appendChild(dayLabel);
-
-    for (let h = 0; h < 24; h++) {
-      const cellMs = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + dayIdx, h, 30, 0, 0).getTime();
-      const source = resolveActiveSource(ch, cellMs);
-      const emptyMatches = matchingBlocksIncludingEmpty(ch, cellMs);
-      const label = source.block ? blockPickerLabel(source.block) : (ch.files.length ? 'DEFAULT' : 'NO CONTENT');
-      const colorKey = source.block ? source.block.id : `default-${ch.number}`;
-      const color = (source.block || ch.files.length) ? calendarSourceColor(colorKey) : null;
-
-      const cell = document.createElement('div');
-      cell.className = 'timeline-cell';
-      if (color) cell.style.background = hexToRgba(color, 0.5);
-      if (emptyMatches.length) cell.classList.add('timeline-cell-empty-block');
-      cell.title = emptyMatches.length
-        ? `${label} [${emptyMatches.length} block matching but no folder set — won't air]`
-        : label;
-
-      if (source.block) {
-        cell.classList.add('timeline-cell-clickable');
-        cell.tabIndex = 0;
-        cell.setAttribute('role', 'button');
-        const block = source.block;
-        cell.addEventListener('click', () => opts.onEditBlock && opts.onEditBlock(block));
-        cell.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); opts.onEditBlock && opts.onEditBlock(block); }
-        });
-      }
-
-      if (color && !seenLabels.has(label)) seenLabels.set(label, color);
-      grid.appendChild(cell);
-    }
-  });
-
-  seenLabels.forEach((color, label) => {
-    const item = document.createElement('div');
-    item.className = 'calendar-legend-item';
-    const swatch = document.createElement('span');
-    swatch.className = 'calendar-legend-swatch';
-    swatch.style.background = color;
-    item.appendChild(swatch);
-    item.appendChild(document.createTextNode(label));
-    legend.appendChild(item);
-  });
-  panelEl.appendChild(legend);
-}
-
 export function buildSchedulePanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -1291,15 +1184,14 @@ export function buildSchedulePanel(ch, panelEl) {
   panelEl.appendChild(addWrap);
 }
 
-// Unified SCHEDULE tab — an ON AIR/TIMELINE/BLOCKS/CALENDAR view toggle over
-// buildOnAirPanel (setup-onair.js, the resolved week — what the other three
-// views add up to) and
-// buildTimelinePanel/buildSchedulePanel/buildCalendarPanel instead of
-// separate channel-EDIT tabs. TIMELINE is first since it's the natural
-// starting point (build the standing weekly lineup, then fine-tune specific
-// dates in CALENDAR). Jumping from a timeline cell or calendar day into
-// "EDIT BLOCK" switches the toggle back to BLOCKS and flashes the matching
-// card, mirroring what the old cross-tab jump did.
+// Unified SCHEDULE tab — an ON AIR/BLOCKS/CALENDAR view toggle over
+// buildOnAirPanel (setup-onair.js: the resolved week, and the timeline you
+// edit it on), buildSchedulePanel (every field of every block) and
+// buildCalendarPanel (date ranges by month). ON AIR replaced an hourly
+// TIMELINE grid of dayOfWeek blocks: its block lane shows the same spans at
+// real resolution and edits them, so two views of the standing lineup would
+// only have drifted apart. Jumping from ON AIR or a calendar day into "EDIT
+// BLOCK" switches the toggle to BLOCKS and flashes the matching card.
 export function buildUnifiedSchedulePanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -1310,10 +1202,6 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   onAirBtn.className = 'btn edit-tab-btn';
   onAirBtn.textContent = 'ON AIR';
   onAirBtn.setAttribute('role', 'tab');
-  const timelineBtn = document.createElement('button');
-  timelineBtn.className = 'btn edit-tab-btn';
-  timelineBtn.textContent = 'TIMELINE';
-  timelineBtn.setAttribute('role', 'tab');
   const blocksBtn = document.createElement('button');
   blocksBtn.className = 'btn edit-tab-btn';
   blocksBtn.textContent = 'BLOCKS';
@@ -1323,16 +1211,14 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   calendarBtn.textContent = 'CALENDAR';
   calendarBtn.setAttribute('role', 'tab');
   viewToggle.appendChild(onAirBtn);
-  viewToggle.appendChild(timelineBtn);
   viewToggle.appendChild(blocksBtn);
   viewToggle.appendChild(calendarBtn);
 
   const body = document.createElement('div');
   body.id = `channel-${ch.number}-schedule-panel`;
   body.setAttribute('role', 'tabpanel');
-  [onAirBtn, timelineBtn, blocksBtn, calendarBtn].forEach((button) => button.setAttribute('aria-controls', body.id));
+  [onAirBtn, blocksBtn, calendarBtn].forEach((button) => button.setAttribute('aria-controls', body.id));
   onAirBtn.id = `channel-${ch.number}-schedule-tab-onair`;
-  timelineBtn.id = `channel-${ch.number}-schedule-tab-timeline`;
   blocksBtn.id = `channel-${ch.number}-schedule-tab-blocks`;
   calendarBtn.id = `channel-${ch.number}-schedule-tab-calendar`;
   panelEl.appendChild(viewToggle);
@@ -1356,18 +1242,14 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   function renderView() {
     onAirBtn.classList.toggle('active', activeView === 'onair');
     onAirBtn.setAttribute('aria-selected', String(activeView === 'onair'));
-    timelineBtn.classList.toggle('active', activeView === 'timeline');
     blocksBtn.classList.toggle('active', activeView === 'blocks');
     calendarBtn.classList.toggle('active', activeView === 'calendar');
-    timelineBtn.setAttribute('aria-selected', String(activeView === 'timeline'));
     blocksBtn.setAttribute('aria-selected', String(activeView === 'blocks'));
     calendarBtn.setAttribute('aria-selected', String(activeView === 'calendar'));
     body.setAttribute('aria-labelledby', `channel-${ch.number}-schedule-tab-${activeView}`);
     body.innerHTML = '';
     if (activeView === 'onair') {
       buildOnAirPanel(ch, body, { onEditBlock: jumpToBlock, colorFor: calendarSourceColor, blockLabel: blockPickerLabel });
-    } else if (activeView === 'timeline') {
-      buildTimelinePanel(ch, body, { onEditBlock: jumpToBlock });
     } else if (activeView === 'blocks') {
       buildSchedulePanel(ch, body);
     } else {
@@ -1376,7 +1258,6 @@ export function buildUnifiedSchedulePanel(ch, panelEl) {
   }
 
   onAirBtn.addEventListener('click', () => { activeView = 'onair'; renderView(); });
-  timelineBtn.addEventListener('click', () => { activeView = 'timeline'; renderView(); });
   blocksBtn.addEventListener('click', () => { activeView = 'blocks'; renderView(); });
   calendarBtn.addEventListener('click', () => { activeView = 'calendar'; renderView(); });
 

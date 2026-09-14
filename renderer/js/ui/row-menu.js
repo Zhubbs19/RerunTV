@@ -5,7 +5,7 @@
 //   const menu = RowMenu({
 //     label: 'Actions for CH 7',
 //     groups: [
-//       [{ label: 'Move up', run: () => …, disabled: false }],
+//       [{ label: 'Move up', run: () => …, disabled: false, title: 'Already first' }],
 //       [{ label: 'Remove', run: () => …, danger: true }],
 //     ],
 //   });
@@ -65,6 +65,7 @@ export function RowMenu({ label, groups }) {
         entry.setAttribute('role', 'menuitem');
         entry.textContent = item.label;
         entry.tabIndex = -1;
+        if (item.title) entry.title = item.title; // e.g. why a disabled item can't run
         if (item.disabled) entry.disabled = true;
         entry.addEventListener('click', (event) => {
           event.stopPropagation();

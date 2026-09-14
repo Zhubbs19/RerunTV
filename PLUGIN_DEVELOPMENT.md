@@ -1159,6 +1159,13 @@ Don't write to config keys that look like they belong to another plugin or
 to core. The one exception is a plugin that's genuinely extending a
 core-shared feature.
 
+If that feature is programming — a plugin adding its own ad preset or flow to
+`S.config.interstitials.presets` / `.flows` — set `pluginId: '<your-plugin-id>'`
+on the item. SCHEDULE › ON AIR's explanation then shows it as
+"OWNED BY <your-plugin-id>" and offers no edit, and timeline gestures that
+would change its breaks say the plugin owns them instead of editing the item
+(docs/design/02 §4.4). This is a data marker, not a new `ctx` call.
+
 ## Verifying your plugin works
 
 The PLUGINS tab includes **PLUGIN DEVELOPER DIAGNOSTICS**. It inventories

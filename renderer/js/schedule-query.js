@@ -116,9 +116,11 @@ export function queryDay(ch, dayStart, { breaks = true } = {}) {
 
 // Programs cut at a day edge come back as two entries: the first ends at
 // midnight, the second starts where the first really started (walkSourceSchedule
-// back-dates an in-progress file to its true start). Only the LAST entry of one
-// day and the FIRST of the next can be halves of one airing, so that junction
-// is the only place to look.
+// back-dates an in-progress file to its true start). getChannelSchedule cuts
+// the same way at every source boundary inside a day, and when both sides of
+// that boundary resolve to the same airing (a one-day copy of a block, say)
+// the halves are one program too. So any entry that repeats the previous
+// one's file and start is folded into it.
 //
 // "Same start" is within a millisecond, not exact: each day computes its
 // start from its own midnight through float modulo arithmetic over the whole
@@ -129,9 +131,9 @@ const SAME_AIRING_TOLERANCE_MS = 1;
 
 function stitchPrograms(lists) {
   const out = [];
-  lists.forEach((list) => list.forEach((entry, i) => {
+  lists.forEach((list) => list.forEach((entry) => {
     const last = out[out.length - 1];
-    if (i === 0 && last
+    if (last
         && last.file && entry.file && last.file.path === entry.file.path
         && Math.abs(last.start - entry.start) < SAME_AIRING_TOLERANCE_MS) {
       last.end = Math.max(last.end, entry.end);
@@ -266,8 +268,9 @@ export function proposeEdit(config, channelNumber, commands) {
 // applied); see the caching note at the top of this file. `afterConfig` (from
 // proposeEdit) resolves `after` against proposed box-wide programming.
 //
-// Returns { identical, added, removed, breaksAdded, breaksRemoved, changed },
-// where `changed` is the merged time ranges touched by any difference.
+// Returns { identical, added, removed, breaksAdded, breaksRemoved,
+// offAirChanged, changed }, where `changed` is the merged time ranges touched
+// by any difference.
 export function diffSchedules(before, after, from, to, { breaks = true, afterConfig = null } = {}) {
   const a = querySchedule(before, from, to, { breaks, offAir: true });
   const b = withConfig(afterConfig, () => querySchedule(after, from, to, { breaks, offAir: true }));
@@ -292,6 +295,7 @@ export function diffSchedules(before, after, from, to, { breaks = true, afterCon
     removed,
     breaksAdded,
     breaksRemoved,
+    offAirChanged,
     changed,
   };
 }

@@ -701,10 +701,13 @@ registerCommand('block.create', {
   },
   apply(config, cmd) {
     const ch = findChannel(config, cmd.channel);
-    if (!Array.isArray(ch.blocks)) ch.blocks = [];
+    // A channel that had no blocks list gets one; undo takes it away again,
+    // so an add-then-undo leaves the channel exactly as it was.
+    const created = !Array.isArray(ch.blocks);
+    if (created) ch.blocks = [];
     const index = Math.max(0, Math.min(cmd.index == null ? ch.blocks.length : cmd.index, ch.blocks.length));
     ch.blocks.splice(index, 0, cloneJson(cmd.block));
-    return [{ type: 'block.remove', channel: cmd.channel, id: cmd.block.id }];
+    return [{ type: 'block.remove', channel: cmd.channel, id: cmd.block.id, ...(created ? { dropEmptyList: true } : {}) }];
   },
   describe(config, cmd) {
     const name = cmd.block.name && cmd.block.name.trim();
@@ -717,6 +720,7 @@ registerCommand('block.remove', {
   apply(config, cmd) {
     const { ch, index } = requireBlock(config, cmd);
     const [removed] = ch.blocks.splice(index, 1);
+    if (cmd.dropEmptyList && !ch.blocks.length) delete ch.blocks;
     return [{ type: 'block.create', channel: cmd.channel, index, block: cloneJson(removed) }];
   },
   describe(config, cmd) {

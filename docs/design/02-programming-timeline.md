@@ -1,6 +1,6 @@
 # 02 — Programming timeline
 
-Status: step 1 shipped (`4eeff1b`); steps 2–3 proposed.
+Status: step 1 shipped (`4eeff1b`); step 2 built (see §4.5); step 3 gated.
 Depends on: C3 commands (05), C4 components (04). Owns contract **C2** (schedule query).
 Consumed by: 06, 08, 09, 11.
 
@@ -24,7 +24,7 @@ or "why did this show air here?" without trial and error.
 | Step | What | Data model change | Status |
 |---|---|---|---|
 | 1 | **ON AIR, read-only**: resolved week per channel, explain on click | none | ✅ `renderer/js/setup-onair.js` |
-| 2 | **Editable timeline**: act on the resolved view; edits write existing blocks/overrides/presets via commands | none | proposed (P2) |
+| 2 | **Editable timeline**: act on the resolved view; edits write existing blocks/overrides/presets via commands | none | ✅ §4.5 |
 | 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | **gated** — decide after step 2 |
 
 ## 3. Contract C2 — `schedule-query.js`
@@ -131,6 +131,85 @@ order they're consulted, each marked `wins`, `outranked`, `skipped` or `passes`.
 - The matching lists are the resolvers' own: `matchingFlows`, `matchingPresets` and
   `matchingAdBlocks` were extracted from `computeActiveCommercials`. So the winners agree with
   playback by construction, and a weekend-long unit test checks it.
+
+**The timeline** (`setup-onair.js`, with the gesture-to-command logic in DOM-free
+`timeline-edits.js`, `tests/timeline-edits.test.js`).
+- **Merged, not added.** ON AIR is the editable timeline, and the hourly TIMELINE view is
+  gone. SCHEDULE is now ON AIR · BLOCKS · CALENDAR.
+  - TIMELINE drew the same dayOfWeek spans ON AIR's block lane now draws at real resolution.
+  - BLOCKS stays as the every-field editor, and CALENDAR as the by-month view of date ranges.
+- **Block lane.** Each day row has a lane above its programs showing which block owns each
+  hour (`blockSpansForDay`, from `resolveActiveSource`). A matching block with no folder shows
+  hatched.
+  - A span's edge handle appears only where that edge is the block's own start or end hour,
+    not where a higher block covers it.
+- **Gestures, each one named command (one undo step):**
+  - **Drag in an empty lane** opens the new-block editor for those whole hours (`block.create`).
+    It picks a folder or tag from the library without scanning (`librarySources`), or browses
+    for a folder. The new block gets one more than the priority of any time block overlapping
+    that weekday. Date-range specials stay above it.
+  - **Drag an edge** calls `block.setHours`. It previews that day live (programs only), then
+    re-resolves the whole week on drop.
+  - **Drag the colour chip** onto another day calls `block.setDays`.
+  - **Click a span, then Delete** removes it. The confirm states the diff.
+  - **The span menu** has *Change what it plays…* (re-anchors, so it confirms), *Also air on …*
+    and *Stop airing on …*.
+- **Program menu** (right-click, or CHANGE THIS AIRING ⋯ in the detail panel):
+  - **Replace this airing with…** adds a one-day date-range block over the program's hours,
+    above everything matching there. On a daily/weekly block, picking one of its own episodes
+    sets that date's day override instead (`block.overrideDay`).
+  - **Only this day** adds the same one-day block, copying the live source's files and anchor.
+    So the programs don't change, and later edits to it touch only that date.
+  - **Add a break here** edits the layer that decides the show's breaks. A set-points preset
+    gains a point. A show on a timed cadence gets its own set-points preset, tagged to that
+    file.
+  - **No ad breaks in this show** adds a `no-breaks` file tag and a first-in-list preset with no
+    break points.
+  - Both break edits are disabled, with the reason as the item's tooltip, when a flow or a
+    plugin-owned preset decides the show's breaks.
+- **SIGN-OFF HOURS** (the toolbar button, or a click on a signed-off stretch) calls
+  `channel.setBroadcastHours`, with a preview.
+- **Impact preview.**
+  - A bar above the grid and gold outlines on the grid show what an edit changes before it
+    commits: live during drags, and in the editor as soon as a source is picked.
+  - After commit they show what did change.
+  - The bar never collapses, so it can't push the grid out from under a drag.
+  - A confirm appears only for re-anchoring or a date range longer than a week
+    (`guardrailsFor`).
+- **Explanation.** Clicking a program lists `explainLayers` as WHAT AIRS and BREAKS. Each row
+  has its role and a sentence, and **Edit this layer** jumps to the block, CONTENT, BREAKS,
+  the preset or the flow.
+  - Content block rows reorder by drag or ▲▼ (`block.setPriority`). `reorderCommands` changes
+    as few priorities as possible.
+  - A flow or preset carrying `pluginId` shows OWNED BY … and no edit button.
+- **TV mode** (`html[data-mode="tv"]`) shows the same week read-only: no lane gestures, menus
+  or edit buttons.
+  - ◄► move between programs and ▲▼ between days at the same time of day. OK explains.
+  - Red or CH− go to the previous week, green or CH+ to the next, with focus kept.
+  - Desktop gets the same arrows, as grid-local roving focus. Global keyboard behaviour is
+    unchanged.
+
+**Verified live** (scratch `test/verify-timeline.mjs`, 1280×720, against a copy of the
+installed config):
+- Saturday 7–11 AM from a library folder took one drag, one pick and one click, with the
+  preview outlined.
+- Undoing every edit left the channel byte-for-byte identical, and `diffSchedules` was empty.
+- The slowest real channel's week resolved in 210–213 ms across runs (CH 5, 1329 files).
+- Drag previews took at most 1.8 ms a frame.
+- 12 of 12 sampled program explanations matched `explainLayers` layer for layer.
+
+Found while verifying:
+- Stitching now folds a repeated airing anywhere in a window, not only at midnight.
+  `getChannelSchedule` cuts a program at every source boundary, so a one-day copy of a source
+  read as two changed programs.
+- `block.create` on a channel with no blocks list drops that list again on undo, so undo is
+  exact.
+- A span's start-edge handle covered its colour chip.
+- An "Only this day" copy changes the break pods' ad picks (they're seeded by block id), so its
+  preview reports changed breaks but no changed programs.
+- On the setup screen the Android client's native bridge still sends arrows only to the TV-screen
+  keyboard handler, so the read-only week is reachable by injected key events (keyboard, TV
+  browsers) but not by that bridge. Editing belongs on the desktop or the web panel (06).
 
 **Found on the way.** Several BLOCKS editor controls changed config without recording a
 command, so they saved only with a later edit and were never undoable. This had been true since

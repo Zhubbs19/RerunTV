@@ -129,6 +129,14 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   - Add `data-synonyms` for words people would search for.
 - **Search:** rows become search results automatically, and new setup actions go in
   `setup-command-palette.js`'s `searchActions()`.
+- **A channel's SCHEDULE page** is ON AIR · BLOCKS · CALENDAR (docs/design/02 §4.5).
+  - ON AIR (`setup-onair.js`) is the editable timeline. Gestures become commands in DOM-free
+    `timeline-edits.js`.
+  - Each edit is previewed with `proposeEdit` + `diffSchedules` (`schedule-query.js`) before
+    it's dispatched.
+  - A new schedule edit should follow that path. Anything derived from a proposed channel copy
+    must key on the channel object, never `ch.number`, or it will read the live channel's
+    cached results.
 
 ## Directory map
 

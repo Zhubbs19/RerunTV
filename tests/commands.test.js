@@ -461,7 +461,6 @@ test('block commands undo exactly, and each is safe to apply twice', async () =>
       assert.deepEqual(config, once, `${cmd.type} applied twice is the same as once`);
     }
     inverse.slice().reverse().forEach((inv) => applyCommand(config, inv));
-    if (cmd.channel === 7) delete config.channels[2].blocks; // block.create makes the list it inserts into
     assert.deepEqual(config, original, `${cmd.type} undone`);
   }
 });
