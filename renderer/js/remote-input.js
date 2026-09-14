@@ -87,8 +87,10 @@ export function normalizeKey(event) {
 
 const WATCHING = {
   up: 'key:ArrowUp', down: 'key:ArrowDown', chUp: 'key:ArrowUp', chDown: 'key:ArrowDown',
-  left: 'guide.open', right: 'banner.show',
-  ok: 'key:Enter', 'long:ok': 'menu.open',
+  left: 'guide.open', right: 'banner.open',
+  // OK opens the banner hub (docs/design/01 §6.1): browse channels with ◀▶
+  // without tuning, OK tunes, ▼ opens the programme's actions.
+  ok: 'banner.open', 'long:ok': 'menu.open',
   back: 'exit.prompt', exit: 'exit.prompt',
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
   guide: 'guide.open', info: 'info.show', last: 'key:Backspace',
@@ -118,7 +120,18 @@ const GUIDE = {
   ok: 'key:Enter', 'long:ok': 'guide.programActions', info: 'key:i',
   back: 'key:Escape', exit: 'key:Escape', guide: 'key:Escape',
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
-  red: 'guide.dayBack', green: 'guide.dayForward', yellow: 'key:b', blue: 'key:d',
+  // docs/design/01 §6.2's colour mapping: red/green step a day, yellow filters,
+  // blue lists reminders. Breaks and dock/full page live in the TV menu.
+  red: 'guide.dayBack', green: 'guide.dayForward', yellow: 'guide.filter', blue: 'guide.reminders',
+};
+
+// The banner hub owns its own keys while it is up (banner-hub.js).
+const BANNER = {
+  left: 'banner.key.left', right: 'banner.key.right', up: 'banner.key.up', down: 'banner.key.down',
+  ok: 'banner.key.ok', back: 'banner.key.back', exit: 'banner.key.back',
+  chUp: 'key:ArrowUp', chDown: 'key:ArrowDown',
+  menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
+  guide: 'guide.open', info: 'info.show', 'long:ok': 'menu.open',
 };
 
 const MENU = {
@@ -133,15 +146,17 @@ const DETAILS = {
   menu: 'menu.toggle', playPause: 'menu.toggle',
 };
 
+// Dialogs move focus by on-screen position (ui/spatial-focus.js), so a row, a
+// list or a grid of buttons all work with the D-pad.
 const DIALOG = {
-  left: 'focus.prev', up: 'focus.prev', right: 'focus.next', down: 'focus.next',
+  left: 'focus.left', up: 'focus.up', right: 'focus.right', down: 'focus.down',
   ok: 'focus.activate', back: 'dialog.cancel', exit: 'dialog.cancel',
 };
 
 const TEXT = { back: 'key:Escape', exit: 'key:Escape' };
 
 export const CONTEXT_ACTIONS = {
-  watching: WATCHING, timeMachine: TIME_MACHINE, guide: GUIDE, menu: MENU, details: DETAILS, dialog: DIALOG, text: TEXT,
+  watching: WATCHING, banner: BANNER, timeMachine: TIME_MACHINE, guide: GUIDE, menu: MENU, details: DETAILS, dialog: DIALOG, text: TEXT,
 };
 
 // null means "not a remote concern here": the event goes to the keyboard
@@ -242,4 +257,28 @@ export function rawKeyId(evt) {
   if (typeof evt.key === 'string' && evt.key && evt.key !== 'Unidentified') return `key:${evt.key}`;
   if (evt.keyCode) return `keyCode:${evt.keyCode}`;
   return null;
+}
+
+// ---------- Plugin channel actions ----------
+// What a plugin channel's onAction(action, ctx) receives in TV mode
+// (docs/design/01 §6.6): actions, not raw keys, so a plugin never has to
+// guess which remote sent what. keyForAction gives the keyboard key an older
+// onKey plugin already understands, which is how a plugin can adopt actions
+// by forwarding to its existing onKey.
+export const PLUGIN_CHANNEL_ACTIONS = {
+  up: 'move.up', down: 'move.down', left: 'move.left', right: 'move.right',
+  ok: 'select', back: 'back', info: 'info',
+};
+
+const ACTION_KEYS = {
+  'move.up': 'ArrowUp', 'move.down': 'ArrowDown', 'move.left': 'ArrowLeft', 'move.right': 'ArrowRight',
+  select: 'Enter', back: 'Escape', info: 'i',
+};
+
+export function pluginActionFor(remoteKey) {
+  return PLUGIN_CHANNEL_ACTIONS[remoteKey] || null;
+}
+
+export function keyForAction(action) {
+  return ACTION_KEYS[action] || null;
 }

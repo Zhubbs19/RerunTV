@@ -24,7 +24,10 @@ import {
   cycleSleepTimer, powerOff, toggleHintBar,
 } from './power.js';
 import { MONTHS, S, WEEKDAYS, viewNow } from './state.js';
-import { isTvMode, setUsageModePreference } from './usage-mode.js';
+import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } from './usage-mode.js';
+import { commitEntry, pushDigit, showSetupScreen } from './app.js';
+import { subChannelsEnabled } from './channels.js';
+import { openHandoff } from './handoff.js';
 import { openLearnMode, openRemoteTest } from './remote-test.js';
 import { backExitsImmediately, setBackExitsImmediately } from './tv-input.js';
 
@@ -102,6 +105,80 @@ function guideActions() {
   ];
 }
 
+// ---------- TV mode: a hierarchical menu (docs/design/01 §6.3) ----------
+// One column of large choices, a breadcrumb title, Back up a level — instead
+// of the desktop grid, which stays exactly as it was. Everything the app can
+// do is reachable from here with D-pad + OK + Back alone.
+function section(label, title, items, columns) {
+  return { label: `${label} ›`, submenu: () => ({ title, items: items(), columns }) };
+}
+
+function tvRootItems() {
+  return [
+    ...guideActions(),
+    { label: 'GUIDE', run: () => openGuideGrid() },
+    // Second, so from live TV "yesterday same time" is Play/Pause, ▼, OK, OK,
+    // OK — docs/design/11 §5.
+    timeMachineMenuItem(),
+    section('CHANNELS', 'TV MENU · CHANNELS', () => [
+      { label: 'CH ▲', run: () => changeChannel(1) },
+      { label: 'CH ▼', run: () => changeChannel(-1) },
+      { label: 'LAST CH', run: () => jumpToLastChannel() },
+      { label: 'TUNE TO NUMBER…', submenu: numberPad },
+      { label: 'SCAN', run: () => toggleChannelScan() },
+    ]),
+    section('WATCH', 'TV MENU · WATCH', () => [
+      { label: 'INFO', run: () => showDetailsForCurrentChannel() },
+      { label: 'RETURN TO LIVE', run: () => returnToLive() },
+      { label: 'MARK AIR CHECK', run: () => saveAirCheck() },
+      ...airChecks().slice(0, AIR_CHECK_MENU_MAX).map((mark) => ({
+        label: `▶ ${airCheckLabel(mark)}`,
+        run: () => recallAirCheck(mark.id),
+      })),
+      ...interruptEntries().filter((e) => e.label).map((e) => ({ label: e.label, run: () => e.run({ manual: true }) })),
+    ]),
+    section('PICTURE & SOUND', 'TV MENU · PICTURE & SOUND', () => [
+      { label: S.config.muted ? 'UNMUTE' : 'MUTE', keepOpen: true, run: () => toggleMute() },
+      { label: 'VOL ▲', keepOpen: true, run: () => adjustVolume(0.1) },
+      { label: 'VOL ▼', keepOpen: true, run: () => adjustVolume(-0.1) },
+      { label: 'CRT FX', keepOpen: true, run: () => toggleCrt() },
+      { label: 'PICTURE', keepOpen: true, run: () => cyclePictureMode() },
+      { label: 'ASPECT', keepOpen: true, run: () => cycleAspectMode() },
+      { label: 'FULLSCREEN', run: () => window.api.toggleFullscreen() },
+    ]),
+    section('REMOTE', 'TV MENU · REMOTE', () => [
+      { label: 'REMOTE TEST', run: () => openRemoteTest() },
+      { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
+      { label: backExitsImmediately() ? 'BACK ASKS FIRST' : 'BACK EXITS AT ONCE', keepOpen: true, run: () => setBackExitsImmediately(!backExitsImmediately()) },
+    ]),
+    section('SETUP', 'TV MENU · SETUP', () => [
+      { label: 'EDIT ON PHONE OR COMPUTER', run: () => openHandoff() },
+      { label: 'OPEN FULL SETUP', run: () => showSetupScreen() },
+    ]),
+    section('SYSTEM', 'TV MENU · SYSTEM', () => [
+      { label: 'SLEEP TIMER', keepOpen: true, run: () => cycleSleepTimer() },
+      { label: 'HIDE HINTS', keepOpen: true, run: () => toggleHintBar() },
+      isPreviewingTvMode()
+        ? { label: 'END TV PREVIEW', run: () => setTvPreview(false) }
+        : { label: 'DESKTOP MODE', run: () => setUsageModePreference('desktop') },
+      ...(window.AndroidRemoteBridge && window.AndroidRemoteBridge.openClientSettings
+        ? [{ label: 'TV CLIENT SETTINGS', run: () => window.AndroidRemoteBridge.openClientSettings() }] : []),
+      { label: 'POWER OFF', run: () => powerOff() },
+    ]),
+  ];
+}
+
+// Direct tuning without digit keys (docs/design/01 §5.3): a 3-column pad that
+// feeds the same entry buffer the number keys do.
+function numberPad() {
+  const digit = (d) => ({ label: d, keepOpen: true, columnsItem: true, run: () => pushDigit(d) });
+  const items = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit);
+  items.push(subChannelsEnabled() ? { label: '·', keepOpen: true, run: () => pushDigit('.') } : { label: ' ', disabled: true, keepOpen: true, run: () => {} });
+  items.push(digit('0'));
+  items.push({ label: 'TUNE', run: () => commitEntry() });
+  return { title: S.entryBuffer ? `TUNE TO ${S.entryBuffer}` : 'TUNE TO NUMBER', items, columns: 3 };
+}
+
 function actions() {
   return [
     ...guideActions(),
@@ -157,10 +234,17 @@ let menuPreviouslyFocused = null;
 let menuStack = [];
 const titleEl = document.getElementById('tv-menu-title');
 
+// The desktop grid is 4 wide; a TV level is one column unless it says
+// otherwise (the number pad is 3).
+let viewColumns = GRID_COLUMNS;
+
 function rebuildMenu(focusIndex = 0) {
   gridEl.innerHTML = '';
   const level = menuStack[menuStack.length - 1];
-  const view = level ? level() : { title: 'TV MENU', items: actions() };
+  const view = level ? level() : { title: 'TV MENU', items: isTvMode() ? tvRootItems() : actions() };
+  viewColumns = view.columns || (isTvMode() ? 1 : GRID_COLUMNS);
+  gridEl.style.gridTemplateColumns = viewColumns === GRID_COLUMNS ? '' : `repeat(${viewColumns}, 1fr)`;
+  gridEl.classList.toggle('tv-menu-list', isTvMode() && viewColumns === 1);
   if (titleEl) titleEl.textContent = view.title;
   buttons = view.items.map((a, i) => {
     const btn = document.createElement('button');
@@ -197,7 +281,7 @@ export function openTvMenu() {
   menuStack = [];
   rebuildMenu();
   const hint = shortcutsOverlayEl.querySelector('.shortcuts-hint');
-  if (hint) hint.textContent = isTvMode() ? '◀ ▲ ▼ ▶ TO MOVE · OK TO SELECT · BACK TO CLOSE' : 'ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE';
+  if (hint) hint.textContent = isTvMode() ? '▲ ▼ TO MOVE · OK OPENS · BACK GOES UP' : 'ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE';
   shortcutsOverlayEl.classList.remove('hidden');
   if (buttons[0]) buttons[0].focus();
 }
@@ -244,11 +328,21 @@ export function handleTvMenuKey(e) {
     buttons[current].click();
     return;
   }
+  if (viewColumns === 1) {
+    if (e.key === 'ArrowLeft') {
+      if (menuStack.length) { menuStack.pop(); rebuildMenu(0); }
+      return;
+    }
+    if (e.key === 'ArrowRight') {
+      buttons[current].click();
+      return;
+    }
+  }
   let next = current;
   if (e.key === 'ArrowRight') next = Math.min(current + 1, buttons.length - 1);
   else if (e.key === 'ArrowLeft') next = Math.max(current - 1, 0);
-  else if (e.key === 'ArrowDown') next = Math.min(current + GRID_COLUMNS, buttons.length - 1);
-  else if (e.key === 'ArrowUp') next = Math.max(current - GRID_COLUMNS, 0);
+  else if (e.key === 'ArrowDown') next = Math.min(current + viewColumns, buttons.length - 1);
+  else if (e.key === 'ArrowUp') next = Math.max(current - viewColumns, 0);
   else return;
   buttons[next].focus();
 }

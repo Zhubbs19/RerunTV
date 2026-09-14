@@ -990,6 +990,11 @@
               </select></div>
               <p class="setting-row-help" id="usage-mode-status"></p>
             </div>
+            <div class="setting-row" data-setting="tv-preview" data-synonyms="preview tv mode try tv layout remote test couch">
+              <label class="setting-row-label" for="tv-preview-btn">Preview TV mode</label>
+              <div class="setting-row-control"><button type="button" class="btn" id="tv-preview-btn">PREVIEW</button></div>
+              <p class="setting-row-help">Try the TV layout here for this session without changing this device. End it from TV menu › System.</p>
+            </div>
             <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
               <label class="setting-row-label" for="ui-scale-select">Interface size</label>
               <div class="setting-row-control"><select id="ui-scale-select">
@@ -1742,7 +1747,10 @@
              remote buttons only, never letters a remote doesn't have. -->
         <span data-hint-mode="tv" data-hint-key="tv-channel">&#9650;&#9660; CHANNEL</span>
         <span data-hint-mode="tv" data-hint-key="tv-guide">&#9664; GUIDE</span>
-        <span data-hint-mode="tv" data-hint-key="tv-banner">&#9654; NOW PLAYING</span>
+        <span data-hint-mode="tv" data-hint-key="tv-banner">OK: BROWSE CHANNELS</span>
+        <!-- Only once this remote has sent the button (remote-profile.js). -->
+        <span data-hint-mode="tv" data-hint-key="tv-guide-button" data-hint-requires="guide">&#9679; GUIDE</span>
+        <span data-hint-mode="tv" data-hint-key="tv-info-button" data-hint-requires="info">&#9679; INFO</span>
         <span data-hint-mode="tv" data-hint-key="tv-menu-hold">HOLD OK: MENU</span>
         <span data-hint-mode="tv" data-hint-key="tv-back">BACK: EXIT</span>
       </div>
@@ -1834,7 +1842,7 @@
         <span data-hint-mode="tv">OK TUNE</span>
         <span data-hint-mode="tv">HOLD OK: OPTIONS</span>
         <span data-hint-mode="tv">CH &#9650;&#9660; PAGE</span>
-        <span data-hint-mode="tv" data-hint-requires="colour">RED/GREEN &minus;/+ DAY</span>
+        <span data-hint-mode="tv" data-hint-requires="colour">RED/GREEN &minus;/+ DAY &middot; YELLOW FILTER &middot; BLUE REMINDERS</span>
         <span data-hint-mode="tv">MENU: DOCK &middot; BREAKS &middot; SEARCH</span>
         <span data-hint-mode="tv">BACK CLOSE</span>
       </div>

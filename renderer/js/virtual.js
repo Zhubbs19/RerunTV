@@ -69,6 +69,26 @@ export function triggerVirtualChannelKey(number, key) {
   }
 }
 
+// TV mode: a plugin channel that defines onAction(action, ctx) gets remote
+// actions ('move.up', 'select', 'back'…) instead of keys (docs/design/01
+// §6.6). Returns whether it handled the action; unhandled ones fall back to
+// core (so move.up/down still change channel, back still asks to leave).
+export function virtualChannelHandlesActions(number) {
+  const plugin = pluginTypeForNumber(number);
+  return !!(plugin && typeof plugin.def.onAction === 'function');
+}
+
+export function triggerVirtualChannelAction(number, action) {
+  const plugin = pluginTypeForNumber(number);
+  if (!plugin || typeof plugin.def.onAction !== 'function') return false;
+  try {
+    return !!plugin.def.onAction(action, window.RCBPlugins.ctx);
+  } catch (e) {
+    console.error(`[plugin ${plugin.id}] onAction() threw`, e);
+    return false;
+  }
+}
+
 // The time machine used to be refused outright on every plugin channel,
 // because core has no schedule of its own to re-derive for one. A plugin
 // that computes what it is playing as a pure function of a timestamp (the

@@ -21,20 +21,24 @@ import {
 import { getChannel } from './channels.js';
 import { showDetailsForCurrentChannel } from './details.js';
 import {
-  openGuideGrid, openGuideProgramActions, pageGuideSelection, shiftGuideDay, showGuideOverlay,
+  focusGuideSearch, openGuideGrid, openGuideProgramActions, openGuideReminders, pageGuideSelection,
+  shiftGuideDay, showGuideOverlay,
 } from './guide.js';
 import { powerOff } from './power.js';
 import {
   CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeAndroidKeyCode, normalizeKey,
-  optionalGroupOf, rawKeyId, routeRemoteKey,
+  optionalGroupOf, pluginActionFor, rawKeyId, routeRemoteKey,
 } from './remote-input.js';
 import { createRemoteProfile } from './remote-profile.js';
 import { S } from './state.js';
 import { enterTimeMachine, scrubProgramBoundary, scrubStep } from './timemachine.js';
 import { closeTvMenu, openTvMenu } from './tv-menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
-import { isVirtualChannel } from './virtual.js';
+import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesActions } from './virtual.js';
 import { closeLearnMode, learnModeOpen } from './remote-test.js';
+import { closeHandoff, handoffOpen } from './handoff.js';
+import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
+import { moveFocusSpatially } from './ui/spatial-focus.js';
 
 let keyboardHandler = null;
 const longPress = createLongPressTracker();
@@ -109,7 +113,7 @@ function textFieldFocused() {
 // 'none' means TV routing stands aside and the keyboard handler decides (setup
 // screen, standby wake, PIN entry, a plugin's own modal).
 export function currentContext() {
-  if (exitPromptOpen() || learnModeOpen()) return 'dialog';
+  if (exitPromptOpen() || learnModeOpen() || handoffOpen()) return 'dialog';
   if (!tvScreen || tvScreen.classList.contains('hidden')) return 'none';
   if (!S.isPoweredOn || S.pinLockActive) return 'none';
   if (pluginChannelContainerEl && pluginChannelContainerEl.querySelector('.preview-modal:not(.hidden)')) return 'none';
@@ -117,6 +121,7 @@ export function currentContext() {
   if (textFieldFocused()) return 'text';
   if (!detailsOverlayEl.classList.contains('hidden')) return 'details';
   if (!guideGrid.classList.contains('hidden')) return 'guide';
+  if (bannerHubOpen()) return 'banner';
   if (S.timeMachineOn) return 'timeMachine';
   // A plugin channel owns its own arrows and OK (ctx onKey/onOk); TV mode only
   // adds the ways out of it.
@@ -131,9 +136,18 @@ const PLUGIN_ACTIONS = {
   guide: 'guide.open', 'long:ok': 'menu.open', back: 'exit.prompt',
 };
 
+// When the plugin doesn't take an action, core does what it would have:
+// ▲▼ change channel, ◀▶/OK reach the plugin's onKey, Back asks to leave.
+const PLUGIN_ACTION_FALLBACK = {
+  'move.up': 'key:ArrowUp', 'move.down': 'key:ArrowDown', 'move.left': 'key:ArrowLeft', 'move.right': 'key:ArrowRight',
+  select: 'key:Enter', back: 'exit.prompt', info: 'info.show',
+};
+
 function route(context, remoteKey, longPressed) {
   if (context === 'plugin') {
     if (longPressed && PLUGIN_ACTIONS[`long:${remoteKey}`]) return PLUGIN_ACTIONS[`long:${remoteKey}`];
+    const action = !longPressed && pluginActionFor(remoteKey);
+    if (action && virtualChannelHandlesActions(S.currentNumber)) return `plugin.action:${action}`;
     return PLUGIN_ACTIONS[remoteKey] || null;
   }
   return routeRemoteKey(context, remoteKey, { longPress: longPressed });
@@ -176,6 +190,13 @@ function menuButtons() {
 const ACTIONS = {
   'guide.open': () => openGuideGrid(),
   'banner.show': () => showGuideOverlay(S.currentNumber, getChannel(S.currentNumber)),
+  'banner.open': () => openBannerHub(),
+  'banner.key.left': () => bannerKey('left'),
+  'banner.key.right': () => bannerKey('right'),
+  'banner.key.up': () => bannerKey('up'),
+  'banner.key.down': () => bannerKey('down'),
+  'banner.key.ok': () => bannerKey('ok'),
+  'banner.key.back': () => bannerKey('back'),
   'info.show': () => showDetailsForCurrentChannel(),
   'menu.open': () => openTvMenu(),
   'menu.toggle': () => (shortcutsOverlayEl.classList.contains('hidden') ? openTvMenu() : closeTvMenu()),
@@ -191,24 +212,62 @@ const ACTIONS = {
   'scrub.nextProgram': () => scrubProgramBoundary(1),
   'guide.dayBack': () => shiftGuideDay(-1),
   'guide.dayForward': () => shiftGuideDay(1),
+  'guide.filter': () => focusGuideSearch(),
+  'guide.reminders': () => openGuideReminders(),
   'exit.prompt': () => showExitPrompt(),
   'focus.prev': () => moveDialogFocus(-1),
   'focus.next': () => moveDialogFocus(1),
+  // Spatial first; a layout with nothing that way falls back to list order.
+  'focus.up': () => moveFocusSpatially(activeDialogEl(), 'up') || moveDialogFocus(-1),
+  'focus.down': () => moveFocusSpatially(activeDialogEl(), 'down') || moveDialogFocus(1),
+  'focus.left': () => moveFocusSpatially(activeDialogEl(), 'left') || moveDialogFocus(-1),
+  'focus.right': () => moveFocusSpatially(activeDialogEl(), 'right') || moveDialogFocus(1),
   'focus.activate': () => { const el = document.activeElement; const dialog = activeDialogEl(); if (dialog && dialog.contains(el) && el.click) el.click(); },
-  'dialog.cancel': () => { if (learnModeOpen()) closeLearnMode(); else hideExitPrompt(); },
+  'dialog.cancel': () => {
+    if (learnModeOpen()) closeLearnMode();
+    else if (handoffOpen()) closeHandoff();
+    else hideExitPrompt();
+  },
 };
+
+// Held-key rates (docs/design/01 §5.3): channel changes stay deliberate,
+// focus movement speeds up after 400 ms so a long list isn't a chore, and
+// volume repeats at 8 Hz.
+const FOCUS_ACCELERATE_AFTER_MS = 400;
+const VOLUME_REPEAT_MS = 125;
+let holdStartedAt = new Map();
+let lastVolumeKeyAt = 0;
 
 function runAction(action, source) {
   if (!action) return false;
   if (action.startsWith('key:')) {
     const key = action.slice(4);
-    if ((key === 'ArrowUp' || key === 'ArrowDown') && (currentContext() === 'watching' || currentContext() === 'plugin')) {
-      const now = performance.now();
+    const context = currentContext();
+    const now = performance.now();
+    if ((key === 'ArrowUp' || key === 'ArrowDown') && (context === 'watching' || context === 'plugin' || context === 'banner')) {
       if (source && source.repeat && now - lastChannelKeyAt < CHANNEL_REPEAT_MS) return true;
       lastChannelKeyAt = now;
     }
+    if (key === '+' || key === '-') {
+      if (source && source.repeat && now - lastVolumeKeyAt < VOLUME_REPEAT_MS) return true;
+      lastVolumeKeyAt = now;
+    }
+    // Focus movement in a list: a held key repeats faster once it has been
+    // down a moment, by sending a second step per repeat.
+    const focusMove = (key === 'ArrowUp' || key === 'ArrowDown') && (context === 'guide' || context === 'menu' || context === 'dialog');
+    if (focusMove) {
+      if (!source || !source.repeat) holdStartedAt.set(key, now);
+      else if (now - (holdStartedAt.get(key) || now) > FOCUS_ACCELERATE_AFTER_MS) sendKey(key, source);
+    } else if (!source || !source.repeat) {
+      holdStartedAt.delete(key);
+    }
     sendKey(key, source);
     return true;
+  }
+  if (action.startsWith('plugin.action:')) {
+    const name = action.slice('plugin.action:'.length);
+    if (triggerVirtualChannelAction(S.currentNumber, name)) return true;
+    return runAction(PLUGIN_ACTION_FALLBACK[name], source);
   }
   const fn = ACTIONS[action];
   if (!fn) return false;
@@ -365,6 +424,9 @@ function markRemoteKey(remoteKey) {
   root.classList.add(`remote-has-${remoteKey}`);
   const group = optionalGroupOf(remoteKey);
   if (group) root.classList.add(`remote-has-${group}`);
+  [remoteKey, group].filter(Boolean).forEach((name) => {
+    document.querySelectorAll(`[data-hint-requires="${name}"]`).forEach((el) => el.classList.add('hint-available'));
+  });
 }
 
 function applyKnownRemoteKeys() {
@@ -458,7 +520,7 @@ export function hideExitPrompt() {
 // The modal currently on screen: the exit prompt, or learn mode's list.
 function activeDialogEl() {
   if (exitPromptOpen()) return exitPromptEl;
-  return document.querySelector('.remote-learn');
+  return document.querySelector('.remote-learn, .handoff');
 }
 
 function moveDialogFocus(direction) {

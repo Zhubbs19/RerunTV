@@ -877,7 +877,9 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
 .guide-hint > [data-hint-mode="tv"] { display: none; }
 html[data-mode="tv"] .guide-hint > :not([data-hint-mode="tv"]) { display: none; }
 html[data-mode="tv"] .guide-hint > [data-hint-mode="tv"] { display: inline; }
-html[data-mode="tv"]:not(.remote-has-colour) .guide-hint > [data-hint-requires="colour"] { display: none; }
+/* Any hint naming a button this remote hasn't delivered yet stays hidden;
+   tv-input.js marks it .hint-available once the button arrives. */
+html[data-mode="tv"] [data-hint-requires]:not(.hint-available) { display: none !important; }
 .guide-hint {
   margin-top: 10px;
   flex-wrap: wrap;

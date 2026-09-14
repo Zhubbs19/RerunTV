@@ -282,6 +282,106 @@ body:has(.crt.power-off) #guide-overlay {
 
 /* The time machine as a bottom scrubber strip (docs/design/11 §3.1): the VCR
    readout stays in its top row, the strip spans the screen under it. */
+/* TV mode: the TV menu is one column of large choices with a breadcrumb
+   title (docs/design/01 §6.3). The desktop grid is untouched. */
+.tv-menu-grid.tv-menu-list {
+  grid-template-columns: 1fr;
+  max-width: min(760px, 80%);
+  margin: 0 auto;
+  gap: 8px;
+}
+html[data-mode="tv"] .tv-menu-grid .tv-menu-btn {
+  min-height: var(--tv-target, 64px);
+  padding: 14px 20px;
+  font-size: var(--tv-body, 24px);
+  text-align: left;
+}
+html[data-mode="tv"] .shortcuts-header { font-size: clamp(20px, 2cqw, 30px); }
+html[data-mode="tv"] .shortcuts-panel { padding: var(--tv-safe-y, 5%) var(--tv-safe-x, 5%); }
+
+/* "Switch to TV mode?" (docs/design/01 §4, tv-suggest.js) — a suggestion in
+   the corner, never an automatic switch. */
+.tv-suggest {
+  position: fixed;
+  right: clamp(10px, 3%, 28px);
+  bottom: clamp(10px, 3%, 28px);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: min(560px, 80%);
+  padding: 12px 16px;
+  background: var(--gradient-panel);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard);
+  font-family: var(--font-ui);
+}
+.tv-suggest-text { color: var(--paper); font-weight: 600; font-size: 14px; }
+.tv-suggest-btn {
+  padding: 8px 14px;
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-sm);
+  background: rgba(var(--gold-rgb), 0.18);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tv-suggest-btn.quiet { border-color: var(--line); background: transparent; color: var(--paper-dim); }
+
+/* Handoff (docs/design/01 §7, handoff.js). */
+.handoff {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 4, 16, 0.86);
+  font-family: var(--font-ui);
+}
+.handoff-panel {
+  width: min(820px, 86%);
+  padding: clamp(14px, 3%, 28px);
+  background: var(--gradient-panel);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard);
+  text-align: center;
+}
+.handoff-title {
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.2cqw, 32px);
+  color: var(--gold);
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+}
+.handoff-body { display: flex; align-items: center; justify-content: center; gap: 20px; flex-wrap: wrap; }
+.handoff-qr { width: clamp(140px, 22vw, 240px); height: auto; background: #fff; padding: 8px; border-radius: var(--radius-sm); }
+.handoff-text { text-align: left; min-width: 0; }
+.handoff-url {
+  color: var(--paper);
+  font-weight: 700;
+  font-size: clamp(15px, 1.3cqw, 22px);
+  word-break: break-all;
+}
+.handoff-label { color: var(--paper-dim); font-weight: 600; margin-top: 8px; font-size: clamp(12px, 1cqw, 17px); }
+.handoff-done {
+  margin-top: 16px;
+  padding: 12px 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--gradient-cell);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.handoff-done:focus, .handoff-done:focus-visible { outline: 3px solid var(--gold); outline-offset: -3px; }
+html[data-mode="tv"] .handoff-done { font-size: var(--tv-body, 24px); min-height: var(--tv-target, 64px); }
+
 /* Remote test and learn mode (docs/design/01 §5.2, remote-test.js). Both are
    TV-first: large type, one column, and nothing else on screen. */
 .remote-test, .remote-learn {

@@ -7,7 +7,7 @@ import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from '
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from './power.js';
 import { applyTheme } from './themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
-import { getUsageModePreference, onUsageModeChange, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
+import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from './ui/setting-row.js';
 import { searchActions } from './setup-command-palette.js';
 import { searchUpcomingPrograms } from './program-search.js';
@@ -2021,6 +2021,11 @@ usageModeSelectEl?.addEventListener('change', () => {
   renderUsageModeSetting();
 });
 onUsageModeChange(() => renderUsageModeSetting());
+// Preview TV mode (docs/design/01 §8): session only, straight to live TV.
+document.getElementById('tv-preview-btn')?.addEventListener('click', () => {
+  setTvPreview(true);
+  window.dispatchEvent(new CustomEvent('reruntv:watch-tv'));
+});
 renderUsageModeSetting();
 
 uiScaleSelect.addEventListener('change', () => {

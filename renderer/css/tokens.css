@@ -227,6 +227,13 @@
   --guide-selection-fg: #000;
   --guide-timebar-bg: transparent;
   --guide-row-height: 52px;
+  /* TV density (docs/design/01 §3, C4 in doc 04 will own these properly):
+     10-foot text and touch-free targets, inside a 5% overscan-safe margin.
+     Desktop keeps its own compact sizes; only TV surfaces read these. */
+  --tv-body: 24px;
+  --tv-target: 64px;
+  --tv-safe-x: 5%;
+  --tv-safe-y: 5%;
   --guide-row-gap: 3px;
 }
 

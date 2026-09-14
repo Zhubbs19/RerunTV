@@ -556,6 +556,29 @@ function openRunList(ch, cell, anchorEl) {
   });
 }
 
+// Reminders already set (blue on a remote that has colour keys, doc 01 §6.2):
+// pick one to jump the guide to that programme.
+export function openGuideReminders() {
+  const reminders = (S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
+  const items = reminders.map((reminder) => ({
+    time: formatSlotLabel(reminder.start),
+    label: `CH ${formatChannelNumber(reminder.channelNumber)} · ${reminder.title}`,
+    className: reminder.end <= viewNow() ? 'past' : '',
+    run: () => {
+      S.guideSelNumber = reminder.channelNumber;
+      S.guideSelTime = reminder.start + 1;
+      S.guideWindowStart = floorToSlot(reminder.start);
+      renderGuideGrid();
+    },
+  }));
+  openGuidePopover({
+    heading: items.length ? `REMINDERS (${items.length})` : 'NO REMINDERS SET',
+    items: items.length ? items : [{ label: 'CLOSE', run: () => {} }],
+    anchorEl: guideRowsEl.querySelector('.guide-row.active-row'),
+    className: 'guide-actions',
+  });
+}
+
 // ±24 h (colour keys when a remote has them, otherwise the actions menu).
 // Without the time machine the guide can't go back past the current slot,
 // same rule as ◀ (moveGuideSelectionTime).

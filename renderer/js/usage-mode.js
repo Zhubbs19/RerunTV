@@ -100,9 +100,30 @@ export function getUsageModePreference() {
   return readPreference();
 }
 
+// ---------- Preview (docs/design/01 §8) ----------
+// TV mode for this session only, from a desk: layouts and plugin panels can be
+// checked without a TV, and the device's own choice is left alone. Ending the
+// preview (or any real choice) goes back to what the device resolves to.
+let previewing = false;
+
+export function isPreviewingTvMode() {
+  return previewing;
+}
+
+export function setTvPreview(on) {
+  previewing = !!on;
+  if (typeof document !== 'undefined') document.documentElement.classList.toggle('tv-preview', previewing);
+  if (previewing) return stamp({ mode: 'tv', source: 'preview' });
+  return stamp(resolveUsageMode(environment(readPreference())));
+}
+
 // 'auto' forgets this device's choice and falls back to flag/identity.
 export function setUsageModePreference(preference) {
   if (!USAGE_MODE_PREFERENCES.includes(preference)) throw new Error(`Unknown usage mode "${preference}"`);
+  if (previewing) {
+    previewing = false;
+    if (typeof document !== 'undefined') document.documentElement.classList.remove('tv-preview');
+  }
   try {
     if (preference === 'auto') window.localStorage.removeItem(STORAGE_KEY);
     else window.localStorage.setItem(STORAGE_KEY, preference);

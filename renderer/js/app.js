@@ -47,6 +47,7 @@ import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
 import { initUsageMode } from './usage-mode.js';
+import { installTvSuggestion } from './tv-suggest.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
@@ -441,6 +442,8 @@ window.addEventListener('keydown', (e) => {
   handleKey(e);
 });
 installTvInput({ handleKey });
+// Never switches on its own — it only offers (docs/design/01 §4).
+installTvSuggestion(() => document.documentElement.dataset.mode || 'desktop');
 // An explicit route back to live TV for remote clients. Escape remains a
 // context-sensitive "back" key inside Setup, so overloading it as an exit
 // would make text fields, dialogs, and nested setup panels unpredictable.

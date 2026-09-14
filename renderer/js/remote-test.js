@@ -11,6 +11,7 @@
 // override for a button the automatic mapping gets wrong.
 import { tvScreen } from './dom.js';
 import { captureNextButton, remoteProfile, setRemoteInputSink } from './tv-input.js';
+import { createFocusScope } from './ui/spatial-focus.js';
 
 // The buttons a capture wants to see. Not every remote has them all — what's
 // missing is exactly what the capture is for.
@@ -145,6 +146,7 @@ export function openRemoteTest() {
 
 let learnOverlay = null;
 let cancelCapture = null;
+let releaseLearnScope = null;
 
 export function learnModeOpen() {
   return !!learnOverlay;
@@ -152,6 +154,7 @@ export function learnModeOpen() {
 
 export function closeLearnMode() {
   if (cancelCapture) { cancelCapture(); cancelCapture = null; }
+  if (releaseLearnScope) { releaseLearnScope(); releaseLearnScope = null; }
   if (learnOverlay) { learnOverlay.remove(); learnOverlay = null; }
 }
 
@@ -209,8 +212,7 @@ export function openLearnMode() {
     learnOverlay.querySelector('.remote-learn-status').textContent = 'Every button is back to its default.';
   });
   renderLearn();
-  const first = learnOverlay.querySelector('.remote-learn-item');
-  if (first) first.focus();
+  releaseLearnScope = createFocusScope(learnOverlay);
 }
 
 export function closeRemoteTest() {

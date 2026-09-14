@@ -74,6 +74,8 @@ import { alertDialog } from './setup-dialogs.js';
 import { MONTHS, S, WEEKDAYS, commitInPlace, saveConfigDebounced, viewNow } from './state.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from './util.js';
 import { player } from './dom.js';
+import { PLUGIN_CHANNEL_ACTIONS, keyForAction } from './remote-input.js';
+import { usageMode } from './usage-mode.js';
 import {
   applyPluginSettingsSchema, normalizePluginSettingsSchema, redactPluginSettings, validatePluginSettings,
 } from './plugin-settings-schema.js';
@@ -670,7 +672,8 @@ export function pluginDiagnosticsSnapshot() {
 // lists.
 // v4 added ctx.search.registerEntries (setup search entries for a plugin's
 // own settings).
-const CTX_VERSION = 4;
+// v5 added ctx.input (usageMode, keyForAction) and channel types' onAction.
+const CTX_VERSION = 5;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -683,6 +686,9 @@ function installGlobalApi() {
   const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
   const util = { formatClock, WEEKDAYS, MONTHS };
   const search = { registerEntries: registerSettingsSearchEntries };
+  // docs/design/01 §6.6: which mode this device is in, and the keyboard key an
+  // action corresponds to (so onAction can forward to an existing onKey).
+  const input = { usageMode, keyForAction, actions: Object.values(PLUGIN_CHANNEL_ACTIONS) };
 
   window.RCBPlugins = {
     registerChannelType,
@@ -746,7 +752,7 @@ function installGlobalApi() {
       // Each group is its own object (not just a re-export of the flat
       // keys) so a plugin can destructure `const { channels } = ctx`
       // without pulling in everything else.
-      core, audio, channels, settings, util, search,
+      core, audio, channels, settings, util, search, input,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's

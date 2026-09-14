@@ -1,7 +1,7 @@
 # 01 — Usage modes: Desktop and TV
 
 Status: **Phases A and B built** (B's APK compiles; it has not been installed on the reference
-TV yet — the owner does that). Phases C–E are in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+TV yet — the owner does that). Phase C built; D and E in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
 plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 
 ### Built (Phase A, and the JS side of Phase B)
@@ -60,6 +60,44 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - **Back exits at once** (§12 risk): a per-device option in the TV menu; Back then leaves (or drops
   to standby where the client can't close itself) instead of asking.
 
+### Built (Phase C, 2026-09-14)
+
+- **Hierarchical TV menu** (`tv-menu.js`, TV mode only — the desktop grid is unchanged): one column,
+  breadcrumb title, Back/◀ up a level, ▶/OK into a section. Root: GUIDE · TIME MACHINE › (second, keeping
+  doc 11's 5-press "yesterday") · CHANNELS › (CH ±, LAST, TUNE TO NUMBER… a 3-column number pad on the
+  entry buffer, SCAN) · WATCH › · PICTURE & SOUND › · REMOTE › · SETUP › · SYSTEM ›. With the guide open,
+  its dock/breaks/search items come first.
+- **Banner hub** (`banner-hub.js`, §6.1): OK (or ▶) on live TV opens the banner; ◀▶ browse channels
+  (specials included) without tuning, OK tunes, ▼ opens Info plus plugin items (the same
+  `guide-program-actions` hook), Back/▲ closes; it closes itself after 12 s idle. The CH rocker still
+  changes channel.
+- **Guide colour keys** per §6.2: red/green ∓24 h, yellow = filter (search box), blue = reminders list.
+- **Dialogs**: `ui/spatial-focus.js` (tested) moves D-pad focus to the nearest control that way and
+  `createFocusScope` traps Tab and focuses the safe default (never a destructive action). The dialog
+  context now routes ▲▼◀▶ spatially (falling back to list order); handoff and learn mode use scopes.
+  Doc 04's FocusScope/SpatialFocus will replace this minimal version.
+- **TV density tokens** (`tokens.css`): `--tv-body` 24 px, `--tv-target` 64 px, `--tv-safe-x/-y` 5%, used
+  by the TV menu, handoff and remote screens. Doc 04 will own density properly.
+- **Observed-profile hints**: any hint with `data-hint-requires="<key>"` (● GUIDE, ● INFO, colour keys)
+  stays hidden until this device's profile has seen that button; the watching hint now reads OK: BROWSE
+  CHANNELS.
+- **Key repeat** (§5.3): list focus sends a second step per repeat after a 400 ms hold; volume repeats
+  at most every 125 ms; channel changes keep their 300 ms debounce.
+- **"Switch to TV mode?"** (`tv-suggest.js`, tested): offered once, never switched, when a desktop
+  session is fullscreen, pointer-free and driven by ≥ 3 arrow/Enter presses for 10 s. Declining is
+  remembered per device. A browser can't measure a 40" display, so that condition is dropped.
+- **Plugin actions** (§6.6, ctx v5): a channel type's `onAction(action, ctx)` receives `move.up/down/
+  left/right`, `select`, `back`, `info` in TV mode; unhandled ones fall back to core (▲▼ change channel,
+  Back asks to leave). `ctx.input` has `usageMode`, `keyForAction`, `actions`. Music Choice, Tape
+  Deck and Teletext Arcade adopt it by forwarding to their `onKey` — so the snake game now steers with
+  the D-pad on a remote while CH± still changes channel. `PLUGIN_DEVELOPMENT.md` documents it.
+- **Preview TV mode** (§8): Settings › This device › PREVIEW puts this session in TV mode without
+  touching the device choice; TV menu › System › END TV PREVIEW goes back. It does not emulate a
+  1920×1080 logical canvas — the window size is used as is.
+- **Handoff** (§7, `handoff.js`): TV menu › Setup › EDIT ON PHONE OR COMPUTER shows a QR and the
+  Companion page's pairing address (`main-tv-client.js` `handoffInfo`, Electron IPC and the viewer's
+  `GET /api/handoff-info`). It gains per-task deep links once doc 06 exists.
+
 Android bridge (`MainActivity.kt`):
 - After a page load, the client probes `window.RerunTVInput.version`.
 - At version 1+ it posts RemoteKey names through `RerunTVInput.native()`:
@@ -81,12 +119,11 @@ Verified:
 - The 34-check UI suite passes unchanged in desktop mode.
 
 Not built yet:
-- the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C);
-  (in progress 2026-09-14)
+- ~~the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C)~~ built;
 - TV setup and QR handoff (Phase D);
 - gamepad, CEC, Tizen/webOS packaging (Phase E);
-- learn mode and observed-profile hints (§5.2);
-- the "Switch to TV mode?" suggestion heuristic.
+- ~~learn mode and observed-profile hints (§5.2)~~ built;
+- ~~the "Switch to TV mode?" suggestion heuristic~~ built.
 
 ## 1. Problem
 

@@ -586,6 +586,15 @@ window.RCBPlugins.registerChannelType('my-plugin', {
     // it (e.g. arrow-key game controls), false/undefined to let normal key
     // handling continue.
   },
+  onAction(action, ctx) {
+    // optional (ctx v5) — in TV mode, remote buttons arrive here as actions
+    // instead of keys: 'move.up', 'move.down', 'move.left', 'move.right',
+    // 'select', 'back', 'info'. Return true if you handled it; otherwise core
+    // does what it would have (▲▼ change channel, Back asks to leave). The
+    // simplest adoption forwards to your existing onKey:
+    //   const key = ctx.input.keyForAction(action); return key ? this.onKey(key, ctx) : false;
+    // onKey keeps working everywhere; desktop mode never calls onAction.
+  },
   viewerLink: {
     // optional — offer a "watch live" link on the LAN viewer page whenever
     // this channel is the one actually live (installed, enabled, not

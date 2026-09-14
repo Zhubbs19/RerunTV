@@ -1402,6 +1402,13 @@ window.RCBPlugins.registerChannelType(PLUGIN_ID, {
   // the viewer made and not a function of the clock. Scrubbing time cannot
   // re-derive it, so the time machine stays off here.
   supportsTimeMachine: false,
+  // TV mode (ctx v5): remote actions arrive here, forwarded to the same
+  // handling onKey already does. Anything not handled goes back to core, so
+  // ▲▼ still change channel and Back still asks to leave.
+  onAction(action, ctx) {
+    const key = ctx && ctx.input ? ctx.input.keyForAction(action) : null;
+    return key ? this.onKey(key, ctx) : false;
+  },
   onKey(key, ctx) {
     if (deckState === 'shelf') {
       const count = shelfItems(ctx).length;
