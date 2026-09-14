@@ -112,11 +112,11 @@ html.titlebar-hidden #titlebar-drag-strip {
   box-sizing: border-box;
   text-align: center;
   font-family: var(--font-ui);
-  color: var(--paper);
-  background: var(--credits-squeeze-bg, var(--gradient-panel));
+  color: var(--text);
+  background: var(--credits-squeeze-bg, var(--surface-panel));
   background-size: cover;
   background-position: center;
-  border-left: 2px solid var(--line);
+  border-left: 2px solid var(--border);
 }
 
 .credits-squeeze-panel.hidden {
@@ -127,7 +127,7 @@ html.titlebar-hidden #titlebar-drag-strip {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 3px;
-  color: var(--gold);
+  color: var(--accent);
 }
 
 .credits-squeeze-channel {

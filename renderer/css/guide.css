@@ -7,9 +7,9 @@
   z-index: 20; /* Above static canvas (z-index 8) and virtual channel slates (z-index 4-5) so channel card is always visible overtop static */
   display: flex;
   align-items: stretch;
-  background: var(--gradient-panel);
-  border: 1px solid var(--line);
-  border-left: 6px solid var(--gold);
+  background: var(--surface-panel);
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--accent);
   border-radius: var(--radius-md);
   box-shadow: var(--bevel-raised), var(--shadow-hard);
   /* clamp(), not a flat 380px — this card sits inside #display-frame
@@ -48,11 +48,11 @@
      setting (display-mode.js) instead of ignoring it and dominating a
      small tune-in card. */
   font-size: clamp(24px, 7cqw, 48px);
-  color: var(--gold);
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(var(--gold-rgb), 0.55);
+  color: var(--accent);
+  text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6), 0 0 10px rgba(var(--accent-rgb), 0.55);
   padding-right: clamp(8px, 3cqw, 18px);
   margin-right: clamp(8px, 3cqw, 18px);
-  border-right: 1px solid var(--line);
+  border-right: 1px solid var(--border);
   display: flex;
   align-items: center;
   min-width: clamp(36px, 10cqw, 70px);
@@ -82,7 +82,7 @@
 
 .guide-name {
   font-family: var(--font-display);
-  color: var(--paper);
+  color: var(--text);
   font-size: clamp(14px, 4.5cqw, 20px);
   letter-spacing: 1px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
@@ -95,7 +95,7 @@
 .guide-now {
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--cyan);
+  color: var(--accent-2);
   font-size: 13px;
   letter-spacing: 0.3px;
   opacity: 0.95;
@@ -108,8 +108,8 @@
 .guide-bar-fill {
   height: 100%;
   width: 0%;
-  background: var(--cyan);
-  box-shadow: 0 0 6px rgba(var(--cyan-rgb), 0.7);
+  background: var(--accent-2);
+  box-shadow: 0 0 6px rgba(var(--accent-2-rgb), 0.7);
 }
 
 .guide-mute {
@@ -261,7 +261,7 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
      --viewer-ui-scale too, for the same reason the height above does. */
   min-height: clamp(140px, min(calc(46% * var(--viewer-ui-scale, 1)), 75%), calc(380px * var(--viewer-ui-scale, 1)));
   padding-top: 10px;
-  border-top: 3px solid var(--gold);
+  border-top: 3px solid var(--accent);
   box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.6);
 }
 .guide-grid.docked .guide-topbar {
@@ -360,7 +360,7 @@ html[data-mode="tv"] .guide-grid {
   bottom: auto !important;
   top: var(--guide-preview-top) !important;
   right: var(--guide-preview-right) !important;
-  border: 2px solid var(--line);
+  border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--bevel-raised), 0 6px 22px rgba(0, 0, 0, 0.65);
   z-index: 10;
@@ -411,7 +411,7 @@ html[data-mode="tv"] .guide-grid {
   padding-right: calc(var(--guide-preview-w, 260px) + var(--guide-preview-right, 28px) + 12px);
   padding-bottom: 12px;
   margin-bottom: 10px;
-  border-bottom: 2px solid var(--line);
+  border-bottom: 2px solid var(--border);
 }
 
 .guide-info-panel {
@@ -428,10 +428,10 @@ html[data-mode="tv"] .guide-grid {
      low-resolution) box, not the real window, so this scales with the
      display-mode.js resolution setting instead of ignoring it. */
   font-size: clamp(28px, 8cqw, 56px);
-  color: var(--gold);
+  color: var(--accent);
   text-shadow:
     -1px 0 0 rgba(255, 70, 70, 0.35), 1px 0 0 rgba(90, 200, 255, 0.35),
-    3px 3px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(var(--gold-rgb), 0.55);
+    3px 3px 0 rgba(0, 0, 0, 0.6), 0 0 12px rgba(var(--accent-rgb), 0.55);
   font-variant-numeric: tabular-nums;
 }
 
@@ -446,7 +446,7 @@ html[data-mode="tv"] .guide-grid {
 .guide-info-channel {
   font-family: var(--font-ui);
   font-weight: 600;
-  color: var(--cyan);
+  color: var(--accent-2);
   font-size: clamp(13px, 0.82cqw, 16px);
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -458,7 +458,7 @@ html[data-mode="tv"] .guide-grid {
 
 .guide-info-title {
   font-family: var(--font-display);
-  color: var(--paper);
+  color: var(--text);
   font-size: clamp(22px, 1.45cqw, 30px);
   letter-spacing: 0.5px;
   text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
@@ -470,7 +470,7 @@ html[data-mode="tv"] .guide-grid {
 .guide-info-time {
   font-family: var(--font-ui);
   font-weight: 600;
-  color: var(--gold);
+  color: var(--accent);
   font-size: clamp(12px, 0.75cqw, 15px);
   letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
@@ -498,26 +498,26 @@ html[data-mode="tv"] .guide-grid {
 .guide-search {
   flex: 1;
   min-width: 0;
-  background: var(--ink-deep);
-  border: 1px solid var(--line);
+  background: var(--surface-0);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--bevel-inset);
-  color: var(--paper);
+  color: var(--text);
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 13px;
   letter-spacing: 0.5px;
   padding: 7px 12px;
 }
-.guide-search::placeholder { color: var(--paper-dim); opacity: 0.7; }
-.guide-search:focus { outline: none; border-color: var(--gold); }
+.guide-search::placeholder { color: var(--text-muted); opacity: 0.7; }
+.guide-search:focus { outline: none; border-color: var(--accent); }
 
 .guide-daterange {
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 1px;
-  color: var(--cyan);
+  color: var(--accent-2);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
@@ -528,11 +528,11 @@ html[data-mode="tv"] .guide-grid {
   grid-template-columns: var(--guide-chan-col, 170px) repeat(3, 1fr);
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--gold);
+  color: var(--accent);
   font-size: clamp(14px, 0.88cqw, 17px);
   letter-spacing: 0.5px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
   font-variant-numeric: tabular-nums;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
@@ -541,7 +541,7 @@ html[data-mode="tv"] .guide-grid {
 
 .guide-th-slot {
   padding-left: 10px;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--border);
 }
 
 .guide-rows {
@@ -580,8 +580,8 @@ html[data-mode="tv"] .guide-grid {
   /* 4px, not 6px: a two-line name (.grc-name) plus the number still fits
      --guide-row-height at 720p. */
   padding: 4px 10px;
-  background: var(--guide-channel-bg, var(--gradient-cell));
-  border: 1px solid var(--line);
+  background: var(--guide-rail-bg, var(--gradient-cell));
+  border: 1px solid var(--border);
   border-right: none;
   border-radius: var(--radius-sm) 0 0 var(--radius-sm);
 }
@@ -597,7 +597,7 @@ html[data-mode="tv"] .guide-grid {
 .grc-num {
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--guide-channel-fg, var(--paper));
+  color: var(--guide-rail-text, var(--text));
   font-size: clamp(17px, 1.05cqw, 21px);
   letter-spacing: 0.3px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
@@ -609,7 +609,7 @@ html[data-mode="tv"] .guide-grid {
 .grc-name {
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--guide-channel-subtle, var(--paper-dim));
+  color: var(--guide-rail-subtle, var(--text-muted));
   font-size: clamp(11px, 0.72cqw, 14px);
   line-height: 1.05;
   letter-spacing: 0.8px;
@@ -623,7 +623,7 @@ html[data-mode="tv"] .guide-grid {
 }
 
 .guide-row.active-row .guide-row-chan {
-  border-color: var(--gold);
+  border-color: var(--accent);
   /* background-image, not the `background` shorthand — a bare gradient
      value in the shorthand resets every other sub-property (background-
      color included) to its initial value (transparent), wiping out the
@@ -642,13 +642,13 @@ html[data-mode="tv"] .guide-grid {
      result came straight back. Layering the wash over the token in the
      shorthand covers both, since a final background layer may be a color or
      an image. */
-  background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.18), rgba(var(--gold-rgb), 0.05)),
-    var(--guide-channel-bg, var(--gradient-cell));
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.18), rgba(var(--accent-rgb), 0.05)),
+    var(--guide-rail-bg, var(--gradient-cell));
 }
 
 .guide-row-track {
   position: relative;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: var(--gradient-cell);
   box-shadow: var(--bevel-inset);
@@ -665,7 +665,7 @@ html[data-mode="tv"] .guide-grid {
   border-right: 1px solid rgba(8, 12, 40, 0.8);
   font-family: var(--font-ui);
   font-weight: 700;
-  color: var(--paper);
+  color: var(--guide-cell-text);
   font-size: clamp(13px, 0.82cqw, 16px);
   letter-spacing: 0.2px;
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.5);
@@ -673,7 +673,7 @@ html[data-mode="tv"] .guide-grid {
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: pointer;
-  background: var(--guide-program-bg, transparent);
+  background: var(--guide-cell-bg, transparent);
 }
 /* The ellipsis lives on this child rather than on .guide-entry itself, which
    is a flex container (see setEntryLabel, guide.js). min-width:0 lets it
@@ -694,7 +694,7 @@ html[data-mode="tv"] .guide-grid {
 @container (max-width: 52px) {
   .guide-entry-label { visibility: hidden; }
 }
-.guide-entry:nth-child(even) { background: var(--guide-program-alt-bg, var(--cell-alt)); }
+.guide-entry:nth-child(even) { background: var(--guide-cell-alt-bg, var(--surface-3)); }
 .guide-entry { transition: background-color 120ms ease; }
 .guide-entry:hover { background: rgba(255, 255, 255, 0.12); }
 .guide-entry.guide-entry-genre:not(.sel) {
@@ -714,7 +714,7 @@ html[data-mode="tv"] .guide-grid {
 .tl-break-channelId,
 .tl-break-localAvail { background: var(--accent-stationid); }
 .tl-break-upNext,
-.tl-break-promo { background: var(--cyan); }
+.tl-break-promo { background: var(--accent-2); }
 
 /* Break pods (B) as a thin band along the bottom of the row, under the
    programs they interrupt (docs/design/11 §2.2) — they overlay content time
@@ -749,18 +749,18 @@ html[data-mode="tv"] .guide-grid {
   overflow-y: auto;
   padding: 6px;
   background: var(--guide-grid-bg, var(--gradient-page));
-  border: 1px solid var(--gold);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-hard), 0 10px 26px rgba(0, 0, 0, 0.6);
   font-family: var(--font-ui);
 }
 .guide-run-heading {
   padding: 4px 8px 6px;
-  color: var(--gold);
+  color: var(--accent);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 1px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
 }
 .guide-run-item {
@@ -771,17 +771,17 @@ html[data-mode="tv"] .guide-grid {
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--paper);
+  color: var(--text);
   font: inherit;
   font-weight: 700;
   font-size: 14px;
   text-align: left;
   cursor: pointer;
 }
-.guide-run-item.past { color: var(--paper-dim); }
+.guide-run-item.past { color: var(--text-muted); }
 .guide-run-item.active {
-  background: var(--guide-selection-bg, var(--gradient-gold));
-  color: var(--guide-selection-fg, #000);
+  background: var(--guide-selected-bg, var(--gradient-gold));
+  color: var(--guide-selected-text, #000);
 }
 .guide-run-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .guide-run-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -791,11 +791,11 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
 
 .guide-entry.sel {
   z-index: 2;
-  background: var(--guide-selection-bg, var(--gradient-gold));
-  color: var(--guide-selection-fg, #000);
+  background: var(--guide-selected-bg, var(--gradient-gold));
+  color: var(--guide-selected-text, #000);
   font-weight: 700;
   text-shadow: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--gold-rgb), 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--accent-rgb), 0.5);
   will-change: transform;
   animation: guide-sel-settle 160ms ease-out, guide-sel-pulse 2.6s ease-in-out 160ms infinite;
 }
@@ -811,8 +811,8 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
 }
 
 @keyframes guide-sel-pulse {
-  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--gold-rgb), 0.5); }
-  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 18px rgba(var(--gold-rgb), 0.75); }
+  0%, 100% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--accent-rgb), 0.5); }
+  50% { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 18px rgba(var(--accent-rgb), 0.75); }
 }
 @media (prefers-reduced-motion: reduce) {
   .guide-entry.sel { animation: none; }
@@ -885,10 +885,10 @@ html[data-mode="tv"] [data-hint-requires]:not(.hint-available) { display: none !
   flex-wrap: wrap;
   row-gap: 4px;
   padding-top: 8px;
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
   font-family: var(--font-ui);
   font-weight: 600;
-  color: var(--paper-dim);
+  color: var(--text-muted);
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -899,12 +899,12 @@ html[data-mode="tv"] [data-hint-requires]:not(.hint-available) { display: none !
 .hint-bar {
   --hint-bar-show-duration: 250ms;
   --hint-bar-hide-duration: 200ms;
-  background: var(--gradient-panel);
-  border-top: 1px solid var(--line);
+  background: var(--surface-panel);
+  border-top: 1px solid var(--border);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   font-family: var(--font-ui);
   font-weight: 600;
-  color: var(--paper-dim);
+  color: var(--text-muted);
   font-size: 11px;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -987,10 +987,10 @@ body.is-fullscreen .hint-bar {
   top: 12px;
   left: 12px;
   z-index: 10;
-  background: var(--gradient-panel);
-  border: 1px solid var(--gold);
+  background: var(--surface-panel);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
-  color: var(--gold);
+  color: var(--accent);
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 12px;
@@ -1009,16 +1009,16 @@ body.is-fullscreen .hint-bar {
 .guide-program-results {
   position: absolute; z-index: 8; top: 82px; right: 18px; width: min(680px, calc(100% - 36px));
   max-height: min(55vh, 520px); overflow-y: auto; padding: 8px;
-  border: 1px solid var(--guide-border, var(--line)); background: var(--guide-bg, rgba(4, 12, 42, .97));
+  border: 1px solid var(--guide-border, var(--border)); background: var(--guide-bg, rgba(4, 12, 42, .97));
   box-shadow: 0 10px 30px rgba(0,0,0,.55);
 }
-.guide-program-results-heading { color: var(--cyan); padding: 5px 7px 9px; font-weight: 700; letter-spacing: 1px; }
-.guide-program-result { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding: 6px; }
-.guide-program-result-copy { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 5px; color: var(--paper); background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; transition: background-color 120ms ease, outline-color 120ms ease; }
-.guide-program-result-copy:hover, .guide-program-result-copy:focus-visible { background: var(--selection); outline: 1px solid var(--gold); }
+.guide-program-results-heading { color: var(--accent-2); padding: 5px 7px 9px; font-weight: 700; letter-spacing: 1px; }
+.guide-program-result { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--border); padding: 6px; }
+.guide-program-result-copy { flex: 1; min-width: 0; display: grid; gap: 2px; padding: 5px; color: var(--text); background: transparent; border: 0; text-align: left; font: inherit; cursor: pointer; transition: background-color 120ms ease, outline-color 120ms ease; }
+.guide-program-result-copy:hover, .guide-program-result-copy:focus-visible { background: var(--selection); outline: 1px solid var(--accent); }
 .guide-program-result-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.guide-program-result-copy span { color: var(--paper-dim); font-family: var(--font-body); font-size: 11px; }
-.program-reminder-toast { position: absolute; z-index: 70; top: 16px; right: 16px; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--gold); background: var(--panel); box-shadow: 0 8px 28px rgba(0,0,0,.65); }
+.guide-program-result-copy span { color: var(--text-muted); font-family: var(--font-body); font-size: 11px; }
+.program-reminder-toast { position: absolute; z-index: 70; top: 16px; right: 16px; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--accent); background: var(--panel); box-shadow: 0 8px 28px rgba(0,0,0,.65); }
 .program-reminder-toast > div { flex: 1; display: grid; gap: 3px; }
-.program-reminder-toast strong { color: var(--gold); letter-spacing: 1px; }
-.program-reminder-toast span { color: var(--paper); font-family: var(--font-body); }
+.program-reminder-toast strong { color: var(--accent); letter-spacing: 1px; }
+.program-reminder-toast span { color: var(--text); font-family: var(--font-body); }

@@ -1,10 +1,10 @@
 /* Plugin settings composition and per-section failure containment. */
 .plugin-entry { display: flex; flex-direction: column; gap: 0; }
-.plugin-settings-toggle-btn.active { border-color: var(--gold); color: var(--gold); }
+.plugin-settings-toggle-btn.active { border-color: var(--accent); color: var(--accent); }
 .plugin-settings-panel { margin-top: 8px; }
 .plugin-settings-panel.hidden { display: none; }
 .plugin-settings-section + .plugin-settings-section {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--border);
   margin-top: 16px;
   padding-top: 16px;
 }
@@ -26,13 +26,13 @@
   padding: 12px;
   border: 1px solid var(--danger);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--danger) 10%, var(--ink-deep));
-  color: var(--paper-dim);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface-0));
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.45;
 }
 .plugin-settings-failure strong { color: var(--danger); letter-spacing: 0.6px; }
-.plugin-settings-failure-message { color: var(--paper); font-family: var(--font-mono); }
+.plugin-settings-failure-message { color: var(--text); font-family: var(--font-mono); }
 .plugin-settings-failure .btn { justify-self: start; margin-top: 2px; }
 .theme-font-settings-grid {
   display: grid;
