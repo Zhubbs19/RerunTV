@@ -1,6 +1,27 @@
 # 04 — Components and theme contract
 
-Status: proposed (P1). Owns contract **C4**. Consumed by: 01, 03, 06, 10, plugins.
+Status: **in progress** — step 1 (tokens) built; steps 2–5 and §5 underway. Owns contract **C4**.
+Consumed by: 01, 03, 06, 10, plugins.
+
+### Built (§6 step 1: semantic and density tokens, 7c63e55)
+
+- `tokens.css` defines every §4.2 semantic token as an alias of the palette token it grew out of
+  (`--accent: var(--gold)`, `--surface-1: var(--ink)`, `--guide-rail-bg: var(--guide-channel-bg)`…), plus
+  a few the pair table needed: `--surface-panel`, `--control-bg/-text`, `--accent-2` (the old `--cyan`
+  secondary accent), `--focus-halo`, `--guide-cell-alt-bg`, `--guide-rail-subtle`. A codemod moved all core
+  CSS onto the semantic names; focus outlines read `--focus-ring`, guide cells `--guide-cell-text`.
+- Density (§4.3): `--space-1..6`, `--control-h`, `--target-min`, `--font-size-body/-label`, `--safe-x/-y`,
+  multiplied under `html[data-mode="tv"]` (24 px body, 64 px targets, spacing ×1.75, 5% safe area). The size
+  tokens are `--font-size-*` because `--font-body` was already the body font family. They replace doc 01's
+  `--tv-body/--tv-target/--tv-safe-*`. Radii stay theme tokens (a look choice, not density).
+- Alias direction: semantic follows palette during migration, so unconverted packs are untouched. Step 3
+  flips it (see there).
+- Verified: `tests/theme-tokens.test.js` resolves var() chains for the default theme and all 25 packs (no
+  cycles, each semantic token equals its source, no pack sets density, core CSS no longer reads aliased
+  names). Nothing anywhere redefines a palette token below `html`, so identical resolution means identical
+  pixels. Theme sweep (`test/sweep-doc04.mjs`, 26 themes × 26 screens at 1280×720, pinned view time): 635/676
+  gated screenshots within 1%; each of the other 41 was inspected and is sweep state (viewing log growth,
+  selected channel, video frame, now-line drift, hover/animation timing), not a token change.
 
 ## 1. Problem
 

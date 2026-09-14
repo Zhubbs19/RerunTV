@@ -27,6 +27,7 @@ import { effectiveThemeId } from './broadcast-identity.js';
 import { getThemePack, runCoreHooks } from './plugins.js';
 import { openTvMenu } from './tv-menu.js';
 import { isTvMode } from './usage-mode.js';
+import { Menu } from './ui/menu.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -450,93 +451,46 @@ function runLabel(cell) {
 }
 
 // ---------- Popovers: shorts & bumpers list, program actions ----------
-// One small list over the grid at a time, beside the selected cell. ▲▼ move,
-// OK runs the highlighted item, Back (or any other key) closes. Keys reach it
-// through handleGuideGridKey, so keyboard and TV remote (key:Arrow*/Enter/
-// Escape routes) work the same. C4 (docs/design/04) will provide a popover
-// component for this.
-let popover = null; // { el, items, idx }
+// One small list over the grid at a time, beside the selected cell: a kit Menu
+// the guide drives itself (docs/design/04 §3). ▲▼ move, OK runs the
+// highlighted item, Back (or any other key) closes. Keys reach it through
+// handleGuideGridKey, so keyboard and TV remote (key:Arrow*/Enter/Escape
+// routes) work the same.
+const GUIDE_MENU_CLASSES = { root: 'guide-run-list', item: 'guide-run-item', heading: 'guide-run-heading', rule: 'guide-run-rule' };
+let popover = null; // the open Menu
 
 function closeGuidePopover() {
   if (!popover) return;
-  popover.el.remove();
+  const menu = popover;
   popover = null;
+  menu.close();
 }
 
 export function guidePopoverOpen() {
   return !!popover;
 }
 
-function highlightPopoverItem() {
-  if (!popover) return;
-  Array.from(popover.el.querySelectorAll('.guide-run-item')).forEach((item, i) => {
-    const active = i === popover.idx;
-    item.classList.toggle('active', active);
-    item.setAttribute('aria-selected', active ? 'true' : 'false');
-    if (active) item.scrollIntoView({ block: 'nearest' });
-  });
-}
-
-function runPopoverItem(i) {
-  if (!popover) return;
-  const item = popover.items[i];
-  closeGuidePopover();
-  if (item && item.run) item.run();
-}
-
 // items: [{ label, time?, className?, run }]
 function openGuidePopover({ heading, ariaLabel, items, anchorEl, initialIdx = 0, className = '' }) {
   closeGuidePopover();
   if (!items.length) return;
-  const el = document.createElement('div');
-  el.className = `guide-run-list${className ? ` ${className}` : ''}`;
-  el.setAttribute('role', 'listbox');
-  el.setAttribute('aria-label', ariaLabel || heading);
-  const head = document.createElement('div');
-  head.className = 'guide-run-heading';
-  head.textContent = heading;
-  el.appendChild(head);
-  items.forEach((entry, i) => {
-    const item = document.createElement('button');
-    item.type = 'button';
-    item.className = `guide-run-item${entry.className ? ` ${entry.className}` : ''}`;
-    item.setAttribute('role', 'option');
-    item.tabIndex = -1;
-    if (entry.time) {
-      const time = document.createElement('span');
-      time.className = 'guide-run-time';
-      time.textContent = entry.time;
-      item.appendChild(time);
-    }
-    const title = document.createElement('span');
-    title.className = 'guide-run-title';
-    title.textContent = entry.label;
-    item.appendChild(title);
-    item.addEventListener('click', () => runPopoverItem(i));
-    item.addEventListener('mousemove', () => { if (popover && popover.idx !== i) { popover.idx = i; highlightPopoverItem(); } });
-    el.appendChild(item);
+  const menu = Menu({
+    heading,
+    label: ariaLabel || heading,
+    groups: [items],
+    focus: false,
+    classes: GUIDE_MENU_CLASSES,
+    className,
+    onClose: () => { if (popover === menu) popover = null; },
   });
-  guideGrid.appendChild(el);
-  popover = { el, items, idx: Math.max(0, Math.min(items.length - 1, initialIdx)) };
+  popover = menu;
   // Beside the cell: above it when there's room, else below; kept inside the grid.
-  const grid = guideGrid.getBoundingClientRect();
-  const anchor = anchorEl && anchorEl.isConnected ? anchorEl.getBoundingClientRect() : grid;
-  const box = el.getBoundingClientRect();
-  const left = Math.max(8, Math.min(anchor.left - grid.left, grid.width - box.width - 8));
-  const above = anchor.top - grid.top - box.height - 4;
-  const top = above >= 8 ? above : Math.min(anchor.bottom - grid.top + 4, grid.height - box.height - 8);
-  el.style.left = `${left}px`;
-  el.style.top = `${Math.max(8, top)}px`;
-  highlightPopoverItem();
+  menu.open({ anchor: anchorEl, container: guideGrid, prefer: 'above', initialIndex: Math.max(0, Math.min(items.length - 1, initialIdx)) });
 }
 
 function handleGuidePopoverKey(e) {
-  switch (e.key) {
-    case 'ArrowUp': popover.idx = Math.max(0, popover.idx - 1); highlightPopoverItem(); break;
-    case 'ArrowDown': popover.idx = Math.min(popover.items.length - 1, popover.idx + 1); highlightPopoverItem(); break;
-    case 'Enter': runPopoverItem(popover.idx); break;
-    default: closeGuidePopover(); break;
-  }
+  const action = { ArrowUp: 'up', ArrowDown: 'down', Enter: 'ok' }[e.key] || 'close';
+  popover.key(action);
 }
 
 function selectedCellEl() {

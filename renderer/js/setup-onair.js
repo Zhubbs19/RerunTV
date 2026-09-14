@@ -34,7 +34,9 @@ import {
   guardrailsFor, isDailyBlock, librarySources, noBreaksCommands, overlapsAny, pinFileOverrideCommand, pluginOwner,
   randomTimelineBlockId, reorderCommands, removeWeekdayCommand, resizeCommand,
 } from './timeline-edits.js';
-import { RowMenu } from './ui/row-menu.js';
+import { MenuButton } from './ui/menu.js';
+import { Button } from './ui/button.js';
+import { Segmented } from './ui/controls.js';
 import { isTvMode } from './usage-mode.js';
 import { formatClock, formatDuration, formatHourLabel, getDisplayTitle } from './util.js';
 
@@ -136,21 +138,20 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
   panelEl.classList.add('onair-panel');
   panelEl.classList.toggle('onair-readonly', !editable);
 
+  // The toolbar is kit components (docs/design/04 §3): week paging Buttons and
+  // a Segmented zoom (one Tab stop, ◀▶ choose).
   const toolbar = el('div', 'onair-toolbar');
-  const prevBtn = button('◄ PREV WEEK');
-  const todayBtn = button('THIS WEEK');
-  const nextBtn = button('NEXT WEEK ►');
+  const prevBtn = Button({ label: '◄ PREV WEEK', onPress: () => pageWeek(-7) });
+  const todayBtn = Button({ label: 'THIS WEEK', onPress: () => { weekStart = startOfWeek(viewNow()); remember(); render({ scrollToNow: true }); } });
+  const nextBtn = Button({ label: 'NEXT WEEK ►', onPress: () => pageWeek(7) });
   const weekLabel = el('span', 'onair-week-label');
-  const signOffBtn = button('SIGN-OFF HOURS');
-  signOffBtn.classList.add('onair-signoff-btn');
-  const zoomGroup = el('span', 'onair-zoom');
-  zoomGroup.setAttribute('role', 'group');
-  zoomGroup.setAttribute('aria-label', 'Zoom');
-  const zoomBtns = ZOOM_LEVELS.map((level) => {
-    const b = button(level.label);
-    b.addEventListener('click', () => { zoom = level; remember(); render({ keepScroll: true }); });
-    zoomGroup.appendChild(b);
-    return b;
+  const signOffBtn = Button({ label: 'SIGN-OFF HOURS', className: 'onair-signoff-btn', onPress: () => openSignOffEditor() });
+  const zoomGroup = Segmented({
+    label: 'Zoom',
+    className: 'onair-zoom',
+    items: ZOOM_LEVELS.map((level) => ({ value: level.label, label: level.label })),
+    value: zoom.label,
+    onChange: (label) => { zoom = ZOOM_LEVELS.find((level) => level.label === label) || zoom; remember(); render({ keepScroll: true }); },
   });
   toolbar.append(prevBtn, todayBtn, nextBtn, weekLabel);
   if (editable) toolbar.appendChild(signOffBtn);
@@ -185,10 +186,6 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
   panelEl.append(intro, toolbar, impactBar, editor, scroller, legend, status, detail);
 
   const pageWeek = (delta) => { weekStart = addDays(weekStart, delta); remember(); render(); };
-  prevBtn.addEventListener('click', () => pageWeek(-7));
-  nextBtn.addEventListener('click', () => pageWeek(7));
-  todayBtn.addEventListener('click', () => { weekStart = startOfWeek(viewNow()); remember(); render({ scrollToNow: true }); });
-  signOffBtn.addEventListener('click', () => openSignOffEditor());
 
   function xFor(dayStart, ms) {
     return ((ms - dayStart) / 3600000) * zoom.pxPerHour;
@@ -761,7 +758,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
     const atMs = event && event.clientX != null && event.currentTarget
       ? day.dayStart + (hourFromPointer(event.currentTarget.closest('.onair-day'), event.clientX) * 3600000)
       : entry.start + (entry.end - entry.start) / 2;
-    const menu = RowMenu({ label: `Actions for ${getDisplayTitle(entry.file)}`, groups: programMenuGroups(entry, day, atMs) });
+    const menu = MenuButton({ label: `Actions for ${getDisplayTitle(entry.file)}`, groups: programMenuGroups(entry, day, atMs) });
     if (event && event.clientX != null) menu.openAt(event);
     else menu.open();
   }
@@ -810,7 +807,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
     previewBtn.addEventListener('click', () => watchFrom(entry, day));
     actions.appendChild(previewBtn);
     if (editable) {
-      const menu = RowMenu({ label: `Actions for ${getDisplayTitle(entry.file)}`, groups: programMenuGroups(entry, day, mid) });
+      const menu = MenuButton({ label: `Actions for ${getDisplayTitle(entry.file)}`, groups: programMenuGroups(entry, day, mid) });
       menu.button.textContent = 'CHANGE THIS AIRING ⋯';
       menu.button.classList.add('onair-detail-menu');
       actions.appendChild(menu.button);
@@ -1022,7 +1019,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
       const spanEl = event.target.closest('.onair-span');
       if (!spanEl) return;
       selectBlock(spanEl._span.block.id);
-      RowMenu({ label: `Actions for ${blockLabel(spanEl._span.block)}`, groups: spanMenuGroups(spanEl._span, dayStart) }).openAt(event);
+      MenuButton({ label: `Actions for ${blockLabel(spanEl._span.block)}`, groups: spanMenuGroups(spanEl._span, dayStart) }).openAt(event);
     });
 
     laneEl.addEventListener('keydown', (event) => {
@@ -1037,7 +1034,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
       } else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
         event.preventDefault();
         const r = spanEl.getBoundingClientRect();
-        RowMenu({ label: `Actions for ${blockLabel(spanEl._span.block)}`, groups: spanMenuGroups(spanEl._span, dayStart) })
+        MenuButton({ label: `Actions for ${blockLabel(spanEl._span.block)}`, groups: spanMenuGroups(spanEl._span, dayStart) })
           .openAt({ preventDefault() {}, clientX: r.left + 8, clientY: r.bottom + 2 });
       }
     });
@@ -1216,11 +1213,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
     const token = ++renderToken;
     const scrollLeft = scroller.scrollLeft;
     const focusWasInGrid = grid.contains(document.activeElement);
-    zoomBtns.forEach((b, i) => {
-      const on = ZOOM_LEVELS[i] === zoom;
-      b.classList.toggle('active', on);
-      b.setAttribute('aria-pressed', String(on));
-    });
+    zoomGroup.setValue(zoom.label);
     const weekEnd = addDays(weekStart, 6);
     weekLabel.textContent = `${formatDayHeading(weekStart)} – ${formatDayHeading(weekEnd)}`;
     grid.innerHTML = '';

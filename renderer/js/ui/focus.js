@@ -1,10 +1,14 @@
-// Spatial focus and focus scopes (docs/design/01 §6.6; a minimal version of
-// docs/design/04's FocusScope/SpatialFocus — C4 replaces it when it's built).
+// FocusScope and SpatialFocus (docs/design/04 §3, the TV focus engine from
+// docs/design/01 §6.6), plus the modal stack every full-screen overlay joins.
 //
 // D-pad movement picks the nearest focusable control in the pressed direction
 // by on-screen position, so any dialog layout (a row of buttons, a grid, a
 // list) works without per-dialog key tables. A focus scope keeps Tab inside a
 // modal and puts focus on its safe default, never a destructive action.
+//
+// This module imports nothing, on purpose: tv-input.js and the overlays that
+// register with it import each other in a cycle, and a registry here can't be
+// caught mid-evaluation.
 
 // ---------- Pure ----------
 // rects: [{ left, top, width, height }]; returns the index to move to, or the
@@ -47,12 +51,42 @@ export function defaultFocusIndex(items) {
   return safe === -1 ? 0 : safe;
 }
 
-// ---------- DOM ----------
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-2"])';
+// ---------- Modal stack ----------
+// Any full-screen overlay (Dialog, the on-screen keyboard, learn mode,
+// handoff, the wizard) registers here. tv-input.js gives the top open one the
+// dialog context: D-pad moves focus by position, OK presses the focused
+// control, Back calls cancel().
+// var, not const: registration can happen while an importer in a cycle is
+// still evaluating.
+// eslint-disable-next-line no-var
+var modals;
 
-function focusables(container) {
+export function registerModal({ isOpen, element, cancel }) {
+  const modal = { isOpen, element, cancel };
+  modals = modals || [];
+  modals.push(modal);
+  return () => { const i = modals.indexOf(modal); if (i !== -1) modals.splice(i, 1); };
+}
+
+export function topModal() {
+  if (!modals) return null;
+  for (let i = modals.length - 1; i >= 0; i -= 1) {
+    try { if (modals[i].isOpen()) return modals[i]; } catch (e) { /* a broken modal can't block input */ }
+  }
+  return null;
+}
+
+// ---------- DOM ----------
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-2"])';
+
+export function focusables(container) {
   return Array.from(container.querySelectorAll(FOCUSABLE))
     .filter((el) => el.getClientRects().length > 0 && !el.closest('.hidden'));
+}
+
+function isDanger(el) {
+  return el.hasAttribute('data-danger') || el.classList.contains('danger') || el.classList.contains('btn-danger')
+    || el.classList.contains('is-danger') || el.classList.contains('tv-exit-prompt-exit');
 }
 
 // Moves focus inside container; returns true if focus moved.
@@ -70,9 +104,18 @@ export function moveFocusSpatially(container, direction) {
   return true;
 }
 
+export const SpatialFocus = { move: moveFocusSpatially, nextIndex: nextSpatialIndex };
+
+// Focuses a container's safe default control (see defaultFocusIndex).
+export function focusDefault(container) {
+  const items = focusables(container);
+  const idx = defaultFocusIndex(items.map((el) => ({ isDefault: el.hasAttribute('data-default'), isDanger: isDanger(el) })));
+  if (items[idx]) items[idx].focus();
+}
+
 // Traps Tab inside a modal and focuses its safe default. Returns release(),
 // which restores focus to what had it before.
-export function createFocusScope(container) {
+export function FocusScope(container, { initialFocus = true } = {}) {
   const previous = document.activeElement;
   const onKey = (event) => {
     if (event.key !== 'Tab') return;
@@ -85,12 +128,7 @@ export function createFocusScope(container) {
     items[next].focus();
   };
   container.addEventListener('keydown', onKey, true);
-  const items = focusables(container);
-  const idx = defaultFocusIndex(items.map((el) => ({
-    isDefault: el.hasAttribute('data-default'),
-    isDanger: el.classList.contains('danger') || el.classList.contains('tv-exit-prompt-exit'),
-  })));
-  if (items[idx]) items[idx].focus();
+  if (initialFocus) focusDefault(container);
   return function release() {
     container.removeEventListener('keydown', onKey, true);
     if (previous && previous.isConnected && previous.focus) previous.focus({ preventScroll: true });

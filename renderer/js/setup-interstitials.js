@@ -28,7 +28,7 @@ import {
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
 import { basenameNoExt } from './util.js';
-import { RowMenu } from './ui/row-menu.js';
+import { MenuButton } from './ui/menu.js';
 
 // ---------- Media sources (import bumpers/ads from a plugin folder) ----------
 // Mirrors setup-channels.js's own CHOOSE SOURCE flow (addPluginSourceToChannel)
@@ -705,7 +705,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       summary.appendChild(removeBtn);
     } else {
       card.dataset.rowMenu = '';
-      summary.appendChild(RowMenu({
+      summary.appendChild(MenuButton({
         label: `Actions for ${title.textContent || 'this entry'}`,
         groups: [
           [{
@@ -1531,7 +1531,7 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
     header.appendChild(removeBtn);
   } else {
     card.dataset.rowMenu = '';
-    header.appendChild(RowMenu({
+    header.appendChild(MenuButton({
       label: `Actions for ${preset.name || 'untitled preset'}`,
       groups: [
         [{

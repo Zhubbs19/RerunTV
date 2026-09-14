@@ -2,7 +2,7 @@
 import { backupsListEl, backupsRefreshBtn, backupsSnapshotNowBtn } from './dom.js';
 import { alertDialog, confirmDialog, promptDialog } from './setup-dialogs.js';
 import { emptyState } from './setup-util.js';
-import { RowMenu } from './ui/row-menu.js';
+import { MenuButton } from './ui/menu.js';
 
 let justSnapshotted = false;
 let restoreHandler = null;
@@ -191,7 +191,7 @@ export function renderBackupsList() {
       }
       row.appendChild(label);
       row.dataset.rowMenu = '';
-      row.appendChild(RowMenu({
+      row.appendChild(MenuButton({
         label: `Actions for the snapshot from ${formatBackupTimestamp(backup.mtimeMs)}`,
         groups: [
           [{ label: 'Restore…', run: () => restoreBackupFile(backup) }],

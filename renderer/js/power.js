@@ -14,6 +14,7 @@ import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, viewNow, commitInPlace } from '
 import { stopShuttle } from './timemachine.js';
 import { autoHideAfter } from './util.js';
 import { effectiveThemeId } from './broadcast-identity.js';
+import { Toast } from './ui/toast.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -133,12 +134,10 @@ export function toggleMute() {
 // Exported so any feature that needs a one-line on-screen confirmation gets
 // the same transient centre-screen readout the CRT/picture-mode toggles
 // already use, rather than each growing its own overlay element. `timerKey`
-// names the S slot holding that caller's own auto-hide timer, so two
+// names that caller's own auto-hide timer (a kit Toast key), so two
 // features flashing near each other don't cancel one another's.
 export function flashMessage(text, timerKey) {
-  crtToggleFlash.textContent = text;
-  crtToggleFlash.classList.add('show');
-  S[timerKey] = autoHideAfter(S[timerKey], 1500, () => crtToggleFlash.classList.remove('show'));
+  Toast(text, { element: crtToggleFlash, key: timerKey, duration: 1500 });
 }
 
 function avoidLogoBugOverlap() {

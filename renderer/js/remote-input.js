@@ -146,7 +146,7 @@ const DETAILS = {
   menu: 'menu.toggle', playPause: 'menu.toggle',
 };
 
-// Dialogs move focus by on-screen position (ui/spatial-focus.js), so a row, a
+// Dialogs move focus by on-screen position (ui/focus.js), so a row, a
 // list or a grid of buttons all work with the D-pad.
 const DIALOG = {
   left: 'focus.left', up: 'focus.up', right: 'focus.right', down: 'focus.down',

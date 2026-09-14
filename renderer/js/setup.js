@@ -31,7 +31,6 @@ import './setup-settings.js';
 import './setup-channels.js';
 import './setup-command-palette.js';
 import './setup-keyboard.js';
-import './setup-narrow.js';
 import './setup-dragdrop.js';
 
 export { renderChannelList } from './setup-channels.js';

@@ -15,21 +15,20 @@ import { S, viewNow } from './state.js';
 import { formatSlotLabel, getDisplayTitle } from './util.js';
 import { runCoreHooks } from './plugins.js';
 import { virtualChannelInfo, virtualChannelNumbers, isVirtualChannel } from './virtual.js';
+import { Menu } from './ui/menu.js';
 
 const IDLE_CLOSE_MS = 12000;
 
 let browsing = null; // the channel number shown while browsing
 let idleTimer = null;
-let actionsEl = null;
-let actionsIdx = 0;
-let actionItems = [];
+let actionsMenu = null; // a kit Menu this module drives (docs/design/04 §3)
 
 export function bannerHubOpen() {
   return browsing != null;
 }
 
 export function bannerActionsOpen() {
-  return !!actionsEl;
+  return !!actionsMenu;
 }
 
 // Every tunable number in order, specials included (doc 11 put them in the
@@ -98,32 +97,18 @@ function nowAndNext(number) {
   return { now: entries[0] || null, next: entries[1] || null, specialText: '', ch };
 }
 
-function el(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text != null) node.textContent = text;
-  return node;
-}
-
 export function closeBannerActions() {
-  if (actionsEl) { actionsEl.remove(); actionsEl = null; }
-  actionItems = [];
-  actionsIdx = 0;
-}
-
-function highlightAction() {
-  if (!actionsEl) return;
-  Array.from(actionsEl.querySelectorAll('.guide-run-item')).forEach((item, i) => {
-    item.classList.toggle('active', i === actionsIdx);
-    item.setAttribute('aria-selected', i === actionsIdx ? 'true' : 'false');
-  });
+  if (!actionsMenu) return;
+  const menu = actionsMenu;
+  actionsMenu = null;
+  menu.close();
 }
 
 export function openBannerActions() {
-  if (browsing == null || actionsEl) return;
+  if (browsing == null || actionsMenu) return;
   const number = browsing;
   const { now, next, specialText, ch } = nowAndNext(number);
-  actionItems = [];
+  const actionItems = [];
   if (now && ch) {
     actionItems.push({ label: `INFO · ${getDisplayTitle(now.file)}`, run: () => showDetailsOverlay(now.file, { channelNumber: ch.number, channelName: ch.name, airTime: `${formatSlotLabel(now.start)} – ${formatSlotLabel(now.end)}` }) });
     const extra = [];
@@ -133,42 +118,31 @@ export function openBannerActions() {
   }
   actionItems.push({ label: `WATCH CH ${number}`, run: () => tuneBrowsed() });
 
-  actionsEl = el('div', 'guide-run-list banner-actions');
-  actionsEl.setAttribute('role', 'listbox');
   const heading = now
     ? `${getDisplayTitle(now.file)} · NEXT ${next ? getDisplayTitle(next.file) : '—'}`
     : (specialText || `CH ${number}`);
-  actionsEl.appendChild(el('div', 'guide-run-heading', heading));
-  actionItems.forEach((item, i) => {
-    const button = el('button', 'guide-run-item');
-    button.type = 'button';
-    button.setAttribute('role', 'option');
-    button.tabIndex = -1;
-    button.appendChild(el('span', 'guide-run-title', item.label));
-    button.addEventListener('click', () => runBannerAction(i));
-    actionsEl.appendChild(button);
+  // Running an action closes the hub too, then runs it.
+  const items = actionItems.map((item) => ({ label: item.label, run: () => { closeBannerHub(); item.run(); } }));
+  const menu = Menu({
+    heading,
+    groups: [items],
+    focus: false,
+    classes: { root: 'guide-run-list', item: 'guide-run-item', heading: 'guide-run-heading', rule: 'guide-run-rule' },
+    className: 'banner-actions',
+    onClose: () => { if (actionsMenu === menu) actionsMenu = null; },
   });
-  (tvScreen.querySelector('.crt') || tvScreen).appendChild(actionsEl);
-  actionsIdx = 0;
-  highlightAction();
+  actionsMenu = menu;
+  // Its spot above the channel banner is CSS (.banner-actions), not placement.
+  menu.open({ container: tvScreen.querySelector('.crt') || tvScreen, place: false });
   armIdleClose();
-}
-
-function runBannerAction(i) {
-  const item = actionItems[i];
-  closeBannerActions();
-  closeBannerHub();
-  if (item && item.run) item.run();
 }
 
 // ---------- Keys (routed from tv-input's 'banner' context) ----------
 
 export function bannerKey(action) {
   armIdleClose();
-  if (actionsEl) {
-    if (action === 'up') { actionsIdx = Math.max(0, actionsIdx - 1); highlightAction(); return true; }
-    if (action === 'down') { actionsIdx = Math.min(actionItems.length - 1, actionsIdx + 1); highlightAction(); return true; }
-    if (action === 'ok') { runBannerAction(actionsIdx); return true; }
+  if (actionsMenu) {
+    if (action === 'up' || action === 'down' || action === 'ok') return actionsMenu.key(action);
     if (action === 'back' || action === 'left' || action === 'right') { closeBannerActions(); return true; }
     return false;
   }

@@ -6,27 +6,24 @@
 // web control panel (docs/design/06) exists, main-tv-client.js's handoffInfo
 // gains a deep link per task and this screen doesn't change.
 import { tvScreen } from './dom.js';
-import { createFocusScope } from './ui/spatial-focus.js';
-import { registerTvModal } from './tv-input.js';
+import { ModalSurface } from './ui/dialog.js';
 
+let surface = null;
 let overlay = null;
-let releaseScope = null;
 
 export function handoffOpen() {
   return !!overlay;
 }
 
 export function closeHandoff() {
-  if (releaseScope) { releaseScope(); releaseScope = null; }
-  if (overlay) { overlay.remove(); overlay = null; }
+  if (surface) { surface.close(); surface = null; }
+  overlay = null;
 }
 
 export async function openHandoff(opts = {}) {
   if (overlay) return;
-  overlay = document.createElement('div');
-  overlay.className = 'handoff';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
+  surface = ModalSurface({ className: 'handoff', label: 'Edit on your phone or computer', host: () => tvScreen.querySelector('.crt') || tvScreen, onCancel: closeHandoff });
+  overlay = surface.el;
   overlay.innerHTML = `
     <div class="handoff-panel">
       <div class="handoff-title">EDIT ON YOUR PHONE OR COMPUTER</div>
@@ -39,10 +36,9 @@ export async function openHandoff(opts = {}) {
       </div>
       <button type="button" class="handoff-done">DONE</button>
     </div>`;
-  (tvScreen.querySelector('.crt') || tvScreen).appendChild(overlay);
   const done = overlay.querySelector('.handoff-done');
   done.addEventListener('click', closeHandoff);
-  releaseScope = createFocusScope(overlay);
+  surface.open();
 
   let info = { url: '', qrDataUrl: '', label: '' };
   try {
@@ -61,4 +57,3 @@ export async function openHandoff(opts = {}) {
   }
 }
 
-registerTvModal({ isOpen: handoffOpen, element: () => overlay, cancel: closeHandoff });

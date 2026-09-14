@@ -12,7 +12,8 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels, resetSetupTabs } from './setup-settings.js';
 import { openCommandPalette, closeCommandPalette, isCommandPaletteOpen, setUndoRedoHook } from './setup-command-palette.js';
 import { refreshSidebarBadges } from './setup-sidebar.js';
-import { closeNarrowDetail } from './setup-narrow.js';
+import { enhanceTabs } from './ui/tabs.js';
+import { listDetailBehavior } from './ui/list-detail.js';
 
 // Full re-render of every setup-screen panel from S.config — used after
 // undo/redo rewinds S.config (in place) under whatever's currently on screen.
@@ -124,75 +125,19 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------- Tab-bar keyboard nav (ARIA "tabs" pattern) ----------
-// Roving tabindex: only the active tab in each bar is a normal Tab stop;
-// Left/Right/Home/End move *and* activate, matching how every native OS
-// tab strip behaves. Wired once per bar since the top-level bar and every
-// .setup-subtabs bar are static markup (setup.css/index.html), never
-// rebuilt — only which button carries .active changes.
-let generatedA11yId = 0;
-function ensureA11yId(el, prefix) {
-  if (!el.id) {
-    generatedA11yId += 1;
-    el.id = `${prefix}-${generatedA11yId}`;
-  }
-  return el.id;
-}
-
+// The kit's Tabs behaviour (ui/tabs.js) on the static bars: only the active tab
+// is a Tab stop; Left/Right (Up/Down on the vertical sidebar) Home End move
+// *and* activate. Other code moves .active with plain click handlers
+// (setup-settings.js), which the bar re-syncs from.
 function controlledPanelForTab(bar, btn) {
   if (btn.dataset.tab) return document.querySelector(`.setup-tab-panel[data-tab-panel="${btn.dataset.tab}"]`);
   if (btn.dataset.subtab) return bar.parentElement.querySelector(`:scope > .setup-subtab-panel[data-subtab-panel="${btn.dataset.subtab}"]`);
   return null;
 }
 
-function enableTabBarKeyboardNav(bar, btnSelector) {
-  const btns = () => Array.from(bar.querySelectorAll(btnSelector));
-  const vertical = bar.getAttribute('aria-orientation') === 'vertical';
-  bar.setAttribute('role', 'tablist');
-  btns().forEach((btn) => {
-    btn.setAttribute('role', 'tab');
-    const panel = controlledPanelForTab(bar, btn);
-    if (!panel) return;
-    const tabId = ensureA11yId(btn, 'setup-tab');
-    const panelId = ensureA11yId(panel, 'setup-tabpanel');
-    btn.setAttribute('aria-controls', panelId);
-    panel.setAttribute('role', 'tabpanel');
-    panel.setAttribute('aria-labelledby', tabId);
-  });
-
-  function syncRovingTabindex() {
-    const all = btns();
-    const active = all.find((b) => b.classList.contains('active')) || all[0];
-    all.forEach((b) => {
-      b.setAttribute('aria-selected', String(b === active));
-      b.tabIndex = b === active ? 0 : -1;
-    });
-  }
-  syncRovingTabindex();
-  // .active moves in response to plain click handlers elsewhere (setup-
-  // settings.js) with no shared event to hook — cheapest correct option is
-  // re-syncing on every click bubbling through this bar.
-  bar.addEventListener('click', syncRovingTabindex);
-
-  bar.addEventListener('keydown', (e) => {
-    const all = btns();
-    const idx = all.indexOf(document.activeElement);
-    if (idx === -1) return;
-    let target = null;
-    const nextKey = vertical ? 'ArrowDown' : 'ArrowRight';
-    const prevKey = vertical ? 'ArrowUp' : 'ArrowLeft';
-    if (e.key === nextKey) target = all[(idx + 1) % all.length];
-    else if (e.key === prevKey) target = all[(idx - 1 + all.length) % all.length];
-    else if (e.key === 'Home') target = all[0];
-    else if (e.key === 'End') target = all[all.length - 1];
-    if (!target) return;
-    e.preventDefault();
-    target.focus();
-    target.click();
-  });
-}
-
-enableTabBarKeyboardNav(document.getElementById('setup-tabs'), '.setup-tab-btn');
-document.querySelectorAll('.setup-subtabs').forEach((bar) => enableTabBarKeyboardNav(bar, '.setup-subtab-btn'));
+const sidebarTabs = document.getElementById('setup-tabs');
+enhanceTabs(sidebarTabs, { tabSelector: '.setup-tab-btn', panelFor: (btn) => controlledPanelForTab(sidebarTabs, btn) });
+document.querySelectorAll('.setup-subtabs').forEach((bar) => enhanceTabs(bar, { tabSelector: '.setup-subtab-btn', panelFor: (btn) => controlledPanelForTab(bar, btn) }));
 
 const CONTROL_LABELS = new Map([
   ['rating-select', 'Content rating'],
@@ -295,23 +240,15 @@ document.querySelectorAll('#setup-tabs .setup-tab-btn').forEach((btn) => {
   btn.title = `${btn.textContent.trim()} (G then ${key.toUpperCase()})`;
 });
 
-// A list beside a detail pane: its rows, and which one is selected.
-const LIST_PANES = '#channel-list-pane, .list-detail-list, #flow-list';
-const DETAIL_PANES = '#channel-list, .list-detail-detail, .flow-detail';
+// A list beside a detail pane (ui/list-detail.js): the wrappers, lists and
+// details are marked data-ui-list-detail/-list/-detail in index.html; these
+// are each collection's rows, and which one is selected.
+const ROWS = '.channel-list-item, .interstitial-card-summary, .flow-list-item, .backup-list-item, .plugin-row';
 const SELECTED_ROW = '.channel-list-item.selected, .interstitial-card.selected .interstitial-card-summary, .flow-list-item.selected, .backup-list-item.selected, .plugin-entry.selected .plugin-row';
-
-function listForDetail(detail) {
-  if (detail.id === 'channel-list') return document.getElementById('channel-list-pane');
-  const wrap = detail.closest('.list-detail');
-  return wrap && wrap.querySelector(LIST_PANES);
-}
-
-function isTypingTarget(el) {
-  if (!el) return false;
-  if (el.isContentEditable) return true;
-  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
-  return el.tagName === 'INPUT' && !['checkbox', 'radio', 'button', 'range', 'color', 'file'].includes(el.type);
-}
+const listDetail = listDetailBehavior({ rows: ROWS, selectedRow: SELECTED_ROW });
+// Narrow windows (docs/design/03 §4): below 900 px a list + detail page shows
+// the list, and choosing a row swaps to that row's editor with a Back button.
+listDetail.install(setupScreen);
 
 let goPendingUntil = 0;
 window.addEventListener('keydown', (e) => {
@@ -320,19 +257,8 @@ window.addEventListener('keydown', (e) => {
   if (document.querySelector('.confirm-dialog')) return;
 
   // Esc inside a detail pane goes back to the selected row of its list.
-  if (e.key === 'Escape' && active && active !== document.body) {
-    const detail = active.closest(DETAIL_PANES);
-    const list = detail && listForDetail(detail);
-    const row = list && list.querySelector(SELECTED_ROW);
-    if (row) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      closeNarrowDetail(list.closest('.channel-master-detail, .list-detail'), { focusRow: false });
-      row.focus();
-      return;
-    }
-  }
-  if (isTypingTarget(active)) return;
+  if (listDetail.handleEscape(e)) return;
+  if (listDetail.isTypingTarget(active)) return;
 
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (goPendingUntil > Date.now()) { // UI gesture timing, not schedule time
@@ -350,27 +276,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  // J/K are ▼/▲ in a list; Enter on a list row moves into its detail pane.
-  const list = active && active.closest(LIST_PANES);
-  if (list && (key === 'j' || key === 'k')) {
-    e.preventDefault();
-    active.dispatchEvent(new KeyboardEvent('keydown', { key: key === 'j' ? 'ArrowDown' : 'ArrowUp', bubbles: true, cancelable: true }));
-    return;
-  }
-  // Enter on the row that is already selected opens it: focus lands on the
-  // first control of its detail pane. Enter on any other row selects it as before.
-  if (list && e.key === 'Enter' && active.matches(SELECTED_ROW)) {
-    const wrap = list.closest('.list-detail');
-    const detail = list.id === 'channel-list-pane' ? document.getElementById('channel-list') : wrap && wrap.querySelector(DETAIL_PANES);
-    const usable = (el) => !el.disabled && el.offsetParent !== null && el.type !== 'hidden';
-    const first = detail && (Array.from(detail.querySelectorAll('input, select, textarea, button')).find(usable)
-      || Array.from(detail.querySelectorAll('[tabindex="0"]')).find(usable));
-    if (first) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      first.focus();
-    }
-  }
+  // J/K are ▼/▲ in a list. Enter on the row that is already selected opens it:
+  // focus lands on the first control of its detail pane. Enter on any other row
+  // selects it as before.
+  listDetail.handleListKey(e, key);
 }, true);
 
 enableRovingList(document.getElementById('channel-list'), '.channel-row', '.edit-btn', '.remove-btn');

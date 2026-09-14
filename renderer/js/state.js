@@ -1,4 +1,5 @@
 import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson, itemFieldChanges } from './commands.js';
+import { StatusBar } from './ui/toast.js';
 
 // Shared mutable runtime state. Modules read and write through S so the
 // ownership of cross-cutting values (what channel is tuned, whether the box
@@ -200,14 +201,6 @@ export const S = {
   capabilityBadgeTimer: null,
   holdMusicNodes: null,
   contentAdvisoryCueTimers: [],
-  hintBarFlashTimer: null,
-  pictureModeFlashTimer: null,
-  airCheckFlashTimer: null,
-  scanFlashTimer: null,
-  aspectModeFlashTimer: null,
-  sleepTimerFlashTimer: null,
-  crtFlashTimer: null,
-  crtToggleFlashTimer: null, // returnToLive's own "LIVE" flash (timemachine.js) — distinct from crtFlashTimer above
   // True while the TV screen is showing a setup-screen PREVIEW (see
   // openPreviewModal, setup-channels.js) rather than real live viewing —
   // gates the preview banner and tells showSetupScreen (app.js) to reset
@@ -265,17 +258,14 @@ export const SHUTTLE_SPEEDS = [5, 15, 60, 300, 1800, 7200];
 // early (before dom.js's own querySelectors would find a fully-parsed
 // document in every load order). A missing element (LAN viewer, no setup
 // screen markup) is a silent no-op, not an error.
+let saveStatusBar = null;
 function setSaveIndicator(state) {
-  const el = document.getElementById('setup-save-state');
-  if (!el) return;
-  const wasSaving = el.dataset.state === 'saving';
-  el.dataset.state = state;
-  el.textContent = state === 'saving' ? 'SAVING…' : 'SAVED';
-  if (wasSaving && state !== 'saving') {
-    el.classList.remove('save-pulse');
-    void el.offsetWidth;
-    el.classList.add('save-pulse');
+  if (!saveStatusBar) {
+    const el = document.getElementById('setup-save-state');
+    if (!el) return;
+    saveStatusBar = StatusBar({ saveEl: el });
   }
+  saveStatusBar.setSaveState(state);
 }
 
 // ---------- Saving, commands and undo/redo ----------

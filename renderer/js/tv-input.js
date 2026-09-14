@@ -36,34 +36,24 @@ import { closeTvMenu, openTvMenu } from './tv-menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
 import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesActions } from './virtual.js';
 import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
-import { moveFocusSpatially } from './ui/spatial-focus.js';
+import { moveFocusSpatially, registerModal, topModal } from './ui/focus.js';
 
 let keyboardHandler = null;
 
 // ---------- TV modals ----------
-// Any full-screen TV overlay (learn mode, handoff, the on-screen keyboard, the
-// first-run wizard) registers here and gets the dialog context: D-pad moves
-// focus by position, OK presses the focused control, Back cancels. The most
-// recently opened one on screen is the one that answers.
-// var, not const: handoff.js and remote-test.js register while this module is
-// still mid-evaluation (tv-input → tv-menu → handoff → tv-input), and a const
-// would still be in its temporal dead zone then.
-// eslint-disable-next-line no-var
-var tvModals;
-
-export function registerTvModal({ isOpen, element, cancel }) {
-  const modal = { isOpen, element, cancel };
-  tvModals = tvModals || [];
-  tvModals.push(modal);
-  return () => { const i = tvModals.indexOf(modal); if (i !== -1) tvModals.splice(i, 1); };
+// Any full-screen TV overlay (a kit Dialog or ModalSurface: learn mode,
+// handoff, the on-screen keyboard, the first-run wizard, setup's confirms)
+// joins the modal stack in ui/focus.js and gets the dialog context: D-pad
+// moves focus by position, OK presses the focused control, Back cancels. The
+// most recently opened one on screen is the one that answers. The stack lives
+// in ui/focus.js, which imports nothing, so overlays in an import cycle with
+// this module can register while it is still evaluating.
+export function registerTvModal(modal) {
+  return registerModal(modal);
 }
 
 function openModal() {
-  if (!tvModals) return null;
-  for (let i = tvModals.length - 1; i >= 0; i -= 1) {
-    try { if (tvModals[i].isOpen()) return tvModals[i]; } catch (e) { /* a broken modal can't block input */ }
-  }
-  return null;
+  return topModal();
 }
 const longPress = createLongPressTracker();
 const holdTimers = new Map();
@@ -244,8 +234,8 @@ const ACTIONS = {
   // Spatial first; a layout with nothing that way falls back to list order.
   'focus.up': () => moveFocusSpatially(activeDialogEl(), 'up') || moveDialogFocus(-1),
   'focus.down': () => moveFocusSpatially(activeDialogEl(), 'down') || moveDialogFocus(1),
-  'focus.left': () => moveFocusSpatially(activeDialogEl(), 'left') || moveDialogFocus(-1),
-  'focus.right': () => moveFocusSpatially(activeDialogEl(), 'right') || moveDialogFocus(1),
+  'focus.left': () => arrowsToControl('ArrowLeft') || moveFocusSpatially(activeDialogEl(), 'left') || moveDialogFocus(-1),
+  'focus.right': () => arrowsToControl('ArrowRight') || moveFocusSpatially(activeDialogEl(), 'right') || moveDialogFocus(1),
   'focus.activate': () => { const el = document.activeElement; const dialog = activeDialogEl(); if (dialog && dialog.contains(el) && el.click) el.click(); },
   'dialog.cancel': () => {
     const modal = !exitPromptOpen() && openModal();
@@ -412,8 +402,9 @@ function nativeInput(evt) {
   // back to live TV — setup is a desk task (doc 01 §6.4), not a place to be
   // stranded with a remote.
   if (remoteKey === 'back' && tvScreen && tvScreen.classList.contains('hidden') && !exitPromptOpen()) {
-    if (document.querySelector('.confirm-dialog')) {
-      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    const modal = openModal();
+    if (modal) {
+      modal.cancel();
     } else {
       window.dispatchEvent(new CustomEvent('reruntv:watch-tv'));
     }
@@ -546,6 +537,25 @@ function activeDialogEl() {
   if (exitPromptOpen()) return exitPromptEl;
   const modal = openModal();
   return modal ? modal.element() : null;
+}
+
+// A focused kit control that uses ◀▶ itself (data-ui-arrows="horizontal":
+// Slider, Segmented, NumberStepper) gets the key instead of losing focus.
+function arrowsToControl(key) {
+  const el = document.activeElement;
+  const dialog = activeDialogEl();
+  if (!el || !dialog || !dialog.contains(el) || !el.closest('[data-ui-arrows="horizontal"]')) return false;
+  el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+  if (el.type === 'range') {
+    const step = Number(el.step) || 1;
+    const next = Math.min(Number(el.max), Math.max(Number(el.min), Number(el.value) + (key === 'ArrowRight' ? step : -step)));
+    if (String(next) !== el.value) {
+      el.value = String(next);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+  return true;
 }
 
 function moveDialogFocus(direction) {

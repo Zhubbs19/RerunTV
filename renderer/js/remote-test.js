@@ -10,8 +10,8 @@
 // Learn mode: "press the button you want for GUIDE" writes a per-device
 // override for a button the automatic mapping gets wrong.
 import { tvScreen } from './dom.js';
-import { captureNextButton, registerTvModal, remoteProfile, setRemoteInputSink } from './tv-input.js';
-import { createFocusScope } from './ui/spatial-focus.js';
+import { captureNextButton, remoteProfile, setRemoteInputSink } from './tv-input.js';
+import { ModalSurface } from './ui/dialog.js';
 
 // The buttons a capture wants to see. Not every remote has them all — what's
 // missing is exactly what the capture is for.
@@ -146,7 +146,7 @@ export function openRemoteTest() {
 
 let learnOverlay = null;
 let cancelCapture = null;
-let releaseLearnScope = null;
+let learnSurface = null;
 
 export function learnModeOpen() {
   return !!learnOverlay;
@@ -154,8 +154,8 @@ export function learnModeOpen() {
 
 export function closeLearnMode() {
   if (cancelCapture) { cancelCapture(); cancelCapture = null; }
-  if (releaseLearnScope) { releaseLearnScope(); releaseLearnScope = null; }
-  if (learnOverlay) { learnOverlay.remove(); learnOverlay = null; }
+  if (learnSurface) { learnSurface.close(); learnSurface = null; }
+  learnOverlay = null;
 }
 
 function renderLearn() {
@@ -194,9 +194,8 @@ function startCapture(remoteKey) {
 
 export function openLearnMode() {
   if (learnOverlay) return;
-  learnOverlay = el('div', 'remote-learn');
-  learnOverlay.setAttribute('role', 'dialog');
-  learnOverlay.setAttribute('aria-modal', 'true');
+  learnSurface = ModalSurface({ className: 'remote-learn', label: 'Customize buttons', host: () => tvScreen.querySelector('.crt') || tvScreen, onCancel: closeLearnMode });
+  learnOverlay = learnSurface.el;
   learnOverlay.innerHTML = `
     <div class="remote-learn-panel">
       <div class="remote-test-title">CUSTOMIZE BUTTONS</div>
@@ -205,14 +204,13 @@ export function openLearnMode() {
       <div class="remote-learn-status"></div>
       <button type="button" class="remote-learn-reset">RESET ALL BUTTONS</button>
     </div>`;
-  (tvScreen.querySelector('.crt') || tvScreen).appendChild(learnOverlay);
   learnOverlay.querySelector('.remote-learn-reset').addEventListener('click', () => {
     remoteProfile().resetOverrides();
     renderLearn();
     learnOverlay.querySelector('.remote-learn-status').textContent = 'Every button is back to its default.';
   });
   renderLearn();
-  releaseLearnScope = createFocusScope(learnOverlay);
+  learnSurface.open();
 }
 
 export function closeRemoteTest() {
@@ -220,4 +218,3 @@ export function closeRemoteTest() {
 }
 
 
-registerTvModal({ isOpen: learnModeOpen, element: () => learnOverlay, cancel: closeLearnMode });

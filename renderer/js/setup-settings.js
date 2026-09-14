@@ -8,7 +8,7 @@ import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, ap
 import { applyTheme } from './themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from './state.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from './usage-mode.js';
-import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from './ui/setting-row.js';
+import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from './ui/field.js';
 import { searchActions } from './setup-command-palette.js';
 import { searchUpcomingPrograms } from './program-search.js';
 import { viewNow } from './state.js';
@@ -112,7 +112,7 @@ function refreshDependentControls() {
   // show them as unavailable rather than letting them look live.
   [crtScanlinesSlider, crtVignetteSlider, crtGrainSlider, crtFlickerSlider, crtCurvatureSlider]
     .forEach((slider) => setDependentControlState(slider, crtEnabledEl.checked));
-  // Every other data-depends-on row (ui/setting-row.js).
+  // Every other data-depends-on row (ui/field.js).
   syncSettingDependencies(setupScreen);
 }
 
@@ -1252,7 +1252,7 @@ function searchEntryForPanel(panel) {
   };
 }
 
-// A single setting (ui/setting-row.js): its label, help and synonyms are what
+// A single setting (ui/field.js): its label, help and synonyms are what
 // search matches; opening it focuses the control itself.
 function searchEntryForRow(row) {
   const panelEntry = searchEntryForPanel(row.closest('.panel') || row);
@@ -1272,7 +1272,7 @@ function searchEntryForRow(row) {
 
 // One search (docs/design/03 §6), results grouped: settings, channels,
 // actions, sections, then upcoming programs. Settings are single rows
-// (ui/setting-row.js); sections are whole cards for pages not on rows yet.
+// (ui/field.js); sections are whole cards for pages not on rows yet.
 const SEARCH_GROUPS = [
   ['setting', 'SETTINGS', 8],
   ['channel', 'CHANNELS', 6],

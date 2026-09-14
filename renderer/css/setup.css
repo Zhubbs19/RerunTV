@@ -4886,7 +4886,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   #setup-screen .channel-list-pane { max-height: none; }
 }
 
-/* ---------- SettingRow (docs/design/03 §5.1, renderer/js/ui/setting-row.js) ----------
+/* ---------- SettingRow (docs/design/03 §5.1, renderer/js/ui/field.js) ----------
    Label (sentence case) · control on one line, one muted line of help under
    the label. A dependent row dims and disables while its parent switch is
    off; it is never hidden. */
@@ -5276,7 +5276,7 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 #setup-screen .setup-shell,
 #setup-screen .setup-main { overflow: clip; }
 
-/* Row ⋯ menus (ui/row-menu.js). */
+/* Row ⋯ menus (ui/menu.js MenuButton). */
 #setup-screen .row-menu-btn { min-width: 30px; padding: 2px 8px; font-size: 16px; line-height: 1; letter-spacing: 0; }
 #setup-screen .channel-list-item .row-menu-btn { opacity: 0; align-self: center; }
 #setup-screen .channel-list-item:hover .row-menu-btn,

@@ -277,7 +277,8 @@ body:has(.crt.guide-anim-enabled) #guide-grid.guide-grid-visible {
    --guide-docked-h to chrome + that many rows; this uses it, never below the
    old 46% budget and never above 75%, and re-measures on resize. The rows
    box stays flex:1 so it still shrinks with a small window.
-   C4 (docs/design/04) will own row density tokens; until then these live here. */
+   Guide rows are the guide's own layout (--guide-row-height is a theme token),
+   except in TV mode, where a row is a D-pad target and takes --target-min. */
 .guide-grid.docked {
   --guide-docked-rows: 5;
   height: min(max(var(--guide-docked-h, 0px), calc(46% * var(--viewer-ui-scale, 1))), 75%);
@@ -286,7 +287,7 @@ html[data-mode="tv"] .guide-grid.docked {
   --guide-docked-rows: 4;
 }
 html[data-mode="tv"] .guide-grid {
-  --guide-row-height: 64px;
+  --guide-row-height: var(--target-min); /* a D-pad target: 64px on the TV canvas */
 }
 .guide-grid.docked .guide-topbar {
   flex-direction: row;
@@ -739,7 +740,7 @@ html[data-mode="tv"] .guide-grid {
 .guide-entry.guide-entry-run .guide-entry-label { font-style: italic; }
 
 /* Its list: opened with OK/click, over the grid beside the cell.
-   C4 (docs/design/04) will provide a popover component for this. */
+   A kit Menu driven by the guide (ui/menu.js); these classes are its look here. */
 .guide-run-list {
   position: absolute;
   z-index: 40;

@@ -30,7 +30,7 @@ import { renderCommercialsPanel, renderStandbyPanel } from './setup-interstitial
 import { renderSettingsPanels } from './setup-settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './setup-schedule.js';
 import { attachSliderReadout, commitOwnerFields, emptyState, ownerFieldsCommand, probeDurationForEntry } from './setup-util.js';
-import { RowMenu } from './ui/row-menu.js';
+import { MenuButton } from './ui/menu.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
 } from './plugins.js';
@@ -1055,7 +1055,7 @@ async function removeSetupChannel(ch) {
 function channelRowMenu(ch) {
   const list = sortedForSetup();
   const at = list.indexOf(ch);
-  return RowMenu({
+  return MenuButton({
     label: `Actions for CH ${formatChannelNumber(ch.number)}`,
     groups: [
       [

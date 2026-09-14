@@ -4,8 +4,9 @@
 // ("Press OK… Press BACK… Hold OK") is what seeds this device's remote profile.
 import { tvScreen } from './dom.js';
 import { REMOTE_CHECK, WIZARD_STEPS, advanceRemoteCheck, nextWizardStep } from './tv-setup-model.js';
-import { registerTvModal, remoteProfile, setRemoteInputSink } from './tv-input.js';
-import { createFocusScope } from './ui/spatial-focus.js';
+import { remoteProfile, setRemoteInputSink } from './tv-input.js';
+import { Button } from './ui/button.js';
+import { ModalSurface } from './ui/dialog.js';
 
 const UPDATE_CHOICES = [
   { value: 'startup-auto', label: 'INSTALL AUTOMATICALLY', help: 'Check before RerunTV opens and install straight away.' },
@@ -17,12 +18,8 @@ const REMOTE_CHECK_TIMEOUT_MS = 30000;
 const KEYBOARD_HOLD_MS = 500;
 
 let overlay = null;
-let releaseScope = null;
+let surface = null;
 let goBack = null;
-
-function isOpen() {
-  return !!overlay;
-}
 
 function el(tag, className, text) {
   const node = document.createElement(tag);
@@ -32,11 +29,7 @@ function el(tag, className, text) {
 }
 
 function button(label, onPress, { isDefault = false } = {}) {
-  const b = el('button', 'tv-wizard-btn', label);
-  b.type = 'button';
-  if (isDefault) b.setAttribute('data-default', '');
-  b.addEventListener('click', onPress);
-  return b;
+  return Button({ label, onPress, isDefault, bare: true, className: 'tv-wizard-btn' });
 }
 
 // options: { updateStrategy, addFolderChannel(): Promise<number|null> | null }
@@ -48,18 +41,16 @@ export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel
     let channelsAdded = 0;
     let checkTimer = null;
 
-    overlay = el('div', 'tv-wizard');
-    overlay.setAttribute('role', 'dialog');
-    overlay.setAttribute('aria-modal', 'true');
+    surface = ModalSurface({ className: 'tv-wizard', label: 'Set up RerunTV', host: () => tvScreen.querySelector('.crt') || tvScreen, onCancel: () => { if (goBack) goBack(); } });
+    overlay = surface.el;
     const panel = el('div', 'tv-wizard-panel');
     overlay.appendChild(panel);
-    (tvScreen.querySelector('.crt') || tvScreen).appendChild(overlay);
 
     const finish = () => {
       clearTimeout(checkTimer);
       setRemoteInputSink(null);
-      if (releaseScope) { releaseScope(); releaseScope = null; }
-      overlay.remove();
+      surface.close();
+      surface = null;
       overlay = null;
       goBack = null;
       resolve({ updateStrategy: strategy, channelsAdded });
@@ -77,7 +68,6 @@ export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel
     };
 
     function frame(kicker, title, message) {
-      if (releaseScope) { releaseScope(); releaseScope = null; }
       panel.innerHTML = '';
       const i = WIZARD_STEPS.indexOf(step);
       panel.append(
@@ -165,11 +155,10 @@ export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel
           : 'Add channels from your phone or computer whenever you\'re ready. Hold OK or press Play/Pause any time for the TV menu.');
         actions.appendChild(button('WATCH TV', finish, { isDefault: true }));
       }
-      releaseScope = createFocusScope(overlay);
+      if (surface.isOpen()) surface.refocus(); else surface.open();
     }
 
     render();
   });
 }
 
-registerTvModal({ isOpen, element: () => overlay, cancel: () => { if (goBack) goBack(); } });

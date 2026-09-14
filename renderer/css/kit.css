@@ -1,0 +1,84 @@
+/* Component kit styles (docs/design/04 §3, renderer/js/ui/). Only what the kit
+   adds; Button keeps .btn, SettingRow keeps .setting-row, Menu keeps
+   .row-menu/.guide-run-list, so their established styles still apply.
+   Sizes read the density tokens (tokens.css), so html[data-mode="tv"] scales
+   every component without a per-call prop. Colours are semantic tokens only. */
+
+/* ---------- Focus: one definition ----------
+   A 2px --focus-ring outline offset from the control; the gap shows the
+   surface behind (--focus-halo is the colour the theme check assumes there). */
+:is(.ui-segment, .ui-toggle, .ui-slider input, .ui-stepper input, .icon-btn):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+html[data-mode="tv"] [role="dialog"]:not(#guide-grid) :is(.btn, .ui-segment, .ui-toggle, .ui-slider input, .ui-stepper input):focus-visible {
+  outline-width: 3px;
+  outline-offset: 3px;
+}
+
+/* ---------- Button variants the kit adds ---------- */
+.btn.btn-quiet {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--control-text);
+}
+.btn.btn-quiet::before { display: none; }
+.btn.btn-quiet:hover { border-color: var(--border); }
+.btn .btn-icon { margin-right: var(--space-1); }
+.btn.icon-btn { min-width: var(--control-h); padding-inline: var(--space-2); }
+.btn.icon-btn .btn-icon { margin-right: 0; }
+/* TV-sized kit buttons in TV-mode dialogs. The desk-task setup
+   screen keeps its layout in TV mode, so .btn itself isn't resized there. */
+html[data-mode="tv"] [role="dialog"]:not(#guide-grid) .btn { min-height: var(--target-min); font-size: var(--font-size-label); }
+
+/* ---------- Field ---------- */
+.field { display: grid; gap: var(--space-1); }
+.field-label { color: var(--text); font-size: var(--font-size-label); font-weight: 600; }
+.field-help { margin: 0; color: var(--text-muted); font-size: var(--font-size-label); }
+.field-error { margin: 0; color: var(--danger-text); font-size: var(--font-size-label); font-weight: 600; }
+.field.has-error :is(input, select, textarea) { border-color: var(--danger); }
+
+/* ---------- Toggle, Slider, NumberStepper ---------- */
+.ui-toggle-label { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--text); }
+.ui-slider { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.ui-slider input[type="range"] { flex: 1 1 auto; min-width: 80px; }
+.ui-slider-readout { min-width: 4ch; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.ui-stepper { display: inline-flex; align-items: center; gap: var(--space-1); }
+.ui-stepper input { width: 6ch; text-align: center; }
+html[data-mode="tv"] :is(.ui-slider input[type="range"], .ui-stepper input) { min-height: var(--target-min); font-size: var(--font-size-body); }
+
+/* ---------- Segmented ---------- */
+.ui-segmented { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); }
+/* A .btn segment uses .btn.active's established selected look. */
+.ui-segmented .ui-segment:not(.btn)[aria-checked="true"] {
+  background: var(--selected-bg);
+  color: var(--selected-text);
+  border-color: var(--accent);
+}
+
+/* ---------- Badge and Chip: not controls, so nothing looks pressable ---------- */
+.ui-badge, .ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  font-size: var(--font-size-label);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+}
+.ui-badge { background: var(--surface-0); color: var(--text); border: 1px solid var(--border); }
+.ui-chip { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.ui-badge.tone-warning, .ui-chip.tone-warning { border-color: var(--warning); color: var(--text); }
+.ui-badge.tone-danger, .ui-chip.tone-danger { border-color: var(--danger); color: var(--text); }
+.ui-badge.tone-success, .ui-chip.tone-success { border-color: var(--success); color: var(--text); }
+.ui-badge.tone-accent, .ui-chip.tone-accent { border-color: var(--accent); color: var(--text); }
+
+/* ---------- Plugin panels (docs/design/04 §5) ----------
+   Core wraps each plugin's settings/channel panel in [data-plugin="id"];
+   plugin CSS should scope itself there. Global selectors are unsupported. */
+[data-plugin] { min-width: 0; }

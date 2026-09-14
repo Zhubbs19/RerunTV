@@ -15,8 +15,9 @@ import {
   boundaryAfter, boundaryBefore, isFarJump, programAt, scrubStepMs, scrubWindow,
 } from './scrubber-model.js';
 import { breakMarkEl, spanPercent, timeAtFraction } from './timeline-render.js';
-import { autoHideAfter, formatClock, formatOffset, getDisplayTitle } from './util.js';
+import { formatClock, formatOffset, getDisplayTitle } from './util.js';
 import { isVirtualChannel, virtualChannelSupportsTimeMachine, virtualChannelTimeMachineText } from './virtual.js';
+import { Toast } from './ui/toast.js';
 
 const BREAK_OSD_LABELS = {
   commercial: 'COMMERCIAL BREAK', trivia: 'TRIVIA', channelId: 'STATION ID',
@@ -655,9 +656,7 @@ export async function returnToLive() {
     scheduleBlockBoundaryRetune(ch);
   }
   if (S.timeMachineOn) updateVcrOsd();
-  crtToggleFlash.textContent = 'LIVE';
-  crtToggleFlash.classList.add('show');
-  S.crtToggleFlashTimer = autoHideAfter(S.crtToggleFlashTimer, 1200, () => crtToggleFlash.classList.remove('show'));
+  Toast('LIVE', { element: crtToggleFlash, key: 'returnToLive', duration: 1200 });
   pushRemoteState();
 }
 

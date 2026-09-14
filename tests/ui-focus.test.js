@@ -1,11 +1,11 @@
-// ui/spatial-focus.js — D-pad focus moves to the nearest control that way,
+// ui/focus.js — D-pad focus moves to the nearest control that way,
 // and dialogs default to a safe action (docs/design/01 §6.6).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'ui', 'spatial-focus.js')).href);
+const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'ui', 'focus.js')).href);
 
 // A 3×2 grid of 100×40 buttons with 10 px gaps.
 const grid = [0, 1, 2, 3, 4, 5].map((i) => ({ left: (i % 3) * 110, top: Math.floor(i / 3) * 50, width: 100, height: 40 }));

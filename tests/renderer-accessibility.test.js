@@ -61,7 +61,7 @@ test('channel pages use one tab bar with roving tab semantics', () => {
 test('control center is a sidebar shell with one scroll pane and a pinned status bar', () => {
   const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
   const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
-  const keyboard = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-keyboard.js'), 'utf8');
+  const tabs = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'ui', 'tabs.js'), 'utf8');
   const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
   assert.match(markup, /<aside class="setup-sidebar"/);
   assert.match(markup, /id="setup-tabs"[^>]*aria-orientation="vertical"/);
@@ -78,8 +78,8 @@ test('control center is a sidebar shell with one scroll pane and a pinned status
   assert.match(markup, /data-subtab-panel="backups"[\s\S]*?id="config-export-btn"/);
   assert.doesNotMatch(settings, /applySetupWorkspace/);
   // Step 2: the lineup is a list beside the selected channel's editor.
-  assert.match(markup, /id="channel-list-pane" class="channel-list-pane" role="listbox"[\s\S]*?id="channel-list" class="channel-detail-pane"/);
-  assert.match(keyboard, /getAttribute\('aria-orientation'\) === 'vertical'/);
+  assert.match(markup, /id="channel-list-pane" class="channel-list-pane"[^>]*role="listbox"[\s\S]*?id="channel-list" class="channel-detail-pane"/);
+  assert.match(tabs, /getAttribute\('aria-orientation'\) === 'vertical'/);
   // Steps 3-4: settings are SettingRows (label wired to its control) and one
   // search replaces the separate command palette overlay.
   const rowLabels = markup.match(/<label class="setting-row-label" for="[^"]+"/g) || [];

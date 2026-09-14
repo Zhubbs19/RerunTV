@@ -135,7 +135,7 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   Sound and `audio` is System. Keep ids when moving panels between sections.
 - **Channels:** a list plus the selected channel's editor. `S.setupSelectedChannel` picks which
   channel; set it before `renderChannelList()` whenever numbers change.
-- **New box-level settings:** write a `.setting-row` (`renderer/js/ui/setting-row.js`) with a
+- **New box-level settings:** write a `.setting-row` (`renderer/js/ui/field.js` SettingRow) with a
   sentence-case label wired `for` its control and a one-line help.
   - Use `data-depends-on` for settings that only apply while a switch is on.
   - Add `data-synonyms` for words people would search for.

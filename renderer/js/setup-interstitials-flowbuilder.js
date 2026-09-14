@@ -16,7 +16,7 @@ import { interstitialTypeDef, labeledField } from './setup-interstitials.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, emptyState, parsePositiveInt } from './setup-util.js';
 import { cloneJson } from './commands.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from './state.js';
-import { RowMenu } from './ui/row-menu.js';
+import { MenuButton } from './ui/menu.js';
 
 export function ensureFlowsConfig() {
   if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [], flows: [] };
@@ -240,7 +240,7 @@ function renderFlowPicker(flows) {
     const text = document.createElement('span');
     text.className = 'flow-list-text';
     text.append(name, meta);
-    const menu = RowMenu({
+    const menu = MenuButton({
       label: `Actions for ${flow.name || 'untitled flow'}`,
       groups: [
         [{ label: 'Duplicate', run: () => duplicateFlow(flow) }],

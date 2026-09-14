@@ -19,203 +19,63 @@
 //     provider appeared to do nothing at all, no dialog, no error).
 // All three stack (last one opened sits on top) so a failure alert raised
 // out of a confirm's/prompt's action handler doesn't get lost.
+//
+// Built on the kit's Dialog (docs/design/04 §3): focus trap, the safe default
+// action, and a place on the modal stack, so a remote's D-pad/OK/Back work too.
 
-let seq = 0;
-
-// Plays the closing exit-fade (setup.css) before actually removing the
-// overlay, instead of cutting it off instantly. Skipped under
-// prefers-reduced-motion, where the CSS animation is disabled anyway — no
-// point delaying removal for an animation that won't play.
-const REDUCE_MOTION = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-function closeOverlay(overlay) {
-  if (REDUCE_MOTION()) { overlay.remove(); return; }
-  overlay.classList.add('closing');
-  setTimeout(() => overlay.remove(), 130);
-}
-
-function buildBox({ title, message, kind }) {
-  const overlay = document.createElement('div');
-  overlay.className = 'confirm-dialog';
-  overlay.dataset.kind = kind;
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', title || (kind === 'prompt' ? 'Input required' : 'Message'));
-
-  const box = document.createElement('div');
-  box.className = 'confirm-dialog-box';
-  if (kind === 'confirm-danger' || kind === 'alert-error') box.classList.add('confirm-dialog-danger');
-
-  if (title) {
-    const titleEl = document.createElement('div');
-    titleEl.className = 'confirm-dialog-title';
-    titleEl.textContent = title;
-    box.appendChild(titleEl);
-  }
-
-  const msgEl = document.createElement('div');
-  msgEl.className = 'confirm-dialog-message';
-  msgEl.textContent = message;
-  box.appendChild(msgEl);
-
-  overlay.appendChild(box);
-  return { overlay, box };
-}
-
-function focusTrap(overlay, box) {
-  const id = `confirm-dialog-${++seq}`;
-  overlay.id = id;
-  // 'button' alone missed promptDialog's <input> — found in review: tabbing
-  // forward from OK wrapped straight to CANCEL, permanently skipping the
-  // text field for that dialog instance. confirmDialog/alertDialog have no
-  // non-button focusables, so this widened selector is a no-op for them.
-  const focusable = () => Array.from(box.querySelectorAll('button, input'));
-  overlay.addEventListener('keydown', (e) => {
-    if (e.key === 'Tab') {
-      const els = focusable();
-      if (!els.length) return;
-      const first = els[0];
-      const last = els[els.length - 1];
-      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
-  });
-}
+import { Dialog } from './ui/dialog.js';
+import { h } from './ui/kit-core.js';
 
 export function confirmDialog(opts) {
   const {
     message, title = null, danger = true, confirmText = danger ? 'REMOVE' : 'OK', cancelText = 'CANCEL',
   } = typeof opts === 'string' ? { message: opts } : opts;
-
-  return new Promise((resolve) => {
-    const { overlay, box } = buildBox({ title, message, kind: danger ? 'confirm-danger' : 'confirm' });
-
-    const actions = document.createElement('div');
-    actions.className = 'confirm-dialog-actions';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn';
-    cancelBtn.textContent = cancelText;
-
-    const confirmBtn = document.createElement('button');
-    confirmBtn.className = danger ? 'btn btn-danger' : 'btn btn-primary';
-    confirmBtn.textContent = confirmText;
-
-    actions.appendChild(cancelBtn);
-    actions.appendChild(confirmBtn);
-    box.appendChild(actions);
-
-    const previouslyFocused = document.activeElement;
-    const close = (result) => {
-      overlay.removeEventListener('keydown', onKeydown);
-      closeOverlay(overlay);
-      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
-      resolve(result);
-    };
-    const onKeydown = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); close(false); }
-    };
-
-    cancelBtn.addEventListener('click', () => close(false));
-    confirmBtn.addEventListener('click', () => close(true));
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(false); });
-    overlay.addEventListener('keydown', onKeydown);
-    focusTrap(overlay, box);
-
-    document.body.appendChild(overlay);
-    // Destructive dialogs default to the safe action. Enter now activates
-    // whichever real button owns focus instead of confirming from anywhere
-    // in the dialog, preventing an accidental key repeat from deleting data.
-    (danger ? cancelBtn : confirmBtn).focus();
-  });
+  // Destructive dialogs default to the safe action. Enter activates whichever
+  // real button owns focus instead of confirming from anywhere in the dialog,
+  // so an accidental key repeat can't delete data.
+  return Dialog({
+    title,
+    message,
+    kind: danger ? 'confirm-danger' : 'confirm',
+    danger,
+    dismissValue: false,
+    actions: [
+      { label: cancelText, value: false },
+      { label: confirmText, variant: danger ? 'danger' : 'primary', value: true, isDefault: !danger },
+    ],
+  }).result;
 }
 
 export function alertDialog(message, opts = {}) {
   const { title = null, variant = 'info' } = opts;
-  return new Promise((resolve) => {
-    const { overlay, box } = buildBox({
-      title: title || (variant === 'error' ? 'ERROR' : null),
-      message,
-      kind: variant === 'error' ? 'alert-error' : 'alert',
-    });
-
-    const actions = document.createElement('div');
-    actions.className = 'confirm-dialog-actions';
-    const okBtn = document.createElement('button');
-    okBtn.className = variant === 'error' ? 'btn btn-danger' : 'btn btn-primary';
-    okBtn.textContent = 'OK';
-    actions.appendChild(okBtn);
-    box.appendChild(actions);
-
-    const previouslyFocused = document.activeElement;
-    const close = () => {
-      overlay.removeEventListener('keydown', onKeydown);
-      closeOverlay(overlay);
-      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
-      resolve();
-    };
-    const onKeydown = (e) => {
-      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
-    };
-
-    okBtn.addEventListener('click', close);
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(); });
-    overlay.addEventListener('keydown', onKeydown);
-    focusTrap(overlay, box);
-
-    document.body.appendChild(overlay);
-    okBtn.focus();
-  });
+  return Dialog({
+    title: title || (variant === 'error' ? 'ERROR' : null),
+    message,
+    kind: variant === 'error' ? 'alert-error' : 'alert',
+    danger: variant === 'error',
+    dismissValue: undefined,
+    enterValue: () => undefined,
+    // An error's only button is OK; it closes, it doesn't destroy anything.
+    actions: [{ label: 'OK', variant: variant === 'error' ? 'danger' : 'primary', value: undefined, isDefault: true }],
+  }).result;
 }
 
 export function promptDialog(opts = {}) {
   const {
     message, title = null, placeholder = '', defaultValue = '',
   } = typeof opts === 'string' ? { message: opts } : opts;
-
-  return new Promise((resolve) => {
-    const { overlay, box } = buildBox({ title, message, kind: 'prompt' });
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'title-row-input';
-    input.placeholder = placeholder;
-    input.value = defaultValue;
-    box.appendChild(input);
-
-    const actions = document.createElement('div');
-    actions.className = 'confirm-dialog-actions';
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'btn';
-    cancelBtn.textContent = 'CANCEL';
-
-    const okBtn = document.createElement('button');
-    okBtn.className = 'btn btn-primary';
-    okBtn.textContent = 'OK';
-
-    actions.appendChild(cancelBtn);
-    actions.appendChild(okBtn);
-    box.appendChild(actions);
-
-    const previouslyFocused = document.activeElement;
-    const close = (result) => {
-      overlay.removeEventListener('keydown', onKeydown);
-      closeOverlay(overlay);
-      if (previouslyFocused && previouslyFocused.focus) previouslyFocused.focus();
-      resolve(result);
-    };
-    const onKeydown = (e) => {
-      if (e.key === 'Escape') { e.preventDefault(); close(null); }
-      else if (e.key === 'Enter') { e.preventDefault(); close(input.value.trim()); }
-    };
-
-    cancelBtn.addEventListener('click', () => close(null));
-    okBtn.addEventListener('click', () => close(input.value.trim()));
-    overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) close(null); });
-    overlay.addEventListener('keydown', onKeydown);
-    focusTrap(overlay, box);
-
-    document.body.appendChild(overlay);
-    input.focus();
-  });
+  const input = h('input', { type: 'text', className: 'title-row-input', placeholder, value: defaultValue });
+  return Dialog({
+    title,
+    message,
+    kind: 'prompt',
+    body: input,
+    dismissValue: null,
+    enterValue: () => input.value.trim(),
+    initialFocus: input,
+    actions: [
+      { label: 'CANCEL', value: null },
+      { label: 'OK', variant: 'primary', value: () => input.value.trim() },
+    ],
+  }).result;
 }

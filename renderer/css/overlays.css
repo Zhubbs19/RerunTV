@@ -344,7 +344,8 @@ html[data-mode="tv"] .shortcuts-panel { padding: var(--safe-y, 5%) var(--safe-x,
 .tv-suggest-btn.quiet { border-color: var(--border); background: transparent; color: var(--text-muted); }
 
 /* On-screen keyboard (ui/on-screen-keyboard.js) and the first-run TV wizard
-   (tv-wizard.js), docs/design/01 §6.4–6.5. C4 (doc 04) will own these. */
+   (tv-wizard.js), docs/design/01 §6.4–6.5. Both are kit ModalSurfaces of bare kit
+   Buttons (docs/design/04); this is their look. */
 .osk, .tv-wizard {
   position: absolute;
   inset: 0;
