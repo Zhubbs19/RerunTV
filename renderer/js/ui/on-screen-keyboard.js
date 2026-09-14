@@ -3,7 +3,6 @@
 // TV modal registry, so ◀▲▼▶ move between keys by position, OK types, Back
 // cancels. Returns a promise of the text, or null when cancelled.
 // A C4 component (docs/design/04) will replace this markup.
-import { tvScreen } from '../dom.js';
 import { OSK_ROWS, applyOskKey } from '../tv-setup-model.js';
 import { registerTvModal } from '../tv-input.js';
 import { createFocusScope } from './spatial-focus.js';
@@ -81,7 +80,8 @@ export function openOnScreenKeyboard({ title = 'ENTER TEXT', value = '', maxLeng
       }
     });
     overlay.appendChild(panel);
-    (tvScreen.querySelector('.crt') || tvScreen).appendChild(overlay);
+    // On the page, not inside the TV screen: it can open over the docked guide.
+    document.body.appendChild(overlay);
     overlay._releaseScope = createFocusScope(overlay);
     // Start on the first letter, not DONE, so typing is one OK away.
     const first = overlay.querySelector('.osk-key');

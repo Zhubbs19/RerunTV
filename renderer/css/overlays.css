@@ -286,9 +286,21 @@ body:has(.crt.power-off) #guide-overlay {
    title (docs/design/01 §6.3). The desktop grid is untouched. */
 .tv-menu-grid.tv-menu-list {
   grid-template-columns: 1fr;
-  max-width: min(760px, 80%);
-  margin: 0 auto;
   gap: 8px;
+}
+/* The panel sizes to its content; a one-column list needs a real width or it
+   shrinks to the longest label and wraps ("PICTURE & SOUND ›"). */
+html[data-mode="tv"] .shortcuts-panel:has(.tv-menu-list) { width: min(720px, 88%); max-height: 90%; }
+html[data-mode="tv"] .tv-menu-grid .tv-menu-btn { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The banner hub's actions sit just above the channel banner (bottom left),
+   clear of the rating badge and logo bug corners. */
+.guide-run-list.banner-actions {
+  position: absolute;
+  left: clamp(10px, 5%, 32px);
+  bottom: calc(clamp(10px, 5%, 32px) + 150px);
+  z-index: 30;
+  min-width: min(360px, 60%);
 }
 html[data-mode="tv"] .tv-menu-grid .tv-menu-btn {
   min-height: var(--tv-target, 64px);
@@ -337,6 +349,15 @@ html[data-mode="tv"] .shortcuts-panel { padding: var(--tv-safe-y, 5%) var(--tv-s
   position: absolute;
   inset: 0;
   z-index: 65;
+}
+/* The keyboard can open over the docked guide, which sits above the TV
+   screen's own overlays (#guide-grid is a top-level #app child), so it lives
+   on the page itself. */
+.osk {
+  position: fixed;
+  z-index: 1200;
+}
+.osk, .tv-wizard {
   display: flex;
   align-items: center;
   justify-content: center;

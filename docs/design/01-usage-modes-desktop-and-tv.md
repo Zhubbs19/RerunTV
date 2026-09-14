@@ -1,7 +1,8 @@
 # 01 — Usage modes: Desktop and TV
 
-Status: **Phases A and B built** (B's APK compiles; it has not been installed on the reference
-TV yet — the owner does that). Phases C, D and E built. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+Status: **built** — phases A–E, verified live on the desktop build (see "Verification, phases B–E").
+Still open, all on hardware: installing the APK on the reference Hisense TV and running step B0 there,
+and anything CEC/Tizen/webOS. Deep links in the phone handoff wait for doc 06. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
 plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 
 ### Built (Phase A, and the JS side of Phase B)
@@ -59,6 +60,34 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - **Learn mode** (TV menu › CUSTOMIZE BUTTONS): pick an action, press a button, done; reset clears.
 - **Back exits at once** (§12 risk): a per-device option in the TV menu; Back then leaves (or drops
   to standby where the client can't close itself) instead of asking.
+
+### Verification, phases B–E (2026-09-14, installed app's lineup, 1280×720)
+
+- Unit tests: 150 pass (`npm test`), including remote profile, Android keycodes, handoff/capture saving,
+  spatial focus, the suggestion rule, TV setup stepping, the keyboard, the wizard, gamepad mapping,
+  Tizen/webOS shims and the CEC parser.
+- Scratch `test/verify-doc01.mjs` 26/26, driving the page through `RerunTVInput.native` with **raw
+  Android keycodes** (what the new APK posts), plus a stubbed Gamepad API:
+  - desktop unchanged: the ? grid menu is still 4 columns, and Enter on live TV still just shows the banner;
+  - Play/Pause opens the one-column menu with GUIDE, TIME MACHINE › first; BACK goes up a level;
+  - the number pad fills the entry buffer; the banner hub browses without tuning, shows actions, and tunes;
+  - blue lists reminders; yellow opens the keyboard and types into the guide filter;
+  - the ● GUIDE hint appears only after a Guide key;
+  - remote test shows unmapped presses, routes none, and saves to `userData/remote-profiles`;
+  - learn mode maps a new keycode to GUIDE; handoff shows a QR for the Companion pairing URL;
+  - SETUP › THEME steps and applies with ◀▶, and RENAME… works through the keyboard;
+  - the wizard runs end to end, Music Choice takes `move.right` via onAction while CH ▲ still tunes away,
+    gamepad Start/B open and close the menu, and Preview TV mode is session-only;
+  - the TV menu and keyboard fit the screen with 64 px targets in all 26 themes.
+- Regression: full UI suite 36/36; doc 11's `verify-doc11.mjs` 34/34 (its TV press counts still 3 and 5).
+- Screenshots checked by eye. That caught, and fixed: the TV menu column shrinking to its longest
+  label, the keyboard opening under the docked guide, and the banner actions sitting over the rating
+  badge.
+- Found and fixed along the way (pre-existing since the first commit): core called a plugin channel's
+  `stop()` with only `{ container }` although `render()` and the docs give it the full ctx, so Music Choice
+  threw on every tune-away and left its listeners on the shared player.
+- **Not verified:** the Hisense 50QD6030G (APK install, real long-press timing, step B0 capture), game
+  controllers on real hardware, CEC, Tizen and webOS.
 
 ### Built (Phase E, 2026-09-14) — unit-tested, not verified on hardware
 

@@ -119,6 +119,14 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   new remote is a JS change; a host older than 2 can't drive the client at all. `native({ key })`
   (a RemoteKey name) still works for the phone remote and touch controls. Bump the version only
   for an incompatible change to that call.
+- **TV overlays.** A new full-screen TV overlay calls `registerTvModal({ isOpen, element, cancel })`
+  (`tv-input.js`) to get D-pad dialog handling (spatial focus, OK presses, Back cancels). Don't add
+  another hardcoded check to `currentContext()`.
+- **TV menu.** In TV mode `tv-menu.js` is a one-column hierarchy (`tvRootItems`); desktop keeps the
+  flat grid (`actions()`). A setting a remote should reach goes in `tv-setup.js` as a `valueItem`
+  (◀▶ steps it).
+- **Plugin channels in TV mode** get `onAction(action, ctx)` (ctx v5) before core. Unhandled actions
+  fall back to core, so ▲▼ still change channel.
 
 ## Setup screen patterns
 
