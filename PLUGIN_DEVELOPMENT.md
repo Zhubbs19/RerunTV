@@ -1023,7 +1023,11 @@ power state), `'draw-test-pattern'` (fired instead of the plain no-signal
 card, for an unconfigured channel number), `'guide-channel-cell'` (fired as
 each programme-guide row is built, with `{ channel, cell }`, so a plugin can
 decorate that channel's cell — append to `cell` and core neither knows nor
-cares what you added).
+cares what you added), `'guide-program-actions'` (fired when someone holds OK
+on a program in the guide, with `{ channel, entry, actions }` — push
+`{ label, run }` onto `actions` to add an item to that program's actions menu;
+`entry` is a schedule entry `{ file, start, end }`, and `run` is called after
+the menu closes. `plugins/tape-deck/renderer.js` adds RECORD this way).
 
 One thing to know about `'guide-channel-cell'`: the guide does NOT rebuild
 its rows on its 30-second tick (see the render-signature fast path in

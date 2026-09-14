@@ -25,6 +25,7 @@ import {
 import { BREAK_LABELS, breakMarkEl, spanPercent } from './timeline-render.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 import { getThemePack, runCoreHooks } from './plugins.js';
+import { openTvMenu } from './tv-menu.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -306,7 +307,7 @@ export function openGuideGrid() {
 }
 
 export function closeGuideGrid() {
-  closeRunList();
+  closeGuidePopover();
   if (guideGrid.classList.contains('hidden')) return;
   sfxGuideToggle(false);
   clearInterval(S.guideTickTimer);
@@ -351,6 +352,13 @@ export function toggleGuideDockMode() {
   S.guideDocked = !S.guideDocked;
   applyGuideDockMode();
   positionNowLine(S.guideWindowStart + GUIDE_SLOT_MS * guideSlots());
+}
+
+// TV menu › SEARCH while the guide is open (doc 11 §2.3): the same filter
+// box / opens. On Google TV focusing it brings up the on-screen keyboard.
+export function focusGuideSearch() {
+  closeGuidePopover();
+  guideSearchEl.focus();
 }
 
 export function toggleGuideShowBreaks() {
@@ -430,70 +438,75 @@ function runLabel(cell) {
   return `SHORTS & BUMPERS (${cell.items.length})`;
 }
 
-// ---------- Shorts & bumpers list ----------
-// OK/click on a merged cell opens its entries as a small list; ▲▼ move, OK
-// tunes one (from its start with the time machine on), Back closes.
-let runList = null; // { ch, cell, idx, el }
+// ---------- Popovers: shorts & bumpers list, program actions ----------
+// One small list over the grid at a time, beside the selected cell. ▲▼ move,
+// OK runs the highlighted item, Back (or any other key) closes. Keys reach it
+// through handleGuideGridKey, so keyboard and TV remote (key:Arrow*/Enter/
+// Escape routes) work the same. C4 (docs/design/04) will provide a popover
+// component for this.
+let popover = null; // { el, items, idx }
 
-function closeRunList() {
-  if (!runList) return;
-  runList.el.remove();
-  runList = null;
+function closeGuidePopover() {
+  if (!popover) return;
+  popover.el.remove();
+  popover = null;
 }
 
-function highlightRunItem() {
-  if (!runList) return;
-  Array.from(runList.el.querySelectorAll('.guide-run-item')).forEach((item, i) => {
-    const active = i === runList.idx;
+export function guidePopoverOpen() {
+  return !!popover;
+}
+
+function highlightPopoverItem() {
+  if (!popover) return;
+  Array.from(popover.el.querySelectorAll('.guide-run-item')).forEach((item, i) => {
+    const active = i === popover.idx;
     item.classList.toggle('active', active);
     item.setAttribute('aria-selected', active ? 'true' : 'false');
     if (active) item.scrollIntoView({ block: 'nearest' });
   });
 }
 
-function tuneRunItem(i) {
-  if (!runList) return;
-  const { ch, cell } = runList;
-  const entry = cell.items[i];
-  closeRunList();
-  if (!entry) return;
-  S.guideSelNumber = ch.number;
-  S.guideSelTime = entry.start + 1;
-  jumpToGuideEntry(ch, entry);
-  closeGuideGrid();
+function runPopoverItem(i) {
+  if (!popover) return;
+  const item = popover.items[i];
+  closeGuidePopover();
+  if (item && item.run) item.run();
 }
 
-function openRunList(ch, cell, anchorEl) {
-  closeRunList();
+// items: [{ label, time?, className?, run }]
+function openGuidePopover({ heading, ariaLabel, items, anchorEl, initialIdx = 0, className = '' }) {
+  closeGuidePopover();
+  if (!items.length) return;
   const el = document.createElement('div');
-  el.className = 'guide-run-list';
+  el.className = `guide-run-list${className ? ` ${className}` : ''}`;
   el.setAttribute('role', 'listbox');
-  el.setAttribute('aria-label', `${runLabel(cell)} on CH ${formatChannelNumber(ch.number)}`);
-  const heading = document.createElement('div');
-  heading.className = 'guide-run-heading';
-  heading.textContent = `${runLabel(cell)} · ${formatSlotLabel(cell.start)} – ${formatSlotLabel(cell.end)}`;
-  el.appendChild(heading);
-  const now = viewNow();
-  cell.items.forEach((entry, i) => {
+  el.setAttribute('aria-label', ariaLabel || heading);
+  const head = document.createElement('div');
+  head.className = 'guide-run-heading';
+  head.textContent = heading;
+  el.appendChild(head);
+  items.forEach((entry, i) => {
     const item = document.createElement('button');
     item.type = 'button';
-    item.className = 'guide-run-item' + (entry.end <= now ? ' past' : '');
+    item.className = `guide-run-item${entry.className ? ` ${entry.className}` : ''}`;
     item.setAttribute('role', 'option');
     item.tabIndex = -1;
-    const time = document.createElement('span');
-    time.className = 'guide-run-time';
-    time.textContent = formatSlotLabel(entry.start);
+    if (entry.time) {
+      const time = document.createElement('span');
+      time.className = 'guide-run-time';
+      time.textContent = entry.time;
+      item.appendChild(time);
+    }
     const title = document.createElement('span');
     title.className = 'guide-run-title';
-    title.textContent = getDisplayTitle(entry.file);
-    item.append(time, title);
-    item.addEventListener('click', () => tuneRunItem(i));
-    item.addEventListener('mousemove', () => { if (runList && runList.idx !== i) { runList.idx = i; highlightRunItem(); } });
+    title.textContent = entry.label;
+    item.appendChild(title);
+    item.addEventListener('click', () => runPopoverItem(i));
+    item.addEventListener('mousemove', () => { if (popover && popover.idx !== i) { popover.idx = i; highlightPopoverItem(); } });
     el.appendChild(item);
   });
   guideGrid.appendChild(el);
-  const at = cellIndexAt(cell.items.map((entry) => ({ start: entry.start, end: entry.end })), Math.max(now, cell.start));
-  runList = { ch, cell, idx: at === -1 ? 0 : at, el };
+  popover = { el, items, idx: Math.max(0, Math.min(items.length - 1, initialIdx)) };
   // Beside the cell: above it when there's room, else below; kept inside the grid.
   const grid = guideGrid.getBoundingClientRect();
   const anchor = anchorEl && anchorEl.isConnected ? anchorEl.getBoundingClientRect() : grid;
@@ -503,16 +516,121 @@ function openRunList(ch, cell, anchorEl) {
   const top = above >= 8 ? above : Math.min(anchor.bottom - grid.top + 4, grid.height - box.height - 8);
   el.style.left = `${left}px`;
   el.style.top = `${Math.max(8, top)}px`;
-  highlightRunItem();
+  highlightPopoverItem();
 }
 
-function handleRunListKey(e) {
+function handleGuidePopoverKey(e) {
   switch (e.key) {
-    case 'ArrowUp': runList.idx = Math.max(0, runList.idx - 1); highlightRunItem(); break;
-    case 'ArrowDown': runList.idx = Math.min(runList.cell.items.length - 1, runList.idx + 1); highlightRunItem(); break;
-    case 'Enter': tuneRunItem(runList.idx); break;
-    default: closeRunList(); break;
+    case 'ArrowUp': popover.idx = Math.max(0, popover.idx - 1); highlightPopoverItem(); break;
+    case 'ArrowDown': popover.idx = Math.min(popover.items.length - 1, popover.idx + 1); highlightPopoverItem(); break;
+    case 'Enter': runPopoverItem(popover.idx); break;
+    default: closeGuidePopover(); break;
   }
+}
+
+function selectedCellEl() {
+  return guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel');
+}
+
+// OK/click on a merged cell: its entries, OK tunes one (from its start with
+// the time machine on).
+function openRunList(ch, cell, anchorEl) {
+  const now = viewNow();
+  const at = cellIndexAt(cell.items, Math.max(now, cell.start));
+  openGuidePopover({
+    heading: `${runLabel(cell)} · ${formatSlotLabel(cell.start)} – ${formatSlotLabel(cell.end)}`,
+    ariaLabel: `${runLabel(cell)} on CH ${formatChannelNumber(ch.number)}`,
+    anchorEl,
+    initialIdx: at === -1 ? 0 : at,
+    items: cell.items.map((entry) => ({
+      time: formatSlotLabel(entry.start),
+      label: getDisplayTitle(entry.file),
+      className: entry.end <= now ? 'past' : '',
+      run: () => {
+        S.guideSelNumber = ch.number;
+        S.guideSelTime = entry.start + 1;
+        jumpToGuideEntry(ch, entry);
+        closeGuideGrid();
+      },
+    })),
+  });
+}
+
+// ±24 h (colour keys when a remote has them, otherwise the actions menu).
+// Without the time machine the guide can't go back past the current slot,
+// same rule as ◀ (moveGuideSelectionTime).
+export function shiftGuideDay(direction) {
+  const DAY = 86400000;
+  const windowMs = GUIDE_SLOT_MS * guideSlots();
+  const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
+  const floor = floorToSlot(viewNow());
+  let start = S.guideWindowStart + direction * DAY;
+  if (!canRewind && start < floor) start = floor;
+  if (start === S.guideWindowStart) return;
+  S.guideWindowStart = start;
+  S.guideSelTime = Math.min(Math.max(S.guideSelTime + direction * DAY, start), start + windowMs - 1);
+  closeGuidePopover();
+  renderGuideGrid();
+}
+
+// Long-press OK in the guide (doc 01 §5.3, doc 11 §2.3): what you can do with
+// the highlighted program. Plugins add items through the
+// 'guide-program-actions' core hook ({ channel, entry, actions }) — the tape
+// deck's RECORD is one.
+export function openGuideProgramActions() {
+  const row = selectedRow();
+  if (!row) return;
+  const items = [];
+  const tvMenu = { label: 'TV MENU', run: () => openTvMenu() };
+  const timeMachineOn = !!(S.config.timeMachine && S.config.timeMachine.enabled);
+  let heading;
+  if (row.kind === 'special') {
+    heading = `CH ${formatChannelNumber(row.number)} · ${row.info.name}`;
+    items.push({ label: 'TUNE', run: () => { tuneToChannel(row.number); closeGuideGrid(); } });
+  } else {
+    const { ch } = row;
+    const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+    const cell = cells[cellIndexAt(cells, S.guideSelTime)];
+    if (cell && cell.kind === 'run') {
+      heading = `${runLabel(cell)} · CH ${formatChannelNumber(ch.number)}`;
+      items.push({ label: 'OPEN LIST', run: () => openRunList(ch, cell, selectedCellEl()) });
+    } else if (cell) {
+      const { entry } = cell;
+      const title = getDisplayTitle(entry.file);
+      heading = `${title} · ${formatSlotLabel(entry.start)}`;
+      // First, so "start of this show" from live TV is ◀, hold OK, OK.
+      if (timeMachineOn) {
+        items.push({
+          label: 'WATCH FROM START',
+          run: () => {
+            S.guideSelTime = entry.start + 1;
+            jumpToGuideEntry(ch, entry);
+            closeGuideGrid();
+          },
+        });
+      }
+      if (!S.config.details || S.config.details.enabled !== false) items.push({ label: 'INFO', run: () => showDetailsForGuideSelection() });
+      const actions = [];
+      runCoreHooks('guide-program-actions', { channel: ch, entry, actions });
+      actions.filter((a) => a && a.label && typeof a.run === 'function').forEach((a) => {
+        items.push({ label: String(a.label).toUpperCase(), run: () => a.run() });
+      });
+      if (entry.start > viewNow()) {
+        const exists = (S.config.reminders || []).some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
+        items.push({
+          label: exists ? 'REMINDER SET' : 'REMIND ME',
+          className: exists ? 'past' : '',
+          run: () => { if (!exists) addProgramReminder({ channel: ch, entry, title }); },
+        });
+      }
+    } else {
+      heading = `CH ${formatChannelNumber(ch.number)} · ${ch.name || 'UNTITLED'}`;
+    }
+  }
+  items.push({ label: 'GUIDE −24 HOURS', run: () => shiftGuideDay(-1) });
+  items.push({ label: 'GUIDE +24 HOURS', run: () => shiftGuideDay(1) });
+  items.push(tvMenu);
+  openGuidePopover({ heading, items, anchorEl: selectedCellEl() || guideRowsEl.querySelector('.guide-row.active-row'), className: 'guide-actions' });
 }
 
 function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
@@ -565,8 +683,7 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
         S.guideSelNumber = ch.number;
         S.guideSelTime = cell.start + 1;
         renderGuideGrid();
-        const selected = guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel');
-        openRunList(ch, cell, selected || block);
+        openRunList(ch, cell, selectedCellEl() || block);
       });
       track.appendChild(block);
       return;
@@ -767,7 +884,7 @@ window.addEventListener('resize', () => {
   if (guideGrid.classList.contains('hidden')) return;
   cancelAnimationFrame(guideResizeFrame);
   guideResizeFrame = requestAnimationFrame(() => {
-    closeRunList();
+    closeGuidePopover();
     renderGuideGrid(); // fast path unless the shorts threshold moved
     fitDockedGuideHeight();
     const idx = selectedIndex(currentGuideRows(), S.guideSelNumber);
@@ -1042,9 +1159,9 @@ export function handleGuideGridKey(e) {
     return;
   }
 
-  // The shorts & bumpers list is modal while open.
-  if (runList) {
-    handleRunListKey(e);
+  // A popover (shorts list, program actions) is modal while open.
+  if (popover) {
+    handleGuidePopoverKey(e);
     e.preventDefault();
     return;
   }
@@ -1069,7 +1186,7 @@ export function handleGuideGridKey(e) {
         const cells = guideCells(selCh, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
         const selCell = cells[cellIndexAt(cells, S.guideSelTime)];
         if (selCell && selCell.kind === 'run') {
-          openRunList(selCh, selCell, guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel'));
+          openRunList(selCh, selCell, selectedCellEl());
           break;
         }
         jumpToGuideEntry(selCh, selCell ? selCell.entry : undefined);

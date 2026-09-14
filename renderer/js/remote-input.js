@@ -34,6 +34,17 @@ const BY_KEY = {
   AudioTrack: 'audioTrack', Power: 'power', Backspace: 'last',
 };
 
+// Which RemoteKeys only some remotes have — hints for them stay hidden until
+// this device has actually sent one (doc 01 §5.2: hints show only what the
+// current remote delivers).
+export const OPTIONAL_KEY_GROUPS = {
+  colour: ['red', 'green', 'yellow', 'blue'],
+};
+
+export function optionalGroupOf(remoteKey) {
+  return Object.keys(OPTIONAL_KEY_GROUPS).find((group) => OPTIONAL_KEY_GROUPS[group].includes(remoteKey)) || null;
+}
+
 // Legacy keyCodes some TV browsers report with an unhelpful key ("Unidentified").
 const BY_KEY_CODE = {
   10009: 'back', 461: 'back', // Samsung Return, LG Back
@@ -93,13 +104,17 @@ const TIME_MACHINE = {
   red: 'key:[', green: 'key:]',
 };
 
+// docs/design/11 §2.3. Hold OK opens the highlighted program's actions (Info,
+// Record, Remind, Watch from start, ±24 h, TV menu); red/green step a day
+// where a remote has colour keys. Dock/full page and search live in the TV
+// menu while the guide is open (tv-menu.js).
 const GUIDE = {
   up: 'key:ArrowUp', down: 'key:ArrowDown', left: 'key:ArrowLeft', right: 'key:ArrowRight',
   chUp: 'guide.pageUp', chDown: 'guide.pageDown',
-  ok: 'key:Enter', 'long:ok': 'key:i', info: 'key:i',
+  ok: 'key:Enter', 'long:ok': 'guide.programActions', info: 'key:i',
   back: 'key:Escape', exit: 'key:Escape', guide: 'key:Escape',
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
-  yellow: 'key:b', blue: 'key:d',
+  red: 'guide.dayBack', green: 'guide.dayForward', yellow: 'key:b', blue: 'key:d',
 };
 
 const MENU = {

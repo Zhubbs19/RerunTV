@@ -1,6 +1,6 @@
 # 11 — Guide and time machine
 
-Status: **in progress** — phases 1–2 built (committed locally, live verification at doc end). Depends on:
+Status: **in progress** — phases 1–3 built (committed locally, live verification at doc end). Depends on:
 C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 09 (record from guide).
 
 ### Built (§4 phase 1: specials, selection, layout)
@@ -51,6 +51,26 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   several words (The Movie Channel → TMC; a capitalised short word like WV keeps its letters), a word of 6
   letters or fewer as itself, longer words first letter + consonants (Nickelodeon → NCKLDN). Special rows use
   the automatic value. The full name stays in the cell's tooltip.
+### Built (§4 phase 3: remote actions and hints)
+
+- `remote-input.js` GUIDE table: hold OK → `guide.programActions` (was `key:i`; Info stays on the Info button),
+  red/green → `guide.dayBack`/`guide.dayForward`; yellow/blue keep breaks/dock. `tv-input.js` runs them.
+  Desktop keys are unchanged: `handleGuideGridKey` only differs while a guide popover is open, and popovers
+  only open from the new TV action or a click/Enter on a merged shorts cell.
+- **Program actions** (`guide.js` `openGuideProgramActions`), a popover beside the cell sharing the shorts list's
+  component (`openGuidePopover`): WATCH FROM START (first, when the time machine is enabled), INFO, plugin
+  items, REMIND ME (future programs), GUIDE −24 HOURS / +24 HOURS (`shiftGuideDay`, which still can't go
+  before the current slot without the time machine), TV MENU. A special row offers TUNE; a shorts cell OPEN
+  LIST.
+- New core hook `guide-program-actions` (`{ channel, entry, actions }`, documented in PLUGIN_DEVELOPMENT.md).
+  The tape deck adds RECORD (tapes an airing or past program from the schedule now) or RECORD (SET TIMER)
+  for a future one, written to its existing `scheduled` timers. Record from the guide without the plugin is doc 09.
+- TV menu while the guide is open starts with FULL PAGE / DOCK GUIDE, SHOW / HIDE BREAKS and SEARCH GUIDE
+  (focuses the filter box; on Google TV that should raise the system keyboard — unconfirmed on hardware).
+- Guide hints: TV mode shows OK TUNE · HOLD OK: OPTIONS · CH ▲▼ PAGE · MENU: DOCK · BREAKS · SEARCH · BACK
+  CLOSE. The RED/GREEN −/+ DAY hint has `data-hint-requires="colour"` and only appears once this device has
+  sent a colour key (`OPTIONAL_KEY_GROUPS`, `html.remote-has-colour`, per session) — the Hisense remote has
+  none, so it never shows there.
 
 ## 1. Problems (from the 2026-09-12 audit and TV-remote constraints)
 

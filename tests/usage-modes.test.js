@@ -84,3 +84,17 @@ test('long press fires once past the threshold; a quick release is short', async
   assert.equal(t.release('ok', 2600), 'long-late', 'held long but the timer never ran');
   assert.equal(t.release('ok', 2700), null);
 });
+
+test('guide actions follow doc 11 §2.3: hold OK for program actions, colour keys step a day', async () => {
+  const { routeRemoteKey, hasLongPress, optionalGroupOf } = await load('remote-input.js');
+  assert.equal(routeRemoteKey('guide', 'ok'), 'key:Enter', 'a short OK still tunes');
+  assert.equal(routeRemoteKey('guide', 'ok', { longPress: true }), 'guide.programActions');
+  assert.equal(hasLongPress('guide', 'ok'), true);
+  assert.equal(routeRemoteKey('guide', 'red'), 'guide.dayBack');
+  assert.equal(routeRemoteKey('guide', 'green'), 'guide.dayForward');
+  assert.equal(routeRemoteKey('guide', 'info'), 'key:i');
+  assert.equal(routeRemoteKey('guide', 'chDown'), 'guide.pageDown');
+  assert.equal(routeRemoteKey('guide', 'playPause'), 'menu.toggle', 'the TV menu holds dock, breaks and search');
+  assert.equal(optionalGroupOf('blue'), 'colour');
+  assert.equal(optionalGroupOf('ok'), null);
+});

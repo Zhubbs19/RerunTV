@@ -20,10 +20,12 @@ import {
 } from './dom.js';
 import { getChannel } from './channels.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { openGuideGrid, pageGuideSelection, showGuideOverlay } from './guide.js';
+import {
+  openGuideGrid, openGuideProgramActions, pageGuideSelection, shiftGuideDay, showGuideOverlay,
+} from './guide.js';
 import { powerOff } from './power.js';
 import {
-  CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeKey, routeRemoteKey,
+  CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeKey, optionalGroupOf, routeRemoteKey,
 } from './remote-input.js';
 import { S } from './state.js';
 import { enterTimeMachine } from './timemachine.js';
@@ -121,6 +123,9 @@ const ACTIONS = {
   'timeMachine.open': () => { if (!S.timeMachineOn) enterTimeMachine(); },
   'guide.pageUp': () => pageGuide(-1),
   'guide.pageDown': () => pageGuide(1),
+  'guide.programActions': () => openGuideProgramActions(),
+  'guide.dayBack': () => shiftGuideDay(-1),
+  'guide.dayForward': () => shiftGuideDay(1),
   'exit.prompt': () => showExitPrompt(),
   'focus.prev': () => moveDialogFocus(-1),
   'focus.next': () => moveDialogFocus(1),
@@ -154,6 +159,7 @@ export function routeKeydown(event) {
   if (!isTvMode()) return false;
   const remoteKey = normalizeKey(event);
   if (!remoteKey) return false;
+  noteRemoteKey(remoteKey);
   const context = currentContext();
   if (context === 'none') return false;
   // The exit prompt is modal: keys it doesn't use must not reach live TV behind it.
@@ -206,6 +212,7 @@ export function routeKeyup(event) {
 function nativeInput(evt) {
   const remoteKey = evt && typeof evt.key === 'string' ? evt.key : null;
   if (!remoteKey) return 'ignored';
+  noteRemoteKey(remoteKey);
   // Back on the setup screen: close a dialog if one is open, otherwise go
   // back to live TV — setup is a desk task (doc 01 §6.4), not a place to be
   // stranded with a remote.
@@ -231,6 +238,15 @@ function nativeInput(evt) {
   }
   runAction(action, { repeat: !!evt.repeat });
   return 'handled';
+}
+
+// A remote button only some remotes have (colour keys) marks this device as
+// having it, which un-hides the hints for it (overlays.css/guide.css
+// [data-hint-requires]). Per session, not stored: a different remote next time
+// shouldn't inherit hints for buttons it lacks.
+function noteRemoteKey(remoteKey) {
+  const group = optionalGroupOf(remoteKey);
+  if (group) document.documentElement.classList.add(`remote-has-${group}`);
 }
 
 // Keys a context doesn't route still reach the keyboard handler in the shape

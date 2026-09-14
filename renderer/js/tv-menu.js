@@ -8,11 +8,11 @@
 // synthetic KeyboardEvent from the Android TV wrapper or the phone touch
 // controls, since all of those already just dispatch a 'keydown' that
 // lands here the same way.
-import { shortcutsOverlayEl } from './dom.js';
+import { guideGrid, shortcutsOverlayEl } from './dom.js';
 import { changeChannel, jumpToLastChannel, toggleChannelScan } from './playback-core.js';
 import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCheck } from './airchecks.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { openGuideGrid } from './guide.js';
+import { focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from './guide.js';
 import { interruptEntries } from './plugins.js';
 import { enterTimeMachine, exitTimeMachine, returnToLive } from './timemachine.js';
 import {
@@ -35,8 +35,20 @@ const GRID_COLUMNS = 4;
 // here — generalizes what used to be a couple of hardcoded entries naming
 // specific plugins by id, so any interrupt plugin shows up in the TV menu
 // automatically without a core code change.
+// While the guide is open, its own actions come first (docs/design/11 §2.3):
+// a remote has no D or B key, and search needs a way to reach the keyboard.
+function guideActions() {
+  if (!guideGrid || guideGrid.classList.contains('hidden')) return [];
+  return [
+    { label: S.guideDocked ? 'FULL PAGE GUIDE' : 'DOCK GUIDE', run: () => toggleGuideDockMode() },
+    { label: S.guideShowBreaks ? 'HIDE BREAKS' : 'SHOW BREAKS', run: () => toggleGuideShowBreaks() },
+    { label: 'SEARCH GUIDE', run: () => focusGuideSearch() },
+  ];
+}
+
 function actions() {
   return [
+    ...guideActions(),
     { label: 'CH ▲', run: () => changeChannel(1) },
     { label: 'CH ▼', run: () => changeChannel(-1) },
     { label: 'LAST CH', run: () => jumpToLastChannel() },

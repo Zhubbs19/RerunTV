@@ -870,8 +870,18 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
   .guide-now-line { animation: none; }
 }
 
+/* Remote hints (docs/design/01 §5.2, 11 §2.3): TV mode shows the
+   data-hint-mode="tv" spans instead of the letter keys, and a span that needs
+   a button only some remotes have (data-hint-requires="colour") stays hidden
+   until this device has sent one (tv-input.js noteRemoteKey). */
+.guide-hint > [data-hint-mode="tv"] { display: none; }
+html[data-mode="tv"] .guide-hint > :not([data-hint-mode="tv"]) { display: none; }
+html[data-mode="tv"] .guide-hint > [data-hint-mode="tv"] { display: inline; }
+html[data-mode="tv"]:not(.remote-has-colour) .guide-hint > [data-hint-requires="colour"] { display: none; }
 .guide-hint {
   margin-top: 10px;
+  flex-wrap: wrap;
+  row-gap: 4px;
   padding-top: 8px;
   border-top: 1px solid var(--line);
   font-family: var(--font-ui);
