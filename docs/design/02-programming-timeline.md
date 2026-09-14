@@ -1,6 +1,6 @@
 # 02 — Programming timeline
 
-Status: step 1 shipped (`4eeff1b`); step 2 built (see §4.5); step 3 gated.
+Status: step 1 shipped (`4eeff1b`); step 2 built (see §4.5); step 3a built (§5.2a), 3b needs a storage decision (§5.2b).
 Depends on: C3 commands (05), C4 components (04). Owns contract **C2** (schedule query).
 Consumed by: 06, 08, 09, 11.
 
@@ -25,7 +25,7 @@ or "why did this show air here?" without trial and error.
 |---|---|---|---|
 | 1 | **ON AIR, read-only**: resolved week per channel, explain on click | none | ✅ `renderer/js/setup-onair.js` |
 | 2 | **Editable timeline**: act on the resolved view; edits write existing blocks/overrides/presets via commands | none | ✅ §4.5 |
-| 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | **gated** — decide after step 2 |
+| 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | 3a ✅ equivalence (§5.2a); 3b storage undecided (§5.2b) |
 
 ## 3. Contract C2 — `schedule-query.js`
 
@@ -243,6 +243,58 @@ Migrate only if, after users have the editable timeline:
 - flows/presets need cross-layer conditions the current model can't express.
 
 Otherwise keep the current model; the timeline already hides the layers.
+
+### 5.2a Built (step 3a): the rule stack in memory, proven equivalent
+
+Built with no config change. `renderer/js/programming-rules.js`:
+- **`rulesFromLayers(ch, config)`** translates a channel's layers into `{ signOff, rules }` in the
+  §5.1 shape. The order is: ads off, then flows that can apply to the channel, then presets that
+  can apply, then blocks by priority (ties by position), then the default lineup and cadence.
+  - Content and break rules keep their own relative orders, which is all first-match-per-kind
+    resolution needs.
+  - A block rule plays the block through schedule.js's `sourceFromBlock`, which was extracted
+    from `resolveActiveSource`. So loop, daily/weekly runs, day overrides and finale behave
+    identically, and the rules decide only order and `when`.
+- **`rulesSource`, `rulesCommercials`, `rulesOnAir`** return the same shapes as
+  `resolveActiveSource`, `resolveActiveCommercials` and `isWithinBroadcastHours`. Flow policies
+  come from `flowCommercials`, extracted from `computeActiveCommercials`.
+- **`compareRulesToLayers(ch, config, from, to)`** compares the two at every decision instant:
+  - each hour start, half hour and last millisecond;
+  - each day-override unlock minute;
+  - ad policy for every distinct tag list an airing on the channel can carry.
+
+Verification:
+- **Unit tests** (`tests/programming-rules.test.js`):
+  - `matchesWhen` agrees with `matchesTrigger` over 400 random triggers.
+  - The translation order is pinned.
+  - 60 random channels exercising every layer are equivalent for 60 days (over 100k checks).
+  - Three deliberately planted translation bugs (reversed priority, the flow untagged rule,
+    inverted sign-off hours) each fail the test.
+- **The real lineup** (scratch `test/verify-rules-equivalence.mjs`, a copy of the installed
+  config): all 14 channels are equivalent for 60 days, at 2–28 ms a channel.
+
+**Evidence for the gate (§5.2) from that lineup.**
+- No channel uses blocks, and none uses broadcast hours.
+- Every rule beyond the default is ad policy:
+  - three flows, each scoped to one channel;
+  - one channel-scoped preset;
+  - the ads switch off on two channels;
+  - one box-wide tag preset (`movie_channel`) that appears in all 14 channels' rules.
+- So the layer interplay this lineup has is entirely box-wide break policy. None of it is
+  content layering.
+
+### 5.2b The storage question step 3b has to settle
+
+Flows and presets are box-wide lists with their own channel and tag scopes. A per-channel rule
+list can hold them in three ways:
+1. **Copy them into each channel's rules.** This is the pure §5.1 model, but the `movie_channel`
+   preset becomes 14 copies that drift apart when one is edited.
+2. **Hybrid.** Each channel's `programming.rules` owns content order, sign-off and block ad
+   overrides, while box-wide flows and presets stay global. One `breaks: { boxWide: true }`
+   rule marks where they apply, so shared policy keeps one home.
+3. **Don't migrate storage.** Layers stay the saved form, and the rule stack is a derived view
+   (as in 3a) for the timeline, explanation and remote editors. §5.2's "otherwise keep the
+   current model" applies, and the evidence above supports it.
 
 ### 5.3 If migrating
 - a `config-schema.js` migration (next free version), mechanically translating each layer into rules with

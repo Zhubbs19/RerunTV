@@ -256,20 +256,24 @@ function resolveWeeklyOccurrenceSource(block, atMs) {
 export function resolveActiveSource(ch, atMs) {
   const candidates = matchingBlocks(ch, atMs);
   for (let i = 0; i < candidates.length; i++) {
-    const b = candidates[i];
-    if (b.trigger.type === 'dateRange' && (b.mode === 'daily' || b.mode === 'weekly')) {
-      const daily = resolveDailySource(b, atMs);
-      if (daily) return daily;
-      continue; // walked back past this block's own start — try the next candidate
-    }
-    if (b.trigger.type === 'dayOfWeek' && b.mode === 'weekly' && b.trigger.days && b.trigger.days.length === 1) {
-      const weekly = resolveWeeklyOccurrenceSource(b, atMs);
-      if (weekly) return weekly;
-      continue;
-    }
-    return { files: b.files, anchor: b.anchor, key: b.id, block: b };
+    const source = sourceFromBlock(candidates[i], atMs);
+    if (source) return source; // null: walked back past this block's own start — try the next candidate
   }
   return { files: ch.files, anchor: ch.anchor, key: -1, block: null };
+}
+
+// What one matching block airs at atMs, or null when it has nothing yet (a
+// daily/weekly run that hasn't started). The caller has already decided the
+// block matches and has content. Exported so the rule-stack resolver
+// (programming-rules.js) plays a block exactly the way this file does.
+export function sourceFromBlock(b, atMs) {
+  if (b.trigger.type === 'dateRange' && (b.mode === 'daily' || b.mode === 'weekly')) {
+    return resolveDailySource(b, atMs);
+  }
+  if (b.trigger.type === 'dayOfWeek' && b.mode === 'weekly' && b.trigger.days && b.trigger.days.length === 1) {
+    return resolveWeeklyOccurrenceSource(b, atMs);
+  }
+  return { files: b.files, anchor: b.anchor, key: b.id, block: b };
 }
 
 // Next wall-clock instant where the channel's active source changes, or
@@ -477,122 +481,7 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // out to be. A flow's contentTags still fully differentiates once files
   // ARE tagged; it just no longer excludes content nobody has tagged yet.
   // (The matching itself is matchingFlows, below.)
-  if (flow) {
-    const steps = flow.steps || [];
-    const contentIndices = steps.map((s, i) => (s.type === 'contentSegment' ? i : -1)).filter((i) => i >= 0);
-    const firstContentIdx = contentIndices.length > 0 ? contentIndices[0] : -1;
-    const lastContentIdx = contentIndices.length > 0 ? contentIndices[contentIndices.length - 1] : -1;
-    const segmentCount = contentIndices.length;
-
-    const preSteps = firstContentIdx > 0 ? steps.slice(0, firstContentIdx) : (firstContentIdx === -1 ? steps : []);
-
-    // For multi-segment flows (e.g. [bumpIn, content, adPod, content, bumpIn]):
-    // - interSteps = steps strictly between the first and last contentSegment.
-    //   These are the inter-episode interstitials (commercials, idents between
-    //   episodes) and fire at every file boundary EXCEPT the last episode of
-    //   each N-episode cycle.
-    // - cycleEndSteps = steps after the last contentSegment (e.g. a trailing
-    //   bump-in/station-id) that only fire once per full N-episode cycle —
-    //   i.e. after episode N, 2N, 3N, … not after every single episode.
-    // For single-segment flows (segmentCount <= 1), every boundary IS the
-    // cycle end, so interSteps is empty and cycleEndSteps covers all post steps.
-    let interSteps = [];
-    let cycleEndSteps = [];
-    if (segmentCount > 1) {
-      // Between first and last content segment: inter-episode interstitials
-      interSteps = steps.slice(firstContentIdx + 1, lastContentIdx);
-      // After last content segment: end-of-cycle bumpers
-      cycleEndSteps = lastContentIdx + 1 < steps.length ? steps.slice(lastContentIdx + 1) : [];
-    } else {
-      // Single-segment: everything after the content is a "cycle end" (fires every boundary)
-      const postIdx = lastContentIdx >= 0 ? lastContentIdx + 1 : (firstContentIdx === -1 ? steps.length : 0);
-      cycleEndSteps = postIdx < steps.length ? steps.slice(postIdx) : [];
-    }
-
-    // Exposed on the returned object as `postSteps` — interstitials.js's flow
-    // builder reads that exact property name (its own "post" segment is the
-    // inter-episode path, gated by hasPost below) — `interSteps` above is
-    // just this function's own more descriptive local name for the same steps.
-    const postSteps = interSteps;
-
-    const adPodSteps = steps.filter((s) => s.type === 'adPod');
-
-    // Legacy auto-derived percentage breakpoints from bare adPod steps when a
-    // flow has no contentSegment markers at all (single-file breakpoint
-    // model) — unchanged from before the explicit cadence panel (below)
-    // existed, so old flows built this way keep behaving identically.
-    let legacyBreakpoints = [];
-    if (segmentCount === 0 && adPodSteps.length > 0) {
-      for (let i = 1; i <= adPodSteps.length; i++) {
-        legacyBreakpoints.push(Math.round((i / (adPodSteps.length + 1)) * 100 * 10) / 10);
-      }
-    }
-
-    // Explicit mid-show ad cadence (flow.cadence — setup-interstitials-
-    // flowbuilder.js's "MID-SHOW AD CADENCE" panel): the cadence-preset
-    // functionality (a fixed "every N minutes" timer, or breaks "at set %
-    // points") folded directly into the flow itself, so a flow no longer has
-    // to give up per-show/per-movie cadence in exchange for its own bumper/
-    // pod sequence — preSteps/postSteps/cycleEndSteps above still fire at
-    // episode/file boundaries exactly as before; this additionally fires
-    // *within* whichever content segment (or bare file, for a segment-less
-    // flow) is currently airing, mirroring what resolveActiveCommercials'
-    // own 'everyNMinutes'/'breakpoints' timing modes gave a channel/block/
-    // preset before flows existed.
-    const cadence = flow.cadence && flow.cadence.enabled ? flow.cadence : null;
-    const midTiming = cadence ? (cadence.timing === 'everyNMinutes' ? 'everyNMinutes' : 'breakpoints') : 'breakpoints';
-    const midBreakpoints = cadence ? (cadence.breakpoints || []) : legacyBreakpoints;
-    const midIntervalMinutes = cadence ? cadence.intervalMinutes : null;
-    // The cadence panel can additionally be scoped to only fire for certain
-    // tagged content (cadence.contentTags — e.g. run mid-show breaks for
-    // movies/specials but not shorts, within one flow that otherwise applies
-    // to all of them) — unset/empty means "any content this flow already
-    // applies to", the same wildcard convention every other contentTags gate
-    // in the app uses (poolFor, interstitials.js; the flow's own contentTags
-    // match above). Gated on `tags` (the CURRENTLY AIRING file's tags, passed
-    // in by the caller), not the flow's own contentTags, so two differently-
-    // tagged pieces of content under the same flow can get different cadence
-    // treatment from tick to tick. An untagged file is "unknown," not a known
-    // mismatch — same reasoning as the flow's own contentTags match above —
-    // so it still gets cadence rather than silently losing it just because
-    // nobody has tagged that particular file yet.
-    const midTagsMatch = !cadence || !cadence.contentTags || !cadence.contentTags.length ||
-      tags.length === 0 || cadence.contentTags.some((t) => tags.includes(t));
-    const hasMid = cadence
-      ? (midTagsMatch && (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0))
-      : midBreakpoints.length > 0;
-
-    const podStep = adPodSteps[0] || {};
-    return {
-      commercials: {
-        timing: 'flow',
-        flowId: flow.id,
-        breakpoints: midBreakpoints,
-        segmentCount,
-        podMin: podStep.podMin || 1,
-        podMax: podStep.podMax || 3,
-        bumpInTags: podStep.bumpInTags,
-        commercialTags: podStep.commercialTags,
-        bumpOutTags: podStep.bumpOutTags,
-        adPodSteps,
-        preSteps,
-        postSteps,
-        cycleEndSteps,
-        hasPre: preSteps.length > 0,
-        hasPost: postSteps.length > 0,
-        hasCycleEnd: cycleEndSteps.length > 0,
-        hasMid,
-        midTiming,
-        midIntervalMinutes,
-        midPodMin: cadence ? (cadence.podMin || 1) : null,
-        midPodMax: cadence ? (cadence.podMax || cadence.podMin || 1) : null,
-        midBumpInTags: cadence ? cadence.bumpInTags : null,
-        midCommercialTags: cadence ? cadence.commercialTags : null,
-        midBumpOutTags: cadence ? cadence.bumpOutTags : null,
-      },
-      key: `flow:${flow.id}`
-    };
-  }
+  if (flow) return flowCommercials(flow, tags);
   // Channel and content-tag constraints are independent gates here — a
   // preset can be scoped to specific channels, specific content tags, or
   // both (AND'd when both are set). Unlike the flow match above, an untagged
@@ -619,6 +508,127 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // anymore) and would suppress ads for everyone if left as the default false.
   const globalCc = S.config.commercials || {};
   return { commercials: ch.commercials || { ...globalCc, enabled: true }, key: -1 };
+}
+
+// The ad policy a matching flow sets for content carrying fileTags — the flow
+// branch of resolveActiveCommercials, exported so the rule-stack resolver
+// (programming-rules.js) builds exactly the same object.
+export function flowCommercials(flow, fileTags) {
+  const tags = fileTags || [];
+  const steps = flow.steps || [];
+  const contentIndices = steps.map((s, i) => (s.type === 'contentSegment' ? i : -1)).filter((i) => i >= 0);
+  const firstContentIdx = contentIndices.length > 0 ? contentIndices[0] : -1;
+  const lastContentIdx = contentIndices.length > 0 ? contentIndices[contentIndices.length - 1] : -1;
+  const segmentCount = contentIndices.length;
+
+  const preSteps = firstContentIdx > 0 ? steps.slice(0, firstContentIdx) : (firstContentIdx === -1 ? steps : []);
+
+  // For multi-segment flows (e.g. [bumpIn, content, adPod, content, bumpIn]):
+  // - interSteps = steps strictly between the first and last contentSegment.
+  //   These are the inter-episode interstitials (commercials, idents between
+  //   episodes) and fire at every file boundary EXCEPT the last episode of
+  //   each N-episode cycle.
+  // - cycleEndSteps = steps after the last contentSegment (e.g. a trailing
+  //   bump-in/station-id) that only fire once per full N-episode cycle —
+  //   i.e. after episode N, 2N, 3N, … not after every single episode.
+  // For single-segment flows (segmentCount <= 1), every boundary IS the
+  // cycle end, so interSteps is empty and cycleEndSteps covers all post steps.
+  let interSteps = [];
+  let cycleEndSteps = [];
+  if (segmentCount > 1) {
+    // Between first and last content segment: inter-episode interstitials
+    interSteps = steps.slice(firstContentIdx + 1, lastContentIdx);
+    // After last content segment: end-of-cycle bumpers
+    cycleEndSteps = lastContentIdx + 1 < steps.length ? steps.slice(lastContentIdx + 1) : [];
+  } else {
+    // Single-segment: everything after the content is a "cycle end" (fires every boundary)
+    const postIdx = lastContentIdx >= 0 ? lastContentIdx + 1 : (firstContentIdx === -1 ? steps.length : 0);
+    cycleEndSteps = postIdx < steps.length ? steps.slice(postIdx) : [];
+  }
+
+  // Exposed on the returned object as `postSteps` — interstitials.js's flow
+  // builder reads that exact property name (its own "post" segment is the
+  // inter-episode path, gated by hasPost below) — `interSteps` above is
+  // just this function's own more descriptive local name for the same steps.
+  const postSteps = interSteps;
+
+  const adPodSteps = steps.filter((s) => s.type === 'adPod');
+
+  // Legacy auto-derived percentage breakpoints from bare adPod steps when a
+  // flow has no contentSegment markers at all (single-file breakpoint
+  // model) — unchanged from before the explicit cadence panel (below)
+  // existed, so old flows built this way keep behaving identically.
+  let legacyBreakpoints = [];
+  if (segmentCount === 0 && adPodSteps.length > 0) {
+    for (let i = 1; i <= adPodSteps.length; i++) {
+      legacyBreakpoints.push(Math.round((i / (adPodSteps.length + 1)) * 100 * 10) / 10);
+    }
+  }
+
+  // Explicit mid-show ad cadence (flow.cadence — setup-interstitials-
+  // flowbuilder.js's "MID-SHOW AD CADENCE" panel): the cadence-preset
+  // functionality (a fixed "every N minutes" timer, or breaks "at set %
+  // points") folded directly into the flow itself, so a flow no longer has
+  // to give up per-show/per-movie cadence in exchange for its own bumper/
+  // pod sequence — preSteps/postSteps/cycleEndSteps above still fire at
+  // episode/file boundaries exactly as before; this additionally fires
+  // *within* whichever content segment (or bare file, for a segment-less
+  // flow) is currently airing, mirroring what resolveActiveCommercials'
+  // own 'everyNMinutes'/'breakpoints' timing modes gave a channel/block/
+  // preset before flows existed.
+  const cadence = flow.cadence && flow.cadence.enabled ? flow.cadence : null;
+  const midTiming = cadence ? (cadence.timing === 'everyNMinutes' ? 'everyNMinutes' : 'breakpoints') : 'breakpoints';
+  const midBreakpoints = cadence ? (cadence.breakpoints || []) : legacyBreakpoints;
+  const midIntervalMinutes = cadence ? cadence.intervalMinutes : null;
+  // The cadence panel can additionally be scoped to only fire for certain
+  // tagged content (cadence.contentTags — e.g. run mid-show breaks for
+  // movies/specials but not shorts, within one flow that otherwise applies
+  // to all of them) — unset/empty means "any content this flow already
+  // applies to", the same wildcard convention every other contentTags gate
+  // in the app uses (poolFor, interstitials.js; the flow's own contentTags
+  // match above). Gated on `tags` (the CURRENTLY AIRING file's tags, passed
+  // in by the caller), not the flow's own contentTags, so two differently-
+  // tagged pieces of content under the same flow can get different cadence
+  // treatment from tick to tick. An untagged file is "unknown," not a known
+  // mismatch — same reasoning as the flow's own contentTags match above —
+  // so it still gets cadence rather than silently losing it just because
+  // nobody has tagged that particular file yet.
+  const midTagsMatch = !cadence || !cadence.contentTags || !cadence.contentTags.length ||
+    tags.length === 0 || cadence.contentTags.some((t) => tags.includes(t));
+  const hasMid = cadence
+    ? (midTagsMatch && (midTiming === 'everyNMinutes' ? !!midIntervalMinutes : midBreakpoints.length > 0))
+    : midBreakpoints.length > 0;
+
+  const podStep = adPodSteps[0] || {};
+  return {
+    commercials: {
+      timing: 'flow',
+      flowId: flow.id,
+      breakpoints: midBreakpoints,
+      segmentCount,
+      podMin: podStep.podMin || 1,
+      podMax: podStep.podMax || 3,
+      bumpInTags: podStep.bumpInTags,
+      commercialTags: podStep.commercialTags,
+      bumpOutTags: podStep.bumpOutTags,
+      adPodSteps,
+      preSteps,
+      postSteps,
+      cycleEndSteps,
+      hasPre: preSteps.length > 0,
+      hasPost: postSteps.length > 0,
+      hasCycleEnd: cycleEndSteps.length > 0,
+      hasMid,
+      midTiming,
+      midIntervalMinutes,
+      midPodMin: cadence ? (cadence.podMin || 1) : null,
+      midPodMax: cadence ? (cadence.podMax || cadence.podMin || 1) : null,
+      midBumpInTags: cadence ? cadence.bumpInTags : null,
+      midCommercialTags: cadence ? cadence.commercialTags : null,
+      midBumpOutTags: cadence ? cadence.bumpOutTags : null,
+    },
+    key: `flow:${flow.id}`
+  };
 }
 
 // The ad layers resolveActiveCommercials walks, each in its own precedence
