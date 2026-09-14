@@ -1,6 +1,6 @@
 # 02 — Programming timeline
 
-Status: step 1 shipped (`4eeff1b`); step 2 built (see §4.5); step 3a built (§5.2a), 3b needs a storage decision (§5.2b).
+Status: step 1 shipped (`4eeff1b`); step 2 built (see §4.5); step 3 closed: rule stack built as a derived view (§5.2a), storage stays layered (decided §5.2b).
 Depends on: C3 commands (05), C4 components (04). Owns contract **C2** (schedule query).
 Consumed by: 06, 08, 09, 11.
 
@@ -25,7 +25,7 @@ or "why did this show air here?" without trial and error.
 |---|---|---|---|
 | 1 | **ON AIR, read-only**: resolved week per channel, explain on click | none | ✅ `renderer/js/setup-onair.js` |
 | 2 | **Editable timeline**: act on the resolved view; edits write existing blocks/overrides/presets via commands | none | ✅ §4.5 |
-| 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | 3a ✅ equivalence (§5.2a); 3b storage undecided (§5.2b) |
+| 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | ✅ derived view (§5.2a); no migration, decided §5.2b |
 
 ## 3. Contract C2 — `schedule-query.js`
 
@@ -295,6 +295,14 @@ list can hold them in three ways:
 3. **Don't migrate storage.** Layers stay the saved form, and the rule stack is a derived view
    (as in 3a) for the timeline, explanation and remote editors. §5.2's "otherwise keep the
    current model" applies, and the evidence above supports it.
+
+**Decided (2026-09-13): don't migrate storage (option 3).** Layers stay the saved form, and no
+schema version is allocated.
+- `programming-rules.js` stays as the derived view. `rulesFromLayers` gives any consumer (a
+  remote editor in 06, template previews in 08) the one ordered list.
+- `tests/programming-rules.test.js` keeps the two resolvers from drifting apart.
+- Revisit only under §5.2's conditions. If a migration is ever reopened, §5.3 below still
+  applies, and `compareRulesToLayers` is its abort check.
 
 ### 5.3 If migrating
 - a `config-schema.js` migration (next free version), mechanically translating each layer into rules with
