@@ -5212,30 +5212,48 @@ html[data-theme] .btn[aria-disabled="true"] {
    leans the accent toward the theme's own --paper text colour, so the hue
    stays recognisable and contrast follows whatever the theme made readable. */
 #setup-screen {
-  --text-accent: color-mix(in srgb, var(--cyan) 55%, var(--paper));
-  --text-gold: color-mix(in srgb, var(--gold) 70%, var(--paper));
-  --text-dim: color-mix(in srgb, var(--paper-dim) 55%, var(--paper));
-  --text-danger: color-mix(in srgb, var(--danger) 50%, var(--paper));
-  --text-good: color-mix(in srgb, var(--good, #5fd68a) 50%, var(--paper));
+  /* Mid-toned panels (slate-grid-10's greys, aqua-grid-06's teals) leave little room above 4.5:1,
+     so these keep only a hint of the accent. */
+  --text-accent: color-mix(in srgb, var(--cyan) 30%, var(--paper));
+  --text-gold: color-mix(in srgb, var(--gold) 40%, var(--paper));
+  --text-dim: color-mix(in srgb, var(--paper-dim) 15%, var(--paper));
+  --text-danger: color-mix(in srgb, var(--danger) 35%, var(--paper));
+  --text-good: color-mix(in srgb, var(--good, #5fd68a) 30%, var(--paper));
 }
-#setup-screen .flow-channel-pill.all-chs { color: var(--text-gold); border-color: rgba(var(--gold-rgb), 0.45); }
-#setup-screen .interstitial-tag-chip { color: var(--text-gold); }
+/* Opacity dims text as much as a darker colour does; the idle save state reads by colour alone. */
+#setup-screen .setup-save-state { color: var(--text-dim); opacity: 1; }
+#setup-screen .setup-save-state[data-state="saving"] { color: var(--text-accent); }
+/* --ink-deep is light in light themes; the ENABLED pill's fill is a bright green in every theme. */
+#setup-screen .plugin-row-status:not(.is-off):not(.needs-attention) { color: #0b0f19; }
+/* The placeholder tile is a fixed near-black in every theme, so its label must stay light. */
+#setup-screen .media-thumbnail-label { color: color-mix(in srgb, var(--cyan) 35%, #fff); }
+/* Small chips: a gold tint under gold text lifts the fill toward the text in bright-gold themes,
+   so the chip is untinted, its text is --paper, and the gold lives in the border. */
+#setup-screen .flow-channel-pill.all-chs { color: var(--paper); border-color: rgba(var(--gold-rgb), 0.55); }
+#setup-screen .interstitial-tag-chip { color: var(--paper); background: transparent; box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5); }
+#setup-screen .channel-list-item.selected { background: rgba(var(--gold-rgb), 0.08); }
+#setup-screen .channel-list-item.multi-selected { background: rgba(var(--cyan-rgb), 0.08); }
+#setup-screen .plugins-category-tabs .setup-subtab-btn-count { color: var(--paper); background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 #setup-screen .plugin-row-error { color: var(--text-danger); }
-html[data-theme] #setup-screen .btn.remove-btn:not(:disabled) { color: var(--text-danger); }
+/* REMOVE and FIX sit on the theme's button fill, which is mid-toned in several packs, so their
+   label keeps the button's readable text colour and the border carries the red / cyan cue. */
+html[data-theme][data-theme] #setup-screen .btn.remove-btn:not(:disabled),
+html[data-theme][data-theme] #setup-screen .btn.remove-btn:not(:disabled):hover,
+html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn,
+html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { color: var(--button-fg) !important; }
 #setup-screen .plugin-row-approved { color: var(--text-good); }
-#setup-screen .channel-row .fix-btn,
 #setup-screen .plugin-row-kind,
 #setup-screen .plugins-results-count,
 #setup-screen .setting-row-control .slider-readout,
 #setup-screen .channel-list-plugins .channel-list-title { color: var(--text-accent); }
 #setup-screen .slider-readout { color: var(--text-gold); }
-#setup-screen .channel-list-number { color: var(--text-gold); }
+/* The number sits on the gold-tinted selected row, where even --text-gold falls short in mid-toned themes. */
+#setup-screen .channel-list-number { color: var(--paper); }
 #setup-screen .channel-list-sub,
 #setup-screen .interstitial-card-meta,
 #setup-screen .backup-row-detail,
 #setup-screen .backup-reason-tag,
-#setup-screen .setting-row-unit,
-#setup-screen .plugins-category-tabs .setup-subtab-btn-count { color: var(--text-dim); }
+#setup-screen .setting-row-unit { color: var(--text-dim); }
 /* Idle sidebar sections: several packs fill every tab button with their
    button gradient but keep a dim tab-strip text colour, so the names read at
    2:1. The theme's own --paper is its readable text colour on that fill. */
@@ -5246,8 +5264,7 @@ html[data-theme] #setup-screen .btn.remove-btn:not(:disabled) { color: var(--tex
 #setup-screen .setup-breadcrumb .crumb-current { color: var(--text-gold); }
 #setup-screen label.shuffle-toggle,
 #setup-screen .interstitials-group-header,
-#setup-screen .setting-row-value,
-#setup-screen .media-thumbnail-label { color: var(--text-accent); }
+#setup-screen .setting-row-value { color: var(--text-accent); }
 #setup-screen .field-label { color: var(--text-dim); }
 #setup-screen .perf-badge { color: var(--text-good); }
 /* Type pills sit on bright per-type fills in every theme; dark text reads on all of them. */
