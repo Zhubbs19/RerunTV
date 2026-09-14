@@ -97,9 +97,13 @@ const WATCHING = {
   dot: 'key:.',
 };
 
+// docs/design/11 §3.1: ◀▶ step the scrubber (accelerating while held), ▲▼ jump
+// program starts, OK plays from there, Back returns to live. Rewind/FF keep
+// the VCR-style shuttle; CH± still changes channel.
 const TIME_MACHINE = {
   ...WATCHING,
-  left: 'key:ArrowLeft', right: 'key:ArrowRight', rewind: 'key:ArrowLeft', fastForward: 'key:ArrowRight',
+  left: 'scrub.back', right: 'scrub.forward', up: 'scrub.prevProgram', down: 'scrub.nextProgram',
+  rewind: 'key:ArrowLeft', fastForward: 'key:ArrowRight',
   back: 'key:Escape', exit: 'key:Escape', ok: 'key:Enter', play: 'key:t', pause: 'key:t',
   red: 'key:[', green: 'key:]',
 };

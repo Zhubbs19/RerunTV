@@ -14,12 +14,16 @@ import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCh
 import { showDetailsForCurrentChannel } from './details.js';
 import { focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from './guide.js';
 import { interruptEntries } from './plugins.js';
-import { enterTimeMachine, exitTimeMachine, returnToLive } from './timemachine.js';
+import {
+  currentProgramStart, enterTimeMachine, exitTimeMachine, returnToLive, timeMachineAvailable, timeMachineGoTo,
+} from './timemachine.js';
+import { formatClock } from './util.js';
+import { goToTargets, pickerTime, clampPicker, PICKER_DAY_RANGE } from './scrubber-model.js';
 import {
   toggleMute, adjustVolume, toggleCrt, cyclePictureMode, cycleAspectMode,
   cycleSleepTimer, powerOff, toggleHintBar,
 } from './power.js';
-import { S } from './state.js';
+import { MONTHS, S, WEEKDAYS, viewNow } from './state.js';
 import { isTvMode, setUsageModePreference } from './usage-mode.js';
 
 // Read left-to-right, top-to-bottom — arrow-key navigation below treats the
@@ -35,6 +39,56 @@ const GRID_COLUMNS = 4;
 // here — generalizes what used to be a couple of hardcoded entries naming
 // specific plugins by id, so any interrupt plugin shows up in the TV menu
 // automatically without a core code change.
+// ---------- TIME MACHINE › (docs/design/11 §3.2) ----------
+// Go to… targets first, then the day/hour picker, then on/off and live. With
+// the time machine switched off in settings it stays the plain toggle it was.
+function timeMachineMenuItem() {
+  const enabled = !!(S.config.timeMachine && S.config.timeMachine.enabled);
+  if (!enabled) return { label: 'TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) };
+  return { label: 'TIME MACHINE ›', submenu: timeMachineSubmenu };
+}
+
+function dayLabel(ms) {
+  const d = new Date(ms);
+  return `${WEEKDAYS[d.getDay()].slice(0, 3)} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function timeMachineSubmenu() {
+  const now = viewNow();
+  const available = S.timeMachineOn || timeMachineAvailable();
+  const items = available
+    ? goToTargets(now, currentProgramStart()).map((target) => ({
+      label: target.label,
+      run: () => timeMachineGoTo(target.at, target.label),
+    }))
+    : [];
+  if (available) items.push({ label: 'PICK DAY & HOUR…', submenu: dayHourPicker });
+  items.push({ label: S.timeMachineOn ? 'CLOSE TIME MACHINE' : 'OPEN TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) });
+  items.push({ label: 'RETURN TO LIVE', run: () => returnToLive() });
+  return { title: available ? 'TIME MACHINE · GO TO…' : 'TIME MACHINE · NOT ON THIS CHANNEL', items };
+}
+
+// A D-pad-only picker: step the day and hour with buttons that keep the menu
+// open, then GO. ±7 days from the viewed day (scrubber-model.js).
+let picker = { dayOffset: 0, hour: 20 };
+function dayHourPicker() {
+  const now = viewNow();
+  const target = pickerTime(now, picker);
+  const hourText = formatClock(new Date(target));
+  const step = (change) => () => { picker = clampPicker({ dayOffset: picker.dayOffset + (change.day || 0), hour: picker.hour + (change.hour || 0) }); };
+  return {
+    title: `GO TO ${dayLabel(target)} · ${hourText}`,
+    onOpen: () => { picker = clampPicker({ dayOffset: 0, hour: new Date(now).getHours() }); },
+    items: [
+      { label: '◀ DAY', keepOpen: true, run: step({ day: -1 }), disabled: picker.dayOffset <= -PICKER_DAY_RANGE },
+      { label: 'DAY ▶', keepOpen: true, run: step({ day: 1 }), disabled: picker.dayOffset >= PICKER_DAY_RANGE },
+      { label: '◀ HOUR', keepOpen: true, run: step({ hour: -1 }) },
+      { label: 'HOUR ▶', keepOpen: true, run: step({ hour: 1 }) },
+      { label: `GO TO ${dayLabel(target)} ${hourText}`, run: () => timeMachineGoTo(target, `${dayLabel(target)} ${hourText}`) },
+    ],
+  };
+}
+
 // While the guide is open, its own actions come first (docs/design/11 §2.3):
 // a remote has no D or B key, and search needs a way to reach the keyboard.
 function guideActions() {
@@ -53,8 +107,10 @@ function actions() {
     { label: 'CH ▼', run: () => changeChannel(-1) },
     { label: 'LAST CH', run: () => jumpToLastChannel() },
     { label: 'GUIDE', run: () => openGuideGrid() },
+    // Directly under the first item, so from live TV "yesterday same time" is
+    // Play/Pause, ▼, OK, OK (and OK again to play) — docs/design/11 §5.
+    timeMachineMenuItem(),
     { label: 'INFO', run: () => showDetailsForCurrentChannel() },
-    { label: 'TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) },
     { label: 'RETURN TO LIVE', run: () => returnToLive() },
     { label: 'SCAN', run: () => toggleChannelScan() },
     { label: 'MARK AIR CHECK', run: () => saveAirCheck() },
@@ -89,24 +145,49 @@ const gridEl = document.getElementById('tv-menu-grid');
 // app.js) after this module's own top-level code has already run.
 let buttons = [];
 let menuPreviouslyFocused = null;
-function rebuildMenu() {
+// Open submenus, innermost last; each is the function that builds it (so a
+// picker step re-reads its labels). Back pops one level (handleTvMenuKey).
+let menuStack = [];
+const titleEl = document.getElementById('tv-menu-title');
+
+function rebuildMenu(focusIndex = 0) {
   gridEl.innerHTML = '';
-  buttons = actions().map((a) => {
+  const level = menuStack[menuStack.length - 1];
+  const view = level ? level() : { title: 'TV MENU', items: actions() };
+  if (titleEl) titleEl.textContent = view.title;
+  buttons = view.items.map((a, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'tv-menu-btn';
     btn.textContent = a.label;
+    if (a.disabled) btn.setAttribute('aria-disabled', 'true');
     btn.addEventListener('click', () => {
+      if (a.disabled) return;
+      if (a.submenu) {
+        menuStack.push(a.submenu);
+        const sub = a.submenu();
+        if (sub.onOpen) sub.onOpen();
+        rebuildMenu(0);
+        return;
+      }
+      if (a.keepOpen) {
+        a.run();
+        rebuildMenu(i);
+        return;
+      }
       closeTvMenu();
       a.run();
     });
     gridEl.appendChild(btn);
     return btn;
   });
+  const target = buttons[Math.min(focusIndex, buttons.length - 1)];
+  if (target && !shortcutsOverlayEl.classList.contains('hidden')) target.focus();
 }
 
 export function openTvMenu() {
   if (shortcutsOverlayEl.classList.contains('hidden')) menuPreviouslyFocused = document.activeElement;
+  menuStack = [];
   rebuildMenu();
   const hint = shortcutsOverlayEl.querySelector('.shortcuts-hint');
   if (hint) hint.textContent = isTvMode() ? '◀ ▲ ▼ ▶ TO MOVE · OK TO SELECT · BACK TO CLOSE' : 'ARROW KEYS TO MOVE · ENTER/OK TO SELECT · ? OR ESC TO CLOSE';
@@ -115,6 +196,7 @@ export function openTvMenu() {
 }
 
 export function closeTvMenu() {
+  menuStack = [];
   shortcutsOverlayEl.classList.add('hidden');
   if (menuPreviouslyFocused && menuPreviouslyFocused.isConnected && menuPreviouslyFocused.getClientRects().length && menuPreviouslyFocused.focus) {
     menuPreviouslyFocused.focus({ preventScroll: true });
@@ -130,6 +212,11 @@ export function closeTvMenu() {
 // right/left past a row's edge rolls into the next/previous row rather
 // than stopping dead — a common, easy-to-predict grid-navigation behavior.
 export function handleTvMenuKey(e) {
+  if (e.key === 'Escape' && menuStack.length) {
+    menuStack.pop();
+    rebuildMenu(0);
+    return;
+  }
   if (e.key === '?' || e.key === 'Escape') {
     closeTvMenu();
     return;

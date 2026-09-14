@@ -72,6 +72,10 @@ export const S = {
   sfxGain: null,
   saveConfigTimer: null,
   timeOffsetMs: 0,
+  // The time machine's scrubber moved the viewed time (◀▶/▲▼ in TV mode, a
+  // pointer on the strip, a Go to… jump) and it hasn't been committed with
+  // OK/Enter/T yet. Cleared by stopShuttle (timemachine.js).
+  scrubPending: false,
   guideWindowStart: 0,
   // The guide's selected row, as a channel number (special channels included)
   // rather than a row index, so filtering or the specials moving never shifts

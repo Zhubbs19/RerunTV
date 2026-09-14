@@ -316,7 +316,7 @@ export function handleKey(e) {
       // since shuttlePlay() with no active shuttle just re-commits the
       // same position and leaves S.timeMachineOn untouched.
       if (!S.timeMachineOn) enterTimeMachine();
-      else if (S.shuttleDir !== 0) shuttlePlay();
+      else if (S.shuttleDir !== 0 || S.scrubPending) shuttlePlay();
       else exitTimeMachine();
       break;
     case 'l':
@@ -326,7 +326,7 @@ export function handleKey(e) {
     case ' ':
     case 'Enter':
       if (triggerVirtualChannelOk(S.currentNumber)) { /* handled by a plugin channel's own onOk */ }
-      else if (S.timeMachineOn && S.shuttleDir !== 0) shuttlePlay();
+      else if (S.timeMachineOn && (S.shuttleDir !== 0 || S.scrubPending)) shuttlePlay();
       else if (S.entryBuffer) commitEntry();
       else {
         const ch = getChannel(S.currentNumber);

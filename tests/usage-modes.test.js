@@ -49,7 +49,13 @@ test('the same button means different things per context, and D-pad differs from
   assert.equal(routeRemoteKey('guide', 'chUp'), 'guide.pageUp');
   assert.equal(routeRemoteKey('guide', 'back'), 'key:Escape');
   assert.equal(routeRemoteKey('guide', 'digit4'), null);
-  assert.equal(routeRemoteKey('timeMachine', 'left'), 'key:ArrowLeft', 'the time machine keeps ◀▶ for shuttling');
+  assert.equal(routeRemoteKey('timeMachine', 'left'), 'scrub.back', 'the time machine steps the scrubber with ◀▶ (doc 11 §3.1)');
+  assert.equal(routeRemoteKey('timeMachine', 'up'), 'scrub.prevProgram');
+  assert.equal(routeRemoteKey('timeMachine', 'down'), 'scrub.nextProgram');
+  assert.equal(routeRemoteKey('timeMachine', 'rewind'), 'key:ArrowLeft', 'rewind still shuttles');
+  assert.equal(routeRemoteKey('timeMachine', 'chUp'), 'key:ArrowUp', 'CH± still changes channel');
+  assert.equal(routeRemoteKey('timeMachine', 'ok'), 'key:Enter');
+  assert.equal(routeRemoteKey('timeMachine', 'back'), 'key:Escape');
   assert.equal(routeRemoteKey('menu', 'playPause'), 'key:Escape');
   assert.equal(routeRemoteKey('dialog', 'right'), 'focus.next');
   assert.equal(routeRemoteKey('text', 'left'), null, 'a text field keeps its arrows');

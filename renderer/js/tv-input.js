@@ -28,7 +28,7 @@ import {
   CHANNEL_REPEAT_MS, createLongPressTracker, hasLongPress, normalizeKey, optionalGroupOf, routeRemoteKey,
 } from './remote-input.js';
 import { S } from './state.js';
-import { enterTimeMachine } from './timemachine.js';
+import { enterTimeMachine, scrubProgramBoundary, scrubStep } from './timemachine.js';
 import { closeTvMenu, openTvMenu } from './tv-menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
 import { isVirtualChannel } from './virtual.js';
@@ -124,6 +124,10 @@ const ACTIONS = {
   'guide.pageUp': () => pageGuide(-1),
   'guide.pageDown': () => pageGuide(1),
   'guide.programActions': () => openGuideProgramActions(),
+  'scrub.back': (source) => scrubStep(-1, { repeat: !!(source && source.repeat) }),
+  'scrub.forward': (source) => scrubStep(1, { repeat: !!(source && source.repeat) }),
+  'scrub.prevProgram': () => scrubProgramBoundary(-1),
+  'scrub.nextProgram': () => scrubProgramBoundary(1),
   'guide.dayBack': () => shiftGuideDay(-1),
   'guide.dayForward': () => shiftGuideDay(1),
   'exit.prompt': () => showExitPrompt(),
@@ -147,7 +151,7 @@ function runAction(action, source) {
   }
   const fn = ACTIONS[action];
   if (!fn) return false;
-  fn();
+  fn(source);
   return true;
 }
 
