@@ -1,7 +1,7 @@
 # 01 — Usage modes: Desktop and TV
 
 Status: **Phases A and B built** (B's APK compiles; it has not been installed on the reference
-TV yet — the owner does that). Phase C built; D and E in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
+TV yet — the owner does that). Phases C and D built; E in progress. Depends on: C4 components (04). Consumed by: 03, 06, 09, 10, 11,
 plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 
 ### Built (Phase A, and the JS side of Phase B)
@@ -59,6 +59,33 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - **Learn mode** (TV menu › CUSTOMIZE BUTTONS): pick an action, press a button, done; reset clears.
 - **Back exits at once** (§12 risk): a per-device option in the TV menu; Back then leaves (or drops
   to standby where the client can't close itself) instead of asking.
+
+### Built (Phase D, 2026-09-14)
+
+- **TV setup** (`tv-setup.js`, TV menu › SETUP): sections built on the hierarchical menu. Value items step
+  with ◀▶ (or OK), text uses the on-screen keyboard, every change is a command.
+  - CHANNELS: pick a channel, then MOVE UP/DOWN (each OK swaps one slot — the remote-friendly form of
+    §6.4's pick-up/drop), SHOWN WHEN SURFING, FAVOURITE, RATING, RENAME…, CALL LETTERS…, MORE ON PHONE.
+  - PICTURE & SOUND: CRT on/off, scanlines, curvature, picture mode, aspect, show and commercial volume.
+  - GUIDE & THEME: theme (applied on each step, so browsing is the live preview), 24-hour clock, guide
+    width, channel names, group shorts, specials at the top.
+  - PARENTAL LOCK (on/off, change PIN on a number pad), REMOTE, UPDATES (policy, check now), POWER
+    (auto standby and delay, sleep timer, keep display awake), EDIT ON PHONE OR COMPUTER.
+  - Not included: a per-channel lock (there is no such setting) and the captions default (a plugin
+    setting); both stay in full setup.
+- **On-screen keyboard** (`ui/on-screen-keyboard.js`): a TV modal with letters, digits, space, delete,
+  clear and DONE; a physical keyboard still types. Guide search in TV mode uses it (the Google TV system
+  keyboard was never reliable from a WebView). Pure editing in `tv-setup-model.js` (tested).
+- **TV modals** (`tv-input.js registerTvModal`): the keyboard, wizard, handoff and learn mode register
+  once and get the dialog context (spatial D-pad, OK presses, Back cancels) without `tv-input.js`
+  importing each.
+- **First run on a TV** (`tv-wizard.js`, §6.5): with no channels in TV mode the host shows WELCOME →
+  ADD CHANNELS (QR to a phone/computer, or USE A FOLDER ON THIS DEVICE through the native folder dialog
+  and `createChannelFromFolder`) → UPDATES → a remote check (Press OK, Press BACK, hold OK — each
+  button seeds the remote profile; it skips itself after 30 s) → live TV on the first channel. Desktop
+  first run keeps its existing onboarding. A LAN viewer (the Android client) never runs first-run; the
+  host does.
+- **Handoff**: still the Companion page's pairing URL (decision 3); per-task deep links wait for doc 06.
 
 ### Built (Phase C, 2026-09-14)
 
@@ -120,7 +147,7 @@ Verified:
 
 Not built yet:
 - ~~the hierarchical TV menu, guide colour keys, dialog FocusScopes and TV density tokens (Phase C)~~ built;
-- TV setup and QR handoff (Phase D);
+- ~~TV setup and QR handoff (Phase D)~~ built (deep links wait for doc 06);
 - gamepad, CEC, Tizen/webOS packaging (Phase E);
 - ~~learn mode and observed-profile hints (§5.2)~~ built;
 - ~~the "Switch to TV mode?" suggestion heuristic~~ built.

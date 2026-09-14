@@ -26,6 +26,7 @@ import { BREAK_LABELS, breakMarkEl, spanPercent } from './timeline-render.js';
 import { effectiveThemeId } from './broadcast-identity.js';
 import { getThemePack, runCoreHooks } from './plugins.js';
 import { openTvMenu } from './tv-menu.js';
+import { isTvMode } from './usage-mode.js';
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -356,8 +357,18 @@ export function toggleGuideDockMode() {
 
 // TV menu › SEARCH while the guide is open (doc 11 §2.3): the same filter
 // box / opens. On Google TV focusing it brings up the on-screen keyboard.
-export function focusGuideSearch() {
+export async function focusGuideSearch() {
   closeGuidePopover();
+  // A remote has no keyboard: TV mode types with the on-screen keyboard
+  // (docs/design/01 §6.2) and fills the same filter box.
+  if (isTvMode()) {
+    const { openOnScreenKeyboard } = await import('./ui/on-screen-keyboard.js');
+    const text = await openOnScreenKeyboard({ title: 'SEARCH THE GUIDE', value: guideSearchEl.value, maxLength: 40 });
+    if (text == null) return;
+    guideSearchEl.value = text;
+    guideSearchEl.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
   guideSearchEl.focus();
 }
 

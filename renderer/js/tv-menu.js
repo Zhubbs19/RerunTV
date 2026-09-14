@@ -28,6 +28,7 @@ import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } fr
 import { commitEntry, pushDigit, showSetupScreen } from './app.js';
 import { subChannelsEnabled } from './channels.js';
 import { openHandoff } from './handoff.js';
+import { tvSetupItems } from './tv-setup.js';
 import { openLearnMode, openRemoteTest } from './remote-test.js';
 import { backExitsImmediately, setBackExitsImmediately } from './tv-input.js';
 
@@ -151,8 +152,10 @@ function tvRootItems() {
       { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
       { label: backExitsImmediately() ? 'BACK ASKS FIRST' : 'BACK EXITS AT ONCE', keepOpen: true, run: () => setBackExitsImmediately(!backExitsImmediately()) },
     ]),
+    // Setup with a remote (docs/design/01 §6.4, tv-setup.js); the full setup
+    // screen is still one choice away for a keyboard and mouse.
     section('SETUP', 'TV MENU · SETUP', () => [
-      { label: 'EDIT ON PHONE OR COMPUTER', run: () => openHandoff() },
+      ...tvSetupItems(section),
       { label: 'OPEN FULL SETUP', run: () => showSetupScreen() },
     ]),
     section('SYSTEM', 'TV MENU · SYSTEM', () => [
@@ -237,6 +240,7 @@ const titleEl = document.getElementById('tv-menu-title');
 // The desktop grid is 4 wide; a TV level is one column unless it says
 // otherwise (the number pad is 3).
 let viewColumns = GRID_COLUMNS;
+let viewItems = [];
 
 function rebuildMenu(focusIndex = 0) {
   gridEl.innerHTML = '';
@@ -246,6 +250,7 @@ function rebuildMenu(focusIndex = 0) {
   gridEl.style.gridTemplateColumns = viewColumns === GRID_COLUMNS ? '' : `repeat(${viewColumns}, 1fr)`;
   gridEl.classList.toggle('tv-menu-list', isTvMode() && viewColumns === 1);
   if (titleEl) titleEl.textContent = view.title;
+  viewItems = view.items;
   buttons = view.items.map((a, i) => {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -262,8 +267,13 @@ function rebuildMenu(focusIndex = 0) {
         return;
       }
       if (a.keepOpen) {
-        a.run();
+        const result = a.run();
         rebuildMenu(i);
+        // An item that asks for something first (the on-screen keyboard)
+        // relabels once it's answered.
+        if (result && typeof result.then === 'function') {
+          result.then(() => { if (!shortcutsOverlayEl.classList.contains('hidden')) rebuildMenu(i); });
+        }
         return;
       }
       closeTvMenu();
@@ -329,6 +339,13 @@ export function handleTvMenuKey(e) {
     return;
   }
   if (viewColumns === 1) {
+    // A value item (TV setup): ◀▶ step it in place.
+    const item = viewItems[current];
+    if (item && typeof item.adjust === 'function' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      item.adjust(e.key === 'ArrowRight' ? 1 : -1);
+      rebuildMenu(current);
+      return;
+    }
     if (e.key === 'ArrowLeft') {
       if (menuStack.length) { menuStack.pop(); rebuildMenu(0); }
       return;

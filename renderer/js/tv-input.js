@@ -35,12 +35,36 @@ import { enterTimeMachine, scrubProgramBoundary, scrubStep } from './timemachine
 import { closeTvMenu, openTvMenu } from './tv-menu.js';
 import { isTvMode, onUsageModeChange } from './usage-mode.js';
 import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesActions } from './virtual.js';
-import { closeLearnMode, learnModeOpen } from './remote-test.js';
-import { closeHandoff, handoffOpen } from './handoff.js';
 import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
 import { moveFocusSpatially } from './ui/spatial-focus.js';
 
 let keyboardHandler = null;
+
+// ---------- TV modals ----------
+// Any full-screen TV overlay (learn mode, handoff, the on-screen keyboard, the
+// first-run wizard) registers here and gets the dialog context: D-pad moves
+// focus by position, OK presses the focused control, Back cancels. The most
+// recently opened one on screen is the one that answers.
+// var, not const: handoff.js and remote-test.js register while this module is
+// still mid-evaluation (tv-input → tv-menu → handoff → tv-input), and a const
+// would still be in its temporal dead zone then.
+// eslint-disable-next-line no-var
+var tvModals;
+
+export function registerTvModal({ isOpen, element, cancel }) {
+  const modal = { isOpen, element, cancel };
+  tvModals = tvModals || [];
+  tvModals.push(modal);
+  return () => { const i = tvModals.indexOf(modal); if (i !== -1) tvModals.splice(i, 1); };
+}
+
+function openModal() {
+  if (!tvModals) return null;
+  for (let i = tvModals.length - 1; i >= 0; i -= 1) {
+    try { if (tvModals[i].isOpen()) return tvModals[i]; } catch (e) { /* a broken modal can't block input */ }
+  }
+  return null;
+}
 const longPress = createLongPressTracker();
 const holdTimers = new Map();
 let lastChannelKeyAt = 0;
@@ -113,7 +137,7 @@ function textFieldFocused() {
 // 'none' means TV routing stands aside and the keyboard handler decides (setup
 // screen, standby wake, PIN entry, a plugin's own modal).
 export function currentContext() {
-  if (exitPromptOpen() || learnModeOpen() || handoffOpen()) return 'dialog';
+  if (exitPromptOpen() || openModal()) return 'dialog';
   if (!tvScreen || tvScreen.classList.contains('hidden')) return 'none';
   if (!S.isPoweredOn || S.pinLockActive) return 'none';
   if (pluginChannelContainerEl && pluginChannelContainerEl.querySelector('.preview-modal:not(.hidden)')) return 'none';
@@ -224,8 +248,8 @@ const ACTIONS = {
   'focus.right': () => moveFocusSpatially(activeDialogEl(), 'right') || moveDialogFocus(1),
   'focus.activate': () => { const el = document.activeElement; const dialog = activeDialogEl(); if (dialog && dialog.contains(el) && el.click) el.click(); },
   'dialog.cancel': () => {
-    if (learnModeOpen()) closeLearnMode();
-    else if (handoffOpen()) closeHandoff();
+    const modal = !exitPromptOpen() && openModal();
+    if (modal) modal.cancel();
     else hideExitPrompt();
   },
 };
@@ -520,7 +544,8 @@ export function hideExitPrompt() {
 // The modal currently on screen: the exit prompt, or learn mode's list.
 function activeDialogEl() {
   if (exitPromptOpen()) return exitPromptEl;
-  return document.querySelector('.remote-learn, .handoff');
+  const modal = openModal();
+  return modal ? modal.element() : null;
 }
 
 function moveDialogFocus(direction) {

@@ -46,8 +46,9 @@ import { applyTheme } from './themes.js';
 import { initTouchControls } from './touch-controls.js';
 import { initUpdateNotice } from './update-notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
-import { initUsageMode } from './usage-mode.js';
+import { initUsageMode, isTvMode } from './usage-mode.js';
 import { installTvSuggestion } from './tv-suggest.js';
+import { showTvWizard } from './tv-wizard.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
@@ -1270,6 +1271,24 @@ async function init() {
     initViewerAudioUnlock();
     initTouchControls();
     initViewerLiveLink();
+  } else if (S.config.channels.length === 0 && isTvMode()) {
+    // First run on a TV (docs/design/01 §6.5): a remote-driven wizard on the
+    // TV screen instead of the desktop onboarding and setup screen.
+    await showTvScreen();
+    const wizard = await showTvWizard({
+      updateStrategy: S.config.updates.strategy,
+      addFolderChannel: window.api && window.api.selectFolder ? async () => {
+        const folder = await window.api.selectFolder();
+        if (!folder) return null;
+        const { createChannelFromFolder } = await import('./setup-channels.js');
+        return createChannelFromFolder(folder);
+      } : null,
+    });
+    S.config.updates.strategy = wizard.updateStrategy;
+    await saveConfigNow();
+    resetUndoBaseline();
+    const first = S.config.channels.slice().sort((x, y) => x.number - y.number)[0];
+    if (first) tuneToChannel(first.number);
   } else if (S.config.channels.length === 0) {
     if (isFirstRun) {
       const onboarding = await showOnboarding({ updateStrategy: S.config.updates.strategy });

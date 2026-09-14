@@ -331,6 +331,77 @@ html[data-mode="tv"] .shortcuts-panel { padding: var(--tv-safe-y, 5%) var(--tv-s
 }
 .tv-suggest-btn.quiet { border-color: var(--line); background: transparent; color: var(--paper-dim); }
 
+/* On-screen keyboard (ui/on-screen-keyboard.js) and the first-run TV wizard
+   (tv-wizard.js), docs/design/01 §6.4–6.5. C4 (doc 04) will own these. */
+.osk, .tv-wizard {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 4, 16, 0.9);
+  font-family: var(--font-ui);
+}
+.osk-panel, .tv-wizard-panel {
+  width: min(980px, 90%);
+  max-height: 90%;
+  overflow-y: auto;
+  padding: clamp(14px, 3%, 30px);
+  background: var(--gradient-panel);
+  border: 1px solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-hard);
+}
+.osk-title, .tv-wizard-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2.4cqw, 36px);
+  color: var(--gold);
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+}
+.osk-field {
+  min-height: 1.6em;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--ink-deep, rgba(0, 0, 0, 0.5));
+  color: var(--paper);
+  font-weight: 700;
+  font-size: clamp(18px, 1.8cqw, 30px);
+  letter-spacing: 2px;
+  white-space: pre;
+}
+.osk-row { display: flex; gap: 6px; margin-bottom: 6px; }
+.osk-key, .tv-wizard-btn {
+  flex: 1 1 0;
+  min-height: var(--tv-target, 64px);
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--gradient-cell);
+  color: var(--paper);
+  font: inherit;
+  font-weight: 700;
+  font-size: clamp(16px, 1.5cqw, 26px);
+  cursor: pointer;
+}
+.osk-key.wide { flex: 2 1 0; font-size: clamp(13px, 1.1cqw, 20px); }
+.osk-key:focus, .tv-wizard-btn:focus {
+  outline: 3px solid var(--gold);
+  outline-offset: -3px;
+  background: rgba(var(--gold-rgb), 0.25);
+}
+.tv-wizard-kicker { color: var(--cyan); font-weight: 700; letter-spacing: 2px; font-size: clamp(12px, 1cqw, 16px); margin-bottom: 6px; }
+.tv-wizard-message { color: var(--paper); font-weight: 600; font-size: clamp(15px, 1.4cqw, 24px); line-height: 1.45; margin-bottom: 16px; }
+.tv-wizard-actions { display: flex; flex-direction: column; gap: 10px; }
+.tv-wizard-btn { flex: none; text-align: left; padding: 14px 20px; }
+.tv-wizard-prompt { color: var(--gold); font-weight: 700; font-size: clamp(24px, 2.6cqw, 40px); text-align: center; margin: 20px 0; }
+.tv-wizard-qr { margin-top: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; color: var(--paper); font-weight: 600; }
+.tv-wizard-qr img { width: clamp(120px, 18vw, 220px); background: #fff; padding: 8px; border-radius: var(--radius-sm); }
+.tv-wizard-url { word-break: break-all; font-size: clamp(14px, 1.2cqw, 20px); }
+
 /* Handoff (docs/design/01 §7, handoff.js). */
 .handoff {
   position: absolute;

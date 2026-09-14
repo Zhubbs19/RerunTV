@@ -7,6 +7,7 @@
 // gains a deep link per task and this screen doesn't change.
 import { tvScreen } from './dom.js';
 import { createFocusScope } from './ui/spatial-focus.js';
+import { registerTvModal } from './tv-input.js';
 
 let overlay = null;
 let releaseScope = null;
@@ -59,3 +60,5 @@ export async function openHandoff(opts = {}) {
     img.classList.remove('hidden');
   }
 }
+
+registerTvModal({ isOpen: handoffOpen, element: () => overlay, cancel: closeHandoff });

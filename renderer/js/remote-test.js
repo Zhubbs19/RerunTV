@@ -10,7 +10,7 @@
 // Learn mode: "press the button you want for GUIDE" writes a per-device
 // override for a button the automatic mapping gets wrong.
 import { tvScreen } from './dom.js';
-import { captureNextButton, remoteProfile, setRemoteInputSink } from './tv-input.js';
+import { captureNextButton, registerTvModal, remoteProfile, setRemoteInputSink } from './tv-input.js';
 import { createFocusScope } from './ui/spatial-focus.js';
 
 // The buttons a capture wants to see. Not every remote has them all — what's
@@ -219,3 +219,5 @@ export function closeRemoteTest() {
   close();
 }
 
+
+registerTvModal({ isOpen: learnModeOpen, element: () => learnOverlay, cancel: closeLearnMode });
