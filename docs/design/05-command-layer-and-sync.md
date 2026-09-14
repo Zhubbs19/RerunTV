@@ -1,6 +1,6 @@
 # 05 — Command layer and sync
 
-Status: proposed (P1). Owns contract **C3**. Consumed by: 02, 03, 06, 08, 09.
+Status: **steps 1–5 built** (see §4); the renderer still saves whole config, and the LAN command endpoint waits for 06. Owns contract **C3**. Consumed by: 02, 03, 06, 08, 09.
 
 ## 1. Problem
 

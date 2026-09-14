@@ -1,6 +1,6 @@
 # RerunTV design set — roadmap and integration
 
-Status: proposed (2026-09-12). Owner: Zach Hubbard.
+Status: reference — the build order and contracts other docs follow (2026-09-12). Owner: Zach Hubbard.
 Context: written after the 2026-09-12 usability audit (`af25fe4`) and the first
 timeline step, SCHEDULE › ON AIR (`4eeff1b`).
 
