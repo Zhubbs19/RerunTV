@@ -282,7 +282,13 @@ body:has(.crt.power-off) #guide-overlay {
 
 /* The time machine as a bottom scrubber strip (docs/design/11 §3.1): the VCR
    readout stays in its top row, the strip spans the screen under it. */
+/* The theme's own panel behind the strip (the channel banner's pairing), not
+   the old fixed translucent navy: light themes set dark --paper text, which was
+   unreadable on it over bright video. The global remote hint bar steps aside
+   in TV mode while this is open — its ◀ GUIDE / ▶ NOW PLAYING would be wrong. */
+html.time-machine-on[data-mode="tv"] .hint-bar { display: none; }
 .vcr-osd.has-scrubber {
+  background: var(--gradient-panel, rgba(6, 10, 32, 0.92));
   top: auto;
   bottom: clamp(16px, 5%, 40px);
   left: clamp(12px, 4%, 48px);

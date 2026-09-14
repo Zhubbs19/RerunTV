@@ -1,6 +1,6 @@
 # 11 — Guide and time machine
 
-Status: **in progress** — phases 1–3 built (committed locally, live verification at doc end). Depends on:
+Status: **built** — all four phases (§4), verified live against the real lineup (see "Verification"). Depends on:
 C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 09 (record from guide).
 
 ### Built (§4 phase 1: specials, selection, layout)
@@ -71,6 +71,56 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   CLOSE. The RED/GREEN −/+ DAY hint has `data-hint-requires="colour"` and only appears once this device has
   sent a colour key (`OPTIONAL_KEY_GROUPS`, `html.remote-has-colour`, per session) — the Hisense remote has
   none, so it never shows there.
+### Built (§4 phase 4: scrubber strip and Go to…)
+
+- `renderer/js/scrubber-model.js` (DOM-free, `tests/scrubber-model.test.js`): `scrubWindow` (±3 h, re-centres
+  within 30 min of an edge), `isFarJump`, `scrubStepMs` (10 s until 1.5 s held, 30 s until 3.5 s, 2 min until
+  6 s, then program boundaries), `boundaryAfter`/`boundaryBefore` (a press within 2 s of a start goes to the
+  previous one), `goToTargets` (yesterday same time, start of this show, this morning 6 AM, last Saturday 8 AM,
+  in local time), `pickerTime`/`clampPicker` (±7 days).
+- `timemachine.js`: the VCR OSD becomes a bottom strip (`.vcr-osd.has-scrubber`, the theme's panel
+  background) keeping its readout row, over a track from `querySchedule`: program segments, break ticks
+  (`breakMarkEl`, shared palette), a gold cursor at the viewed time and a LIVE marker at `Date.now()`
+  (commented exception). Segments rebuild only when the window, channel or `configGeneration` changes.
+- Scrubbing is paused-and-positioned: `S.scrubPending`. `beginScrub` runs the same `pauseForScrubbing`
+  resets as `startShuttle` (break state cleared, timers cancelled, player paused, tape FX); `stopShuttle`
+  clears it, so `shuttlePlay`/`returnToLive` paths are unchanged. Enter and T commit a pending scrub like a
+  shuttle. Preview seeks are throttled to 150 ms.
+- TV mode (`remote-input.js` TIME_MACHINE): ◀▶ `scrub.back`/`scrub.forward` with hold acceleration from the
+  key's repeat flag, ▲▼ `scrub.prevProgram`/`scrub.nextProgram`, OK plays, Back returns to live; Rewind/FF
+  still shuttle and CH± still change channel. The global remote hint bar hides while the time machine is
+  open; the strip has its own hints. Desktop keys unchanged (← → shuttle, [ ] breaks); the pointer can click
+  or drag anywhere on the strip.
+- TV menu: **TIME MACHINE ›** sits at row 2 column 1 (INFO moved one slot right) and opens a submenu — the
+  Go to… targets, PICK DAY & HOUR… (◀ DAY / DAY ▶ / ◀ HOUR / HOUR ▶ keep the menu open, then GO TO …), OPEN/CLOSE
+  TIME MACHINE, RETURN TO LIVE. Back pops a submenu level. With the time machine disabled in settings it
+  stays the plain toggle. `timeMachineGoTo`: a target inside the strip window plays at once; a far one
+  lands paused with a banner ("YESTERDAY SAME TIME · SUN SEP 13 12:29 AM — OK TO PLAY") and plays on OK.
+
+### Verification (2026-09-14, installed app's lineup, 1280×720 unless noted)
+
+- Unit tests: 129 pass (`npm test`).
+- Scratch `test/verify-guide-rows.mjs`: every row, specials included, reachable with ▼ and never clipped —
+  desktop and TV, docked and full, 1280×720 and 1920×1080, and while resizing 800×480–1920×1080; docked shows
+  ≥ 5 rows desktop, ≥ 4 TV; selection survives a filter; Enter on a special tunes it; names ≤ 2 lines. Theme
+  sweep: selected row never clipped in all 26 themes, docked and full.
+- Scratch `test/verify-doc11.mjs` 34/34: strip, pointer click/drag + Enter, desktop ← still shuttles, shorts
+  list, grouping off, break band, call letters, TV actions menu, colour-key hint, TV menu guide items, scrubber
+  hold ramp (10 s → 30 s → 2 min → program start), ▲▼ program starts; actions menu and strip on screen in all
+  26 themes (screenshots checked by eye for the light themes).
+- **§5 press counts**, through both `RerunTVInput.native({ key })` and trusted key events in TV mode: start of
+  the current show in **3** (◀, hold OK, OK — landed 3 s after the start, the time the presses took); yesterday
+  same time in **5** (Play/Pause, ▼, OK, OK, OK — within 1 s).
+- Guide render cost: synchronous rebuild median 11.8 ms (25 rows), same as before phase 1 (11.7 ms).
+- Regression: full UI suite 36/36; `verify-timemachine-live-ui`, `-midshow` (12/12), `-real-keys` pass (the
+  two scratch drivers still imported the removed `playback.js` and were pointed at `playback-core.js`);
+  `verify-onair` and `verify-timeline` (38/38) pass.
+- After a far Go to jump, a plugin-backed channel (CH 69) starts playing in 3.2–3.4 s against 2.3 s for a
+  plain tune (the paused preview fetches first); local-file channels start in under 1 s.
+- **Not verified:** the Hisense 50QD6030G and its remote. The acceptance counts were driven through the Android
+  bridge entry point and injected keys on the desktop build; confirming them on the TV, the long-press OK
+  timing from the real remote, and SEARCH GUIDE raising the Google TV keyboard is left to the user.
+- Not done: the TV-mode "picture shrinks instead of rows" part of §2.2.
 
 ## 1. Problems (from the 2026-09-12 audit and TV-remote constraints)
 

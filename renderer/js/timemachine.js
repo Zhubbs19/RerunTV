@@ -669,6 +669,7 @@ export function enterTimeMachine() {
   scrubSig = '';
   vcrOsdEl.classList.add('has-scrubber');
   vcrOsdEl.classList.remove('hidden');
+  document.documentElement.classList.add('time-machine-on');
   updateVcrOsd();
   pushRemoteState();
 }
@@ -679,6 +680,7 @@ export async function exitTimeMachine(opts) {
   stopShuttle();
   S.shuttlePreviewPath = null;
   vcrOsdEl.classList.add('hidden');
+  document.documentElement.classList.remove('time-machine-on');
   if (opts.toLive) {
     returnToLive();
     return;
