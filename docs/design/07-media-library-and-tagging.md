@@ -1,6 +1,8 @@
 # 07 — Media library and auto-tagging
 
-Status: proposed (P4). Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
+Status: **in progress** — §4 identity and §3's re-anchoring are built and verified
+(`main/library/identity.js`, `main/library/reanchor.js`); the store, scanning, migration,
+auto-tagging and smart channels are not. Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
 Owns contract **C6**. Consumed by: 08, 09.
 
 ## 1. Problem
@@ -74,9 +76,38 @@ Channel side (in `channels.json`, via a config schema migration — see 00 §5):
 **C6 rule:** schedule math reads only `ch.files` (materialized, ordered, with durations), exactly
 as today. The library changes *candidates*; `channel.rematerialize` (a command) rebuilds
 `files`, and its confirmation shows `diffSchedules` (02) — "adds 12 episodes; what's on now
-changes from X to Y". Library sync can auto-rematerialize **appends only** (new files added at the
-end of an ordered playlist don't move the current anchor position) when the user opts in, as
-library sync does today.
+changes from X to Y".
+
+**Correction (2026-09-16): an append is not schedule-safe.** This section used to say library sync
+could auto-rematerialize "appends only", because files added at the end "don't move the current
+anchor position". They don't move the anchor, but a channel airs
+
+```
+elapsed = ((now - anchor) / 1000) mod totalDuration
+```
+
+and appending changes `totalDuration`. The modulus changes, `elapsed` lands somewhere else, and a
+channel mid-episode can cut to a different programme the moment a sync finishes — exactly what C6
+forbids. `tests/library-reanchor.test.js` demonstrates it against the real `computeSourcePosition`.
+
+**What is built instead: re-anchoring.** `main/library/reanchor.js`'s
+`reanchorForPlaylistChange()` takes the old playlist, the new one, the anchor and the instant the
+schedule is being evaluated at, and returns the anchor that leaves the currently-airing file at the
+same offset in the new playlist. New content appears from the next loop onward; nothing jumps.
+It preserves the loop count too, so a channel doesn't announce everything as a NEW EPISODE again
+just because its playlist grew.
+
+It refuses rather than guessing when it cannot keep its promise — the airing file was removed, a
+playlist is empty, durations are zero. A refusal is not a failure: it means the change needs the
+`diffSchedules` preview and a person. So unattended rematerialization is allowed when, and only
+when, re-anchoring succeeds; that is a wider set than "appends" and a safer one.
+
+Two details that matter:
+- `atMs` must be the time the schedule is actually evaluated at, with break-drift compensation
+  (`S.contentLostMs`) already subtracted. Passing the raw clock mid-break preserves the wrong frame.
+- A file that appears more than once in the new playlist resolves to the occurrence nearest its old
+  position, ties to the earlier index, so a rebuild that mostly preserves order barely moves the
+  anchor and the result does not depend on iteration order.
 
 Per-file metadata moves from `ch.files[i]` to `library.items[id]`. Channel-specific overrides
 that genuinely differ per channel (a custom breakpoint for one channel's edit) live in
@@ -84,13 +115,37 @@ that genuinely differ per channel (a custom breakpoint for one channel's edit) l
 
 ## 4. Scanning and identity
 
-- **Fingerprint** = size + mtime + a hash of the first 1 MB. It survives renames and moves
-  within roots, so relinking becomes automatic ("moved: 137 items"), replacing most of
-  `renderer/js/library/relink.js`'s manual flow.
+- **Fingerprint** = size + a hash of the first 1 MB, with mtime alongside as a cheap pre-filter
+  for deciding what to re-read. **Built**: `main/library/identity.js`.
+
+**Correction (2026-09-16): a fingerprint is matching EVIDENCE, not an identity.** This section
+used to say relinking "becomes automatic". Two different files can share a size and a first
+megabyte — an encoder's identical leader, two rips of the same disc, a truncated copy — and one
+file's mtime changes for reasons unrelated to its bytes: a copy, a backup restore, a sync client
+touching it. So `classify()` returns a verdict with a confidence and the caller decides:
+
+| Verdict | Meaning | Automatic? |
+|---|---|---|
+| `same` | still at the ref it was catalogued at | yes |
+| `moved` | exactly one catalogued item has this content | yes — this is the "moved: 137 items" case |
+| `ambiguous` | more than one item has this content | **no** — review queue, nothing moves |
+| `replaced` | an item is catalogued at this ref but the content there is different | **no** — the item is not repointed and its metadata is not transferred, or a re-encode silently inherits the wrong title |
+| `new` | nothing known matches | n/a |
+
+`isAutoApplicable()` is the single definition of what may relink unattended, so the answer lives
+in one place rather than at each call site.
+
+- **Changed mtime, same size and head** → the same item. mtime alone never makes something a
+  different file.
+- **Same size and mtime, different head** → different content.
+- A provider root's fingerprint is its id plus etag/modified, with no head hash; `sameContent()`
+  treats a missing head as no evidence, so a provider item is never matched on size alone.
 - Scans run host-side (headless-capable, 06), incrementally per root, with ffprobe durations
   cached by fingerprint (the existing duration probe stays the fallback).
 - Provider roots use the media-source plugin contract's listing calls; fingerprint = provider
   id + etag/modified.
+- `renderer/js/library/relink.js`'s manual flow is replaced only for the `moved` case. The
+  `ambiguous` and `replaced` cases are what that flow is *for*, and they still need it.
 
 ## 5. Auto-tagging pipeline
 
@@ -123,8 +178,12 @@ era<=1999`".
 ## 7. Migration (config schema migration + library v1)
 
 1. Build the library index from existing channels: every `ch.files[i]` becomes an item
-   (fingerprinted lazily), with metadata copied (conflicts between channels resolved by most
-   recently edited, others kept as `fileOverrides`).
+   (fingerprinted lazily), with metadata copied. **Conflict policy (built,
+   `identity.resolveConflict`)**: provenance first — `user` > `user-accepted` > `plugin` >
+   `embedded` > `path` — then recency, then the owning channel number as a stable tiebreak.
+   "Most recently edited wins" alone is not deterministic, because timestamps are often absent
+   or equal and the winner then depends on the order the walk happened to take; running the same
+   migration twice has to produce the same library. Losing values are kept as `fileOverrides`.
 2. Channels keep `files` exactly (order, durations, anchors) and gain `item` ids + `sources`
    derived from `folders`.
 3. `diffSchedules` over 60 days must be empty for every channel — otherwise abort that
@@ -134,7 +193,8 @@ era<=1999`".
 ## 8. Acceptance criteria
 
 - Moving `J:\Media Center` to another drive and updating the root relinks every channel with
-  no schedule change.
+  no schedule change. (Identity and re-anchoring now both support this; the scan and the
+  rematerialize command that would exercise it end to end are not built yet.)
 - Tagging 1,000 new episodes by series takes < 10 review actions.
 - A query channel "all Christmas specials" builds in < 5 s for a 5,000-item library.
 - Migration of the real installed lineup produces an empty 60-day schedule diff.
