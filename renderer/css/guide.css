@@ -317,6 +317,29 @@ html[data-mode="tv"] .guide-grid {
   min-width: 0;
 }
 
+/* TV mode, docked: the picture shrinks into the space ABOVE the strip instead
+   of playing full-size behind it (docs/design/11 §2.2). Desktop keeps the
+   picture full-size, which is the look that mode has always had.
+
+   --guide-picture-h is published by guide.js from the strip's resolved height.
+   This rule covers the case where nothing has sized #player inline; when a
+   retro bezel IS showing, applyTvBezel (power.js) has already framed the
+   picture inside the same height, and its inline geometry wins — which is the
+   point, because that is what keeps the bezel art framing the smaller picture
+   rather than the screen. The CRT overlays and the bezel backdrop follow the
+   picture so scanlines and vignette never run down over the guide.
+
+   object-fit is already contain on #player, so a shorter box letterboxes
+   rather than distorting: the aspect ratio is preserved by construction. */
+html[data-mode="tv"] .crt.guide-active.guide-docked #player,
+html[data-mode="tv"] .crt.guide-active.guide-docked .tv-bezel,
+html[data-mode="tv"] .crt.guide-active.guide-docked .crt-scanlines,
+html[data-mode="tv"] .crt.guide-active.guide-docked .crt-vignette,
+html[data-mode="tv"] .crt.guide-active.guide-docked .crt-flicker {
+  height: var(--guide-picture-h, 100%);
+  bottom: auto;
+}
+
 /* Full page: the grid covers the whole screen and the live picture shrinks
    into a preview box pinned top-right, like a full-screen interactive guide. */
 .guide-grid.full {

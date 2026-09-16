@@ -439,6 +439,32 @@ const MIN_BEZEL_MARGIN_PX = 24;
 // same safe letterbox/pillarbox math, just plain black bars instead of the
 // decorative frame — see the DISPLAY tab checkbox, setup-settings.js), both
 // #player and the bezel reset to exactly today's default look.
+// ---------- How much of the screen the picture may use (docs/design/11 §2.2) ----------
+// Normally the whole CRT container. In TV mode with the guide docked, the strip
+// along the bottom takes part of the screen and the picture shrinks into what
+// is left instead of sitting behind it. guide.js publishes that height as
+// --guide-picture-h on the container.
+//
+// Deliberately one number feeding the EXISTING framing math rather than a CSS
+// rule that overrides #player's geometry: the safe area, a named crop ratio and
+// the bezel art are all computed from the container's height, so shrinking that
+// height keeps the bezel framing the picture correctly at its new size. An
+// !important geometry override (the way full-page mode shrinks into its corner
+// preview) would have left the bezel drawn for the old, larger picture.
+export function pictureAreaHeight() {
+  const containerH = crtContainer.clientHeight;
+  const published = parseFloat(getComputedStyle(crtContainer).getPropertyValue('--guide-picture-h'));
+  return Number.isFinite(published) && published > 0 ? Math.min(published, containerH) : containerH;
+}
+
+// Re-frames the picture after the area it may use changed — the guide docking,
+// undocking, being resized or closing. A no-op before any metadata has arrived,
+// since there is nothing to frame yet.
+export function refreshPictureArea() {
+  if (!player.videoWidth || !player.videoHeight) return;
+  applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
+}
+
 export function applyTvBezel(videoWidth, videoHeight, ch) {
   if (!videoWidth || !videoHeight) {
     player.style.left = '';
@@ -456,7 +482,9 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
   const effective = effectiveAspectSetting(ch);
   const ratio = CROP_RATIOS[effective];
   const containerW = crtContainer.clientWidth;
-  const containerH = crtContainer.clientHeight;
+  // Not clientHeight: the docked guide takes the bottom of the screen in TV
+  // mode, and the picture is framed inside what is left (see pictureAreaHeight).
+  const containerH = pictureAreaHeight();
 
   // A border is only worth showing when the effective mode actually leaves
   // letterbox space to frame — plain 'fill'/'stretch' cover the screen

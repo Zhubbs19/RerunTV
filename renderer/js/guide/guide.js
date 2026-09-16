@@ -1,5 +1,5 @@
 import { showSetupScreen } from '../app.js';
-import { toggleCrt } from '../playback/power.js';
+import { refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { playConfiguredSound, sfxGuideToggle } from '../core/audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, sortedChannels } from '../core/channels.js';
 import {
@@ -320,6 +320,7 @@ export function closeGuideGrid() {
   const finish = () => {
     guideGrid.classList.add('hidden');
     crtContainer.classList.remove('guide-active', 'guide-docked', 'guide-full', 'guide-anim-enabled');
+    publishPictureArea(); // the picture gets the whole screen back
     if (guidePreviouslyFocused && guidePreviouslyFocused.isConnected && guidePreviouslyFocused.getClientRects().length && guidePreviouslyFocused.focus) {
       guidePreviouslyFocused.focus({ preventScroll: true });
     } else if (document.activeElement && document.activeElement.blur) {
@@ -348,6 +349,9 @@ export function applyGuideDockMode() {
   crtContainer.classList.add(`guide-${dockedClass}`);
   crtContainer.classList.toggle('guide-preview-hidden', !guideLivePreviewEnabled());
   fitDockedGuideHeight();
+  // fitDockedGuideHeight returns early when the guide is full-page, so the
+  // picture area has to be released here rather than only from inside it.
+  publishPictureArea();
 }
 
 export function toggleGuideDockMode() {
@@ -873,6 +877,48 @@ function fitDockedGuideHeight() {
   const target = Math.ceil(chrome + rows * (rowH + gap) + (parseFloat(rowsStyle.paddingTop) || 0) + 1);
   const current = parseFloat(guideGrid.style.getPropertyValue('--guide-docked-h')) || 0;
   if (Math.abs(current - target) > 1) guideGrid.style.setProperty('--guide-docked-h', `${target}px`);
+  publishPictureArea();
+}
+
+// docs/design/11 §2.2: in TV mode the docked strip takes the bottom of the
+// screen and the picture shrinks into what is left, rather than playing
+// full-size behind it. Desktop keeps the picture full-size, which is the look
+// that mode has always had.
+//
+// The height published here is the strip's RESOLVED height — offsetHeight,
+// after guide.css has clamped --guide-docked-h between its floor and ceiling —
+// not the target fitDockedGuideHeight asked for, so the picture never overlaps
+// a strip that came out taller or shorter than requested.
+function publishPictureArea() {
+  const docked = isTvMode() && S.guideDocked && !guideGrid.classList.contains('hidden');
+  if (!docked) {
+    if (crtContainer.style.getPropertyValue('--guide-picture-h')) {
+      crtContainer.style.removeProperty('--guide-picture-h');
+      refreshPictureArea();
+    }
+    return;
+  }
+  const available = Math.max(0, crtContainer.clientHeight - guideGrid.offsetHeight);
+  const previous = parseFloat(crtContainer.style.getPropertyValue('--guide-picture-h')) || 0;
+  if (Math.abs(previous - available) <= 1) return;
+  crtContainer.style.setProperty('--guide-picture-h', `${available}px`);
+  // The bezel sizes #player with inline geometry, so CSS alone cannot move it.
+  refreshPictureArea();
+}
+
+// The strip's height changes for reasons this module does not drive: a theme
+// with taller chrome, a web font finishing loading, the rows box rewrapping at
+// a new width. Observing it keeps the picture tracking the strip without every
+// one of those paths having to remember to republish. Belt and braces rather
+// than a fix for a known bug — the call sites below cover everything currently
+// exercised — but publishPictureArea is cheap and a stale picture area is
+// visible as the picture overlapping the guide.
+//
+// No feedback loop: this only ever resizes #player, which is not observed.
+if (typeof ResizeObserver !== 'undefined') {
+  const pictureAreaObserver = new ResizeObserver(() => publishPictureArea());
+  pictureAreaObserver.observe(guideGrid);
+  pictureAreaObserver.observe(crtContainer);
 }
 
 let guideResizeFrame = 0;

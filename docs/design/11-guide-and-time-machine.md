@@ -1,6 +1,8 @@
 # 11 — Guide and time machine
 
-Status: **built** — all four phases (§4), verified live against the real lineup (see "Verification"). Depends on:
+Status: **built** — all four phases (§4) plus §2.2's TV docked picture shrink, verified live against
+the real lineup (see "Verification"). Real-hardware acceptance on the Hisense is the only thing left,
+and it is 01's to close. Depends on:
 C2 (02), C1 + actions (01), C4 (04, kit built; theme migration in progress). Consumed by: 09 (record from guide).
 
 ### Built (§4 phase 1: specials, selection, layout)
@@ -28,8 +30,14 @@ C2 (02), C1 + actions (01), C4 (04, kit built; theme migration in progress). Con
   remaining theme-contract work is tracked in 04.
 - Render cost unchanged: synchronous `renderGuideGrid` median 11.7 ms docked before, 11.8 ms after
   (25 rows, 1280×720, real lineup).
-- Not done: the TV-mode "picture shrinks instead of rows" part of §2.2 — the picture still sits behind
-  the taller docked strip.
+- TV-mode "picture shrinks instead of rows" (§2.2) is now built. `guide.js` publishes the strip's
+  RESOLVED height (offsetHeight, after guide.css has clamped it) as `--guide-picture-h` on the CRT
+  container; `power.js`'s `pictureAreaHeight()` feeds that to the EXISTING framing math in place of
+  `crtContainer.clientHeight`. Doing it that way rather than with an `!important` geometry override
+  (how full-page mode shrinks into its corner preview) is what keeps the bezel, the safe area and a
+  named crop ratio all framing the smaller picture instead of the whole screen. `object-fit: contain`
+  already letterboxes, so the aspect ratio is preserved by construction. Desktop is unchanged: the
+  spec scopes this to TV mode, and desktop keeps the picture full-size behind the strip.
 
 ### Built (§4 phase 2: shorts & bumpers, break band, call letters)
 
@@ -121,7 +129,10 @@ C2 (02), C1 + actions (01), C4 (04, kit built; theme migration in progress). Con
 - **Not verified:** the Hisense 50QD6030G and its remote. The acceptance counts were driven through the Android
   bridge entry point and injected keys on the desktop build; confirming them on the TV, the long-press OK
   timing from the real remote, and SEARCH GUIDE raising the Google TV keyboard is left to the user.
-- Not done: the TV-mode "picture shrinks instead of rows" part of §2.2.
+- TV-mode picture shrink (§2.2) verified live: `tests/ui/verify-docked-picture.mjs`, 15/15, 0 renderer
+  runtime errors — the picture ends exactly at the strip (384 px of 384 available), shrinks rather than
+  clipping, keeps its aspect ratio to within measurement error, clears the strip in **all 26 themes**,
+  is re-fitted when the strip changes height, and gets the whole screen back on undock and on close.
 
 ## 1. Problems (from the 2026-09-12 audit and TV-remote constraints)
 
@@ -153,7 +164,9 @@ Time machine
 - **Selected row always fully visible**, scrolled with a one-row margin (docked) or
   centered (full page).
 - **Docked height by mode**: desktop ≥ 5 rows; TV mode (01) ≥ 4 rows at 10-foot size, with the
-  picture shrinking instead of rows.
+  picture shrinking instead of rows. Built — see the Verification notes. The picture area is one
+  published number feeding the bezel's own math, not a geometry override, so the frame follows the
+  picture down.
 - **Channel rail** name width from the `--guide-chan-col` token (already shared with the time
   header since `af25fe4`); names wrap to two lines before truncating.
 - **Micro-program runs**: consecutive entries shorter than the label threshold merge into one
