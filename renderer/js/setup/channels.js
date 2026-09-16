@@ -4,7 +4,9 @@
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { applyConfigDefaults, showTvScreen } from '../app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from '../library/channel-package.js';
+import { BUILTIN_TEMPLATES, compileTemplate, describeChannel, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
+import { Dialog } from '../ui/dialog.js';
 import {
   buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
   subChannelsEnabled,
@@ -410,6 +412,22 @@ export function renderChannelList() {
         }
       });
       editHeaderRow.appendChild(editHeaderExportBtn);
+
+      const saveTemplateBtn = document.createElement('button');
+      saveTemplateBtn.className = 'btn';
+      saveTemplateBtn.textContent = 'SAVE AS TEMPLATE…';
+      saveTemplateBtn.title = 'Export this channel structure without media paths';
+      saveTemplateBtn.disabled = !(ch.blocks || []).length;
+      saveTemplateBtn.addEventListener('click', async () => {
+        try {
+          const templateName = await promptDialog({ title: 'SAVE AS TEMPLATE', message: 'Name this reusable channel structure.', defaultValue: ch.name || `Channel ${ch.number}` });
+          if (templateName == null || !templateName) return;
+          const id = templateName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'channel-template';
+          const filePath = await window.api.exportConfig(templateFromChannel(ch, { id, name: templateName }), `${id}.rerun-template`);
+          if (filePath) await alertDialog(`Saved to ${filePath}`, { title: 'TEMPLATE EXPORTED' });
+        } catch (e) { await alertDialog(`Template export failed: ${e.message}`, { variant: 'error' }); }
+      });
+      editHeaderRow.appendChild(saveTemplateBtn);
 
       // Copies another channel's SCHEDULE (blocks + broadcast hours) / ADS /
       // LOGO settings onto this one as a starting point — deliberately never
@@ -2126,7 +2144,84 @@ subChannelsEnabledEl?.addEventListener('change', () => {
   renderChannelList();
 });
 
-addChannelBtn.addEventListener('click', () => {
+async function chooseAddChannelSource() {
+  return Dialog({
+    title: 'ADD CHANNEL',
+    message: 'Start empty, use your tagged library, or describe a weekly lineup.',
+    dismissValue: null,
+    actions: [
+      { label: 'CANCEL', value: null },
+      { label: 'EMPTY', value: 'empty' },
+      { label: 'FROM TEMPLATE', value: 'template' },
+      { label: 'DESCRIBE IT', variant: 'primary', value: 'describe', isDefault: true },
+    ],
+  }).result;
+}
+
+async function chooseBuiltinTemplate() {
+  return Dialog({
+    title: 'CHANNEL TEMPLATES',
+    message: 'Templates contain scheduling intent only. Your library supplies the programs.',
+    dismissValue: null,
+    actions: [
+      { label: 'CANCEL', value: null },
+      ...BUILTIN_TEMPLATES.map((template, index) => ({
+        label: template.name.toUpperCase(), value: template, variant: index === 0 ? 'primary' : 'default', isDefault: index === 0,
+      })),
+    ],
+  }).result;
+}
+
+async function buildChannelFromPlan(template) {
+  let library;
+  try {
+    const response = await window.api.libraryCall('getIndex');
+    if (!response || !response.ok) throw new Error((response && response.error) || 'The library did not answer.');
+    library = response.result;
+  } catch (e) {
+    await alertDialog('Build the media catalogue in LIBRARY first, then try this again.', { title: 'LIBRARY NEEDED' });
+    return;
+  }
+  const resolved = resolveTemplate(template, library);
+  const rows = Object.entries(resolved.slots).map(([id, slot]) =>
+    `${resolved.missing.includes(id) ? 'NEEDS CONTENT' : 'READY'} · ${slot.spec.label}: ${slot.files.length} playable · ${slot.hours.toFixed(1)} hr${slot.skipped.length ? ` · ${slot.skipped.length} missing duration` : ''}`);
+  if (!resolved.ready) {
+    await alertDialog(`${rows.join('\n')}\n\nTag or scan more content in LIBRARY, then try again.`, { title: 'TEMPLATE NEEDS CONTENT' });
+    return;
+  }
+  const channel = compileTemplate(resolved, { number: nextChannelNumber(), atMs: viewNow() });
+  const apply = await confirmDialog({
+    title: `PREVIEW CH ${channel.number} — ${channel.name || template.name}`,
+    message: `${rows.join('\n')}\n\n${channel.blocks.length} scheduled block${channel.blocks.length === 1 ? '' : 's'} · ${channel.files.length} unique programs. Apply is one undo step.`,
+    danger: false, confirmText: 'APPLY CHANNEL', cancelText: 'ADJUST',
+  });
+  if (!apply) return;
+  dispatch({ type: 'channel.insert', channel });
+  S.setupSelectedChannel = channel.number;
+  S.setupFilterQuery = '';
+  channelFilterEl.value = '';
+  renderChannelList();
+}
+
+addChannelBtn.addEventListener('click', async () => {
+  const source = await chooseAddChannelSource();
+  if (!source) return;
+  if (source === 'template') {
+    const template = await chooseBuiltinTemplate();
+    if (template) await buildChannelFromPlan(template);
+    return;
+  }
+  if (source === 'describe') {
+    const description = await promptDialog({
+      title: 'DESCRIBE A CHANNEL',
+      message: 'Use comma-separated blocks, for example: “90s cartoons Saturdays 7 am to 11 am, sitcoms weeknights 8 pm to 10 pm”.',
+      placeholder: 'Content + days + start time to end time',
+    });
+    if (description == null) return;
+    try { await buildChannelFromPlan(describeChannel(description)); }
+    catch (e) { await alertDialog(e.message, { title: 'CHECK THE DESCRIPTION', variant: 'error' }); }
+    return;
+  }
   const fresh = freshChannel();
   dispatch({ type: 'channel.insert', channel: fresh });
   S.setupSelectedChannel = fresh.number;
@@ -2161,6 +2256,11 @@ channelImportBtn.addEventListener('click', async () => {
   try { imported = await window.api.importConfig(); }
   catch (e) { alertDialog(`Import failed: ${e.message}`, { variant: 'error' }); return; }
   if (!imported) return;
+  if (imported.templateVersion != null) {
+    try { await buildChannelFromPlan(validateTemplate(imported)); }
+    catch (e) { await alertDialog(e.message, { title: 'INVALID CHANNEL TEMPLATE', variant: 'error' }); }
+    return;
+  }
   const pkg = normalizeChannelPackage(imported);
   if (!pkg) {
     await alertDialog('Choose a single-channel package. Full configurations still use IMPORT CONFIG.', { title: 'NOT A CHANNEL PACKAGE' });

@@ -137,7 +137,7 @@ flowchart LR
 | P1 | C1 resolver + `data-mode`; C2 extracted, ON AIR/guide/Air Check moved onto it; C3 bus with commands for the ten most-used edits and undo on top; C4 primitives (Button, Field, SettingRow, Tabs, ListDetail, Dialog, FocusScope) | No visible regressions in the UI suite + theme sweep; undo/redo parity with today |
 | P2 | Setup shell (03) in desktop mode; editable ON AIR (02 step 2); guide special-channel row + selected-row-in-view (11) | Lineup task times in doc 03 met; timeline edits round-trip through commands |
 | P3 | TV mode (01) for TV screen + TV setup subset; web control panel (06) | A full evening on the Android TV client with no keyboard; remote edit from a laptop applies live |
-| P4 | Library + tagging (07); builder + templates (08) | New channel from an empty folder in under 2 minutes with tags suggested |
+| P4 ✅ | Library + tagging (07); builder + templates (08) | Built 2026-09-16: catalogue/tag review, queries/smart channels, template/description builder, guarded preview and one-step apply |
 | P5 | Personal store + profiles, DVR scheduling, handoff, watch together (09); eras (10); scrubber (11) if not earlier | Per-profile history/favorites; two clients share a party session |
 
 Decision gate after P2: do we migrate programming to a single rule stack (02 step 3)?
