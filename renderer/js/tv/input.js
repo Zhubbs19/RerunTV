@@ -507,6 +507,7 @@ export function showExitPrompt() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = `tv-menu-btn ${className}`.trim();
+    btn.dataset.slot = 'tv-menu-button';
     btn.textContent = label;
     btn.addEventListener('click', () => { hideExitPrompt(); run(); });
     actions.appendChild(btn);

@@ -6,21 +6,21 @@ html[data-theme="master-control"] {
   --motion-card-duration: 90ms; --motion-card-ease: steps(2, end); --motion-card-from-y: 0px; --motion-card-from-scale: .985; --motion-digit-duration: 75ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.04;
   --setup-nav-bg: #111417;
   --setup-overflow-shadow: rgba(255, 176, 0, 0.42);
-  --ink: #14171a;
-  --ink-deep: #0a0c0e;
-  --cell: #191d21;
-  --cell-alt: #1e2226;
-  --gold: #e8a33d;
-  --gold-ink: #1a1006;
-  --cyan: #4caf7d;
-  --paper: #e8e3d9;
-  --paper-dim: #8b9096;
-  --line: #33383e;
+  --surface-1: #14171a;
+  --surface-0: #0a0c0e;
+  --surface-2: #191d21;
+  --surface-3: #1e2226;
+  --accent: #e8a33d;
+  --accent-text: #1a1006;
+  --accent-2: #4caf7d;
+  --text: #e8e3d9;
+  --text-muted: #8b9096;
+  --border: #33383e;
   --danger: #d97066;
 
-  --gold-rgb: 232, 163, 61;
+  --accent-rgb: 232, 163, 61;
   --danger-rgb: 217, 112, 102;
-  --cyan-rgb: 76, 175, 125;
+  --accent-2-rgb: 76, 175, 125;
 
   --font-display: 'Archivo Narrow', 'Barlow Condensed', system-ui, sans-serif;
   /* A real rack panel's own labeling face — technical monospace instead of
@@ -29,22 +29,22 @@ html[data-theme="master-control"] {
   --font-body: 'IBM Plex Mono', system-ui, monospace;
 
   --guide-grid-bg: #0a0c0e;
-  --guide-channel-bg: #14171a;
-  --guide-channel-fg: var(--gold);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #191d21;
-  --guide-program-alt-bg: #22282d;
-  --guide-selection-bg: var(--gold);
-  --guide-selection-fg: var(--gold-ink);
+  --guide-rail-bg: #14171a;
+  --guide-rail-text: var(--accent);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #191d21;
+  --guide-cell-alt-bg: #22282d;
+  --guide-selected-bg: var(--accent);
+  --guide-selected-text: var(--accent-text);
   --guide-timebar-bg: #14171a;
   --guide-row-height: 44px;
   --guide-row-gap: 3px;
 
   /* Flat rack panels — no gradient sheen, just a hairline-bordered plate. */
   --gradient-page: linear-gradient(180deg, #14171a 0%, #0f1114 100%);
-  --gradient-panel: linear-gradient(180deg, #191d21 0%, #16191c 100%);
+  --surface-panel: linear-gradient(180deg, #191d21 0%, #16191c 100%);
   --gradient-cell: linear-gradient(180deg, #191d21 0%, #16191c 100%);
-  --gradient-btn: linear-gradient(180deg, #1e2226 0%, #191d21 100%);
+  --control-bg: linear-gradient(180deg, #1e2226 0%, #191d21 100%);
   --gradient-gold: linear-gradient(180deg, #e8a33d 0%, #e8a33d 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
@@ -63,12 +63,8 @@ html[data-theme="master-control"] {
    overshoot or stutter, just a quick confident sweep. Same
    380ms/550ms + ease-in/ease-out durations as the base rule (only
    animation-name differs here). */
-html[data-theme="master-control"] #tv-screen .crt.powering-off .crt-power-fx-line {
-  animation-name: crt-fx-off-line-master-control;
-}
-html[data-theme="master-control"] #tv-screen .crt.powering-on .crt-power-fx-line {
-  animation-name: crt-fx-on-line-master-control;
-}
+html[data-theme="master-control"] { --power-off-animation: crt-fx-off-line-master-control; }
+html[data-theme="master-control"] { --power-on-animation: crt-fx-on-line-master-control; }
 @keyframes crt-fx-off-line-master-control {
   0% { transform: scaleY(20); opacity: 0; }
   15% { transform: scaleY(1); opacity: 1; }
@@ -80,10 +76,4 @@ html[data-theme="master-control"] #tv-screen .crt.powering-on .crt-power-fx-line
   20% { transform: scaleY(1) scaleX(1); opacity: 1; }
   80% { transform: scaleY(1) scaleX(1); opacity: 1; }
   100% { transform: scaleY(30) scaleX(1); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="master-control"] #tv-screen .crt.powering-off .crt-power-fx-line,
-  html[data-theme="master-control"] #tv-screen .crt.powering-on .crt-power-fx-line {
-    animation: none;
-  }
 }

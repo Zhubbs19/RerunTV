@@ -867,22 +867,58 @@ tokens and never activates the theme while the browser is open. Omit it for a
 neutral fallback swatch; first-party packs provide it so every card remains
 recognizable even when another theme is currently active.
 
-Theme CSS can also reshape the program guide through semantic composition
-tokens instead of replacing core layout rules for simple variations:
+#### Theme CSS: tokens and slots
 
-| Token | Controls |
+A theme owns presentation while core owns layout, state, and density. Scope every
+rule to the registered theme id. A `style.css` may contain only:
+
+1. `html[data-theme="my-theme"]` token blocks, optionally with
+   `[data-mode="tv"]`;
+2. decoration rules for the documented `[data-slot="..."]` hooks;
+3. scoped native-field chrome for `input`, `select`, and `textarea`;
+4. keyframes. Core disables theme animation when reduced motion is requested.
+
+Start with semantic tokens instead of the older palette names:
+
+| Group | Main tokens |
 |---|---|
-| `--guide-grid-bg` | Guide canvas behind rows |
-| `--guide-channel-bg`, `--guide-channel-fg`, `--guide-channel-subtle` | Channel-number rail |
-| `--guide-program-bg`, `--guide-program-alt-bg` | Alternating program cells |
-| `--guide-selection-bg`, `--guide-selection-fg` | Remote-focused program |
-| `--guide-timebar-bg` | Time-axis surface |
-| `--guide-row-height`, `--guide-row-gap` | Grid density |
+| Surfaces and text | `--surface-0..3`, `--surface-panel`, `--text`, `--text-muted`, `--border` |
+| Accents and states | `--accent`, `--accent-rgb`, `--accent-text`, `--accent-2`, `--focus-ring`, `--danger`, `--selected-bg`, `--selected-text`, `--button-selected-border` |
+| Controls | `--control-bg`, `--control-text`, `--control-border`, `--control-border-width`, `--control-border-style`, `--control-radius`, `--control-shadow`, `--control-hover-bg`, `--control-hover-border`, `--control-active-bg`, `--control-active-shadow`, `--control-active-border-style` |
+| Guide | `--guide-grid-bg`, `--guide-rail-bg`, `--guide-rail-text`, `--guide-rail-subtle`, `--guide-cell-bg`, `--guide-cell-alt-bg`, `--guide-cell-text`, `--guide-selected-bg`, `--guide-selected-text`, `--guide-timebar-bg`, `--guide-row-height`, `--guide-row-gap` |
+| Motion | `--motion-control-*`, `--motion-card-*`, `--power-on-*`, `--power-off-*`, `--banner-animation`, `--channel-entry-flash-animation`, `--guide-info-update-animation`, `--guide-selected-settle-name`, `--guide-selected-pulse-name`, `--theme-guide-enter-*` |
+| Optional placement | `--guide-rail-width`, `--banner-left`, `--banner-bottom`, `--banner-min-width`, `--banner-max-width`, `--channel-entry-top`, `--channel-entry-right`, `--volume-right`, `--volume-bottom` |
 
-Use scoped `html[data-theme="..."]` selectors for identity that cannot be
-expressed as a token—such as a split preview/info header or square ruled
-cells. Keep keyboard focus obvious, preserve reduced-motion behavior, and
-avoid copying logos or artwork from a real cable provider.
+Core still exposes older palette names such as `--gold`, `--ink`, and
+`--guide-channel-bg` as read aliases for plugin content. New theme packs should
+declare the semantic names above. Themes must not set density tokens such as
+`--space-*`, `--target-min`, `--font-size-*`, `--safe-*`, or `--density`.
+
+Slots currently cover the guide (`guide-grid`, `guide-topbar`, `guide-info-*`,
+`guide-timeheader`, `guide-rail`, `guide-rail-number`, `guide-rail-name`,
+`guide-track`, `guide-cell`, `guide-gridlines`, `guide-now-line`, `guide-hint`),
+live-TV cards (`guide-banner`, `guide-banner-number`, `guide-banner-name`,
+`guide-progress`, `guide-progress-fill`, `channel-entry`, `hint-bar`,
+`rating-bug`, `volume-indicator`, `volume-bar`, `volume-bar-fill`), and
+`tv-menu-button` / `power-fx`. Slot rules may change color, border, radius,
+shadow, typography, spacing, opacity, filters, transforms, and animation. They
+may not change position, dimensions, display, overflow, or stacking. Supported
+state suffixes are `.sel`, `.past`, `.digit-flash`, `.gi-update`,
+`[data-active="true"]`, `:hover`, `:focus-visible`, `:active`, `:disabled`, and
+`:nth-child(even)`.
+
+Use `plugins/theme-dual-tuner-dvr-05/style.css` as the maintained reference;
+`widescreen-grid-13` was the migration pilot. To convert an older pack:
+
+1. replace palette declarations with semantic tokens;
+2. move shared control and selected-state rules into control tokens;
+3. replace supported visual selectors with slots and move layout values into
+   the optional placement tokens;
+4. keep only native-field rules and keyframes outside those blocks;
+5. run `node --experimental-vm-modules --test tests/theme-contract.test.js tests/theme-tokens.test.js`, then inspect desktop and TV states in the theme sweep.
+
+The contract and contrast checks also appear in PLUGINS diagnostics. Keep
+keyboard focus visible and avoid copying logos or artwork from a real provider.
 
 ### `registerPluginSettings(id, definition)`
 

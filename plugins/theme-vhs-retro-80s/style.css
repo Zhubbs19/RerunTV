@@ -6,21 +6,21 @@ html[data-theme="vhs-retro-80s"] {
   --motion-card-duration: 115ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 3px; --motion-card-from-scale: 1.015; --motion-digit-duration: 80ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.1;
   --setup-nav-bg: #1a0833;
   --setup-overflow-shadow: rgba(255, 51, 102, 0.5);
-  --ink: #120b24;
-  --ink-deep: #090514;
-  --cell: #2a164d;
-  --cell-alt: #361c63;
-  --gold: #ffe600;
-  --gold-ink: #141000;
-  --cyan: #33ffff;
-  --paper: #fff5eb;
-  --paper-dim: #d3c4e3;
-  --line: #ff3366;
+  --surface-1: #120b24;
+  --surface-0: #090514;
+  --surface-2: #2a164d;
+  --surface-3: #361c63;
+  --accent: #ffe600;
+  --accent-text: #141000;
+  --accent-2: #33ffff;
+  --text: #fff5eb;
+  --text-muted: #d3c4e3;
+  --border: #ff3366;
   --danger: #ff2a2a;
 
-  --gold-rgb: 255, 230, 0;
+  --accent-rgb: 255, 230, 0;
   --danger-rgb: 255, 42, 42;
-  --cyan-rgb: 51, 255, 255;
+  --accent-2-rgb: 51, 255, 255;
 
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Barlow Condensed', system-ui, sans-serif;
@@ -30,21 +30,21 @@ html[data-theme="vhs-retro-80s"] {
   --radius-lg: 4px;
 
   --guide-grid-bg: #090514;
-  --guide-channel-bg: #1a0833;
-  --guide-channel-fg: var(--cyan);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #2a164d;
-  --guide-program-alt-bg: #361c63;
-  --guide-selection-bg: var(--gold);
-  --guide-selection-fg: var(--gold-ink);
+  --guide-rail-bg: #1a0833;
+  --guide-rail-text: var(--accent-2);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #2a164d;
+  --guide-cell-alt-bg: #361c63;
+  --guide-selected-bg: var(--accent);
+  --guide-selected-text: var(--accent-text);
   --guide-timebar-bg: #29104c;
   --guide-row-height: 48px;
   --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #160c2c 0%, #241144 50%, #0c051a 100%);
-  --gradient-panel: linear-gradient(180deg, #3d1b6e 0%, #29104c 60%, #1a0833 100%);
+  --surface-panel: linear-gradient(180deg, #3d1b6e 0%, #29104c 60%, #1a0833 100%);
   --gradient-cell: linear-gradient(180deg, #482082 0%, #301359 100%);
-  --gradient-btn: linear-gradient(180deg, #801a33 0%, #660922 55%, #4d001a 100%);
+  --control-bg: linear-gradient(180deg, #801a33 0%, #660922 55%, #4d001a 100%);
   --gradient-gold: linear-gradient(180deg, #ffe600 0%, #ffd000 45%, #e6b800 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 230, 0, 0.3) 0%, rgba(255, 230, 0, 0.05) 45%, rgba(255, 230, 0, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 51, 102, 0.2) 0%, rgba(255, 51, 102, 0) 55%);

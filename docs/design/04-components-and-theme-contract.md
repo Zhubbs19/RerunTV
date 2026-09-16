@@ -1,13 +1,20 @@
 # 04 — Components and theme contract
 
-Status: **in progress** — steps 1–2 and §5 built; steps 3–5 underway. Owns contract **C4**.
+Status: **complete in source** — migration steps 1–5 and §5 are built. Owns contract **C4**.
 Consumed by: 01, 03, 06, 10, plugins.
 
-Working-tree update (2026-09-15): contrast checking and theme-contract lint now exist
-in `renderer/js/display/`. The converted-pack test currently lists only
-`widescreen-grid-13`, rather than the originally planned `dual-tuner-dvr-05`.
-The remaining pack migration, conversion guide and structural cleanup are open.
-Current test imports need repair after the directory moves; see [the audit](12-remaining-work-audit-2026-09-15.md).
+Completion update (2026-09-15): contrast checking and structural theme lint live in
+`renderer/js/display/`; all 25 first-party packs now use semantic tokens and documented
+slots, and CI checks every pack. `widescreen-grid-13` was the migration pilot;
+`dual-tuner-dvr-05` is the maintained authoring reference. The conversion guide is in
+`PLUGIN_DEVELOPMENT.md`, and the class-level compatibility rules that required the old
+specificity chain have been removed. See [the implementation audit](12-remaining-work-audit-2026-09-15.md).
+
+Fresh completion gate: `npm test` passes **185/185**; the real-Electron UI
+suite passes **36/36**; and the protected real-lineup theme sweep captures
+**26 themes × 26 screens = 676 screenshots** with **0 renderer runtime errors**.
+Representative setup, full-guide and docked-guide captures were visually checked
+after the run.
 
 ### Built (§6 step 1: semantic and density tokens, 7c63e55)
 
@@ -20,8 +27,8 @@ Current test imports need repair after the directory moves; see [the audit](12-r
   multiplied under `html[data-mode="tv"]` (24 px body, 64 px targets, spacing ×1.75, 5% safe area). The size
   tokens are `--font-size-*` because `--font-body` was already the body font family. They replace doc 01's
   `--tv-body/--tv-target/--tv-safe-*`. Radii stay theme tokens (a look choice, not density).
-- Alias direction: semantic follows palette during migration, so unconverted packs are untouched. Step 3
-  flips it (see there).
+- Alias direction: first-party packs now declare semantic names. The body-level palette
+  aliases remain as a read-only compatibility surface for older plugin content.
 - Verified: `tests/theme-tokens.test.js` resolves var() chains for the default theme and all 25 packs (no
   cycles, each semantic token equals its source, no pack sets density, core CSS no longer reads aliased
   names). Nothing anywhere redefines a palette token below `html`, so identical resolution means identical
@@ -170,13 +177,13 @@ check had (it treated gradients as unknown).
 
 ## 6. Migration
 
-1. Add semantic + density tokens with aliases; no visual change (theme sweep must be
+1. ✅ Add semantic + density tokens with aliases; no visual change (theme sweep must be
    pixel-similar; allow ≤ 1% diff per screenshot).
-2. Build kit primitives; use them first in the new shell (03) and ON AIR's toolbar.
-3. Convert one theme pack to tokens-only as the reference (dual-tuner-dvr-05, the user's
-   theme); write the conversion guide into `PLUGIN_DEVELOPMENT.md`.
-4. Convert remaining first-party packs; theme-check gates each.
-5. Remove structural overrides and the `:not()` chains in `setup.css` once no pack needs them.
+2. ✅ Build kit primitives; use them first in the new shell (03) and ON AIR's toolbar.
+3. ✅ Convert `widescreen-grid-13` as the pilot, establish `dual-tuner-dvr-05` as the
+   maintained reference, and document conversion in `PLUGIN_DEVELOPMENT.md`.
+4. ✅ Convert all remaining first-party packs; theme-check and structural lint gate each.
+5. ✅ Remove theme structural overrides and the compatibility `:not()` specificity chain.
 
 ## 7. Risks
 

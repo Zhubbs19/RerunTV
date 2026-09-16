@@ -6,21 +6,21 @@ html[data-theme="cyberpunk-synth"] {
   --motion-card-duration: 125ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 0px; --motion-card-from-scale: 1.035; --motion-digit-duration: 80ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.12;
   --setup-nav-bg: #120322;
   --setup-overflow-shadow: rgba(255, 0, 255, 0.5);
-  --ink: #0d061a;
-  --ink-deep: #06020c;
-  --cell: #240a3e;
-  --cell-alt: #321054;
-  --gold: #ffbe0b;
-  --gold-ink: #1a0f00;
-  --cyan: #00f0ff;
-  --paper: #ffffff;
-  --paper-dim: #d1b4fe;
-  --line: #7000ff;
+  --surface-1: #0d061a;
+  --surface-0: #06020c;
+  --surface-2: #240a3e;
+  --surface-3: #321054;
+  --accent: #ffbe0b;
+  --accent-text: #1a0f00;
+  --accent-2: #00f0ff;
+  --text: #ffffff;
+  --text-muted: #d1b4fe;
+  --border: #7000ff;
   --danger: #ff007f;
 
-  --gold-rgb: 255, 190, 11;
+  --accent-rgb: 255, 190, 11;
   --danger-rgb: 255, 0, 127;
-  --cyan-rgb: 0, 240, 255;
+  --accent-2-rgb: 0, 240, 255;
 
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Comfortaa', 'Barlow', system-ui, sans-serif;
@@ -30,26 +30,26 @@ html[data-theme="cyberpunk-synth"] {
   --radius-lg: 7px;
 
   --guide-grid-bg: #06020c;
-  --guide-channel-bg: #170a30;
-  --guide-channel-fg: var(--cyan);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #240a3e;
-  --guide-program-alt-bg: #321054;
-  --guide-selection-bg: #e20070; /* darkened from #ff007f: white selection text was 3.78:1, below WCAG AA */
-  --guide-selection-fg: #fff;
+  --guide-rail-bg: #170a30;
+  --guide-rail-text: var(--accent-2);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #240a3e;
+  --guide-cell-alt-bg: #321054;
+  --guide-selected-bg: #e20070; /* darkened from #ff007f: white selection text was 3.78:1, below WCAG AA */
+  --guide-selected-text: #fff;
   --guide-timebar-bg: #3d0070;
   --guide-row-height: 50px;
   --guide-row-gap: 2px;
 
   --gradient-page: linear-gradient(180deg, #0d061a 0%, #170a30 50%, #06020c 100%);
-  --gradient-panel: linear-gradient(180deg, #2a0a4a 0%, #1e0636 60%, #120322 100%);
+  --surface-panel: linear-gradient(180deg, #2a0a4a 0%, #1e0636 60%, #120322 100%);
   --gradient-cell: linear-gradient(180deg, #370c61 0%, #240742 100%);
-  --gradient-btn: linear-gradient(180deg, #6b00b3 0%, #4b008a 55%, #330060 100%);
+  --control-bg: linear-gradient(180deg, #6b00b3 0%, #4b008a 55%, #330060 100%);
   --gradient-gold: linear-gradient(180deg, #ff007f 0%, #d6006b 45%, #b30059 100%);
-  --button-fg: #ffffff;
+  --control-text: #ffffff;
   --button-hover-fg: #ffffff;
-  --button-selected-bg: linear-gradient(180deg, #ad0057 0%, #840043 50%, #620032 100%);
-  --button-selected-fg: #ffffff;
+  --selected-bg: linear-gradient(180deg, #ad0057 0%, #840043 50%, #620032 100%);
+  --selected-text: #ffffff;
   --button-selected-border: #ff4aa0;
   --gloss-strong: linear-gradient(180deg, rgba(0, 240, 255, 0.3) 0%, rgba(0, 240, 255, 0.05) 45%, rgba(0, 240, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 0, 127, 0.2) 0%, rgba(255, 0, 127, 0) 55%);

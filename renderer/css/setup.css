@@ -4,6 +4,7 @@
 
 #setup-screen {
   background: var(--gradient-page);
+  line-height: var(--setup-line-height, normal);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -126,7 +127,7 @@
   overflow: hidden;
   background: var(--tab-bg, var(--control-bg));
   border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--_tab-border, var(--control-border, var(--border)));
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border-radius: var(--control-radius, var(--radius-sm)) var(--control-radius, var(--radius-sm)) 0 0;
   box-shadow: var(--control-shadow, var(--bevel-raised), var(--shadow-hard-sm));
   color: var(--text-muted);
   font-family: var(--font-display);
@@ -137,11 +138,11 @@
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.setup-tab-btn:hover { color: var(--accent); --_tab-border: var(--tab-hover-border, var(--control-border, var(--border))); }
+.setup-tab-btn:hover { color: var(--button-hover-fg); background: var(--control-hover-bg, var(--tab-bg, var(--control-bg))); --_tab-border: var(--tab-hover-border, var(--control-border, var(--border))); }
 .setup-tab-btn.active {
-  background: var(--gradient-gold);
-  border-color: #c98914;
-  color: var(--accent-text);
+  background: var(--selected-bg);
+  border-color: var(--button-selected-border);
+  color: var(--selected-text);
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
@@ -187,7 +188,7 @@
   flex: 0 0 auto;
   background: var(--subtab-bg, rgba(255, 255, 255, 0.04));
   border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--subtab-border, var(--border));
-  border-radius: var(--subtab-radius, var(--radius-sm));
+  border-radius: var(--subtab-radius, var(--control-radius, var(--radius-sm)));
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-weight: 700;
@@ -198,14 +199,14 @@
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .setup-subtab-btn:hover {
-  color: var(--accent);
+  color: var(--button-subtab-hover-fg);
   border-color: var(--subtab-hover-border, var(--accent));
   background: var(--subtab-hover-bg, rgba(var(--accent-rgb), 0.08));
 }
 .setup-subtab-btn.active {
-  background: rgba(var(--accent-rgb), 0.18);
-  border-color: var(--accent);
-  color: var(--accent);
+  background: var(--selected-bg);
+  border-color: var(--button-selected-border);
+  color: var(--selected-text);
   box-shadow: 0 4px 10px -2px rgba(var(--accent-rgb), 0.36);
 }
 
@@ -560,6 +561,8 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  border: var(--toggle-border, 0);
+  border-radius: var(--toggle-radius, 0);
   font-family: var(--font-ui);
   font-weight: 600;
   font-size: 11px;
@@ -2076,8 +2079,8 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   pointer-events: none;
 }
 
-.btn:hover { border-color: var(--control-hover-border, var(--accent)); color: var(--button-hover-fg); transform: var(--motion-control-hover); }
-.btn:active { box-shadow: var(--control-active-shadow, var(--bevel-inset)); transform: var(--motion-control-active); }
+.btn:hover { border-color: var(--control-hover-border, var(--accent)); border-bottom: var(--control-hover-border-bottom); color: var(--button-hover-fg); background: var(--control-hover-bg, var(--control-bg)); transform: var(--motion-control-hover); }
+.btn:active { background: var(--control-active-bg, var(--control-bg)); box-shadow: var(--control-active-shadow, var(--bevel-inset)); transform: var(--motion-control-active); }
 
 /* Theme-facing control tokens that core didn't set before (docs/design/04
    §4.1). Zero-specificity :where() so any page's own button rule still wins,
@@ -2089,30 +2092,13 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
 :where(.setup-tab-btn, .setup-subtab-btn):hover { transform: var(--tab-hover-transform, none); }
 :where(.setup-tab-btn, .setup-subtab-btn):active { transform: var(--tab-active-transform, var(--tab-hover-transform, none)); }
 :is(.btn, .setup-tab-btn, .setup-subtab-btn, .tv-menu-btn):active { --_control-border-style: var(--control-active-border-style, var(--control-border-style, solid)); }
+:where(.btn, .setup-tab-btn, .setup-subtab-btn):disabled { opacity: var(--control-disabled-opacity, .46); color: var(--control-disabled-text, var(--button-disabled-fg)); border-color: var(--control-disabled-border, var(--control-border, var(--border))); }
 
-/* Theme styles load after core and several intentionally restyle broad
-   control families. The doubled data-theme attribute gives semantic state
-   colors one extra specificity step so a later generic theme hover rule
-   cannot turn a selected label into the same color as its background. The
-   theme still owns shape, motion, borders, and all token values. */
-html[data-theme][data-theme] :is(.btn, .setup-tab-btn, .setup-subtab-btn)
+/* Shared state colors are owned by core. Theme packs supply the tokens; they
+   no longer need class-level rules or selector-specificity workarounds. */
+:is(.btn, .setup-tab-btn, .setup-subtab-btn)
   :is(.setup-subtab-btn-count) { color: inherit; }
-html[data-theme][data-theme] :is(
-  .btn,
-  .setup-tab-btn,
-  .setup-subtab-btn,
-  .edit-tab-group-btn,
-  .edit-tab-btn,
-  .tagtaxonomy-category-badge,
-  .theme-browser-option,
-  .block-day-btn
-):not(.setup-subtab-btn):not(.btn-primary):not(.btn-danger):not(.remove-btn):not(:disabled):not(.active):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
-  color: var(--button-hover-fg) !important;
-}
-html[data-theme][data-theme] .setup-subtab-btn:not(:disabled):not(.active):not([aria-pressed="true"]):not([aria-selected="true"]):hover {
-  color: var(--button-subtab-hover-fg) !important;
-}
-html[data-theme][data-theme] :is(
+:is(
   .setup-tab-btn.active,
   .setup-subtab-btn.active,
   .edit-tab-group-btn.active,
@@ -2124,12 +2110,12 @@ html[data-theme][data-theme] :is(
   .theme-browser-option.active,
   .block-day-btn.active
 ):not(.edit-tab-soon) {
-  color: var(--selected-text) !important;
-  background: var(--selected-bg) !important;
-  border-color: var(--button-selected-border) !important;
+  color: var(--selected-text);
+  background: var(--selected-bg);
+  border-color: var(--button-selected-border);
   text-shadow: none;
 }
-html[data-theme][data-theme] :is(
+:is(
   .setup-tab-btn.active,
   .setup-subtab-btn.active,
   .edit-tab-group-btn.active,
@@ -2141,12 +2127,12 @@ html[data-theme][data-theme] :is(
   .theme-browser-option.active,
   .block-day-btn.active
 ):not(.edit-tab-soon):hover {
-  color: var(--selected-text) !important;
-  background: var(--selected-bg) !important;
+  color: var(--selected-text);
+  background: var(--selected-bg);
 }
-html[data-theme][data-theme] .setup-subtab-btn.active .setup-subtab-btn-count {
-  color: inherit !important;
-  background: transparent !important;
+.setup-subtab-btn.active .setup-subtab-btn-count {
+  color: inherit;
+  background: transparent;
 }
 
 /* The html[data-theme] prefix deliberately outranks theme-pack rules that
@@ -2486,9 +2472,9 @@ html[data-theme] .btn[aria-disabled="true"] {
 .panel-status {
   font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 11px;
+  font-size: var(--panel-status-font-size, 11px);
   letter-spacing: 0.5px;
-  color: var(--text-muted);
+  color: var(--panel-status-color, var(--text-muted));
   line-height: 1.55;
   max-width: 105ch;
 }

@@ -9,10 +9,6 @@ const h = require('./helpers/theme-resolve.js');
 
 const load = (file) => import(pathToFileURL(path.join(h.root, 'renderer', 'js', file)).href);
 
-// Packs converted to the contract so far (§6 steps 3–4). Step 5 empties this
-// list's complement: every first-party pack.
-const CONVERTED = new Set(['widescreen-grid-13']);
-
 // Pairs a theme may exempt (decision for doc 04): decoration and display-scale
 // pairs only. Body text, selected labels and the guide's rail/cell text must pass.
 const NEVER_EXEMPT = new Set([
@@ -43,11 +39,10 @@ test('the contract lint accepts the reference shapes and rejects structural rule
   assert.match(bad('@media (max-width: 600px) { html[data-theme="x"] { --accent: red; } }')[0], /unsupported/);
 });
 
-test('converted packs keep the contract', async () => {
+test('every first-party pack keeps the contract', async () => {
   const { lintThemeCss } = await load('display/theme-contract.js');
   for (const dir of h.themeDirs()) {
     const id = dir.replace(/^theme-/, '');
-    if (!CONVERTED.has(id)) continue;
     const problems = lintThemeCss(id, h.read('plugins', dir, 'style.css'));
     assert.deepEqual(problems, [], `${dir}:\n${problems.map((p) => `  ${p.selector} — ${p.problem}`).join('\n')}`);
   }

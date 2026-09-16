@@ -18,7 +18,9 @@ export const THEME_SLOTS = Object.freeze({
   'guide-topbar': 'the guide header (selected program facts)',
   'guide-info-number': 'channel number in the guide header',
   'guide-info-title': 'program title in the guide header',
+  'guide-info-panel': 'program facts group in the guide header',
   'guide-info-body': 'text column in the guide header',
+  'guide-info-time': 'program time in the guide header',
   'guide-timeheader': 'the half-hour time bar',
   'guide-rail': 'a row\'s channel cell',
   'guide-rail-number': 'channel number in a rail cell',
@@ -118,7 +120,8 @@ export function lintThemeCss(themeId, cssText) {
   const root = `html[data-theme="${themeId}"]`;
   const rootRe = `html\\[data-theme="${themeId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"\\](?:\\[data-mode="tv"\\])?`;
   const slotName = '\\[data-slot="([a-z0-9-]+)"\\]';
-  const slotRe = new RegExp(`^${rootRe} (?:${slotName}|:is\\((${slotName}(?:\\s*,\\s*${slotName})*)\\))(?:::before|::after)?$`);
+  const slotState = '(?:\\.(?:sel|past|digit-flash|gi-update)|\\[data-active="true"\\]|:(?:hover|focus-visible|active|disabled)|:nth-child\\(even\\))*';
+  const slotRe = new RegExp(`^${rootRe} (?:${slotName}|:is\\((${slotName}(?:\\s*,\\s*${slotName})*)\\))${slotState}(?:::before|::after)?$`);
   const fieldRe = new RegExp(`^${rootRe} (?::is\\(\\s*input\\s*,\\s*select\\s*,\\s*textarea\\s*\\)|input|select|textarea)(?::focus|:focus-visible)?$`);
   const tokenRe = new RegExp(`^${rootRe}$`);
 

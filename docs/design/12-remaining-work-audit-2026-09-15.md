@@ -6,9 +6,9 @@ reorganization and theme work; it is not an audit of only committed HEAD.
 
 ## Summary
 
-The timeline, setup shell, usage modes and guide are substantially implemented.
-The next work is to restore validation after the file moves, finish the theme
-contract migration, and complete command transport with the web control panel.
+The timeline, setup shell, usage modes, guide and theme contract are substantially
+implemented. Validation after the file moves is restored. The next work is to
+complete command transport with the web control panel.
 The shared library, channel builder, household features and era layer remain
 larger future projects. Existing plugins and partial features should be reused.
 
@@ -20,7 +20,7 @@ larger future projects. Existing plugins and partial features should be reused.
 | 01 Usage modes | Built in source; hardware acceptance open | Hisense remote/APK verification, native keyboard and long-press checks; real gamepad/CEC/Tizen/webOS checks; Tizen/webOS packaging. Control-panel deep links depend on 06. |
 | 02 Timeline | Built; storage decision closed | Restore tests after moves and rerun acceptance. Keep the derived rule stack and layered storage; schema replacement is not outstanding work. |
 | 03 Setup shell | Built | Restore current validation and recheck acceptance timings/keyboard/layout after the reorganization and component changes. No evidence warrants rebuilding the shell. |
-| 04 Components/themes | Kit and plugin surface built; migration partial | Finish reference pack, conversion guide, remaining packs, structural CSS cleanup and visual/contrast gates. |
+| 04 Components/themes | Complete in source and validated | All 25 packs use semantic tokens/slots; conversion guide, structural lint, contrast and fresh desktop/TV gates are complete. |
 | 05 Commands/sync | Local commands, undo, host reconciliation and viewer notifications built | Send renderer commands to the host; finish multi-editor conflict/revision handling, plugin command registration and control authorization with 06. |
 | 06 Web control | Proposed, with reusable host/viewer foundations | Full control route, writable shim, scoped sessions, command endpoint, host folder browser/uploads, handoff/deep links, presence and administration UX. |
 | 07 Library/tagging | Shared catalogue not implemented | Stable item IDs/index, roots, provenance, review queue, saved queries, explicit rematerialization and schedule-preserving migration. Existing tags, curation and relinking are foundations. |
@@ -65,20 +65,29 @@ capability, so core correctly refuses to activate it until the user reviews the 
 permission. That does not invalidate the theme sweep; Google Drive behavior was not
 claimed as covered. Real Hisense hardware verification remains outside this priority.
 
-## Priority 2 — Finish 04 without losing theme character
+## Priority 2 — Complete (2026-09-15)
 
-`renderer/js/display/theme-check.js`, `contrast.js` and `theme-contract.js` now
-exist. Theme results feed setup badges and plugin diagnostics. The migration is
-therefore further along than simply “build a checker,” but not complete:
+All 25 first-party theme packs now declare semantic tokens and decorate only the
+documented slots or native fields. `tests/theme-contract.test.js` enforces the
+structural contract across the complete pack list, while the token test rejects
+legacy palette declarations. `widescreen-grid-13` is documented as the migration
+pilot and `dual-tuner-dvr-05` as the maintained reference.
 
-- `tests/theme-contract.test.js` lists **only `widescreen-grid-13`** in `CONVERTED`.
-- Doc 04 names `dual-tuner-dvr-05` as the intended reference. Resolve/document
-  that mismatch; do not count the other packs as converted.
-- Write the theme conversion/slot guide in `PLUGIN_DEVELOPMENT.md`.
-- Convert remaining packs and enforce structural lint across all first-party packs.
-- Remove compatibility overrides and specificity chains only after conversion.
-- Verify contrast and appearance on desktop and TV, including selected, focused,
-  disabled and popup states. Current broken test imports prevent a fresh gate result.
+`PLUGIN_DEVELOPMENT.md` now documents semantic/control/motion tokens, placement
+tokens, every slot and supported state suffix, forbidden density/layout changes,
+and the conversion/validation workflow. Core control states read tokens directly,
+so the broad theme class overrides and the old eight-`:not()` specificity chain
+are gone. The guide header, exit prompt and active channel rail expose the small
+additional slots/state attributes needed to preserve the existing looks.
+
+Fresh validation after conversion:
+
+- `npm test`: **185/185 pass**;
+- real-Electron UI suite: **36/36 pass**;
+- full real-lineup theme sweep: **26 themes × 26 screens = 676 captures**,
+  with **0 renderer runtime errors**;
+- representative converted setup, full-guide and docked-guide screenshots were
+  visually checked after the sweep.
 
 ## Priority 3 — Complete 05 and 06 together
 

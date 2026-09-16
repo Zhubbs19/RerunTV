@@ -50,17 +50,14 @@ test('core tokens resolve with no cycles, desktop, TV and body', () => {
   Object.keys(tvTokens).forEach((name) => assert.doesNotThrow(() => tv(name), name));
 });
 
-test('a pack that sets palette names still drives every semantic token (all 25 packs)', () => {
+test('every first-party pack uses semantic names and resolves every semantic token', () => {
   assert.ok(themeDirs.length >= 25, `found ${themeDirs.length} theme packs`);
   for (const dir of themeDirs) {
     const pack = packBlock(dir);
-    const { atHtml, atBody } = cascade(pack);
+    const { atHtml } = cascade(pack);
     for (const [semantic, legacy] of Object.entries(ALIASES)) {
-      if (legacy in pack && !(semantic in pack)) {
-        assert.equal(atHtml(semantic), atHtml(legacy), `${dir}: ${semantic} doesn't follow the pack's ${legacy}`);
-      }
-      // The palette name reads back the semantic value for plugin CSS inside body.
-      if (legacy in bodyTokens) assert.equal(atBody(legacy), atHtml(semantic), `${dir}: body ${legacy} ≠ ${semantic}`);
+      if (legacy !== '--danger') assert.ok(!(legacy in pack), `${dir} still declares legacy ${legacy}; use ${semantic}`);
+      assert.ok(atHtml(semantic), `${dir}: ${semantic} does not resolve`);
     }
   }
 });

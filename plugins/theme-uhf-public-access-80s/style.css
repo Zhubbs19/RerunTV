@@ -12,21 +12,21 @@ html[data-theme="uhf-public-access-80s"] {
   --motion-card-duration: 110ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 4px; --motion-card-from-scale: 1; --motion-digit-duration: 85ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.05;
   --setup-nav-bg: #0a0316;
   --setup-overflow-shadow: rgba(255, 71, 202, 0.5);
-  --ink: #050014;
-  --ink-deep: #02000a;
-  --cell: #1c0a33;
-  --cell-alt: #240f42;
-  --gold: #ff2bd6;
-  --gold-ink: #1a0018;
-  --cyan: #00e5ff;
-  --paper: #e8e6ff;
-  --paper-dim: #8f7fc9;
-  --line: #7b2ff7;
+  --surface-1: #050014;
+  --surface-0: #02000a;
+  --surface-2: #1c0a33;
+  --surface-3: #240f42;
+  --accent: #ff2bd6;
+  --accent-text: #1a0018;
+  --accent-2: #00e5ff;
+  --text: #e8e6ff;
+  --text-muted: #8f7fc9;
+  --border: #7b2ff7;
   --danger: #ff3355;
 
-  --gold-rgb: 255, 43, 214;
+  --accent-rgb: 255, 43, 214;
   --danger-rgb: 255, 51, 85;
-  --cyan-rgb: 0, 229, 255;
+  --accent-2-rgb: 0, 229, 255;
 
   --font-display: 'Archivo Black', system-ui, sans-serif;
   --font-ui: 'Barlow Condensed', system-ui, sans-serif;
@@ -36,21 +36,21 @@ html[data-theme="uhf-public-access-80s"] {
   --radius-lg: 3px;
 
   --guide-grid-bg: #02000a;
-  --guide-channel-bg: #0d0324;
-  --guide-channel-fg: var(--cyan);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #1c0a33;
-  --guide-program-alt-bg: #281047;
-  --guide-selection-bg: var(--gold);
-  --guide-selection-fg: #120018;
+  --guide-rail-bg: #0d0324;
+  --guide-rail-text: var(--accent-2);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #1c0a33;
+  --guide-cell-alt-bg: #281047;
+  --guide-selected-bg: var(--accent);
+  --guide-selected-text: #120018;
   --guide-timebar-bg: #150726;
   --guide-row-height: 46px;
   --guide-row-gap: 1px;
 
   --gradient-page: linear-gradient(180deg, #050014 0%, #0d0324 50%, #02000a 100%);
-  --gradient-panel: linear-gradient(180deg, #1c0a33 0%, #150726 60%, #0a0316 100%);
+  --surface-panel: linear-gradient(180deg, #1c0a33 0%, #150726 60%, #0a0316 100%);
   --gradient-cell: linear-gradient(180deg, #240f42 0%, #180a2c 100%);
-  --gradient-btn: linear-gradient(180deg, #2d0d54 0%, #1f093c 55%, #130527 100%);
+  --control-bg: linear-gradient(180deg, #2d0d54 0%, #1f093c 55%, #130527 100%);
   --gradient-gold: linear-gradient(180deg, #ff2bd6 0%, #ff00de 45%, #eb00be 100%);
   --gloss-strong: linear-gradient(180deg, rgba(0, 229, 255, 0.1) 0%, rgba(0, 229, 255, 0.02) 45%, rgba(0, 229, 255, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 43, 214, 0.08) 0%, rgba(255, 43, 214, 0) 55%);
@@ -66,57 +66,26 @@ html[data-theme="uhf-public-access-80s"] {
    recoloring the shared gradient-cell look: a flat black Ceefax/teletext-
    style terminal grid (monospace, hard edges, phosphor text-glow,
    inverted-video selection). */
-html[data-theme="uhf-public-access-80s"] .guide-row-chan,
-html[data-theme="uhf-public-access-80s"] .guide-row-track {
-  background: #050014;
-  border-radius: 0;
-  box-shadow: none;
-}
-html[data-theme="uhf-public-access-80s"] .guide-row.active-row .guide-row-chan {
-  background: #0d0324;
-}
-html[data-theme="uhf-public-access-80s"] .grc-num,
-html[data-theme="uhf-public-access-80s"] .grc-name,
-html[data-theme="uhf-public-access-80s"] .guide-entry {
-  font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace;
-  letter-spacing: 0.5px;
-}
-html[data-theme="uhf-public-access-80s"] .grc-num {
-  color: var(--cyan);
-  text-shadow: 0 0 6px rgba(var(--cyan-rgb), 0.7);
-}
-html[data-theme="uhf-public-access-80s"] .grc-name {
-  color: var(--paper-dim);
-}
-html[data-theme="uhf-public-access-80s"] .guide-entry {
-  background: #050014;
-  border-right: 1px solid #1c0a33;
-  color: #d6d0ff;
-  text-shadow: none;
-}
-html[data-theme="uhf-public-access-80s"] .guide-entry:nth-child(even) {
-  background: #0a0322;
-}
-html[data-theme="uhf-public-access-80s"] .guide-entry:hover {
-  background: #1c0a33;
-}
-html[data-theme="uhf-public-access-80s"] .guide-entry.past { opacity: 0.35; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail"],
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-track"] { background: #050014; border-radius: 0; box-shadow: none; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail"][data-active="true"] { background: #0d0324; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail-number"],
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail-name"],
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"] { font-family: ui-monospace, 'Cascadia Code', 'SF Mono', monospace; letter-spacing: 0.5px; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail-number"] { color: var(--accent-2); text-shadow: 0 0 6px rgba(var(--accent-2-rgb), 0.7); }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail-name"] { color: var(--text-muted); }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"] { background: #050014; border-right: 1px solid #1c0a33; color: #d6d0ff; text-shadow: none; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"]:nth-child(even) { background: #0a0322; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"]:hover { background: #1c0a33; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"].past { opacity: 0.35; }
 /* Selected entry reads as inverted-video terminal cursor, not a glossy gold
    pill — solid magenta fill, black text, no glow animation. */
-html[data-theme="uhf-public-access-80s"] .guide-entry.sel {
-  background: var(--gold);
-  color: #050014;
-  box-shadow: none;
-  animation: none;
-  text-shadow: none;
-}
-html[data-theme="uhf-public-access-80s"] .guide-gridlines {
-  background-image: repeating-linear-gradient(
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-cell"].sel { background: var(--accent); color: #050014; box-shadow: none; animation: none; text-shadow: none; }
+html[data-theme="uhf-public-access-80s"] [data-slot="guide-gridlines"] { background-image: repeating-linear-gradient(
     90deg,
     rgba(0, 229, 255, 0.14) 0 1px,
     rgba(0, 229, 255, 0) 1px var(--guide-slot-w, 33.3333%)
-  );
-}
+  ); }
 
 /* "A signal that can't quite hold" (see staticStyle: 'tear' in renderer.js)
    — the power line jitters horizontally instead of settling cleanly, echoing
@@ -124,12 +93,8 @@ html[data-theme="uhf-public-access-80s"] .guide-gridlines {
    duration/timing-function/fill-mode as the base rule (overlays.css) — only
    animation-name differs, so POWER_ON_ANIM_MS/POWER_OFF_ANIM_MS in state.js
    need no theme awareness. */
-html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-off .crt-power-fx-line {
-  animation-name: crt-fx-off-line-uhf;
-}
-html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-on .crt-power-fx-line {
-  animation-name: crt-fx-on-line-uhf;
-}
+html[data-theme="uhf-public-access-80s"] { --power-off-animation: crt-fx-off-line-uhf; }
+html[data-theme="uhf-public-access-80s"] { --power-on-animation: crt-fx-on-line-uhf; }
 @keyframes crt-fx-off-line-uhf {
   0% { transform: scaleY(80) translateX(0); opacity: 0; }
   10% { transform: scaleY(1) translateX(-2%); opacity: 1; }
@@ -149,24 +114,17 @@ html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-on .crt-power-
   78% { opacity: 1; }
   100% { transform: scaleY(60) scaleX(1) translateX(0); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-off .crt-power-fx-line,
-  html[data-theme="uhf-public-access-80s"] #tv-screen .crt.powering-on .crt-power-fx-line {
-    animation: none;
-  }
-}
+
 
 /* Animation-polish pass additions: the same "signal that can't quite hold"
    horizontal jitter as the power-fx override above (staticStyle: 'tear').
-   No override for .guide-entry.sel here — this era already turns that
+   No override for [data-slot="guide-cell"].sel here — this era already turns that
    animation off entirely (see the "inverted-video terminal cursor, no glow
    animation" rule further up), which is itself the deliberate theme-
    specific choice for that one; a jittery entrance would fight it. Same
    durations/timing-functions/fill-modes as each base rule
    (guide.css/overlays.css) — only animation-name differs. */
-html[data-theme="uhf-public-access-80s"] #tv-screen .channel-entry.digit-flash {
-  animation-name: channel-entry-flash-uhf;
-}
+html[data-theme="uhf-public-access-80s"] { --channel-entry-flash-animation: channel-entry-flash-uhf; }
 @keyframes channel-entry-flash-uhf {
   0% { transform: translateX(0); opacity: 0.5; }
   20% { transform: translateX(-3px); opacity: 1; }
@@ -174,10 +132,7 @@ html[data-theme="uhf-public-access-80s"] #tv-screen .channel-entry.digit-flash {
   60% { transform: translateX(-1px); opacity: 1; }
   100% { transform: translateX(0); opacity: 1; }
 }
-html[data-theme="uhf-public-access-80s"] .guide-info-title.gi-update,
-html[data-theme="uhf-public-access-80s"] .guide-info-time.gi-update {
-  animation-name: guide-info-fade-uhf;
-}
+html[data-theme="uhf-public-access-80s"] { --guide-info-update-animation: guide-info-fade-uhf; }
 @keyframes guide-info-fade-uhf {
   0% { opacity: 0; transform: translateY(0); }
   20% { opacity: 0.8; transform: translateY(-1px); }
@@ -185,9 +140,7 @@ html[data-theme="uhf-public-access-80s"] .guide-info-time.gi-update {
   70% { opacity: 1; transform: translateY(0); }
   100% { opacity: 1; }
 }
-html[data-theme="uhf-public-access-80s"] .guide-overlay {
-  animation-name: guide-overlay-in-uhf;
-}
+html[data-theme="uhf-public-access-80s"] { --banner-animation: guide-overlay-in-uhf; }
 @keyframes guide-overlay-in-uhf {
   0% { opacity: 0; transform: translateY(10px) translateX(0); }
   30% { opacity: 1; transform: translateY(0) translateX(-3px); }
@@ -195,39 +148,21 @@ html[data-theme="uhf-public-access-80s"] .guide-overlay {
   70% { transform: translateX(-1px); }
   100% { transform: translateX(0); }
 }
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="uhf-public-access-80s"] #tv-screen .channel-entry.digit-flash,
-  html[data-theme="uhf-public-access-80s"] .guide-info-title.gi-update,
-  html[data-theme="uhf-public-access-80s"] .guide-info-time.gi-update,
-  html[data-theme="uhf-public-access-80s"] .guide-overlay {
-    animation: none;
-  }
-}
+
 
 /* Guide open/close (opt-in, see guide.css's .guide-anim-enabled block) —
    same "signal that can't quite hold" horizontal jitter as the four
    animations above: it leans in sideways as it settles instead of sliding
    straight up. Duration still comes from --guide-anim-ms (the speed
    slider) — only the offset/easing differ. */
-html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
-  --guide-anim-offset-x: -10px;
-  --guide-anim-offset-y: 6px;
-  transition-timing-function: cubic-bezier(0.68, -0.4, 0.27, 1.4);
-}
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="uhf-public-access-80s"] .crt.guide-anim-enabled .guide-grid {
-    transition: none;
-  }
-}
-
 /* TV parental guidelines didn't exist before 1997 — this 1988 late-night
    UHF era shows no rating bug at all, same reasoning as
    theme-wood-console-70s/style.css. The movie-rating-card full-screen
    overlay is untouched: MPAA film ratings (a separate system) predate this. */
-html[data-theme="uhf-public-access-80s"] .rating-bug { display: none !important; }
+html[data-theme="uhf-public-access-80s"] { --rating-bug-display: none; }
 /* Local-access character generators cut laterally rather than floating. */
 html[data-theme="uhf-public-access-80s"] {
-  --theme-guide-enter-x: -18px;
-  --theme-guide-enter-y: 0px;
-  --theme-guide-enter-ease: steps(3, end);
+  --theme-guide-enter-x: -10px;
+  --theme-guide-enter-y: 6px;
+  --theme-guide-enter-ease: cubic-bezier(0.68, -0.4, 0.27, 1.4);
 }

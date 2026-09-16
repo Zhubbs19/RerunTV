@@ -118,6 +118,11 @@ test('new cable-box themes include visual, guide, sound, caption, and era behavi
     assert.match(renderer, /powerSfx\(isOn\)/);
     assert.match(css, new RegExp(`html\\[data-theme="${id}"\\]`));
     assert.match(css, /--guide-row-height:/);
-    assert.match(css, /prefers-reduced-motion/);
   }
+  const motionCore = [
+    fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'guide.css'), 'utf8'),
+    fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'overlays.css'), 'utf8'),
+  ].join('\n');
+  assert.match(motionCore, /prefers-reduced-motion[\s\S]*?guide-overlay[\s\S]*?animation: none/);
+  assert.match(motionCore, /prefers-reduced-motion[\s\S]*?crt-power-fx-line[\s\S]*?animation: none/);
 });

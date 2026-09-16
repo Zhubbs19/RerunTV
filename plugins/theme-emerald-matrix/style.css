@@ -6,27 +6,27 @@ html[data-theme="emerald-matrix"] {
   --motion-card-duration: 110ms; --motion-card-ease: steps(3, end); --motion-card-from-y: 0px; --motion-card-from-scale: .97; --motion-digit-duration: 75ms; --motion-digit-ease: steps(2, end); --motion-digit-from-scale: 1.09;
   --setup-nav-bg: #031208;
   --setup-overflow-shadow: rgba(0, 255, 102, 0.45);
-  --ink: #020d06;
-  --ink-deep: #000502;
-  --cell: #092612;
-  --cell-alt: #0f381c;
-  --gold: #a3ff12;
-  --gold-ink: #031402;
-  --cyan: #00ff66;
-  --paper: #e6ffed;
-  --paper-dim: #85d69b;
-  --line: #165c2b;
+  --surface-1: #020d06;
+  --surface-0: #000502;
+  --surface-2: #092612;
+  --surface-3: #0f381c;
+  --accent: #a3ff12;
+  --accent-text: #031402;
+  --accent-2: #00ff66;
+  --text: #e6ffed;
+  --text-muted: #85d69b;
+  --border: #165c2b;
   --danger: #ff3344;
 
-  --gold-rgb: 163, 255, 18;
+  --accent-rgb: 163, 255, 18;
   --danger-rgb: 255, 51, 68;
-  --cyan-rgb: 0, 255, 102;
+  --accent-2-rgb: 0, 255, 102;
 
   /* Flow builder's ad-pod/station-ID badges (setup.css's .type-pod/
      .type-stationid) default to a fixed magenta/green that clashes hard
      against an all-green palette — amber/blue terminal-alert-style accents
-     instead, distinct from --gold/--cyan (both already green) and still
-     legible against --ink (10.8:1 / 11.2:1). */
+     instead, distinct from --accent/--accent-2 (both already green) and still
+     legible against --surface-1 (10.8:1 / 11.2:1). */
   --accent-pod: #ffb020;
   --accent-pod-rgb: 255, 176, 32;
   --accent-stationid: #00d4ff;
@@ -40,21 +40,21 @@ html[data-theme="emerald-matrix"] {
   --radius-lg: 0px;
 
   --guide-grid-bg: #000502;
-  --guide-channel-bg: #031208;
-  --guide-channel-fg: var(--gold);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #092612;
-  --guide-program-alt-bg: #0f381c;
-  --guide-selection-bg: var(--gold);
-  --guide-selection-fg: var(--gold-ink);
+  --guide-rail-bg: #031208;
+  --guide-rail-text: var(--accent);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #092612;
+  --guide-cell-alt-bg: #0f381c;
+  --guide-selected-bg: var(--accent);
+  --guide-selected-text: var(--accent-text);
   --guide-timebar-bg: #031208;
   --guide-row-height: 46px;
   --guide-row-gap: 1px;
 
   --gradient-page: linear-gradient(180deg, #020d06 0%, #071f0f 50%, #010803 100%);
-  --gradient-panel: linear-gradient(180deg, #0c3319 0%, #072110 60%, #031208 100%);
+  --surface-panel: linear-gradient(180deg, #0c3319 0%, #072110 60%, #031208 100%);
   --gradient-cell: linear-gradient(180deg, #114221 0%, #092b15 100%);
-  --gradient-btn: linear-gradient(180deg, #165c2b 0%, #0f421e 55%, #082912 100%);
+  --control-bg: linear-gradient(180deg, #165c2b 0%, #0f421e 55%, #082912 100%);
   --gradient-gold: linear-gradient(180deg, #a3ff12 0%, #8ae600 45%, #73cc00 100%);
   --gloss-strong: linear-gradient(180deg, rgba(0, 255, 102, 0.25) 0%, rgba(0, 255, 102, 0.04) 45%, rgba(0, 255, 102, 0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(163, 255, 18, 0.15) 0%, rgba(163, 255, 18, 0) 55%);

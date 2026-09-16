@@ -629,6 +629,7 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
   chanCell.dataset.slot = 'guide-rail';
+  chanCell.dataset.active = String(ch.number === S.guideSelNumber);
   // Addressable by channel number so anything that wants to decorate a row
   // later can find it again without re-rendering the grid — the 30s tick
   // deliberately doesn't rebuild rows (see the render-signature fast path
@@ -747,6 +748,7 @@ function buildSpecialRow(row) {
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
   chanCell.dataset.slot = 'guide-rail';
+  chanCell.dataset.active = String(number === S.guideSelNumber);
   chanCell.dataset.channelNumber = String(number);
   chanCell.appendChild(buildChannelBadge({ number, name: info.name, icon: null }, { small: true, editable: false }));
   const chanText = document.createElement('div');

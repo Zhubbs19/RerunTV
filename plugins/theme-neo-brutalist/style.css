@@ -9,30 +9,30 @@ html[data-theme="neo-brutalist"] {
   --motion-card-duration: 70ms; --motion-card-ease: steps(1, end); --motion-card-from-y: 6px; --motion-card-from-scale: 1; --motion-digit-duration: 60ms; --motion-digit-ease: steps(1, end); --motion-digit-from-scale: 1.03;
   --setup-nav-bg: rgba(255, 255, 255, 0.98);
   --setup-overflow-shadow: rgba(0, 0, 0, 0.6);
-  --ink: #f5f3ea;
-  --ink-deep: #ffffff;
-  --cell: #e7e2d3;
-  --cell-alt: #ddd7c4;
+  --surface-1: #f5f3ea;
+  --surface-0: #ffffff;
+  --surface-2: #e7e2d3;
+  --surface-3: #ddd7c4;
   /* Darker than the original #f4e400/#ff2f6e — this is the one theme (with
      frutiger-aero) whose panels are light, not dark, so these accent colors
      double as everyday label/dropdown TEXT sitting directly on
-     --ink-deep/--cell, not just block backgrounds under black gold-ink
+     --surface-0/--surface-2, not just block backgrounds under black gold-ink
      text. Acid-yellow-on-white in particular was nearly invisible (~1.3:1)
      — darkened here, within the same hue family, to clear WCAG AA (4.5:1)
      everywhere these tokens are used as text, without touching every call
      site. gradient-btn/gradient-gold (the actual acid-yellow block
      backgrounds) are separate hardcoded values below, untouched. */
-  --gold: #8a7000;
-  --gold-ink: #0a0a0a;
-  --cyan: #d61f56;
-  --paper: #0a0a0a;
-  --paper-dim: #3a3a3a;
-  --line: #0a0a0a;
+  --accent: #8a7000;
+  --accent-text: #0a0a0a;
+  --accent-2: #d61f56;
+  --text: #0a0a0a;
+  --text-muted: #3a3a3a;
+  --border: #0a0a0a;
   --danger: #d61f56;
 
-  --gold-rgb: 138, 112, 0;
+  --accent-rgb: 138, 112, 0;
   --danger-rgb: 214, 31, 86;
-  --cyan-rgb: 214, 31, 86;
+  --accent-2-rgb: 214, 31, 86;
 
   --font-display: 'Archivo Black', system-ui, sans-serif;
   /* Raw hand-built monospace instead of a grotesque — core to the
@@ -41,21 +41,21 @@ html[data-theme="neo-brutalist"] {
   --font-body: 'Barlow', system-ui, sans-serif;
 
   --guide-grid-bg: #f5f3ea;
-  --guide-channel-bg: #0a0a0a;
-  --guide-channel-fg: #fff;
-  --guide-channel-subtle: #d7d1bd;
-  --guide-program-bg: #fff;
-  --guide-program-alt-bg: #e7e2d3;
-  --guide-selection-bg: #d61f56;
-  --guide-selection-fg: #fff;
+  --guide-rail-bg: #0a0a0a;
+  --guide-rail-text: #fff;
+  --guide-rail-subtle: #d7d1bd;
+  --guide-cell-bg: #fff;
+  --guide-cell-alt-bg: #e7e2d3;
+  --guide-selected-bg: #d61f56;
+  --guide-selected-text: #fff;
   --guide-timebar-bg: #f0c808;
   --guide-row-height: 50px;
   --guide-row-gap: 5px;
 
   --gradient-page: linear-gradient(180deg, #f5f3ea 0%, #f5f3ea 100%);
-  --gradient-panel: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
+  --surface-panel: linear-gradient(180deg, #ffffff 0%, #ffffff 100%);
   --gradient-cell: linear-gradient(180deg, #e7e2d3 0%, #e7e2d3 100%);
-  --gradient-btn: linear-gradient(180deg, #f4e400 0%, #f4e400 100%);
+  --control-bg: linear-gradient(180deg, #f4e400 0%, #f4e400 100%);
   --gradient-gold: linear-gradient(180deg, #f4e400 0%, #f4e400 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0) 100%);
@@ -72,8 +72,8 @@ html[data-theme="neo-brutalist"] {
 }
 
 /* tokens.css's shared select-arrow reset hardcodes a semi-transparent WHITE
-   stroke, reasoning every theme's --ink-deep (the usual select background)
-   is dark — true for every other theme, but this one's --ink-deep is pure
+   stroke, reasoning every theme's --surface-0 (the usual select background)
+   is dark — true for every other theme, but this one's --surface-0 is pure
    white, so that arrow would be invisible. Dark stroke instead, scoped to
    this theme only. */
 html[data-theme="neo-brutalist"] select {
@@ -83,13 +83,9 @@ html[data-theme="neo-brutalist"] select {
 /* No smooth sweep at all — a hard, stepped cut, same "raw, unpolished"
    philosophy as the rest of the theme. transition-timing-function: steps()
    instead of ease-in/out; same 380ms/550ms durations as the base rule. */
-html[data-theme="neo-brutalist"] #tv-screen .crt.powering-off .crt-power-fx-line {
-  animation-name: crt-fx-off-line-neo-brutalist;
-  animation-timing-function: steps(5, end);
-}
-html[data-theme="neo-brutalist"] #tv-screen .crt.powering-on .crt-power-fx-line {
-  animation-name: crt-fx-on-line-neo-brutalist;
-  animation-timing-function: steps(5, end);
+html[data-theme="neo-brutalist"] {
+  --power-off-animation: crt-fx-off-line-neo-brutalist; --power-off-ease: steps(5, end);
+  --power-on-animation: crt-fx-on-line-neo-brutalist; --power-on-ease: steps(5, end);
 }
 @keyframes crt-fx-off-line-neo-brutalist {
   0% { transform: scaleY(1) scaleX(1); opacity: 1; }
@@ -100,10 +96,4 @@ html[data-theme="neo-brutalist"] #tv-screen .crt.powering-on .crt-power-fx-line 
   0% { transform: scaleY(0.05) scaleX(0.02); opacity: 0; }
   20% { transform: scaleY(1) scaleX(1); opacity: 1; }
   100% { transform: scaleY(1) scaleX(1); opacity: 0; }
-}
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="neo-brutalist"] #tv-screen .crt.powering-off .crt-power-fx-line,
-  html[data-theme="neo-brutalist"] #tv-screen .crt.powering-on .crt-power-fx-line {
-    animation: none;
-  }
 }

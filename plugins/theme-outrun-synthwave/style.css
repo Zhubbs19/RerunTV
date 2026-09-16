@@ -8,21 +8,21 @@ html[data-theme="outrun-synthwave"] {
   --motion-card-duration: 180ms; --motion-card-ease: cubic-bezier(.2,.8,.2,1); --motion-card-from-y: 14px; --motion-card-from-scale: .96; --motion-digit-duration: 120ms; --motion-digit-ease: ease-out; --motion-digit-from-scale: 1.13;
   --setup-nav-bg: #150723;
   --setup-overflow-shadow: rgba(255, 46, 196, 0.55);
-  --ink: #170826;
-  --ink-deep: #0d0221;
-  --cell: #1a0a2e;
-  --cell-alt: #241040;
-  --gold: #ff2ec4;
-  --gold-ink: #1a0316;
-  --cyan: #2ee6ff;
-  --paper: #f2e9ff;
-  --paper-dim: #b79fd6;
-  --line: #3a2a52;
+  --surface-1: #170826;
+  --surface-0: #0d0221;
+  --surface-2: #1a0a2e;
+  --surface-3: #241040;
+  --accent: #ff2ec4;
+  --accent-text: #1a0316;
+  --accent-2: #2ee6ff;
+  --text: #f2e9ff;
+  --text-muted: #b79fd6;
+  --border: #3a2a52;
   --danger: #ff4466;
 
-  --gold-rgb: 255, 46, 196;
+  --accent-rgb: 255, 46, 196;
   --danger-rgb: 255, 68, 102;
-  --cyan-rgb: 46, 230, 255;
+  --accent-2-rgb: 46, 230, 255;
 
   /* The genre's own neon-tube script — used only at brand/logo scale, per
      --font-ui staying a readable grotesque for everything else. */
@@ -31,38 +31,38 @@ html[data-theme="outrun-synthwave"] {
   --font-body: 'Comfortaa', 'Barlow', system-ui, sans-serif;
 
   --guide-grid-bg: #0d0221;
-  --guide-channel-bg: #170826;
-  --guide-channel-fg: var(--cyan);
-  --guide-channel-subtle: var(--paper-dim);
-  --guide-program-bg: #1a0a2e;
-  --guide-program-alt-bg: #261044;
-  --guide-selection-bg: #d026a0; /* was var(--gold) #ff2ec4: white selection text was 3.26:1 against it, below WCAG AA. Decoupled from --gold (kept as-is elsewhere) rather than darkening the shared accent color. */
-  --guide-selection-fg: #fff;
+  --guide-rail-bg: #170826;
+  --guide-rail-text: var(--accent-2);
+  --guide-rail-subtle: var(--text-muted);
+  --guide-cell-bg: #1a0a2e;
+  --guide-cell-alt-bg: #261044;
+  --guide-selected-bg: #d026a0; /* was var(--accent) #ff2ec4: white selection text was 3.26:1 against it, below WCAG AA. Decoupled from --accent (kept as-is elsewhere) rather than darkening the shared accent color. */
+  --guide-selected-text: #fff;
   --guide-timebar-bg: #300854;
   --guide-row-height: 50px;
   --guide-row-gap: 3px;
 
   --gradient-page: linear-gradient(180deg, #170826 0%, #0d0221 100%);
-  --gradient-panel: linear-gradient(180deg, #1a0a2e 0%, #150723 100%);
+  --surface-panel: linear-gradient(180deg, #1a0a2e 0%, #150723 100%);
   --gradient-cell: linear-gradient(180deg, #241040 0%, #1a0a2e 100%);
   /* Darkened from the original #ff2ec4/#8b5cf6 (both stops were only
      2.5:1-3.2:1 against any plausible light button text, including plain
-     white) — tokens.css's --button-fg/--button-hover-fg default to
-     --paper-dim/--gold respectively, neither of which is redefined here, so
+     white) — tokens.css's --control-text/--button-hover-fg default to
+     --text-muted/--accent respectively, neither of which is redefined here, so
      every default-state AND hover-state button label in this theme (not
      just the setup tabs a visual sweep happened to catch) was under AA.
-     --gold itself is unchanged (still used correctly elsewhere as an
-     accent), so --button-fg/--button-hover-fg are explicitly overridden
+     --accent itself is unchanged (still used correctly elsewhere as an
+     accent), so --control-text/--button-hover-fg are explicitly overridden
      below to a color that actually passes against this stop pair, rather
-     than darkening the gradient the ~70% it'd take for --gold text to
+     than darkening the gradient the ~70% it'd take for --accent text to
      survive on its own, which would have crushed the theme's signature
      vividness. */
-  --gradient-btn: linear-gradient(135deg, #d126a1 0%, #724bca 100%);
-  --button-fg: #fff;
+  --control-bg: linear-gradient(135deg, #d126a1 0%, #724bca 100%);
+  --control-text: #fff;
   --button-hover-fg: #fff;
   --gradient-gold: linear-gradient(135deg, #ff6fdb 0%, #ff2ec4 55%, #c91ea0 100%);
-  --button-selected-bg: linear-gradient(135deg, #b21e89 0%, #8b176d 55%, #651050 100%);
-  --button-selected-fg: #ffffff;
+  --selected-bg: linear-gradient(135deg, #b21e89 0%, #8b176d 55%, #651050 100%);
+  --selected-text: #ffffff;
   --button-selected-border: #ff6fdb;
   --gloss-strong: linear-gradient(180deg, rgba(46, 230, 255, 0.18) 0%, rgba(46, 230, 255, 0) 50%);
   --gloss-soft: linear-gradient(180deg, rgba(255, 46, 196, 0.12) 0%, rgba(255, 46, 196, 0) 55%);
@@ -78,29 +78,11 @@ html[data-theme="outrun-synthwave"] {
   --bevel-inset: inset 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-/* setup.css's .setup-tab-btn:hover hardcodes color: var(--gold) rather than
-   the themeable --button-hover-fg token .btn:hover uses — harmless for
-   every other theme (--button-hover-fg defaults to --gold anyway, so it's
-   the same color either way), but this theme's --gold (#ff2ec4) is nearly
-   identical in hue/luminance to its own --gradient-btn background even
-   after darkening that gradient above for the default/hover states of
-   plain .btn — hovering an inactive top tab would still show
-   near-invisible text. Overridden here to match the --button-hover-fg fix
-   above rather than touching the shared core rule (which other themes rely
-   on defaulting to --gold). */
-html[data-theme="outrun-synthwave"] .setup-tab-btn:hover {
-  color: #fff;
-}
-
 /* A slower, more dramatic neon power surge instead of a plain CRT sweep —
    the line pulses as it builds, echoing an arcade cabinet's tube warming
    up under a glow tube. */
-html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-off .crt-power-fx-line {
-  animation-name: crt-fx-off-line-outrun-synthwave;
-}
-html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-line {
-  animation-name: crt-fx-on-line-outrun-synthwave;
-}
+html[data-theme="outrun-synthwave"] { --power-off-animation: crt-fx-off-line-outrun-synthwave; }
+html[data-theme="outrun-synthwave"] { --power-on-animation: crt-fx-on-line-outrun-synthwave; }
 @keyframes crt-fx-off-line-outrun-synthwave {
   0% { transform: scaleY(40); opacity: 0; }
   15% { transform: scaleY(1); opacity: 1; }
@@ -116,28 +98,21 @@ html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-li
   60% { opacity: 1; }
   100% { transform: scaleY(50) scaleX(1); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-  html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-off .crt-power-fx-line,
-  html[data-theme="outrun-synthwave"] #tv-screen .crt.powering-on .crt-power-fx-line {
-    animation: none;
-  }
-}
+
 
 /* --font-display (Monoton, above) is only meant for brand/logo scale, per
-   this pack's own comment on that declaration — true for .guide-info-number
-   (up to 56px) but not for .guide-name/.guide-info-title, where guide.css
+   this pack's own comment on that declaration — true for [data-slot="guide-info-number"]
+   (up to 56px) but not for [data-slot="guide-banner-name"]/[data-slot="guide-info-title"], where guide.css
    also applies --font-display and Monoton's thin connected-script strokes
    turn a running program title into a low-contrast smear at 20-22px. Fall
    back to the theme's own --font-ui here instead, matching how the channel
    name/description already read everywhere else in this theme. */
-html[data-theme="outrun-synthwave"] .guide-name,
-html[data-theme="outrun-synthwave"] .guide-info-title {
-  font-family: var(--font-ui);
-  font-weight: 700;
-}
+html[data-theme="outrun-synthwave"] [data-slot="guide-banner-name"],
+html[data-theme="outrun-synthwave"] [data-slot="guide-info-title"] { font-family: var(--font-ui); font-weight: 700; }
 
 /* Setup sidebar: idle sections get a deeper version of the neon fill, so
    their names read at 4.5:1 (docs/design/03 §9). */
-html[data-theme="outrun-synthwave"] #setup-screen .setup-tab-btn:not(.active) {
-  background-image: linear-gradient(135deg, #7a1462 0%, #43287a 100%);
+html[data-theme="outrun-synthwave"] {
+  --button-hover-fg: #fff;
+  --tab-bg: linear-gradient(135deg, #7a1462 0%, #43287a 100%);
 }

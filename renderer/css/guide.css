@@ -815,7 +815,7 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
   outline: var(--guide-selected-outline, none);
   outline-offset: var(--guide-selected-outline-offset, 0);
   will-change: transform;
-  animation: var(--guide-selected-animation, guide-sel-settle 160ms ease-out, guide-sel-pulse 2.6s ease-in-out 160ms infinite);
+  animation: var(--guide-selected-animation, var(--guide-selected-settle-name, guide-sel-settle) 160ms ease-out, var(--guide-selected-pulse-name, guide-sel-pulse) 2.6s ease-in-out 160ms infinite);
 }
 
 /* Selection "settle" — a quick snap-in when the row/entry moves to a new
