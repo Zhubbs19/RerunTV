@@ -1,8 +1,10 @@
 # 07 — Media library and auto-tagging
 
-Status: **in progress** — §4 identity and §3's re-anchoring are built and verified
-(`main/library/identity.js`, `main/library/reanchor.js`); the store, scanning, migration,
-auto-tagging and smart channels are not. Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
+Status: **in progress** — built and verified: identity (§4), re-anchoring (§3), the store (§3),
+incremental scanning (§4) and a verified migration plan with a dry run against the real lineup
+(§7), all in `main/library/`. Not built: wiring the migration into the app (IPC, the confirm
+step, writing), auto-tagging (§5), the review queue, and smart channels / `channel.rematerialize`
+(§6). Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
 Owns contract **C6**. Consumed by: 08, 09.
 
 ## 1. Problem
@@ -189,6 +191,30 @@ era<=1999`".
 3. `diffSchedules` over 60 days must be empty for every channel — otherwise abort that
    channel's migration and keep it legacy.
 4. Old per-file metadata fields remain readable for one release (dual-read), then removed.
+
+**Built (2026-09-16), not yet wired into the app.** `main/library/migrate.js` splits this into
+steps that can each be checked before anything is written:
+
+- `planMigration(config)` is pure. Each file gains an `item` id; path, duration, order, anchor
+  and the file's own metadata are untouched (dual-read). Folders become roots one to one —
+  consolidating sibling show folders under a common parent would be a guess about somebody's
+  disks. Item ids are derived from the path at creation, so the same migration twice gives the
+  same library; after that they never change (the store). Conflicts resolve by
+  `identity.resolveConflict`, and the losing channel's value goes to `fileOverrides`.
+- Verification is the real renderer `diffSchedules`, per channel, breaks included.
+- `finalizeMigration` keeps only channels with an empty diff. A channel with **no** verdict is
+  rejected as `not-verified`, not assumed fine. A rejected channel is restored exactly and
+  nothing in the library refers to it.
+
+**Dry run against the installed lineup** (`scripts/library-migration-dryrun.js`, reads a
+channels.json and writes only a report elsewhere): **14/14 channels identical over 60 days**,
+0 conflicts, 2,173 items in 26 roots, 0.6–4.6 s per channel (Boomerang's 1,329 files is the
+slow one). The source file's SHA-1 was identical before and after.
+
+The guard is proven to bite, not just to agree: `tests/library-migrate.test.js` reorders a
+planned channel and nudges a duration by one second, and both are caught; on the real lineup,
+swapping two Office episodes changed 52 programmes over the window and CH 6 was rejected and
+restored byte-for-byte.
 
 ## 8. Acceptance criteria
 
