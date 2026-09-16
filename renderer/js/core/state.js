@@ -313,16 +313,21 @@ export function bumpConfigGeneration() {
   S.configGeneration++;
 }
 
-// One listener (the setup screen's undo/redo buttons) told whenever what
-// canUndo/canRedo/undoLabel would return may have changed. state.js stays
-// DOM-free; the listener decides what to redraw.
-let historyListener = null;
+// Told whenever any config-changing operation lands — a named command, a
+// whole-config patch, or a plain debounced save — so a listener can redraw
+// whatever it owns. state.js stays DOM-free; every listener decides what to
+// redraw. Originally just the setup screen's undo/redo buttons; eras.js
+// (docs/design/10) also needs it, since a hand-edit of one of the active
+// era's own settings (say, toggling CRT off) only reaches an era-level
+// "override" through the generic settings.set path, not through eras.js's
+// own apply/clear, so the ERA panel has no other way to notice.
+const historyListeners = new Set();
 export function onHistoryChange(fn) {
-  historyListener = fn;
+  historyListeners.add(fn);
+  return () => historyListeners.delete(fn);
 }
 function notifyHistory() {
-  if (!historyListener) return;
-  try { historyListener(); } catch (e) { console.warn('[history] listener failed', e); }
+  historyListeners.forEach((fn) => { try { fn(); } catch (e) { console.warn('[history] listener failed', e); } });
 }
 
 function pushHistory(entry) {

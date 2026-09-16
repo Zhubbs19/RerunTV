@@ -9,9 +9,9 @@ reorganization and theme work; it is not an audit of only committed HEAD.
 The timeline, setup shell, usage modes, guide and theme contract are substantially
 implemented. Validation after the file moves is restored. The next work is to
 complete command transport with the web control panel.
-The shared library, channel builder and household features are now built. The
-era layer (10) remains the one larger future project. Existing plugins and
-partial features should be reused.
+The shared library, channel builder, household features and era layer are
+now all built (10 in a v1 scope — see its row below for what's deferred).
+Existing plugins and partial features should be reused.
 
 ## Status by document
 
@@ -27,7 +27,7 @@ partial features should be reused.
 | 07 Library/tagging | **Built** (2026-09-16): store, incremental scan with review, verified migration, grouped auto-tagging, saved queries, smart channels and `channel.rematerialize`, root moves — setup › LIBRARY | Embedded-tag, taxonomy and metadata-plugin tagging steps; queries in blocks (02) and templates (08); a single-item editor; removing roots/items; provider etags; ending dual-read of per-file metadata. See 07 §8. |
 | 08 Builder/templates | **Built** (2026-09-16) | Pure plan/slot engine, six built-ins, local grammar, library resolution, guarded preview, path-free import/export and one-step apply/undo are in Channels and the shared web bundle. Inline chip editing and a plugin registry are optional presentation/API follow-ups. |
 | 09 Households/DVR | **Built** (2026-09-16) | Personal store/profiles, migration, DVR request scheduler + My Shows, retention, handoff and shared sessions are in `main/personal/service.js`, `renderer/js/personal/*`, `renderer/js/setup/household.js`, the TV menu and guide. Cross-client drift correction and multi-device PIN flows still need real second-device acceptance, same class of gap as 01's Hisense item. |
-| 10 Eras | Proposed | Effective presentation resolver, era data/picker, override provenance, channel pins, accessibility overrides and plugin hints. Existing theme and Music Choice era controls are not the shared layer. |
+| 10 Eras | **Built, v1 scope** (2026-09-16) | Five built-in eras, apply/clear with exact restore, box-override tracking + source display, TV-mode picker are in `display/eras.js` + `setup/eras.js` + `tv/setup.js`. Remaining: channel follow/pin-era UI, plugin era hints (Music Choice, ticker/EAS), template/pool suggestions (phase 5), the low-resolution TV-mode accessibility override, and a full per-era theme-contrast sweep. |
 | 11 Guide/time machine | **Built** — the TV docked picture shrink closed the last omission | Real Hisense acceptance, which is 01's to close. |
 
 ## Priority 1 — Complete (2026-09-15)

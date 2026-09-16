@@ -33,6 +33,7 @@ import { renderAutoCurateList } from './autocurate.js';
 import { renderTagTaxonomyPanel } from './tagtaxonomy-ui.js';
 import { renderLibraryPanels } from './library.js';
 import { refreshHouseholdPanel, renderHouseholdPanel } from './household.js';
+import { renderEraPanel } from './eras.js';
 import { attachSliderReadout } from './util.js';
 import { renderChannelList } from './channels.js';
 import { renderBoxStatus } from './channels-diagnostics.js';
@@ -368,6 +369,7 @@ export function renderSettingsPanels() {
   renderAirChecksPanel();
   renderViewingHistoryPanel();
   renderHouseholdPanel();
+  renderEraPanel();
   if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
   if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
@@ -1465,6 +1467,11 @@ window.addEventListener('reruntv:open-setup-search', () => {
   setupSearchEl.select();
   renderSettingsSearch();
 });
+
+// Applying/clearing an era (eras.js) writes the theme/CRT/display-mode/clock
+// config paths this screen's own controls own, directly rather than through
+// their input handlers — resync those controls' displayed values.
+window.addEventListener('reruntv:era-applied', () => renderSettingsPanels());
 
 setupSearchEl.addEventListener('input', renderSettingsSearch);
 setupSearchEl.addEventListener('keydown', (event) => {

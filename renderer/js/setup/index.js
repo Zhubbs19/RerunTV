@@ -29,6 +29,7 @@ import './aircheck.js';
 import '../library/sync.js';
 import './library.js';
 import './household.js';
+import './eras.js';
 import '../plugin/diagnostics.js';
 import './settings.js';
 import './channels.js';

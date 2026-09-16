@@ -16,6 +16,8 @@
 //     changed before calling saveConfigDebounced(). Every edit is undoable
 //     either way; named ones just undo more precisely and describe themselves.
 
+import { noteEraOverride } from '../display/eras.js';
+
 const registry = new Map();
 
 export function registerCommand(type, definition) {
@@ -338,6 +340,11 @@ registerCommand('settings.set', {
     }
     const key = cmd.path[cmd.path.length - 1];
     if (cmd.value === undefined) delete parent[key]; else parent[key] = cloneJson(cmd.value);
+    // A hand-edit of one of the active era's own fields (docs/design/10) is a
+    // box-level exception clearing the era won't touch. Applying/clearing an
+    // era itself writes config.era directly rather than through this
+    // command, so it never marks itself as an override.
+    noteEraOverride(config, cmd.path);
     return [{ type: 'settings.set', path: cmd.path, value: before.exists ? cloneJson(before.value) : undefined }];
   },
   describe(config, cmd) {

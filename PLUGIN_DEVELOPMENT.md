@@ -912,6 +912,34 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
 });
 ```
 
+### `registerEra(era)`
+
+Adds an era to the ERA picker (Guide & theme setup, TV menu › Guide & Theme,
+docs/design/10). An era is data, never CSS — it names a `registerThemePack`
+id and a handful of box-wide presentation values; applying it changes those
+values (and only those), one undo step, exactly like picking one of the five
+built-in eras.
+
+```js
+window.RCBPlugins.registerEra({
+  id: 'my-plugin-1988', // required, unique
+  label: '1988 — My Plugin\'s Take', // required
+  range: [1988, 1988], // required, [startYear, endYear] — shown next to the label
+  presentation: { // required — only the keys you list are touched
+    theme: 'wood-console-70s', // must be a registered theme pack id
+    crtEnabled: true, crtScanlines: 75, crtCurvature: 50, crtGrain: 65,
+    resolution: 'sd240', aspect: '4:3', uiExtent: 'confined', clock24: false,
+  },
+  notes: ['Shown in the era notes panel — one string per line.'], // optional
+});
+```
+
+Applying/clearing is core's job (the ERA panel and TV menu already call it);
+a plugin only supplies the data. There is no dedicated hook for a plugin to
+react to an era being applied in v1 — a channel plugin reading its own
+`ctx.config` sees the same `config.era` shape (`{ id, fields, overrides, … }`)
+core does, if you need to know which one is active.
+
 `id` here is the *theme* id (`S.config.theme`'s value, e.g.
 `"wood-console-70s"`) — mirroring how the pack's own CSS keys off
 `html[data-theme="<id>"]` — not necessarily your plugin's manifest `id`
