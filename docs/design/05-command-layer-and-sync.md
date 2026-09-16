@@ -1,6 +1,6 @@
 # 05 — Command layer and sync
 
-Status: **steps 1–5 built** (see §4); the renderer still saves whole config, and the LAN command endpoint waits for 06. Owns contract **C3**. Consumed by: 02, 03, 06, 08, 09.
+Status: **built** (see §4). The renderer and paired LAN control clients both send named commands to the host, which merges or refuses them per client, and plugins register their own. Owns contract **C3**. Consumed by: 02, 03, 06, 08, 09.
 
 ## 1. Problem
 
@@ -86,13 +86,16 @@ sequenceDiagram
   conflict detection is enough.
 
 ### 2.4 Transport
-- Electron renderer ↔ host: IPC (`config:command`, `config:applied` events).
-- LAN clients (06, LAN viewer, Android TV client): an authenticated **SSE** stream
-  `GET /api/events` for `applied` + presence, `POST /api/commands` for writes. Uses the existing
-  pairing/session model (`main/lan/security.js`) with a new `control` scope; `view` sessions
-  receive `applied` events filtered through the viewer projection and can't POST.
-- The LAN viewer's 10 s `/api/config` poll is replaced by the event stream (poll stays as a
-  fallback when SSE drops).
+- Electron renderer ↔ host: IPC (`config:command`, `config:snapshot`, `config:applied` events).
+  **Built.**
+- LAN clients: `POST /api/commands` on the viewer server, control scope only, plus
+  `GET /api/control/config` and `GET /api/control/state`. **Built.** Uses the existing
+  pairing/session model (`main/lan/security.js`) with a `control` scope; `view` sessions are
+  refused with 403 and cannot POST.
+- **No SSE.** Change notices ride the existing cursor-based `/api/remote-events` bus, which
+  step 4 already extended with `config:changed`; the LAN viewer's poll is a 60 s fallback.
+  A second push transport was not built, and doc 06's SSE prose is stale — see its transport
+  note.
 
 ### 2.5 Undo/redo
 - Per client, a stack of `{ label, commands, inverses }`. Undo dispatches the inverses as a new
@@ -119,7 +122,19 @@ written to that profile's file, never to `channels.json`, never broadcast to oth
 | Whole config | `config.replace` (import/restore), `config.patch` (legacy catch-all) |
 
 Plugins register their own commands through `ctx.commands.register` (namespaced `plugin:<id>.*`),
-which is how plugin settings stay undoable and remote-editable.
+which is how plugin settings stay undoable and remote-editable. **Built** (ctx v7) — see §4.
+
+Two things make a plugin command safe, and both are structural rather than checked:
+the type is always built by core from the id passed in, so a plugin cannot register outside
+its own namespace or shadow a core command; and the plugin's `apply`/`validate`/`describe`
+receive **that plugin's settings object and nothing else**, so there is no route from a plugin
+command to the channel lineup, to box settings, or to another plugin's settings. Its touch
+tokens are prefixed with `plugins/<id>/settings/` for the same reason.
+
+The host has no plugin renderers and so no registry entry for these types. A command may
+declare `toHost(config, cmd)`, which states what to send instead; a plugin command sends the
+settings it produced as a plain `plugin.setSettings`. Undo history keeps the precise command,
+so the step still reads as what the plugin called it.
 
 ## 4. Migration
 
@@ -249,11 +264,106 @@ The 34-check UI suite, `verify-config-host` and `verify-viewer-config-push` all 
 Found while testing: `renderer/js/plugin/host.js` and `renderer/js/setup/plugin-settings.js` pass `saveConfigDebounced`
 by reference into plugin contexts. A write-count audit must not drop that import.
 
-Still to do for §2.2: the renderer sends whole-config saves rather than commands. Every edit now
-has a command, so sending the history's commands to the host is the remaining change. It
-belongs with the web control panel (doc 06), which is the second client that needs it.
-Plugins' own `settings.js` files still call `ctx.saveConfigDebounced` and are recorded as
-patches, until `ctx.commands.register` exists.
+**Step 6 is built: the renderer posts commands, and the host merges or refuses them.**
+
+Before this, `renderer/js/core/state.js` sent `window.api.saveConfig(S.config, hostRevision)`
+on every debounced write. It now applies each edit optimistically and posts the commands that
+made it, on the same 600 ms debounce, so the write rate is unchanged.
+
+- **Touch sets.** Every command definition in `renderer/js/core/commands.js` declares
+  `touches(cmd)`, and `commandTouches` / `batchTouches` / `touchesConflict` are the merge
+  policy. Tokens are slash-separated and match by ancestry, so `channels` covers
+  `channels/7/name` but `channels/7` does not cover `channels/70`. Deliberately coarse where
+  an edit changes addressing rather than a value: `channel.renumber`, `channel.swapNumbers`,
+  `channel.insert` and `channel.remove` all touch `channels`, because a command another
+  client built against the old numbering may no longer mean what it said. `config.patch`
+  touches `*` and so conflicts with everything — it is the whole-config transform case
+  (a curation run, a tag rename, an import), which cannot be merged with a concurrent edit.
+  A command type with no `touches()` is treated as `*`, so a new or plugin-supplied command
+  is safe before anyone has thought about it.
+- **Five outcomes** from `main/config/host.js`'s `applyCommands`, for a client-origin batch:
+  *duplicate* (same batch id: answered with the first result, never applied again — client
+  commands are not all idempotent), *conflict* (touch sets intersect what another client did
+  since `baseRevision`), *compatible* (they do not: applied, because two people editing
+  different channels is the ordinary case), *stale-reset* (built before a backup restore),
+  and *stale-window* (older than the 200-entry ring can prove safe). A host-origin batch
+  still throws on a bad command, which is what the main-process callers expect; a
+  client-origin one gets a typed refusal object, because it has to cross an IPC or HTTP
+  boundary and be shown to somebody.
+- **Ring entries record their origin.** Replaying onto a whole-config save stays restricted
+  to HOST-origin commands, which set values and survive being applied twice. A client
+  command may splice an array, so a save that would bury one is refused instead.
+- **Echo suppression.** `applyHostUpdate` takes only the revision from an update carrying
+  this client's own id. Without it an `item.insert` would insert twice (§6).
+- **Reconciliation is a full resync, not a rollback.** On any refusal the client rebuilds
+  from `config:snapshot` — config and revision read together, so no update is applied twice
+  or skipped across the gap two round trips would open — and drops its undo history, which
+  described a config that no longer exists. Touch-set detection does not promise the
+  intervening commands commute with the refused ones, so unwinding around them would be
+  guesswork. `renderer/js/setup/keyboard.js` redraws the open setup screen and says what
+  happened in the status bar.
+- **Whole-config saves remain** for the edits no command describes: an import, a restore, the
+  DONE flush, first-run onboarding, a setting that recreates the window. They are also how a
+  session first agrees with the host: this renderer runs `applyConfigDefaults()` over the
+  config it loads and the host does not, so until those defaults have reached disk once, a
+  command naming a defaulted section would not find it there. The first write of a session is
+  therefore a whole-config save and every write after it is commands.
+
+Transport: `config:command` (IPC) and `config:snapshot`, exposed as `window.api`'s
+`applyConfigCommands` / `getConfigSnapshot`. The LAN command endpoint belongs with doc 06.
+
+Verification:
+- `tests/config-host.test.js` (20), covering each of the five outcomes plus the whole-config
+  refusal and the pre-existing replay behaviour.
+- `tests/commands.test.js` (28), covering what actually reaches the host: a dispatch, a burst,
+  a `skipUndo` write, undo's inverses, a remote update not being echoed back, and this
+  client's own echo advancing the revision without applying twice.
+- Live, through the real preload and `channels.json` (`tests/ui/verify-command-transport.mjs`,
+  17/17): duplicate delivery, a conflicting stale client, two clients on different channels,
+  renderer resync after refusal, and a host command applied through the real module path.
+- `verify-step5-commands.mjs` still reports config byte-identical after undoing every step.
+
+**Step 7 is built: LAN control clients use the same protocol.**
+
+`POST /api/commands` on the viewer server hands the batch to the same
+`configHost.applyCommands()` the Electron renderer reaches over IPC, so there is one writer
+and one merge policy, not two. The route forces `origin: 'client'`, so a LAN batch can never
+arrive claiming to be a trusted host edit and skip conflict checking. A refusal answers 409
+with the same typed body the renderer gets, because a refusal is a normal answer the client
+acts on, not a server error. Bodies are capped at 256 KB; a template or an import is a
+separate upload endpoint, not this one.
+
+Access is `main/lan/security.js`'s new scope model (doc 06 §4): one pairing code per scope,
+sessions stored as `token -> { expiresAt, scope }`, and scope carried by the token rather than
+by anything the client sends. Entering the control code on a device that already holds a view
+session mints a *new* session — the old token keeps view scope, so a token only ever meant to
+watch can never become one that can write. A sessions file written before scopes existed reads
+back as view-only.
+
+Verification:
+- `tests/lan-control.test.js` (9): the two codes, scope-per-token, a view session refused on
+  every control route, the no-widening rule, duplicate and conflict over HTTP, an `origin:
+  'host'` claim being ignored, credentials stripped from the control config, malformed and
+  oversized bodies, and the legacy sessions-file migration.
+- Live (`tests/ui/verify-lan-control.mjs`, 18/18, 0 renderer runtime errors): a real LAN
+  control session editing the real lineup, with the Electron window seeing the change **23 ms**
+  later — §5's "within 1 s" criterion. The control config carried 3493 real host paths and 0
+  opaque refs; the viewer projection over the same config carried 0 real paths and 3886 opaque
+  refs, so the redaction boundary is where it should be.
+
+**Step 8 is built: `ctx.commands` (ctx v7).** `registerPluginCommand` /
+`unregisterPluginCommands` / `pluginCommandType` in `renderer/js/core/commands.js`,
+`pluginCommands` in `renderer/js/plugin/host.js`, documented in `PLUGIN_DEVELOPMENT.md`
+under "Undoable edits with `ctx.commands`". `hostCommandsFor` is the outbound translation
+described in §3. A plugin's `settings.js` may still use `ctx.saveConfigDebounced`; it now has
+a better option rather than only that one.
+
+Verification: `tests/plugin-settings-fields.test.js` (6) covers the namespace, the
+settings-only scope, the inverse mapping, the touch prefix and the `toHost` translation, plus
+the registration refusals. Live through the real plugin host
+(`tests/ui/verify-command-transport.mjs`, 23/23): a registered command carried its own undo
+label, wrote only its plugin's settings, left the lineup and theme untouched, reached
+`channels.json` as `plugin.setSettings`, and undid precisely.
 
 1. Registry + local bus in the renderer; `config.patch` catch-all wraps
    `saveConfigDebounced()` (diff since last generation), so undo moves to inverses with no
@@ -270,7 +380,9 @@ patches, until `ctx.commands.register` exists.
 
 - Undo/redo parity: the existing UI suite's undo checks pass unchanged after step 1.
 - Two clients editing different channels simultaneously: both apply, no reverts, both see
-  each other's changes within 1 s.
+  each other's changes within 1 s. **Met:** `tests/config-host.test.js` and
+  `verify-command-transport.mjs` cover both applying; `verify-lan-control.mjs` measured a LAN
+  edit reaching the Electron window in 23 ms.
 - Capability approval or plugin enable done while another setup edit is pending survives
   (regression test for the historical revert bug).
 - Applying a 50-command template batch is one undo step and one disk write.
@@ -280,6 +392,10 @@ patches, until `ctx.commands.register` exists.
 - **Double application** (optimistic + applied echo): commands carry client-generated ids;
   clients ignore echoes of their own ids after reconciling.
 - **Schema drift between main and renderer**: the registry file is shared and versioned with
-  `CONFIG_SCHEMA_VERSION`; a client on an older app build is refused `control` scope.
+  `CONFIG_SCHEMA_VERSION`; a client on an older app build is refused `control` scope. The host
+  loads that shared file by path (`COMMANDS_MODULE_PATH` in `main/config/config.js`), lazily,
+  at the first host command — so a wrong path surfaces as a silently failed plugin approval
+  rather than a boot error. It broke exactly that way in the directory reorganization;
+  `tests/config-host.test.js` now resolves and imports the path the application really uses.
 - **Large imports**: `config.replace` bypasses per-field validation but still runs
   `applyConfigDefaults` + migrations host-side before broadcast.

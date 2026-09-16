@@ -21,6 +21,8 @@ const { trackConnection } = require('./connections');
 const { VIEWER_PORT } = require('./lan');
 const { isPathContained } = require('../util/path-safety');
 const { createLanAccess, requestIp } = require('./security');
+const { listDirectory } = require('./control-browse');
+const { VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, scanFolderForVideos } = require('../media/media');
 const { sanitizeViewerConfig, createViewerProjection } = require('./viewer-projection');
 // This module is two directories below the application root.  Keep these
 // paths rooted there: a single `..` resolves to main/, which has neither the
@@ -28,6 +30,18 @@ const { sanitizeViewerConfig, createViewerProjection } = require('./viewer-proje
 const { version: APP_VERSION } = require('../../package.json');
 
 const RENDERER_DIR = path.join(__dirname, '..', '..', 'renderer');
+// docs/design/06 §4: command batches are small. A template or an import is a
+// separate upload endpoint, not this one.
+const MAX_COMMAND_BYTES = 256 * 1024;
+// What a control client's folder browser will list, per kind of thing it is
+// picking. Anything not named here is a folder or is not shown at all — the
+// browser is for choosing media, not for reading the host's disks.
+const BROWSE_FILTERS = {
+  video: VIDEO_EXTENSIONS,
+  image: IMAGE_EXTENSIONS,
+  audio: AUDIO_EXTENSIONS,
+  folder: new Set(),
+};
 const VIEWER_REMOTE_EVENT_LIMIT = 128;
 const VIEWER_REMOTE_CHANNELS = new Set([
   'remote:command',
@@ -37,6 +51,11 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   // The host wrote a config change a viewer would see (config-host.js's
   // change announcer). Carries no data; the viewer refetches /api/config.
   'config:changed',
+  // The commands the host just applied (docs/design/05 §2.2). Unlike
+  // config:changed this carries real config values — including host paths —
+  // so /api/remote-events drops it for anything but a control session. See
+  // CONTROL_ONLY_CHANNELS below.
+  'config:applied',
   // Companion app's party/alerts relays (plugins/companion-app/main.js).
   // In headless/server mode there's no mainWindow to receive these over
   // IPC at all — a paired LAN viewer is the only possible display, so
@@ -47,6 +66,11 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   'companion:triggerNews',
   'companion:setTicker',
 ]);
+
+// Events on the shared bus that a `view` session must never receive. The bus
+// is one list read by every paired device, so the filter is applied per request
+// against that request's own scope rather than at publish time.
+const CONTROL_ONLY_CHANNELS = new Set(['config:applied']);
 
 function readJsonBody(req, maxBytes = 8192) {
   return new Promise((resolve, reject) => {
@@ -136,7 +160,8 @@ h2{margin:0 0 10px;color:#f4f7ff;font:800 18px/1.2 'Arial Narrow',sans-serif;let
 .steps{margin:0;padding-left:22px;color:#d9e1f1;line-height:1.65}button{width:100%;min-height:52px;margin-top:12px;color:#fff;background:#8b2530;border:2px solid #ff6b72;font:800 16px monospace;letter-spacing:.08em;cursor:pointer}
 button:hover,button:focus{background:#cf3442;outline:3px solid #fff}.stopped{color:#ffd447;font-weight:800}@media(max-width:560px){main{padding-top:24px}.panel{padding:17px}.pair{align-items:flex-start;flex-direction:column}}
 </style></head><body><main><div class="eyebrow">HEADLESS VIEWER CONTROL</div><h1>RERUNTV SERVER</h1><div class="status"><span class="dot"></span>ONLINE // PORT ${VIEWER_PORT}</div>
-<section class="panel"><div class="pair"><div><h2>TV PAIRING CODE</h2><p class="muted">Enter this once when the Android TV viewer asks to pair.</p></div><div class="code">${escapeHtml(access.pairingCode)}</div></div></section>
+<section class="panel"><div class="pair"><div><h2>TV PAIRING CODE</h2><p class="muted">Enter this once when the Android TV viewer asks to pair. This code only lets a device watch.</p></div><div class="code">${escapeHtml(access.pairingCode)}</div></div></section>
+${access.pairingCodes && access.pairingCodes.control ? `<section class="panel"><div class="pair"><div><h2>CONTROL PAIRING CODE</h2><p class="muted">A separate code for a device that may also CHANGE settings. This page is only reachable from this machine, so the code never travels over the network. Plugin installs, permissions and updates stay on the host either way.</p></div><div class="code">${escapeHtml(access.pairingCodes.control)}</div></div></section>` : ''}
 <section class="panel"><h2>CONNECT THE ANDROID TV APP</h2><ol class="steps"><li>Open RerunTV on the TV.</li><li>Choose SCAN. The headless server is advertised automatically.</li><li>Press CONNECT, then enter the pairing code above.</li></ol></section>
 <section class="panel"><h2>VIEWER ADDRESSES</h2>${linkRows}</section>
 ${companionRows ? `<section class="panel"><h2>COMPANION / REMOTE</h2>${companionRows}</section>` : ''}
@@ -153,6 +178,13 @@ ${canStop ? '<section class="panel"><h2>SERVER POWER</h2><p class="muted">Stops 
 // loadMainPlugins() has run, but that's fine: the object reference is
 // captured once here and read fresh on every actual request, which only
 // ever arrives well after boot has finished populating it.
+// `control` is the LAN write path (docs/design/05 §2.4, 06 §4). It is only
+// reachable by a session that entered the separate control pairing code, and
+// everything it can do goes through the same configHost.applyCommands() the
+// Electron renderer uses — the host stays the single writer, and a LAN client
+// is just another client with a base revision and a batch id. Administration
+// (plugin install, capability approval, updates, network services) is not here
+// and is not grantable remotely.
 function startViewerServer(pluginServices, pluginRuntime = {}) {
   const services = pluginServices || {};
   const remoteBridge = services.viewerRemoteBridge || createViewerRemoteBridge();
@@ -213,6 +245,109 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     const requestKind = req.method === 'GET' ? 'read' : 'write';
     if (!(await access.authorize(req, res, url, requestKind))) return;
 
+    // ---------- Control scope (docs/design/06 §4) ----------
+    // Everything under here refuses a `view` session outright. A viewer that
+    // somehow reaches these gets a 403, never a partial answer. An access
+    // object that predates scopes has no control sessions to offer, so it
+    // refuses rather than falling through to the route.
+    const hasControlScope = (request, response) => (typeof access.requireScope === 'function'
+      ? access.requireScope(request, response, 'control')
+      : (response.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host does not offer control sessions.' })), false));
+    if (url.pathname === '/api/commands' && req.method === 'POST') {
+      if (!hasControlScope(req, res)) return;
+      if (typeof pluginRuntime.applyCommands !== 'function') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host cannot accept commands' }));
+        return;
+      }
+      let body;
+      try {
+        body = await readJsonBody(req, MAX_COMMAND_BYTES);
+      } catch (e) {
+        if (!res.writableEnded) res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Bad request' }));
+        return;
+      }
+      const batch = Array.isArray(body.commands) ? body.commands : null;
+      if (!batch || !batch.length) {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'commands must be a non-empty array' }));
+        return;
+      }
+      // The client names itself, but it cannot name its own privilege. Both
+      // flags are set HERE, at the point where "this arrived over HTTP" is a
+      // local fact, rather than by whoever wired applyCommands in — a wiring
+      // that forgot one would quietly hand a LAN editor the host's authority.
+      //   origin 'client'  it is conflict-checked like any other client
+      //   remote  true     the administration commands are refused
+      //                    (main/config/host.js's REMOTE_DENIED_*)
+      const result = await pluginRuntime.applyCommands(batch, {
+        id: typeof body.id === 'string' ? body.id.slice(0, 128) : undefined,
+        baseRevision: Number.isInteger(body.baseRevision) ? body.baseRevision : undefined,
+        client: typeof body.client === 'string' ? body.client.slice(0, 64) : undefined,
+        source: 'lan-control',
+        origin: 'client',
+        remote: true,
+      });
+      // A refusal is a normal answer the client acts on, not a server error;
+      // 409 is what it is, so a fetch() wrapper cannot mistake it for success.
+      res.writeHead(result.ok === false ? 409 : 200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(result));
+      return;
+    }
+
+    if (url.pathname === '/api/control/config' && req.method === 'GET') {
+      if (!hasControlScope(req, res)) return;
+      // Real paths, because an editor has to show and change them — but never
+      // credentials. sanitizeViewerConfig drops every credential-shaped key,
+      // which is the one thing that stays on the host (docs/design/06 §4).
+      const snapshot = typeof pluginRuntime.snapshot === 'function'
+        ? pluginRuntime.snapshot() : { config: loadViewerConfig(), revision: 0 };
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({ config: sanitizeViewerConfig(snapshot.config), revision: snapshot.revision }));
+      return;
+    }
+
+    // The host's own folders, for a client with no native file dialog
+    // (docs/design/06 §5). control-browse.js decides what is listable; this
+    // route only carries the question and the answer.
+    if (url.pathname === '/api/control/browse' && req.method === 'GET') {
+      if (!hasControlScope(req, res)) return;
+      const kind = url.searchParams.get('kind') || 'folder';
+      const target = url.searchParams.get('path');
+      const result = listDirectory(loadViewerConfig(), target, {
+        extensions: Object.prototype.hasOwnProperty.call(BROWSE_FILTERS, kind) ? BROWSE_FILTERS[kind] : BROWSE_FILTERS.folder,
+      });
+      res.writeHead(result.error ? 400 : 200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify(result));
+      return;
+    }
+
+    // Turning a chosen folder into a channel's files. Same roots as the
+    // browser above — the client names a folder, and the host checks it again
+    // rather than trusting that it came from a listing it served.
+    if (url.pathname === '/api/control/scan' && req.method === 'GET') {
+      if (!hasControlScope(req, res)) return;
+      const target = url.searchParams.get('path');
+      const listing = listDirectory(loadViewerConfig(), target, { extensions: BROWSE_FILTERS.folder });
+      if (listing.error) {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: listing.error }));
+        return;
+      }
+      const files = await scanFolderForVideos(listing.path);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({ path: listing.path, files }));
+      return;
+    }
+
+    if (url.pathname === '/api/control/state' && req.method === 'GET') {
+      if (!hasControlScope(req, res)) return;
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({
+          revision: typeof pluginRuntime.getRevision === 'function' ? pluginRuntime.getRevision() : 0,
+          appVersion: APP_VERSION,
+          sessions: typeof access.sessionCounts === 'function' ? access.sessionCounts() : {},
+        }));
+      return;
+    }
+
     // In headless mode there is no Electron renderer to connect the PC-side
     // Companion service to what is playing. The authenticated TV viewer
     // reports its state here, and polls the sibling event route for remote
@@ -250,8 +385,12 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
 
     if (url.pathname === '/api/remote-events' && req.method === 'GET') {
       const result = remoteBridge.read(url.searchParams.has('after') ? url.searchParams.get('after') : null);
+      // The cursor still advances past a filtered event, so a viewer simply
+      // never sees it rather than retrying for something it will never get.
+      const isControl = typeof access.scopeOf === 'function' && access.scopeOf(req) === 'control';
+      const events = isControl ? result.events : result.events.filter((event) => !CONTROL_ONLY_CHANNELS.has(event.channel));
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-        .end(JSON.stringify(result));
+        .end(JSON.stringify({ cursor: result.cursor, events }));
       return;
     }
 
@@ -322,6 +461,28 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
         return;
       }
       await pipeWebResponse(await serveFile(resolved, range), res);
+      return;
+    }
+
+    // The control panel (docs/design/06 §3) is the SAME renderer bundle, not a
+    // second admin app — served from /control so the browser has somewhere to
+    // land, and marked so the shim boots into the setup shell instead of
+    // straight to playback. The marker is a convenience, never a permission:
+    // every write still has to pass requireScope('control') on the routes
+    // above, so opening /control with a view session gets an editor that
+    // cannot save, not an editor that can.
+    if (url.pathname === '/control' || url.pathname === '/control/') {
+      if (!hasControlScope(req, res)) return;
+      // Exactly /control, no trailing slash: index.html's asset URLs are
+      // relative, so they must resolve against the root. From /control they
+      // do; from /control/ they would all gain a /control/ prefix and 404.
+      if (url.pathname === '/control/') { res.writeHead(301, { Location: '/control' }).end(); return; }
+      // The unmodified file, through the same serveFile every other static
+      // asset uses, so it keeps its Content-Security-Policy header. Nothing is
+      // injected into it: index.html's CSP has no 'unsafe-inline', and it
+      // deliberately contains no inline <script> at all. browser-api-shim.js
+      // recognises this page from its own URL instead.
+      await pipeWebResponse(await serveFile(path.join(RENDERER_DIR, 'index.html'), null), res);
       return;
     }
 

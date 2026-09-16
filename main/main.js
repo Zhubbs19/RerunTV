@@ -63,7 +63,7 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 // that tie all of the above to the renderer.
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./media/protocol');
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
-const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange } = require('./config/config');
+const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
@@ -413,10 +413,26 @@ app.whenReady().then(async () => {
     const viewerRuntime = startViewerServer(pluginServices, {
       pluginsDir: getPluginsDir(),
       access: createLanAccess('viewer', {
+        // Two pairing codes, two session classes (docs/design/06 §4). A device
+        // that enters the view code can only watch; the control code is the
+        // only way to a session that may POST commands, and it is shown on the
+        // host window and the loopback server page, never over the LAN.
+        scopes: ['view', 'control'],
         readLimit: 1200, writeLimit: 30,
         sessionsFile: path.join(app.getPath('userData'), 'lan-sessions', 'viewer.json'),
         sessionTtlMs: LAN_SESSION_TTL_MS,
       }),
+      // The LAN write path. Same single writer as the Electron renderer's
+      // config:command; the route itself forces origin to 'client', so a LAN
+      // batch can never arrive claiming to be a trusted host edit.
+      // The route supplies origin and remote itself — see the POST /api/commands
+      // handler. What separates a LAN editor from the Electron window is that
+      // `remote` flag: both are origin-'client' writers with the same conflict
+      // rules, but only the window may touch plugin permissions, network
+      // services, updates or the PIN lock (docs/design/06 §4).
+      applyCommands: (batch, meta) => configHost.applyCommands(batch, meta),
+      getRevision: () => configHost.getRevision(),
+      snapshot: () => configHost.snapshot(),
       listPlugins: () => discoverPlugins().map((plugin) => (
         plugin.error ? plugin : {
           ...plugin,
@@ -439,6 +455,11 @@ app.whenReady().then(async () => {
       // goes out — never config itself; each viewer fetches its own redacted
       // projection through the normal authenticated /api/config.
       onViewerRelevantConfigChange(() => pluginServices.viewerRemoteBridge?.publish('config:changed', null));
+      // Paired CONTROL clients get the commands themselves, not just a notice,
+      // so a LAN editor reconciles exactly the way the Electron window does
+      // (docs/design/05 §2.2). /api/remote-events drops these for a `view`
+      // session, since they carry real config values.
+      onConfigApplied((update) => pluginServices.viewerRemoteBridge?.publish('config:applied', update));
     }
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];

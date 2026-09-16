@@ -7,6 +7,18 @@
 // subsequent static/API/media requests must carry that cookie (or the same
 // token as an Authorization: Bearer value for native companion clients).
 //
+// A service can offer more than one SCOPE (docs/design/06 §4). Each scope gets
+// its own pairing code, and the code a device enters is what fixes its
+// session's scope for that session's whole life. `view` is read-only: the
+// redacted config projection, media and filtered events. `control` may also
+// POST commands and read the unredacted-but-credential-stripped config. There
+// is deliberately no upgrade path: entering the control code on a device that
+// already holds a view session mints a NEW session rather than widening the
+// old one, so a token that was only ever meant to watch can never become a
+// token that can write. Administration (plugin install, capability approval,
+// updates, network services) is not grantable remotely at all and stays on the
+// host window — no `admin` scope is issued here.
+//
 // The pairing CODE is still always process-lifetime (a fresh 8-digit code
 // every boot, never persisted) — but a SESSION a device already earned by
 // entering that code once can optionally survive restarts, so a phone that
@@ -49,10 +61,23 @@ const MAX_FAILED_PAIR_ATTEMPTS = 200;
 // that unboundedly. Cap it the same way sessions already are.
 const MAX_RATE_WINDOWS = 2000;
 
+// Sessions used to be stored as token -> expiresAt. They now carry a scope, so
+// a file written by an older build is read as the view-only sessions it
+// described — never silently promoted to something writable.
+function normalizeSession(value) {
+  if (Number.isFinite(value)) return { expiresAt: value, scope: 'view' };
+  if (value && Number.isFinite(value.expiresAt)) {
+    return { expiresAt: value.expiresAt, scope: value.scope === 'control' ? 'control' : 'view' };
+  }
+  return null;
+}
+
 function loadPersistedSessions(sessionsFile) {
   try {
     const parsed = JSON.parse(fs.readFileSync(sessionsFile, 'utf-8'));
-    return new Map(Object.entries(parsed).filter(([, expiresAt]) => Number.isFinite(expiresAt)));
+    return new Map(Object.entries(parsed)
+      .map(([token, value]) => [token, normalizeSession(value)])
+      .filter(([, session]) => session !== null));
   } catch (e) {
     return new Map(); // no file yet, or corrupt — start fresh rather than fail pairing entirely
   }
@@ -119,12 +144,20 @@ function readFormBody(req, maxBytes = 1024) {
   });
 }
 
+const newCode = () => String(crypto.randomInt(0, 100000000)).padStart(8, '0');
+
+// opts.scopes: which scopes this service hands out, most privileged last.
+// Omitted means view-only, which is every existing caller.
 function createLanAccess(service, opts = {}) {
-  const pairingCode = String(crypto.randomInt(0, 100000000)).padStart(8, '0');
+  const scopes = Array.isArray(opts.scopes) && opts.scopes.length ? opts.scopes : ['view'];
+  // One code per scope. They are independent: knowing the view code tells you
+  // nothing about the control code.
+  const pairingCodes = Object.fromEntries(scopes.map((scope) => [scope, newCode()]));
+  const pairingCode = pairingCodes.view || pairingCodes[scopes[0]];
   const cookieName = `reruntv_${service.replace(/[^a-z0-9_-]/gi, '_')}`;
   const sessionsFile = opts.sessionsFile || null;
   const sessionTtlMs = opts.sessionTtlMs || SESSION_TTL_MS;
-  const sessions = sessionsFile ? loadPersistedSessions(sessionsFile) : new Map(); // token -> expiresAt
+  const sessions = sessionsFile ? loadPersistedSessions(sessionsFile) : new Map(); // token -> { expiresAt, scope }
   const rateWindows = new Map(); // `${kind}:${ip}` -> {start, count}
   const readLimit = opts.readLimit || 600;
   const writeLimit = opts.writeLimit || 90;
@@ -134,15 +167,15 @@ function createLanAccess(service, opts = {}) {
   function pruneSessions() {
     const now = Date.now();
     let removed = false;
-    sessions.forEach((expiresAt, token) => { if (expiresAt <= now) { sessions.delete(token); removed = true; } });
+    sessions.forEach((session, token) => { if (session.expiresAt <= now) { sessions.delete(token); removed = true; } });
     while (sessions.size > MAX_SESSIONS) { sessions.delete(sessions.keys().next().value); removed = true; }
     if (removed && sessionsFile) savePersistedSessions(sessionsFile, sessions);
   }
 
-  function issueSession() {
+  function issueSession(scope = 'view') {
     pruneSessions();
     const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, Date.now() + sessionTtlMs);
+    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     return token;
   }
@@ -161,6 +194,30 @@ function createLanAccess(service, opts = {}) {
 
   function isAuthenticated(req) {
     return !!authenticatedToken(req);
+  }
+
+  // The scope this request's session holds, or '' when it has none. Scope lives
+  // on the token, never on anything the client sends alongside it.
+  function scopeOf(req) {
+    const token = authenticatedToken(req);
+    const session = token ? sessions.get(token) : null;
+    return session ? session.scope : '';
+  }
+
+  // Gate for a route that needs more than `view`. Answers 403 itself so every
+  // caller refuses the same way, and says nothing about what the route does.
+  function requireScope(req, res, scope) {
+    if (scopeOf(req) === scope) return true;
+    res.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ error: `This device is not paired for ${scope}.` }));
+    return false;
+  }
+
+  // Which scope, if any, a supplied pairing code unlocks. Compared against
+  // every scope's code in constant time, so a wrong guess leaks nothing about
+  // which code it was close to.
+  function scopeForCode(supplied) {
+    return scopes.find((scope) => safeEqual(supplied, pairingCodes[scope])) || '';
   }
 
   function pruneRateWindows(now) {
@@ -197,13 +254,16 @@ function createLanAccess(service, opts = {}) {
   }
 
   function renewSessionIfNeeded(res, token) {
-    const expiresAt = sessions.get(token) || 0;
+    const session = sessions.get(token);
+    if (!session) return;
+    const expiresAt = session.expiresAt;
     // Sliding renewal means a TV that is still used does not unexpectedly
     // return to the pairing screen merely because 90 days elapsed since the
     // original code entry. Refresh only in the final half of the lifetime so
     // normal media/config polling does not rewrite the sessions file.
     if (expiresAt - Date.now() > sessionTtlMs / 2) return;
-    sessions.set(token, Date.now() + sessionTtlMs);
+    // Renewal extends the session it already is; it never changes its scope.
+    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope: session.scope });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     setSession(res, token);
   }
@@ -241,12 +301,13 @@ function createLanAccess(service, opts = {}) {
       }
     }
     supplied = normalizePairingCode(supplied);
-    if (supplied && safeEqual(supplied, pairingCode)) {
+    const scope = supplied ? scopeForCode(supplied) : '';
+    if (scope) {
       failedPairAttempts = 0;
-      const token = issueSession();
+      const token = issueSession(scope);
       setSession(res, token);
       if (req.headers.accept && req.headers.accept.includes('application/json')) {
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token, expiresIn: SESSION_TTL_MS / 1000 }));
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token, scope, expiresIn: SESSION_TTL_MS / 1000 }));
       } else {
         res.writeHead(303, { Location: '/' }).end();
       }
@@ -275,8 +336,12 @@ function createLanAccess(service, opts = {}) {
       await handlePairing(req, res, url);
       return false;
     }
+    // A device that already holds a session but is presenting a pairing code is
+    // claiming a different scope — most often a viewer being handed the control
+    // code. Run pairing, which mints a SEPARATE session at that code's scope.
+    // The old token keeps whatever it had; nothing is widened in place.
     const token = authenticatedToken(req);
-    if (!token) {
+    if (!token || url.searchParams.has('pair')) {
       await handlePairing(req, res, url);
       return false;
     }
@@ -284,15 +349,22 @@ function createLanAccess(service, opts = {}) {
     return checkRateLimit(req, res, kind);
   }
 
-  function pairingUrl(url) {
+  function pairingUrl(url, scope = 'view') {
     const parsed = new URL(url);
-    parsed.searchParams.set('pair', pairingCode);
+    parsed.searchParams.set('pair', pairingCodes[scope] || pairingCode);
     return parsed.toString();
   }
 
   return {
-    service, pairingCode, pairingUrl, authorize, checkRateLimit, isAuthenticated,
+    service, pairingCode, pairingCodes, scopes, pairingUrl, authorize, checkRateLimit, isAuthenticated,
+    scopeOf, requireScope,
     sessionCount: () => { pruneSessions(); return sessions.size; },
+    sessionCounts: () => {
+      pruneSessions();
+      const counts = Object.fromEntries(scopes.map((scope) => [scope, 0]));
+      sessions.forEach((session) => { counts[session.scope] = (counts[session.scope] || 0) + 1; });
+      return counts;
+    },
   };
 }
 

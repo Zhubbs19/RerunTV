@@ -71,7 +71,8 @@ import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChan
 import { getChannelSchedule } from '../core/schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { alertDialog } from '../setup/dialogs.js';
-import { MONTHS, S, WEEKDAYS, commitInPlace, saveConfigDebounced, viewNow } from '../core/state.js';
+import { MONTHS, S, WEEKDAYS, commitInPlace, dispatch, saveConfigDebounced, viewNow } from '../core/state.js';
+import { pluginCommandType, registerPluginCommand } from '../core/commands.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from '../core/util.js';
 import { player } from '../core/dom.js';
 import { PLUGIN_CHANNEL_ACTIONS, keyForAction } from '../remote/input.js';
@@ -206,6 +207,47 @@ export function updatePluginSettings(id, patch) {
   });
   commitInPlace({ type: 'plugin.setSettings', id, settings: next });
   return S.config.pluginSettings[id];
+}
+
+// ---------- A plugin's own commands (docs/design/05 §3) ----------
+// Before this, a plugin's settings edits went through ctx.saveConfigDebounced
+// and landed in undo history as an anonymous structural patch — "Edit", with no
+// way for the plugin to say what the step was. A registered command names it,
+// undoes precisely, and is recorded exactly the way core's own commands are.
+//
+// The plugin states its own id, as it already does for registerChannelType and
+// registerPluginSettings. That is deliberately not where the safety lives: a
+// renderer plugin shares this page, so it could always claim a different name.
+// What actually confines it is the SCOPE — registerPluginCommand (commands.js)
+// hands a plugin's apply/validate/describe that plugin's settings object and
+// nothing else, so there is no route from a plugin command to the channel
+// lineup, to box settings, or to another plugin's settings. Not a rule it is
+// asked to follow; a thing it is never handed.
+export const pluginCommands = {
+  // register(id, name, { validate, apply, describe, touches }) -> the full
+  // `plugin:<id>.<name>` type. apply(settings, cmd) mutates that settings
+  // object in place and returns the inverse as { name, ...payload } objects,
+  // in the plugin's own vocabulary.
+  register(id, name, definition) {
+    requirePluginId('commands.register', id);
+    return registerPluginCommand(id, name, definition);
+  },
+  // dispatch(id, name, payload, opts) — applies it and records one undo step,
+  // exactly as a core edit does. opts takes label/coalesce/skipUndo/delay.
+  dispatch(id, name, payload = {}, opts = {}) {
+    requirePluginId('commands.dispatch', id);
+    return dispatch({ type: pluginCommandType(id, name), ...payload }, opts);
+  },
+  // The type string, for a plugin batching several of its own commands into
+  // one undo step through ctx.core.dispatch.
+  type(id, name) {
+    requirePluginId('commands.type', id);
+    return pluginCommandType(id, name);
+  },
+};
+
+function requirePluginId(where, id) {
+  if (!id || typeof id !== 'string') throw new Error(`ctx.${where}: a plugin id is required`);
 }
 
 export function getRedactedPluginSettings(id) {
@@ -697,7 +739,10 @@ export function pluginDiagnosticsSnapshot() {
 // v5 added ctx.input (usageMode, keyForAction) and channel types' onAction.
 // v6 added ctx.ui, the component kit (docs/design/04 §5), and declarative
 // settings fields.
-const CTX_VERSION = 6;
+// v7 added ctx.commands (docs/design/05 §3) — a plugin registers its own named,
+// undoable commands over its own settings, instead of writing them through
+// ctx.saveConfigDebounced as anonymous patches.
+const CTX_VERSION = 7;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -708,6 +753,7 @@ function installGlobalApi() {
     resolveBreakAt, nextBreakBoundary,
   };
   const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
+  const commands = pluginCommands;
   const util = { formatClock, WEEKDAYS, MONTHS };
   const search = { registerEntries: registerSettingsSearchEntries };
   // docs/design/01 §6.6: which mode this device is in, and the keyboard key an
@@ -782,7 +828,7 @@ function installGlobalApi() {
       // Each group is its own object (not just a re-export of the flat
       // keys) so a plugin can destructure `const { channels } = ctx`
       // without pulling in everything else.
-      core, audio, channels, settings, util, search, input, ui,
+      core, audio, channels, settings, util, search, input, ui, commands,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's

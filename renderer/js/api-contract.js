@@ -6,15 +6,23 @@
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
-    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
+    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'applyConfigCommands', 'getConfigSnapshot', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
-    'transcode', 'toggleFullscreen', 'quitApp', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
+    'transcode', 'toggleFullscreen', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
+    // The Companion app's ALERTS relays have to stay viewer-facing: in
+    // headless/server mode there is no host window at all, so a paired LAN
+    // viewer is the only display that could ever show them, and
+    // main/lan/viewer-server.js publishes both on the viewer event bus for
+    // exactly that reason. They were listed host-only while the shim
+    // implemented them, so createApiSurface dropped the implementations and
+    // app.js's optional calls went on quietly doing nothing.
+    'onCompanionTriggerNews', 'onCompanionSetTicker',
     'getConnectedDevices', 'onRemoteTune', 'onRemoteSetChannelFlag', 'onPartyTriggerTrivia', 'onPartyPost',
     'onPartyAnnounce', 'onPartyNews', 'onPartyBingo', 'onPartySoundboardPlay', 'onPartyEffect',
     'onPartyCheckin', 'onPartyVote', 'onPartyReaction', 'sendPartyVoteState', 'captureVideoFrame',
     'onPartyCaption', 'sendPartyTriviaState', 'onPartyTriviaAnswer', 'listDesktopSources',
     'spotifyStart', 'spotifyStop', 'spotifyGetStreamUrl', 'onSpotifyStatus', 'onSpotifyEvent',
-    'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
+    'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus',
     'sendPartyJukeboxState', 'onPartyJukeboxAdd', 'onPartyJukeboxSkipVote', 'onPartyJukeboxFun',
     'videoSplicerLaunch',
     'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'saveRemoteProfile', 'getHandoffInfo', 'tmdbSearch', 'tmdbGetCredits',
@@ -24,14 +32,23 @@
     'callMediaSourceHook',
   ];
   const hostOnlyMethods = [
+    // Host-only because a browser tab genuinely cannot do them, not merely
+    // because they are inconvenient there. A tab cannot close the application
+    // (TV mode's exit prompt drops EXIT for a viewer — tv/input.js's
+    // exitCapability), and both music-choice calls read the HOST filesystem.
+    // These three were listed as viewer methods while the shim defined
+    // quitApp as null and the music-choice pair not at all, so
+    // createApiSurface threw and a LAN browser ended up with no window.api at
+    // all. tests/api-surface.test.js keeps the two lists honest now.
+    'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',
-    'onCompanionApplySettings', 'getCompanionUrl', 'onCompanionTriggerNews',
-    'onCompanionSetTicker', 'downloadMediaFile', 'onMediaDownloadProgress',
+    'onCompanionApplySettings', 'getCompanionUrl',
+    'downloadMediaFile', 'onMediaDownloadProgress',
     'castScan', 'castConnect', 'castDisconnect', 'castNow', 'castStop', 'castSetVolume',
     'castListMirrorSources', 'castPrepareMirrorCapture', 'castMirrorChunk', 'castStartMirror', 'castStopMirror',
     'castSetAutoSync', 'castSetNowPlaying', 'castGetStatus', 'onCastStatus',

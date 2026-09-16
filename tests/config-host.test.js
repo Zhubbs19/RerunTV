@@ -136,8 +136,12 @@ test('the capability-approval revert race is gone (renderer state.js + host)', a
   const broadcasts = [];
   const host = makeHost(store, broadcasts);
   const state = await load('core/state.js');
+  const copy = (value) => JSON.parse(JSON.stringify(value));
   globalThis.window.api = {
-    saveConfig: (config, baseRevision) => host.reconcileSave(JSON.parse(JSON.stringify(config)), baseRevision),
+    saveConfig: (config, baseRevision, client) => host.reconcileSave(copy(config), baseRevision, { client }),
+    applyConfigCommands: (batch, meta) => host.applyCommands(copy(batch), { ...meta, origin: 'client' }),
+    getConfigSnapshot: async () => ({ config: store.load(), revision: host.getRevision() }),
+    loadConfig: async () => store.load(),
   };
   state.S.config = store.load();
   state.resetUndoBaseline();
@@ -205,4 +209,152 @@ test('the viewer event bus carries config:changed to a viewer polling with a cur
   const { events } = bridge.read(cursor);
   assert.deepEqual(events.map((e) => e.channel), ['config:changed']);
   assert.equal(bridge.publish('config:not-a-channel', null), false, 'the allow-list still applies');
+});
+
+// The real host wires loadCommands with a path built from main/config/'s own
+// __dirname. It is resolved lazily at the first host command, so a wrong path
+// after a directory move surfaces only as a plugin approval that silently
+// fails — never at boot, and never in the tests above, which inject their own
+// loader. Check the path the application actually uses.
+test('the host loads the real commands module from main/config/', async () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'main', 'config', 'config.js'), 'utf8');
+  const match = source.match(/const COMMANDS_MODULE_PATH = path\.join\(__dirname, ([^)]+)\);/);
+  assert.ok(match, 'config.js resolves the commands module through COMMANDS_MODULE_PATH');
+  const segments = match[1].split(',').map((part) => part.trim().replace(/^'|'$/g, ''));
+  const resolved = path.join(__dirname, '..', 'main', 'config', ...segments);
+  assert.ok(fs.statSync(resolved).isFile(), `host commands must resolve to a real file, got ${resolved}`);
+  const module = await import(pathToFileURL(resolved).href);
+  assert.equal(typeof module.applyCommand, 'function');
+});
+
+
+// ---------- Client-origin batches (docs/design/05 §2.2-2.3, step 6) ----------
+// The Electron renderer and the browser control panel both post batches here
+// with a base revision and a batch id of their own. These cover the five
+// outcomes the host has to tell apart.
+
+const asClient = (client, id, baseRevision) => ({ origin: 'client', client, id, baseRevision, source: client });
+
+test('two clients editing different channels both apply', async () => {
+  const store = makeDisk({ ...baseConfig(), channels: [{ number: 5, name: 'Boomerang', files: [] }, { number: 9, name: 'Nick', files: [] }] });
+  const host = makeHost(store);
+
+  const laptop = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
+  const phone = await host.applyCommands([{ type: 'channel.rename', channel: 9, name: 'Nickelodeon' }], asClient('phone', 'b2', 0));
+
+  assert.equal(laptop.ok, true);
+  assert.equal(phone.ok, true, 'a batch built against revision 0 still applies when it touches something else');
+  assert.equal(phone.revision, 2);
+  const saved = store.read();
+  assert.equal(saved.channels.find((c) => c.number === 5).name, 'Cartoon Network');
+  assert.equal(saved.channels.find((c) => c.number === 9).name, 'Nickelodeon');
+});
+
+test('a stale client editing what another client just changed is refused', async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
+  const phone = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Toonami' }], asClient('phone', 'b2', 0));
+
+  assert.equal(phone.ok, false);
+  assert.equal(phone.reason, 'conflict');
+  assert.equal(phone.revision, 1, 'the refusal tells the client where the host actually is');
+  assert.deepEqual(phone.conflictsWith, [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }]);
+  assert.equal(store.read().channels[0].name, 'Cartoon Network', 'nothing was applied');
+});
+
+test("a client's own earlier edits never conflict with its later ones", async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+
+  const first = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'A' }], asClient('laptop', 'b1', 0));
+  // Same base revision, because the reply has not arrived yet.
+  const second = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'B' }], asClient('laptop', 'b2', 0));
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(store.read().channels[0].name, 'B');
+});
+
+test('a redelivered batch is answered, not applied twice', async () => {
+  const store = makeDisk({ ...baseConfig(), interstitials: { pool: [] } });
+  const host = makeHost(store);
+  const batch = [{ type: 'item.insert', collection: 'pool', item: { id: 'ad-1', path: 'x.mp4' } }];
+
+  const first = await host.applyCommands(batch, asClient('laptop', 'once', 0));
+  const again = await host.applyCommands(batch, asClient('laptop', 'once', 0));
+
+  assert.equal(first.ok, true);
+  assert.equal(again.ok, true);
+  assert.equal(again.duplicate, true);
+  assert.equal(again.revision, first.revision, 'the revision did not move');
+  assert.equal(store.read().interstitials.pool.length, 1, 'an insert is not idempotent, so it must not run twice');
+});
+
+test('a batch from before a backup restore is refused rather than applied', async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'A' }], asClient('laptop', 'b1', 0));
+  host.noteReset();
+
+  const late = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'B' }], asClient('laptop', 'b2', 1));
+  assert.equal(late.ok, false);
+  assert.equal(late.reason, 'stale-reset');
+  assert.equal(store.read().channels[0].name, 'A', 'the restored config was left alone');
+});
+
+test('a batch older than the replay window is refused rather than guessed at', async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+  for (let i = 0; i < RING_SIZE + 5; i++) {
+    await host.applyCommands({ type: 'plugin.setApproval', id: `p${i}`, signature: 's' }, { source: 'plugins' });
+  }
+  const ancient = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'B' }], asClient('laptop', 'b1', 0));
+  assert.equal(ancient.ok, false);
+  assert.equal(ancient.reason, 'stale-window');
+});
+
+test('an invalid client batch comes back as a refusal, not an exception', async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+  const result = await host.applyCommands([{ type: 'channel.rename', channel: 404, name: 'Nope' }], asClient('laptop', 'b1', 0));
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid');
+  assert.match(result.message, /404/);
+  // A host-origin batch still throws, which is what the main-process callers expect.
+  await assert.rejects(host.applyCommands([{ type: 'channel.rename', channel: 404, name: 'Nope' }]));
+});
+
+test('a host command still applies over a client batch and is replayed onto a whole-config save', async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
+  await host.applyCommands({ type: 'plugin.setEnabled', id: 'weather', enabled: true }, { source: 'plugins' });
+
+  // The laptop's own save, built before it saw the host's plugin command.
+  const laptopCopy = store.read();
+  laptopCopy.plugins.disabled = ['weather'];
+  const saved = await host.reconcileSave(laptopCopy, 1, { client: 'laptop' });
+
+  assert.equal(saved.ok, true);
+  assert.equal(saved.replayed, 1);
+  assert.deepEqual(store.read().plugins.disabled, [], 'the host edit survived the save that predated it');
+});
+
+test("a whole-config save that would bury another client's command is refused", async () => {
+  const store = makeDisk(baseConfig());
+  const host = makeHost(store);
+
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'From the phone' }], asClient('phone', 'b1', 0));
+
+  const laptopCopy = baseConfig();
+  const result = await host.reconcileSave(laptopCopy, 0, { client: 'laptop' });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'conflict');
+  assert.equal(store.read().channels[0].name, 'From the phone', 'nothing was overwritten');
 });

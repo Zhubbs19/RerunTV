@@ -55,15 +55,68 @@ test('values are coerced to what the control can show', async () => {
   assert.equal(coerceFieldValue({ type: 'text' }, undefined), '');
 });
 
-test('ctx v6 exposes the kit as ctx.ui', () => {
+test('ctx v7 exposes the kit as ctx.ui', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'plugin/host.js'), 'utf8');
-  assert.match(src, /const CTX_VERSION = 6;/);
+  assert.match(src, /const CTX_VERSION = 7;/);
   const ui = src.match(/const ui = Object\.freeze\(\{([\s\S]*?)\}\);/);
   assert.ok(ui, 'ctx.ui is a frozen object');
   for (const name of ['Button', 'IconButton', 'Field', 'SettingRow', 'Toggle', 'Slider', 'Select', 'Segmented', 'NumberStepper', 'Tabs', 'ListDetail', 'Menu', 'MenuButton', 'Dialog', 'Toast', 'EmptyState', 'Badge', 'Chip', 'FocusScope', 'SpatialFocus']) {
     assert.match(ui[1], new RegExp(`\\b${name}\\b`), `ctx.ui.${name}`);
   }
-  assert.match(src, /core, audio, channels, settings, util, search, input, ui,/);
+  assert.match(src, /core, audio, channels, settings, util, search, input, ui, commands,/);
   const docs = fs.readFileSync(path.join(__dirname, '..', 'PLUGIN_DEVELOPMENT.md'), 'utf8');
   assert.match(docs, /ctx\.ui/, 'PLUGIN_DEVELOPMENT.md documents ctx.ui');
+});
+
+// docs/design/05 §3. The point of the namespace and the settings-only argument
+// is that a plugin command cannot reach anything but its own settings, so
+// these check the shape that makes that true rather than only that it exists.
+test('ctx v7 gives a plugin its own namespaced, settings-scoped commands', async () => {
+  const commands = await import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'core/commands.js')).href);
+  const type = commands.registerPluginCommand('ctx-test', 'setThing', {
+    apply(settings, cmd) {
+      const before = settings.thing;
+      settings.thing = cmd.value;
+      return [{ name: 'setThing', value: before === undefined ? null : before }];
+    },
+    describe(settings, cmd) { return `Set thing to ${cmd.value}`; },
+    touches() { return ['thing']; },
+  });
+  assert.equal(type, 'plugin:ctx-test.setThing');
+
+  const config = { channels: [{ number: 5, name: 'Untouched' }], theme: 'digital-2000s' };
+  const inverse = commands.applyCommand(config, { type, value: 'hello' });
+  assert.deepEqual(config.pluginSettings, { 'ctx-test': { thing: 'hello' } });
+  assert.equal(config.channels[0].name, 'Untouched', 'nothing outside its settings moved');
+  assert.equal(config.theme, 'digital-2000s');
+
+  assert.deepEqual(inverse, [{ type: 'plugin:ctx-test.setThing', value: null }],
+    'the inverse comes back in the namespace, not in the plugin\'s own vocabulary');
+  commands.applyCommand(config, inverse[0]);
+  assert.deepEqual(config.pluginSettings['ctx-test'], { thing: null });
+
+  assert.equal(commands.describeCommand(config, { type, value: 'x' }), 'Set thing to x');
+  assert.deepEqual(commands.commandTouches({ type, value: 'x' }), ['plugins/ctx-test/settings/thing'],
+    'touch tokens are confined to that plugin, whatever the plugin returns');
+
+  // The host has no plugin renderers, so the command travels as the settings
+  // it produced rather than as a type the host would not recognise.
+  commands.applyCommand(config, { type, value: 'sent' });
+  assert.deepEqual(commands.hostCommandsFor(config, { type, value: 'sent' }),
+    [{ type: 'plugin.setSettings', id: 'ctx-test', settings: { thing: 'sent' } }]);
+
+  commands.unregisterPluginCommands('ctx-test');
+  assert.equal(commands.isRegisteredCommand(type), false);
+});
+
+test('a plugin command cannot be registered outside its own namespace', async () => {
+  const commands = await import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'core/commands.js')).href);
+  assert.throws(() => commands.registerPluginCommand('evil', '../../channel.remove', { apply: () => [] }), /letters, digits/);
+  assert.throws(() => commands.registerPluginCommand('', 'x', { apply: () => [] }), /plugin id is required/);
+  assert.throws(() => commands.registerPluginCommand('evil', 'x', {}), /apply\(settings, cmd\) is required/);
+  // Even a well-formed registration can only ever produce plugin:<id>.<name>.
+  const type = commands.registerPluginCommand('evil', 'tryIt', { apply: () => [] });
+  assert.equal(type, 'plugin:evil.tryIt');
+  assert.equal(commands.isRegisteredCommand('channel.remove'), true, 'core commands are untouched');
+  commands.unregisterPluginCommands('evil');
 });

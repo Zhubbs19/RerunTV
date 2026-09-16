@@ -1,4 +1,4 @@
-import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson, itemFieldChanges } from './commands.js';
+import { applyCommand, applyPatch, cloneJson, describeCommand, diffJson, hostCommandsFor, itemFieldChanges } from './commands.js';
 import { StatusBar } from '../ui/toast.js';
 
 // Shared mutable runtime state. Modules read and write through S so the
@@ -344,10 +344,175 @@ function settlePlainEdits(label) {
   const { ops, undo } = diffJson(baseline, S.config);
   if (!ops.length) return;
   applyPatch(baseline, ops);
-  if (!tracked) return;
   const command = label ? { type: 'config.patch', ops, undo, label } : { type: 'config.patch', ops, undo };
+  // Built whether or not it becomes an undo step: `tracked` says whether the
+  // user should be able to step back through this burst, not whether the host
+  // needs to hear about it. A skipUndo burst (last channel, air checks) is
+  // still a real config change that has to reach disk.
+  enqueueOutbound([command]);
+  if (!tracked) return;
   pushHistory({ label: describeCommand(S.config, command), commands: [command], inverses: inverseOfPatch(command), at: Date.now() });
   notifyHistory();
+}
+
+// ---------- Sending edits to the host (docs/design/05 §2.2, step 6) ----------
+// The host process owns config. This renderer applies each edit to S.config
+// optimistically — that is what every screen reads — and then posts the
+// command(s) that made it, with the revision they were built against and an
+// id of this client's own. The host is the single writer: it decides whether
+// a batch merges with what another editor did, and every client (this one
+// included) hears the result on config:applied.
+//
+// A whole-config save survives for the few edits no command describes: an
+// import, a backup restore, the DONE flush, a setting that recreates the
+// window. It is also how a session FIRST agrees with the host, which matters
+// because this renderer runs applyConfigDefaults() over the config it loads
+// and the host does not: until those defaults have reached disk once, a
+// command naming a defaulted section would not find it there. So the first
+// write of a session is a whole-config save (exactly what every write used to
+// be), and every write after it is commands.
+const clientId = `r${Math.random().toString(36).slice(2, 10)}`;
+export function getClientId() { return clientId; }
+
+// Commands applied locally and not yet acknowledged by the host.
+let outbound = [];
+// The batch currently posted, kept so a failed post can be retried with the
+// same id — the host answers a redelivery instead of applying it twice.
+let inFlight = null;
+let hostAgreed = false;
+let resyncing = null;
+
+// Told whenever S.config changed because of something that did not happen on
+// this screen: another editor's command arriving over config:applied, or this
+// client being resynced after the host refused a batch. The open screen
+// re-renders from it; state.js itself stays DOM-free.
+//
+//   reason: 'host-update'  another client (or the host) edited config
+//           'conflict' | 'stale-reset' | 'stale-window' | 'invalid' | 'read-only'
+//                          this client was rebuilt from the host's copy, and
+//                          its undo history is gone with it
+let remoteChangeListener = null;
+export function onRemoteConfigChange(fn) {
+  remoteChangeListener = fn;
+}
+
+function notifyRemoteChange(reason) {
+  if (!remoteChangeListener) return;
+  try { remoteChangeListener(reason); } catch (e) { console.warn('[config] remote-change listener failed', e); }
+}
+
+function nextBatchId() {
+  return `${clientId}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// Records commands for the host. They are already applied to S.config, which is
+// why the translation below can read the result: a plugin's own command travels
+// as the settings it produced, because the host has no plugin renderers and
+// would not know the type (commands.js's hostCommandsFor).
+function enqueueOutbound(commands) {
+  if (!commands || !commands.length) return;
+  commands.forEach((cmd) => outbound.push(...hostCommandsFor(S.config, cmd)));
+}
+
+// The host refused a batch, or answered something this client can't reconcile
+// against. Its copy is authoritative, so take it whole, drop the local history
+// (the steps in it describe a config that no longer exists) and let the open
+// screen redraw. Deliberately not a fine-grained rollback: touch-set conflict
+// detection does not promise that the intervening commands commute with the
+// refused ones, so unwinding around them would be guesswork.
+export function resyncFromHost(reason) {
+  if (resyncing) return resyncing;
+  resyncing = Promise.resolve(window.api.getConfigSnapshot()).then((snapshot) => {
+    const fresh = snapshot && snapshot.config;
+    if (!fresh || fresh._configLoadError) return false;
+    outbound = [];
+    inFlight = null;
+    hostAgreed = false;
+    S.config = fresh;
+    baseline = cloneJson(S.config);
+    undoStack.length = 0;
+    redoStack.length = 0;
+    pendingPlain = false;
+    pendingPlainTracked = false;
+    // From the same reply as the config, so no update is applied twice or
+    // skipped across the gap a second round trip would open.
+    hostRevision = Number.isInteger(snapshot.revision) ? snapshot.revision : 0;
+    bumpConfigGeneration();
+    notifyHistory();
+    notifyRemoteChange(reason);
+    return true;
+  }).catch((e) => {
+    console.error('[config] could not resync from the host:', e);
+    return false;
+  }).finally(() => { resyncing = null; });
+  return resyncing;
+}
+
+function handleRefusal(result) {
+  console.warn(`[config] the host refused an edit (${result.reason}): ${result.message}`);
+  setSaveIndicator('saved');
+  return resyncFromHost(result.reason).then(() => false);
+}
+
+// Sends everything applied since the last flush. One batch is in flight at a
+// time, so the host sees this client's edits in the order they were made.
+function flushCommands() {
+  if (inFlight || resyncing) return Promise.resolve(false);
+  settlePlainEdits();
+  if (!outbound.length) return Promise.resolve(true);
+
+  // First write of the session (or the first after a resync): send the whole
+  // config, which carries these commands' effects along with any defaults the
+  // host's copy has never been told about. See the note above.
+  if (!hostAgreed) {
+    const pending = outbound;
+    outbound = [];
+    setSaveIndicator('saving');
+    return Promise.resolve(window.api.saveConfig(S.config, hostRevision, clientId)).then((result) => {
+      if (result && result.ok === false) {
+        // A client that has no whole-config save at all — the LAN control
+        // panel, which only has the command endpoint — cannot do this step.
+        // Send the commands instead. It does not need it either: it loaded its
+        // config from the host, so there are no locally-applied defaults the
+        // host has never seen.
+        if (result.reason === 'unsupported') {
+          hostAgreed = true;
+          outbound = pending.concat(outbound);
+          return flushCommands();
+        }
+        return handleRefusal(result);
+      }
+      hostAgreed = true;
+      setSaveIndicator('saved');
+      return true;
+    }).catch((e) => {
+      console.error('[config] save failed:', e);
+      setSaveIndicator('saved');
+      return false;
+    });
+  }
+
+  inFlight = { id: nextBatchId(), commands: outbound };
+  outbound = [];
+  setSaveIndicator('saving');
+  return Promise.resolve(window.api.applyConfigCommands(inFlight.commands, {
+    id: inFlight.id, baseRevision: hostRevision, client: clientId, source: 'renderer',
+  })).then((result) => {
+    inFlight = null;
+    if (result && result.ok === false) return handleRefusal(result);
+    // The revision itself is adopted from the config:applied echo rather than
+    // from here — see applyHostUpdate.
+    setSaveIndicator('saved');
+    return outbound.length ? flushCommands() : true;
+  }).catch((e) => {
+    // The post never completed. Put it back at the front with the same id;
+    // if it did in fact reach the host, the redelivery is deduped there.
+    console.error('[config] could not send an edit to the host:', e);
+    if (inFlight) outbound = inFlight.commands.concat(outbound);
+    inFlight = null;
+    setSaveIndicator('saved');
+    return false;
+  });
 }
 
 function writeConfigSoon(delay) {
@@ -355,24 +520,45 @@ function writeConfigSoon(delay) {
   setSaveIndicator('saving');
   S.saveConfigTimer = setTimeout(() => {
     S.saveConfigTimer = null;
-    settlePlainEdits();
-    window.api.saveConfig(S.config, hostRevision).then(() => setSaveIndicator('saved'));
+    flushCommands();
   }, delay == null ? 600 : delay);
 }
 
+// Sends pending edits right now rather than on the debounce. Used by undo and
+// redo, where what the user does next may depend on the edit having landed.
 function writeConfigNow() {
   clearTimeout(S.saveConfigTimer);
   S.saveConfigTimer = null;
-  setSaveIndicator('saving');
-  return window.api.saveConfig(S.config, hostRevision).then((result) => { setSaveIndicator('saved'); return result; });
+  return flushCommands();
 }
 
-// For the few places that must reach disk before continuing (first-run
-// onboarding, an import, a window-recreating setting) — the same save as the
-// debounced path, including the host revision, so the host can replay any
-// edit of its own this copy hasn't seen yet instead of losing it.
+// For the few places that must reach disk as a WHOLE config before continuing
+// (first-run onboarding, an import, a restore, the DONE flush, a setting that
+// recreates the window). Pending commands settle into it first so nothing is
+// sent twice, then the whole object goes over, carrying any edit no command
+// describes. The host replays its own edits onto it, and refuses it outright
+// if it would bury another client's command.
 export function saveConfigNow() {
-  return writeConfigNow();
+  clearTimeout(S.saveConfigTimer);
+  S.saveConfigTimer = null;
+  settlePlainEdits();
+  outbound = [];
+  setSaveIndicator('saving');
+  return Promise.resolve(window.api.saveConfig(S.config, hostRevision, clientId)).then((result) => {
+    if (result && result.ok === false) {
+      // Nothing to fall back to here: these callers (import, restore, the DONE
+      // flush) genuinely need the whole object to land.
+      if (result.reason === 'unsupported') {
+        console.warn('[config] this client cannot save a whole config; the edit stays local until it is made on the host.');
+        setSaveIndicator('saved');
+        return result;
+      }
+      return handleRefusal(result);
+    }
+    hostAgreed = true;
+    setSaveIndicator('saved');
+    return result;
+  });
 }
 
 // ---------- Host updates ----------
@@ -394,6 +580,14 @@ export function getHostRevision() {
 
 export function applyHostUpdate(update) {
   if (!update || !Number.isInteger(update.revision) || update.revision <= hostRevision) return false;
+  // This client's own batch, coming back around. It was applied optimistically
+  // before it was ever sent, and not every command is idempotent — an
+  // item.insert applied twice inserts twice — so take only the revision from
+  // it (docs/design/05 §6, "double application").
+  if (update.client && update.client === clientId) {
+    hostRevision = update.revision;
+    return false;
+  }
   (update.commands || []).forEach((cmd) => {
     // Applying a host command twice is harmless (they only set values); one
     // that no longer fits this copy is skipped rather than failing the rest.
@@ -404,6 +598,7 @@ export function applyHostUpdate(update) {
   });
   hostRevision = update.revision;
   bumpConfigGeneration();
+  notifyRemoteChange('host-update');
   return true;
 }
 
@@ -487,6 +682,7 @@ export function dispatch(commandOrList, opts = {}) {
 // S.config and the baseline.
 function recordApplied(commands, inverses, opts) {
   bumpConfigGeneration();
+  enqueueOutbound(commands);
   if (!opts.skipUndo) {
     const now = Date.now();
     const top = undoStack[undoStack.length - 1];
@@ -573,6 +769,8 @@ export function commitItemEdit(collection, pairs, opts = {}) {
 // meaningful single edit.
 export function resetUndoBaseline() {
   baseline = cloneJson(S.config);
+  outbound = [];
+  hostAgreed = false;
   undoStack.length = 0;
   redoStack.length = 0;
   pendingPlain = false;
@@ -588,6 +786,10 @@ export function resetUndoBaseline() {
 // step. Must be called AFTER S.config has been reassigned to the new value.
 export function pushUndoSnapshot() {
   const after = cloneJson(S.config);
+  // The host wrote this config itself (a backup restore) and noted the reset,
+  // so anything still queued here was built against the config it replaced.
+  outbound = [];
+  hostAgreed = false;
   if (baseline != null) {
     // A copy of `after`, never the object itself: it becomes the new baseline,
     // which is patched in place from here on, and a history entry must not
@@ -623,10 +825,15 @@ export function performUndo() {
   settlePlainEdits();
   if (!undoStack.length) return false;
   const entry = undoStack.pop();
+  const applied = [];
   for (let i = entry.inverses.length - 1; i >= 0; i--) {
     applyCommand(S.config, entry.inverses[i]);
     applyCommand(baseline, entry.inverses[i]);
+    applied.push(entry.inverses[i]);
   }
+  // Undo is itself a batch of commands sent to the host, in the order it
+  // applied them, so another editor sees the step come back out (docs/design/05 §2.5).
+  enqueueOutbound(applied);
   redoStack.push(entry);
   bumpConfigGeneration();
   writeConfigNow();
@@ -643,6 +850,7 @@ export function performRedo() {
     inverses.push(...applyCommand(S.config, cmd));
     applyCommand(baseline, cmd);
   });
+  enqueueOutbound(entry.commands);
   entry.inverses = inverses;
   undoStack.push(entry);
   bumpConfigGeneration();

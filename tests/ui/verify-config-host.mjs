@@ -62,14 +62,31 @@ await step('approval reaches the renderer copy by broadcast, alongside a pending
 
 await step('a deliberately stale whole-config save does not revert the host edit', async () => {
   const r = await page.evaluate(async (fake) => {
-    const stale = JSON.parse(JSON.stringify(window.S.config));
-    delete stale.plugins.approvedCapabilities[fake];
-    stale.theme = stale.theme; // otherwise unchanged
-    const reply = await window.api.saveConfig(stale, 0); // claims it only saw revision 0
-    const onDisk = await window.api.loadConfig();
-    return { reply, diskApproval: (onDisk.plugins.approvedCapabilities || {})[fake] };
+    const st = await import('app://bundle/renderer/js/core/state.js');
+    const build = () => {
+      const stale = JSON.parse(JSON.stringify(window.S.config));
+      delete stale.plugins.approvedCapabilities[fake];
+      return stale;
+    };
+    // This renderer's own stale save: host commands it hadn't seen are replayed
+    // onto it, so its own pending edit and the host's both survive.
+    const mine = await window.api.saveConfig(build(), 0, st.getClientId());
+    const afterMine = await window.api.loadConfig();
+    // The same save arriving from a DIFFERENT client is refused instead of
+    // repaired, because replaying is only sound for the host's own set-only
+    // commands — another client's may have spliced an array (docs/design/05 §2.3).
+    const foreign = await window.api.saveConfig(build(), 0, 'verify-foreign-device');
+    const afterForeign = await window.api.loadConfig();
+    return {
+      mine, foreign,
+      diskApproval: (afterMine.plugins.approvedCapabilities || {})[fake],
+      stillThere: (afterForeign.plugins.approvedCapabilities || {})[fake],
+    };
   }, FAKE);
-  record('stale save is repaired by replay on the host', r.diskApproval === 'sig-live' && r.reply && r.reply.replayed >= 1, JSON.stringify(r));
+  record('this client\'s own stale save is repaired by replay on the host',
+    r.diskApproval === 'sig-live' && r.mine && r.mine.ok === true && r.mine.replayed >= 1, JSON.stringify(r.mine));
+  record('a stale save from another client is refused rather than applied',
+    r.foreign && r.foreign.ok === false && r.foreign.reason === 'conflict' && r.stillThere === 'sig-live', JSON.stringify(r.foreign));
 });
 
 await step('revoke and enable/disable round-trip through host commands', async () => {

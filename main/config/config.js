@@ -500,16 +500,35 @@ function onViewerRelevantConfigChange(fn) {
   return () => configWrittenListeners.delete(fn);
 }
 
+// Everything that wants the commands the host just applied. The Electron
+// window is told directly in broadcast() below; the LAN viewer server
+// subscribes here so paired control clients hear the same thing (main.js).
+const configAppliedListeners = new Set();
+
+function onConfigApplied(fn) {
+  configAppliedListeners.add(fn);
+  return () => configAppliedListeners.delete(fn);
+}
+
 // The one owner of host-side config edits (config-host.js). Commands come from
 // the same renderer/js/commands.js the renderer uses, loaded as an ES module.
+const COMMANDS_MODULE_PATH = path.join(__dirname, '..', '..', 'renderer', 'js', 'core', 'commands.js');
+
 const configHost = createConfigHost({
   load: loadConfig,
   save: saveConfig,
   broadcast: (update) => {
     const win = getMainWindow();
     if (win && !win.isDestroyed()) win.webContents.send('config:applied', update);
+    configAppliedListeners.forEach((listener) => {
+      try { listener(update); } catch (e) { console.warn('[config-host] applied listener failed:', e.message); }
+    });
   },
-  loadCommands: () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'commands.js')).href),
+  // Two levels up: this file lives in main/config/, so the renderer bundle is
+  // ../../renderer. Kept as a named constant because it is resolved lazily at
+  // the first host command, long after boot, where a wrong path would surface
+  // only as a failed plugin approval — tests/config-host.test.js checks it.
+  loadCommands: () => import(pathToFileURL(COMMANDS_MODULE_PATH).href),
 });
 
 // Headless Companion edits have no desktop renderer/autosave owner. Merge
@@ -568,8 +587,22 @@ function registerConfigIpc(ipcMain) {
   // baseRevision: the newest host revision the renderer had applied when it
   // built `config` — host edits since then are replayed onto it before it's
   // written (config-host.js).
-  ipcMain.handle('config:save', async (event, config, baseRevision) => configHost.reconcileSave(config, baseRevision));
+  ipcMain.handle('config:save', async (event, config, baseRevision, client) => configHost.reconcileSave(config, baseRevision, { client }));
   ipcMain.handle('config:revision', async () => configHost.getRevision());
+  // Config plus the revision it is at, in one reply — what a client rebuilds
+  // itself from after the host refuses one of its batches (docs/design/05 §2.3).
+  ipcMain.handle('config:snapshot', async () => configHost.snapshot());
+
+  // The command write path (docs/design/05 §2.2). A client applies its batch
+  // optimistically, then posts it here with the revision it was built against
+  // and an id of its own; the host is the only writer. The reply is either the
+  // applied update (which the client reconciles against, and which every other
+  // client receives as config:applied) or a typed refusal it has to act on.
+  ipcMain.handle('config:command', async (event, batch, meta) => configHost.applyCommands(batch, {
+    ...(meta || {}),
+    origin: 'client',
+    source: (meta && meta.source) || 'renderer',
+  }));
 
   ipcMain.handle('config:export', async (event, config, suggestedName) => {
     const safeName = typeof suggestedName === 'string' && suggestedName.trim()
@@ -604,5 +637,5 @@ function registerConfigIpc(ipcMain) {
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
-  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost, onViewerRelevantConfigChange,
+  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost, onViewerRelevantConfigChange, onConfigApplied,
 };

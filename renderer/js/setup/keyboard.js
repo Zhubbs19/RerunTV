@@ -5,13 +5,14 @@
 // everything here drives existing buttons via .click() so this file never
 // has to duplicate what setup-channels.js/setup-interstitials.js already do
 // when a mouse click hits the same element.
-import { S, canUndo, canRedo, onHistoryChange, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
+import { S, canUndo, canRedo, onHistoryChange, onRemoteConfigChange, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
 import { setupScreen } from '../core/dom.js';
 import { renderChannelList } from './channels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './interstitials.js';
 import { renderSettingsPanels, resetSetupTabs } from './settings.js';
 import { openCommandPalette, closeCommandPalette, isCommandPaletteOpen, setUndoRedoHook } from './command-palette.js';
 import { refreshSidebarBadges } from './sidebar.js';
+import { beginTask } from './tasks.js';
 import { enhanceTabs } from '../ui/tabs.js';
 import { listDetailBehavior } from '../ui/list-detail.js';
 
@@ -32,6 +33,29 @@ export function refreshSetupScreen() {
 function setupVisible() {
   return !setupScreen.classList.contains('hidden');
 }
+
+// ---------- Edits made somewhere else (docs/design/05 §2.2, 06 §7) ----------
+// The host is the only writer, so another editor's change arrives here as a
+// command applied to S.config underneath whatever is on screen — exactly the
+// situation undo/redo already handles, so it redraws the same way. A resync is
+// louder: this client's undo history described a config that no longer exists,
+// and saying so is better than letting the undo button quietly do nothing.
+const RESYNC_NOTICES = {
+  conflict: 'Another device changed these settings — reloaded from the host.',
+  'stale-reset': 'Settings were restored on the host — reloaded.',
+  'stale-window': 'This editor had fallen too far behind — reloaded from the host.',
+  invalid: 'An edit could not be applied — reloaded from the host.',
+  'read-only': 'This device cannot change settings — reloaded from the host.',
+};
+
+onRemoteConfigChange((reason) => {
+  if (setupVisible()) refreshSetupScreen();
+  refreshUndoRedoButtons();
+  const notice = RESYNC_NOTICES[reason];
+  if (!notice || !setupVisible()) return;
+  const task = beginTask(notice);
+  setTimeout(() => task.end(), 6000);
+});
 
 // ---------- Undo/redo ----------
 const undoBtn = document.getElementById('setup-undo-btn');

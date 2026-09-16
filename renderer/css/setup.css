@@ -5333,3 +5333,41 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
   content-visibility: auto;
   contain-intrinsic-size: auto 52px;
 }
+
+/* ---------- Host folder browser (docs/design/06 §5) ----------
+   The LAN control panel's stand-in for a native file dialog
+   (renderer/js/control-picker.js). Only ever rendered on a control client, so
+   it costs a desktop or TV session nothing, but it is built from the same kit
+   controls and semantic tokens as every other dialog so it inherits all 25
+   theme packs without any of them naming it. */
+.control-picker-dialog .confirm-dialog-box { max-width: 640px; width: min(640px, 92vw); }
+.control-picker { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.control-picker-path {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-label);
+  color: var(--text-muted);
+  /* A deep path must wrap rather than widen the dialog past the viewport. */
+  overflow-wrap: anywhere;
+}
+.control-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* Tall enough to scan a folder at a glance, capped so a folder with
+     thousands of entries still leaves the dialog's buttons on screen. */
+  max-height: min(48vh, 420px);
+  overflow-y: auto;
+  padding: var(--space-1);
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.control-picker-list .btn {
+  justify-content: flex-start;
+  text-align: left;
+  /* A long filename truncates instead of forcing the row wider than the list. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.control-picker-note { color: var(--text-muted); font-size: var(--font-size-label); }

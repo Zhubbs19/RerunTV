@@ -240,6 +240,6 @@ async function transcodeVideo(srcPath) {
 
 module.exports = {
   FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath,
-  VIDEO_EXTENSIONS, LAN_MEDIA_EXTENSIONS, backupPathFor, pendingTranscodePathFor, recoverPendingSwap, scanFolderForVideos,
+  VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, LAN_MEDIA_EXTENSIONS, backupPathFor, pendingTranscodePathFor, recoverPendingSwap, scanFolderForVideos,
   transcodeVideo,
 };

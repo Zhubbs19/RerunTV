@@ -752,6 +752,8 @@ the piece you need instead of pulling every key off the flat object:
 - `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)
 - `ctx.input` — `{ usageMode, keyForAction, actions }` (v5, see `onAction` under `registerChannelType` above)
 - `ctx.ui` — the component kit (v6, see "Building UI with `ctx.ui`" below)
+- `ctx.commands` — `{ register, dispatch, type }` (v7, see "Undoable edits with
+  `ctx.commands`" below)
 
 The flat top-level keys (`ctx.S`, `ctx.player`, `ctx.sortedChannels`, …) stay
 available too — nothing existing breaks — but new code should prefer the
@@ -762,6 +764,66 @@ feature newer than some installed base of the app, declare
 is lower refuses to load your `renderer`/`settings` entry with a clear
 one-line error instead of crashing partway through your own top-level code
 on a property that doesn't exist yet.
+
+### Undoable edits with `ctx.commands` (ctx v7)
+
+`ctx.saveConfigDebounced()` still works, but everything it writes reaches undo
+history as one anonymous structural patch — the step reads "Edit" and there is
+no way for your plugin to say what it was. A registered command names the step,
+undoes exactly, and is recorded the same way core's own edits are.
+
+```js
+// In your renderer.js or settings.js, once, at load.
+ctx.commands.register('music-choice-channel', 'setEra', {
+  // All three receive YOUR settings object — never the app's config.
+  validate(settings, cmd) {
+    if (typeof cmd.era !== 'string') throw new Error('An era is required');
+  },
+  apply(settings, cmd) {
+    const before = settings.era;
+    settings.era = cmd.era;                       // mutate in place
+    return [{ name: 'setEra', era: before ?? '' }]; // the inverse, in YOUR names
+  },
+  describe(settings, cmd) { return `Switch to the ${cmd.era} era`; },
+  touches() { return ['era']; },                   // optional; see below
+});
+
+// Later, wherever the user actually changes it:
+ctx.commands.dispatch('music-choice-channel', 'setEra', { era: '1999' });
+```
+
+The undo button now reads "Undo: Switch to the 1999 era".
+
+**What your command can reach.** `apply`, `validate` and `describe` are handed
+your plugin's settings object and nothing else — not the channel lineup, not
+box settings, not another plugin's settings. That is not a rule you are asked
+to follow; those objects are simply never passed to you. The registered type is
+always `plugin:<your-id>.<name>`, built by core from the id you pass, so a
+command can neither shadow a core command nor land in another plugin's
+namespace.
+
+**The inverse** is a list of `{ name, ...payload }` objects using your own
+command names, which core maps back into your namespace. Return `[]` if your
+command changed nothing. A name you have not registered is an error, so a typo
+fails loudly at edit time rather than silently at undo time.
+
+**`touches`** returns tokens describing which part of your settings changed,
+relative to them — `['era']`, `['stations', id]`. Core prefixes them with
+`plugins/<your-id>/settings/`. They are what lets two people editing different
+things at the same time both succeed; omit it and every edit of yours conflicts
+with every other edit of yours, which is safe but chatty. See
+`docs/design/05-command-layer-and-sync.md` §2.3.
+
+**Batching.** `ctx.commands.type(id, name)` gives the full type string, so
+several of your commands (or yours mixed with core's) can go through
+`ctx.core.dispatch([...], { label: '…' })` as one undo step.
+
+**What travels to the host.** The host process has no plugin renderers, so it
+does not know your command type. Core sends it the resulting settings as a
+plain `plugin.setSettings` instead, which is what reaches `channels.json` and
+any other paired editor. Your precise command stays in this client's undo
+history. You do not have to do anything about this — it is worth knowing only
+because another device sees "plugin settings changed", not your step's label.
 
 ### Building UI with `ctx.ui` (ctx v6)
 

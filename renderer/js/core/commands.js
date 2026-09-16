@@ -44,6 +44,65 @@ export function describeCommand(config, cmd) {
   return (def && def.describe && def.describe(config, cmd)) || 'Edit';
 }
 
+// What this client should send the host in place of `cmd`, once it has been
+// applied locally. Almost every command travels as itself. A plugin's own
+// command does not: the host has no plugin renderers and so no registry entry
+// for it, and it would arrive as "Unknown command". Such a command declares
+// `toHost`, which states the resulting settings as a plain `plugin.setSettings`
+// the host already understands (docs/design/05 §3). Undo history keeps the
+// precise plugin command either way, so the step still reads as what the plugin
+// called it.
+export function hostCommandsFor(config, cmd) {
+  const def = cmd && registry.get(cmd.type);
+  if (!def || typeof def.toHost !== 'function') return [cmd];
+  const translated = def.toHost(config, cmd);
+  return Array.isArray(translated) ? translated : [translated];
+}
+
+// ---------- Touch sets (docs/design/05 §2.3) ----------
+// What part of config a command changes, as slash-separated tokens. The host
+// uses them to decide whether two clients' edits can both land: two commands
+// conflict when one's token is the other's, or an ancestor of it. Deliberately
+// coarse where an edit changes addressing rather than a value — renumbering or
+// removing a channel touches `channels`, because a command another client
+// built against the old numbering may no longer mean what it said. A
+// structural config.patch touches '*', which conflicts with everything: those
+// are whole-config transforms (a curation run, a tag rename, an import) that
+// genuinely cannot be merged with a concurrent edit.
+//
+// A command type with no touches() is treated as '*' rather than as touching
+// nothing, so a new or plugin-supplied command is safe before it is thought
+// about, not silently mergeable with everything.
+export function commandTouches(cmd) {
+  const def = cmd && registry.get(cmd.type);
+  if (!def || typeof def.touches !== 'function') return ['*'];
+  try {
+    const tokens = def.touches(cmd);
+    return Array.isArray(tokens) && tokens.length ? tokens.map(String) : ['*'];
+  } catch (e) {
+    return ['*'];
+  }
+}
+
+// One token covers another when they are equal or the first is an ancestor of
+// the second at a separator boundary — `channels` covers `channels/7/name`,
+// but `channels/7` does not cover `channels/70`.
+function tokenCovers(outer, inner) {
+  if (outer === '*' || inner === '*') return true;
+  return outer === inner || inner.startsWith(`${outer}/`);
+}
+
+export function touchesConflict(a, b) {
+  return a.some((one) => b.some((other) => tokenCovers(one, other) || tokenCovers(other, one)));
+}
+
+// Every touch token of a batch, deduped — what the host records per revision.
+export function batchTouches(commands) {
+  const seen = new Set();
+  commands.forEach((cmd) => commandTouches(cmd).forEach((token) => seen.add(token)));
+  return [...seen];
+}
+
 // ---------- JSON helpers ----------
 
 function isObject(value) {
@@ -218,6 +277,7 @@ function describePatch(config, ops) {
 }
 
 registerCommand('config.patch', {
+  touches() { return ['*']; },
   validate(config, cmd) {
     if (!Array.isArray(cmd.ops) || !Array.isArray(cmd.undo)) throw new Error('config.patch needs ops and undo');
   },
@@ -262,6 +322,7 @@ function readPath(root, path) {
 }
 
 registerCommand('settings.set', {
+  touches(cmd) { return [`settings/${cmd.path.join('/')}`]; },
   validate(config, cmd) {
     if (!Array.isArray(cmd.path) || !cmd.path.length || !SETTINGS_SECTIONS.has(cmd.path[0])) {
       throw new Error(`settings.set: "${cmd.path && cmd.path[0]}" isn't a settings section`);
@@ -300,6 +361,7 @@ const CHANNEL_FIELDS = {
 };
 
 registerCommand('channel.set', {
+  touches(cmd) { return [`channels/${cmd.channel}/${cmd.field}`]; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
     if (!Object.prototype.hasOwnProperty.call(CHANNEL_FIELDS, cmd.field)) {
@@ -323,6 +385,7 @@ registerCommand('channel.set', {
 // value. Anything but the number, which identifies the channel: that's
 // channel.renumber / channel.swapNumbers.
 registerCommand('channel.setFields', {
+  touches(cmd) { return Object.keys(cmd.fields || {}).map((field) => `channels/${cmd.channel}/${field}`); },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
     if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('channel.setFields needs fields');
@@ -345,6 +408,7 @@ registerCommand('channel.setFields', {
 });
 
 registerCommand('channel.renumber', {
+  touches() { return ['channels']; },
   validate(config, cmd) {
     requireChannel(config, cmd.from);
     if (!Number.isFinite(cmd.to)) throw new Error('channel.renumber needs a number');
@@ -361,6 +425,7 @@ registerCommand('channel.renumber', {
 
 // Two channels trade numbers (move up/down, drag to reorder).
 registerCommand('channel.swapNumbers', {
+  touches() { return ['channels']; },
   validate(config, cmd) {
     requireChannel(config, cmd.a);
     requireChannel(config, cmd.b);
@@ -378,6 +443,7 @@ registerCommand('channel.swapNumbers', {
 });
 
 registerCommand('channel.rename', {
+  touches(cmd) { return [`channels/${cmd.channel}/name`]; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
     if (typeof cmd.name !== 'string') throw new Error('channel.rename needs a name');
@@ -394,6 +460,7 @@ registerCommand('channel.rename', {
 });
 
 registerCommand('channel.remove', {
+  touches() { return ['channels']; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
   },
@@ -426,6 +493,7 @@ function requirePluginId(cmd) {
 
 // signature: the approved capability signature, or null to revoke.
 registerCommand('plugin.setApproval', {
+  touches(cmd) { return [`plugins/${cmd.id}/approval`]; },
   validate(config, cmd) { requirePluginId(cmd); },
   apply(config, cmd) {
     const plugins = pluginsSection(config);
@@ -442,6 +510,7 @@ registerCommand('plugin.setApproval', {
 // A plugin's whole settings object (config.pluginSettings[id]). Defined as an
 // own property, so an id can never reach the object's prototype.
 registerCommand('plugin.setSettings', {
+  touches(cmd) { return [`plugins/${cmd.id}/settings`]; },
   validate(config, cmd) {
     requirePluginId(cmd);
     if (cmd.settings !== undefined && (!isObject(cmd.settings) || Array.isArray(cmd.settings))) throw new Error('plugin.setSettings needs a settings object');
@@ -460,6 +529,7 @@ registerCommand('plugin.setSettings', {
 });
 
 registerCommand('plugin.setEnabled', {
+  touches(cmd) { return [`plugins/${cmd.id}/enabled`]; },
   validate(config, cmd) { requirePluginId(cmd); },
   apply(config, cmd) {
     const plugins = pluginsSection(config);
@@ -477,6 +547,7 @@ registerCommand('plugin.setEnabled', {
 
 // After an uninstall: no lingering disabled/approved state for a gone plugin.
 registerCommand('plugin.forget', {
+  touches(cmd) { return [`plugins/${cmd.id}`]; },
   validate(config, cmd) { requirePluginId(cmd); },
   apply(config, cmd) {
     const plugins = pluginsSection(config);
@@ -494,6 +565,102 @@ registerCommand('plugin.forget', {
     return `Forget ${cmd.id}`;
   },
 });
+
+// ---------- Plugin-owned commands (docs/design/05 §3) ----------
+// A plugin registers its own named commands through ctx.commands.register
+// (renderer/js/plugin/host.js), so its edits are undoable with its own labels
+// instead of arriving as an anonymous patch.
+//
+// Two rules make this safe, and both are structural rather than checked:
+//
+//   * OWNERSHIP is the namespace. A registered type is always
+//     `plugin:<id>.<name>`, built here from the id the plugin host supplies —
+//     a plugin never states its own type string, so it cannot register into
+//     another plugin's namespace or shadow a core command.
+//   * SCOPE is the argument. The plugin's own apply/validate/describe never
+//     receive `config`. They receive that plugin's settings object and nothing
+//     else, so there is no path from a plugin command to another plugin's
+//     settings, to the channel lineup, or to box settings — not because they
+//     are told not to, but because they are never handed them.
+//
+// The inverse a plugin returns is in its own vocabulary too, and is mapped back
+// into the namespace here.
+const PLUGIN_COMMAND_PREFIX = 'plugin:';
+
+export function pluginCommandType(pluginId, name) {
+  return `${PLUGIN_COMMAND_PREFIX}${pluginId}.${name}`;
+}
+
+function pluginSettingsFor(config, pluginId) {
+  if (!isObject(config.pluginSettings) || Array.isArray(config.pluginSettings)) config.pluginSettings = {};
+  const root = config.pluginSettings;
+  if (!isObject(root[pluginId]) || Array.isArray(root[pluginId])) {
+    Object.defineProperty(root, pluginId, { value: {}, enumerable: true, configurable: true, writable: true });
+  }
+  return root[pluginId];
+}
+
+// Registers `plugin:<id>.<name>`. `definition` is the plugin's, written against
+// its settings object. Returns the full type string.
+export function registerPluginCommand(pluginId, name, definition) {
+  if (!pluginId || typeof pluginId !== 'string') throw new Error('registerPluginCommand: a plugin id is required');
+  if (!name || typeof name !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(name)) {
+    throw new Error(`registerPluginCommand("${pluginId}"): name must be letters, digits, dot, dash or underscore`);
+  }
+  if (!definition || typeof definition.apply !== 'function') {
+    throw new Error(`registerPluginCommand("${pluginId}.${name}"): apply(settings, cmd) is required`);
+  }
+  const type = pluginCommandType(pluginId, name);
+  if (registry.has(type)) throw new Error(`registerPluginCommand: ${type} is already registered`);
+
+  const intoNamespace = (inverse) => {
+    const list = Array.isArray(inverse) ? inverse : [inverse];
+    return list.map((one) => {
+      if (!isObject(one) || typeof one.name !== 'string') {
+        throw new Error(`${type} must return its inverse as { name, ...payload } objects`);
+      }
+      const { name: inverseName, ...payload } = one;
+      const inverseType = pluginCommandType(pluginId, inverseName);
+      if (!registry.has(inverseType)) throw new Error(`${type} returned an inverse "${inverseName}" that ${pluginId} has not registered`);
+      return { type: inverseType, ...payload };
+    });
+  };
+
+  registerCommand(type, {
+    validate(config, cmd) {
+      if (definition.validate) definition.validate(pluginSettingsFor(config, pluginId), cmd);
+    },
+    apply(config, cmd) {
+      return intoNamespace(definition.apply(pluginSettingsFor(config, pluginId), cmd));
+    },
+    describe(config, cmd) {
+      if (!definition.describe) return `Change ${pluginId} settings`;
+      return definition.describe(pluginSettingsFor(config, pluginId), cmd) || `Change ${pluginId} settings`;
+    },
+    // A plugin's touch tokens are relative to its own settings, so they are
+    // prefixed here and cannot name anything outside them.
+    touches(cmd) {
+      const base = `plugins/${pluginId}/settings`;
+      if (typeof definition.touches !== 'function') return [base];
+      const tokens = definition.touches(cmd);
+      if (!Array.isArray(tokens) || !tokens.length) return [base];
+      return tokens.map((token) => `${base}/${String(token).replace(/^\/+/, '')}`);
+    },
+    // The host has no plugin renderers, so it never knows this type. Send the
+    // settings this command produced, which it does know.
+    toHost(config, cmd) {
+      return [{ type: 'plugin.setSettings', id: pluginId, settings: cloneJson(pluginSettingsFor(config, pluginId)) }];
+    },
+  });
+  return type;
+}
+
+// Every plugin command a given plugin registered — used when a plugin is
+// disabled or reloaded, so a stale definition cannot keep answering for a type.
+export function unregisterPluginCommands(pluginId) {
+  const prefix = `${PLUGIN_COMMAND_PREFIX}${pluginId}.`;
+  [...registry.keys()].filter((type) => type.startsWith(prefix)).forEach((type) => registry.delete(type));
+}
 
 // ---------- Per-file metadata (the TITLES panel) ----------
 // A file lives in a channel's pool or in one of its schedule blocks' pools and
@@ -513,12 +680,19 @@ function findFileOwner(config, cmd) {
   return (ch.blocks || []).find((b) => b.id === cmd.block) || null;
 }
 
+// A file's touch token. The path is the last segment, so two edits to
+// different files in the same channel don't read as the same touch.
+function fileToken(cmd) {
+  return `channels/${cmd.channel}/files/${cmd.block == null ? '-' : cmd.block}/${cmd.file}`;
+}
+
 function findFile(config, cmd) {
   const owner = findFileOwner(config, cmd);
   return owner && Array.isArray(owner.files) ? owner.files.find((f) => f.path === cmd.file) : null;
 }
 
 registerCommand('file.set', {
+  touches(cmd) { return Object.keys(cmd.fields || {}).map((field) => `${fileToken(cmd)}/${field}`); },
   validate(config, cmd) {
     if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('file.set needs fields');
     const bad = Object.keys(cmd.fields).find((field) => !Object.prototype.hasOwnProperty.call(FILE_FIELDS, field));
@@ -561,6 +735,16 @@ function collectionDef(cmd) {
   return def;
 }
 
+// The touch token for the list a collection command edits. A channel-scoped
+// collection (a channel's blocks) hangs off that channel.
+function listToken(cmd) {
+  const def = COLLECTIONS[cmd.collection];
+  if (!def) return '*';
+  return def.channelScoped
+    ? `channels/${cmd.channel}/${def.path.join('/')}`
+    : def.path.join('/');
+}
+
 function collectionArray(config, def, create, cmd) {
   let node = config;
   if (def.channelScoped) {
@@ -600,6 +784,7 @@ function requireItem(config, cmd) {
 }
 
 registerCommand('item.set', {
+  touches(cmd) { return [`${listToken(cmd)}/${cmd.id}`]; },
   validate(config, cmd) {
     requireItem(config, cmd);
     if (!isObject(cmd.fields) || !Object.keys(cmd.fields).length) throw new Error('item.set needs fields');
@@ -623,6 +808,7 @@ registerCommand('item.set', {
 });
 
 registerCommand('item.insert', {
+  touches(cmd) { return [listToken(cmd)]; },
   validate(config, cmd) {
     const def = collectionDef(cmd);
     if (!isObject(cmd.item) || !cmd.item.id) throw new Error('item.insert needs an item with an id');
@@ -643,6 +829,7 @@ registerCommand('item.insert', {
 });
 
 registerCommand('item.remove', {
+  touches(cmd) { return [listToken(cmd)]; },
   validate(config, cmd) {
     requireItem(config, cmd);
   },
@@ -695,6 +882,7 @@ function isHour(value) {
 }
 
 registerCommand('block.create', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks`]; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
     if (!isObject(cmd.block) || !cmd.block.id || !isObject(cmd.block.trigger)) throw new Error('block.create needs a block with an id and a trigger');
@@ -717,6 +905,7 @@ registerCommand('block.create', {
 });
 
 registerCommand('block.remove', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks`]; },
   validate(config, cmd) { requireBlock(config, cmd); },
   apply(config, cmd) {
     const { ch, index } = requireBlock(config, cmd);
@@ -734,6 +923,7 @@ registerCommand('block.remove', {
 // { clear: true } removes a date-range block's narrowing; it exists as the
 // inverse of narrowing one that had no hours, so undo doesn't leave 0–0.
 registerCommand('block.setHours', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks/${cmd.id}/hours`]; },
   validate(config, cmd) {
     requireBlock(config, cmd);
     if (!cmd.clear && (!isHour(cmd.startHour) || !isHour(cmd.endHour))) throw new Error('block.setHours needs whole hours 0–23');
@@ -761,6 +951,7 @@ registerCommand('block.setHours', {
 
 // Which weekdays a block airs (0 = Sunday). An empty list means every day.
 registerCommand('block.setDays', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks/${cmd.id}/days`]; },
   validate(config, cmd) {
     requireBlock(config, cmd);
     if (!Array.isArray(cmd.days) || cmd.days.some((d) => !Number.isInteger(d) || d < 0 || d > 6)) throw new Error('block.setDays needs weekdays 0–6');
@@ -782,6 +973,7 @@ registerCommand('block.setDays', {
 });
 
 registerCommand('block.setPriority', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks/${cmd.id}/priority`]; },
   validate(config, cmd) {
     requireBlock(config, cmd);
     if (!Number.isFinite(cmd.priority)) throw new Error('block.setPriority needs a number');
@@ -800,6 +992,7 @@ registerCommand('block.setPriority', {
 // One calendar day's exception on a daily/weekly block (dayOverrides["MM-DD"]):
 // a pinned file, a title, an unlock time, skip. null removes it.
 registerCommand('block.overrideDay', {
+  touches(cmd) { return [`channels/${cmd.channel}/blocks/${cmd.id}/overrides`]; },
   validate(config, cmd) {
     requireBlock(config, cmd);
     if (typeof cmd.key !== 'string' || !/^\d{2}-\d{2}$/.test(cmd.key)) throw new Error('block.overrideDay needs an MM-DD key');
@@ -822,6 +1015,7 @@ registerCommand('block.overrideDay', {
 
 // The channel's broadcast day: { enabled, startHour, endHour }.
 registerCommand('channel.setBroadcastHours', {
+  touches(cmd) { return [`channels/${cmd.channel}/broadcastHours`]; },
   validate(config, cmd) {
     requireChannel(config, cmd.channel);
     const bh = cmd.broadcastHours;
@@ -868,6 +1062,7 @@ export function collectionPlural(name) {
 }
 
 registerCommand('channel.insert', {
+  touches() { return ['channels']; },
   validate(config, cmd) {
     if (!isObject(cmd.channel) || cmd.channel.number == null) throw new Error('channel.insert needs a channel');
     if (findChannel(config, cmd.channel.number)) throw new Error(`Channel ${cmd.channel.number} already exists`);

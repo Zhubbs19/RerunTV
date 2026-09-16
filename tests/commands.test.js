@@ -7,7 +7,14 @@ const { pathToFileURL } = require('node:url');
 
 const saves = [];
 globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }) };
-globalThis.window.api = { saveConfig: async (config) => { saves.push(JSON.stringify(config)); } };
+// state.js posts named commands to the host and keeps whole-config saves for
+// the few edits no command describes (docs/design/05 §2.2). Both land here.
+const sentCommands = [];
+globalThis.window.api = {
+  saveConfig: async (config) => { saves.push(JSON.stringify(config)); return { ok: true, revision: 0, replayed: 0 }; },
+  applyConfigCommands: async (batch) => { sentCommands.push(...batch); return { ok: true, revision: 0, commands: batch }; },
+  getConfigSnapshot: async () => ({ config: {}, revision: 0 }),
+};
 globalThis.document = globalThis.document || { getElementById: () => null };
 
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
@@ -502,4 +509,90 @@ test('a dispatched block batch is one undo step that restores config exactly', a
   state.performUndo();
   assert.deepEqual(state.S.config, before);
   assert.equal(state.S.config.channels[0].blocks, liveBlocks, 'undo rewinds in place');
+});
+
+
+// ---------- What reaches the host (docs/design/05 §2.2, step 6) ----------
+// The renderer applies edits optimistically and posts the commands that made
+// them. These check what actually goes over the wire, not just what undo says.
+
+const settle = (ms = 30) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// The first write of a session is a whole-config save, because the host has
+// never been told about the defaults this renderer applied on load. Get past
+// it so the assertions below are about the command path.
+async function agreedState() {
+  const state = await freshState();
+  await state.saveConfigNow();
+  sentCommands.length = 0;
+  return state;
+}
+
+test('a dispatched edit is posted to the host as the command that made it', async () => {
+  const state = await agreedState();
+  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }, { delay: 0 });
+  await settle();
+  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }]);
+});
+
+test('a burst of edits is posted as one batch, in the order it was applied', async () => {
+  const state = await agreedState();
+  state.dispatch({ type: 'channel.set', channel: 5, field: 'favorite', value: true }, { delay: 50 });
+  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Boom' }, { coalesce: 'name', delay: 50 });
+  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Boomer' }, { coalesce: 'name', delay: 50 });
+  await settle(120);
+  assert.deepEqual(sentCommands.map((cmd) => cmd.type),
+    ['channel.set', 'channel.rename', 'channel.rename'],
+    'coalescing is an undo-history concern; the host still hears every command');
+});
+
+test('a skipUndo write is still posted, even though it makes no undo step', async () => {
+  const state = await agreedState();
+  state.S.config.lastChannel = 6;
+  state.saveConfigDebounced(0, { skipUndo: true });
+  await settle();
+  assert.equal(state.canUndo(), false, 'still not an undo step');
+  assert.equal(sentCommands.length, 1, 'but the host has to hear about it');
+  assert.equal(sentCommands[0].type, 'config.patch');
+  assert.deepEqual(sentCommands[0].ops, [{ p: ['lastChannel'], v: 6 }]);
+});
+
+test('undo posts the inverses it applied, so another editor sees the step come back out', async () => {
+  const state = await agreedState();
+  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Renamed' }, { delay: 0 });
+  await settle();
+  sentCommands.length = 0;
+  state.performUndo();
+  await settle();
+  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Boomerang' }]);
+});
+
+test("a host update from another client is applied here and is not echoed back", async () => {
+  const state = await agreedState();
+  const applied = state.applyHostUpdate({
+    revision: state.getHostRevision() + 1,
+    client: 'some-other-client',
+    commands: [{ type: 'channel.rename', channel: 7, name: 'Nickelodeon' }],
+  });
+  await settle();
+  assert.equal(applied, true);
+  assert.equal(state.S.config.channels[2].name, 'Nickelodeon');
+  assert.deepEqual(sentCommands, [], 'applying a remote edit is not itself an edit to send back');
+  assert.equal(state.canUndo(), false, "and it is not this client's undo step");
+});
+
+test("this client's own echo advances the revision without applying the commands twice", async () => {
+  const state = await agreedState();
+  state.dispatch({ type: 'item.insert', collection: 'pool', item: { id: 'ad-1', path: 'ad.mp4' } }, { delay: 0 });
+  await settle();
+  const poolLength = state.S.config.interstitials.pool.length;
+
+  const echo = {
+    revision: state.getHostRevision() + 1,
+    client: state.getClientId(),
+    commands: sentCommands.slice(),
+  };
+  assert.equal(state.applyHostUpdate(echo), false, 'an echo is not applied');
+  assert.equal(state.getHostRevision(), echo.revision, 'but the revision moves');
+  assert.equal(state.S.config.interstitials.pool.length, poolLength, 'an insert did not run twice');
 });

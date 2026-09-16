@@ -196,6 +196,12 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
             const progressEl = q('scan-progress');
             progressEl.classList.remove('hidden');
             progressEl.textContent = 'SCANNING FOLDER…';
+            // Host-only: it reads the host's own filesystem, so it is absent
+            // on a LAN viewer or control panel (renderer/js/api-contract.js).
+            if (!window.api.musicChoiceScanFolder) {
+              progressEl.textContent = 'SCANNING ONLY WORKS ON THE HOST DEVICE.';
+              return;
+            }
             const { files, error } = await window.api.musicChoiceScanFolder({ folderPath: st.folderPath, kind: 'audio' });
             if (error) { progressEl.textContent = `SCAN FAILED — ${error}`; return; }
             const existingByPath = new Map((st.tracks || []).map((t) => [t.path, t]));

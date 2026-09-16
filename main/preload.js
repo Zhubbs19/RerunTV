@@ -81,7 +81,9 @@ contextBridge.exposeInMainWorld('api', {
   setBackupPinned: (file, pinned) => ipcRenderer.invoke('backups:setPinned', file, pinned),
   createBackupNow: () => ipcRenderer.invoke('backups:createNow'),
   loadConfig: () => ipcRenderer.invoke('config:load'),
-  saveConfig: (config, baseRevision) => ipcRenderer.invoke('config:save', config, baseRevision),
+  saveConfig: (config, baseRevision, client) => ipcRenderer.invoke('config:save', config, baseRevision, client),
+  applyConfigCommands: (batch, meta) => ipcRenderer.invoke('config:command', batch, meta),
+  getConfigSnapshot: () => ipcRenderer.invoke('config:snapshot'),
   getConfigRevision: () => ipcRenderer.invoke('config:revision'),
   onConfigApplied: (cb) => ipcRenderer.on('config:applied', (event, update) => cb(update)),
   // LAN viewers only (browser-api-shim.js): the host window is the one

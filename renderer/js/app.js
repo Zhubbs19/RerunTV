@@ -1275,7 +1275,19 @@ async function init() {
   // flow on a read-only device, and Setup being reachable at all there is
   // just for looking, not editing (every window.api setup/save method is a
   // no-op in that shim).
-  if (window.__isViewer) {
+  if (window.__controlClient) {
+    // The LAN control panel (docs/design/06 §3): the setup shell, and nothing
+    // playing. Same bundle as the viewer, but it boots to the editor and never
+    // auto-tunes — the point of it is to change the lineup from another room,
+    // not to watch on the device doing the changing.
+    //
+    // Deliberately NOT startViewerConfigPolling(): that refetches and replaces
+    // S.config wholesale, which would throw away an edit in progress. A
+    // control client stays in step through the command protocol instead —
+    // config:applied for another editor's commands, and an authoritative
+    // resync whenever the host refuses one of its own (docs/design/05 §2.3).
+    await showSetupScreen();
+  } else if (window.__isViewer) {
     showTvScreen();
     startViewerConfigPolling();
     initViewerAudioUnlock();

@@ -74,7 +74,7 @@ if (token) {
 
   // 3. The viewer's refetch sees the edit through its own redacted projection.
   const cfg = await (await fetch(`http://127.0.0.1:${viewerPort}/api/config`, { headers: { Authorization: `Bearer ${token}` } })).json();
-  record('the refetched viewer config has the edit', /\(push tests\ui\)$/.test(cfg.channels[0].name), cfg.channels[0].name);
+  record('the refetched viewer config has the edit', /\(push test\)$/.test(cfg.channels[0].name), cfg.channels[0].name);
 
   // 4. Undo is a write too.
   const { cursor: c2 } = await events(null);

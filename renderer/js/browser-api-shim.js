@@ -19,6 +19,14 @@
   if (!contract) throw new Error('window.api contract must load before browser-api-shim.js');
 
   window.__isViewer = true;
+  // The LAN control panel (docs/design/06 §3) is this same bundle served at
+  // /control. The path is how the page knows to boot into the setup shell
+  // rather than straight to playback — it is NOT what makes it writable. Every
+  // write below goes to /api/commands, which the host refuses unless this
+  // device's session actually holds the control scope, so typing /control with
+  // a viewer's session gets an editor that cannot save rather than one that
+  // can. controlScope below is the authoritative answer, asked of the host.
+  window.__controlClient = /^\/control\/?$/.test(window.location.pathname);
 
   function readOnlyNoop(label) {
     return (...args) => {
@@ -72,6 +80,83 @@
     };
   }
 
+  // ---------- Control sessions (docs/design/06 §3) ----------
+  // Whether this device may write is the HOST's answer, not this page's.
+  // /api/control/state answers 200 for a control session and 403 for a view
+  // one, so the probe below is what every write waits on. It is asked once and
+  // remembered; a device does not change scope without re-pairing, which
+  // reloads the page.
+  let controlScopeProbe = null;
+  function controlScope() {
+    if (!controlScopeProbe) {
+      controlScopeProbe = fetch('/api/control/state', { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json().then((state) => ({ control: true, ...state })) : { control: false }))
+        .catch(() => ({ control: false }));
+    }
+    return controlScopeProbe;
+  }
+
+  const NOT_CONTROL = Object.freeze({
+    ok: false, reason: 'read-only', revision: 0,
+    message: 'This device is paired to watch, not to change settings. Pair it with the control code shown on the host.',
+  });
+
+  // Every config write this client makes. The host is the single writer and
+  // applies exactly the same command registry it applies for the Electron
+  // window, including the conflict and duplicate rules — a 409 is a refusal
+  // with a typed body, which state.js acts on, not a transport error.
+  async function postCommands(batch, meta) {
+    const scope = await controlScope();
+    if (!scope.control) return NOT_CONTROL;
+    try {
+      const response = await fetch('/api/commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ commands: batch, ...meta }),
+      });
+      const body = await response.json().catch(() => null);
+      if (body) return body;
+      return { ok: false, reason: 'transport', revision: 0, message: `The host answered ${response.status}.` };
+    } catch (e) {
+      // Thrown, not returned: state.js re-queues the batch under the same id
+      // and the host dedupes the retry if the first one did in fact land.
+      throw new Error(`Could not reach the host: ${e.message}`);
+    }
+  }
+
+  // A control client reads the unredacted-but-credential-stripped config, not
+  // the viewer projection — an editor has to show and change real paths.
+  // /api/control/config returns { config, revision } from one read, so a
+  // client never stitches a config together with a revision from a different
+  // instant (docs/design/05 §2.3).
+  async function controlSnapshot() {
+    const scope = await controlScope();
+    if (!scope.control) {
+      return fetch('/api/config', { cache: 'no-store' }).then((r) => r.json()).then((config) => ({ config, revision: 0 }));
+    }
+    return fetch('/api/control/config', { cache: 'no-store' }).then((r) => r.json());
+  }
+
+  // A control client's file pickers ask the HOST what is on its disks, since
+  // there is no native dialog here and no view of those disks (docs/design/06
+  // §5). control-picker.js is a module, so it is dynamic-imported the first
+  // time somebody picks something rather than at parse time — this file is a
+  // classic script by necessity (see the header).
+  let pickerModule = null;
+  async function pickHostPath(kind) {
+    const scope = await controlScope();
+    if (!scope.control) {
+      console.warn(`[LAN viewer] choosing a ${kind} is a host action — this device is a read-only viewer.`);
+      return null;
+    }
+    // Relative to THIS file, which is served from /js/ — so a sibling, not
+    // './js/…', which would resolve to /js/js/ and 404.
+    if (!pickerModule) pickerModule = import('./control-picker.js');
+    const { pickHostPath: pick } = await pickerModule;
+    return pick(kind);
+  }
+
   let viewerUiScale = 'auto';
   function applyViewerUiScale() {
     const fit = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
@@ -108,19 +193,51 @@
     // curious user opening Setup here can click around freely, but nothing
     // they do here ever reaches the host's real channels.json.
     getPathForFile: () => '',
-    selectFolder: readOnlyNoop('selectFolder'),
-    selectImage: readOnlyNoop('selectImage'),
-    selectAudio: readOnlyNoop('selectAudio'),
-    selectVideo: readOnlyNoop('selectVideo'),
+    selectFolder: () => pickHostPath('folder'),
+    selectImage: () => pickHostPath('image'),
+    selectAudio: () => pickHostPath('audio'),
+    selectVideo: () => pickHostPath('video'),
+    // An executable or a stylesheet is something the host RUNS or LOADS, not
+    // media it plays. Choosing one is an administrator's decision and stays at
+    // the host window, so these keep refusing even for a control session.
     selectExecutable: readOnlyNoop('selectExecutable'),
     selectCss: readOnlyNoop('selectCss'),
-    scanFolder: readOnlyNoop('scanFolder'),
+    // Turning a chosen folder into a channel's files. The host walks its own
+    // disk; this client only names the folder, which it got from the browser
+    // above and which the host re-checks against its roots either way.
+    scanFolder: async (source, folderRef) => {
+      const scope = await controlScope();
+      if (!scope.control) { console.warn('[LAN viewer] scanFolder() is a host action.'); return null; }
+      // A plugin-sourced folder is the plugin's to walk, over IPC it has no
+      // way to reach from here. Only local disk is browsable remotely.
+      if (source && source !== 'local') { console.warn(`[control] ${source} folders can only be scanned on the host.`); return []; }
+      const response = await fetch(`/api/control/scan?path=${encodeURIComponent(folderRef)}`, { cache: 'no-store' });
+      const body = await response.json().catch(() => null);
+      if (!response.ok || !body || body.error) {
+        console.warn('[control] folder scan failed:', (body && body.error) || response.status);
+        return null;
+      }
+      return body.files;
+    },
     probeDuration: readOnlyNoop('probeDuration'),
-    saveConfig: readOnlyNoop('saveConfig'),
-    // A viewer never writes config, so it has no host revision to track yet
-    // (docs/design/05 step 4 streams host updates to LAN clients).
-    getConfigRevision: () => Promise.resolve(0),
-    onConfigApplied: () => {},
+    // There is deliberately no whole-config write over the LAN: it would be
+    // last-writer-wins across a whole household. `unsupported` tells state.js
+    // to send its commands instead of trying to establish agreement this way
+    // — it does not need to, having loaded its config from the host in the
+    // first place. Import and restore, which genuinely need the whole object,
+    // stay on the host (docs/design/06 §5).
+    saveConfig: () => Promise.resolve({
+      ok: false, reason: 'unsupported', revision: 0,
+      message: 'Importing or restoring a whole config is done on the host.',
+    }),
+    applyConfigCommands: (batch, meta) => postCommands(batch, meta),
+    getConfigRevision: () => controlScope().then((scope) => (Number.isInteger(scope.revision) ? scope.revision : 0)),
+    getConfigSnapshot: () => controlSnapshot(),
+    // Commands the host applied, for a control session only — the route drops
+    // these for a view session, because they carry real config values. This is
+    // the same update the Electron window gets on config:applied, so state.js
+    // reconciles identically on both.
+    onConfigApplied: (callback) => onViewerEvent('config:applied', callback),
     onConfigChanged: (callback) => onViewerEvent('config:changed', callback),
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
@@ -136,8 +253,13 @@
     setBackupPinned: readOnlyNoop('setBackupPinned'),
     createBackupNow: readOnlyNoop('createBackupNow'),
 
-    // ---- Config / media: the real read path a viewer needs.
-    loadConfig: () => fetch('/api/config').then((r) => r.json()),
+    // ---- Config / media: the real read path a viewer needs. A control client
+    // gets the same object its snapshot carries — real paths, no credentials —
+    // because the setup shell has to show and edit what is actually on the
+    // host, not opaque `viewer:` refs.
+    loadConfig: () => (window.__controlClient
+      ? controlSnapshot().then((snapshot) => snapshot.config)
+      : fetch('/api/config').then((r) => r.json())),
     getAppVersion: () => fetch('/api/version').then((r) => r.json()).then((data) => data.version),
     pluginsList: () => fetch('/api/plugins').then((r) => r.json()),
     getDiagnostics: () => Promise.resolve({ app: { platform: 'viewer' }, plugins: [], services: [], logs: [] }),
@@ -208,10 +330,10 @@
     // tab, which the letterbox/pillarbox CSS already handles regardless. A
     // no-op here just means a viewer never attempts the OS-window lock.
     setAspectLock: () => Promise.resolve(false),
-    // A browser tab can't close itself; TV mode's exit prompt leaves EXIT out
-    // (tv-input.js exitCapability). The Android client exits through
-    // AndroidRemoteBridge.exitApp instead.
-    quitApp: null,
+    // quitApp is host-only in the contract and deliberately absent here: a
+    // browser tab can't close the application, TV mode's exit prompt leaves
+    // EXIT out for a viewer (tv/input.js exitCapability), and the Android
+    // client exits through AndroidRemoteBridge.exitApp instead.
     // CSS zoom scales all chrome in Chromium/WebView, with a compensating
     // layout canvas so the TV picture continues to fill its viewport.
     setUiScale: (preference) => {
