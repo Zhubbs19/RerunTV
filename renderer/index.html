@@ -476,11 +476,53 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="library">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="librarysync">SYNC</button>
+          <button class="setup-subtab-btn active" data-subtab="librarycatalogue">CATALOGUE</button>
+          <button class="setup-subtab-btn" data-subtab="libraryreview">REVIEW</button>
+          <button class="setup-subtab-btn" data-subtab="librarysmart">SMART CHANNELS</button>
+          <button class="setup-subtab-btn" data-subtab="librarysync">SYNC</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAGS</button>
         </div>
 
-<div class="setup-subtab-panel" data-subtab-panel="librarysync">
+<div class="setup-subtab-panel" data-subtab-panel="librarycatalogue">
+        <div class="settings-grid">
+        <div class="panel span-full">
+          <div class="panel-toggle">MEDIA LIBRARY</div>
+          <div id="library-catalogue-root" class="library-root"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="libraryreview">
+        <div class="settings-grid">
+        <div class="panel span-full">
+          <div class="panel-toggle">SCAN REVIEW</div>
+          <div id="library-review-scan-root" class="library-root"></div>
+        </div>
+        <div class="panel span-full">
+          <div class="panel-toggle">TAG SUGGESTIONS</div>
+          <span class="panel-status">Grouped by series or folder, so one decision covers a whole show. Accepting changes the catalogue only; what airs changes when a smart channel is rebuilt.</span>
+          <div id="library-review-tags-root" class="library-root"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="librarysmart">
+        <div class="settings-grid">
+        <div class="panel span-full">
+          <div class="panel-toggle">SMART CHANNELS</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="library-smart-rebuild" data-synonyms="query channel rematerialize refresh automatic">
+              <label class="setting-row-label" for="library-smart-rebuild">Rebuild smart channels after a scan</label>
+              <div class="setting-row-control"><input type="checkbox" id="library-smart-rebuild"></div>
+              <p class="setting-row-help">Only when what’s on now can stay on. Anything else waits here for you.</p>
+            </div>
+          </div>
+          <div id="library-smart-root" class="library-root"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="librarysync">
         <div class="settings-grid">
 
         <div class="panel span-full">

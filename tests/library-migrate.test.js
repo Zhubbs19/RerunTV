@@ -156,3 +156,47 @@ test('a re-run on an already-migrated lineup changes nothing', () => {
   assert.deepEqual(twice.config.channels.map((ch) => ch.files), once.channels.map((ch) => ch.files),
     'ids are reused, not re-keyed');
 });
+
+test('the renderer check walks the window in chunks and agrees with a single diff', async () => {
+  const { S } = await load('core/state.js');
+  const { verifyMigrationPlan } = await load('library/migration.js');
+  const original = lineup();
+  const plan = planMigration(original);
+  plan.config.channels[1].files[0].duration += 1;
+  S.config = original;
+  const progress = [];
+  const { verdicts, rows } = await verifyMigrationPlan(plan, {
+    fromMs: 1_758_000_000_000, days: 20, chunkDays: 7, pause: async () => {}, onProgress: (p) => progress.push(p),
+  });
+  assert.deepEqual(verdicts, { 6: { identical: true }, 9: { identical: false } });
+  assert.equal(rows[1].identical, false);
+  assert.ok(rows[1].firstChange >= 1_758_000_000_000);
+  assert.deepEqual(progress.filter((p) => p.channel === 6).map((p) => p.day), [0, 7, 14], 'the last chunk is short, not skipped');
+
+  let stale = false;
+  await assert.rejects(verifyMigrationPlan(plan, {
+    fromMs: 1_758_000_000_000, days: 20, chunkDays: 7, pause: async () => { stale = true; }, isStale: () => stale,
+  }), /changed while they were being checked/);
+});
+
+test('item ids are attached to the live config in place, and only for accepted channels', async () => {
+  const { applyMigrationIds } = await load('library/migration.js');
+  const original = lineup();
+  original.channels[0].files.push({ path: 'J:\\TV\\Mixed\\x.mkv', duration: 600, title: 'Shared, titled differently' });
+  const plan = planMigration(original);
+  const final = finalizeMigration(original, plan, { 6: { identical: true } });
+  const live = JSON.parse(JSON.stringify(original));
+  const liveFile = live.channels[0].files[0];
+  applyMigrationIds(live, final.config, final.accepted);
+  assert.equal(live.channels[0].files[0], liveFile, 'the same objects, mutated');
+  assert.ok(live.channels[0].files.every((f) => /^itm_/.test(f.item)));
+  assert.ok(live.channels[1].files.every((f) => f.item === undefined), 'a rejected channel is untouched');
+  const { item, ...rest } = live.channels[0].files[0];
+  assert.deepEqual(rest, original.channels[0].files[0], 'nothing but the id is written');
+
+  const drifted = JSON.parse(JSON.stringify(original));
+  drifted.channels[0].files[1].path = 'J:\\TV\\Office\\renamed.mkv';
+  const snapshot = JSON.stringify(drifted);
+  assert.throws(() => applyMigrationIds(drifted, final.config, final.accepted), /changed after it was checked/);
+  assert.equal(JSON.stringify(drifted), snapshot, 'all or nothing');
+});

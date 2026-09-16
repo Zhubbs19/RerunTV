@@ -20,14 +20,18 @@
 // milliseconds, matching renderer/js/core/schedule.js's computeSourcePosition —
 // tests/library-reanchor.test.js cross-checks this against that real function
 // so the two can never quietly drift apart.
+//
+// An ES module in the renderer because everything that re-anchors lives there:
+// library sync, channel rematerialization and the schedule math it must agree
+// with. The host process never needs it.
 
-function totalDuration(files) {
+export function totalDuration(files) {
   return files.reduce((sum, file) => sum + (file.duration || 0), 0);
 }
 
 // Where `elapsed` seconds into a playlist lands. Mirrors computeSourcePosition's
 // loop exactly, including its "past the end" fallback.
-function locate(files, elapsed) {
+export function locate(files, elapsed) {
   let acc = 0;
   for (let i = 0; i < files.length; i += 1) {
     const d = files[i].duration || 0;
@@ -39,7 +43,7 @@ function locate(files, elapsed) {
 
 // Default identity: whatever the library calls this entry, falling back to its
 // path so this works before items exist and for a plain folder channel.
-function defaultKeyOf(file) {
+export function defaultKeyOf(file) {
   return (file && (file.item || file.path)) || null;
 }
 
@@ -56,7 +60,7 @@ function defaultKeyOf(file) {
  * is not a failure: it means this change cannot be applied without moving what
  * is on, so the caller should show the diffSchedules preview and ask.
  */
-function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyOf = defaultKeyOf }) {
+export function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyOf = defaultKeyOf }) {
   if (!Array.isArray(files) || !files.length) return { ok: false, reason: 'empty-before' };
   if (!Array.isArray(nextFiles) || !nextFiles.length) return { ok: false, reason: 'empty-after' };
   if (!Number.isFinite(anchor)) return { ok: false, reason: 'no-anchor' };
@@ -119,4 +123,27 @@ function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyOf = def
   };
 }
 
-module.exports = { reanchorForPlaylistChange, totalDuration, locate, defaultKeyOf };
+
+/**
+ * Replaces a channel's playlist in place, moving its anchor so what is on the
+ * air stays on (library sync, docs/design/07 §3). `atMs` is the schedule's own
+ * clock — viewNow(), minus S.contentLostMs for the tuned channel — supplied by
+ * the caller so this stays pure.
+ *
+ * Returns { preserved: true } or { preserved: false, reason }. A refusal still
+ * applies the playlist and leaves the anchor: the airing file was removed (with
+ * "remove files that disappear" on it is gone from disk and could not play
+ * anyway), or the channel had never aired.
+ */
+export function applyPlaylistPreservingAir(channel, nextFiles, atMs) {
+  const before = channel.files || [];
+  const result = before.length && channel.anchor
+    ? reanchorForPlaylistChange({ files: before, nextFiles, anchor: channel.anchor, atMs })
+    : { ok: false, reason: 'no-anchor' };
+  channel.files = nextFiles;
+  if (result.ok) {
+    channel.anchor = result.anchor;
+    return { preserved: true };
+  }
+  return { preserved: false, reason: result.reason };
+}

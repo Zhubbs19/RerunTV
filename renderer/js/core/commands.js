@@ -1013,6 +1013,48 @@ registerCommand('block.overrideDay', {
   },
 });
 
+// Rebuilds a channel's playlist from its library sources (docs/design/07 §3, §6).
+// One command for the whole rebuild — files, anchor and sources together — so
+// it is one undo step and one host write, and undoing it puts back exactly the
+// playlist AND the anchor that were airing. The caller has already shown the
+// diffSchedules preview and computed the anchor with reanchorForPlaylistChange;
+// this only records the outcome.
+registerCommand('channel.rematerialize', {
+  touches(cmd) { return [`channels/${cmd.channel}/files`, `channels/${cmd.channel}/anchor`, `channels/${cmd.channel}/sources`]; },
+  validate(config, cmd) {
+    requireChannel(config, cmd.channel);
+    if (!Array.isArray(cmd.files)) throw new Error('channel.rematerialize needs a files array');
+    const bad = cmd.files.find((file) => !isObject(file) || !file.path || !(Number(file.duration) > 0));
+    if (bad) throw new Error('channel.rematerialize: every file needs a path and a positive duration');
+    if (cmd.anchor != null && !Number.isFinite(cmd.anchor)) throw new Error('channel.rematerialize: anchor must be a number');
+  },
+  apply(config, cmd) {
+    const ch = findChannel(config, cmd.channel);
+    const own = (key) => Object.prototype.hasOwnProperty.call(ch, key);
+    const before = {
+      files: cloneJson(ch.files || []),
+      anchor: own('anchor') ? ch.anchor : undefined,
+      sources: own('sources') ? cloneJson(ch.sources) : undefined,
+      materializedAt: own('materializedAt') ? ch.materializedAt : undefined,
+    };
+    ch.files = cloneJson(cmd.files);
+    if (cmd.anchor !== undefined) { if (cmd.anchor === null) delete ch.anchor; else ch.anchor = cmd.anchor; }
+    if (cmd.sources !== undefined) { if (cmd.sources === null) delete ch.sources; else ch.sources = cloneJson(cmd.sources); }
+    if (cmd.materializedAt !== undefined) { if (cmd.materializedAt === null) delete ch.materializedAt; else ch.materializedAt = cmd.materializedAt; }
+    return [{
+      type: 'channel.rematerialize',
+      channel: cmd.channel,
+      files: before.files,
+      anchor: before.anchor === undefined ? null : before.anchor,
+      sources: before.sources === undefined ? null : before.sources,
+      materializedAt: before.materializedAt === undefined ? null : before.materializedAt,
+    }];
+  },
+  describe(config, cmd) {
+    return `Rebuild CH ${cmd.channel} from the library`;
+  },
+});
+
 // The channel's broadcast day: { enabled, startHour, endHour }.
 registerCommand('channel.setBroadcastHours', {
   touches(cmd) { return [`channels/${cmd.channel}/broadcastHours`]; },

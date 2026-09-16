@@ -23,7 +23,7 @@ larger future projects. Existing plugins and partial features should be reused.
 | 04 Components/themes | Complete in source and validated | All 25 packs use semantic tokens/slots; conversion guide, structural lint, contrast and fresh desktop/TV gates are complete. |
 | 05 Commands/sync | **Built and verified** (`18d8144`): renderer and LAN clients both post commands, host merges or refuses them, duplicate/stale/conflict handling, authoritative resync, plugin commands at ctx v7 | None. Later docs extend the catalogue (08 batches, 09 personal scope); the layer itself is done. |
 | 06 Web control | **Phases 1–3 built** (`18d8144`): control scope on the session token, `POST /api/commands`, `/control` serving the bundle, writable shim, host folder browsing, administration refused remotely at the command layer | Asset upload; deep links/QR handoff and "Preview on…" (with 01's TV work); presence; surfacing the control pairing code outside the loopback server page. Headless tray is still open. |
-| 07 Library/tagging | Shared catalogue not implemented | Stable item IDs/index, roots, provenance, review queue, saved queries, explicit rematerialization and schedule-preserving migration. Existing tags, curation and relinking are foundations, as is 06's browse-root list, which library roots should become the source of. |
+| 07 Library/tagging | **Built** (2026-09-16): store, incremental scan with review, verified migration, grouped auto-tagging, saved queries, smart channels and `channel.rematerialize`, root moves — setup › LIBRARY | Embedded-tag, taxonomy and metadata-plugin tagging steps; queries in blocks (02) and templates (08); a single-item editor; removing roots/items; provider etags; ending dual-read of per-file metadata. See 07 §8. |
 | 08 Builder/templates | Proposed | Plan/slot schema, resolver, previews, built-ins, import/export, local grammar and one-batch apply/undo. Reuse channel packages and existing curation. |
 | 09 Households/DVR | Proposed, with recording foundations | Personal stores/profiles, migration, DVR request scheduler and My Shows, playback handoff/resume, shared sessions and drift correction. Guide recording via the tape-deck plugin already exists. |
 | 10 Eras | Proposed | Effective presentation resolver, era data/picker, override provenance, channel pins, accessibility overrides and plugin hints. Existing theme and Music Choice era controls are not the shared layer. |
@@ -1661,13 +1661,12 @@ its template suggestions can arrive later.
 
 ## Design corrections needed before implementation
 
-- **07 append safety:** appending preserves the anchor timestamp, but changes
-  total loop duration. `(time - anchor) % duration` can then point to different
-  content. Automatic appends need schedule-impact evaluation; they are not
-  inherently safe merely because files were added at the end.
-- **07 identity:** size/mtime/first-megabyte hashes are matching evidence, not a
-  guaranteed identity. Specify ambiguous-match and changed-mtime behavior before
-  automatic relinking, plus a deterministic metadata conflict policy.
+- **07 append safety — resolved (2026-09-16):** re-anchoring keeps the airing file at its offset
+  across any playlist change (07 §3). Library sync uses it, and smart channels rebuild
+  unattended only when it succeeds.
+- **07 identity — resolved (2026-09-16):** `classify()` returns same / moved / ambiguous /
+  replaced / new; only same and moved apply unattended, and a deterministic conflict policy
+  (provenance, recency, channel number) drives migration (07 §4, §7).
 - **09 staleness:** “no record from guide” predates the tape-deck guide hook.
   Remaining DVR work is the household scheduler and personal recording experience.
 - **10 precedence:** explicitly define how an “override era” exception outranks

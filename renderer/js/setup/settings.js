@@ -31,6 +31,7 @@ import { renderCommercialsPanel, renderInterstitialsList, renderPresetsList, ren
 import { initFlowBuilder, renderFlowsList } from './flowbuilder.js';
 import { renderAutoCurateList } from './autocurate.js';
 import { renderTagTaxonomyPanel } from './tagtaxonomy-ui.js';
+import { renderLibraryPanels } from './library.js';
 import { attachSliderReadout } from './util.js';
 import { renderChannelList } from './channels.js';
 import { renderBoxStatus } from './channels-diagnostics.js';
@@ -399,6 +400,7 @@ export function renderSettingsPanels() {
   renderPresetsList();
   renderAutoCurateList();
   renderTagTaxonomyPanel();
+  renderLibraryPanels();
   renderBackupsList();
   renderViewerUrlStatus();
   renderStartupServerStatus();

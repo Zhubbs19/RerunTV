@@ -165,3 +165,25 @@ test('the head hash reads the first megabyte and the size separates truncations'
 
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a migrated item with no fingerprint yet is the same item, not a replacement', () => {
+  // Migration fingerprints lazily. The first scan must adopt, not flag 2,173 files.
+  const migrated = [{ id: 'itm_1', ref: 'J:\\a.mkv', fingerprint: null }];
+  const result = identity.classify({ ref: 'J:\\a.mkv', fingerprint: fp(100, 1, 'sha1:a') }, migrated);
+  assert.equal(result.kind, 'same');
+  assert.equal(result.adopt, true);
+  assert.equal(result.confidence, 'ref-only');
+  assert.equal(identity.isAutoApplicable(result), true);
+});
+
+test('a provider item keeps its identity by ref when no etag exists on either side', () => {
+  const noEtag = identity.fingerprintProvider({ id: 'archive', etag: null, size: null });
+  const known = [{ id: 'itm_p', ref: 'mediasource:archive:clip', fingerprint: noEtag }];
+  const result = identity.classify({ ref: 'mediasource:archive:clip', fingerprint: noEtag }, known);
+  assert.equal(result.kind, 'same');
+});
+
+test('an item WITH evidence at a ref still reads as replaced when the content differs', () => {
+  const known = [{ id: 'itm_1', ref: 'J:\\a.mkv', fingerprint: fp(100, 1, 'sha1:a') }];
+  assert.equal(identity.classify({ ref: 'J:\\a.mkv', fingerprint: fp(9, 9, 'sha1:z') }, known).kind, 'replaced');
+});

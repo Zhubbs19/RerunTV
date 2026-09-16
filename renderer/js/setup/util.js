@@ -1525,22 +1525,25 @@ export function attachSliderReadout(slider, opts) {
 // used by every folder/file scan path (channel folders, block folders,
 // interstitials pool entries) so a newly-added file's duration is known
 // before it's ever scheduled.
-export function probeDuration(filePath) {
+// `fallback` is what an unreadable file reports. Playlists use 180 s so a bad
+// file still schedules; the media library passes null, because a guessed
+// length stored in the catalogue would be copied into every smart channel.
+export function probeDuration(filePath, { fallback = 180 } = {}) {
   return new Promise(async (resolve) => {
     const url = await window.api.toFileUrl(filePath);
     const v = document.createElement('video');
     v.preload = 'metadata';
     v.src = url;
-    const fallback = setTimeout(() => resolve(180), 4000);
+    const timer = setTimeout(() => resolve(fallback), 4000);
     v.addEventListener('loadedmetadata', () => {
-      clearTimeout(fallback);
-      const d = isFinite(v.duration) && v.duration > 0 ? v.duration : 180;
+      clearTimeout(timer);
+      const d = isFinite(v.duration) && v.duration > 0 ? v.duration : fallback;
       resolve(d);
       v.src = '';
     });
     v.addEventListener('error', () => {
-      clearTimeout(fallback);
-      resolve(180);
+      clearTimeout(timer);
+      resolve(fallback);
     });
   });
 }
@@ -1551,7 +1554,7 @@ export function probeDuration(filePath) {
 // the main-process dispatch layer (media:probeDuration, main.js/
 // main-media-dispatch.js), since a plugin-sourced ref has no playback
 // dispatch path a <video> element could load in the first place.
-export async function probeDurationForEntry(source, ref) {
-  if (!source || source === 'local') return probeDuration(ref);
+export async function probeDurationForEntry(source, ref, opts) {
+  if (!source || source === 'local') return probeDuration(ref, opts);
   return window.api.probeDuration(source, ref);
 }

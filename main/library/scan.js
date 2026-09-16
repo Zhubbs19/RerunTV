@@ -36,7 +36,10 @@ function unchangedSince(item, entry) {
  * unattended and put `ambiguous`/`replaced` in front of a person.
  */
 async function scanRoot({ store, root, list, fingerprint, probeDuration = null, onProgress = null, signal = null }) {
-  const known = store.itemsInRoot(root.id);
+  // A detached item gave up its file after a review decision; it keeps its
+  // metadata but is never matched or reported missing again.
+  const live = (item) => !item.detached;
+  const known = store.itemsInRoot(root.id).filter(live);
   const knownByRef = new Map(known.map((item) => [item.ref, item]));
   const seenItemIds = new Set();
 
@@ -85,7 +88,7 @@ async function scanRoot({ store, root, list, fingerprint, probeDuration = null, 
     // Candidates are drawn from the WHOLE library, not just this root: a file
     // moved between two catalogued roots should read as `moved`, not as one
     // `missing` plus one `added`.
-    const verdict = identity.classify(observed, store.allItems());
+    const verdict = identity.classify(observed, store.allItems().filter(live));
 
     if (verdict.kind === 'same' || verdict.kind === 'moved') {
       seenItemIds.add(verdict.item.id);

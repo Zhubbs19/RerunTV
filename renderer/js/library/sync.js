@@ -2,11 +2,12 @@
 // contract: local folders happen to be one provider, not a special UI path.
 import { refreshSidebarBadges } from '../setup/sidebar.js';
 import { beginTask } from '../setup/tasks.js';
-import { S, commitConfigPatch, commitInPlace } from '../core/state.js';
+import { S, commitConfigPatch, commitInPlace, viewNow } from '../core/state.js';
 import { parseMediaRef } from '../core/channels.js';
 import { probeDurationForEntry } from '../setup/util.js';
 import { confirmDialog } from '../setup/dialogs.js';
 import { reconcileFolderFiles } from './sync-core.js';
+import { applyPlaylistPreservingAir } from './reanchor.js';
 let periodicTimer = null;
 let syncRunning = false;
 
@@ -33,6 +34,16 @@ async function scanFolder(folder, tracked) {
   }));
 }
 
+// Changing a channel's playlist changes what airs unless its anchor moves with
+// it (docs/design/07 §3): even a pure append changes the loop's length and can
+// cut away from the programme on screen. Evaluated at viewNow() — the clock the
+// schedule reads — and, for the tuned channel, with the break-drift
+// compensation playback applies.
+export function scheduleClockFor(channel) {
+  const atMs = viewNow();
+  return S.currentNumber === channel.number ? atMs - (S.contentLostMs || 0) : atMs;
+}
+
 function summaryText(result) {
   const parts = [];
   if (result.added) parts.push(`${result.added} added`);
@@ -40,6 +51,7 @@ function summaryText(result) {
   if (result.removed) parts.push(`${result.removed} removed`);
   if (result.missing) parts.push(`${result.missing} missing (kept)`);
   if (result.errors) parts.push(`${result.errors} source warning${result.errors === 1 ? '' : 's'}`);
+  if (result.onAirChanged) parts.push(result.onAirChanged === true ? 'what is on the air changed' : `on-air changed on ${result.onAirChanged} channel${result.onAirChanged === 1 ? '' : 's'}`);
   return parts.length ? parts.join(' · ') : 'No library changes found';
 }
 
@@ -72,7 +84,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
   const status = document.getElementById('library-sync-status');
   if (status) status.textContent = 'CHECKING LINKED FOLDERS…';
   const prefs = settings();
-  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0 };
+  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0, onAirChanged: 0 };
   const rows = [];
   let contentChanged = false;
   try {
@@ -91,11 +103,15 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
             removed: prefs.removeMissing ? result.missing.length : 0,
             missing: prefs.removeMissing ? 0 : result.missing.length,
           };
-          Object.keys(totals).forEach((key) => { if (row[key]) totals[key] += row[key]; });
           if (row.added || row.renamed || row.removed) {
-            channel.files = result.files;
+            const air = applyPlaylistPreservingAir(channel, result.files, scheduleClockFor(channel));
+            if (!air.preserved && air.reason !== 'no-anchor') row.onAirChanged = true;
             contentChanged = true;
           }
+          Object.keys(totals).forEach((key) => {
+            if (key === 'onAirChanged') { if (row.onAirChanged) totals.onAirChanged += 1; return; }
+            if (row[key]) totals[key] += row[key];
+          });
           rows.push(row);
         } catch (error) {
           totals.errors++;

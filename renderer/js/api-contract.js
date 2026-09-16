@@ -6,7 +6,7 @@
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
-    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'applyConfigCommands', 'getConfigSnapshot', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
+    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'applyConfigCommands', 'getConfigSnapshot', 'libraryCall', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
     'transcode', 'toggleFullscreen', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
     // The Companion app's ALERTS relays have to stay viewer-facing: in

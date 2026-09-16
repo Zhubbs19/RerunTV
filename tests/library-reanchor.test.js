@@ -13,8 +13,12 @@ const { pathToFileURL } = require('node:url');
 globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }), api: {} };
 globalThis.document = globalThis.document || { getElementById: () => null };
 
-const { reanchorForPlaylistChange, totalDuration } = require('../main/library/reanchor');
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
+let reanchorForPlaylistChange;
+let totalDuration;
+test.before(async () => {
+  ({ reanchorForPlaylistChange, totalDuration } = await load('library/reanchor.js'));
+});
 
 const file = (path_, duration) => ({ path: path_, duration });
 const EPISODES = [file('a.mkv', 600), file('b.mkv', 600), file('c.mkv', 600)];
@@ -152,4 +156,27 @@ test('an unchanged playlist leaves the anchor where it was', () => {
   assert.equal(result.ok, true);
   assert.equal(result.anchor, anchor, 'no change means no shift');
   assert.equal(result.preserved.anchorShiftMs, 0);
+});
+
+test('library sync keeps what is on the air when it appends, and says when it cannot', async () => {
+  const { applyPlaylistPreservingAir } = await load('library/reanchor.js');
+  const anchor = 1_000_000_000_000;
+  const atMs = anchor + 700_000; // 100 s into b.mkv
+  const channel = { files: EPISODES.slice(), anchor };
+  const before = await airingAt(channel.files, channel.anchor, atMs);
+
+  const appended = [file('0.mkv', 900), ...EPISODES, file('d.mkv', 600)];
+  assert.deepEqual(applyPlaylistPreservingAir(channel, appended, atMs), { preserved: true });
+  assert.equal(channel.files, appended, 'the playlist is applied');
+  const after = await airingAt(channel.files, channel.anchor, atMs);
+  assert.equal(after.path, before.path);
+  assert.equal(after.offset, before.offset);
+
+  const without = { files: EPISODES.slice(), anchor };
+  const result = applyPlaylistPreservingAir(without, [file('a.mkv', 600), file('c.mkv', 600)], atMs);
+  assert.deepEqual(result, { preserved: false, reason: 'airing-file-removed' });
+  assert.equal(without.anchor, anchor, 'a refusal leaves the anchor');
+
+  const fresh = { files: [], anchor: null };
+  assert.equal(applyPlaylistPreservingAir(fresh, EPISODES, atMs).reason, 'no-anchor');
 });

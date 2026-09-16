@@ -233,6 +233,21 @@
     applyConfigCommands: (batch, meta) => postCommands(batch, meta),
     getConfigRevision: () => controlScope().then((scope) => (Number.isInteger(scope.revision) ? scope.revision : 0)),
     getConfigSnapshot: () => controlSnapshot(),
+    // The media library over the LAN, for a control session. Same { ok, result
+    // | error } shape as the host window's IPC, so the Library screen treats
+    // both identically. A viewer is refused before anything is sent.
+    libraryCall: async (method, payload) => {
+      const scope = await controlScope();
+      if (!scope.control) return { ok: false, error: 'This device is paired to watch, not to change the library.' };
+      try {
+        const response = await fetch(`/api/control/library/${encodeURIComponent(method)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify(payload || {}),
+        });
+        return (await response.json().catch(() => null)) || { ok: false, error: `The host answered ${response.status}.` };
+      } catch (e) {
+        return { ok: false, error: `Could not reach the host: ${e.message}` };
+      }
+    },
     // Commands the host applied, for a control session only — the route drops
     // these for a view session, because they carry real config values. This is
     // the same update the Electron window gets on config:applied, so state.js

@@ -66,6 +66,13 @@ function needsRehash(stored, stat) {
   return stored.size !== stat.size || Math.round(stat.mtimeMs) !== stored.mtime;
 }
 
+// Whether a fingerprint carries any content evidence at all. A migrated item
+// has none until its first scan, and a provider item without an etag never
+// does.
+function hasContentEvidence(fingerprint) {
+  return !!(fingerprint && fingerprint.head);
+}
+
 // ---------- Classification ----------
 // `candidates` are existing items whose fingerprint could match `observed`.
 // Returns one of:
@@ -84,6 +91,15 @@ function classify(observed, candidates = []) {
 
   if (atRef.length && byContent.some((item) => item.id === atRef[0].id)) {
     return { kind: 'same', item: atRef[0], confidence: 'high' };
+  }
+  // An item catalogued at this ref with NO content evidence of its own cannot
+  // contradict what is there now. This is every item straight out of migration
+  // (fingerprinted lazily) — without this rule their first scan would read as
+  // 2,173 "replaced" files. The observed fingerprint is adopted; confidence is
+  // lower because nothing was compared. When the observation has no evidence
+  // either (a provider without etags), a stable provider ref is all there is.
+  if (atRef.length === 1 && !hasContentEvidence(atRef[0].fingerprint)) {
+    return { kind: 'same', item: atRef[0], confidence: 'ref-only', adopt: true };
   }
   if (byContent.length === 1) {
     return {
@@ -170,6 +186,7 @@ module.exports = {
   fingerprintLocal,
   fingerprintProvider,
   sameContent,
+  hasContentEvidence,
   needsRehash,
   classify,
   isAutoApplicable,

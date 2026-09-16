@@ -1,10 +1,10 @@
 # 07 — Media library and auto-tagging
 
-Status: **in progress** — built and verified: identity (§4), re-anchoring (§3), the store (§3),
-incremental scanning (§4) and a verified migration plan with a dry run against the real lineup
-(§7), all in `main/library/`. Not built: wiring the migration into the app (IPC, the confirm
-step, writing), auto-tagging (§5), the review queue, and smart channels / `channel.rematerialize`
-(§6). Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
+Status: **built** — every part of this doc has a first version in the app: identity and scanning
+(§4), the store and re-anchoring (§3), auto-tagging with a grouped review queue (§5), saved queries
+and smart channels with `channel.rematerialize` (§6), and the verified migration (§7), behind
+setup › LIBRARY (CATALOGUE · REVIEW · SMART CHANNELS). §8 lists what was verified live and what is
+still open. Depends on: C2 (02), C3 (05), 06 (remote folder browsing).
 Owns contract **C6**. Consumed by: 08, 09.
 
 ## 1. Problem
@@ -92,7 +92,7 @@ and appending changes `totalDuration`. The modulus changes, `elapsed` lands some
 channel mid-episode can cut to a different programme the moment a sync finishes — exactly what C6
 forbids. `tests/library-reanchor.test.js` demonstrates it against the real `computeSourcePosition`.
 
-**What is built instead: re-anchoring.** `main/library/reanchor.js`'s
+**What is built instead: re-anchoring.** `renderer/js/library/reanchor.js`'s
 `reanchorForPlaylistChange()` takes the old playlist, the new one, the anchor and the instant the
 schedule is being evaluated at, and returns the anchor that leaves the currently-airing file at the
 same offset in the new playlist. New content appears from the next loop onward; nothing jumps.
@@ -103,6 +103,11 @@ It refuses rather than guessing when it cannot keep its promise — the airing f
 playlist is empty, durations are zero. A refusal is not a failure: it means the change needs the
 `diffSchedules` preview and a person. So unattended rematerialization is allowed when, and only
 when, re-anchoring succeeds; that is a wider set than "appends" and a safer one.
+
+Library sync uses it (`applyPlaylistPreservingAir`). Before this, a folder sync set
+`channel.files` without moving the anchor, so a sync that added one episode could cut away from
+what was on. It now keeps the airing file at its offset, and its results row says "what is on the
+air changed" only when that was impossible (the airing file itself was removed).
 
 Two details that matter:
 - `atMs` must be the time the schedule is actually evaluated at, with break-drift compensation
@@ -149,6 +154,19 @@ in one place rather than at each call site.
 - `renderer/js/library/relink.js`'s manual flow is replaced only for the `moved` case. The
   `ambiguous` and `replaced` cases are what that flow is *for*, and they still need it.
 
+**Built (2026-09-16).** `main/library/scan.js` and `main/library/service.js`. Rules added once
+the scan met real data:
+
+- **Migrated items adopt.** An item with no content evidence at all (every item straight out of
+  migration, which fingerprints lazily) at the ref being scanned is `same` with `adopt: true`, not
+  `replaced`. Otherwise the first scan of the real lineup would put 2,173 files in review.
+- **Review decisions stick.** Resolving a `replaced` entry as "something else" marks the old item
+  `detached`: it keeps its metadata, and scans never match it or report it missing again. Either
+  decision returns the items whose duration must be probed again.
+- A scan refuses a root with more than 5,000 media files rather than scanning part of it, and a
+  root that is not reachable. Durations are probed by the renderer and sent back. An unreadable
+  file gets **no** duration (not the playlist's 180 s fallback), and smart channels skip it.
+
 ## 5. Auto-tagging pipeline
 
 Local-first (offline invariant), each step producing **suggestions with provenance**:
@@ -170,12 +188,55 @@ Review UX (Library › Tags, desktop + web panel): a queue grouped by series/fol
 exceptions editable. Accepted suggestions become `provenance: 'user-accepted'`; user edits
 always win over later automatic passes.
 
+**Built (2026-09-16): steps 1 and 3. Open: 2, 4 and 5.** `renderer/js/library/tagging.js` reads
+the ref and duration only: series from the folder under a library container or the filename
+prefix before an episode code; season/episode codes (`S02E01`, `2x01`, and the library's
+`S1953E05` season-as-year convention); year and era; duration bands; and sports (a keyword *and*
+at least 30 minutes, so "Baseball Bugs" is not a game). Genre folders (Cartoons, Commercials,
+Sports…) are collections, not series. The episode-code patterns are bounded by "not a letter or
+digit" rather than `\b`: an underscore is a word character, so with `\b`,
+`Looney_Tunes_-_S1953E05` and every other underscore-named file lost its episode number.
+
+`suggestGroups` makes one group per series (or folder), with only the fields that every item still
+needing them agrees on, and the reason for each. REVIEW shows each group as one card: APPLY, or
+CHOOSE ITEMS to untick exceptions. `acceptGroup` writes `user-accepted` provenance, and a `user` or
+`user-accepted` field is never suggested again. Accepting changes the catalogue only.
+
+Open: embedded container tags (step 2), mapping to the Tag Taxonomy vocabulary (step 4), the
+opt-in metadata plugins (step 5), and editing one item's fields by hand.
+
 ## 6. Smart channels
 
 A channel source of `type: 'query'` materializes all matching items with the channel's order
 policy (natural series order, seeded shuffle, weekly rotation). Queries are also usable in
 blocks (02) and templates (08): "Saturday 7–11 AM: `kind=episode AND genre=cartoon AND
 era<=1999`".
+
+**Built (2026-09-16).** `renderer/js/library/query.js`: a `where` is plain JSON (equality, any-of,
+`gte`/`lte`/…, `text`, `any`, `not`), validated when saved. Order policies: series order, by
+title, a shuffle that is stable for its seed (so a rebuild with nothing new moves nothing), and
+newest first. `planChannelFiles` keeps folder files first, de-duplicates, and returns the anchor
+from `reanchorForPlaylistChange`.
+
+SMART CHANNELS in setup:
+
+- Saved queries with a live match count. The form covers kind, genre, era, series and text; a
+  query it can't represent keeps its conditions, and only its name and order can be edited.
+- BUILD CHANNEL makes a new channel anchored now.
+- REBUILD, for any channel with query sources, previews added and removed programmes, what is on
+  now ("stays on" or "changes from X to Y") and the next 7 days of `diffSchedules`. It then
+  dispatches **`channel.rematerialize`**: files, anchor, sources and `materializedAt` as one undo
+  step that restores all of them exactly.
+- "Rebuild smart channels after a scan" (`librarySync.rebuildSmartChannels`, off by default)
+  rebuilds unattended **only** when re-anchoring succeeds. Anything else is named in the scan's
+  notice and waits for a person.
+
+**Verified live** (`tests/ui/verify-library-ui.mjs`): a saved query built CH 12; an unchanged
+rebuild did nothing; broadening the query previewed "what's on now stays on", rebuilt with the same
+episode still airing at the same point, and undo restored the channel exactly; with the setting on,
+a scan rebuilt it unattended.
+
+Open: query sources in blocks (02) and templates (08); a weekly-rotation order policy.
 
 ## 7. Migration (config schema migration + library v1)
 
@@ -192,7 +253,7 @@ era<=1999`".
    channel's migration and keep it legacy.
 4. Old per-file metadata fields remain readable for one release (dual-read), then removed.
 
-**Built (2026-09-16), not yet wired into the app.** `main/library/migrate.js` splits this into
+**Built (2026-09-16).** `main/library/migrate.js` splits this into
 steps that can each be checked before anything is written:
 
 - `planMigration(config)` is pure. Each file gains an `item` id; path, duration, order, anchor
@@ -211,6 +272,23 @@ channels.json and writes only a report elsewhere): **14/14 channels identical ov
 0 conflicts, 2,173 items in 26 roots, 0.6–4.6 s per channel (Boomerang's 1,329 files is the
 slow one). The source file's SHA-1 was identical before and after.
 
+**In the app** (CATALOGUE › CHECK MY CHANNELS):
+
+1. The host plans from a copy of config.
+2. The renderer checks each channel with `diffSchedules` over 60 days, breaks included, in 5-day
+   chunks with a yield between them so the progress line keeps painting
+   (`renderer/js/library/migration.js`). A table shows each channel's verdict.
+3. BUILD LIBRARY finalizes on the host and **saves the library first**. Only then are `item` ids
+   and `fileOverrides` attached to the live config in place, all or nothing with every path
+   re-checked, as one `Build media library` patch.
+
+The check stops if config changes underneath it, and "changes" means content. The generation
+counter alone is not enough: library sync's bookkeeping (and the last channel tuned) bump it on a
+timer without changing anything a schedule reads, and would otherwise abort minutes of checking.
+
+Undoing `Build media library` removes the ids from config but not the saved library. CATALOGUE then
+says no channel is linked, and offers to check and build again, replacing the library.
+
 The guard is proven to bite, not just to agree: `tests/library-migrate.test.js` reorders a
 planned channel and nudges a duration by one second, and both are caught; on the real lineup,
 swapping two Office episodes changed 52 programmes over the window and CH 6 was rejected and
@@ -219,11 +297,23 @@ restored byte-for-byte.
 ## 8. Acceptance criteria
 
 - Moving `J:\Media Center` to another drive and updating the root relinks every channel with
-  no schedule change. (Identity and re-anchoring now both support this; the scan and the
-  rematerialize command that would exercise it end to end are not built yet.)
-- Tagging 1,000 new episodes by series takes < 10 review actions.
-- A query channel "all Christmas specials" builds in < 5 s for a 5,000-item library.
-- Migration of the real installed lineup produces an empty 60-day schedule diff.
+  no schedule change. **Built:** UPDATE LOCATION rewrites path text at a folder boundary in config
+  and library together (`root-move.js`). It previews every touched channel over 14 days, keyed by
+  library item rather than path, and refuses if anything would air differently. **Verified live** with YT Archive moved to a synthetic `Z:` path and back: CH 420 and a smart channel repointed, every other channel byte-identical, library root and items updated, the unreachable-path warning shown, nothing on disk touched, and all paths as at the start afterwards. A whole-drive move has not been done for real.
+- Tagging 1,000 new episodes by series takes < 10 review actions. **Met in tests:** 1,000 episodes
+  across five series make 5 groups, and accepting each once covers all 1,000. **Live:** the real library produces 29 groups (Looney Tunes 1,002, SpongeBob 267, Tom and Jerry 161, Blue's Clues 144, The Office 137, …); accepting one with an item unticked tagged only the ticked item and left config unchanged.
+- A query channel "all Christmas specials" builds in < 5 s for a 5,000-item library. **Met in
+  tests**, well under a second in Node.
+- Migration of the real installed lineup produces an empty 60-day schedule diff. **Met** in the
+  dry run (14/14). **Verified live** through CATALOGUE on a copy of the installed profile: 14/14 identical in 40 s with the progress line updating throughout, 2,173/2,173 files given ids, paths, durations and anchors unchanged, one `Build media library` undo step. The first scan of YT Archive adopted both files with nothing sent to review.
+
+Still open across the doc:
+
+- §5 steps 2, 4 and 5, and a single-item editor.
+- Queries in blocks and templates.
+- Provider roots have no etags, so a provider item keeps its identity by ref alone.
+- No UI yet to remove a root or an item from the library.
+- Old per-file metadata is still dual-read (§7 step 4).
 
 ## 9. Risks
 

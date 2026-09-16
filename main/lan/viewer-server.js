@@ -337,6 +337,30 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       return;
     }
 
+    // The media library (docs/design/07) for a control session. The same
+    // service as the host window's IPC, with `remote` set here so migration
+    // and root moves — whole-library rewrites — stay on the host.
+    if (url.pathname.startsWith('/api/control/library/') && req.method === 'POST') {
+      if (!hasControlScope(req, res)) return;
+      if (typeof pluginRuntime.libraryCall !== 'function') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'This host has no library.' }));
+        return;
+      }
+      const method = decodeURIComponent(url.pathname.slice('/api/control/library/'.length));
+      let payload = {};
+      try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
+        return;
+      }
+      try {
+        const result = await pluginRuntime.libraryCall(method, payload, { remote: true });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: true, result }));
+      } catch (e) {
+        res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: false, error: e.message }));
+      }
+      return;
+    }
+
     if (url.pathname === '/api/control/state' && req.method === 'GET') {
       if (!hasControlScope(req, res)) return;
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })

@@ -10,6 +10,7 @@
 //   setup-autocurate.js    PROGRAMMING > AUTO-CURATE: curation profile wizard
 //   curation-scheduler.js  background auto-run for 'scheduled' curation profiles
 //   setup-tagtaxonomy.js   PROGRAMMING > TAG TAXONOMY: vocabulary + rename/remove tool
+//   library.js             LIBRARY > CATALOGUE / REVIEW / SMART CHANNELS (docs/design/07)
 //   setup-settings.js      DISPLAY/AUDIO tabs, the setup-tab bar, cross-tab search
 //   setup-command-palette.js the Ctrl+K command palette
 //   setup-keyboard.js      undo/redo + full keyboard-nav overhaul (tab bars, list rows)
@@ -26,6 +27,7 @@ import '../library/curation-scheduler.js';
 import './tagtaxonomy-ui.js';
 import './aircheck.js';
 import '../library/sync.js';
+import './library.js';
 import '../plugin/diagnostics.js';
 import './settings.js';
 import './channels.js';

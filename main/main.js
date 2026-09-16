@@ -64,6 +64,7 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./media/protocol');
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
+const { createLibraryService, registerLibraryIpc } = require('./library/service');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
@@ -327,6 +328,32 @@ registerMediaDispatchIpc(ipcMain, {
 });
 registerBackupsIpc(ipcMain);
 registerConfigIpc(ipcMain);
+
+// ---------- Media library (docs/design/07) ----------
+// Created on first use rather than at require time: userData is repointed by
+// the portable-data migration at startup, and the library directory must be
+// resolved after that, not captured before it.
+let libraryService = null;
+function getLibraryService() {
+  if (!libraryService) {
+    const { VIDEO_EXTENSIONS } = require('./media/media');
+    const { callMediaService, wrapMediaRef, MEDIA_LIST_TIMEOUT_MS } = require('./media/dispatch');
+    libraryService = createLibraryService({
+      dir: path.join(app.getPath('userData'), 'library'),
+      videoExtensions: VIDEO_EXTENSIONS,
+      // A provider root is listed through its media-source plugin, the same
+      // call folder sync uses. The listing carries no etags today, so provider
+      // items keep their identity by their stable ref (identity.js).
+      listProvider: async (root) => {
+        const result = await callMediaService(pluginServicesRef, root.source, 'list', [root.ref], MEDIA_LIST_TIMEOUT_MS);
+        if (!result || result.error) throw new Error((result && result.error) || `${root.source} did not answer.`);
+        return (result.refs || []).map((ref) => ({ ref: wrapMediaRef(root.source, ref), etag: null }));
+      },
+    });
+  }
+  return libraryService;
+}
+registerLibraryIpc(ipcMain, { getService: getLibraryService });
 registerHistoryIpc();
 registerDiagnosticsIpc(ipcMain, {
   app,
@@ -433,6 +460,9 @@ app.whenReady().then(async () => {
       applyCommands: (batch, meta) => configHost.applyCommands(batch, meta),
       getRevision: () => configHost.getRevision(),
       snapshot: () => configHost.snapshot(),
+      // The library API for a control session. The route sets `remote`, which
+      // keeps whole-library rewrites (migration, root moves) on the host.
+      libraryCall: (method, payload, opts) => getLibraryService().call(method, payload, opts),
       listPlugins: () => discoverPlugins().map((plugin) => (
         plugin.error ? plugin : {
           ...plugin,
