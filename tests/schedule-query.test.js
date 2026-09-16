@@ -14,10 +14,10 @@ const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer
 const HOUR = 3600000;
 
 async function setup() {
-  const state = await load('state.js');
-  const schedule = await load('schedule.js');
-  const interstitials = await load('interstitials.js');
-  const query = await load('schedule-query.js');
+  const state = await load('core/state.js');
+  const schedule = await load('core/schedule.js');
+  const interstitials = await load('core/interstitials.js');
+  const query = await load('core/schedule-query.js');
   state.S.config = {
     commercials: { timing: 'interval', intervalMinutes: 10 },
     interstitials: {
@@ -201,7 +201,7 @@ function blockChannel(anchor) {
 
 test('proposeEdit leaves live config alone, and undoing the edit diffs empty', async () => {
   const { state, query } = await setup();
-  const commands = await load('commands.js');
+  const commands = await load('core/commands.js');
   const saturday = localMidnight(2026, 8, 19); // a Saturday
   const live = blockChannel(saturday - 30 * 86400000);
   state.S.config.channels = [live];

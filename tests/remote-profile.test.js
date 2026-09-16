@@ -13,7 +13,7 @@ function fakeStorage(initial = {}) {
 }
 
 test('Android keycodes normalize to RemoteKeys, gamepad buttons included', async () => {
-  const { normalizeAndroidKeyCode, rawKeyId } = await load('remote-input.js');
+  const { normalizeAndroidKeyCode, rawKeyId } = await load('remote/input.js');
   assert.equal(normalizeAndroidKeyCode(19), 'up');
   assert.equal(normalizeAndroidKeyCode(23), 'ok');
   assert.equal(normalizeAndroidKeyCode(4), 'back');
@@ -31,7 +31,7 @@ test('Android keycodes normalize to RemoteKeys, gamepad buttons included', async
 });
 
 test('the profile records delivered buttons and persists them', async () => {
-  const { createRemoteProfile, PROFILE_STORAGE_KEY } = await load('remote-profile.js');
+  const { createRemoteProfile, PROFILE_STORAGE_KEY } = await load('remote/profile.js');
   const storage = fakeStorage();
   const p = createRemoteProfile(storage);
   assert.equal(p.note('guide'), true);
@@ -45,7 +45,7 @@ test('the profile records delivered buttons and persists them', async () => {
 });
 
 test('learn-mode overrides map a physical button to a RemoteKey, and reset', async () => {
-  const { createRemoteProfile } = await load('remote-profile.js');
+  const { createRemoteProfile } = await load('remote/profile.js');
   const storage = fakeStorage();
   const p = createRemoteProfile(storage);
   assert.equal(p.setOverride('android:302', 'guide'), true);
@@ -57,7 +57,7 @@ test('learn-mode overrides map a physical button to a RemoteKey, and reset', asy
 });
 
 test('a corrupt or old stored profile starts fresh', async () => {
-  const { createRemoteProfile, PROFILE_STORAGE_KEY } = await load('remote-profile.js');
+  const { createRemoteProfile, PROFILE_STORAGE_KEY } = await load('remote/profile.js');
   assert.deepEqual(createRemoteProfile(fakeStorage({ [PROFILE_STORAGE_KEY]: '{not json' })).seenKeys(), []);
   assert.deepEqual(createRemoteProfile(fakeStorage({ [PROFILE_STORAGE_KEY]: JSON.stringify({ version: 0, seen: { ok: 1 } }) })).seenKeys(), []);
 });

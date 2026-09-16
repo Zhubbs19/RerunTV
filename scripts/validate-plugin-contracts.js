@@ -6,7 +6,7 @@
 //      well-formed `capabilities` entries).
 //   2. renderer/js/api-contract.js's method list stays in sync with the
 //      real preload surface (main/preload.js) — this is the check
-//      test/contracts.test.js used to run before that suite (and
+//      tests/contracts.test.js used to run before that suite (and
 //      package.json's "test" script that pointed at it) was deleted; see
 //      CLAUDE.md's "Working conventions" section for why it hasn't been
 //      resurrected wholesale. This script only reconstructs the one check

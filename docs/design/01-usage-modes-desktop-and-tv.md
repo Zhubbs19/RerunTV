@@ -8,15 +8,15 @@ plugins. Owns contract **C1** (see [00](00-roadmap-and-integration.md)).
 ### Built (Phase A, and the JS side of Phase B)
 
 Modules:
-- `renderer/js/usage-mode.js`: `resolveUsageMode`, `initUsageMode`, `setUsageModePreference`,
+- `renderer/js/tv/usage-mode.js`: `resolveUsageMode`, `initUsageMode`, `setUsageModePreference`,
   `onUsageModeChange`, `isTvMode`. It follows §4's precedence: this device's choice in
   localStorage, then `?mode=` (Electron's `--mode=tv` adds it to the page URL), then the Android
   TV / Tizen / webOS user agent, then desktop. It stamps `html[data-mode]`, and
-  `tv-client-viewport.js` makes the same guess in `<head>` so a TV never paints a desktop frame.
-- `renderer/js/remote-input.js` (pure): the RemoteKey vocabulary and `normalizeKey`, covering
+  `renderer/js/tv/client-viewport.js` makes the same guess in `<head>` so a TV never paints a desktop frame.
+- `renderer/js/remote/input.js` (pure): the RemoteKey vocabulary and `normalizeKey`, covering
   keyboard names, TV-browser key names and Tizen/webOS keyCodes. Also per-context action tables
   (§5.1) and the long-press tracker.
-- `renderer/js/tv-input.js`: reads the context off the page (watching, time machine, guide,
+- `renderer/js/tv/input.js`: reads the context off the page (watching, time machine, guide,
   menu, details, text field, plugin channel, exit prompt) and runs actions.
   - Anything the keyboard handler already does is routed as `key:<Key>` into `handleKey`, so
     there is one implementation.
@@ -39,7 +39,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 ### Built (Phase B, finished 2026-09-14)
 
 - **Raw key events, no Kotlin table.** `MainActivity.postRawKey` posts `{ source: 'android',
-  keyCode, scanCode, repeat, longPress, holdMs, action }` and `remote-input.js`'s
+  keyCode, scanCode, repeat, longPress, holdMs, action }` and `renderer/js/remote/input.js`'s
   `ANDROID_KEYCODES`/`normalizeAndroidKeyCode` decide the RemoteKey — including Android gamepad
   buttons. Kotlin keeps only what JS can't see: OK long-press from `repeatCount`, channel-repeat
   debouncing, and Back falling back to leaving the app when the page ignores it.
@@ -47,14 +47,14 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   a half-working client.
 - **The client's own settings** (host address, quick actions) moved to a HELD Play/Pause, so a short
   press reaches the page's TV menu, plus `AndroidRemoteBridge.openClientSettings()` for the menu.
-- **This device's remote profile** (`remote-profile.js`): every delivered button is recorded in
+- **This device's remote profile** (`renderer/js/remote/profile.js`): every delivered button is recorded in
   localStorage and marks the page (`html.remote-has-<key>`), so a hint for a button this remote has
   never sent stays hidden. Learn-mode overrides map a physical button (`android:172`, `key:F5`) to a
   RemoteKey and win over the automatic mapping.
-- **Remote test (step B0)** (`remote-test.js`, TV menu › REMOTE TEST): swallows all input and lists
+- **Remote test (step B0)** (`renderer/js/remote/test.js`, TV menu › REMOTE TEST): swallows all input and lists
   every press — source, keycode, hold time, and what it normalized to — with a coverage grid.
   Three quick BACK presses save the capture on the host as
-  `<userData>/remote-profiles/<name>-<when>.json` (`main-tv-client.js`, Electron IPC
+  `<userData>/remote-profiles/<name>-<when>.json` (`main/lan/tv-client.js`, Electron IPC
   `tvClient:saveRemoteProfile` and the viewer's `POST /api/remote-profile`), which is the fixture
   §11 replays. **Running it on the Hisense is still to do.**
 - **Learn mode** (TV menu › CUSTOMIZE BUTTONS): pick an action, press a button, done; reset clears.
@@ -66,7 +66,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - Unit tests: 150 pass (`npm test`), including remote profile, Android keycodes, handoff/capture saving,
   spatial focus, the suggestion rule, TV setup stepping, the keyboard, the wizard, gamepad mapping,
   Tizen/webOS shims and the CEC parser.
-- Scratch `test/verify-doc01.mjs` 26/26, driving the page through `RerunTVInput.native` with **raw
+- Scratch `tests/ui/verify-doc01.mjs` 26/26, driving the page through `RerunTVInput.native` with **raw
   Android keycodes** (what the new APK posts), plus a stubbed Gamepad API:
   - desktop unchanged: the ? grid menu is still 4 columns, and Enter on live TV still just shows the banner;
   - Play/Pause opens the one-column menu with GUIDE, TIME MACHINE › first; BACK goes up a level;
@@ -91,17 +91,17 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 
 ### Built (Phase E, 2026-09-14) — unit-tested, not verified on hardware
 
-- **Game controllers** (`gamepad.js`): the Gamepad API standard mapping — A=OK, B/Select=Back, X=Info,
+- **Game controllers** (`renderer/js/tv/gamepad.js`): the Gamepad API standard mapping — A=OK, B/Select=Back, X=Info,
   Y=Guide, LB/RB=CH−/CH+, LT/RT=rewind/fast-forward, Start=TV menu, D-pad and left stick with a 0.5
   deadzone and repeat (400 ms delay, 120 ms rate). TV mode posts them through `RerunTVInput.native`
   (`source: 'gamepad'`, so learn mode can remap a button); desktop mode turns them into the keys the
   keyboard handler knows (§8 remote-in-desktop). Android TV controllers arrive as `KEYCODE_BUTTON_*`
   and `ANDROID_KEYCODES` maps them the same way.
-- **Samsung Tizen / LG webOS** (`tv-platform.js`): on Tizen, registers every key RerunTV understands that
+- **Samsung Tizen / LG webOS** (`renderer/js/tv/platform.js`): on Tizen, registers every key RerunTV understands that
   `tvinputdevice.getSupportedKeys()` offers; webOS needs no registration (its keyCodes were already
   normalized). On both, the page going hidden puts RerunTV in standby and coming back wakes it. Not
   packaged as a hosted app yet (§9 "later").
-- **HDMI-CEC on an Electron mini-PC** (`main/main-cec.js`): launch with `--cec` and, if libcec's
+- **HDMI-CEC on an Electron mini-PC** (`main/ui/cec.js`): launch with `--cec` and, if libcec's
   `cec-client` is installed, TV-remote presses arriving over HDMI become remote keys (`cec:key` IPC →
   `window.api.onCecKey`, host-only → `RerunTVInput.native({ source: 'cec' })`). A missing
   `cec-client` logs once and changes nothing. Most PC HDMI ports can't do CEC without an adapter.
@@ -109,7 +109,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 
 ### Built (Phase D, 2026-09-14)
 
-- **TV setup** (`tv-setup.js`, TV menu › SETUP): sections built on the hierarchical menu. Value items step
+- **TV setup** (`renderer/js/tv/setup.js`, TV menu › SETUP): sections built on the hierarchical menu. Value items step
   with ◀▶ (or OK), text uses the on-screen keyboard, every change is a command.
   - CHANNELS: pick a channel, then MOVE UP/DOWN (each OK swaps one slot — the remote-friendly form of
     §6.4's pick-up/drop), SHOWN WHEN SURFING, FAVOURITE, RATING, RENAME…, CALL LETTERS…, MORE ON PHONE.
@@ -122,11 +122,11 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
     setting); both stay in full setup.
 - **On-screen keyboard** (`ui/on-screen-keyboard.js`): a TV modal with letters, digits, space, delete,
   clear and DONE; a physical keyboard still types. Guide search in TV mode uses it (the Google TV system
-  keyboard was never reliable from a WebView). Pure editing in `tv-setup-model.js` (tested).
-- **TV modals** (`tv-input.js registerTvModal`): the keyboard, wizard, handoff and learn mode register
-  once and get the dialog context (spatial D-pad, OK presses, Back cancels) without `tv-input.js`
+  keyboard was never reliable from a WebView). Pure editing in `renderer/js/tv/setup-model.js` (tested).
+- **TV modals** (`renderer/js/tv/input.js registerTvModal`): the keyboard, wizard, handoff and learn mode register
+  once and get the dialog context (spatial D-pad, OK presses, Back cancels) without `renderer/js/tv/input.js`
   importing each.
-- **First run on a TV** (`tv-wizard.js`, §6.5): with no channels in TV mode the host shows WELCOME →
+- **First run on a TV** (`renderer/js/tv/wizard.js`, §6.5): with no channels in TV mode the host shows WELCOME →
   ADD CHANNELS (QR to a phone/computer, or USE A FOLDER ON THIS DEVICE through the native folder dialog
   and `createChannelFromFolder`) → UPDATES → a remote check (Press OK, Press BACK, hold OK — each
   button seeds the remote profile; it skips itself after 30 s) → live TV on the first channel. Desktop
@@ -136,12 +136,12 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 
 ### Built (Phase C, 2026-09-14)
 
-- **Hierarchical TV menu** (`tv-menu.js`, TV mode only — the desktop grid is unchanged): one column,
+- **Hierarchical TV menu** (`renderer/js/tv/menu.js`, TV mode only — the desktop grid is unchanged): one column,
   breadcrumb title, Back/◀ up a level, ▶/OK into a section. Root: GUIDE · TIME MACHINE › (second, keeping
   doc 11's 5-press "yesterday") · CHANNELS › (CH ±, LAST, TUNE TO NUMBER… a 3-column number pad on the
   entry buffer, SCAN) · WATCH › · PICTURE & SOUND › · REMOTE › · SETUP › · SYSTEM ›. With the guide open,
   its dock/breaks/search items come first.
-- **Banner hub** (`banner-hub.js`, §6.1): OK (or ▶) on live TV opens the banner; ◀▶ browse channels
+- **Banner hub** (`renderer/js/tv/banner-hub.js`, §6.1): OK (or ▶) on live TV opens the banner; ◀▶ browse channels
   (specials included) without tuning, OK tunes, ▼ opens Info plus plugin items (the same
   `guide-program-actions` hook), Back/▲ closes; it closes itself after 12 s idle. The CH rocker still
   changes channel.
@@ -157,7 +157,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   CHANNELS.
 - **Key repeat** (§5.3): list focus sends a second step per repeat after a 400 ms hold; volume repeats
   at most every 125 ms; channel changes keep their 300 ms debounce.
-- **"Switch to TV mode?"** (`tv-suggest.js`, tested): offered once, never switched, when a desktop
+- **"Switch to TV mode?"** (`renderer/js/tv/suggest.js`, tested): offered once, never switched, when a desktop
   session is fullscreen, pointer-free and driven by ≥ 3 arrow/Enter presses for 10 s. Declining is
   remembered per device. A browser can't measure a 40" display, so that condition is dropped.
 - **Plugin actions** (§6.6, ctx v5): a channel type's `onAction(action, ctx)` receives `move.up/down/
@@ -168,8 +168,8 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
 - **Preview TV mode** (§8): Settings › This device › PREVIEW puts this session in TV mode without
   touching the device choice; TV menu › System › END TV PREVIEW goes back. It does not emulate a
   1920×1080 logical canvas — the window size is used as is.
-- **Handoff** (§7, `handoff.js`): TV menu › Setup › EDIT ON PHONE OR COMPUTER shows a QR and the
-  Companion page's pairing address (`main-tv-client.js` `handoffInfo`, Electron IPC and the viewer's
+- **Handoff** (§7, `renderer/js/tv/handoff.js`): TV menu › Setup › EDIT ON PHONE OR COMPUTER shows a QR and the
+  Companion page's pairing address (`main/lan/tv-client.js` `handoffInfo`, Electron IPC and the viewer's
   `GET /api/handoff-info`). It gains per-task deep links once doc 06 exists.
 
 Android bridge (`MainActivity.kt`):
@@ -187,7 +187,7 @@ Android bridge (`MainActivity.kt`):
 Verified:
 - `tests/usage-modes.test.js` covers resolver precedence, normalization, routing, a
   D-pad+OK+Back reachability check and long-press timing.
-- The live driver (scratch `test/verify-usage-modes.mjs`, 25 checks with trusted CDP key
+- The live driver (scratch `tests/ui/verify-usage-modes.mjs`, 25 checks with trusted CDP key
   events) covers desktop being unchanged and every TV behaviour above. It also covers the bridge
   entry point and `?mode=tv`.
 - The 34-check UI suite passes unchanged in desktop mode.
@@ -216,7 +216,7 @@ The TV screen itself is reasonably remote-friendly, but everything around it ass
 - D-pad Up/Down are hard-wired to channel change, which makes any on-screen menu that needs
   vertical focus movement fight the channel rocker.
 
-`ui-scale` and `tv-client-viewport.js` fix *size*, not *interaction*.
+`ui-scale` and `renderer/js/tv/client-viewport.js` fix *size*, not *interaction*.
 
 ## 2. Goals / non-goals
 
@@ -266,11 +266,11 @@ explicit per-device choice  >  launch flag  >  client identity  >  heuristic sug
 2. **Launch flag** — `--mode=tv` / `--kiosk` for Electron (mini-PC under a TV);
    `?mode=tv` for browser clients.
 3. **Client identity** — Android TV WebView UA (`RerunTV-AndroidTV`, already detected by
-   `tv-client-viewport.js`) → TV. Tizen/webOS browser UAs → TV.
+   `renderer/js/tv/client-viewport.js`) → TV. Tizen/webOS browser UAs → TV.
 4. **Heuristic suggestion** (never auto-switches silently): first input is an arrow/OK with no
    pointer movement in 10 s *and* fullscreen on a ≥ 40" display → toast "Switch to TV mode?".
 
-API (renderer, `renderer/js/usage-mode.js`):
+API (renderer, `renderer/js/tv/usage-mode.js`):
 
 ```js
 resolveUsageMode(): 'desktop' | 'tv'
@@ -278,9 +278,9 @@ setUsageMode(mode, { remember = true })   // stamps html[data-mode], fires 'usag
 onUsageModeChange(fn)
 ```
 
-`html[data-mode="tv"]` is what CSS and components (04) key on. `ui-scale.js` stays: it answers
+`html[data-mode="tv"]` is what CSS and components (04) key on. `main/ui/scale.js` stays: it answers
 "how big is the canvas", mode answers "how is it used". In TV mode the density tokens are
-defined against a 1920×1080 logical canvas, matching `tv-client-viewport.js`.
+defined against a 1920×1080 logical canvas, matching `renderer/js/tv/client-viewport.js`.
 
 ## 5. Input: from raw keys to actions
 
@@ -360,7 +360,7 @@ OS. Every TV-mode milestone is signed off on this set first; the other profiles 
 supported by the same pipeline but verified second.
 
 What is already known about this remote, from building the Android client against it
-(`android-tv-client/.../MainActivity.kt`, `docs/retro_cable_box_lan_viewer.md`):
+(`android-tv-client/.../MainActivity.kt`, `docs/integrations/retro_cable_box_lan_viewer.md`):
 
 | Button | Delivered to the app? | Current use | TV-mode design use |
 |---|---|---|---|
@@ -425,7 +425,7 @@ profile (§5.2) and the fixture for the input-matrix test (§11).
 - Tizen/webOS (if packaged, §9): `registerKey` calls and app lifecycle (`visibilitychange` →
   power/standby semantics).
 - Electron (mini-PC kiosk): `globalShortcut` is **not** used; kiosk launch + normal keydown is
-  enough. Media keys arrive via `mediaSession` (already wired in `playback-broadcast-fx.js`).
+  enough. Media keys arrive via `mediaSession` (already wired in `renderer/js/playback/broadcast-fx.js`).
 
 ## 6. TV-mode surfaces
 
@@ -441,7 +441,7 @@ filter/genre, blue = reminders (advertised only when present). Search uses on-sc
 or "type on phone".
 
 ### 6.3 TV menu
-Today's `tv-menu.js` grid becomes the root of a **hierarchical TV menu**: Watch actions ·
+Today's `renderer/js/tv/menu.js` grid becomes the root of a **hierarchical TV menu**: Watch actions ·
 Channels · Picture & Sound · Guide & Theme · Recordings · Profiles (09) · Setup · Remote ·
 System. One column of large choices, breadcrumb title, Back goes up a level.
 
@@ -506,8 +506,8 @@ additions from this doc:
 ## 10. Implementation plan
 
 **Phase A — plumbing (P1).**
-- `usage-mode.js` + `html[data-mode]`.
-- `remote-input.js`: normalize → profile → context router → actions.
+- `renderer/js/tv/usage-mode.js` + `html[data-mode]`.
+- `renderer/js/remote/input.js`: normalize → profile → context router → actions.
 - `actions.js`: a registry mapping action ids to today's functions (`changeChannel`,
   `openGuideGrid`, …).
 - `handleKey` becomes a thin keyboard source; behaviour in desktop mode must be byte-for-byte
@@ -541,7 +541,7 @@ QR handoff once 06 exists.
   bundled remote (reference, must pass)**, then Fire TV remote, Shield controller, an LG Magic
   Remote (browser), one IR universal remote via CEC.
 - The recorded `hisense-50qd6030g.json` event streams (§5.2a, step B0) are replayed by the
-  input-matrix harness on every change to `remote-input.js`.
+  input-matrix harness on every change to `renderer/js/remote/input.js`.
 
 ## 12. Risks and open questions
 

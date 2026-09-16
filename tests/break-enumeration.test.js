@@ -23,8 +23,8 @@ const HOUR = 60 * MIN;
 const SAMPLE_MS = 1000;
 
 async function modules() {
-  const state = await load('state.js');
-  const interstitials = await load('interstitials.js');
+  const state = await load('core/state.js');
+  const interstitials = await load('core/interstitials.js');
   return { state, interstitials };
 }
 

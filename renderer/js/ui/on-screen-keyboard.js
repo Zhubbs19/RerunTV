@@ -2,7 +2,7 @@
 // renaming a channel or typing call letters from the couch. A kit
 // ModalSurface of kit Buttons, so ◀▲▼▶ move between keys by position, OK
 // types, Back cancels. Returns a promise of the text, or null when cancelled.
-import { OSK_ROWS, applyOskKey } from '../tv-setup-model.js';
+import { OSK_ROWS, applyOskKey } from '../tv/setup-model.js';
 import { Button } from './button.js';
 import { ModalSurface } from './dialog.js';
 import { h } from './kit-core.js';

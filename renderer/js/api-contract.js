@@ -1,5 +1,5 @@
 // Canonical window.api descriptor used to generate the LAN viewer shim and
-// to verify Electron's sandboxed preload in test/contracts.test.js. Sandboxed
+// to verify Electron's sandboxed preload in tests/ui/contracts.test.js. Sandboxed
 // preload cannot require local files, so its exact surface is enforced by the
 // permanent parity test rather than importing this file at runtime.
 (function installApiContract(root) {

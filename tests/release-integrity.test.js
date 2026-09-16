@@ -28,7 +28,7 @@ test('CI uses the tracked test gate and deterministic builder config', () => {
 });
 
 test('isolated service and Party route registrations both enforce ownership', () => {
-  const isolation = fs.readFileSync(path.join(ROOT, 'main', 'main-plugin-isolation.js'), 'utf8');
+  const isolation = fs.readFileSync(path.join(ROOT, 'main', 'plugins/isolation.js'), 'utf8');
   assert.match(isolation, /services:registerProvider[\s\S]*?claimServiceKey\(manifest\.id, key\)/);
   assert.match(isolation, /party:registerRoute[\s\S]*?claimPartyRoute\(manifest\.id, routeKey\)/);
   assert.match(isolation, /partyRouteOwners\.delete\(key\)/);

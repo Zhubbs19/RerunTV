@@ -24,8 +24,8 @@ const fs = require('fs');
 // app.getPath('userData') at module-load time. Requiring main-config.js is
 // itself safe to do this early: none of its own top-level code touches
 // app.getPath('userData') (see its own header comment).
-require('./main-config').migrateUserDataIfNeeded();
-const { installMainLogCapture, registerDiagnosticsIpc } = require('./main-diagnostics');
+require('./config/config').migrateUserDataIfNeeded();
+const { installMainLogCapture, registerDiagnosticsIpc } = require('./diagnostics/diagnostics');
 installMainLogCapture();
 
 // "Server mode" — a --headless launch never creates or shows the full
@@ -61,23 +61,23 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 // entirely in that plugin's own main.js, not here. What's left in main.js
 // itself is app lifecycle, window creation, and the ipcMain registrations
 // that tie all of the above to the renderer.
-const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./main-protocol');
-const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./main-media');
-const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange } = require('./main-config');
-const { loadWindowState, saveWindowState, boundsOnScreen } = require('./main-window-state');
-const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./main-lan');
-const { trackConnection, registerConnectionsIpc } = require('./main-connections');
-const { fetchJsonCached } = require('./main-api-cache');
-const { readJsonBody, serveStaticFile } = require('./main-http-util');
-const { setMainWindow, getMainWindow } = require('./main-window-ref');
-const { startViewerServer } = require('./main-viewer-server');
-const { startMediaBridge } = require('./main-media-bridge');
-const { startDiscoveryServer } = require('./main-discovery-server');
-const { isLanServiceEnabled, createLanAccess } = require('./main-lan-security');
-const { registerDialogIpc } = require('./main-dialogs');
-const { applyWindowUiScale, normalizeUiScalePreference } = require('./main-ui-scale');
-const { registerStartupServerIpc } = require('./main-startup-server');
-const { registerHistoryIpc, flushHistoryNow } = require('./main-history');
+const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./media/protocol');
+const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
+const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange } = require('./config/config');
+const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
+const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
+const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
+const { fetchJsonCached } = require('./updater/api-cache');
+const { readJsonBody, serveStaticFile } = require('./util/http');
+const { setMainWindow, getMainWindow } = require('./config/window-ref');
+const { startViewerServer } = require('./lan/viewer-server');
+const { startMediaBridge } = require('./media/bridge');
+const { startDiscoveryServer } = require('./lan/discovery-server');
+const { isLanServiceEnabled, createLanAccess } = require('./lan/security');
+const { registerDialogIpc } = require('./ui/dialogs');
+const { applyWindowUiScale, normalizeUiScalePreference } = require('./ui/scale');
+const { registerStartupServerIpc } = require('./lan/startup-server');
+const { registerHistoryIpc, flushHistoryNow } = require('./diagnostics/history');
 
 // A device that's already entered a LAN service's pairing code once stays
 // paired across restarts (createLanAccess's opts.sessionsFile/
@@ -89,10 +89,10 @@ const { registerHistoryIpc, flushHistoryNow } = require('./main-history');
 // they can't import a core main-*.js file by path once packaged (see
 // plugins/companion-app/main.js's isPathContained comment for why).
 const LAN_SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
-const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, registerFallbackHandlers, registerPluginsIpc } = require('./main-plugins');
-const { wireAppQuitPropagation } = require('./main-plugin-isolation');
-const { setApprovedMediaSourceProviders, registerMediaDispatchIpc } = require('./main-media-dispatch');
-const { initAutoUpdater, registerThemeIpc, getLatestThemeList } = require('./main-updater');
+const { getPluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, registerFallbackHandlers, registerPluginsIpc } = require('./plugins/plugins');
+const { wireAppQuitPropagation } = require('./plugins/isolation');
+const { setApprovedMediaSourceProviders, registerMediaDispatchIpc } = require('./media/dispatch');
+const { initAutoUpdater, registerThemeIpc, getLatestThemeList } = require('./updater/updater');
 // Handed to the party-channel/universal-remote plugins via ctx — both need
 // these npm packages (multipart upload parsing, QR code generation) but
 // can't require() them directly themselves (they run from userData/plugins/,
@@ -100,7 +100,7 @@ const { initAutoUpdater, registerThemeIpc, getLatestThemeList } = require('./mai
 // ffmpeg-static's path has to be resolved here and handed over too).
 const busboy = require('busboy');
 const QRCode = require('qrcode');
-const { startCecHelper } = require('./main-cec');
+const { startCecHelper } = require('./ui/cec');
 
 // The renderer is served over a custom app:// scheme rather than file://
 // because Chromium refuses to load ES modules from a file:// origin. That

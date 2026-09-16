@@ -46,7 +46,7 @@
      reflows at its real size); viewport-fit=cover opts into env(safe-area-
      inset-*) so overlays like the touch control bar can avoid notches. -->
 <meta id="reruntv-viewport" name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-<script src="js/tv-client-viewport.js"></script>
+<script src="js/tv/client-viewport.js"></script>
 <title>RerunTV</title>
 <link rel="stylesheet" href="css/tokens.css" />
 <link rel="stylesheet" href="css/kit.css" />
@@ -1374,6 +1374,7 @@
               </div>
               <div id="plugin-diagnostics-status" class="panel-status" role="status" aria-live="polite"></div>
               <div id="plugin-diagnostics-summary" class="perf-telemetry-grid"></div>
+              <div id="plugin-diagnostics-contrast" class="theme-contrast-report" aria-label="Theme contrast"></div>
               <pre id="plugin-diagnostics-log" class="plugin-diagnostics-log">OPEN THE PLUGINS TAB TO LOAD DIAGNOSTICS.</pre>
             </div>
 
@@ -1628,7 +1629,7 @@
         <!-- Virtual CH 97: Synthwave & Vaporwave Radio Channel -->
         <!-- Virtual CH 99: 90s Teletext & Arcade Channel -->
         <!-- Plugin channels — a plugin's registerChannelType(id, {render}) draws
-             into this one shared container (see plugins.js/virtual.js); which
+             into this one shared container (see plugins.js/playback/virtual.js); which
              plugin owns it at any moment is tracked in virtual.js, not the DOM. -->
         <div id="plugin-channel-container" class="plugin-channel-container hidden"></div>
 
@@ -1716,10 +1717,10 @@
         <!-- Synthetic power on/off effect — a generated collapsing/warming
              line, not a captured video frame, consistent with the rest of
              the CRT look being purely CSS-generated. -->
-        <div id="crt-power-fx" class="crt-power-fx"><div class="crt-power-fx-line"></div></div>
+        <div id="crt-power-fx" class="crt-power-fx"><div class="crt-power-fx-line" data-slot="power-fx"></div></div>
       </div>
 
-      <div id="hint-bar" class="hint-bar">
+      <div id="hint-bar" class="hint-bar" data-slot="hint-bar">
         <span data-hint-key="channel">&uarr;&darr; CHANGE CHANNEL</span>
         <span data-hint-key="favorites" data-hint-secondary="true">SHIFT+&uarr;&darr; FAVORITES</span>
         <span data-hint-key="direct-entry" data-hint-secondary="true">0-9 DIRECT ENTRY</span>
@@ -1811,13 +1812,13 @@
          "guide is part of the TV's own picture" philosophy above
          #screen-crt-overlay's own opacity rule: legibility on a real large
          display wins over picture authenticity for anyone who opts in. -->
-    <div id="guide-grid" class="guide-grid hidden" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
-      <div class="guide-topbar">
+    <div id="guide-grid" class="guide-grid hidden" data-slot="guide-grid" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
+      <div class="guide-topbar" data-slot="guide-topbar">
         <div class="guide-info-panel">
-          <div class="guide-info-number" id="gi-number">--</div>
-          <div class="guide-info-body">
+          <div class="guide-info-number" id="gi-number" data-slot="guide-info-number">--</div>
+          <div class="guide-info-body" data-slot="guide-info-body">
             <div class="guide-info-channel" id="gi-channel">CHANNEL GUIDE</div>
-            <div class="guide-info-title" id="gi-title">&mdash;</div>
+            <div class="guide-info-title" id="gi-title" data-slot="guide-info-title">&mdash;</div>
             <div class="guide-info-time" id="gi-time"></div>
           </div>
         </div>
@@ -1827,12 +1828,12 @@
         </div>
       </div>
       <div id="guide-program-results" class="guide-program-results hidden"></div>
-      <div class="guide-timeheader" id="guide-timeheader"></div>
+      <div class="guide-timeheader" id="guide-timeheader" data-slot="guide-timeheader"></div>
       <div class="guide-rows" id="guide-rows">
-        <div class="guide-gridlines" id="guide-gridlines"></div>
-        <div class="guide-now-line hidden" id="guide-now-line"></div>
+        <div class="guide-gridlines" id="guide-gridlines" data-slot="guide-gridlines"></div>
+        <div class="guide-now-line hidden" id="guide-now-line" data-slot="guide-now-line"></div>
       </div>
-      <div class="guide-hint">
+      <div class="guide-hint" data-slot="guide-hint">
         <span>&uarr;&darr; CHANNEL</span>
         <span>&larr;&rarr; TIME</span>
         <span>/ FILTER</span>
@@ -1877,7 +1878,7 @@
          descendant combinator can no longer reach these from .crt. -->
     <div id="overlay-extend-layer">
     <!-- TV content-rating bug, flashed briefly at the start of a program -->
-    <div id="rating-bug" class="rating-bug"></div>
+    <div id="rating-bug" class="rating-bug" data-slot="rating-bug"></div>
 
     <!-- "NEW EPISODE"/"REPEAT" bug, flashed briefly at program start —
          see flashEpisodeStatusBug, playback.js. -->
@@ -1898,13 +1899,13 @@
     <div id="capability-badge" class="capability-badge"></div>
 
     <!-- Volume level indicator -->
-    <div id="volume-indicator" class="volume-indicator">
+    <div id="volume-indicator" class="volume-indicator" data-slot="volume-indicator">
       <div class="volume-label" id="volume-label">VOLUME</div>
-      <div class="volume-bar"><div class="volume-bar-fill" id="volume-bar-fill"></div></div>
+      <div class="volume-bar" data-slot="volume-bar"><div class="volume-bar-fill" id="volume-bar-fill" data-slot="volume-bar-fill"></div></div>
     </div>
 
     <!-- Direct channel-number entry -->
-    <div id="channel-entry" class="channel-entry hidden"></div>
+    <div id="channel-entry" class="channel-entry hidden" data-slot="channel-entry"></div>
 
     <div id="timeshift-badge" class="timeshift-badge hidden"></div>
 
@@ -1931,15 +1932,15 @@
     </div>
 
     <!-- Now-playing guide banner -->
-    <div id="guide-overlay" class="guide-overlay hidden">
-      <div class="guide-number" id="guide-number">--</div>
+    <div id="guide-overlay" class="guide-overlay hidden" data-slot="guide-banner">
+      <div class="guide-number" id="guide-number" data-slot="guide-banner-number">--</div>
       <div class="guide-meta">
         <div class="guide-name-row">
           <div class="guide-logo hidden" id="guide-logo"></div>
-          <div class="guide-name" id="guide-name">NO SIGNAL</div>
+          <div class="guide-name" id="guide-name" data-slot="guide-banner-name">NO SIGNAL</div>
         </div>
         <div class="guide-now" id="guide-now"></div>
-        <div class="guide-bar"><div class="guide-bar-fill" id="guide-bar-fill"></div></div>
+        <div class="guide-bar" data-slot="guide-progress"><div class="guide-bar-fill" id="guide-bar-fill" data-slot="guide-progress-fill"></div></div>
       </div>
       <div class="guide-mute hidden" id="guide-mute">MUTED</div>
     </div>

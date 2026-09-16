@@ -3,13 +3,19 @@
 Status: proposed (P3). Depends on: C3 commands + SSE (05), setup shell (03), C1 modes (01).
 Consumed by: 01 (TV handoff), 08, 09.
 
+Transport note (2026-09-15): doc 05 reused `/api/remote-events` instead of SSE.
+SSE below remains a proposed transport, not a completed prerequisite; choose one
+transport for the control work rather than duplicating existing notifications.
+
 ## 1. Problem
 
 - Editing happens only in the Electron window on the box. On a TV setup (the Hisense
   50QD6030G via the Android client) there is no good place to edit: the remote can't, and the
   host PC may be in another room.
-- LAN viewers and the Android TV client get a read-only config projection and poll every 10 s.
-- `--server` / `--headless` launch modes already exist (`main.js`, `tests/headless-server.test.js`):
+- LAN viewers and the Android TV client get a read-only config projection. Doc 05
+  already added config-change notices over the existing 250 ms event poll, with
+  a 60 s config fallback; writable control sessions remain to be built.
+- `--server` / `--headless` launch modes already exist (`main/main.js`, `tests/headless-server.test.js`):
   the host can run with no window, print pairing URLs and serve viewers. It can't be
   *administered* without the window.
 
@@ -62,7 +68,7 @@ flowchart TB
 
 ## 4. Access and security
 
-Extends `main-lan-security.js`; no new auth concepts.
+Extends `main/lan/security.js`; no new auth concepts.
 
 | Scope | Gets | Obtained by |
 |---|---|---|
@@ -73,7 +79,7 @@ Extends `main-lan-security.js`; no new auth concepts.
 - Control sessions are remembered per device (existing `sessionsFile` mechanism), revocable
   from System › Network services, listed with device name + last seen.
 - Every command records `meta.client`, shown in undo labels ("Rename CH 7 — from iPad").
-- Rate limits and body size caps reuse `main-http-util.js` conventions; `/api/commands` bodies
+- Rate limits and body size caps reuse `main/util/http.js` conventions; `/api/commands` bodies
   capped (e.g. 256 KB; large imports go through a separate upload endpoint with a size limit).
 - Secrets never leave the host: plugin settings with credential-shaped keys stay write-only
   from remote clients (shown as "••• set").
@@ -82,7 +88,7 @@ Extends `main-lan-security.js`; no new auth concepts.
 
 | Feature | Remote behaviour |
 |---|---|
-| Add folder (`selectFolder` native dialog) | **Host folder browser**: a paged directory listing API limited to configured library roots (07) plus drives the host admin explicitly allows; path-safety rules from `main-path-safety.js` |
+| Add folder (`selectFolder` native dialog) | **Host folder browser**: a paged directory listing API limited to configured library roots (07) plus drives the host admin explicitly allows; path-safety rules from `main/util/path-safety.js` |
 | Image/video pickers (logo, overlays) | Upload to the host's `userData/assets/` (size/type limited) or pick from library roots |
 | Export config / support bundle | Download from host |
 | Import config / channel package | Upload, then a `config.replace` or package-merge command with preview |

@@ -390,8 +390,8 @@ npm run dist    # installer (nsis / dmg / AppImage)
 
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
 if no tests are discovered. The larger real-Electron/CDP suite lives under the tracked
-`test/` working directory; run it with
-`powershell -ExecutionPolicy Bypass -File test\run-ui-tests.ps1`.
+`tests/ui/` working directory; run it with
+`powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`.
 
 Release plugin contents are explicit in `build/bundled-plugins.json`; machine-local
 integrations cannot silently change the default artifact. The personal flavor is the

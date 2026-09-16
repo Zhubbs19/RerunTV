@@ -19,7 +19,15 @@ const ROOT = path.join(__dirname, '..');
 const RENDERER = path.join(ROOT, 'renderer', 'js');
 const CEILING_FILE = path.join(ROOT, 'tests', 'config-writes-ceiling.json');
 // The funnel itself and the command layer mention the name without being callers.
-const IGNORED = new Set(['state.js', 'commands.js']);
+const IGNORED = new Set(['core/state.js', 'core/commands.js']);
+
+function rendererFiles(dir = RENDERER, prefix = '') {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const name = prefix + entry.name;
+    if (entry.isDirectory()) return rendererFiles(path.join(dir, entry.name), `${name}/`);
+    return entry.isFile() && name.endsWith('.js') && !IGNORED.has(name) ? [name] : [];
+  }).sort();
+}
 
 function stripComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
@@ -27,8 +35,7 @@ function stripComments(source) {
 
 function countLabelledPatches() {
   const counts = {};
-  for (const name of fs.readdirSync(RENDERER).sort()) {
-    if (!name.endsWith('.js') || IGNORED.has(name)) continue;
+  for (const name of rendererFiles()) {
     const source = stripComments(fs.readFileSync(path.join(RENDERER, name), 'utf8'));
     const n = (source.match(/(?<![\w.])commitConfigPatch\(/g) || []).length;
     if (n) counts[name] = n;
@@ -38,8 +45,7 @@ function countLabelledPatches() {
 
 function countUntypedWrites() {
   const counts = {};
-  for (const name of fs.readdirSync(RENDERER).sort()) {
-    if (!name.endsWith('.js') || IGNORED.has(name)) continue;
+  for (const name of rendererFiles()) {
     const source = stripComments(fs.readFileSync(path.join(RENDERER, name), 'utf8'));
     // Calls only, not the import line.
     const n = (source.match(/(?<![\w.])saveConfigDebounced\(/g) || []).length;

@@ -9,6 +9,7 @@ html[data-theme="hotel-headend-92"] {
   --ink: #0a444b; --ink-deep: #05272c; --cell: #176168; --cell-alt: #1d6b71;
   --gold: #ffd86a; --gold-ink: #1e1700; --cyan: #85e1d0; --paper: #fff9df;
   --paper-dim: #d2e8d8; --line: #75a99f; --danger: #ff6459;
+  --danger-text: #ff887f;
   --gold-rgb: 255,216,106; --danger-rgb: 255,100,89; --cyan-rgb: 133,225,208;
   --font-display: 'Arial Narrow','Archivo Narrow',system-ui,sans-serif;
   --font-ui: Tahoma,Verdana,system-ui,sans-serif; --font-body: Arial,sans-serif;

@@ -3,6 +3,12 @@
 Status: **in progress** — steps 1–2 and §5 built; steps 3–5 underway. Owns contract **C4**.
 Consumed by: 01, 03, 06, 10, plugins.
 
+Working-tree update (2026-09-15): contrast checking and theme-contract lint now exist
+in `renderer/js/display/`. The converted-pack test currently lists only
+`widescreen-grid-13`, rather than the originally planned `dual-tuner-dvr-05`.
+The remaining pack migration, conversion guide and structural cleanup are open.
+Current test imports need repair after the directory moves; see [the audit](12-remaining-work-audit-2026-09-15.md).
+
 ### Built (§6 step 1: semantic and density tokens, 7c63e55)
 
 - `tokens.css` defines every §4.2 semantic token as an alias of the palette token it grew out of
@@ -19,7 +25,7 @@ Consumed by: 01, 03, 06, 10, plugins.
 - Verified: `tests/theme-tokens.test.js` resolves var() chains for the default theme and all 25 packs (no
   cycles, each semantic token equals its source, no pack sets density, core CSS no longer reads aliased
   names). Nothing anywhere redefines a palette token below `html`, so identical resolution means identical
-  pixels. Theme sweep (`test/sweep-doc04.mjs`, 26 themes × 26 screens at 1280×720, pinned view time): 635/676
+  pixels. Theme sweep (`tests/ui/sweep-doc04.mjs`, 26 themes × 26 screens at 1280×720, pinned view time): 635/676
   gated screenshots within 1%; each of the other 41 was inspected and is sweep state (viewing log growth,
   selected channel, video frame, now-line drift, hover/animation timing), not a token change.
 
@@ -27,7 +33,7 @@ Consumed by: 01, 03, 06, 10, plugins.
 
 - `renderer/js/ui/` (≈1.4k lines with comments, ≈1.06k without — under the §2 revisit line):
   `kit-core.js` (`h`, `bindPress`, pure `rovingIndex`/`stepValue`), `focus.js` (FocusScope, SpatialFocus,
-  `focusDefault`, and the **modal stack** — `tv-input.js`'s `registerTvModal` delegates to it; the module
+  `focusDefault`, and the **modal stack** — `renderer/js/tv/input.js`'s `registerTvModal` delegates to it; the module
   imports nothing, so cycles can't catch it mid-evaluation), `button.js` (Button, IconButton, EmptyState,
   Badge, Chip), `field.js` (Field, SettingRow), `controls.js` (Toggle, Slider, Select, Segmented,
   NumberStepper, ColorPick), `tabs.js` (Tabs, `enhanceTabs` for static bars), `menu.js` (Menu, MenuButton,
@@ -36,7 +42,7 @@ Consumed by: 01, 03, 06, 10, plugins.
   what the kit adds; components keep established classes (`.btn`, `.setting-row`, `.row-menu`,
   `.guide-run-list`) so pages and themes look the same.
 - Absorbed, files removed: `ui/spatial-focus.js`, `ui/row-menu.js`, `ui/setting-row.js`, `setup-narrow.js`.
-- Adopted: setup dialogs (`setup-dialogs.js` API unchanged), empty states, the status bar's save state and
+- Adopted: setup dialogs (`renderer/js/setup/dialogs.js` API unchanged), empty states, the status bar's save state and
   task line, sidebar/sub-tab bars, row ⋯ menus, ON AIR's toolbar (Buttons, Segmented zoom), guide popover and
   banner hub actions (owner-driven Menus: the guide/banner route keys, the Menu highlights), on-screen
   keyboard, handoff, learn mode, first-run wizard (ModalSurfaces), the TV flash (Toast). TV guide rows take
@@ -57,7 +63,7 @@ Consumed by: 01, 03, 06, 10, plugins.
 - §5: `ctx.ui` (**CTX_VERSION 6**, not 4 as §5 said — v4/v5 were taken by search and input) exposes the kit,
   frozen. Settings sections may declare `fields` (toggle/slider/number/select/text/colour, dotted keys,
   `dependsOn`, `synonyms`) that core renders as kit SettingRows; each field is a setup search entry and a
-  rejected `validate` shows inline (`plugin-settings-schema.js` `normalizeSettingsFields`,
+  rejected `validate` shows inline (`renderer/js/plugin/settings-schema.js` `normalizeSettingsFields`,
   `settingPathPatch`, `coerceFieldValue`; `tests/plugin-settings-fields.test.js`). Plugin settings panels
   and the tuned plugin channel container carry `data-plugin="id"`; `PLUGIN_DEVELOPMENT.md` documents the
   kit, fields and CSS scoping.
@@ -102,7 +108,7 @@ beyond a small `reconcileList` helper.
 | `Tabs({ items, orientation })` | setup/edit/schedule tab bars | roving focus, `aria-selected` |
 | `ListDetail({ items, renderRow, renderDetail, reorder, multiSelect })` | channel list, pool, presets, backups, plugins | virtualized list, one scroll container |
 | `Menu`/`MenuButton` | MORE… menus | destructive group styled danger |
-| `Dialog({ title, body, actions, defaultAction })` | `setup-dialogs.js` confirms | FocusScope, never defaults to destructive |
+| `Dialog({ title, body, actions, defaultAction })` | `renderer/js/setup/dialogs.js` confirms | FocusScope, never defaults to destructive |
 | `Toast`, `StatusBar` | flash messages, save state | |
 | `FocusScope`, `SpatialFocus` | — | TV focus engine (01) |
 | `EmptyState({ message, action })` | `.titles-empty` strings | |
@@ -138,7 +144,7 @@ defined for `desktop` and multiplied for `tv` (1080p logical canvas: body 24 px,
 64 px, spacing ×1.75). Themes never set density.
 
 ### 4.4 Theme validation (load-time and CI-style)
-`theme-check.js` resolves each theme's tokens in a hidden probe and checks pairs:
+`renderer/js/display/theme-check.js` resolves each theme's tokens in a hidden probe and checks pairs:
 
 | Pair | Minimum |
 |---|---|
@@ -156,8 +162,8 @@ check had (it treated gradients as unknown).
 
 ## 5. Plugin surface
 
-- `ctx.ui` (new, `CTX_VERSION` 4) exposes the kit to plugin settings panels and channel UIs.
-- Declarative plugin settings (`plugin-settings-schema.js`) render through the kit, so they
+- `ctx.ui` (`CTX_VERSION` 6) exposes the kit to plugin settings panels and channel UIs.
+- Declarative plugin settings (`renderer/js/plugin/settings-schema.js`) render through the kit, so they
   get TV density, search entries and validation for free.
 - Plugin CSS keeps working but is scoped: core wraps a plugin's panel in
   `[data-plugin="id"]` and documents that global selectors are unsupported.

@@ -9,8 +9,9 @@ Owns contract **C5** (broadcast config vs. personal state).
   slots and parental choices are box-wide. Several of these live in `channels.json`
   (`S.config.reminders`, `S.config.airChecks`, `ch.favorite`), so they are backed up, exported
   and undone alongside programming edits.
-- Recording exists (tape deck, CH 101: ffmpeg cut-and-concat of what a channel broadcasts), but
-  it's manual. There's no "record this from the guide", series recording or "My Shows".
+- Recording exists (tape deck, CH 101: ffmpeg cut-and-concat of what a channel broadcasts).
+  Doc 11 added guide actions for immediate recording and future timers through that
+  plugin. Household series recording and "My Shows" remain to be built.
 - Every LAN viewer and TV client is an independent TV. Great for isolation, but there's no way
   to hand a program from the TV to a phone at the same moment, or to watch *together*.
 

@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { EventEmitter } = require('node:events');
 const { pathToFileURL } = require('node:url');
-const { parseCecLine, startCecHelper } = require('../main/main-cec.js');
+const { parseCecLine, startCecHelper } = require('../main/ui/cec.js');
 
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
 
@@ -16,7 +16,7 @@ function pad(pressed = [], axes = [0, 0]) {
 }
 
 test('gamepad buttons map to remote keys, once per press', async () => {
-  const { createGamepadMapper } = await load('gamepad.js');
+  const { createGamepadMapper } = await load('tv/gamepad.js');
   const update = createGamepadMapper();
   assert.deepEqual(update(pad([0]), 0).map((e) => e.key), ['ok']);
   assert.deepEqual(update(pad([0]), 50), [], 'held A does not repeat');
@@ -27,7 +27,7 @@ test('gamepad buttons map to remote keys, once per press', async () => {
 });
 
 test('the stick has a deadzone and directions repeat after a delay', async () => {
-  const { createGamepadMapper } = await load('gamepad.js');
+  const { createGamepadMapper } = await load('tv/gamepad.js');
   const update = createGamepadMapper({ deadzone: 0.5, repeatDelay: 400, repeatRate: 120 });
   assert.deepEqual(update(pad([], [0.3, 0]), 0), [], 'inside the deadzone');
   assert.deepEqual(update(pad([], [0.9, 0]), 10).map((e) => [e.key, e.repeat]), [['right', false]]);
@@ -39,7 +39,7 @@ test('the stick has a deadzone and directions repeat after a delay', async () =>
 });
 
 test('Tizen registers only supported keys; webOS needs none; hidden means standby', async () => {
-  const { detectTvPlatform, registerTizenKeys, installTvPlatform } = await load('tv-platform.js');
+  const { detectTvPlatform, registerTizenKeys, installTvPlatform } = await load('tv/platform.js');
   const registered = [];
   const tizen = {
     tvinputdevice: {

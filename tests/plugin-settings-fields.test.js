@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'plugin-settings-schema.js')).href);
+const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'plugin/settings-schema.js')).href);
 
 test('fields normalize and reject what core could not draw', async () => {
   const { normalizeSettingsFields } = await load();
@@ -56,7 +56,7 @@ test('values are coerced to what the control can show', async () => {
 });
 
 test('ctx v6 exposes the kit as ctx.ui', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'plugins.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'plugin/host.js'), 'utf8');
   assert.match(src, /const CTX_VERSION = 6;/);
   const ui = src.match(/const ui = Object\.freeze\(\{([\s\S]*?)\}\);/);
   assert.ok(ui, 'ctx.ui is a frozen object');

@@ -9,7 +9,7 @@ const { pathToFileURL } = require('node:url');
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
 
 test('the mode resolves device choice > launch flag > client identity > desktop', async () => {
-  const { resolveUsageMode, parseModeFlag } = await load('usage-mode.js');
+  const { resolveUsageMode, parseModeFlag } = await load('tv/usage-mode.js');
   const androidTv = 'Mozilla/5.0 (Linux; Android 11) Chrome/120 RerunTV-AndroidTV/1.0';
   assert.deepEqual(resolveUsageMode({}), { mode: 'desktop', source: 'default' });
   assert.equal(resolveUsageMode({ userAgent: androidTv }).mode, 'tv');
@@ -24,7 +24,7 @@ test('the mode resolves device choice > launch flag > client identity > desktop'
 });
 
 test('remote buttons normalize the same from a keyboard, a TV browser and legacy keyCodes', async () => {
-  const { normalizeKey } = await load('remote-input.js');
+  const { normalizeKey } = await load('remote/input.js');
   const cases = [
     [{ key: 'ArrowLeft' }, 'left'], [{ key: 'Enter' }, 'ok'], [{ key: 'Escape' }, 'back'], [{ key: 'GoBack' }, 'back'],
     [{ key: 'ChannelUp' }, 'chUp'], [{ key: 'PageDown' }, 'chDown'], [{ key: 'MediaPlayPause' }, 'playPause'],
@@ -37,7 +37,7 @@ test('remote buttons normalize the same from a keyboard, a TV browser and legacy
 });
 
 test('the same button means different things per context, and D-pad differs from the CH rocker in the guide', async () => {
-  const { routeRemoteKey, hasLongPress } = await load('remote-input.js');
+  const { routeRemoteKey, hasLongPress } = await load('remote/input.js');
   assert.equal(routeRemoteKey('watching', 'up'), 'key:ArrowUp');
   assert.equal(routeRemoteKey('watching', 'chUp'), 'key:ArrowUp');
   assert.equal(routeRemoteKey('watching', 'left'), 'guide.open');
@@ -66,7 +66,7 @@ test('the same button means different things per context, and D-pad differs from
 });
 
 test('D-pad + OK + Back reach the guide, the TV menu and a way out from live TV', async () => {
-  const { routeRemoteKey } = await load('remote-input.js');
+  const { routeRemoteKey } = await load('remote/input.js');
   const minimal = ['up', 'down', 'left', 'right', 'ok', 'back'];
   const reached = new Set();
   minimal.forEach((key) => {
@@ -82,7 +82,7 @@ test('D-pad + OK + Back reach the guide, the TV menu and a way out from live TV'
 });
 
 test('long press fires once past the threshold; a quick release is short', async () => {
-  const { createLongPressTracker } = await load('remote-input.js');
+  const { createLongPressTracker } = await load('remote/input.js');
   const t = createLongPressTracker(500);
   assert.equal(t.press('ok', 0), true);
   assert.equal(t.press('ok', 50), false, 'auto-repeat is not a new press');
@@ -98,7 +98,7 @@ test('long press fires once past the threshold; a quick release is short', async
 });
 
 test('guide actions follow doc 11 §2.3: hold OK for program actions, colour keys step a day', async () => {
-  const { routeRemoteKey, hasLongPress, optionalGroupOf } = await load('remote-input.js');
+  const { routeRemoteKey, hasLongPress, optionalGroupOf } = await load('remote/input.js');
   assert.equal(routeRemoteKey('guide', 'ok'), 'key:Enter', 'a short OK still tunes');
   assert.equal(routeRemoteKey('guide', 'ok', { longPress: true }), 'guide.programActions');
   assert.equal(hasLongPress('guide', 'ok'), true);
@@ -112,7 +112,7 @@ test('guide actions follow doc 11 §2.3: hold OK for program actions, colour key
 });
 
 test('plugin channels get actions, which map back to the keys onKey knows (doc 01 §6.6)', async () => {
-  const { pluginActionFor, keyForAction, PLUGIN_CHANNEL_ACTIONS } = await load('remote-input.js');
+  const { pluginActionFor, keyForAction, PLUGIN_CHANNEL_ACTIONS } = await load('remote/input.js');
   assert.equal(pluginActionFor('up'), 'move.up');
   assert.equal(pluginActionFor('ok'), 'select');
   assert.equal(pluginActionFor('chUp'), null, 'the CH rocker stays with core');

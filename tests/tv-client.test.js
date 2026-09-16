@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { prepareRemoteProfile, saveRemoteProfile, handoffInfo } = require('../main/main-tv-client.js');
+const { prepareRemoteProfile, saveRemoteProfile, handoffInfo } = require('../main/lan/tv-client.js');
 
 test('a capture is validated, trimmed and named safely', () => {
   assert.equal(prepareRemoteProfile(null).ok, false);

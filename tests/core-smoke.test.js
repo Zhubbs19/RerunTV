@@ -1,10 +1,23 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const { compareConfigs } = require('../main/config-diff');
-const { createLanAccess, isLanServiceEnabled } = require('../main/main-lan-security');
-const { createViewerProjection } = require('../main/main-viewer-projection');
-const { normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease } = require('../main/main-updater-state');
+const { compareConfigs } = require('../main/config/diff');
+const { createLanAccess, isLanServiceEnabled } = require('../main/lan/security');
+const { createViewerProjection } = require('../main/lan/viewer-projection');
+const { normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease } = require('../main/updater/state');
+
+test('bundled plugin discovery still points at the top-level plugin catalogue', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'main', 'plugins', 'plugins.js'), 'utf8');
+  const root = source.match(/const BUNDLED_PLUGINS_DIR = path\.join\(__dirname, ([^)]+)\)/);
+  assert.ok(root, 'bundled plugin root is declared from __dirname');
+  const parts = [...root[1].matchAll(/'([^']+)'/g)].map((match) => match[1]);
+  const resolved = path.resolve(__dirname, '..', 'main', 'plugins', ...parts);
+  assert.ok(fs.statSync(resolved).isDirectory(), 'bundled plugin root exists');
+  assert.ok(fs.statSync(path.join(resolved, 'theme-analog-90s', 'manifest.json')).isFile(),
+    'the top-level theme catalogue is reachable');
+});
 
 test('LAN services remain opt-in and pairing codes are short numeric secrets', () => {
   assert.equal(isLanServiceEnabled({}, 'viewer'), false);

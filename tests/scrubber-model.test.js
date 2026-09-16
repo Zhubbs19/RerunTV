@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'scrubber-model.js')).href);
+const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'timeline/scrubber.js')).href);
 
 const MIN = 60000;
 const HOUR = 60 * MIN;

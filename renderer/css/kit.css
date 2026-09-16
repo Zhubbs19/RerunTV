@@ -85,3 +85,10 @@ html[data-mode="tv"] :is(.ui-slider input[type="range"], .ui-stepper input) { mi
 
 /* A declarative plugin setting whose value the plugin's validate() rejected. */
 .setting-row-error { grid-column: 1 / -1; margin: 0; color: var(--danger-text); font-size: var(--font-size-label); font-weight: 600; }
+
+/* Theme contrast (docs/design/04 §4.4): the theme browser's badge and the
+   Plug-ins › Diagnostics list. */
+.theme-browser-option .theme-browser-contrast { margin-left: auto; }
+.theme-contrast-report { display: grid; gap: var(--space-2); margin-block: var(--space-2); }
+.theme-contrast-row { color: var(--text); font-size: var(--font-size-label); }
+.theme-contrast-row ul { margin: var(--space-1) 0 0; padding-left: var(--space-5); color: var(--text-muted); font-family: var(--font-mono); }

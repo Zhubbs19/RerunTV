@@ -62,7 +62,7 @@ core defaults → box settings → era overlay → channel identity → profile 
 ```
 
 - Implemented as a resolver (`effectivePresentation(ch, client)`) generalizing today's
-  `effectiveThemeId()` (`broadcast-identity.js`). Every consumer (themes, power/CRT,
+  `effectiveThemeId()` (`renderer/js/display/identity.js`). Every consumer (themes, power/CRT,
   display-mode, guide, overlays) reads effective values instead of raw config.
 - **Box settings vs. era**: when an era is active, box presentation settings the era defines
   show as "Set by era 1994 — override" in setup (03). Overriding records a box-level

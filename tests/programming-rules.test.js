@@ -19,7 +19,7 @@ function rng(seed) {
 }
 
 async function modules() {
-  return { state: await load('state.js'), rules: await load('programming-rules.js'), schedule: await load('schedule.js') };
+  return { state: await load('core/state.js'), rules: await load('core/programming-rules.js'), schedule: await load('core/schedule.js') };
 }
 
 test('matchesWhen agrees with matchesTrigger for random triggers at random instants', async () => {

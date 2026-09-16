@@ -1,65 +1,65 @@
-import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace } from './state.js';
-import { runConfigMigrations } from './config-schema.js';
-import { randomInterstitialId, getDisplayTitle } from './util.js';
+import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace } from './core/state.js';
+import { runConfigMigrations } from './core/config-schema.js';
+import { randomInterstitialId, getDisplayTitle } from './core/util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
   guideOverlay, channelEntryEl, stationIdBarEl, triviaCardEl, channelFilterEl, shortcutsOverlayEl, detailsOverlayEl,
   previewBannerEl, pluginChannelContainerEl, viewerLiveLinkEl,
   migrationToastEl, migrationToastTextEl, migrationToastDismissBtn,
-} from './dom.js';
-import { showDetailsForCurrentChannel, hideDetailsOverlay } from './details.js';
-import { alertDialog, confirmDialog } from './setup-dialogs.js';
-import { showOnboarding } from './onboarding.js';
-import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugins.js';
+} from './core/dom.js';
+import { showDetailsForCurrentChannel, hideDetailsOverlay } from './tv/details.js';
+import { alertDialog, confirmDialog } from './setup/dialogs.js';
+import { showOnboarding } from './setup/onboarding.js';
+import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugin/host.js';
 import {
   foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
   subChannelsEnabled,
   normalizeLogoBugProfiles, sortedChannels, getChannel,
-} from './channels.js';
-import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './schedule.js';
-import { resolveBreakAt, boundarySlot } from './interstitials.js';
+} from './core/channels.js';
+import { getChannelSchedule, resolveActiveCommercials, resolveActiveSource, computeSourcePosition } from './core/schedule.js';
+import { resolveBreakAt, boundarySlot } from './core/interstitials.js';
 import {
   tuneToChannel, changeChannel, changeFavoriteChannel, jumpToLastChannel, playChannelLive,
   stopChannelScan, toggleChannelScan,
   startScheduleDriftWatchdog,
-} from './playback-core.js';
-import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback-breaks.js';
-import { applyLogoBugPlacement, initMediaSession, showNoSignal } from './playback-broadcast-fx.js';
+} from './playback/core.js';
+import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback/breaks.js';
+import { applyLogoBugPlacement, initMediaSession, showNoSignal } from './playback/broadcast-fx.js';
 import {
   showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
-} from './guide.js';
-import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './virtual.js';
-import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './pin-lock.js';
-import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './audio.js';
+} from './guide/guide.js';
+import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './playback/virtual.js';
+import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './setup/pin-lock.js';
+import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './core/audio.js';
 import {
   enterTimeMachine, exitTimeMachine, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
-} from './timemachine.js';
+} from './playback/timemachine.js';
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
   adjustVolume, toggleCrt, toggleHintBar, toggleMute, cycleAspectMode, cycleSleepTimer, cyclePictureMode,
   resetIdleTimer, powerOn, powerOff, pushRemoteState, applyDisplayWakeLock, flashMessage,
-} from './power.js';
-import { saveAirCheck } from './airchecks.js';
-import { applyDisplayModeSettled } from './display-mode.js';
-import { applyTheme } from './themes.js';
-import { initTouchControls } from './touch-controls.js';
-import { initUpdateNotice } from './update-notice.js';
-import { openTvMenu, handleTvMenuKey } from './tv-menu.js';
-import { initUsageMode, isTvMode } from './usage-mode.js';
-import { installTvSuggestion } from './tv-suggest.js';
-import { showTvWizard } from './tv-wizard.js';
-import { installGamepad } from './gamepad.js';
-import { installTvPlatform } from './tv-platform.js';
-import { exitPromptOpen, installTvInput, routeKeydown } from './tv-input.js';
+} from './playback/power.js';
+import { saveAirCheck } from './library/airchecks.js';
+import { applyDisplayModeSettled } from './display/mode.js';
+import { applyTheme, startThemeCheck } from './display/themes.js';
+import { initTouchControls } from './tv/touch.js';
+import { initUpdateNotice } from './update/notice.js';
+import { openTvMenu, handleTvMenuKey } from './tv/menu.js';
+import { initUsageMode, isTvMode } from './tv/usage-mode.js';
+import { installTvSuggestion } from './tv/suggest.js';
+import { showTvWizard } from './tv/wizard.js';
+import { installGamepad } from './tv/gamepad.js';
+import { installTvPlatform } from './tv/platform.js';
+import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
 // the whole app (docs/design/01, contract C1).
 initUsageMode();
-import { initLibrarySync } from './library-sync.js';
+import { initLibrarySync } from './library/sync.js';
 import {
   renderChannelList, renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
-} from './setup.js';
+} from './setup/index.js';
 
 window.addEventListener('error', (e) => {
   console.error('[UNCAUGHT RENDERER ERROR]', e.message, e.filename, e.lineno, e.colno, e.error);
@@ -400,7 +400,7 @@ export function handleKey(e) {
       // there's nothing new to create just to open this.
       const ch = getChannel(S.currentNumber);
       if (!ch) break;
-      import('./setup-util.js').then(({ openLiveLogoBugEditor }) => openLiveLogoBugEditor({
+      import('./setup/util.js').then(({ openLiveLogoBugEditor }) => openLiveLogoBugEditor({
         getProfiles: () => ch.logoBugProfiles || (S.config.display && S.config.display.logoBugProfiles),
         setProfiles: (profiles) => {
           if (ch.logoBugProfiles != null) ch.logoBugProfiles = profiles;
@@ -1243,6 +1243,7 @@ async function init() {
   // and showTvScreen() must see that channel type before its first tune.
   // Styles/modules are local assets, so the small startup cost is bounded.
   await loadPlugins();
+  startThemeCheck(); // background: theme contrast results for the browser badge and diagnostics
   // Declarative plugin settings schemas may have filled defaults or applied
   // migrations during registration. Treat that boot normalization as the
   // baseline, not as a user edit that Ctrl+Z should be able to undo.
@@ -1289,7 +1290,7 @@ async function init() {
       addFolderChannel: window.api && window.api.selectFolder ? async () => {
         const folder = await window.api.selectFolder();
         if (!folder) return null;
-        const { createChannelFromFolder } = await import('./setup-channels.js');
+        const { createChannelFromFolder } = await import('./setup/channels.js');
         return createChannelFromFolder(folder);
       } : null,
     });

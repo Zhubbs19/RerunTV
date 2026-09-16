@@ -26,7 +26,7 @@ html[data-theme="slate-grid-10"] {
   --gradient-page: linear-gradient(180deg, #35445b 0%, #1a2638 40%, #0b1019 100%);
   --gradient-panel: linear-gradient(180deg, #526176 0%, #29364a 45%, #111827 100%);
   --gradient-cell: linear-gradient(180deg, #2456b5, #163b90);
-  --gradient-btn: linear-gradient(180deg, #66768a, #35445b 55%, #1e2939);
+  --gradient-btn: linear-gradient(180deg, #526176, #35445b 55%, #1e2939);
   --gradient-gold: linear-gradient(180deg, #eff77b, #d9ed3f 55%, #aac320);
   --gloss-strong: linear-gradient(180deg, rgba(255,255,255,.2), transparent 48%);
   --gloss-soft: linear-gradient(180deg, rgba(255,255,255,.11), transparent 55%);

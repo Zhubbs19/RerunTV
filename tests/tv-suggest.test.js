@@ -14,7 +14,7 @@ const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer
 const base = { mode: 'desktop', fullscreen: true, dismissed: false, pointerAt: false, remoteKeys: 5, firstRemoteAt: 0, now: 12000 };
 
 test('suggests only for a fullscreen session driven by arrows alone for 10 s', async () => {
-  const { shouldSuggestTvMode, isRemoteLikeKey } = await load('tv-suggest.js');
+  const { shouldSuggestTvMode, isRemoteLikeKey } = await load('tv/suggest.js');
   assert.equal(shouldSuggestTvMode(base), true);
   assert.equal(shouldSuggestTvMode({ ...base, now: 9000 }), false, 'not yet 10 s');
   assert.equal(shouldSuggestTvMode({ ...base, pointerAt: true }), false, 'a pointer means a desk');
@@ -28,7 +28,7 @@ test('suggests only for a fullscreen session driven by arrows alone for 10 s', a
 });
 
 test('guide colour keys follow doc 01 §6.2 and OK on live TV opens the banner hub', async () => {
-  const { routeRemoteKey } = await load('remote-input.js');
+  const { routeRemoteKey } = await load('remote/input.js');
   assert.equal(routeRemoteKey('guide', 'yellow'), 'guide.filter');
   assert.equal(routeRemoteKey('guide', 'blue'), 'guide.reminders');
   assert.equal(routeRemoteKey('guide', 'red'), 'guide.dayBack');

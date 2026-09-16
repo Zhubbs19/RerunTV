@@ -7,11 +7,7 @@
 // invalid in CSS and silently drops the property).
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const root = path.join(__dirname, '..');
-const read = (...p) => fs.readFileSync(path.join(root, ...p), 'utf8');
+const { read, stripComments, tokenBlock, resolver, themeDirs: listThemeDirs, packTokens } = require('./helpers/theme-resolve.js');
 
 // Every alias the step-1 codemod introduced: semantic name → palette token.
 const ALIASES = {
@@ -27,91 +23,59 @@ const ALIASES = {
   '--guide-selected-bg': '--guide-selection-bg', '--guide-selected-text': '--guide-selection-fg',
 };
 
-function stripComments(css) {
-  return css.replace(/\/\*[\s\S]*?\*\//g, '');
-}
-
-// Declarations of custom properties in every innermost block whose selector
-// list contains one of `selectors`.
-function tokenBlock(css, selectors) {
-  const out = {};
-  const re = /([^{}]+)\{([^{}]*)\}/g;
-  let m;
-  while ((m = re.exec(stripComments(css)))) {
-    const list = m[1].split(',').map((s) => s.trim());
-    if (!list.some((s) => selectors.includes(s))) continue;
-    for (const decl of m[2].split(/;(?![^(]*\))/)) {
-      const at = decl.indexOf(':');
-      if (at === -1) continue;
-      const name = decl.slice(0, at).trim();
-      if (name.startsWith('--')) out[name] = decl.slice(at + 1).trim();
-    }
-  }
-  return out;
-}
-
-function resolver(tokens) {
-  const cache = new Map();
-  const resolve = (name, stack = []) => {
-    if (cache.has(name)) return cache.get(name);
-    if (stack.includes(name)) throw new Error(`cycle: ${[...stack, name].join(' → ')}`);
-    if (!(name in tokens)) return undefined;
-    const value = substitute(tokens[name], [...stack, name]);
-    cache.set(name, value);
-    return value;
-  };
-  const substitute = (value, stack) => {
-    let text = value;
-    for (let guard = 0; guard < 50; guard += 1) {
-      const i = text.lastIndexOf('var(');
-      if (i === -1) break;
-      let depth = 0;
-      let j = i + 3;
-      for (; j < text.length; j += 1) {
-        if (text[j] === '(') depth += 1;
-        else if (text[j] === ')') { depth -= 1; if (depth === 0) break; }
-      }
-      const inner = text.slice(i + 4, j);
-      const comma = inner.indexOf(',');
-      const ref = (comma === -1 ? inner : inner.slice(0, comma)).trim();
-      const fallback = comma === -1 ? undefined : inner.slice(comma + 1).trim();
-      let replacement = resolve(ref, stack);
-      if (replacement === undefined) replacement = fallback;
-      if (replacement === undefined) throw new Error(`unresolved ${ref} in ${stack[stack.length - 1]}`);
-      text = text.slice(0, i) + replacement + text.slice(j + 1);
-    }
-    return text.replace(/\s+/g, ' ').trim();
-  };
-  return resolve;
-}
-
 const tokensCss = read('renderer', 'css', 'tokens.css');
 const coreTokens = tokenBlock(tokensCss, [':root']);
+const bodyTokens = tokenBlock(tokensCss, ['body']);
 const tvTokens = tokenBlock(tokensCss, ['html[data-mode="tv"]']);
-const themeDirs = fs.readdirSync(path.join(root, 'plugins')).filter((d) => d.startsWith('theme-') && fs.existsSync(path.join(root, 'plugins', d, 'style.css')));
+const themeDirs = listThemeDirs();
 
-function themeTokens(dir) {
-  const css = read('plugins', dir, 'style.css');
-  const id = dir.replace(/^theme-/, '');
-  return { ...coreTokens, ...tokenBlock(css, [`html[data-theme="${id}"]`, `:root[data-theme="${id}"]`]) };
+const packBlock = packTokens;
+
+// What html computes (core :root + the pack's block), and what body sees:
+// html's resolved values inherited, then body's own declarations.
+function cascade(pack) {
+  const htmlTokens = { ...coreTokens, ...pack };
+  const atHtml = resolver(htmlTokens);
+  const inherited = {};
+  Object.keys(htmlTokens).forEach((name) => { const v = atHtml(name); if (v !== undefined) inherited[name] = v; });
+  const atBody = resolver({ ...inherited, ...bodyTokens });
+  return { atHtml, atBody };
 }
 
-test('core tokens resolve with no cycles, desktop and TV', () => {
-  const resolve = resolver(coreTokens);
-  Object.keys(coreTokens).forEach((name) => assert.doesNotThrow(() => resolve(name), name));
+test('core tokens resolve with no cycles, desktop, TV and body', () => {
+  const { atHtml, atBody } = cascade({});
+  Object.keys(coreTokens).forEach((name) => assert.doesNotThrow(() => atHtml(name), name));
+  Object.keys(bodyTokens).forEach((name) => assert.doesNotThrow(() => atBody(name), name));
   const tv = resolver({ ...coreTokens, ...tvTokens });
   Object.keys(tvTokens).forEach((name) => assert.doesNotThrow(() => tv(name), name));
 });
 
-test('every semantic token equals its palette token in the default and all 25 packs', () => {
+test('a pack that sets palette names still drives every semantic token (all 25 packs)', () => {
   assert.ok(themeDirs.length >= 25, `found ${themeDirs.length} theme packs`);
-  const cases = [['digital-2000s', coreTokens], ...themeDirs.map((dir) => [dir, themeTokens(dir)])];
-  for (const [id, tokens] of cases) {
-    const resolve = resolver(tokens);
+  for (const dir of themeDirs) {
+    const pack = packBlock(dir);
+    const { atHtml, atBody } = cascade(pack);
     for (const [semantic, legacy] of Object.entries(ALIASES)) {
-      assert.equal(resolve(semantic), resolve(legacy), `${id}: ${semantic} ≠ ${legacy}`);
+      if (legacy in pack && !(semantic in pack)) {
+        assert.equal(atHtml(semantic), atHtml(legacy), `${dir}: ${semantic} doesn't follow the pack's ${legacy}`);
+      }
+      // The palette name reads back the semantic value for plugin CSS inside body.
+      if (legacy in bodyTokens) assert.equal(atBody(legacy), atHtml(semantic), `${dir}: body ${legacy} ≠ ${semantic}`);
     }
   }
+});
+
+test('a converted pack sets semantic names only, and palette readers still see them', () => {
+  const { atHtml, atBody } = cascade({ '--accent': '#ff0000', '--surface-1': '#010203', '--guide-rail-text': '#abcdef' });
+  assert.equal(atHtml('--accent'), '#ff0000');
+  assert.equal(atBody('--gold'), '#ff0000');
+  assert.equal(atBody('--ink'), '#010203');
+  assert.equal(atBody('--guide-channel-fg'), '#abcdef');
+  assert.equal(atHtml('--warning'), '#ff0000', 'derived tokens follow the semantic name');
+  // With neither, the core default shows.
+  const plain = cascade({});
+  assert.equal(plain.atHtml('--accent'), '#f5d327');
+  assert.equal(plain.atBody('--gold'), '#f5d327');
 });
 
 test('density: desktop base, TV ×1.75 with 24px body and 64px targets; themes never set it', () => {

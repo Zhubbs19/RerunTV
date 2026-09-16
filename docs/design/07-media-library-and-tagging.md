@@ -8,7 +8,7 @@ Owns contract **C6**. Consumed by: 08, 09.
 - Media lives **inside channels**: each channel has folders and a `files` array holding
   title, tags, facets, description, breakpoints and TMDB matches. The same show on two
   channels means two copies of its metadata; moving a folder means relinking per channel
-  (`library-relink.js`).
+  (`renderer/js/library/relink.js`).
 - Tags drive presets, flows, the pool, auto-curate and genre colours, but most real files have
   none. The installed lineup mostly has only channel-level tags, and the Tag Taxonomy page shows
   tags like `spongebob` on 272 files.
@@ -86,7 +86,7 @@ that genuinely differ per channel (a custom breakpoint for one channel's edit) l
 
 - **Fingerprint** = size + mtime + a hash of the first 1 MB. It survives renames and moves
   within roots, so relinking becomes automatic ("moved: 137 items"), replacing most of
-  `library-relink.js`'s manual flow.
+  `renderer/js/library/relink.js`'s manual flow.
 - Scans run host-side (headless-capable, 06), incrementally per root, with ffprobe durations
   cached by fingerprint (the existing duration probe stays the fallback).
 - Provider roots use the media-source plugin contract's listing calls; fingerprint = provider
@@ -97,7 +97,7 @@ that genuinely differ per channel (a custom breakpoint for one channel's edit) l
 Local-first (offline invariant), each step producing **suggestions with provenance**:
 
 1. **Path parsing** — series/season/episode from `S02E01`, `2x01`, folder names; movie year
-   from `(1946)`; release-tag stripping (reuse `util.js` `stripReleaseTags`, `guessCleanTitle`,
+   from `(1946)`; release-tag stripping (reuse `renderer/js/core/util.js` `stripReleaseTags`, `guessCleanTitle`,
    `suggestFacetsFromPath`).
 2. **Embedded metadata** — container tags (title, genre, year, show) via ffprobe; audio tags
    (music-choice's ID3/FLAC/MP4 parser).

@@ -6,7 +6,7 @@ const {
   autoUiScaleForBounds,
   normalizeUiScalePreference,
   resolveUiScale,
-} = require('../main/main-ui-scale');
+} = require('../main/ui/scale');
 
 test('automatic interface scale grows on high-resolution display canvases', () => {
   assert.equal(autoUiScaleForBounds({ width: 1600, height: 900 }), 1);

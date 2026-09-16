@@ -4,6 +4,9 @@ window.RCBPlugins.registerThemePack('widescreen-grid-13', {
   label: "WIDESCREEN GRID '13",
   preview: { background: '#06132f', accent: '#f6d34a', secondary: '#76a8ff' },
   group: 'REAL CABLE-BOX UI',
+  // Core's first-generation HD guide composition (docs/design/04 §4.1): live
+  // preview top-left, a tall facts header beside it.
+  guideLayout: 'preview-left',
   crtBias: { scanlines: 0.35, vignette: 0.5, grain: 0.2, flicker: 0.15, curvatureFloor: 0 },
   staticStyle: 'acquire',
   channelChangeSfx() {

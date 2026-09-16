@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'timeline-render.js')).href);
+const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'timeline/render.js')).href);
 
 test('spans clamp to the window and convert to percentages', async () => {
   const { clampSpan, spanPercent } = await load();

@@ -178,7 +178,7 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   update-ready toast and the separate `update-progress.html` window), `library-sync.js`/
   `library-sync-core.js`/`library-relink.js` (opt-in folder resync and the channel-health
   relink workflow), `channel-package.js` (portable single-channel export/import), and
-  `api-contract.js` (the canonical `window.api` surface list that `test/contracts.test.js`
+  `api-contract.js` (the canonical `window.api` surface list that `tests/ui/contracts.test.js`
   used to check the sandboxed preload against — see the test-suite note below).
 - `plugins/<id>/` — each plugin is self-contained: `manifest.json`, optional `style.css`,
   `renderer.js` (ES module, dynamic-imported from `app://plugins/`), optional `main.js`
@@ -202,8 +202,8 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   supports `Page.captureScreenshot`/`Runtime.evaluate`/`Input.*`, but NOT the `Browser.*`
   window-management methods — no `Browser.setWindowBounds`; to start maximized, pre-seed
   `<userData>/window-state.json` with `{"isMaximized":true}` before launch instead, since
-  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`test/`, tracked —
-  see `test/README.md`) was built and verified working end-to-end this way — full tab/subtab
+  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`tests/ui/`, tracked —
+  see `tests/ui/README.md`) was built and verified working end-to-end this way — full tab/subtab
   screenshot sweep plus targeted functional checks via `Runtime.evaluate` calling real exported
   functions (`S.config` mutations, dynamic `import()` of renderer modules, computed-style
   assertions), not just DOM presence checks. Two hard-won lessons if you rebuild or extend it:
@@ -220,7 +220,7 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   environment — verify `node_modules` and a working CDP handshake before relying on it, and
   never run the test suite's `.mjs` directly without its `.ps1` safety wrapper. For "screenshot
   every theme visually with real data" specifically (not the synthetic-fixture suite above), use
-  `test\theme-visual-sweep.ps1` (`-Theme <id>` for just one) — see `test/README.md`'s "Full-theme
+  `tests\ui\theme-visual-sweep.ps1` (`-Theme <id>` for just one) — see `tests/ui/README.md`'s "Full-theme
   visual sweep" section for what it does and two more gotchas specific to using a **real**
   (non-fresh) `userData` copy: the startup update-check gate delays the real window by up to 12s
   when `config.updates.strategy === "startup-auto"` (poll for the page, don't grab it once), and
@@ -228,9 +228,9 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `playback.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
   spawning multiple overlapping agents at it — that happened once, produced three redundant
   partial runs, and was slower overall than just running the script directly.
-  `package.json`'s `"test"` script (`node --experimental-vm-modules --test test/*.test.js`)
+  `package.json`'s `"test"` script (`node --experimental-vm-modules --test tests/ui/*.test.js`)
   still references a `node:test`-based suite that existed during an earlier audit pass and was
-  deliberately deleted (see prior note below) — that's unrelated to the `test/` folder above and
+  deliberately deleted (see prior note below) — that's unrelated to the `tests/ui/` folder above and
   still doesn't work; don't "fix" it by resurrecting old test files from git history without
   checking with the user first.
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
@@ -267,7 +267,7 @@ from `renderer.js` into its own `settings.js`, formalized by `plugin-settings-sc
 composed by `setup-plugin-settings.js`); LAN hardening (`main-lan-security.js`'s per-service
 pairing-code + session-cookie auth, `main-viewer-projection.js`'s config redaction for the LAN
 viewer); several new plugins and theme packs; and a UI/UX polish pass across `setup.css`/
-`tokens.css`/`overlays.css`. This pass also produced (and later removed) a `test/` suite,
+`tokens.css`/`overlays.css`. This pass also produced (and later removed) a `tests/ui/` suite,
 `AGENTS.md`, and an `AUDIT_2026-08-24.md` — see the test-suite note above; check git history on
 `master` rather than the working tree if you need that audit's original findings. As with the
 first pass, no new invalidation scheme was invented for config-derived state — the

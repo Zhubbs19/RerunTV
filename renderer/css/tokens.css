@@ -104,27 +104,15 @@
 }
 
 :root {
-  /* Palette retuned to the actual i-Guide/TV Guide Interactive look:
+  /* The palette lives on the semantic tokens below (docs/design/04 §4.2).
+     Palette retuned to the actual i-Guide/TV Guide Interactive look:
      bright royal-blue grid cells, pure white bold text, school-bus-yellow
      selection — brighter and more saturated than a modern take would pick. */
-  --ink: #131c58;
-  --ink-deep: #0a1040;
-  --cell: #34479f;
-  --cell-alt: #3d52b4;
-  --gold: #f5d327;
-  --gold-ink: #141002;
-  --cyan: #6fe0f2;
-  --paper: #ffffff;
-  --paper-dim: #c9d2f2;
-  --line: #5163b8;
   --danger: #ff6b5b;
 
-  /* RGB triplets for the same colors, used where a glow/tint needs its own
-     alpha via rgba(var(--x-rgb), a) — kept in sync with the hex tokens above
-     so era overrides only have to touch one or the other consistently. */
-  --gold-rgb: 245, 211, 39;
+  /* RGB triplet for a glow/tint that needs its own alpha via
+     rgba(var(--danger-rgb), a); --accent-rgb/--accent-2-rgb are below. */
   --danger-rgb: 255, 107, 91;
-  --cyan-rgb: 111, 224, 242;
 
   /* Two more categorical accents, used by the interstitials flow builder's
      ad-pod/station-ID step badges (setup.css's .type-pod/.type-stationid)
@@ -145,9 +133,7 @@
   /* Mid-2000s digital-guide chrome: gradient fields, glossy raised buttons,
      recessed inputs, hard-edged drop shadows layered under the phosphor glow. */
   --gradient-page: linear-gradient(180deg, #131c58 0%, #1a2570 45%, #0d1348 100%);
-  --gradient-panel: linear-gradient(180deg, #3346a0 0%, #222e7c 60%, #182060 100%);
   --gradient-cell: linear-gradient(180deg, #3d51b0 0%, #2e3f94 100%);
-  --gradient-btn: linear-gradient(180deg, #40529f 0%, #2b3884 55%, #1f2a6c 100%);
   --gradient-gold: linear-gradient(180deg, #fbe969 0%, #f5d327 45%, #e3bc12 75%, #cba408 100%);
   --gloss-strong: linear-gradient(180deg, rgba(255,255,255,0.32) 0%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0) 52%);
   --gloss-soft: linear-gradient(180deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0) 55%);
@@ -169,23 +155,18 @@
   --panel-2: var(--surface-0);
   --selection: rgba(var(--accent-rgb), 0.2);
   --gold-dim: rgba(var(--accent-rgb), 0.55);
-  --border: var(--line);
   --bg: var(--surface-0);
-  --text: var(--paper);
 
   /* Semantic control colors stay separate from a theme's decorative button
      chrome. Several full-look themes intentionally replace .btn backgrounds;
      these aliases keep normal, confirm, destructive, and disabled states
-     readable even when that chrome is square, glossy, metallic, or flat. */
-  --button-fg: var(--text-muted);
-  /* Hover should never make a readable label less readable. Movement,
+     readable even when that chrome is square, glossy, metallic, or flat.
+     Hover should never make a readable label less readable. Movement,
      border, glow, and surface changes carry the hover affordance; text
      stays on the theme's known-readable neutral foreground by default. */
   --button-hover-fg: var(--control-text);
   --button-subtab-hover-fg: var(--button-hover-fg);
   --button-primary-fg: var(--accent-text);
-  --button-selected-bg: var(--gradient-gold);
-  --button-selected-fg: var(--accent-text);
   --button-selected-border: var(--accent);
   --button-danger-bg: linear-gradient(180deg, #8f251b 0%, #65140d 100%);
   --button-danger-fg: #fff;
@@ -218,51 +199,48 @@
      i-Guide used a pale channel rail and cyan time bar, while Contour used
      a dark rail, blue cells, and a flat yellow focus bar. */
   --guide-grid-bg: var(--gradient-page);
-  --guide-channel-bg: var(--gradient-cell);
-  --guide-channel-fg: var(--text);
-  --guide-channel-subtle: var(--text-muted);
-  --guide-program-bg: transparent;
-  --guide-program-alt-bg: var(--surface-3);
-  --guide-selection-bg: var(--gradient-gold);
-  --guide-selection-fg: #000;
   --guide-timebar-bg: transparent;
   --guide-row-height: 52px;
   --guide-row-gap: 3px;
 
   /* ---------- Semantic tokens (docs/design/04 §4.2) — begin ----------
-     What core CSS reads. Each one follows the palette token it grew out of,
-     so a theme pack that sets --gold/--ink/--paper keeps working unchanged;
-     a pack that sets the semantic name directly wins over the alias. */
-  --surface-0: var(--ink-deep);
-  --surface-1: var(--ink);
-  --surface-2: var(--cell);
-  --surface-3: var(--cell-alt);
-  --surface-panel: var(--gradient-panel);
-  --text-muted: var(--paper-dim);
-  --accent: var(--gold);
-  --accent-rgb: var(--gold-rgb);
-  --accent-text: var(--gold-ink);
-  --accent-2: var(--cyan);
-  --accent-2-rgb: var(--cyan-rgb);
-  --focus-ring: var(--cyan);
+     What core CSS reads and what a theme pack sets. Each one is
+     var(<palette name>, <default>): a pack written before the token contract
+     sets --gold/--ink/--paper and those still win; a converted pack sets the
+     semantic name itself; with neither, the core default shows. The palette
+     names are read-aliases on body (below) for older plugin CSS. */
+  --surface-0: var(--ink-deep, #0a1040);
+  --surface-1: var(--ink, #131c58);
+  --surface-2: var(--cell, #34479f);
+  --surface-3: var(--cell-alt, #3d52b4);
+  --surface-panel: var(--gradient-panel, linear-gradient(180deg, #3346a0 0%, #222e7c 60%, #182060 100%));
+  --text: var(--paper, #ffffff);
+  --text-muted: var(--paper-dim, #c9d2f2);
+  --border: var(--line, #5163b8);
+  --accent: var(--gold, #f5d327);
+  --accent-rgb: var(--gold-rgb, 245, 211, 39);
+  --accent-text: var(--gold-ink, #141002);
+  --accent-2: var(--cyan, #6fe0f2);
+  --accent-2-rgb: var(--cyan-rgb, 111, 224, 242);
+  --focus-ring: var(--cyan, var(--accent-2));
   /* Focus draws as a ring with this gap colour inside it, so the ring never
      sits directly on a selected bar (theme-check pairs ring with halo). */
   --focus-halo: var(--surface-0);
   --danger-text: var(--danger);
-  --warning: var(--gold);
+  --warning: var(--accent);
   --success: var(--good, #5fd68a);
-  --control-bg: var(--gradient-btn);
-  --control-text: var(--button-fg);
-  --selected-bg: var(--button-selected-bg);
-  --selected-text: var(--button-selected-fg);
-  --guide-rail-bg: var(--guide-channel-bg);
-  --guide-rail-text: var(--guide-channel-fg);
-  --guide-rail-subtle: var(--guide-channel-subtle);
-  --guide-cell-bg: var(--guide-program-bg);
-  --guide-cell-alt-bg: var(--guide-program-alt-bg);
-  --guide-cell-text: var(--paper);
-  --guide-selected-bg: var(--guide-selection-bg);
-  --guide-selected-text: var(--guide-selection-fg);
+  --control-bg: var(--gradient-btn, linear-gradient(180deg, #40529f 0%, #2b3884 55%, #1f2a6c 100%));
+  --control-text: var(--button-fg, var(--text-muted));
+  --selected-bg: var(--button-selected-bg, var(--gradient-gold));
+  --selected-text: var(--button-selected-fg, var(--accent-text));
+  --guide-rail-bg: var(--guide-channel-bg, var(--gradient-cell));
+  --guide-rail-text: var(--guide-channel-fg, var(--text));
+  --guide-rail-subtle: var(--guide-channel-subtle, var(--text-muted));
+  --guide-cell-bg: var(--guide-program-bg, transparent);
+  --guide-cell-alt-bg: var(--guide-program-alt-bg, var(--surface-3));
+  --guide-cell-text: var(--paper, var(--text));
+  --guide-selected-bg: var(--guide-selection-bg, var(--gradient-gold));
+  --guide-selected-text: var(--guide-selection-fg, #000);
   /* ---------- Semantic tokens — end ---------- */
 
   /* ---------- Density (docs/design/04 §4.3) ----------
@@ -282,6 +260,38 @@
   --font-size-label: 12px;
   --safe-x: 0px;
   --safe-y: 0px;
+}
+
+/* Palette names as read-aliases (docs/design/04 §4.2), for plugin and older
+   theme CSS that reads var(--gold) and friends. On body, not :root: body
+   inherits the semantic values already resolved on html, so a pack that sets
+   only --accent and one that sets only --gold both read back correctly, with
+   no var() cycle between the two names. */
+body {
+  --ink-deep: var(--surface-0);
+  --ink: var(--surface-1);
+  --cell: var(--surface-2);
+  --cell-alt: var(--surface-3);
+  --gradient-panel: var(--surface-panel);
+  --paper: var(--text);
+  --paper-dim: var(--text-muted);
+  --line: var(--border);
+  --gold: var(--accent);
+  --gold-rgb: var(--accent-rgb);
+  --gold-ink: var(--accent-text);
+  --cyan: var(--accent-2);
+  --cyan-rgb: var(--accent-2-rgb);
+  --gradient-btn: var(--control-bg);
+  --button-fg: var(--control-text);
+  --button-selected-bg: var(--selected-bg);
+  --button-selected-fg: var(--selected-text);
+  --guide-channel-bg: var(--guide-rail-bg);
+  --guide-channel-fg: var(--guide-rail-text);
+  --guide-channel-subtle: var(--guide-rail-subtle);
+  --guide-program-bg: var(--guide-cell-bg);
+  --guide-program-alt-bg: var(--guide-cell-alt-bg);
+  --guide-selection-bg: var(--guide-selected-bg);
+  --guide-selection-fg: var(--guide-selected-text);
 }
 
 /* TV density (docs/design/01 §3): 10-foot text, targets a D-pad lands on

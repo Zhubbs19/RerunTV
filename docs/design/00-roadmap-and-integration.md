@@ -1,6 +1,10 @@
 # RerunTV design set — roadmap and integration
 
 Status: reference — the build order and contracts other docs follow (2026-09-12). Owner: Zach Hubbard.
+Current implementation audit: [Remaining work, 2026-09-15](12-remaining-work-audit-2026-09-15.md).
+Source references below use the reorganized repository paths. Phase tables describe
+the original build order; consult the audit for current completion and validation.
+
 Context: written after the 2026-09-12 usability audit (`af25fe4`) and the first
 timeline step, SCHEDULE › ON AIR (`4eeff1b`).
 
@@ -40,14 +44,14 @@ explicitly and get a decision, not quietly work around it.
 3. **Offline-first.** Local media, synthesized audio, user-authored text. Network features
    are opt-in named exceptions (Spotify Connect, LAN services, metadata plugins).
 4. **Core is plugin-agnostic.** No core file assumes a plugin exists. Extension goes through
-   `window.RCBPlugins` registries and the versioned `ctx` (currently `CTX_VERSION = 3`).
+   `window.RCBPlugins` registries and the versioned `ctx` (currently `CTX_VERSION = 6`).
 5. **One video element per client.** Every playback path goes through `#player`. Two
    simultaneous decodes (PIP, multiview) is an architectural fork, not a feature.
 6. **Every client runs the same renderer bundle.** Electron, LAN browsers and the Android TV
    WebView differ only in how `window.api` is provided (`preload.js` vs
    `browser-api-shim.js`) and in viewport/input. No second UI codebase.
-7. **LAN access is paired.** `main-lan-security.js`: per-service pairing code → session
-   cookie/bearer. Viewers get a redacted config projection (`main-viewer-projection.js`).
+7. **LAN access is paired.** `main/lan/security.js`: per-service pairing code → session
+   cookie/bearer. Viewers get a redacted config projection (`main/lan/viewer-projection.js`).
 
 ## 2. Shared contracts introduced by this set
 
@@ -62,11 +66,11 @@ A third, lighter **companion** surface (phone remote) stays what it is today —
 page — and is not a mode of the main app.
 
 ### C2. Schedule query API (owner: 02)
-`renderer/js/schedule-query.js`: `querySchedule(ch, from, to, { breaks, offAir })`,
+`renderer/js/core/schedule-query.js`: `querySchedule(ch, from, to, { breaks, offAir })`,
 `explainAt(ch, t)`, `queryDay(ch, dayStart)` with the per-day `configGeneration` cache that
 ON AIR already has. Consumers: ON AIR and the editable timeline (02), guide and scrubber
 (11), web panel (06), DVR and reminders (09), builder/template previews (08). Pure; no DOM.
-Extracted from `setup-onair.js`'s `computeDay` and Air Check's `inspect`.
+Extracted from `renderer/js/setup/onair.js`'s `computeDay` and Air Check's `inspect`.
 
 ### C3. Commands (owner: 05)
 Every config write becomes a named, serializable command:
@@ -154,14 +158,14 @@ Only if editable ON AIR usage shows the layer model is the remaining source of c
 | Watch together (09) vs. per-client time machine | A shared session pins a common `timeOffsetMs` + channel for its members; leaving restores the client's own. No new schedule state. |
 | TV-mode density vs. themes tuned for desktop | Themes provide tokens; density scale lives in C4 and multiplies them. Theme packs may add `data-mode="tv"` refinements but must pass the same contrast check. |
 | Headless host (06) vs. one-video-element, renderer-side playback | A headless host plays nothing. Clients (browser, Android TV, Electron) each do their own playback from the same pure schedule, exactly as LAN viewers already do. The host serves config, media, commands and pairing. |
-| Plugins with custom settings panels vs. TV mode and the web panel | Declarative panels (`plugin-settings-schema.js`) render everywhere automatically. Custom `settings.js` panels are desktop-mode-only unless the plugin declares `modes: ['tv']` and passes focus checks. |
+| Plugins with custom settings panels vs. TV mode and the web panel | Declarative panels (`renderer/js/plugin/settings-schema.js`) render everywhere automatically. Custom `settings.js` panels are desktop-mode-only unless the plugin declares `modes: ['tv']` and passes focus checks. |
 
 ## 5. Cross-cutting requirements
 
-- **Verification.** Each phase extends `test/` drivers (UI suite + theme sweep against the
-  installed config, per `test/README.md`). Every new surface gets both a desktop and a TV
+- **Verification.** Each phase extends `tests/ui/` drivers (UI suite + theme sweep against the
+  installed config, per `tests/ui/README.md`). Every new surface gets both a desktop and a TV
   pass once 01 lands.
-- **Migrations.** Config reshapes register a numbered migration in `config-schema.js`
+- **Migrations.** Config reshapes register a numbered migration in `renderer/js/core/config-schema.js`
   (currently v1, empty). Versions are allocated in the order the migrations ship, not per doc:
   expected order is 07 library references (P4) → 09 personal-state extraction (P5) → 02 rule
   stack (only if the gate passes). Each migration must produce an empty 60-day

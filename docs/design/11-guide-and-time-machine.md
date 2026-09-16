@@ -1,19 +1,19 @@
 # 11 — Guide and time machine
 
 Status: **built** — all four phases (§4), verified live against the real lineup (see "Verification"). Depends on:
-C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 09 (record from guide).
+C2 (02), C1 + actions (01), C4 (04, kit built; theme migration in progress). Consumed by: 09 (record from guide).
 
 ### Built (§4 phase 1: specials, selection, layout)
 
-- `renderer/js/guide-model.js` (DOM-free, `tests/guide-model.test.js`): `guideRows(channels, specials,
+- `renderer/js/guide/model.js` (DOM-free, `tests/guide-model.test.js`): `guideRows(channels, specials,
   { specialsAtTop, query })` is one ordered row list; a special channel is `{ kind: 'special' }` in its
   numeric place. Selection is `S.guideSelNumber` (replaces `S.guideSelRowIdx`); `selectedIndex` falls back
   to the first row, `moveSelection` wraps for ▲▼ and stops at the ends for CH± pages. `rowScrollTop`
   keeps the selected row whole: one row of margin docked (never a row cut at the top edge), centred on
   the full page.
-- `guide.js`: special rows are normal focusable rows with one full-width cell from `virtualChannelInfo`
+- `renderer/js/guide/guide.js`: special rows are normal focusable rows with one full-width cell from `virtualChannelInfo`
   (Enter/OK tunes, ◀▶ do nothing). The render signature includes the row numbers; the 30 s fast path
-  refreshes special `nowText` in place. `tv-input.js` pages with `pageGuideSelection`.
+  refreshes special `nowText` in place. `renderer/js/tv/input.js` pages with `pageGuideSelection`.
 - Settings (Picture & Sound › Guide), all `settings.set` under `display`: **Special channels at the top**
   (`guideSpecialsAtTop`, default off) and **Channel names** (`guideChannelNames`: `full` wraps to two lines,
   `short` shows call letters — see phase 2).
@@ -23,8 +23,9 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   resize. The docked info panel and search share one line. A fixed-height rows box was tried first and
   pushed the hint bar off-screen and broke window resizing.
 - Names wrap to two lines (`-webkit-line-clamp`) in the `--guide-chan-col` rail.
-- C4 (04) is not built: row density (`--guide-docked-rows`, TV row height) and the row/cell markup live in
-  `guide.css`/`guide.js` and are what a C4 row component replaces later.
+- C4 (04) now supplies the kit: guide popovers use Menu and TV guide rows read
+  `--target-min`. Guide-specific row markup remains in `renderer/js/guide/guide.js`;
+  remaining theme-contract work is tracked in 04.
 - Render cost unchanged: synchronous `renderGuideGrid` median 11.7 ms docked before, 11.8 ms after
   (25 rows, 1280×720, real lineup).
 - Not done: the TV-mode "picture shrinks instead of rows" part of §2.2 — the picture still sits behind
@@ -32,9 +33,9 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
 
 ### Built (§4 phase 2: shorts & bumpers, break band, call letters)
 
-- `guide-model.js` `mergeMicroPrograms(entries, minMs)`: runs of two or more back-to-back entries each
+- `renderer/js/guide/model.js` `mergeMicroPrograms(entries, minMs)`: runs of two or more back-to-back entries each
   shorter than `minMs` become one `{ kind: 'run', items }` cell; whole durations decide, so a long show cut
-  at the window edge stays itself. `guide.js` `microProgramMs()` turns the label-hiding width (guide.css
+  at the window edge stays itself. `renderer/js/guide/guide.js` `microProgramMs()` turns the label-hiding width (guide.css
   `@container (max-width: 52px)`) into ms for the current window, measured once per render and part of the
   render signature; window resize re-renders.
 - A run cell reads "SHORTS & BUMPERS (N)". OK/click opens a list over the grid (▲▼ move, OK tunes that
@@ -42,7 +43,7 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   nothing on it. Setting **Group shorts and bumpers** (`display.guideMergeShorts`, default on).
 - Break display draws pods as a 5 px band under the programs (programs lift 9 px off it) instead of full-height
   hatched blocks; bands aren't selectable, click still jumps to the pod.
-- `renderer/js/timeline-render.js` (tested): `BREAK_LABELS` (re-exported as `GUIDE_BREAK_LABELS`),
+- `renderer/js/timeline/render.js` (tested): `BREAK_LABELS` (re-exported as `GUIDE_BREAK_LABELS`),
   `clampSpan`, `spanPercent`, `timeAtFraction`, `breakMarkClass`/`breakMarkEl`. ON AIR's break marks and the
   guide's band both use `breakMarkEl` and the shared `.tl-break-*` palette (guide.css); the scrubber will too.
 - **Call letters** (user request, replacing a truncate option): `display.guideChannelNames: 'short'` shows
@@ -53,11 +54,11 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   the automatic value. The full name stays in the cell's tooltip.
 ### Built (§4 phase 3: remote actions and hints)
 
-- `remote-input.js` GUIDE table: hold OK → `guide.programActions` (was `key:i`; Info stays on the Info button),
-  red/green → `guide.dayBack`/`guide.dayForward`; yellow/blue keep breaks/dock. `tv-input.js` runs them.
+- `renderer/js/remote/input.js` GUIDE table: hold OK → `guide.programActions` (was `key:i`; Info stays on the Info button),
+  red/green → `guide.dayBack`/`guide.dayForward`; yellow/blue keep breaks/dock. `renderer/js/tv/input.js` runs them.
   Desktop keys are unchanged: `handleGuideGridKey` only differs while a guide popover is open, and popovers
   only open from the new TV action or a click/Enter on a merged shorts cell.
-- **Program actions** (`guide.js` `openGuideProgramActions`), a popover beside the cell sharing the shorts list's
+- **Program actions** (`renderer/js/guide/guide.js` `openGuideProgramActions`), a popover beside the cell sharing the shorts list's
   component (`openGuidePopover`): WATCH FROM START (first, when the time machine is enabled), INFO, plugin
   items, REMIND ME (future programs), GUIDE −24 HOURS / +24 HOURS (`shiftGuideDay`, which still can't go
   before the current slot without the time machine), TV MENU. A special row offers TUNE; a shorts cell OPEN
@@ -73,12 +74,12 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   none, so it never shows there.
 ### Built (§4 phase 4: scrubber strip and Go to…)
 
-- `renderer/js/scrubber-model.js` (DOM-free, `tests/scrubber-model.test.js`): `scrubWindow` (±3 h, re-centres
+- `renderer/js/timeline/scrubber.js` (DOM-free, `tests/scrubber-model.test.js`): `scrubWindow` (±3 h, re-centres
   within 30 min of an edge), `isFarJump`, `scrubStepMs` (10 s until 1.5 s held, 30 s until 3.5 s, 2 min until
   6 s, then program boundaries), `boundaryAfter`/`boundaryBefore` (a press within 2 s of a start goes to the
   previous one), `goToTargets` (yesterday same time, start of this show, this morning 6 AM, last Saturday 8 AM,
   in local time), `pickerTime`/`clampPicker` (±7 days).
-- `timemachine.js`: the VCR OSD becomes a bottom strip (`.vcr-osd.has-scrubber`, the theme's panel
+- `renderer/js/playback/timemachine.js`: the VCR OSD becomes a bottom strip (`.vcr-osd.has-scrubber`, the theme's panel
   background) keeping its readout row, over a track from `querySchedule`: program segments, break ticks
   (`breakMarkEl`, shared palette), a gold cursor at the viewed time and a LIVE marker at `Date.now()`
   (commented exception). Segments rebuild only when the window, channel or `configGeneration` changes.
@@ -86,7 +87,7 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   resets as `startShuttle` (break state cleared, timers cancelled, player paused, tape FX); `stopShuttle`
   clears it, so `shuttlePlay`/`returnToLive` paths are unchanged. Enter and T commit a pending scrub like a
   shuttle. Preview seeks are throttled to 150 ms.
-- TV mode (`remote-input.js` TIME_MACHINE): ◀▶ `scrub.back`/`scrub.forward` with hold acceleration from the
+- TV mode (`renderer/js/remote/input.js` TIME_MACHINE): ◀▶ `scrub.back`/`scrub.forward` with hold acceleration from the
   key's repeat flag, ▲▼ `scrub.prevProgram`/`scrub.nextProgram`, OK plays, Back returns to live; Rewind/FF
   still shuttle and CH± still change channel. The global remote hint bar hides while the time machine is
   open; the strip has its own hints. Desktop keys unchanged (← → shuttle, [ ] breaks); the pointer can click
@@ -100,11 +101,11 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
 ### Verification (2026-09-14, installed app's lineup, 1280×720 unless noted)
 
 - Unit tests: 129 pass (`npm test`).
-- Scratch `test/verify-guide-rows.mjs`: every row, specials included, reachable with ▼ and never clipped —
+- Scratch `tests/ui/verify-guide-rows.mjs`: every row, specials included, reachable with ▼ and never clipped —
   desktop and TV, docked and full, 1280×720 and 1920×1080, and while resizing 800×480–1920×1080; docked shows
   ≥ 5 rows desktop, ≥ 4 TV; selection survives a filter; Enter on a special tunes it; names ≤ 2 lines. Theme
   sweep: selected row never clipped in all 26 themes, docked and full.
-- Scratch `test/verify-doc11.mjs` 34/34: strip, pointer click/drag + Enter, desktop ← still shuttles, shorts
+- Scratch `tests/ui/verify-doc11.mjs` 34/34: strip, pointer click/drag + Enter, desktop ← still shuttles, shorts
   list, grouping off, break band, call letters, TV actions menu, colour-key hint, TV menu guide items, scrubber
   hold ramp (10 s → 30 s → 2 min → program start), ▲▼ program starts; actions menu and strip on screen in all
   26 themes (screenshots checked by eye for the light themes).
@@ -113,7 +114,7 @@ C2 (02), C1 + actions (01), C4 (04, not built — see note below). Consumed by: 
   same time in **5** (Play/Pause, ▼, OK, OK, OK — within 1 s).
 - Guide render cost: synchronous rebuild median 11.8 ms (25 rows), same as before phase 1 (11.7 ms).
 - Regression: full UI suite 36/36; `verify-timemachine-live-ui`, `-midshow` (12/12), `-real-keys` pass (the
-  two scratch drivers still imported the removed `playback.js` and were pointed at `playback-core.js`);
+  two scratch drivers still imported the removed `playback.js` and were pointed at `renderer/js/playback/core.js`);
   `verify-onair` and `verify-timeline` (38/38) pass.
 - After a far Go to jump, a plugin-backed channel (CH 69) starts playing in 3.2–3.4 s against 2.3 s for a
   plain tune (the paused preview fetches first); local-file channels start in under 1 s.

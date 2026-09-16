@@ -9,14 +9,14 @@
 // from the other side at runtime — a title whose IFO runtime disagrees with
 // what ffmpeg actually decoded loses its chapters rather than getting wrong
 // ones (see discChapters in plugins/tape-deck/main.js, and the end-to-end
-// disc checks in test/verify-recording.mjs).
+// disc checks in tests/ui/verify-recording.mjs).
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   parseVideoTsIfo, parseVtsIfo, readDiscStructure, ifoFileNames, readPlaybackSeconds,
 } = require('../plugins/tape-deck/dvd-ifo');
 // Shared with the end-to-end driver so the layout is written down once.
-const { buildVideoTsIfo, buildVtsIfo, writeTime, SECTOR } = require('../test/lib/dvd-fixture');
+const { buildVideoTsIfo, buildVtsIfo, writeTime, SECTOR } = require('./ui/lib/dvd-fixture');
 
 test('BCD playback times decode, frame rate included', () => {
   const buf = Buffer.alloc(8);

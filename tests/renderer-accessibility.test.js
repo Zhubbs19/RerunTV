@@ -20,7 +20,7 @@ test('fallback media titles remove dotted release noise and expose suspicious me
     console, Date, setTimeout, clearTimeout,
     window: { matchMedia: () => ({ matches: false }) }, document: { createElement: () => ({ set textContent(value) { this.value = value; }, get innerHTML() { return this.value || ''; } }) },
   });
-  const util = await loadModule(path.join(ROOT, 'renderer', 'js', 'util.js'), context);
+  const util = await loadModule(path.join(ROOT, 'renderer', 'js', 'core/util.js'), context);
   await util.evaluate();
   const file = { path: 'C:/archive/Email.Surveillance.1080p.WEB-DL.2CH.PSA.ia.mp4' };
   assert.equal(util.namespace.getDisplayTitle(file), 'Email Surveillance PSA');
@@ -30,7 +30,7 @@ test('fallback media titles remove dotted release noise and expose suspicious me
 });
 
 test('custom overlay placement has keyboard, numeric, focus-return, and live-region paths', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-overlay-position-editor.js'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup/overlay-editor.js'), 'utf8');
   assert.match(source, /selection\.tabIndex = 0/);
   assert.match(source, /Shift\+ArrowUp/);
   assert.match(source, /xInput = coordinateField\('X %'\)/);
@@ -39,14 +39,14 @@ test('custom overlay placement has keyboard, numeric, focus-return, and live-reg
 });
 
 test('runtime overlay coordinates clamp against the rendered overlay size', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'dynamic-overlays.js'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'playback/dynamic-overlays.js'), 'utf8');
   assert.match(source, /clamp\(0px, \$\{rule\.x\}%, calc\(100% - var\(--dynamic-overlay-size\)\)\)/);
   assert.match(source, /clamp\(0px, \$\{rule\.y\}%, calc\(100% - var\(--dynamic-overlay-size\)\)\)/);
 });
 
 // docs/design/03 §3: a channel's editor is one bar of pages.
 test('channel pages use one tab bar with roving tab semantics', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-channels.js'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup/channels.js'), 'utf8');
   assert.match(source, /editTabBar\.setAttribute\('role', 'tablist'\)/);
   assert.doesNotMatch(source, /editGroupBar/);
   for (const page of ['overview', 'content', 'schedule', 'look', 'breaks', 'advanced']) {
@@ -60,9 +60,9 @@ test('channel pages use one tab bar with roving tab semantics', () => {
 // no workspace switch), one scroll pane, and a pinned status bar.
 test('control center is a sidebar shell with one scroll pane and a pinned status bar', () => {
   const markup = fs.readFileSync(path.join(ROOT, 'renderer', 'index.html'), 'utf8');
-  const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup-settings.js'), 'utf8');
+  const settings = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'setup/settings.js'), 'utf8');
   const tabs = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'ui', 'tabs.js'), 'utf8');
-  const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display-mode.js'), 'utf8');
+  const displayMode = fs.readFileSync(path.join(ROOT, 'renderer', 'js', 'display/mode.js'), 'utf8');
   assert.match(markup, /<aside class="setup-sidebar"/);
   assert.match(markup, /id="setup-tabs"[^>]*aria-orientation="vertical"/);
   for (const tab of ['channels', 'programming', 'library', 'display', 'guide', 'household', 'audio', 'plugins', 'help']) {

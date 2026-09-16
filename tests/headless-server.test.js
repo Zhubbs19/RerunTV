@@ -4,7 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { startViewerServer } = require('../main/main-viewer-server');
+const { startViewerServer } = require('../main/lan/viewer-server');
 
 function request(port, pathname, options = {}) {
   return new Promise((resolve, reject) => {
@@ -136,8 +136,8 @@ test('browser viewer relays state and polls headless remote events', () => {
 test('Android TV viewport setup is allowed by the renderer CSP', () => {
   const root = path.join(__dirname, '..');
   const html = fs.readFileSync(path.join(root, 'renderer', 'index.html'), 'utf8');
-  const viewportScript = fs.readFileSync(path.join(root, 'renderer', 'js', 'tv-client-viewport.js'), 'utf8');
-  assert.match(html, /<script src="js\/tv-client-viewport\.js"><\/script>/);
+  const viewportScript = fs.readFileSync(path.join(root, 'renderer', 'js', 'tv/client-viewport.js'), 'utf8');
+  assert.match(html, /<script src="js\/tv\/client-viewport\.js"><\/script>/);
   assert.match(viewportScript, /RerunTV-AndroidTV/);
   assert.match(viewportScript, /width=1920/);
 });
@@ -170,7 +170,7 @@ test('packaged installs include launchers that target the installed executable',
 
 test('Windows startup launches server control mode and keeps the updater gate', () => {
   const root = path.join(__dirname, '..');
-  const startup = fs.readFileSync(path.join(root, 'main', 'main-startup-server.js'), 'utf8');
+  const startup = fs.readFileSync(path.join(root, 'main', 'lan/startup-server.js'), 'utf8');
   const main = fs.readFileSync(path.join(root, 'main', 'main.js'), 'utf8');
   const preload = fs.readFileSync(path.join(root, 'main', 'preload.js'), 'utf8');
 
@@ -187,7 +187,7 @@ test('Windows startup remains checked when Electron drops login-item arguments o
   const electronPath = require.resolve('electron');
   const originalElectron = require.cache[electronPath];
   require.cache[electronPath] = { exports: { app: {} } };
-  const modulePath = require.resolve('../main/main-startup-server');
+  const modulePath = require.resolve('../main/lan/startup-server');
   delete require.cache[modulePath];
   const { statusFromLoginSettings } = require(modulePath);
   delete require.cache[modulePath];
@@ -210,8 +210,12 @@ test('Windows startup remains checked when Electron drops login-item arguments o
 
 test('isolated plugin handshake listeners are installed before readiness events can race', () => {
   const root = path.join(__dirname, '..');
-  const host = fs.readFileSync(path.join(root, 'main', 'main-plugin-isolation.js'), 'utf8');
-  const child = fs.readFileSync(path.join(root, 'main', 'plugin-isolation-runtime.js'), 'utf8');
+  const host = fs.readFileSync(path.join(root, 'main', 'plugins/isolation.js'), 'utf8');
+  const runtimeEntry = host.match(/const RUNTIME_SCRIPT = path\.join\(__dirname, '([^']+)'\)/);
+  assert.ok(runtimeEntry, 'the isolated child has a runtime entry point');
+  assert.ok(fs.statSync(path.join(root, 'main', 'plugins', runtimeEntry[1])).isFile(),
+    'utilityProcess.fork must point at an existing runtime after directory moves');
+  const child = fs.readFileSync(path.join(root, 'main', 'plugins/isolation-runtime.js'), 'utf8');
 
   const hostListener = host.indexOf("childRpc.on('runtime-ready'");
   const hostResultListener = host.indexOf("childRpc.on('activate-result'");
@@ -225,7 +229,7 @@ test('isolated plugin handshake listeners are installed before readiness events 
 });
 
 test('isolated plugin service snapshots omit host-only function bridges', () => {
-  const { cloneableServiceSnapshot } = require('../main/rpc-channel');
+  const { cloneableServiceSnapshot } = require('../main/plugins/rpc-channel');
   const snapshot = cloneableServiceSnapshot({
     ffmpegPath: 'C:\\ffmpeg.exe',
     viewerUrls: [{ url: 'http://127.0.0.1:8724' }],

@@ -4,7 +4,7 @@ Status: **built** — migration steps 1–5 (§8) and the end state in §3–§9
 
 ### Built (§4 long lists)
 
-- The channel titles table (`setup-panels.js` `buildTitlesPanel`) builds 60 rows at a time; an
+- The channel titles table (`renderer/js/setup/panels.js` `buildTitlesPanel`) builds 60 rows at a time; an
   IntersectionObserver on `#setup-content` builds the next chunk as the list nears the bottom, with
   a "Showing n of N" line meanwhile. Search, SELECT VISIBLE and drag reordering work on the data.
   Opening a 1,329-file channel's CONTENT page went from ~1,150 ms (80,000 nodes, 1,329
@@ -14,11 +14,11 @@ Status: **built** — migration steps 1–5 (§8) and the end state in §3–§9
 
 A true windowed list pane was not needed at today's sizes (14 channels, 205 pool entries).
 
-Verified live (scratch `test/verify-titles-chunks.mjs`, 6 checks).
+Verified live (scratch `tests/ui/verify-titles-chunks.mjs`, 6 checks).
 
 ### Built (§5.3 row ⋯ menus)
 
-`renderer/js/ui/row-menu.js` `RowMenu({ label, groups })`: a ⋯ button and a popup menu. Groups are
+`renderer/js/ui/menu.js` `MenuButton` (originally `RowMenu({ label, groups })`): a ⋯ button and a popup menu. Groups are
 separated by a rule; the last group holds destructive items (danger). ▲▼ Home End move, Enter
 runs, Esc/Tab or an outside click closes back to ⋯; Shift+F10 or the ContextMenu key opens the
 menu of the focused row (`[data-row-menu]`).
@@ -30,11 +30,11 @@ menu of the focused row (`[data-row-menu]`).
   the menu button isn't nested in a button.
 - Backup rows: Restore, Add label/Relabel, Pin/Unpin, Delete snapshot.
 
-Verified live (scratch `test/verify-row-menus.mjs`, 23 checks).
+Verified live (scratch `tests/ui/verify-row-menus.mjs`, 23 checks).
 
 ### Built (§9 contrast in every theme)
 
-Scratch `test/verify-setup-contrast.mjs` walks 12 setup pages in all 26 themes and checks every
+Scratch `tests/ui/verify-setup-contrast.mjs` walks 12 setup pages in all 26 themes and checks every
 text element against the backgrounds behind it (worst gradient stop): 4.5:1, or 3:1 for large
 text. It started at 374 failing text styles across 26 themes; now 0.
 - `#setup-screen` defines text-safe accents (`--text-accent`, `--text-gold`, `--text-dim`,
@@ -51,7 +51,7 @@ scroll them and lift the header out of place.
 
 ### Built (§5.4 empty states)
 
-`setup-util.js` `emptyState(text, { label, run })`: one plain sentence and one primary button.
+`renderer/js/setup/util.js` `emptyState(text, { label, run })`: one plain sentence and one primary button.
 - Channels: none yet (+ ADD CHANNEL) and no filter matches (CLEAR FILTER).
 - Bumper & ad pool: none yet (+ ADD FROM FOLDER) and no matches (CLEAR FILTERS).
 - Presets: none yet (+ ADD PRESET) and no matches (CLEAR SEARCH).
@@ -60,9 +60,9 @@ scroll them and lift the header out of place.
 A folder dropped on the channels page (the empty lineup included) becomes a new channel named
 after it (`createChannelFromFolder`, one undo step); dropped on a channel row it is added to that
 channel. Videos dropped on a row still join that channel. Verified with scratch
-`test/verify-folder-drop.mjs` (9 checks; an OS drag itself can't be driven over CDP).
+`tests/ui/verify-folder-drop.mjs` (9 checks; an OS drag itself can't be driven over CDP).
 
-Verified live (scratch `test/verify-empty-states.mjs`, 9 checks).
+Verified live (scratch `tests/ui/verify-empty-states.mjs`, 9 checks).
 
 ### Built (§5.5 copy: summaries and Details)
 
@@ -75,18 +75,18 @@ Verified live (scratch `test/verify-empty-states.mjs`, 9 checks).
 
 ### Built (§4 channel multi-select)
 
-SELECT CHANNELS and its row checkboxes are gone. In the lineup list (`setup-channels.js`):
+SELECT CHANNELS and its row checkboxes are gone. In the lineup list (`renderer/js/setup/channels.js`):
 - Ctrl/Cmd+click toggles a channel, Shift+click selects a range from the last one toggled.
 - From the keyboard: Ctrl+Space toggles, Shift+▲▼ extends, Ctrl+A takes every listed channel.
 - With two or more selected, the detail pane shows how many and which, the bulk bar (moved in
   from above the list) and CLEAR SELECTION. Esc or a plain click goes back to one channel.
 - Bulk actions stay one undo step each and keep the selection.
 
-Verified live (scratch `test/verify-channel-multiselect.mjs`, 12 checks).
+Verified live (scratch `tests/ui/verify-channel-multiselect.mjs`, 12 checks).
 
 ### Built (§3 channel pages)
 
-A channel's editor (`setup-channels.js`) is one page bar: OVERVIEW · CONTENT · SCHEDULE · LOOK
+A channel's editor (`renderer/js/setup/channels.js`) is one page bar: OVERVIEW · CONTENT · SCHEDULE · LOOK
 · BREAKS · ADVANCED. The collapsible OPTIONS row and the CONTENT/LOOK/PLAYBACK group bar are gone.
 - **Overview:** LINEUP (color, shuffle, favorite, quick-tap, subscribed, hidden) and RATING &
   VOLUME, the options set on most channels.
@@ -102,15 +102,15 @@ Acceptance (§9): setup opens with the channel being watched selected (`showSetu
 so renaming channel 7 while watching it and setting its rating is three actions: press S, type
 the name, pick the rating (the rating used to sit in the collapsed OPTIONS row). This assumes
 setup was last left on Channels; it resumes the last section otherwise. Verified with scratch
-`test/verify-rename-rating-actions.mjs`.
+`tests/ui/verify-rename-rating-actions.mjs`.
 
-Verified live (scratch `test/verify-channel-pages.mjs`, 13 checks); the UI suite now drives the
+Verified live (scratch `tests/ui/verify-channel-pages.mjs`, 13 checks); the UI suite now drives the
 LOOK sections (36/36).
 
 ### Built (§6 plugin search)
 
 - Search has a PLUG-INS group: every installed plugin by name, description and section labels
-  (`plugins.js` `getPluginSearchEntries`), found without opening Plug-ins.
+  (`renderer/js/plugin/host.js` `getPluginSearchEntries`), found without opening Plug-ins.
 - `ctx.search.registerEntries(id, [{ label, keywords, section }])` (ctx v4, also
   `RCBPlugins.registerSettingsSearchEntries`) names settings a plugin draws itself; they appear
   under SETTINGS as `PLUG-INS › <plugin> › <label>`. Prevue registers its four.
@@ -121,30 +121,30 @@ Static settings pages were already searchable without being rendered (their rows
 `index.html`), so no separate generated manifest was needed. Per-channel editor fields are not
 in search.
 
-Verified live (scratch `test/verify-plugin-search.mjs`, 7 checks).
+Verified live (scratch `tests/ui/verify-plugin-search.mjs`, 7 checks).
 
 ### Built (§4 narrow list → detail)
 
-`setup-narrow.js`: below 900 px every list + detail page (channels, pool, presets, flows,
+`renderer/js/ui/list-detail.js` (absorbed `setup-narrow.js`): below 900 px every list + detail page (channels, pool, presets, flows,
 backups, plugins) shows its list; choosing a row (click or Enter) swaps to that row's editor
 with a ‹ BACK TO LIST button, and Back or Esc returns to the list with the row focused. The
 wrapper carries `is-detail-open`, which wide layouts ignore. Row checkboxes and buttons keep their
 own jobs. The listener runs in the capture phase because a channel row re-renders on click.
 
-Verified live at 820 px (scratch `test/verify-setup-narrow.mjs`, 11 checks).
+Verified live at 820 px (scratch `tests/ui/verify-setup-narrow.mjs`, 11 checks).
 
 ### Built (§4 status bar task progress)
 
-`setup-tasks.js`: `beginTask(label)` returns `{ update, end }` and shows a spinner and the
+`renderer/js/setup/tasks.js`: `beginTask(label)` returns `{ update, end }` and shows a spinner and the
 latest task in the status bar ("(+n MORE)" when several run), so progress follows you to other
 sections. Library sync and the channel health check report through it. The channel page's own
 `#scan-progress` line (add folder, rescan all, batch fixes, relink) is mirrored while it shows.
 
-Verified live (scratch `test/verify-setup-tasks.mjs`, 7 checks).
+Verified live (scratch `tests/ui/verify-setup-tasks.mjs`, 7 checks).
 
 ### Built (§4 sidebar icons and badges)
 
-`setup-sidebar.js` and `setup.css`:
+`renderer/js/setup/sidebar.js` and `setup.css`:
 - Each section has an icon. Below 1100 px the sidebar is a 64 px icon rail; the section name
   is in each button's tooltip (with its G-key).
 - Badges count what needs a look: Channels with nothing to play, Library sync warnings (missing
@@ -157,11 +157,11 @@ Verified live (scratch `test/verify-setup-tasks.mjs`, 7 checks).
 Electron clamps `font-size: 0` to its minimum font size, so the rail hides names with a
 transparent text fill instead.
 
-Verified live (scratch `test/verify-setup-sidebar.mjs`, 8 checks).
+Verified live (scratch `tests/ui/verify-setup-sidebar.mjs`, 8 checks).
 
 ### Built (§7 keyboard)
 
-`setup-keyboard.js`:
+`renderer/js/setup/keyboard.js`:
 - G then a letter opens a section: C, P, L, S (picture & sound), G (guide & theme), H, Y (system),
   U (plug-ins), ? (help). The letter is on each sidebar button as `data-go-key` and in its tooltip.
   Keys typed into text fields are never taken.
@@ -169,7 +169,7 @@ Verified live (scratch `test/verify-setup-sidebar.mjs`, 8 checks).
 - Enter on the row that is already selected moves focus to the first control of its detail pane;
   Esc anywhere in a detail pane returns focus to the selected row.
 
-Verified live (scratch `test/verify-setup-keyboard.mjs`, 8 checks).
+Verified live (scratch `tests/ui/verify-setup-keyboard.mjs`, 8 checks).
 
 ### Built (§3 sections)
 
@@ -191,7 +191,7 @@ Diagnostics until Household profiles exist (09).
 Also for §9: the header is a fixed 56 px, and the history, sync results, tag list, changelog
 and plugin log sit in the page's own scroll. List + detail panes keep theirs.
 
-Verified live (scratch `test/verify-setup-sections.mjs`):
+Verified live (scratch `tests/ui/verify-setup-sections.mjs`):
 - all 23 pages at 1280×720 have no horizontal scroll, 100 px of header plus status bar, and no
   nested scroll box;
 - search lands on settings in their new sections.
@@ -201,26 +201,26 @@ Verified live (scratch `test/verify-setup-sections.mjs`):
 Every collection page is a `.list-detail`: compact rows on the left and the selected item's
 editor on the right. ▲▼ move the selection, and a filter that hides the selection selects the
 first item it shows.
-- **Ad pool and presets** (`setup-interstitials.js`): the selected entry's card opens in
+- **Ad pool and presets** (`renderer/js/setup/interstitials.js`): the selected entry's card opens in
   `#interstitials-detail` / `#presets-detail`. Edits there rebuild the entry's list row. The
   expand/collapse-all buttons are gone.
-- **Flows** (`setup-interstitials-flowbuilder.js`): `#flow-list` rows show name, step count,
+- **Flows** (`renderer/js/setup/flowbuilder.js`): `#flow-list` rows show name, step count,
   on/off and channels beside the flow editor and canvas. The old template select is hidden but
   still populated.
-- **Backups** (`setup-backups.js`): rows show age, reason, time and size. The detail pane has
+- **Backups** (`renderer/js/setup/backups.js`): rows show age, reason, time and size. The detail pane has
   RESTORE / LABEL / PIN / DELETE and shows the restore diff inline instead of behind a PREVIEW
   dialog.
-- **Plugins** (`setup-plugins.js`): one-line rows keep the enable checkbox. The detail pane
+- **Plugins** (`renderer/js/setup/plugins.js`): one-line rows keep the enable checkbox. The detail pane
   holds the description, integrity, permissions, dependencies, RELOAD and the plugin's settings,
   rendered on selection. The +DETAILS and SETTINGS toggles are gone. The selection survives
   RESCAN.
 
-Verified live (scratch `test/verify-collections-list-detail.mjs`,
+Verified live (scratch `tests/ui/verify-collections-list-detail.mjs`,
 `verify-flows-backups-list-detail.mjs`, `verify-plugins-list-detail.mjs`).
 
 ### Built (steps 3–4: SettingRow and one search)
 
-**SettingRow** (`renderer/js/ui/setting-row.js`, "SettingRow" in `setup.css`):
+**SettingRow** (`renderer/js/ui/field.js`, "SettingRow" in `setup.css`):
 - Each setting is a sentence-case label wired to its control with `for`, plus one muted help
   line. A longer explanation stays on the row's title. `data-setting` is its search id and
   `data-synonyms` adds search words.
@@ -237,16 +237,16 @@ Verified live (scratch `test/verify-collections-list-detail.mjs`,
 Toggles that used to sit in card headings became the first row of their card, and the old
 all-caps paragraphs became one-line help. Plugin settings panels still build their own markup.
 
-**Unified search** (`setup-settings.js`, `setup-command-palette.js`):
+**Unified search** (`renderer/js/setup/settings.js`, `renderer/js/setup/command-palette.js`):
 - The header search replaces the separate Ctrl+K palette overlay. Ctrl+K and the status bar's
   SEARCH button focus it, and while it's empty it lists actions.
 - Typed results are grouped: SETTINGS (single rows, label matches ranked first), CHANNELS
   (opens the channel in list + detail), ACTIONS (the old palette's commands and every section),
   SECTIONS (whole cards on pages not yet on rows), and PROGRAMS (the next 7 days, through
-  `program-search.js`).
+  `renderer/js/guide/program-search.js`).
 - Choosing a setting opens its page and focuses the control.
 
-Verified live (scratch `test/verify-setting-rows-search.mjs`, 12 checks):
+Verified live (scratch `tests/ui/verify-setting-rows-search.mjs`, 12 checks):
 - no loose old-style rows remain on the converted pages;
 - a dependency disables without hiding, and clicking a label toggles its control;
 - Ctrl+K lists actions, and "gu" lists Guide width under SETTINGS;
@@ -257,7 +257,7 @@ The 34-check UI suite and the earlier step 5, usage-mode and shell drivers all p
 
 ### Built (step 2: Channels list + detail)
 
-The CHANNELS page (`setup-channels.js`) is a list beside a detail pane.
+The CHANNELS page (`renderer/js/setup/channels.js`) is a list beside a detail pane.
 
 The list, `#channel-list-pane`:
 - Each row is 52 px: badge, number, name, and what's on now, or "NO FOLDER YET" in gold. Before,
@@ -277,7 +277,7 @@ The detail pane, `#channel-list`:
 
 Below 900 px the list stacks above the editor.
 
-Verified live on the installed 14-channel lineup (scratch `test/verify-channels-list-detail.mjs`,
+Verified live on the installed 14-channel lineup (scratch `tests/ui/verify-channels-list-detail.mjs`,
 13 checks):
 - the list is 779 px for 14 channels, with one card;
 - click and keyboard selection, and rename reflected in the list;
@@ -295,7 +295,7 @@ C4 (04). Consumed by: 06 (web panel is this shell).
 Layout (`renderer/index.html`, `setup.css` "Setup shell"):
 - A 220 px sidebar with the brand, WATCH TV and the seven sections as one vertical tab list.
   - Sections: Channels, Programming, Picture & Guide, System, Status, Plug-ins, Help.
-  - ▲▼ roving focus comes from `setup-keyboard.js`, which honours `aria-orientation`.
+  - ▲▼ roving focus comes from `renderer/js/setup/keyboard.js`, which honours `aria-orientation`.
   - The sidebar narrows to 172 px below 1100 px and becomes a horizontal strip below 760 px.
 - A 56 px header with the page title, breadcrumb (hidden when it would repeat the title), a
   one-line description and search.
@@ -311,7 +311,7 @@ Also:
   navigation and the UI suite's selectors work as before. The suite's `scrollAndShot` now
   scrolls `#setup-content`.
 
-Verified live (scratch `test/verify-setup-shell.mjs`, 14 checks):
+Verified live (scratch `tests/ui/verify-setup-shell.mjs`, 14 checks):
 - At 1280×720 the header plus status bar is 100 px, and no section scrolls horizontally.
 - The status bar stays visible at the bottom of the longest page.
 - Sidebar keyboard navigation, WATCH TV and Ctrl+Enter work.
@@ -458,7 +458,7 @@ One palette replacing both the setting search and the command palette.
 
 - **Index**: every SettingRow registers `{ id, label, synonyms, section, anchor }` at render
   time (a static manifest generated from the page definitions so unrendered pages are
-  searchable); channels by number/name; programs over the next 7 days (`program-search.js`);
+  searchable); channels by number/name; programs over the next 7 days (`renderer/js/guide/program-search.js`);
   actions from the action registry (01) and commands (05) that make sense standalone.
 - **Result kinds** grouped: Go to setting · Channels · Programs · Actions. Enter on a setting
   navigates and focuses the control with a brief highlight.
@@ -469,7 +469,7 @@ One palette replacing both the setting search and the command palette.
 
 - `Ctrl+K` search · `G then C/P/L/…` go to section · `J/K` or arrows in lists · `Enter` open ·
   `Esc` back to list · `Ctrl+Z / Ctrl+Shift+Z` undo/redo · `Ctrl+Enter` Start Watching.
-- Roving tabindex from `setup-keyboard.js` is reused inside the list and tab bars.
+- Roving tabindex from `renderer/js/setup/keyboard.js` is reused inside the list and tab bars.
 
 ## 8. Migration
 

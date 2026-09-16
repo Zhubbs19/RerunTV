@@ -4,12 +4,12 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
-const { createConfigHost, RING_SIZE } = require('../main/config-host');
+const { createConfigHost, RING_SIZE } = require('../main/config/host');
 
 globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }) };
 globalThis.document = globalThis.document || { getElementById: () => null };
 
-const commandsUrl = pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'commands.js')).href;
+const commandsUrl = pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'core/commands.js')).href;
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
 
 function makeDisk(initial) {
@@ -135,7 +135,7 @@ test('the capability-approval revert race is gone (renderer state.js + host)', a
   const store = makeDisk(baseConfig());
   const broadcasts = [];
   const host = makeHost(store, broadcasts);
-  const state = await load('state.js');
+  const state = await load('core/state.js');
   globalThis.window.api = {
     saveConfig: (config, baseRevision) => host.reconcileSave(JSON.parse(JSON.stringify(config)), baseRevision),
   };
@@ -170,8 +170,8 @@ test('the capability-approval revert race is gone (renderer state.js + host)', a
 // ---------- step 4: announcing viewer-relevant writes ----------
 
 const crypto = require('node:crypto');
-const { createChangeAnnouncer } = require('../main/config-host');
-const { createViewerRemoteBridge } = require('../main/main-viewer-server');
+const { createChangeAnnouncer } = require('../main/config/host');
+const { createViewerRemoteBridge } = require('../main/lan/viewer-server');
 
 const sha1 = (text) => crypto.createHash('sha1').update(text).digest('hex');
 

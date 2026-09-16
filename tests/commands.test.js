@@ -29,7 +29,7 @@ function sampleConfig() {
 // ---------- pure ----------
 
 test('diffJson ops turn before into after and undo turns it back', async () => {
-  const { diffJson, applyPatch, cloneJson } = await load('commands.js');
+  const { diffJson, applyPatch, cloneJson } = await load('core/commands.js');
   const before = sampleConfig();
   const after = cloneJson(before);
   after.theme = 'analog-90s';
@@ -53,7 +53,7 @@ test('diffJson ops turn before into after and undo turns it back', async () => {
 });
 
 test('diffJson round-trips randomized edits', async () => {
-  const { diffJson, applyPatch, cloneJson } = await load('commands.js');
+  const { diffJson, applyPatch, cloneJson } = await load('core/commands.js');
   let seed = 11;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const pick = (arr) => arr[Math.floor(rnd() * arr.length)];
@@ -96,7 +96,7 @@ test('diffJson round-trips randomized edits', async () => {
 });
 
 test('applyPatch copies inserted values, so history can never alias live config', async () => {
-  const { diffJson, applyPatch, cloneJson } = await load('commands.js');
+  const { diffJson, applyPatch, cloneJson } = await load('core/commands.js');
   const before = sampleConfig();
   const after = cloneJson(before);
   after.channels.push({ number: 9, name: 'New', files: [] });
@@ -110,7 +110,7 @@ test('applyPatch copies inserted values, so history can never alias live config'
 });
 
 test('each named command undoes exactly', async () => {
-  const { applyCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, cloneJson } = await load('core/commands.js');
   const cases = [
     { type: 'channel.set', channel: 5, field: 'favorite', value: true },
     { type: 'channel.set', channel: 7, field: 'rating', value: 'TV-Y7' },
@@ -136,7 +136,7 @@ test('each named command undoes exactly', async () => {
 });
 
 test('invalid commands throw before changing anything', async () => {
-  const { applyCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, cloneJson } = await load('core/commands.js');
   const config = sampleConfig();
   const original = cloneJson(config);
   assert.throws(() => applyCommand(config, { type: 'channel.set', channel: 5, field: 'files', value: [] }), /editable/);
@@ -150,7 +150,7 @@ test('invalid commands throw before changing anything', async () => {
 });
 
 test('file.set reaches a file in a schedule block by block id, and a settings label reads as words', async () => {
-  const { applyCommand, describeCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, describeCommand, cloneJson } = await load('core/commands.js');
   const config = sampleConfig();
   config.channels[0].blocks = [{ id: 'blk-1', files: [{ path: 'a.mp4', duration: 30 }] }];
   const original = cloneJson(config);
@@ -167,7 +167,7 @@ test('file.set reaches a file in a schedule block by block id, and a settings la
 // ---------- history (state.js) ----------
 
 async function freshState() {
-  const state = await load('state.js');
+  const state = await load('core/state.js');
   state.S.config = sampleConfig();
   state.resetUndoBaseline();
   return state;
@@ -218,7 +218,7 @@ test('skipUndo-only writes make no step and survive undoing a later edit', async
 });
 
 test('removing an item while editing another in the same burst splices only the removed one', async () => {
-  const { diffJson, applyPatch, cloneJson } = await load('commands.js');
+  const { diffJson, applyPatch, cloneJson } = await load('core/commands.js');
   const before = sampleConfig();
   before.channels.push({ number: 8, name: 'Noggin', files: [] });
   const after = cloneJson(before);
@@ -267,7 +267,7 @@ test('dispatch records named steps, coalesces typing, and settles plain edits fi
 test('a batch with one invalid command changes nothing', async () => {
   const state = await freshState();
   const { S } = state;
-  const { cloneJson } = await load('commands.js');
+  const { cloneJson } = await load('core/commands.js');
   const before = cloneJson(S.config);
   assert.throws(() => state.dispatch([
     { type: 'channel.set', channel: 5, field: 'favorite', value: true },
@@ -337,7 +337,7 @@ function listConfig() {
 }
 
 test('item.set / item.insert / item.remove undo exactly, and removals in a batch restore their order', async () => {
-  const { applyCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, cloneJson } = await load('core/commands.js');
   const cases = [
     [{ type: 'item.set', collection: 'pool', id: 'p2', fields: { weight: 5, contentTags: ['x'], type: undefined } }],
     [{ type: 'item.insert', collection: 'presets', item: { id: 'pr1', name: 'New' } }],
@@ -361,8 +361,8 @@ test('item.set / item.insert / item.remove undo exactly, and removals in a batch
 });
 
 test('commitItemEdit records an in-place item edit as one step without replacing the live objects', async () => {
-  const state = await load('state.js');
-  const { cloneJson } = await load('commands.js');
+  const state = await load('core/state.js');
+  const { cloneJson } = await load('core/commands.js');
   state.S.config = listConfig();
   state.resetUndoBaseline();
   const original = JSON.stringify(state.S.config);
@@ -396,7 +396,7 @@ test('commitItemEdit records an in-place item edit as one step without replacing
 });
 
 test('blocks are a channel-scoped list: inverses keep the channel, and commitInPlace drops a no-op', async () => {
-  const { applyCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, cloneJson } = await load('core/commands.js');
   const config = sampleConfig();
   config.channels[1].blocks = [{ id: 'b1', name: 'Prime', trigger: { type: 'dayOfWeek', startHour: 20, days: [] } }];
   const original = cloneJson(config);
@@ -411,7 +411,7 @@ test('blocks are a channel-scoped list: inverses keep the channel, and commitInP
   assert.throws(() => applyCommand(config, { type: 'item.set', collection: 'blocks', channel: 7, id: 'b1', fields: { name: 'x' } }), /No block/);
   assert.throws(() => applyCommand(config, { type: 'item.insert', collection: 'blocks', channel: 99, item: { id: 'b9' } }), /doesn't exist/);
 
-  const state = await load('state.js');
+  const state = await load('core/state.js');
   state.S.config = cloneJson(original);
   state.resetUndoBaseline();
   const block = state.S.config.channels[1].blocks[0];
@@ -437,7 +437,7 @@ function blockConfig() {
 }
 
 test('block commands undo exactly, and each is safe to apply twice', async () => {
-  const { applyCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, cloneJson } = await load('core/commands.js');
   const cases = [
     { type: 'block.create', channel: 5, block: { id: 'new', name: 'Mornings', trigger: { type: 'dayOfWeek', startHour: 7, endHour: 11, days: [6] }, files: [] } },
     { type: 'block.create', channel: 7, index: 0, block: { id: 'first', trigger: { type: 'dayOfWeek', startHour: 1, endHour: 2, days: [] } } },
@@ -466,7 +466,7 @@ test('block commands undo exactly, and each is safe to apply twice', async () =>
 });
 
 test('block commands describe themselves and refuse what does not fit', async () => {
-  const { applyCommand, describeCommand, cloneJson } = await load('commands.js');
+  const { applyCommand, describeCommand, cloneJson } = await load('core/commands.js');
   const config = blockConfig();
   assert.equal(describeCommand(config, { type: 'block.setHours', channel: 5, id: 'sat', startHour: 7, endHour: 11 }), 'Set "Saturday Cartoons" to 7 AM–11 AM');
   assert.equal(describeCommand(config, { type: 'block.setDays', channel: 5, id: 'sat', days: [2, 6] }), 'Air "Saturday Cartoons" on Tue, Sat');
@@ -487,8 +487,8 @@ test('block commands describe themselves and refuse what does not fit', async ()
 });
 
 test('a dispatched block batch is one undo step that restores config exactly', async () => {
-  const { cloneJson } = await load('commands.js');
-  const state = await load('state.js');
+  const { cloneJson } = await load('core/commands.js');
+  const state = await load('core/state.js');
   state.S.config = blockConfig();
   state.resetUndoBaseline();
   const before = cloneJson(state.S.config);

@@ -62,9 +62,9 @@ body:has(.crt.power-off) #guide-overlay {
 }
 
 .crt.powering-off .crt-power-fx { animation: crt-fx-off-bg 380ms ease-in forwards; }
-.crt.powering-off .crt-power-fx-line { animation: crt-fx-off-line 380ms ease-in forwards; }
+.crt.powering-off .crt-power-fx-line { animation: var(--power-off-animation, crt-fx-off-line) var(--power-off-duration, 380ms) var(--power-off-ease, ease-in) forwards; }
 .crt.powering-on .crt-power-fx { animation: crt-fx-on-bg 550ms ease-out forwards; }
-.crt.powering-on .crt-power-fx-line { animation: crt-fx-on-line 550ms ease-out forwards; }
+.crt.powering-on .crt-power-fx-line { animation: var(--power-on-animation, crt-fx-on-line) var(--power-on-duration, 550ms) var(--power-on-ease, ease-out) forwards; }
 
 @keyframes crt-fx-off-bg {
   0% { background: rgba(0, 0, 0, 0); }
@@ -1025,6 +1025,8 @@ body:has(.crt.power-off) .upnext-bar { display: none; }
   transition: opacity 300ms linear;
 }
 .rating-bug.show { opacity: 1; }
+/* A theme whose era predates on-screen ratings sets --rating-bug-display: none. */
+.rating-bug { display: var(--rating-bug-display, block); }
 body:has(.crt.guide-active) .rating-bug,
 body:has(.crt.power-off) .rating-bug { display: none; }
 /* wood-console-70s's "no rating bug before 1997" override moved to
@@ -1364,18 +1366,26 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
   margin-top: 18px;
 }
 .tv-menu-btn {
-  min-height: 52px;
+  min-height: var(--tv-menu-min-h, 52px);
   padding: 10px 14px;
   font-family: var(--font-ui);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 1px;
   text-transform: uppercase;
-  color: var(--text);
-  background: var(--surface-0);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--bevel-raised);
+  color: var(--_tv-menu-text, var(--text));
+  background: var(--_tv-menu-bg, var(--tv-menu-bg, var(--surface-0)));
+  transform: var(--_tv-menu-transform, none);
+  border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--tv-menu-border, var(--border));
+  border-radius: var(--tv-menu-radius, var(--radius-md));
+  box-shadow: var(--tv-menu-shadow, var(--bevel-raised));
+}
+/* A theme's focused-button look, through private properties the base reads. */
+.tv-menu-btn:focus-visible {
+  --_tv-menu-bg: var(--tv-menu-focus-bg, var(--tv-menu-bg, var(--surface-0)));
+  --_tv-menu-text: var(--tv-menu-focus-text, var(--text));
+  --_tv-menu-transform: var(--tv-menu-focus-transform, none);
+  outline: var(--tv-menu-focus-outline, 2px solid var(--focus-ring));
 }
 .tv-menu-btn:hover {
   border-color: var(--accent);
@@ -1409,11 +1419,11 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
 
 .volume-indicator {
   position: absolute;
-  right: 40px;
+  right: var(--volume-right, 40px);
   /* Default resting spot — avoidLogoBugOverlap (power.js) sets an inline
      `bottom` override on this element instead whenever the logo bug (now
      free-positioned, not fixed to one corner) actually overlaps it. */
-  bottom: 32px;
+  bottom: var(--volume-bottom, 32px);
   background: var(--surface-panel);
   border: 1px solid var(--border);
   border-left: 6px solid var(--accent);
@@ -1446,8 +1456,9 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
 
 .channel-entry {
   position: absolute;
-  top: 28px;
-  right: 40px;
+  top: var(--channel-entry-top, 28px);
+  right: var(--channel-entry-right, 40px);
+  min-width: var(--channel-entry-min-width, auto);
   font-family: var(--font-display);
   font-size: 56px;
   color: var(--accent);
@@ -1462,7 +1473,7 @@ body:has(.crt.power-off) .station-id-bar { display: none; }
 /* Per-digit flash (pushDigit, app.js restarts this on every keypress via a
    remove/reflow/re-add cycle, same technique as the guide info crossfade). */
 .channel-entry.digit-flash {
-  animation: channel-entry-flash var(--motion-digit-duration) var(--motion-digit-ease);
+  animation: var(--channel-entry-flash-animation, channel-entry-flash) var(--motion-digit-duration) var(--motion-digit-ease);
 }
 @keyframes channel-entry-flash {
   0% { transform: scale(var(--motion-digit-from-scale)); }

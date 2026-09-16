@@ -23,11 +23,11 @@ or "why did this show air here?" without trial and error.
 
 | Step | What | Data model change | Status |
 |---|---|---|---|
-| 1 | **ON AIR, read-only**: resolved week per channel, explain on click | none | ✅ `renderer/js/setup-onair.js` |
+| 1 | **ON AIR, read-only**: resolved week per channel, explain on click | none | ✅ `renderer/js/setup/onair.js` |
 | 2 | **Editable timeline**: act on the resolved view; edits write existing blocks/overrides/presets via commands | none | ✅ §4.5 |
 | 3 | **Single rule stack**: replace the layered model with one ordered list of rules | config schema migration (next free version, see 00 §5) | ✅ derived view (§5.2a); no migration, decided §5.2b |
 
-## 3. Contract C2 — `schedule-query.js`
+## 3. Contract C2 — `renderer/js/core/schedule-query.js`
 
 Extract the query side of ON AIR and Air Check into one pure module:
 
@@ -44,7 +44,7 @@ Rules: no DOM; "now" is always a parameter (callers pass `viewNow()`); cache key
 scheduling (09), template/builder previews (08), web panel (06, runs in the browser client, so
 no server-side port is needed).
 
-**Built (Phase 1, first piece):** `renderer/js/schedule-query.js` with `startOfDay`,
+**Built (Phase 1, first piece):** `renderer/js/core/schedule-query.js` with `startOfDay`,
 `addDays`, `offAirRanges`, `queryDay`, `querySchedule`, `explainAt`, `diffSchedules`; unit tests
 in `tests/schedule-query.test.js`. Moved onto it: ON AIR, Air Check (`explainAt`), and guide
 program search. Findings while verifying against the real lineup:
@@ -104,7 +104,7 @@ explains, colour keys page weeks). Editing hands off to the web panel (01 §7).
 
 ### 4.5 Built (step 2)
 
-**Commands.** Named ones in `commands.js`, rather than reusing `item.*` on blocks:
+**Commands.** Named ones in `renderer/js/core/commands.js`, rather than reusing `item.*` on blocks:
 - The undo label reads as the edit ("Set "Saturday Cartoons" to 7 AM–11 AM").
 - Remote editors (06) get the names doc 05's catalogue already lists.
 - `block.create` and `block.remove` are each other's inverse.
@@ -115,7 +115,7 @@ explains, colour keys page weeks). Editing hands off to the web panel (01 §7).
   isn't safe to replay.
 - Break edits are `file.set` plus `item.*` on presets, with their own labels.
 
-**Preview plumbing** (`schedule-query.js`):
+**Preview plumbing** (`renderer/js/core/schedule-query.js`):
 - `proposeEdit(config, channel, commands)` returns a proposed config and channel without
   touching live config. The channel is always a copy. The box-wide programming lists are copied
   only when a command edits them.
@@ -132,8 +132,8 @@ order they're consulted, each marked `wins`, `outranked`, `skipped` or `passes`.
   `matchingAdBlocks` were extracted from `computeActiveCommercials`. So the winners agree with
   playback by construction, and a weekend-long unit test checks it.
 
-**The timeline** (`setup-onair.js`, with the gesture-to-command logic in DOM-free
-`timeline-edits.js`, `tests/timeline-edits.test.js`).
+**The timeline** (`renderer/js/setup/onair.js`, with the gesture-to-command logic in DOM-free
+`renderer/js/timeline/edits.js`, `tests/timeline-edits.test.js`).
 - **Merged, not added.** ON AIR is the editable timeline, and the hourly TIMELINE view is
   gone. SCHEDULE is now ON AIR · BLOCKS · CALENDAR.
   - TIMELINE drew the same dayOfWeek spans ON AIR's block lane now draws at real resolution.
@@ -189,7 +189,7 @@ order they're consulted, each marked `wins`, `outranked`, `skipped` or `passes`.
   - Desktop gets the same arrows, as grid-local roving focus. Global keyboard behaviour is
     unchanged.
 
-**Verified live** (scratch `test/verify-timeline.mjs`, 1280×720, against a copy of the
+**Verified live** (scratch `tests/ui/verify-timeline.mjs`, 1280×720, against a copy of the
 installed config):
 - Saturday 7–11 AM from a library folder took one drag, one pick and one click, with the
   preview outlined.
@@ -246,13 +246,13 @@ Otherwise keep the current model; the timeline already hides the layers.
 
 ### 5.2a Built (step 3a): the rule stack in memory, proven equivalent
 
-Built with no config change. `renderer/js/programming-rules.js`:
+Built with no config change. `renderer/js/core/programming-rules.js`:
 - **`rulesFromLayers(ch, config)`** translates a channel's layers into `{ signOff, rules }` in the
   §5.1 shape. The order is: ads off, then flows that can apply to the channel, then presets that
   can apply, then blocks by priority (ties by position), then the default lineup and cadence.
   - Content and break rules keep their own relative orders, which is all first-match-per-kind
     resolution needs.
-  - A block rule plays the block through schedule.js's `sourceFromBlock`, which was extracted
+  - A block rule plays the block through renderer/js/core/schedule.js's `sourceFromBlock`, which was extracted
     from `resolveActiveSource`. So loop, daily/weekly runs, day overrides and finale behave
     identically, and the rules decide only order and `when`.
 - **`rulesSource`, `rulesCommercials`, `rulesOnAir`** return the same shapes as
@@ -270,7 +270,7 @@ Verification:
   - 60 random channels exercising every layer are equivalent for 60 days (over 100k checks).
   - Three deliberately planted translation bugs (reversed priority, the flow untagged rule,
     inverted sign-off hours) each fail the test.
-- **The real lineup** (scratch `test/verify-rules-equivalence.mjs`, a copy of the installed
+- **The real lineup** (scratch `tests/ui/verify-rules-equivalence.mjs`, a copy of the installed
   config): all 14 channels are equivalent for 60 days, at 2–28 ms a channel.
 
 **Evidence for the gate (§5.2) from that lineup.**
@@ -298,14 +298,14 @@ list can hold them in three ways:
 
 **Decided (2026-09-13): don't migrate storage (option 3).** Layers stay the saved form, and no
 schema version is allocated.
-- `programming-rules.js` stays as the derived view. `rulesFromLayers` gives any consumer (a
+- `renderer/js/core/programming-rules.js` stays as the derived view. `rulesFromLayers` gives any consumer (a
   remote editor in 06, template previews in 08) the one ordered list.
 - `tests/programming-rules.test.js` keeps the two resolvers from drifting apart.
 - Revisit only under §5.2's conditions. If a migration is ever reopened, §5.3 below still
   applies, and `compareRulesToLayers` is its abort check.
 
 ### 5.3 If migrating
-- a `config-schema.js` migration (next free version), mechanically translating each layer into rules with
+- a `renderer/js/core/config-schema.js` migration (next free version), mechanically translating each layer into rules with
   preserved priority; `diffSchedules` over 60 days before/after must be empty for every
   channel, or the migration aborts for that channel and leaves it on the old model
   (both resolvers coexist during transition).
@@ -327,7 +327,7 @@ schema version is allocated.
   synthetic channels before step 2.
   **Done:** `tests/break-enumeration.test.js` checks it against a one-second brute-force scan
   of `resolveBreakAt` (nothing missed, nothing invented) over fixed cases and seeded random
-  channels. It found two more bugs, both fixed in `interstitials.js`:
+  channels. It found two more bugs, both fixed in `renderer/js/core/interstitials.js`:
   - **Sign-off bumpers were never found.** The bumper ends at the broadcast-hours boundary,
     and only the boundary itself was a candidate, where the channel is already off the air.
     Live playback's break timer used the same candidates, so the bumper aired only if you

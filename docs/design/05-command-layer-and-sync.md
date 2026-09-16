@@ -64,9 +64,9 @@ sequenceDiagram
   H-->>R: applied {revision, commands, inverse}
   H-->>W: applied {revision, commands, inverse}
 ```
-- The **host main process owns config**. `main-config.js` gains an in-memory copy and applies
+- The **host main process owns config**. `main/config/config.js` gains an in-memory copy and applies
   commands with the same registry (the registry is plain JS shared by main and renderer, like
-  `config-diff.js` already is).
+  `main/config/diff.js` already is).
 - Renderers apply commands **optimistically** locally, send them with their `baseRevision`,
   and reconcile on the host's `applied` event. Rejected commands roll back locally using the
   inverse and toast the error.
@@ -89,7 +89,7 @@ sequenceDiagram
 - Electron renderer ↔ host: IPC (`config:command`, `config:applied` events).
 - LAN clients (06, LAN viewer, Android TV client): an authenticated **SSE** stream
   `GET /api/events` for `applied` + presence, `POST /api/commands` for writes. Uses the existing
-  pairing/session model (`main-lan-security.js`) with a new `control` scope; `view` sessions
+  pairing/session model (`main/lan/security.js`) with a new `control` scope; `view` sessions
   receive `applied` events filtered through the viewer projection and can't POST.
 - The LAN viewer's 10 s `/api/config` poll is replaced by the event stream (poll stays as a
   fallback when SSE drops).
@@ -124,17 +124,17 @@ which is how plugin settings stay undoable and remote-editable.
 ## 4. Migration
 
 **Status:** steps 1–2 are built.
-- `renderer/js/commands.js` is pure: a registry, `diffJson`/`applyPatch` with inverses,
+- `renderer/js/core/commands.js` is pure: a registry, `diffJson`/`applyPatch` with inverses,
   identity-aware array splices, and `config.patch`, `settings.set`, `channel.set`,
   `channel.rename`, `channel.remove`, `channel.insert`.
-- History and `dispatch()` live in `state.js`, next to `saveConfigDebounced`.
+- History and `dispatch()` live in `renderer/js/core/state.js`, next to `saveConfigDebounced`.
 - Converted call sites: every plain per-channel option (18 fields plus the CC/SAP/stereo
   defaults and volume), rename (coalesced), remove, and the CRT toggle and sliders (each drag
   coalesced).
 - Undo/redo tooltips and the command palette show the step's label.
 - Tests: `tests/commands.test.js`, which includes a 300-case randomized diff round-trip.
 
-Verified live against the installed lineup (scratch `test/verify-commands.mjs`):
+Verified live against the installed lineup (scratch `tests/ui/verify-commands.mjs`):
 - every path undoes, and config was byte-identical after a full edit-then-undo sequence;
 - settling a burst on the 1.2 MB config costs about 1 ms;
 - the 34-check UI suite passes.
@@ -146,7 +146,7 @@ Deviations from the plan above:
   matches the old snapshot history.
 
 **Step 3 is built, in a narrower form than §2.2.**
-- `main/config-host.js` gives the host a revision and a 200-entry ring of the commands it has
+- `main/config/host.js` gives the host a revision and a 200-entry ring of the commands it has
   applied.
 - Host-side edits are now commands applied there: `plugin.setApproval`, `plugin.setEnabled`,
   `plugin.forget`, and the headless Companion settings patch as a set-only `config.patch`. Each
@@ -155,7 +155,7 @@ Deviations from the plan above:
   undo steps, and reports the newest one it has applied with every save.
 - `config:save` replays onto the incoming config any host commands the renderer hadn't seen,
   and never replays across a backup restore.
-- This ends the revert race without hand-mirroring: the four mirrors in `setup-plugins.js` are
+- This ends the revert race without hand-mirroring: the four mirrors in `renderer/js/setup/plugins.js` are
   gone, and the six direct `window.api.saveConfig` calls now go through `saveConfigNow()`.
 
 The renderer still sends its whole config on save rather than commands only. That, and the
@@ -167,10 +167,10 @@ host-applied command must keep that property; the tests check it.
 
 Verification:
 - `tests/config-host.test.js` (8), including the revert race end to end with the real renderer
-  `state.js`.
-- Live (scratch `test/verify-config-host.mjs`, 8/8): a deliberately stale save through real IPC
+  `renderer/js/core/state.js`.
+- Live (scratch `tests/ui/verify-config-host.mjs`, 8/8): a deliberately stale save through real IPC
   was repaired.
-- The packaged exe loads `commands.js` from `app.asar` and applies host commands.
+- The packaged exe loads `renderer/js/core/commands.js` from `app.asar` and applies host commands.
 
 **Step 4 is built for viewer read sync, and it deliberately does not add SSE.**
 
@@ -182,7 +182,7 @@ Why no new stream:
 
 What is built:
 - **Announcing.** When `channels.json` is written (renderer save, host command, backup restore),
-  `createChangeAnnouncer` in `main/config-host.js` fingerprints the config minus the host's own
+  `createChangeAnnouncer` in `main/config/host.js` fingerprints the config minus the host's own
   watching state (`lastChannel`, `muted`, `volume`, `pictureMode`, `aspectMode`,
   `display.hintBar`). If the fingerprint differs from the last one, it publishes
   `config:changed` on that channel.
@@ -192,7 +192,7 @@ What is built:
   stays in one place (`/api/config`).
 - **Measured.** A real setup edit reached a paired session 669 ms later, most of it the 600 ms
   save debounce. Surfing and volume changes on the host announced nothing (scratch
-  `test/verify-viewer-config-push.mjs`).
+  `tests/ui/verify-viewer-config-push.mjs`).
 
 Not in this step:
 - **Streaming commands to viewers.** Viewers see a redacted projection where paths are opaque
@@ -239,14 +239,14 @@ Behaviour that changed for users:
   day override, a calendar block, or moving a day override.
 
 Verified live against the installed lineup through the real listeners (scratch
-`test/verify-step5-commands.mjs`, `-lists.mjs`, `-rest.mjs`, 30 checks):
+`tests/ui/verify-step5-commands.mjs`, `-lists.mjs`, `-rest.mjs`, 30 checks):
 - bulk-tagging the 205-entry pool and the 1329-file channel is one step each;
 - the cadence and block objects the panels hold survive their edits;
 - after undoing every step, config was byte-identical;
 - no history fallbacks were logged.
 The 34-check UI suite, `verify-config-host` and `verify-viewer-config-push` all pass.
 
-Found while testing: `plugins.js` and `setup-plugin-settings.js` pass `saveConfigDebounced`
+Found while testing: `renderer/js/plugin/host.js` and `renderer/js/setup/plugin-settings.js` pass `saveConfigDebounced`
 by reference into plugin contexts. A write-count audit must not drop that import.
 
 Still to do for §2.2: the renderer sends whole-config saves rather than commands. Every edit now

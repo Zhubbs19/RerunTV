@@ -2,8 +2,8 @@
 
 .guide-overlay {
   position: absolute;
-  left: clamp(10px, 5%, 32px);
-  bottom: clamp(10px, 5%, 32px);
+  left: var(--banner-left, clamp(10px, 5%, 32px));
+  bottom: var(--banner-bottom, clamp(10px, 5%, 32px));
   z-index: 20; /* Above static canvas (z-index 8) and virtual channel slates (z-index 4-5) so channel card is always visible overtop static */
   display: flex;
   align-items: stretch;
@@ -18,8 +18,8 @@
      screen and cover the video underneath it. Same ceiling as before at
      native/full-size windows (zero regression there), but shrinks with a
      readability floor at a small simulated resolution. */
-  min-width: clamp(160px, 45%, 380px);
-  max-width: 60%;
+  min-width: var(--banner-min-width, clamp(160px, 45%, 380px));
+  max-width: var(--banner-max-width, 60%);
   padding: clamp(8px, 3%, 14px) clamp(10px, 4%, 18px);
   backdrop-filter: blur(1px);
   will-change: transform, opacity;
@@ -31,7 +31,7 @@
      all, see the note above .guide-grid below; this card is a fixed-size
      absolutely-positioned box that never triggers a rebuild, so it doesn't
      carry the same stutter risk. */
-  animation: guide-overlay-in var(--motion-card-duration) var(--motion-card-ease);
+  animation: var(--banner-animation, guide-overlay-in) var(--motion-card-duration) var(--motion-card-ease);
 }
 @keyframes guide-overlay-in {
   0% { opacity: 0; transform: translateY(var(--motion-card-from-y)) scale(var(--motion-card-from-scale)); }
@@ -104,7 +104,7 @@
   text-overflow: ellipsis;
 }
 
-.guide-bar { height: 5px; border-radius: 3px; background: rgba(0, 0, 0, 0.35); box-shadow: var(--bevel-inset); overflow: hidden; margin-top: 4px; }
+.guide-bar { height: var(--guide-progress-height, 5px); border-radius: 3px; background: rgba(0, 0, 0, 0.35); box-shadow: var(--bevel-inset); overflow: hidden; margin-top: 4px; }
 .guide-bar-fill {
   height: 100%;
   width: 0%;
@@ -198,7 +198,7 @@
      not a flat 170px, so the channel column shrinks at a small simulated
      resolution (display-mode.js) instead of eating a quarter-plus of a
      ~640px-wide screen. Same ceiling as before at native/full-size windows. */
-  --guide-chan-col: clamp(90px, 22%, 170px);
+  --guide-chan-col: var(--guide-rail-width, clamp(90px, 22%, 170px));
 }
 /* #guide-grid is a top-level #app child now (see above), so #tv-screen's
    own .hidden toggle (showSetupScreen/showTvScreen, app.js) no longer hides
@@ -415,15 +415,30 @@ html[data-mode="tv"] .guide-grid {
   border-bottom: 2px solid var(--border);
 }
 
+/* Guide layouts a theme picks by name (registerThemePack's guideLayout,
+   themes.js sets html[data-guide-layout]); docs/design/04 §4.1: layout is
+   core's, never a theme's structural CSS.
+   preview-left — first-generation HD guide: the live preview sits top-left and
+   a tall facts header beside it (widescreen-grid-13). */
+html[data-guide-layout="preview-left"] .crt.guide-active.guide-full:not(.guide-preview-hidden) #player {
+  left: var(--guide-preview-right) !important;
+  right: auto !important;
+}
+html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
+  min-height: 25%;
+  padding-left: calc(var(--guide-preview-w, 260px) + var(--guide-preview-right, 28px) + 14px);
+  padding-right: 0;
+}
+
 .guide-info-panel {
   display: flex;
-  align-items: center;
+  align-items: var(--guide-info-align, center);
   gap: 16px;
   min-width: 0;
 }
 
 .guide-info-number {
-  min-width: clamp(44px, 12%, 80px);
+  min-width: var(--guide-info-number-min-width, clamp(44px, 12%, 80px));
   font-family: var(--font-display);
   /* cqw, not vw — relative to #display-frame's own (possibly simulated-
      low-resolution) box, not the real window, so this scales with the
@@ -481,7 +496,7 @@ html[data-mode="tv"] .guide-grid {
    guide.js restarts this by toggling the class off/on across a reflow). */
 .guide-info-title, .guide-info-time { will-change: opacity; }
 .guide-info-title.gi-update, .guide-info-time.gi-update {
-  animation: guide-info-fade var(--motion-info-duration) var(--motion-info-ease);
+  animation: var(--guide-info-update-animation, guide-info-fade) var(--motion-info-duration) var(--motion-info-ease);
 }
 @keyframes guide-info-fade {
   0% { opacity: 0; }
@@ -697,7 +712,7 @@ html[data-mode="tv"] .guide-grid {
 }
 .guide-entry:nth-child(even) { background: var(--guide-cell-alt-bg, var(--surface-3)); }
 .guide-entry { transition: background-color 120ms ease; }
-.guide-entry:hover { background: rgba(255, 255, 255, 0.12); }
+.guide-entry:hover { background: var(--guide-cell-hover-bg, rgba(255, 255, 255, 0.12)); }
 .guide-entry.guide-entry-genre:not(.sel) {
   background: var(--guide-genre-bg);
   color: var(--guide-genre-fg);
@@ -788,17 +803,19 @@ html[data-mode="tv"] .guide-grid {
 .guide-run-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
 /* Already finished airing — still visible for context, visibly spent. */
-.guide-entry.past { opacity: 0.45; }
+.guide-entry.past { opacity: var(--guide-cell-past-opacity, 0.45); }
 
 .guide-entry.sel {
   z-index: 2;
   background: var(--guide-selected-bg, var(--gradient-gold));
   color: var(--guide-selected-text, #000);
   font-weight: 700;
-  text-shadow: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--accent-rgb), 0.5);
+  text-shadow: var(--guide-selected-text-shadow, none);
+  box-shadow: var(--guide-selected-shadow, inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 10px rgba(var(--accent-rgb), 0.5));
+  outline: var(--guide-selected-outline, none);
+  outline-offset: var(--guide-selected-outline-offset, 0);
   will-change: transform;
-  animation: guide-sel-settle 160ms ease-out, guide-sel-pulse 2.6s ease-in-out 160ms infinite;
+  animation: var(--guide-selected-animation, guide-sel-settle 160ms ease-out, guide-sel-pulse 2.6s ease-in-out 160ms infinite);
 }
 
 /* Selection "settle" — a quick snap-in when the row/entry moves to a new
@@ -840,7 +857,7 @@ html[data-mode="tv"] .guide-run-item { font-size: 18px; padding: 9px 10px; }
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 3px;
+  width: var(--guide-now-line-width, 3px);
   background: var(--danger);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.85),

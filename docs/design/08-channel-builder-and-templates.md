@@ -27,7 +27,7 @@ flowchart LR
 Everything becomes a **plan**: a list of commands with *slots* that refer to content by intent
 (`{ slot: 'cartoons', query: { genre: 'cartoon', era: '1990s' } }`) rather than by path.
 Resolving binds slots to library queries or folders; preview renders the result; apply dispatches
-one batch. Channel package import (`channel-package.js`) becomes a plan source too, getting the
+one batch. Channel package import (`renderer/js/library/channel-package.js`) becomes a plan source too, getting the
 same preview.
 
 ## 3. Templates

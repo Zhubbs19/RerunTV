@@ -124,10 +124,10 @@
 .setup-tab-btn {
   position: relative;
   overflow: hidden;
-  background: var(--control-bg);
-  border: 1px solid var(--border);
+  background: var(--tab-bg, var(--control-bg));
+  border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--_tab-border, var(--control-border, var(--border)));
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  box-shadow: var(--control-shadow, var(--bevel-raised), var(--shadow-hard-sm));
   color: var(--text-muted);
   font-family: var(--font-display);
   font-size: 14px;
@@ -137,7 +137,7 @@
   cursor: pointer;
   transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
-.setup-tab-btn:hover { color: var(--accent); }
+.setup-tab-btn:hover { color: var(--accent); --_tab-border: var(--tab-hover-border, var(--control-border, var(--border))); }
 .setup-tab-btn.active {
   background: var(--gradient-gold);
   border-color: #c98914;
@@ -185,9 +185,9 @@
 }
 .setup-subtab-btn {
   flex: 0 0 auto;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  background: var(--subtab-bg, rgba(255, 255, 255, 0.04));
+  border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--subtab-border, var(--border));
+  border-radius: var(--subtab-radius, var(--radius-sm));
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-weight: 700;
@@ -199,8 +199,8 @@
 }
 .setup-subtab-btn:hover {
   color: var(--accent);
-  border-color: var(--accent);
-  background: rgba(var(--accent-rgb), 0.08);
+  border-color: var(--subtab-hover-border, var(--accent));
+  background: var(--subtab-hover-bg, rgba(var(--accent-rgb), 0.08));
 }
 .setup-subtab-btn.active {
   background: rgba(var(--accent-rgb), 0.18);
@@ -2051,9 +2051,9 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   position: relative;
   overflow: hidden;
   background: var(--control-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--bevel-raised), var(--shadow-hard-sm);
+  border: var(--control-border-width, 1px) var(--_control-border-style, var(--control-border-style, solid)) var(--control-border, var(--border));
+  border-radius: var(--control-radius, var(--radius-sm));
+  box-shadow: var(--control-shadow, var(--bevel-raised), var(--shadow-hard-sm));
   color: var(--control-text);
   font-family: var(--font-ui);
   font-weight: 600;
@@ -2076,8 +2076,19 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   pointer-events: none;
 }
 
-.btn:hover { border-color: var(--accent); color: var(--button-hover-fg); transform: var(--motion-control-hover); }
-.btn:active { box-shadow: var(--bevel-inset); transform: var(--motion-control-active); }
+.btn:hover { border-color: var(--control-hover-border, var(--accent)); color: var(--button-hover-fg); transform: var(--motion-control-hover); }
+.btn:active { box-shadow: var(--control-active-shadow, var(--bevel-inset)); transform: var(--motion-control-active); }
+
+/* Theme-facing control tokens that core didn't set before (docs/design/04
+   §4.1). Zero-specificity :where() so any page's own button rule still wins,
+   and states only set private custom properties the base reads: a button
+   whose own rule replaces the property never reads them, so a theme's
+   pressed border style can't appear on a borderless icon button. */
+:where(.btn, .setup-tab-btn, .setup-subtab-btn) { min-height: var(--control-min-h, auto); }
+:where(.setup-subtab-btn) { box-shadow: var(--subtab-shadow, none); }
+:where(.setup-tab-btn, .setup-subtab-btn):hover { transform: var(--tab-hover-transform, none); }
+:where(.setup-tab-btn, .setup-subtab-btn):active { transform: var(--tab-active-transform, var(--tab-hover-transform, none)); }
+:is(.btn, .setup-tab-btn, .setup-subtab-btn, .tv-menu-btn):active { --_control-border-style: var(--control-active-border-style, var(--control-border-style, solid)); }
 
 /* Theme styles load after core and several intentionally restyle broad
    control families. The doubled data-theme attribute gives semantic state
@@ -4694,7 +4705,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .setup-tab-btn {
   width: 100%;
   text-align: left;
-  border-radius: var(--radius-sm);
+  border-radius: var(--control-radius, var(--radius-sm));
   padding: 11px 14px;
   font-size: 13px;
   letter-spacing: 1.5px;
@@ -4864,7 +4875,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   text-overflow: ellipsis;
 }
 #setup-screen .channel-list-number { color: var(--accent); font-family: var(--font-display); }
-#setup-screen .channel-list-name { overflow: hidden; text-overflow: ellipsis; }
+#setup-screen .channel-list-name { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 #setup-screen .channel-list-sub {
   font-size: 11px;
   color: var(--text-muted);

@@ -17,10 +17,10 @@ const HOUR = 3600000;
 const SATURDAY = new Date(2026, 8, 19, 0, 0, 0, 0).getTime();
 
 async function setup() {
-  const state = await load('state.js');
-  const edits = await load('timeline-edits.js');
-  const query = await load('schedule-query.js');
-  const commands = await load('commands.js');
+  const state = await load('core/state.js');
+  const edits = await load('timeline/edits.js');
+  const query = await load('core/schedule-query.js');
+  const commands = await load('core/commands.js');
   const ch = {
     number: 5,
     name: 'Toons',
