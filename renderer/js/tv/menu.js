@@ -9,11 +9,11 @@
 // controls, since all of those already just dispatch a 'keydown' that
 // lands here the same way.
 import { guideGrid, shortcutsOverlayEl } from '../core/dom.js';
-import { changeChannel, jumpToLastChannel, toggleChannelScan } from '../playback/core.js';
+import { changeChannel, jumpToLastChannel, toggleChannelScan, tuneToChannel } from '../playback/core.js';
 import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCheck } from '../library/airchecks.js';
 import { showDetailsForCurrentChannel } from './details.js';
 import { focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from '../guide/guide.js';
-import { interruptEntries } from '../plugin/host.js';
+import { getRendererService, interruptEntries } from '../plugin/host.js';
 import {
   currentProgramStart, enterTimeMachine, exitTimeMachine, returnToLive, timeMachineAvailable, timeMachineGoTo,
 } from '../playback/timemachine.js';
@@ -23,7 +23,7 @@ import {
   toggleMute, adjustVolume, toggleCrt, cyclePictureMode, cycleAspectMode,
   cycleSleepTimer, powerOff, toggleHintBar,
 } from '../playback/power.js';
-import { MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
+import { getClientId, MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
 import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } from './usage-mode.js';
 import { commitEntry, pushDigit, showSetupScreen } from '../app.js';
 import { subChannelsEnabled } from '../core/channels.js';
@@ -31,6 +31,11 @@ import { openHandoff } from './handoff.js';
 import { tvSetupItems } from './setup.js';
 import { openLearnMode, openRemoteTest } from '../remote/test.js';
 import { backExitsImmediately, setBackExitsImmediately } from './input.js';
+import { openOnScreenKeyboard } from '../ui/on-screen-keyboard.js';
+import {
+  currentProfile, handoffTo, joinSharedSession, leaveSharedSession,
+  profiles, startSharedSession, switchProfile,
+} from '../personal/state.js';
 
 // Read left-to-right, top-to-bottom — arrow-key navigation below treats the
 // button list as a grid with this many columns per row. Not derived from
@@ -114,6 +119,66 @@ function section(label, title, items, columns) {
   return { label: `${label} ›`, submenu: () => ({ title, items: items(), columns }) };
 }
 
+function profileItems() {
+  const active = currentProfile();
+  return profiles().map((profile) => ({
+    label: `${profile.id === active?.id ? '● ' : ''}${profile.name.toUpperCase()}${profile.restriction !== 'none' ? ` · ${profile.restriction.toUpperCase()}` : ''}`,
+    disabled: profile.id === active?.id,
+    run: async () => {
+      let pin = null;
+      if (active?.restriction !== 'none' && active.hasPin) {
+        pin = await openOnScreenKeyboard({ title: `PIN FOR ${active.name.toUpperCase()}`, maxLength: 4 });
+        if (pin == null) return;
+      }
+      try { await switchProfile(profile.id, { pin }); } catch (e) { console.warn('[profiles]', e.message); }
+    },
+  }));
+}
+
+function myShowsItems() {
+  const profile = currentProfile();
+  if (!profile) return [{ label: 'CHOOSE A PROFILE FIRST', disabled: true }];
+  const ready = Object.entries(profile.state.recordings || {}).filter(([, recording]) => recording.status === 'ready');
+  const requests = profile.state.recordingRequests || [];
+  const items = ready.map(([key, recording]) => ({
+    label: `▶ ${String(recording.title || key.split('|').slice(-1)[0] || 'RECORDING').toUpperCase()}`,
+    run: () => {
+      const deck = getRendererService('tape-deck');
+      if (!recording.tapeId || !deck?.play) return;
+      tuneToChannel(101);
+      setTimeout(() => deck.play(recording.tapeId, profile.state.resumePoints?.[`tape:${recording.tapeId}`]?.positionMs || 0), 250);
+    },
+  }));
+  requests.forEach((request) => items.push({
+    label: `${request.type.toUpperCase()} · CH ${request.channel} · ${new Date(request.start).toLocaleDateString()}`,
+    disabled: true,
+  }));
+  return items.length ? items : [{ label: 'NO SHOWS OR RECORDING REQUESTS', disabled: true }];
+}
+
+function togetherItems() {
+  const session = S.sharedSession;
+  if (session) return [
+    { label: `${session.leader === getClientId() ? 'LEADING' : 'JOINED'} ${session.id} · CH ${session.channel}`, disabled: true },
+    { label: 'LEAVE SESSION', run: () => leaveSharedSession().catch((e) => console.warn('[watch together]', e.message)) },
+  ];
+  return [
+    { label: 'START SESSION', run: () => startSharedSession().catch((e) => console.warn('[watch together]', e.message)) },
+    { label: 'JOIN SESSION…', run: async () => {
+      const id = await openOnScreenKeyboard({ title: 'WATCH SESSION ID', maxLength: 40 });
+      if (id) joinSharedSession(id.toLowerCase()).catch((e) => console.warn('[watch together]', e.message));
+    } },
+  ];
+}
+
+function handoffItems() {
+  const targets = (S.personalClients || []).filter((client) => client.id !== getClientId());
+  return targets.length ? targets.map((client) => ({
+    label: `${client.label.toUpperCase()} · ${client.id.slice(-4).toUpperCase()}`,
+    run: () => handoffTo(client.id).catch((e) => console.warn('[handoff]', e.message)),
+  })) : [{ label: 'NO OTHER SCREEN IS ONLINE', disabled: true }];
+}
+
 function tvRootItems() {
   return [
     ...guideActions(),
@@ -138,6 +203,10 @@ function tvRootItems() {
       })),
       ...interruptEntries().filter((e) => e.label).map((e) => ({ label: e.label, run: () => e.run({ manual: true }) })),
     ]),
+    section(`PROFILE: ${currentProfile()?.name || 'EVERYONE'}`, 'TV MENU · WHO’S WATCHING', profileItems),
+    section('MY SHOWS', 'TV MENU · MY SHOWS', myShowsItems),
+    section('WATCH TOGETHER', 'TV MENU · WATCH TOGETHER', togetherItems),
+    section('CONTINUE ON…', 'TV MENU · CONTINUE ON…', handoffItems),
     section('PICTURE & SOUND', 'TV MENU · PICTURE & SOUND', () => [
       { label: S.config.muted ? 'UNMUTE' : 'MUTE', keepOpen: true, run: () => toggleMute() },
       { label: 'VOL ▲', keepOpen: true, run: () => adjustVolume(0.1) },

@@ -28,6 +28,7 @@ import './tagtaxonomy-ui.js';
 import './aircheck.js';
 import '../library/sync.js';
 import './library.js';
+import './household.js';
 import '../plugin/diagnostics.js';
 import './settings.js';
 import './channels.js';

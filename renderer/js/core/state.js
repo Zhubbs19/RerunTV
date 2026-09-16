@@ -6,6 +6,10 @@ import { StatusBar } from '../ui/toast.js';
 // is powered on, how far the viewing clock is shifted) stays in one place.
 export const S = {
   config: { channels: [] },
+  personalProfile: null,
+  personalProfiles: [],
+  personalClients: [],
+  sharedSession: null,
   // Bumped on every known write to S.config — in-place mutation (via
   // saveConfigDebounced, the funnel almost every setup-screen edit already
   // goes through) or wholesale replacement (import/restore/undo/viewer

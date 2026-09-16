@@ -5,6 +5,7 @@ import {
   hashString, randomId, randomInterstitialId, shuffleArray,
 } from './util.js';
 import { virtualChannelNumbers } from '../playback/virtual.js';
+import { isHiddenForProfile } from '../personal/state.js';
 
 // Block-level ad override — only present when a daypart block explicitly
 // opts out of the channel/flow default (block.commercials !== null).
@@ -785,7 +786,7 @@ export function parseChannelNumber(text) {
 // channel-up/down cycles through.
 export function filteredChannels() {
   const q = S.guideFilterQuery.trim().toLowerCase();
-  const list = sortedChannels().filter((ch) => !ch.hidden);
+  const list = sortedChannels().filter((ch) => !ch.hidden && !isHiddenForProfile(ch.number));
   if (!q) return list;
   return list.filter((ch) => (ch.name || '').toLowerCase().includes(q) || String(ch.number).includes(q));
 }

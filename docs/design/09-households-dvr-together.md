@@ -1,7 +1,35 @@
 # 09 — Households, DVR and watching together
 
-Status: proposed (P5). Depends on: C3 (05), C2 (02), 06 (events/presence), 01 (TV surfaces).
+Status: built (P5, 2026-09-16). Depends on: C3 (05), C2 (02), 06 (events/presence), 01 (TV surfaces).
 Owns contract **C5** (broadcast config vs. personal state).
+
+## Implementation status
+
+`main/personal/service.js` owns the two-store split: per-profile JSON files under
+`userData/profiles/`, atomic writes, hashed PINs, and revision-checked commands, reachable from
+both Electron IPC (`personal:call`) and the paired LAN route (`main/lan/viewer-server.js`'s
+`/api/personal/*`, session-bound to one profile per viewer). First run migrates `reminders`,
+`airChecks`, favorites and the legacy viewing-history file into a default "Everyone" profile,
+leaving `channels.json` free of them (`renderer/js/personal/state.js` still falls back to the old
+config-backed reads when no profile is loaded yet).
+
+`renderer/js/personal/dvr.js` expands recording requests (airing/series/slot/keyword) against
+`querySchedule` over a rolling 14-day window — pure, so it's shared by the HOUSEHOLD preview and
+`dvr-scheduler.js`'s 30s background tick, which also drives the tape-deck recorder, retention
+(quota/keep-N/watched-after-days), and resume-point tracking. Handoff and shared sessions
+(`session.start`/`join`/`tune`/`leave`) are host-held in-memory state pushed over the same
+viewer event bus as config changes. `renderer/js/setup/household.js` is the HOUSEHOLD setup tab;
+`renderer/js/tv/menu.js` adds the PROFILE/MY SHOWS/WATCH TOGETHER/CONTINUE ON… entries; guide
+RECORD ONCE/RECORD SERIES actions and restricted-profile channel hiding
+(`isHiddenForProfile`, wired into the guide, surfing and setup channel lists) round it out.
+
+Verification: `tests/personal-service.test.js` and `tests/personal-dvr.test.js` (unit, part of
+the 331/331 tracked suite) plus a live pass (`tests/ui/verify-doc09.mjs`, 17/17) against the real
+installed lineup covering migration, profile-scoped favorites, restricted-profile filtering, the
+HOUSEHOLD panel (including a fix: the tab wasn't re-fetching the profile list on activation, so a
+profile created on another screen could go stale until reload), DVR request → schedule expansion,
+handoff, and a shared session's join/leave. Not exercised: real cross-client drift correction and
+PIN-gated restricted-profile flows on a second physical device — those need two live clients.
 
 ## 1. Problem
 

@@ -7,6 +7,7 @@ import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } fro
 import { BUILTIN_TEMPLATES, compileTemplate, describeChannel, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
+import { isFavorite, setFavorite } from '../personal/state.js';
 import {
   buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
   subChannelsEnabled,
@@ -568,8 +569,11 @@ export function renderChannelList() {
       favoriteLabel.className = 'shuffle-toggle';
       const favoriteCheckbox = document.createElement('input');
       favoriteCheckbox.type = 'checkbox';
-      favoriteCheckbox.checked = !!ch.favorite;
-      favoriteCheckbox.addEventListener('change', () => { dispatch({ type: 'channel.set', channel: ch.number, field: 'favorite', value: favoriteCheckbox.checked }); });
+      favoriteCheckbox.checked = isFavorite(ch.number);
+      favoriteCheckbox.addEventListener('change', async () => {
+        try { await setFavorite(ch.number, favoriteCheckbox.checked); renderChannelList(); }
+        catch (e) { favoriteCheckbox.checked = isFavorite(ch.number); await alertDialog(e.message, { variant: 'error' }); }
+      });
       favoriteLabel.appendChild(favoriteCheckbox);
       favoriteLabel.appendChild(document.createTextNode('FAVORITE'));
 
@@ -1146,7 +1150,7 @@ function renderChannelListPane(list, pluginEntries) {
     item.appendChild(text);
 
     const flags = [];
-    if (ch.favorite) flags.push('★');
+    if (isFavorite(ch.number)) flags.push('★');
     if (ch.hidden) flags.push('HIDDEN');
     if (ch.notSubscribed) flags.push('LOCKED');
     if (flags.length) {
@@ -1633,8 +1637,12 @@ function setOnSelected(field, value, label) {
   dispatch(targets.map((c) => ({ type: 'channel.set', channel: c.number, field, value })),
     { label: `${label} on ${targets.length} channel${targets.length === 1 ? '' : 's'}` });
 }
-bulkFavoriteOnBtn.addEventListener('click', () => { setOnSelected('favorite', true, 'Favorite'); renderChannelList(); });
-bulkFavoriteOffBtn.addEventListener('click', () => { setOnSelected('favorite', false, 'Unfavorite'); renderChannelList(); });
+async function setFavoriteOnSelected(value) {
+  await Promise.all(selectedChannels().map((channel) => setFavorite(channel.number, value)));
+  renderChannelList();
+}
+bulkFavoriteOnBtn.addEventListener('click', () => setFavoriteOnSelected(true));
+bulkFavoriteOffBtn.addEventListener('click', () => setFavoriteOnSelected(false));
 bulkShuffleOnBtn.addEventListener('click', () => {
   const targets = selectedChannels();
   targets.forEach((c) => { c.shuffle = true; if (c.files.length > 1) shuffleArray(c.files); });

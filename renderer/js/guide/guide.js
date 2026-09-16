@@ -28,6 +28,25 @@ import { getThemePack, runCoreHooks } from '../plugin/host.js';
 import { openTvMenu } from '../tv/menu.js';
 import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
+import { currentProfile, personalCommand } from '../personal/state.js';
+
+function reminderList() {
+  const profile = currentProfile();
+  if (profile) return profile.state.reminders;
+  if (!Array.isArray(S.config.reminders)) S.config.reminders = [];
+  return S.config.reminders;
+}
+
+function replaceReminders(next, opts = {}) {
+  const profile = currentProfile();
+  if (profile) {
+    profile.state.reminders = next;
+    personalCommand({ type: 'state.set', key: 'reminders', value: next }).catch((e) => console.warn('[profiles] reminder write failed:', e.message));
+  } else {
+    S.config.reminders = next;
+    commitInPlace({ type: 'settings.set', path: ['reminders'], value: next }, opts);
+  }
+}
 
 // The channel's icon (or a colored number badge, matching the logo bug's own
 // fallback) shown next to the name on the "now watching" surf card.
@@ -115,16 +134,16 @@ function jumpToProgramResult(result) {
 }
 
 function addProgramReminder(result) {
-  if (!Array.isArray(S.config.reminders)) S.config.reminders = [];
-  const duplicate = S.config.reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
+  const reminders = reminderList();
+  const duplicate = reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
   if (duplicate) return;
-  S.config.reminders.push({
+  const next = [...reminders, {
     id: `reminder-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     channelNumber: result.channel.number, channelName: result.channel.name || '',
     title: result.title, path: result.entry.file.path,
     start: result.entry.start, end: result.entry.end,
-  });
-  commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { label: 'Add reminder' });
+  }];
+  replaceReminders(next, { label: 'Add reminder' });
 }
 
 function renderProgramResults(query) {
@@ -151,7 +170,7 @@ function renderProgramResults(query) {
     const remind = document.createElement('button');
     remind.type = 'button';
     remind.className = 'btn';
-    const exists = (S.config.reminders || []).some((entry) => entry.channelNumber === result.channel.number && entry.start === result.entry.start && entry.path === result.entry.file.path);
+    const exists = reminderList().some((entry) => entry.channelNumber === result.channel.number && entry.start === result.entry.start && entry.path === result.entry.file.path);
     remind.textContent = exists ? 'REMINDER SET' : 'REMIND ME';
     remind.disabled = exists;
     remind.addEventListener('click', () => { addProgramReminder(result); remind.textContent = 'REMINDER SET'; remind.disabled = true; });
@@ -166,9 +185,9 @@ guideSearchEl.addEventListener('input', () => {
 });
 
 function removeReminder(id) {
-  S.config.reminders = (S.config.reminders || []).filter((reminder) => reminder.id !== id);
+  const next = reminderList().filter((reminder) => reminder.id !== id);
   notifiedReminders.delete(id);
-  commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { label: 'Remove reminder' });
+  replaceReminders(next, { label: 'Remove reminder' });
 }
 
 function dismissActiveReminder() {
@@ -180,14 +199,14 @@ function dismissActiveReminder() {
 function checkProgramReminders() {
   const now = viewNow();
   let changed = false;
-  S.config.reminders = (S.config.reminders || []).filter((reminder) => {
+  const next = reminderList().filter((reminder) => {
     if (now > reminder.end + 5 * 60000) { changed = true; return false; }
     return true;
   });
-  if (changed) if (changed) commitInPlace({ type: 'settings.set', path: ['reminders'], value: S.config.reminders }, { skipUndo: true });
+  if (changed) replaceReminders(next, { skipUndo: true });
   if (activeReminder) return;
   const leadMs = (S.config.reminderLeadMinutes || 1) * 60000;
-  const due = (S.config.reminders || []).find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);
+  const due = reminderList().find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);
   if (!due) return;
   activeReminder = due;
   notifiedReminders.add(due.id);
@@ -528,7 +547,7 @@ function openRunList(ch, cell, anchorEl) {
 // Reminders already set (blue on a remote that has colour keys, doc 01 §6.2):
 // pick one to jump the guide to that programme.
 export function openGuideReminders() {
-  const reminders = (S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
+  const reminders = reminderList().slice().sort((a, b) => a.start - b.start);
   const items = reminders.map((reminder) => ({
     time: formatSlotLabel(reminder.start),
     label: `CH ${formatChannelNumber(reminder.channelNumber)} · ${reminder.title}`,
@@ -602,13 +621,24 @@ export function openGuideProgramActions() {
         });
       }
       if (!S.config.details || S.config.details.enabled !== false) items.push({ label: 'INFO', run: () => showDetailsForGuideSelection() });
+      if (currentProfile()) {
+        items.push({
+          label: 'RECORD ONCE',
+          run: () => personalCommand({ type: 'recording.request', requestType: 'airing', channel: ch.number, start: entry.start, end: entry.end, breaks: 'as-aired' }),
+        });
+        const seriesId = (entry.file.series && (entry.file.series.id || entry.file.series.name)) || entry.file.item;
+        if (seriesId) items.push({
+          label: 'RECORD SERIES',
+          run: () => personalCommand({ type: 'recording.request', requestType: 'series', channel: ch.number, start: entry.start, end: entry.end, seriesId, breaks: 'as-aired' }),
+        });
+      }
       const actions = [];
       runCoreHooks('guide-program-actions', { channel: ch, entry, actions });
       actions.filter((a) => a && a.label && typeof a.run === 'function').forEach((a) => {
         items.push({ label: String(a.label).toUpperCase(), run: () => a.run() });
       });
       if (entry.start > viewNow()) {
-        const exists = (S.config.reminders || []).some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
+        const exists = reminderList().some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
         items.push({
           label: exists ? 'REMINDER SET' : 'REMIND ME',
           className: exists ? 'past' : '',

@@ -1005,6 +1005,34 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="household">
         <div id="network-settings-grid" class="settings-grid">
+<div class="panel span-full">
+          <div class="panel-toggle">WHO'S WATCHING</div>
+          <div class="panel-body">
+            <div id="household-profiles-list" class="titles-list"></div>
+            <div class="setting-row-control"><button type="button" class="btn" id="household-add-profile">ADD PROFILE…</button></div>
+          </div>
+          <span class="panel-status">Favorites, hidden channels, reminders, recordings, resume points and viewing history belong to the selected profile. Programming remains shared.</span>
+        </div>
+
+<div class="panel">
+          <div class="panel-toggle">MY SHOWS &amp; DVR</div>
+          <div class="panel-body">
+            <div id="household-recordings-list" class="titles-list"></div>
+            <div class="setting-row-control"><button type="button" class="btn" id="household-dvr-quota">QUOTA: OFF</button> <button type="button" class="btn" id="household-dvr-keep">KEEP: ALL</button> <button type="button" class="btn" id="household-dvr-tuners">SIMULATED TUNERS: OFF</button></div>
+          </div>
+          <span class="panel-status">Recording requests use the host recorder and stay with this profile.</span>
+        </div>
+
+<div class="panel">
+          <div class="panel-toggle">WATCH TOGETHER</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row">
+              <div class="setting-row-control"><button type="button" class="btn" id="household-start-session">START SESSION</button> <button type="button" class="btn" id="household-join-session">JOIN…</button> <button type="button" class="btn hidden" id="household-leave-session">LEAVE</button></div>
+              <p class="setting-row-help" id="household-session-status">No shared session.</p>
+            </div>
+          </div>
+        </div>
+
 <div class="panel">
           <div class="panel-toggle">PARENTAL LOCK</div>
           <div class="panel-body setting-rows">

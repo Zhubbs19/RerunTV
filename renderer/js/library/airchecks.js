@@ -22,6 +22,7 @@ import { computeLivePosition } from '../core/schedule.js';
 import { S, viewNow, commitInPlace } from '../core/state.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
 import { formatClock, getDisplayTitle } from '../core/util.js';
+import { currentProfile, personalCommand } from '../personal/state.js';
 
 // Enough to be useful as a shortlist without turning the TV menu into a
 // scrolling list; older ones drop off the end as new ones are added.
@@ -32,8 +33,21 @@ export const AIR_CHECK_MAX = 24;
 export const AIR_CHECK_MENU_MAX = 6;
 
 function airCheckArray() {
+  const profile = currentProfile();
+  if (profile) return profile.state.airChecks;
   if (!Array.isArray(S.config.airChecks)) S.config.airChecks = [];
   return S.config.airChecks;
+}
+
+function saveAirChecks(list, opts = {}) {
+  const profile = currentProfile();
+  if (profile) {
+    profile.state.airChecks = list;
+    personalCommand({ type: 'state.set', key: 'airChecks', value: list }).catch((e) => console.warn('[profiles] air-check write failed:', e.message));
+  } else {
+    S.config.airChecks = list;
+    commitInPlace({ type: 'settings.set', path: ['airChecks'], value: list }, opts);
+  }
 }
 
 // Newest first — the one you just made is the one you are most likely to
@@ -75,19 +89,17 @@ export function saveAirCheck() {
   // Without it, an evening of surfing would bury real setup edits under a
   // pile of "air check added" steps — the same reasoning that keeps
   // lastChannel out of the undo stack (saveConfigDebounced, state.js).
-  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: list }, { skipUndo: true });
+  saveAirChecks(list, { skipUndo: true });
   flashMessage(`AIR CHECK SAVED — ${airCheckLabel(mark)}`, 'airCheckFlashTimer');
   return mark;
 }
 
 export function removeAirCheck(id) {
-  S.config.airChecks = airCheckArray().filter((mark) => mark.id !== id);
-  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: S.config.airChecks }, { label: 'Remove air check' });
+  saveAirChecks(airCheckArray().filter((mark) => mark.id !== id), { label: 'Remove air check' });
 }
 
 export function clearAirChecks() {
-  S.config.airChecks = [];
-  commitInPlace({ type: 'settings.set', path: ['airChecks'], value: S.config.airChecks }, { label: 'Clear air checks' });
+  saveAirChecks([], { label: 'Clear air checks' });
 }
 
 // Shifts the viewing clock so that `viewNow()` reads the marked instant,

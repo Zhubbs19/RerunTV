@@ -11,11 +11,12 @@
 // and a viewer writing into it would conflate two different screens.
 import { S, viewNow } from '../core/state.js';
 import { getDisplayTitle } from '../core/util.js';
+import { currentProfile, personalCommand } from '../personal/state.js';
 
 export function recordViewing(ch, file) {
   if (!window.api || typeof window.api.historyAppend !== 'function') return;
   if (!ch || !file) return;
-  Promise.resolve(window.api.historyAppend({
+  const entry = {
     // Both clocks: `at` is when this was really watched, which is what a
     // "last week" readout needs, while `viewAt` is where it sat in the
     // simulated schedule, which is what makes a row from a time-shifted
@@ -27,15 +28,19 @@ export function recordViewing(ch, file) {
     title: getDisplayTitle(file),
     path: file.path || '',
     durationS: Number(file.duration) || 0,
-  })).catch(() => {});
+  };
+  Promise.resolve(window.api.historyAppend(entry)).catch(() => {});
+  if (currentProfile()) personalCommand({ type: 'history.append', entry }).catch(() => {});
 }
 
 export function listViewingHistory(limit) {
+  if (currentProfile()) return Promise.resolve(currentProfile().state.history.slice(-(limit || 2000)).reverse());
   if (!window.api || typeof window.api.historyList !== 'function') return Promise.resolve([]);
   return Promise.resolve(window.api.historyList(limit)).catch(() => []);
 }
 
 export function clearViewingHistory() {
+  if (currentProfile()) return personalCommand({ type: 'state.set', key: 'history', value: [] }).then(() => true).catch(() => false);
   if (!window.api || typeof window.api.historyClear !== 'function') return Promise.resolve(false);
   return Promise.resolve(window.api.historyClear()).catch(() => false);
 }

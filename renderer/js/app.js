@@ -51,6 +51,8 @@ import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
 import { installTvPlatform } from './tv/platform.js';
+import { initPersonalState, isFavorite, personalCommand } from './personal/state.js';
+import { initDvrScheduler } from './personal/dvr-scheduler.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
@@ -247,6 +249,7 @@ export function handleKey(e) {
 
   if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
     S.quickJumpSlots[e.key] = S.currentNumber;
+    if (S.personalProfile) personalCommand({ type: 'state.set', key: 'quickJumpSlots', value: S.quickJumpSlots }).catch(() => {});
     showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
     const guideNow = document.getElementById('guide-now');
     if (guideNow) guideNow.textContent = `⭐ QUICK-JUMP SLOT ${e.key} SAVED!`;
@@ -685,7 +688,7 @@ function pushCompanionLineup() {
     const row = {
       number: ch.number,
       name: ch.name || '',
-      favorite: !!ch.favorite,
+      favorite: isFavorite(ch.number),
       quickAccess: !!ch.quickAccess,
       now: '', next: '', endsAtMs: null,
     };
@@ -1225,6 +1228,7 @@ async function init() {
   // don't need a second notice layered on top.
   const beforeMigration = JSON.stringify(loaded);
   S.config = applyConfigDefaults(loaded);
+  await initPersonalState();
   if (window.__isViewer) window.api.setUiScale(S.config.display.uiScale);
   resetUndoBaseline();
   if (!loaded._configLoadError && beforeMigration !== JSON.stringify(S.config)) {
@@ -1243,6 +1247,7 @@ async function init() {
   // and showTvScreen() must see that channel type before its first tune.
   // Styles/modules are local assets, so the small startup cost is bounded.
   await loadPlugins();
+  initDvrScheduler();
   startThemeCheck(); // background: theme contrast results for the browser badge and diagnostics
   // Declarative plugin settings schemas may have filled defaults or applied
   // migrations during registration. Treat that boot normalization as the

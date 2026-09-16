@@ -65,6 +65,7 @@ const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServic
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
+const { createPersonalService, registerPersonalIpc } = require('./personal/service');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
@@ -354,6 +355,25 @@ function getLibraryService() {
   return libraryService;
 }
 registerLibraryIpc(ipcMain, { getService: getLibraryService });
+
+// ---------- Household profiles and personal state (docs/design/09) ----------
+let personalService = null;
+function publishPersonalEvent(channel, data) {
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) win.webContents.send(channel, data);
+  const bridge = pluginServicesRef && pluginServicesRef.viewerRemoteBridge;
+  if (bridge) bridge.publish(channel, data);
+}
+function getPersonalService() {
+  if (!personalService) personalService = createPersonalService({
+    dir: path.join(app.getPath('userData'), 'profiles'),
+    getConfig: loadConfig,
+    legacyHistoryFile: path.join(app.getPath('userData'), 'viewing-history.json'),
+    publish: publishPersonalEvent,
+  });
+  return personalService;
+}
+registerPersonalIpc(ipcMain, { getService: getPersonalService });
 registerHistoryIpc();
 registerDiagnosticsIpc(ipcMain, {
   app,
@@ -463,6 +483,7 @@ app.whenReady().then(async () => {
       // The library API for a control session. The route sets `remote`, which
       // keeps whole-library rewrites (migration, root moves) on the host.
       libraryCall: (method, payload, opts) => getLibraryService().call(method, payload, opts),
+      personalCall: (method, payload, opts) => getPersonalService().call(method, payload, opts),
       listPlugins: () => discoverPlugins().map((plugin) => (
         plugin.error ? plugin : {
           ...plugin,

@@ -33,6 +33,7 @@ import {
   resolveActiveSource,
 } from '../core/schedule.js';
 import { S, viewNow, commitInPlace } from '../core/state.js';
+import { isFavorite, isHiddenForProfile, syncSharedTune } from '../personal/state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import { isEnabledByDefault } from '../core/util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
@@ -761,10 +762,11 @@ export async function tuneToChannel(number, opts) {
   // channels out of the guide and channel-surfing, so this is only ever
   // reached by something bypassing those.
   const rawCh = getChannel(number);
-  const ch = (rawCh && rawCh.hidden) ? null : rawCh;
+  const ch = (rawCh && (rawCh.hidden || isHiddenForProfile(rawCh.number))) ? null : rawCh;
   const prevNumber = S.currentNumber;
   if (prevNumber != null && prevNumber !== number) S.previousNumber = prevNumber;
   S.currentNumber = number;
+  if (!opts.sharedSync) syncSharedTune(number);
   window.applyTheme?.();
   applyChannelIdentity(ch);
   // Universal remote's "NOW WATCHING" readout (and full status snapshot,
@@ -995,7 +997,7 @@ export function scheduleBlockBoundaryRetune(ch) {
 
 export function changeChannel(direction) {
   const numbers = virtualChannelNumbers()
-    .concat(sortedChannels().filter((c) => !c.hidden).map((c) => c.number))
+    .concat(sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number))
     .sort((a, b) => a - b);
   if (numbers.length === 0) return;
   let idx = numbers.indexOf(S.currentNumber);
@@ -1048,7 +1050,7 @@ export function toggleChannelScan() {
 // fallback to the full channel list) when none are set, since silently
 // surfing everything would defeat the point of a dedicated favorites key.
 export function changeFavoriteChannel(direction) {
-  const favs = sortedChannels().filter((c) => c.favorite && !c.hidden).map((c) => c.number);
+  const favs = sortedChannels().filter((c) => isFavorite(c.number) && !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number);
   if (favs.length === 0) return;
   let idx = favs.indexOf(S.currentNumber);
   if (idx === -1) idx = 0;

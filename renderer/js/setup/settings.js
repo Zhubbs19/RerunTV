@@ -32,6 +32,7 @@ import { initFlowBuilder, renderFlowsList } from './flowbuilder.js';
 import { renderAutoCurateList } from './autocurate.js';
 import { renderTagTaxonomyPanel } from './tagtaxonomy-ui.js';
 import { renderLibraryPanels } from './library.js';
+import { refreshHouseholdPanel, renderHouseholdPanel } from './household.js';
 import { attachSliderReadout } from './util.js';
 import { renderChannelList } from './channels.js';
 import { renderBoxStatus } from './channels-diagnostics.js';
@@ -69,6 +70,7 @@ import {
 } from '../core/dom.js';
 import { airCheckLabel, airChecks, clearAirChecks, removeAirCheck } from '../library/airchecks.js';
 import { clearViewingHistory, formatWatchTime, listViewingHistory, summarizeHistory } from '../playback/history.js';
+import { currentProfile, personalCommand } from '../personal/state.js';
 
 // Live numeric readouts for every box-wide range slider — wired once at
 // module load since these elements are all static (not rebuilt per-render),
@@ -365,6 +367,7 @@ export function renderSettingsPanels() {
   renderRemindersPanel();
   renderAirChecksPanel();
   renderViewingHistoryPanel();
+  renderHouseholdPanel();
   if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
   if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
@@ -518,6 +521,7 @@ setupTabBtns.forEach((btn) => {
     revealPanel(Array.from(setupTabPanels).find((p) => p.dataset.tabPanel === tab));
     if (tab === 'help') renderHelpTab();
     if (tab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
+    if (tab === 'household') refreshHouseholdPanel();
     restoreActiveSubtabPanels();
     syncDiagnosticsMonitor();
     updateBreadcrumb();
@@ -537,6 +541,7 @@ export function resetSetupTabs() {
   setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== lastSetupTab));
   if (lastSetupTab === 'help') renderHelpTab();
   if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
+  if (lastSetupTab === 'household') refreshHouseholdPanel();
   restoreActiveSubtabPanels();
   syncDiagnosticsMonitor();
   updateBreadcrumb();
@@ -1770,7 +1775,7 @@ export function renderRemindersPanel() {
   if (reminderAutoTuneEl) reminderAutoTuneEl.checked = !!S.config.reminderAutoTune;
   if (reminderNotifyEl) reminderNotifyEl.checked = S.config.reminderNotify !== false;
   if (!remindersListEl) return;
-  const reminders = (S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
+  const reminders = (currentProfile()?.state.reminders || S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
   if (remindersClearAllBtn) remindersClearAllBtn.disabled = !reminders.length;
   remindersListEl.innerHTML = '';
   if (!reminders.length) {
@@ -1797,7 +1802,9 @@ export function renderRemindersPanel() {
     remove.className = 'btn';
     remove.textContent = 'REMOVE';
     remove.addEventListener('click', () => {
-      dispatch({ type: 'settings.set', path: ['reminders'], value: (S.config.reminders || []).filter((entry) => entry.id !== reminder.id) }, { label: 'Remove reminder' });
+      const next = (currentProfile()?.state.reminders || S.config.reminders || []).filter((entry) => entry.id !== reminder.id);
+      if (currentProfile()) personalCommand({ type: 'state.set', key: 'reminders', value: next }).then(renderRemindersPanel);
+      else dispatch({ type: 'settings.set', path: ['reminders'], value: next }, { label: 'Remove reminder' });
       renderRemindersPanel();
     });
     row.append(label, remove);
@@ -1814,7 +1821,7 @@ reminderNotifyEl?.addEventListener('change', () => {
 });
 
 remindersClearAllBtn?.addEventListener('click', async () => {
-  const count = (S.config.reminders || []).length;
+  const count = (currentProfile()?.state.reminders || S.config.reminders || []).length;
   if (!count) return;
   const ok = await confirmDialog({
     title: 'CLEAR REMINDERS',
@@ -1822,7 +1829,8 @@ remindersClearAllBtn?.addEventListener('click', async () => {
     confirmText: 'CLEAR ALL',
   });
   if (!ok) return;
-  dispatch({ type: 'settings.set', path: ['reminders'], value: [] }, { label: 'Clear reminders' });
+  if (currentProfile()) await personalCommand({ type: 'state.set', key: 'reminders', value: [] });
+  else dispatch({ type: 'settings.set', path: ['reminders'], value: [] }, { label: 'Clear reminders' });
   renderRemindersPanel();
 });
 
