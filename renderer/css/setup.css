@@ -264,13 +264,13 @@
   box-shadow: var(--bevel-raised), var(--shadow-hard);
   padding: 18px;
   display: grid;
-  grid-template-columns: 44px 72px 1fr;
+  grid-template-columns: 44px 72px 1fr auto;
   grid-template-areas:
-    "badge num  name"
-    "path  path path"
-    "now   now  now"
-    "acts  acts acts"
-    "opts  opts opts";
+    "badge num  name call"
+    "path  path path path"
+    "now   now  now  now"
+    "acts  acts acts acts"
+    "opts  opts opts opts";
   gap: 14px;
   align-items: center;
   cursor: grab;
@@ -289,6 +289,7 @@
 .channel-row > .channel-badge { grid-area: badge; }
 .channel-row > input[type="number"] { grid-area: num; }
 .channel-row > input[type="text"] { grid-area: name; }
+.channel-row > input.call-letters-input { grid-area: call; }
 .channel-row > .folder-status { grid-area: path; }
 .channel-row > .channel-now { grid-area: now; }
 .channel-row > .channel-actions { grid-area: acts; }
@@ -296,13 +297,13 @@
 
 .channel-select-checkbox { display: none; }
 #channel-list.select-mode .channel-row {
-  grid-template-columns: 22px 44px 72px 1fr;
+  grid-template-columns: 22px 44px 72px 1fr auto;
   grid-template-areas:
-    "chk badge num  name"
-    "chk path  path path"
-    "chk now   now  now"
-    "chk acts  acts acts"
-    "chk opts  opts opts";
+    "chk badge num  name call"
+    "chk path  path path path"
+    "chk now   now  now  now"
+    "chk acts  acts acts acts"
+    "chk opts  opts opts opts";
 }
 #channel-list.select-mode .channel-select-checkbox {
   display: block;
