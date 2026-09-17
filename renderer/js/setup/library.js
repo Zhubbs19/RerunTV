@@ -16,6 +16,7 @@ import { freshChannel, parseMediaRef } from '../core/channels.js';
 import { channelFilterEl } from '../core/dom.js';
 import { diffSchedules, querySchedule } from '../core/schedule-query.js';
 import { Badge, Button, EmptyState } from '../ui/button.js';
+import { Dialog } from '../ui/dialog.js';
 import { h } from '../ui/kit-core.js';
 import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
@@ -44,6 +45,7 @@ const L = {
   busy: null,        // one long action at a time: 'check' | 'build' | 'scan:<root>' | …
   check: null,       // the migration check: { progress } while running, then { rows, plan, … }
   editing: null,     // the saved-query form: { id, name, order, kind, genre, era, series, text, advanced }
+  itemSearch: '',    // CATALOGUE's "find an item" box (§8: single-item editor)
   openGroups: new Set(),
   excluded: new Map(), // group key -> Set of item ids left unticked
   notice: { catalogue: '', review: '', smart: '' },
@@ -367,6 +369,7 @@ function renderRoots(root) {
     if (entry.kind !== 'provider') {
       actions.appendChild(Button({ label: 'UPDATE LOCATION…', variant: 'quiet', disabled: !!L.busy, onPress: () => updateLocation(entry), attrs: { 'aria-label': `Update location of ${entry.ref}` } }));
     }
+    actions.appendChild(Button({ label: 'FORGET…', variant: 'quiet', disabled: !!L.busy, onPress: () => removeRootEntry(entry), attrs: { 'aria-label': `Forget ${entry.ref}` } }));
     const busyHere = L.busy === `scan:${entry.id}`;
     return h('tr', {},
       cell(h('span', { className: 'library-ref', text: entry.label || entry.ref, attrs: { title: entry.ref } })),
@@ -375,6 +378,127 @@ function renderRoots(root) {
       cell(actions));
   });
   root.appendChild(table(['Location', 'Items', 'Last scan', ''], rows));
+}
+
+// docs/design/07 §8: "no UI yet to remove a root or an item". Items are left
+// behind on purpose (store.removeRoot's own comment) — a root is often
+// removed because a drive is temporarily unplugged, and dropping every item
+// would throw away tags and review decisions attached to them.
+async function removeRootEntry(entry) {
+  const count = liveItems().filter((item) => item.root === entry.id).length;
+  const ok = await confirmDialog({
+    message: `Forget "${entry.label || entry.ref}"? ${count ? `${plural(count, 'item')} stay in the library without a location — reconnect and rescan later, or remove them one at a time from the item search below.` : 'It has no catalogued items.'}`,
+    danger: true, confirmText: 'FORGET LOCATION',
+  });
+  if (!ok) return;
+  await run(`remove-root:${entry.id}`, async () => {
+    await call('removeRoot', { id: entry.id });
+    L.notice.catalogue = `Forgot ${entry.label || entry.ref}.`;
+    await refresh();
+  });
+}
+
+// The single-item editor (doc §8): title, kind, series, genre/era facets,
+// rating and tags. Saved fields get `provenance: 'user'`, so no later
+// automatic tagging pass ever overwrites a hand edit (§5's own rule).
+function itemEditorBody(item) {
+  const titleInput = h('input', { type: 'text', className: 'title-row-input', value: item.title || '' });
+  const kindSelect = h('select', {}, ...KINDS.map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
+  const seriesNameInput = h('input', { type: 'text', className: 'title-row-input', value: (item.series && item.series.name) || '' });
+  const seasonInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.season != null) ? String(item.series.season) : '' });
+  const episodeInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.episode != null) ? String(item.series.episode) : '' });
+  const genreInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue((item.facets && item.facets.genre) || []) });
+  const eraInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue((item.facets && item.facets.era) || []) });
+  const ratingInput = h('input', { type: 'text', className: 'title-row-input', value: item.rating || '' });
+  const tagsInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue(item.tags || []) });
+  const row = (label, input) => h('label', { className: 'library-editor-row' }, h('span', { className: 'library-editor-row-label', text: label }), input);
+  const body = h('div', { className: 'library-editor-form' },
+    row('Title', titleInput), row('Kind', kindSelect),
+    row('Series name', seriesNameInput), row('Season', seasonInput), row('Episode', episodeInput),
+    row('Genre (comma-separated)', genreInput), row('Era (comma-separated)', eraInput),
+    row('Rating', ratingInput), row('Tags (comma-separated)', tagsInput));
+  return {
+    body,
+    read: () => {
+      const list = (value) => value.split(',').map((s) => s.trim()).filter(Boolean);
+      const fields = {
+        title: titleInput.value.trim(),
+        kind: kindSelect.value,
+        rating: ratingInput.value.trim(),
+        tags: list(tagsInput.value),
+        facets: { ...(item.facets || {}), genre: list(genreInput.value), era: list(eraInput.value) },
+        provenance: { ...(item.provenance || {}), title: 'user', kind: 'user', genre: 'user', era: 'user', rating: 'user', tags: 'user' },
+      };
+      const seriesName = seriesNameInput.value.trim();
+      if (seriesName) {
+        fields.series = { ...(item.series || {}), name: seriesName };
+        if (seasonInput.value !== '') fields.series.season = Number(seasonInput.value);
+        if (episodeInput.value !== '') fields.series.episode = Number(episodeInput.value);
+        fields.provenance.series = 'user';
+      }
+      return fields;
+    },
+  };
+}
+
+async function openItemEditor(item) {
+  const { body, read } = itemEditorBody(item);
+  const saved = await Dialog({
+    title: 'EDIT ITEM',
+    message: basename(item.ref),
+    kind: 'prompt',
+    body,
+    dismissValue: null,
+    actions: [{ label: 'CANCEL', value: null }, { label: 'SAVE', variant: 'primary', value: true }],
+  }).result;
+  if (!saved) return;
+  const fields = read();
+  await run(`edit-item:${item.id}`, async () => {
+    await call('applyItemUpdates', { updates: [{ id: item.id, fields }] });
+    L.notice.catalogue = `Updated ${itemLabel(item)}.`;
+    await refresh();
+  });
+}
+
+async function removeItemEntry(item) {
+  const ok = await confirmDialog({
+    message: `Remove "${itemLabel(item)}" from the library? Its tags and review history are lost. A channel that has already used it keeps playing it exactly as it does now — this only removes it as a future candidate for smart channels and tagging.`,
+    danger: true, confirmText: 'REMOVE',
+  });
+  if (!ok) return;
+  await run(`remove-item:${item.id}`, async () => {
+    await call('removeItem', { id: item.id });
+    L.notice.catalogue = `Removed ${itemLabel(item)}.`;
+    await refresh();
+  });
+}
+
+function renderItemSearch(root) {
+  const wrap = h('div', { className: 'library-item-search' });
+  const resultsEl = h('div', { className: 'library-item-search-results' });
+  const input = h('input', {
+    type: 'search', className: 'title-row-input', placeholder: 'FIND AN ITEM BY TITLE OR FILENAME…', value: L.itemSearch,
+  });
+  input.addEventListener('input', () => { L.itemSearch = input.value; renderItemSearchResults(resultsEl); });
+  wrap.append(h('label', { className: 'library-editor-row' }, h('span', { className: 'library-editor-row-label', text: 'Edit or remove an item' }), input), resultsEl);
+  root.appendChild(wrap);
+  renderItemSearchResults(resultsEl);
+}
+
+function renderItemSearchResults(container) {
+  container.replaceChildren();
+  const term = (L.itemSearch || '').trim().toLowerCase();
+  if (!term) return;
+  const matches = liveItems().filter((item) => itemLabel(item).toLowerCase().includes(term) || basename(item.ref).toLowerCase().includes(term)).slice(0, 25);
+  if (!matches.length) { container.appendChild(note('No items match.')); return; }
+  const rows = matches.map((item) => h('tr', {},
+    cell(h('span', { text: itemLabel(item), attrs: { title: item.ref } })),
+    cell(fieldValue(item.tags || [])),
+    cell(h('div', { className: 'library-row-actions' },
+      Button({ label: 'EDIT…', variant: 'quiet', onPress: () => openItemEditor(item) }),
+      Button({ label: 'REMOVE', variant: 'quiet', onPress: () => removeItemEntry(item) })))));
+  container.appendChild(table(['Item', 'Tags', ''], rows));
+  if (matches.length === 25) container.appendChild(note('Showing the first 25 matches — narrow the search for more.'));
 }
 
 function renderCatalogue() {
@@ -416,6 +540,7 @@ function renderCatalogue() {
   renderCheck(root);
   root.appendChild(h('p', { className: 'panel-status', text: 'A scan reads one location: new files are catalogued, moved files are followed, and anything it can’t be sure about waits in REVIEW. Missing files are reported, never removed.' }));
   renderRoots(root);
+  renderItemSearch(root);
 }
 
 // ---------- REVIEW: scan decisions ----------
@@ -532,7 +657,8 @@ function renderGroup(group) {
         L.excluded.set(group.key, set);
         renderReviewTags();
       });
-      list.appendChild(h('li', {}, h('label', {}, box, ' ', itemLabel(item), h('span', { className: 'library-reason', text: ` ${basename(item && item.ref)}` }))));
+      list.appendChild(h('li', {}, h('label', {}, box, ' ', itemLabel(item), h('span', { className: 'library-reason', text: ` ${basename(item && item.ref)}` })),
+        Button({ label: 'EDIT…', variant: 'quiet', onPress: () => openItemEditor(item) })));
     });
     card.appendChild(list);
   }

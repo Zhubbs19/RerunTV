@@ -208,6 +208,7 @@ contextBridge.exposeInMainWorld('api', {
   // viewer page itself is a separate, independent load of this same
   // renderer bundle served over HTTP, not driven through this bridge.
   getViewerUrl: () => ipcRenderer.invoke('viewer:getUrl'),
+  getViewerControlUrl: () => ipcRenderer.invoke('viewer:getControlUrl'),
   // TV clients (docs/design/01): save a Remote-test capture on the host, and
   // the phone/computer handoff URL + QR.
   saveRemoteProfile: (profile) => ipcRenderer.invoke('tvClient:saveRemoteProfile', profile),

@@ -4,10 +4,10 @@
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { applyConfigDefaults, showTvScreen } from '../app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from '../library/channel-package.js';
-import { BUILTIN_TEMPLATES, compileTemplate, describeChannel, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
+import { compileTemplate, describeChannel, listTemplates, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
-import { isFavorite, setFavorite } from '../personal/state.js';
+import { isFavorite, previewOnClient, refreshPersonalClients, setFavorite } from '../personal/state.js';
 import {
   buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
   subChannelsEnabled,
@@ -39,7 +39,7 @@ import {
 } from '../plugin/host.js';
 import { renderChannelDisplaySettings } from './plugin-settings.js';
 import { computeLivePosition, computeSourcePosition, resolveActiveSource } from '../core/schedule.js';
-import { BADGE_COLORS, S, commitInPlace, dispatch, saveConfigNow, resetUndoBaseline, viewNow, commitConfigPatch } from '../core/state.js';
+import { BADGE_COLORS, S, commitInPlace, dispatch, getClientId, saveConfigNow, resetUndoBaseline, viewNow, commitConfigPatch } from '../core/state.js';
 import { basenameNoExt, getDisplayTitle, shuffleArray, randomInterstitialId, toDatetimeLocalValue, deepClone } from '../core/util.js';
 import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPreviewMs } from './channel-preview.js';
 import { applyLocalFolderRelink } from '../library/relink.js';
@@ -392,6 +392,17 @@ export function renderChannelList() {
       editHeaderPreviewBtn.disabled = ch.files.length === 0;
       editHeaderPreviewBtn.addEventListener('click', () => openPreviewModal(ch));
       editHeaderRow.appendChild(editHeaderPreviewBtn);
+
+      // docs/design/06 §5 "Preview on TV" — send this channel to another
+      // connected screen (paired LAN viewer, Android TV client) instead of
+      // this device's own setup-preview banner above.
+      const previewOnBtn = document.createElement('button');
+      previewOnBtn.className = 'btn';
+      previewOnBtn.textContent = 'PREVIEW ON…';
+      previewOnBtn.title = 'Tune a connected TV or LAN viewer to this channel';
+      previewOnBtn.disabled = ch.files.length === 0;
+      previewOnBtn.addEventListener('click', () => openPreviewOnDialog(ch));
+      editHeaderRow.appendChild(previewOnBtn);
 
       // Exports the channel plus only its directly referenced flows,
       // presets, and pool entries. IMPORT CHANNEL merges this package into
@@ -1986,6 +1997,33 @@ export function removeFolderFromChannel(ch, folderEntry) {
   renderChannelList();
 }
 
+// ---------- PREVIEW ON… (docs/design/06 §5 — send a channel to another screen) ----------
+async function openPreviewOnDialog(ch) {
+  let clients = [];
+  try { clients = (await refreshPersonalClients()).filter((c) => c.id !== getClientId()); } catch (e) { clients = (S.personalClients || []).filter((c) => c.id !== getClientId()); }
+  if (!clients.length) {
+    await alertDialog('No other screens are connected right now — pair a LAN viewer or Android TV client first.', { title: 'PREVIEW ON…' });
+    return;
+  }
+  const targetId = await Dialog({
+    title: 'PREVIEW ON…',
+    message: `Tune a connected screen to CH ${ch.number}${ch.name ? ' — ' + ch.name : ''}.`,
+    kind: 'prompt',
+    dismissValue: null,
+    actions: [
+      { label: 'CANCEL', value: null },
+      ...clients.map((c) => ({ label: c.label.toUpperCase(), value: c.id })),
+    ],
+  }).result;
+  if (!targetId) return;
+  try {
+    await previewOnClient(targetId, ch.number);
+    scanProgressEl.classList.remove('hidden');
+    scanProgressEl.textContent = `SENT CH ${ch.number} TO ${(clients.find((c) => c.id === targetId) || {}).label || 'SCREEN'}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 3000);
+  } catch (e) { await alertDialog(`Could not preview there: ${e.message}`, { variant: 'error' }); }
+}
+
 // ---------- PREVIEW (test-tune a channel from setup) ----------
 // Jumps straight to the TV screen tuned to a specific channel, optionally
 // "as of" a chosen date/time rather than right now — configurable because
@@ -2173,7 +2211,7 @@ async function chooseBuiltinTemplate() {
     dismissValue: null,
     actions: [
       { label: 'CANCEL', value: null },
-      ...BUILTIN_TEMPLATES.map((template, index) => ({
+      ...listTemplates().map((template, index) => ({
         label: template.name.toUpperCase(), value: template, variant: index === 0 ? 'primary' : 'default', isDefault: index === 0,
       })),
     ],

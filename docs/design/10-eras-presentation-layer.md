@@ -21,15 +21,20 @@ across two tabs. `renderer/js/tv/setup.js` adds an ERA value-item (Left/Right st
 as the first row of TV menu › Guide & Theme. `registerEra` is exposed to plugins via
 `window.RCBPlugins` alongside `registerThemePack`.
 
-**v1 scope decisions** (see doc §7's phase list): channel-level "follow/pin era" is not built —
-a channel's own `broadcastIdentity.theme` already wins over the box era through the existing
-`effectiveThemeId` resolver unchanged, so nothing regresses, but there's no UI to clear it back
-to "follow era" from a pinned channel yet. Plugin era hints (Music Choice's ERA dial, ticker/EAS
-style) and template/pool suggestions (phase 5) are not wired. Rating-bug era rules are not a
-controlled field — the existing gate is per-channel (`ch.hideRatingBug`), not box-wide, and doc
-10's own accuracy-rules risk (§5, low-resolution TV-mode accessibility override) is not built.
-Per-profile era preference (doc 09's `profile.state.era`, already reserved in the schema) is not
-wired to this layer yet — a natural follow-up, not required by this doc's acceptance criteria.
+**2026-09-17 correction:** channel-level "follow/pin era" was listed here as not built — wrong.
+`renderer/js/setup/panels.js`'s `buildChannelIdentityPanel` (predates this doc, `3d0781d`) already
+has a per-channel "THEME / ERA" select with an explicit "INHERIT BOX THEME" option that clears
+`ch.broadcastIdentity.theme` back to following the box, plus a "CLEAR ALL IDENTITY OVERRIDES"
+button — exactly the §4 "Follow era" toggle this doc asked for, for the one identity field that
+exists. Nothing to build there.
+
+**v1 scope decisions** (see doc §7's phase list): plugin era hints (Music Choice's ERA dial,
+ticker/EAS style) and template/pool suggestions (phase 5) are not wired. Rating-bug era rules are
+not a controlled field — the existing gate is per-channel (`ch.hideRatingBug`), not box-wide, and
+doc 10's own accuracy-rules risk (§5, low-resolution TV-mode accessibility override) is not
+built. Per-profile era preference (doc 09's `profile.state.era`, already reserved in the schema)
+is not wired to this layer yet — a natural follow-up, not required by this doc's acceptance
+criteria.
 
 **Bug found during live validation:** the ERA panel's per-field "source" list only refreshed
 when its own buttons were clicked — a hand-edit of an era-controlled setting elsewhere in setup

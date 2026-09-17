@@ -184,5 +184,14 @@ export async function handoffTo(targetClientId, recording = null) {
     targetClientId, channel: S.currentNumber, timeOffsetMs: S.timeOffsetMs, recording,
   });
 }
+// docs/design/06 §5's "Preview on TV" — an editor (which may not be tuned to
+// anything itself, unlike handoffTo above) sends a specific channel to a
+// connected client, reusing the same client:handoff event every client
+// already listens for (initPersonalState's onClientHandoff), starting from
+// live rather than a resume offset.
+export async function previewOnClient(targetClientId, channelNumber) {
+  if (!Number.isFinite(channelNumber)) throw new Error('Choose a channel to preview first.');
+  return call('handoff', { targetClientId, channel: channelNumber, timeOffsetMs: 0 });
+}
 export function onPersonalStateChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 export { call as personalCall };

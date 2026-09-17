@@ -52,7 +52,7 @@ import {
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   displayModeOverlaysNativeSizeEl, displayModeUiExtentSelect, hideTitleBarEnabledEl,
-  viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
+  viewerEnabledEl, viewerUrlStatusEl, controlUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
   updateModeSelect, updateStatusLineEl, updateSettingsPanelEl,
@@ -408,6 +408,7 @@ export function renderSettingsPanels() {
   renderLibraryPanels();
   renderBackupsList();
   renderViewerUrlStatus();
+  renderViewerControlUrlStatus();
   renderStartupServerStatus();
   renderConnectedDevices();
   sliderReadouts.forEach((r) => r.refresh());
@@ -1675,7 +1676,28 @@ export function renderViewerUrlStatus() {
 viewerEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['network', 'viewerEnabled'], value: viewerEnabledEl.checked });
   viewerUrlStatusEl.textContent = `${viewerEnabledEl.checked ? 'Viewer access will start' : 'Viewer access will stop'} after RerunTV restarts.`;
+  renderViewerControlUrlStatus();
 });
+
+// docs/design/06 §4's control pairing code, previously visible only on the
+// loopback /server page (host-only IPC — see api-contract.js). Uses the same
+// "share with devices" toggle as the read-only viewer above, since /control
+// is served by the same LAN process.
+export function renderViewerControlUrlStatus() {
+  if (!controlUrlStatusEl || typeof window.api.getViewerControlUrl !== 'function') return;
+  if (!viewerEnabledEl.checked) {
+    controlUrlStatusEl.textContent = 'Off by default. Enable "Share with devices on this network" above, save, and restart RerunTV.';
+    return;
+  }
+  window.api.getViewerControlUrl().then((candidates) => {
+    if (!candidates || !candidates.length) {
+      controlUrlStatusEl.textContent = 'Not active yet. Restart RerunTV, or connect this computer to WiFi/ethernet.';
+      return;
+    }
+    const list = candidates.map((c) => `${c.url} (${c.name})`).join(', ');
+    controlUrlStatusEl.textContent = `Open one of these on a laptop, tablet or phone for the same setup screen — writable there, unlike the read-only viewer link above: ${list}`;
+  });
+}
 
 export async function renderStartupServerStatus(statusOverride = null) {
   if (!startupServerEnabledEl || !startupServerStatusEl) return;

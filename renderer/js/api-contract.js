@@ -43,6 +43,11 @@
     'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled',
+    // The control pairing code must never reach a `view`-scope viewer — that
+    // would let a read-only session learn its way to a writable one. Host
+    // window only, unlike getViewerUrl (the view code) just above it in
+    // viewerMethods, which is fine for a viewer to see.
+    'getViewerControlUrl',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',

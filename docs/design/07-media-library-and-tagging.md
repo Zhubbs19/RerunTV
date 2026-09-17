@@ -307,12 +307,26 @@ restored byte-for-byte.
 - Migration of the real installed lineup produces an empty 60-day schedule diff. **Met** in the
   dry run (14/14). **Verified live** through CATALOGUE on a copy of the installed profile: 14/14 identical in 40 s with the progress line updating throughout, 2,173/2,173 files given ids, paths, durations and anchors unchanged, one `Build media library` undo step. The first scan of YT Archive adopted both files with nothing sent to review.
 
+**2026-09-17:** a single-item editor and root/item removal are now built. `main/library/service.js`
+gained `removeRoot`/`removeItem` (host-only, not in `REMOTE_METHODS` — same "whole-library
+rewrites stay on the host window" rule as everything else that touches more than one item) over
+the store's own `removeRoot`/`removeItem`, which already existed but were never wired to
+anything. `renderer/js/setup/library.js`'s CATALOGUE tab gained a "find an item" search (title or
+filename, top 25 matches) with EDIT…/REMOVE per row, a FORGET… button per location (items are
+left behind on purpose — a root is often removed because a drive is unplugged, and dropping
+every item would lose tags and review decisions; `orphanedItems()` already reports them), and an
+EDIT… link on every item in REVIEW's per-group "CHOOSE ITEMS…" list. The editor covers title,
+kind, series name/season/episode, genre/era facets, rating and tags, and marks every field it
+touches `provenance: 'user'` so no later automatic pass overwrites a hand edit (§5's own rule).
+Neither removal path touches a channel's materialized `files` (C6) — a channel that already
+played an item keeps playing it exactly as it does now; only a later, previewed rematerialize
+would stop offering it as a candidate.
+
 Still open across the doc:
 
-- §5 steps 2, 4 and 5, and a single-item editor.
+- §5 steps 2, 4 and 5 (embedded container tags, taxonomy mapping, opt-in metadata plugins).
 - Queries in blocks and templates.
 - Provider roots have no etags, so a provider item keeps its identity by ref alone.
-- No UI yet to remove a root or an item from the library.
 - Old per-file metadata is still dual-read (§7 step 4).
 
 ## 9. Risks

@@ -28,8 +28,15 @@ the 331/331 tracked suite) plus a live pass (`tests/ui/verify-doc09.mjs`, 17/17)
 installed lineup covering migration, profile-scoped favorites, restricted-profile filtering, the
 HOUSEHOLD panel (including a fix: the tab wasn't re-fetching the profile list on activation, so a
 profile created on another screen could go stale until reload), DVR request → schedule expansion,
-handoff, and a shared session's join/leave. Not exercised: real cross-client drift correction and
-PIN-gated restricted-profile flows on a second physical device — those need two live clients.
+handoff, and a shared session's join/leave.
+
+**2026-09-17 re-check:** both items §9's risk section flagged as needing a second device are
+already implemented, not just designed — `renderer/js/personal/state.js`'s
+`onSharedSessionChanged`/`joinSharedSession` snap `S.timeOffsetMs` to the leader's whenever they
+drift past 250 ms (the doc's own drift rule), and `switchProfile` calls `verifyProfile` and
+throws before switching away from a restricted, PIN-holding profile. What's actually open is
+narrower than doc 12 previously suggested: real-hardware acceptance of both (a second physical
+LAN client) — a Hisense-class gap this session cannot close, not missing code.
 
 ## 1. Problem
 

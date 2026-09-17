@@ -940,6 +940,35 @@ react to an era being applied in v1 — a channel plugin reading its own
 `ctx.config` sees the same `config.era` shape (`{ id, fields, overrides, … }`)
 core does, if you need to know which one is active.
 
+### `registerTemplate(template)`
+
+Adds a channel template (docs/design/08) to CHANNELS › `+ ADD CHANNEL` ›
+FROM TEMPLATE, alongside the six built-ins. A template names no paths or
+media — only slots the library resolver matches against whatever the
+person's own tagged library has, and the block/breaks structure to compile
+around them once every required slot is filled.
+
+```js
+window.RCBPlugins.registerTemplate({
+  templateVersion: 1, // required, currently always 1
+  id: 'my-plugin-saturday-anime', // required, unique
+  name: 'Saturday Anime Block', // required
+  slots: { // required — at least one
+    anime: { label: 'Anime', match: { 'facets.genre': ['anime'] }, min: 4 },
+    bumpers: { label: 'Network bumpers', match: { kind: ['bumper'] }, optional: true },
+  },
+  channel: { name: 'Anime Block', rating: 'TV-14' }, // required
+  programming: [ // optional — omit for a channel with no pre-set schedule
+    { block: { days: [6], hours: [9, 12], play: { slot: 'anime' } } },
+  ],
+  breaks: { cadence: { everyMinutes: 11 }, pool: { slot: 'bumpers' } }, // optional
+});
+```
+
+Thrown validation errors (missing fields, a programming block naming an
+unknown slot) surface immediately at registration, the same as a malformed
+`.rerun-template.json` import would.
+
 `id` here is the *theme* id (`S.config.theme`'s value, e.g.
 `"wood-console-70s"`) — mirroring how the pack's own CSS keys off
 `html[data-theme="<id>"]` — not necessarily your plugin's manifest `id`

@@ -5421,7 +5421,12 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
-.library-item-list li { padding: 2px 0; overflow-wrap: anywhere; }
+.library-item-list li { padding: 2px 0; overflow-wrap: anywhere; display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.library-editor-form { display: flex; flex-direction: column; gap: var(--space-2); text-align: left; min-width: min(420px, 80vw); }
+.library-editor-row { display: grid; grid-template-columns: minmax(120px, max-content) 1fr; gap: var(--space-2); align-items: center; }
+.library-editor-row-label { color: var(--text-muted); font-size: var(--font-size-label); text-transform: uppercase; }
+.library-item-search { margin-top: var(--space-3); }
+.library-item-search-results { margin-top: var(--space-2); }
 .library-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-2) var(--space-3); }
 .library-form-field { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; }
 .library-form-field label { color: var(--text-muted); font-size: var(--font-size-label); }

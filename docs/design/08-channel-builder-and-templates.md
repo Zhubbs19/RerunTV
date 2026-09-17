@@ -132,3 +132,11 @@ plan's hours ÷ available duration.
 `tests/channel-builder.test.js` covers the acceptance phrase, required-slot blocking, detached
 library items, materialized block compilation, path-free export and schema refusal. The tracked
 suite reports 323/323 passing after this implementation.
+
+**2026-09-17:** the plugin template registry (§3.2, "remains an extension point rather than part
+of the v1 core contract") is now built — `registerTemplate`/`listTemplates` in
+`channel-builder.js`, exposed as `window.RCBPlugins.registerTemplate`, validated the same way an
+imported `.rerun-template.json` is. Channels' `+ ADD CHANNEL` › FROM TEMPLATE now lists
+`listTemplates()` (built-ins + anything a plugin registered) instead of the hardcoded six.
+Documented in `PLUGIN_DEVELOPMENT.md`. Inline chip editing (§4's "presentation follow-up") is
+still not built.

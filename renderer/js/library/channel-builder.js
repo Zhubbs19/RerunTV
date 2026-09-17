@@ -29,6 +29,20 @@ export const BUILTIN_TEMPLATES = Object.freeze([
   { templateVersion: 1, id: 'marathon', name: 'Series Marathon', slots: { series: { label: 'A series', match: { kind: 'episode' }, min: 4 } }, channel: { name: 'Marathon' }, programming: [] },
 ]);
 
+// docs/design/08 §3.2: "Plugin-provided template registration remains an
+// extension point rather than part of the v1 core contract" — the extension
+// point itself (validated the same way a saved/imported template file is).
+const pluginTemplates = new Map();
+
+export function registerTemplate(template) {
+  validateTemplate(template);
+  pluginTemplates.set(template.id, template);
+}
+
+export function listTemplates() {
+  return [...BUILTIN_TEMPLATES, ...pluginTemplates.values()];
+}
+
 export function validateTemplate(template) {
   if (!template || template.templateVersion !== 1) throw new Error('This template version is not supported.');
   if (!template.id || !template.name || !template.slots || !template.channel) throw new Error('The template is missing required fields.');
