@@ -104,7 +104,20 @@ html[data-theme="widescreen-grid-13"] :is([data-slot="guide-hint"], [data-slot="
 html[data-theme="widescreen-grid-13"] [data-slot="guide-info-number"] { color: #fff; background: #123b91; padding: 8px 12px; }
 html[data-theme="widescreen-grid-13"] [data-slot="guide-info-title"] { font-size: clamp(18px, 4cqw, 28px); color: #f6d34a; }
 html[data-theme="widescreen-grid-13"] [data-slot="guide-banner"] { border: 0; border-bottom: 5px solid #f6d34a; border-radius: 2px; background: rgba(6,19,47,.94); backdrop-filter: none; animation: wide-card-in 170ms cubic-bezier(.16,1,.3,1); }
-html[data-theme="widescreen-grid-13"] [data-slot="guide-banner-number"] { color: #fff; background: #123b91; margin: -14px 16px -14px -18px; padding: 14px 18px; }
+/* margin/padding reference .guide-overlay's own --guide-banner-pad-y/-x
+   (guide.css) instead of hardcoding its clamp()'s ceiling (14px/18px) —
+   this chip is meant to sit flush with the card's edge by exactly
+   cancelling the card's own padding on three sides, and a fixed pixel
+   guess only matches that padding at its widest; at any narrower
+   #display-frame (TV mode, a simulated low resolution) the real padding
+   shrinks below 14px/18px and the old hardcoded margin overshot it,
+   pushing the chip past the card's own border. */
+html[data-theme="widescreen-grid-13"] [data-slot="guide-banner-number"] {
+  color: #fff;
+  background: #123b91;
+  margin: calc(-1 * var(--guide-banner-pad-y, 14px)) 16px calc(-1 * var(--guide-banner-pad-y, 14px)) calc(-1 * var(--guide-banner-pad-x, 18px));
+  padding: var(--guide-banner-pad-y, 14px) var(--guide-banner-pad-x, 18px);
+}
 html[data-theme="widescreen-grid-13"] [data-slot="channel-entry"] { color: #1d1700; background: #f6d34a; border-radius: 3px; padding: 2px 12px; text-shadow: none; }
 @keyframes wide-card-in { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
 
