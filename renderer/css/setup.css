@@ -5372,6 +5372,7 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
   white-space: nowrap;
 }
 .control-picker-note { color: var(--text-muted); font-size: var(--font-size-label); }
+.control-picker-upload { display: flex; flex-direction: column; gap: var(--space-1); padding-top: var(--space-2); border-top: 1px solid var(--border); }
 
 /* ---------- setup › LIBRARY: catalogue, review, smart channels (docs/design/07) ---------- */
 .library-root { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }

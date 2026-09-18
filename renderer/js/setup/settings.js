@@ -1777,7 +1777,12 @@ export function renderConnectedDevices() {
       row.className = 'block-row';
       const label = document.createElement('span');
       label.className = 'block-count';
-      label.textContent = `${SERVER_LABELS[d.server] || d.server.toUpperCase()} — ${d.ip}`;
+      // Scope (docs/design/06 §7 presence) only means something for the LAN
+      // viewer server — a view session can only watch, a control session can
+      // also write, and everything else (party, phone remote) has no scopes
+      // to report at all.
+      const scopeSuffix = d.server === 'viewer' && d.scope ? ` (${d.scope === 'control' ? 'EDITING' : 'WATCHING'})` : '';
+      label.textContent = `${SERVER_LABELS[d.server] || d.server.toUpperCase()} — ${d.ip}${scopeSuffix}`;
       row.appendChild(label);
       connectedDevicesListEl.appendChild(row);
     });
