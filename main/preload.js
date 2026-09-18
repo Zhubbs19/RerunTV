@@ -270,6 +270,10 @@ contextBridge.exposeInMainWorld('api', {
   tapesDelete: (id) => ipcRenderer.invoke('tapes:delete', id),
   onTapesProgress: (cb) => ipcRenderer.on('tapes:progress', (event, data) => cb(data)),
   onTapesDone: (cb) => ipcRenderer.on('tapes:done', (event, data) => cb(data)),
+  // FFmpeg Transcode plugin's "INSTALL FFMPEG" button — main/media/ffmpeg-install.js.
+  ffmpegInstallCheck: () => ipcRenderer.invoke('ffmpeg:installInfo'),
+  ffmpegInstall: () => ipcRenderer.invoke('ffmpeg:install'),
+  onFfmpegInstallProgress: (cb) => ipcRenderer.on('ffmpeg:installProgress', (event, data) => cb(data)),
   // Plugins — see main-plugins.js and renderer/js/plugins.js.
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),

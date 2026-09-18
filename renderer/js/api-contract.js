@@ -65,6 +65,9 @@
     'tapesImport', 'onTapesProgress', 'onTapesDone',
     'makemkvStatus', 'makemkvListTitles', 'makemkvRip', 'makemkvJobs', 'makemkvCancel',
     'onMakemkvProgress', 'onMakemkvDone',
+    // Host-only: downloads and writes a real ffmpeg binary to disk on the
+    // machine running RerunTV — nothing a LAN viewer could meaningfully do.
+    'ffmpegInstallCheck', 'ffmpegInstall', 'onFfmpegInstallProgress',
   ];
   const methods = Object.freeze(Object.fromEntries([
     ...viewerMethods.map((name) => [name, Object.freeze({ viewer: 'custom' })]),
