@@ -77,6 +77,7 @@ const { startMediaBridge } = require('./media/bridge');
 const { startDiscoveryServer } = require('./lan/discovery-server');
 const { isLanServiceEnabled, createLanAccess } = require('./lan/security');
 const { registerDialogIpc } = require('./ui/dialogs');
+const { registerFfmpegInstallIpc } = require('./media/ffmpeg-install');
 const { applyWindowUiScale, normalizeUiScalePreference } = require('./ui/scale');
 const { registerStartupServerIpc } = require('./lan/startup-server');
 const { registerHistoryIpc, flushHistoryNow } = require('./diagnostics/history');
@@ -319,6 +320,7 @@ registerLanIpc(ipcMain, {
   QRCode,
 });
 registerDialogIpc(ipcMain);
+registerFfmpegInstallIpc(ipcMain, { getMainWindow });
 registerStartupServerIpc(ipcMain);
 registerPluginsIpc(ipcMain, {
   getPluginMainLoadErrors: () => pluginMainLoadErrors,
