@@ -21,6 +21,26 @@ const KIND_TITLES = {
   audio: 'Choose an audio file on the host',
 };
 
+// docs/design/06 §5 "asset upload": for an image, a file that only exists on
+// this device (not anywhere the host's folder browser can see) can be sent
+// up directly instead. Resolves to the host's real path for the upload, or
+// null on failure/cancel — same shape pickHostPath() resolves to for a file.
+async function uploadAsset(file) {
+  const body = new FormData();
+  body.append('file', file);
+  let response;
+  try {
+    response = await fetch('/api/control/assets', { method: 'POST', body });
+  } catch (e) {
+    return { error: `Could not reach the host: ${e.message}` };
+  }
+  const parsed = await response.json().catch(() => null);
+  if (!response.ok || !parsed || parsed.error) {
+    return { error: (parsed && parsed.error) || `The host answered ${response.status}.` };
+  }
+  return { path: parsed.path };
+}
+
 async function fetchListing(kind, path) {
   const query = new URLSearchParams({ kind });
   if (path) query.set('path', path);
@@ -45,10 +65,31 @@ export function pickHostPath(kind = 'folder') {
   const crumb = h('div', { className: 'control-picker-path' });
   const list = h('div', { className: 'control-picker-list' });
   const note = h('div', { className: 'control-picker-note' });
-  const body = h('div', { className: 'control-picker' }, crumb, list, note);
+  const uploadNote = h('div', { className: 'control-picker-note' });
+  const bodyChildren = [crumb, list, note];
 
   let dialog = null;
   let current = null;
+
+  // Only for images (8 MB cap, image/* MIME types on the host side — see
+  // asset-upload.js) — a video or audio file large enough to matter here
+  // belongs on disk already, browsed above, not carried over this link.
+  if (kind === 'image') {
+    const input = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', className: 'hidden' });
+    input.addEventListener('change', async () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      uploadNote.textContent = `Uploading ${file.name}…`;
+      const result = await uploadAsset(file);
+      if (result.error) { uploadNote.textContent = result.error; return; }
+      dialog.close(result.path);
+    });
+    bodyChildren.push(h('div', { className: 'control-picker-upload' },
+      Button({ label: '⬆ Upload from this device instead', variant: 'quiet', onPress: () => input.click() }),
+      input, uploadNote));
+  }
+  const body = h('div', { className: 'control-picker' }, ...bodyChildren);
 
   const setNote = (text) => list.replaceChildren(h('div', { className: 'control-picker-note', text }));
 

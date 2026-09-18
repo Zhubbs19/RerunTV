@@ -30,6 +30,17 @@ that run even if **WATCH ON OTHER DEVICES** was disabled in the saved desktop se
   skeuomorphic rewind-TV artwork as the desktop app.
 - **Exit Setup remotely:** **WATCH TV / EXIT SETUP** returns directly to playback. Back remains
   a contextual navigation button inside Setup.
+- **Raw remote-key bridge:** at `window.RerunTVInput.version` 2 and up, the app posts real
+  Android key events — keycode, scan code, repeat, long-press, hold duration, and
+  up/down action — and the page itself (`remote-input.js`) decides what each button means,
+  including this device's own **CUSTOMIZE BUTTONS** (learn-mode) overrides. There is no
+  per-remote keycode table in this app; teaching it a new button is a JS change, not a
+  Kotlin one. Against an older page that predates version 2, the app instead sends
+  named RemoteKey values (`native({ key })`), the same call the phone remote and touch
+  controls still use.
+- **Remote Test and Customize Buttons:** Setup → Remote on the TV runs the same capture/learn
+  flow as desktop, using this client's real key events — useful for checking (or teaching)
+  what a specific remote's buttons actually send before relying on them.
 
 ## Controls
 

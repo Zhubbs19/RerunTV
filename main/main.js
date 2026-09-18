@@ -464,6 +464,10 @@ app.whenReady().then(async () => {
     // device uses, gated by pairing same as everything else it serves.
     const viewerRuntime = startViewerServer(pluginServices, {
       pluginsDir: getPluginsDir(),
+      // docs/design/06 §5 "asset upload": a control client's own device may
+      // have a logo/overlay image that only exists there, not anywhere the
+      // folder browser can see. Size/type-limited (see asset-upload.js).
+      assetsDir: path.join(app.getPath('userData'), 'assets'),
       access: createLanAccess('viewer', {
         // Two pairing codes, two session classes (docs/design/06 §4). A device
         // that enters the view code can only watch; the control code is the

@@ -22,6 +22,7 @@ const { VIEWER_PORT } = require('./lan');
 const { isPathContained } = require('../util/path-safety');
 const { createLanAccess, requestIp } = require('./security');
 const { listDirectory } = require('./control-browse');
+const { receiveAssetUpload } = require('./asset-upload');
 const { VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, scanFolderForVideos } = require('../media/media');
 const { sanitizeViewerConfig, createViewerProjection } = require('./viewer-projection');
 // This module is two directories below the application root.  Keep these
@@ -310,6 +311,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     }
     if (url.pathname === '/api/commands' && req.method === 'POST') {
       if (!hasControlScope(req, res)) return;
+      trackConnection('viewer', req, 'control');
       if (typeof pluginRuntime.applyCommands !== 'function') {
         res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host cannot accept commands' }));
         return;
@@ -389,6 +391,41 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       const files = await scanFolderForVideos(listing.path);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
         .end(JSON.stringify({ path: listing.path, files }));
+      return;
+    }
+
+    // Asset upload (docs/design/06 §5, doc 12 Priority 3 item 1): a file that
+    // only exists on the editing device, not anywhere the folder browser
+    // above can see. Image-only, size-capped — see asset-upload.js.
+    if (url.pathname === '/api/control/assets' && req.method === 'POST') {
+      if (!hasControlScope(req, res)) return;
+      if (!pluginRuntime.assetsDir) {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host has no asset storage configured.' }));
+        return;
+      }
+      const result = await receiveAssetUpload(pluginRuntime.assetsDir, req, require('busboy'));
+      if (!result.ok) {
+        if (!res.writableEnded) res.writeHead(result.status || 400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: result.error }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+        .end(JSON.stringify({ path: result.path, url: `/api/control/assets/${encodeURIComponent(result.fileName)}` }));
+      return;
+    }
+
+    // Serves an uploaded asset back for preview in the picker, and as the
+    // eventual channel-logo/overlay image itself once its host path is set
+    // in config — same static-file path a browse-picked file already gets
+    // via /media, just scoped to this one host-owned directory.
+    if (url.pathname.startsWith('/api/control/assets/') && req.method === 'GET') {
+      if (!hasControlScope(req, res)) return;
+      if (!pluginRuntime.assetsDir) { res.writeHead(404).end('Not found'); return; }
+      const fileName = decodeURIComponent(url.pathname.slice('/api/control/assets/'.length));
+      if (!fileName || fileName.includes('/') || fileName.includes('\\') || fileName.includes('..')) {
+        res.writeHead(400).end('Bad request');
+        return;
+      }
+      await pipeWebResponse(await serveFile(path.join(pluginRuntime.assetsDir, fileName), req.headers.range), res);
       return;
     }
 
@@ -481,7 +518,17 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     }
 
     if (url.pathname === '/api/handoff-info' && req.method === 'GET') {
-      const info = await handoffInfo(services.companionAccessUrls || [], require('qrcode'));
+      // Mint a control-scope pairing URL off this same request's own origin
+      // (docs/design/06 §4) rather than pointing at the Companion page —
+      // same one-time-code mechanism as main.js's viewerControlAccessUrls,
+      // just built here because this route is reached by any device, not
+      // only the host window.
+      const controlUrls = access.pairingCodes && access.pairingCodes.control
+        ? [{ url: access.pairingUrl(`${url.origin}/control`, 'control') }]
+        : [];
+      const info = controlUrls.length
+        ? await handoffInfo(controlUrls, require('qrcode'), { writable: true })
+        : await handoffInfo(services.companionAccessUrls || [], require('qrcode'));
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(info));
       return;
     }
@@ -506,7 +553,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       res.writeHead(405).end('Method not allowed');
       return;
     }
-    trackConnection('viewer', req);
+    trackConnection('viewer', req, typeof access.scopeOf === 'function' ? access.scopeOf(req) : '');
     const range = req.headers.range;
 
     if (url.pathname === '/api/config') {
