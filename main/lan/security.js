@@ -88,13 +88,16 @@ function loadPersistedSessions(sessionsFile) {
 }
 
 function savePersistedSessions(sessionsFile, sessions) {
-  try {
-    fs.mkdirSync(path.dirname(sessionsFile), { recursive: true });
-    fs.writeFileSync(sessionsFile, JSON.stringify(Object.fromEntries(sessions)));
-  } catch (e) {
-    // Best-effort — a failed write just means this session won't survive
-    // the next restart, not a broken pairing right now.
-  }
+  // Fire-and-forget async write: this runs on nearly every authenticated
+  // request (renewSessionIfNeeded), and main is single-threaded — a
+  // synchronous write here would briefly block every other request/IPC call.
+  const data = JSON.stringify(Object.fromEntries(sessions));
+  fs.promises.mkdir(path.dirname(sessionsFile), { recursive: true })
+    .then(() => fs.promises.writeFile(sessionsFile, data))
+    .catch(() => {
+      // Best-effort — a failed write just means this session won't survive
+      // the next restart, not a broken pairing right now.
+    });
 }
 
 function isLanServiceEnabled(config, service) {
