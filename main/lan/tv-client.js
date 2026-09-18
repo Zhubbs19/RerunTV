@@ -2,9 +2,13 @@
 // (docs/design/01): saving a Remote-test capture from any client, and the
 // "edit on your phone or computer" handoff info (URL + QR).
 //
-// Handoff points at the Companion page (remote control + settings) until the
-// web control panel (docs/design/06) exists; then the same call returns a
-// deep link into it and no screen needs to change.
+// Handoff prefers a one-time link straight into the web control panel
+// (docs/design/06 §4): the caller mints a control-scope pairing URL (same
+// mechanism as the Settings panel's "control pairing code", just pre-filled)
+// so scanning the QR opens directly into an already-writable session, no
+// second code entry. It falls back to the Companion page (remote control +
+// settings) when the viewer/control service isn't available — e.g. LAN
+// viewer access is off, or a plugin caller has no control scope to offer.
 const fs = require('fs');
 const path = require('path');
 
@@ -41,17 +45,33 @@ function saveRemoteProfile(userDataDir, input, now = Date.now()) {
   return { ok: true, path: file };
 }
 
-// accessUrls: [{ name, url }] (the Companion's pairing-aware access URLs).
-// deepLink: an optional task path for when doc 06's panel exists.
-async function handoffInfo(accessUrls, QRCode, { deepLink = '' } = {}) {
+// accessUrls: [{ name, url }] — pass control-scope viewer URLs (each already
+// carrying a one-time pairing code, see main.js's viewerControlAccessUrls) to
+// hand off straight into an editable session; pass the Companion's own
+// access URLs as a fallback when no control-scope link is available.
+// deepLink: an optional task path appended before any pairing-code query string.
+// writable: true when accessUrls are control-scope links, for the label text.
+async function handoffInfo(accessUrls, QRCode, { deepLink = '', writable = false } = {}) {
   const first = (accessUrls || []).find((entry) => entry && entry.url);
-  if (!first) return { url: '', qrDataUrl: '', label: 'Turn on the Companion app in Settings to edit from a phone or computer.' };
-  const url = deepLink ? `${first.url.replace(/\/$/, '')}${deepLink}` : first.url;
+  if (!first) return { url: '', qrDataUrl: '', label: 'Turn on "Share with devices on this network" in Settings to edit from a phone or computer.' };
+  const url = deepLink ? insertDeepLink(first.url, deepLink) : first.url;
   let qrDataUrl = '';
   try {
     qrDataUrl = await QRCode.toDataURL(url, { margin: 1, width: 360 });
   } catch (e) { /* the URL text still works */ }
-  return { url, qrDataUrl, label: 'Scan with your phone, or open this address on a computer on the same network.' };
+  const label = writable
+    ? 'Scan with your phone, or open this address on a computer on the same network — it opens straight into an editable setup screen.'
+    : 'Scan with your phone, or open this address on a computer on the same network.';
+  return { url, qrDataUrl, label };
+}
+
+// Splices a path onto the URL's origin+path, ahead of its own query string
+// (a control-scope URL carries `?pair=<code>`, which must stay last so the
+// pairing code is still read on the far side).
+function insertDeepLink(url, deepLink) {
+  const parsed = new URL(url);
+  parsed.pathname = `${parsed.pathname.replace(/\/$/, '')}${deepLink}`;
+  return parsed.toString();
 }
 
 module.exports = { prepareRemoteProfile, saveRemoteProfile, handoffInfo, MAX_PROFILE_BYTES };

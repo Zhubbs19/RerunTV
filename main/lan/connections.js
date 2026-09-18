@@ -13,15 +13,25 @@ const connectedDevices = new Map(); // key: `${server}:${ip}` -> {server, ip, la
 // has a real `req` but no shared connectedDevices Map of its own) can relay
 // just the two plain fields that matter, over RPC, instead of the req object
 // itself — see main-plugin-isolation.js's 'trackConnection' handler.
-function recordConnection(serverName, ip, userAgent) {
-  connectedDevices.set(`${serverName}:${ip}`, {
+//
+// scope ('view'/'control'/'') is optional and only meaningful for the LAN
+// viewer server (docs/design/06 §7 presence) — every other caller either has
+// no scopes at all (party, the phone remote) or omits it, and a device's
+// entry keeps whatever scope its most recent request carried, so a control
+// session's still-open GETs (media, config) don't demote it back to blank
+// between its writes.
+function recordConnection(serverName, ip, userAgent, scope) {
+  const key = `${serverName}:${ip}`;
+  const previous = connectedDevices.get(key);
+  connectedDevices.set(key, {
     server: serverName, ip, lastSeenMs: Date.now(), userAgent: userAgent || '',
+    scope: scope || (previous && previous.scope) || '',
   });
 }
 
-function trackConnection(serverName, req) {
+function trackConnection(serverName, req, scope) {
   const ip = (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
-  recordConnection(serverName, ip, req.headers['user-agent'] || '');
+  recordConnection(serverName, ip, req.headers['user-agent'] || '', scope);
 }
 
 function getConnectedDevices() {

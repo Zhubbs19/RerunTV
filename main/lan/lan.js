@@ -69,7 +69,16 @@ function registerLanIpc(ipcMain, { getViewerAccessUrls, getViewerControlAccessUr
   // TV clients (docs/design/01, main-tv-client.js): a Remote-test capture
   // saved under userData/remote-profiles, and the phone/computer handoff.
   ipcMain.handle('tvClient:saveRemoteProfile', async (_event, profile) => saveRemoteProfile(getUserDataDir(), profile));
-  ipcMain.handle('tvClient:getHandoffInfo', async (_event, opts) => handoffInfo(getCompanionAccessUrls(), QRCode, opts || {}));
+  // Prefer a control-scope viewer link (docs/design/06 §4) — it already
+  // carries a one-time pairing code, so scanning it opens straight into an
+  // editable setup screen instead of the Companion page's more limited
+  // settings relay. Falls back to Companion when the viewer/control service
+  // isn't up (viewer access off, or this build predates it).
+  ipcMain.handle('tvClient:getHandoffInfo', async (_event, opts) => {
+    const controlUrls = getViewerControlAccessUrls ? getViewerControlAccessUrls() : [];
+    if (controlUrls.length) return handoffInfo(controlUrls, QRCode, { ...(opts || {}), writable: true });
+    return handoffInfo(getCompanionAccessUrls(), QRCode, opts || {});
+  });
 
   // Companion app (remote control + Settings + Files, all merged into one
   // plugin/port — see plugins/companion-app/main.js), same pattern as
