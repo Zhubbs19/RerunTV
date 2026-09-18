@@ -670,7 +670,14 @@ function installPluginFromZip(zipPath, opts) {
     return { success: false, error: 'manifest.json in that zip is missing a string "id".' };
   }
 
-  const destDir = path.join(ensurePluginsDir(), manifest.id);
+  const pluginsDir = ensurePluginsDir();
+  const destDir = path.join(pluginsDir, manifest.id);
+  // manifest.id becomes a directory name under the shared plugins folder — a
+  // crafted id like "../../../../some/other/folder" must not be allowed to
+  // point destDir (and the rmSync/mkdirSync/writeFileSync below) outside it.
+  if (!isPathContained(pluginsDir, destDir)) {
+    return { success: false, error: 'manifest.json "id" must not contain path separators or ".." segments.' };
+  }
   if (fs.existsSync(destDir) && !opts.overwrite) {
     return { success: false, alreadyExists: true, id: manifest.id, name: manifest.name || manifest.id };
   }
