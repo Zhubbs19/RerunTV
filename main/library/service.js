@@ -263,6 +263,29 @@ function createLibraryService({
       return { remaining: report.review.ambiguous.length + report.review.replaced.length, needsDuration };
     },
 
+    // Forgets a location. Items stay (store.removeRoot's own doc: a root is
+    // often removed because a drive is unplugged, and dropping every item
+    // would throw away tags and review decisions over that) — the caller
+    // decides separately whether to also removeItem() each now-orphaned one.
+    removeRoot({ id }) {
+      if (!id) throw new Error('A location id is required.');
+      const removed = store.removeRoot(id);
+      if (removed) store.save();
+      return { removed, orphaned: store.orphanedItems().length };
+    },
+
+    // Forgets one catalogue item and its tags/review history. Never touches
+    // any channel's materialized `files` (C6) — a channel that already
+    // played this item keeps its own path/duration entry exactly as it was;
+    // only a later rematerialize (a previewed, undoable command) would stop
+    // offering it as a candidate.
+    removeItem({ id }) {
+      if (!id) throw new Error('An item id is required.');
+      const removed = store.removeItem(id);
+      if (removed) store.save();
+      return { removed };
+    },
+
     // Applies a root move the renderer planned and previewed (root-move.js).
     moveRoot({ index }) {
       if (!index || !Array.isArray(index.roots)) throw new Error('A planned index is required.');

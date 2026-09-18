@@ -33,6 +33,7 @@ import {
   resolveActiveSource,
 } from '../core/schedule.js';
 import { S, viewNow, commitInPlace } from '../core/state.js';
+import { isFavorite, isHiddenForProfile, syncSharedTune } from '../personal/state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import { isEnabledByDefault } from '../core/util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
@@ -742,6 +743,11 @@ function handleContentEnded(ch) {
 export async function tuneToChannel(number, opts) {
   opts = opts || {};
   window.tuneToChannel = tuneToChannel;
+  // playChannelLive normally sets this itself, but a break preempting
+  // content below means this tune may never reach it — set it here too so
+  // the tuneTimingEnabled() diagnostics below always measure from this
+  // tune's own start, not a stale value left over from the previous one.
+  window.__tuneT0 = performance.now();
   const bypassGateIds = opts.bypassGateIds || [];
   for (const gate of tuneGateEntries()) {
     if (bypassGateIds.includes(gate.id)) continue;
@@ -761,10 +767,11 @@ export async function tuneToChannel(number, opts) {
   // channels out of the guide and channel-surfing, so this is only ever
   // reached by something bypassing those.
   const rawCh = getChannel(number);
-  const ch = (rawCh && rawCh.hidden) ? null : rawCh;
+  const ch = (rawCh && (rawCh.hidden || isHiddenForProfile(rawCh.number))) ? null : rawCh;
   const prevNumber = S.currentNumber;
   if (prevNumber != null && prevNumber !== number) S.previousNumber = prevNumber;
   S.currentNumber = number;
+  if (!opts.sharedSync) syncSharedTune(number);
   window.applyTheme?.();
   applyChannelIdentity(ch);
   // Universal remote's "NOW WATCHING" readout (and full status snapshot,
@@ -936,11 +943,23 @@ export async function tuneToChannel(number, opts) {
     return;
   }
 
-  await playChannelLive(ch);
-  if (tuneTimingEnabled()) console.log(`[tune] CH${number} playChannelLive returned +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+  // Not a bare playChannelLive(ch) followed by checkBreakState(ch): the
+  // instant being tuned to (including a time-machine guide jump straight to
+  // a program's start, jumpToGuideEntry/guide.js) can be exactly where a
+  // 'pre'/'both' bumpIn is anchored (resolveBreakAt, interstitials.js).
+  // Awaiting playChannelLive first meant the movie/show had already started
+  // loading and playing by the time checkBreakState got a chance to decide
+  // a bumper was due — the same "plays shortly after content starts instead
+  // of before it" symptom scheduleBlockBoundaryRetune above used to have.
+  // checkBreakState with contentJustEnded makes the break-or-content call
+  // BEFORE anything touches `player`: it starts the bumper directly if one's
+  // due (interrupting types never call playChannelLive at all), or falls
+  // through to playChannelLive itself otherwise — see its own opts.contentJustEnded
+  // branches.
+  checkBreakState(ch, { contentJustEnded: true });
+  if (tuneTimingEnabled()) console.log(`[tune] CH${number} checkBreakState done +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   triggerDynamicOverlays(ch, 'tuneIn');
   showGuideOverlay(number, ch);
-  checkBreakState(ch);
   scheduleBlockBoundaryRetune(ch);
   if (tuneTimingEnabled()) console.log(`[tune] CH${number} scheduleBlockBoundaryRetune done +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   scheduleBroadcastHoursRetune(ch);
@@ -988,14 +1007,27 @@ export function scheduleBlockBoundaryRetune(ch) {
       const afterBlockId = afterSource && afterSource.block && afterSource.block.id;
       if (beforeBlockId !== afterBlockId) playDaypartChime();
     }
-    playChannelLive(ch);
+    // Not a bare playChannelLive(ch): a block boundary is exactly where a
+    // 'pre'/'both' bumpIn (resolveBreakAt, interstitials.js) is anchored
+    // too (same bs.fileStartMs), and this timer previously raced the
+    // separate break-boundary timer (scheduleNextBreak) for who gets to
+    // touch `player` first. When this one won, the new block's content
+    // started playing for a beat before the break timer caught up and cut
+    // over — a bumper that's supposed to play BEFORE a movie instead
+    // appeared shortly after it started. checkBreakState with
+    // contentJustEnded makes this timer defer to the same break-or-content
+    // decision every other boundary already goes through, so the bumper
+    // (if due) takes the screen first and content only starts when nothing
+    // is due — and it re-arms scheduleNextBreak itself, so no separate call
+    // is needed here.
+    checkBreakState(ch, { contentJustEnded: true });
     scheduleBlockBoundaryRetune(ch);
   }, boundary - viewNow() + 500);
 }
 
 export function changeChannel(direction) {
   const numbers = virtualChannelNumbers()
-    .concat(sortedChannels().filter((c) => !c.hidden).map((c) => c.number))
+    .concat(sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number))
     .sort((a, b) => a - b);
   if (numbers.length === 0) return;
   let idx = numbers.indexOf(S.currentNumber);
@@ -1048,7 +1080,7 @@ export function toggleChannelScan() {
 // fallback to the full channel list) when none are set, since silently
 // surfing everything would defeat the point of a dedicated favorites key.
 export function changeFavoriteChannel(direction) {
-  const favs = sortedChannels().filter((c) => c.favorite && !c.hidden).map((c) => c.number);
+  const favs = sortedChannels().filter((c) => isFavorite(c.number) && !c.hidden && !isHiddenForProfile(c.number)).map((c) => c.number);
   if (favs.length === 0) return;
   let idx = favs.indexOf(S.currentNumber);
   if (idx === -1) idx = 0;

@@ -57,8 +57,14 @@ function getViewerUrls() {
 // main.js, populated inside app.whenReady() well after this handler is
 // registered, so accessor functions (not the current value) are what main.js
 // hands over here — see CLAUDE.md's registerXIpc note on stale closures.
-function registerLanIpc(ipcMain, { getViewerAccessUrls, getCompanionAccessUrls, getUserDataDir, QRCode }) {
+function registerLanIpc(ipcMain, { getViewerAccessUrls, getViewerControlAccessUrls, getCompanionAccessUrls, getUserDataDir, QRCode }) {
   ipcMain.handle('viewer:getUrl', async () => getViewerAccessUrls());
+  // The control pairing code (docs/design/06 §4), for the setup screen's
+  // Network services panel — previously visible only on the loopback
+  // /server page. getViewerControlAccessUrls is optional so a caller that
+  // predates it (there isn't one, but future main-process test doubles
+  // might be) degrades to an empty list rather than throwing.
+  ipcMain.handle('viewer:getControlUrl', async () => (getViewerControlAccessUrls ? getViewerControlAccessUrls() : []));
 
   // TV clients (docs/design/01, main-tv-client.js): a Remote-test capture
   // saved under userData/remote-profiles, and the phone/computer handoff.

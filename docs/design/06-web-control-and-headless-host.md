@@ -1,7 +1,32 @@
 # 06 — Web control panel and headless host
 
-Status: **phases 1–3 built** — §4 access, the command endpoint, the `/control` route, the writable shim and host folder browsing. Asset upload, deep links/QR handoff, "Preview on…" and presence (phases 4–5) are not. Depends on: C3 commands (05), setup shell (03), C1 modes (01).
+Status: **phases 1–3 built**, plus two phase-4/§4 items — §4 access, the command endpoint, the `/control` route, the writable shim and host folder browsing, the control pairing code surfaced in the setup screen (not just the loopback page), and "Preview on…" from the channel editor. Asset upload, TV-handoff deep links/QR granting control scope, presence UI and headless tray remain open. Depends on: C3 commands (05), setup shell (03), C1 modes (01).
 Consumed by: 01 (TV handoff), 08, 09.
+
+## Implementation status (2026-09-17)
+
+- **Control pairing code surfaced in-app** (§4, previously loopback-page-only): `main.js` builds
+  `viewerControlAccessUrls` (the same `getViewerUrls()` addresses with the `/control` path and
+  the `control`-scope pairing code baked in via `pairingUrl(url, 'control')` — the path has to be
+  in the URL before the code is appended, since `browser-api-shim.js` sets
+  `window.__controlClient` from `location.pathname`, not an injected marker) behind a new
+  host-only `getViewerControlUrl` IPC call (never exposed to a LAN viewer — `api-contract.js`
+  keeps it in `hostOnlyMethods`, since a `view` session must never learn the code that would let
+  it self-upgrade to `control`). `renderer/js/setup/settings.js`'s System › Network services
+  panel shows it next to the existing read-only viewer link.
+- **"Preview on…"** (§5's table row): a channel editor button next to PREVIEW ▶ that lists
+  currently-connected clients (doc 09's presence registry — `S.personalClients`) and sends the
+  chosen channel to one of them via the existing `client:handoff` event every client already
+  listens for, without requiring the sending device itself to be tuned to anything (unlike doc
+  09's own `handoffTo`, which does). New `previewOnClient(targetClientId, channelNumber)` in
+  `renderer/js/personal/state.js`.
+- **Not built**: asset upload (a file that exists only on the remote device, not already on the
+  host — the picker only covers files already on the host's filesystem); TV handoff deep
+  links/QR tokens that grant a control session directly (today's handoff QR, doc 01 §7, gets a
+  phone to the Companion address, not straight into `/control` with a session); presence UI
+  beyond the basic connected-devices list (`main/lan/connections.js`, already existed) — no
+  "also editing this exact item" badge; headless tray icon; phase 6's read-only-page burn-down,
+  which is ongoing by nature rather than a discrete task.
 
 Transport note (2026-09-16): doc 05 reused `/api/remote-events` instead of SSE,
 and the control work extends that same cursor-based bus rather than adding a
@@ -169,7 +194,7 @@ Over the event bus (not SSE — see the transport note):
    the setup shell can dispatch there it can dispatch here. What remains read-only remotely is
    what needs the host's filesystem (folder pickers, import/restore, plugin installs).
 3. ~~Host folder browser~~ **built**; asset upload and "channel creation fully remote" end to end still to prove.
-4. TV handoff deep links + QR tokens; "Preview on…".
+4. ~~"Preview on…"~~ **built** (2026-09-17). TV handoff deep links + QR tokens granting control scope directly remain.
 5. Presence UI; revoke/manage sessions; headless tray.
 6. Burn down remaining read-only pages as their edits become commands.
 

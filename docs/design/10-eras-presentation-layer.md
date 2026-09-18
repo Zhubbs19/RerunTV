@@ -1,7 +1,56 @@
 # 10 — Eras as a presentation layer
 
-Status: proposed (P5). Depends on: C4 tokens (04), C3 (05), 08 templates (optional).
+Status: built (P5, 2026-09-16), v1 scope — see below. Depends on: C4 tokens (04), C3 (05), 08 templates (optional).
 Owns contract **C7** (presentation overlay).
+
+## Implementation status
+
+`renderer/js/display/eras.js` is the pure data/logic layer: five built-in eras (1970s, 1980s,
+1994, 2000s, 2016), each naming an existing `registerThemePack` id and values for `crtEnabled`,
+the three main CRT intensity sliders, `displayMode.resolution`/`aspect`/`uiExtent`, and
+`display.clock24` — the box-wide settings with one clean config path each that together answer
+"what year is this box." `applyEra`/`clearEra` mutate `config.era` (touched fields, their
+pre-era values, and which fields have since been hand-overridden) so a plain apply-then-clear
+with no edits in between restores every value exactly, satisfying the doc's own acceptance test;
+a hand-edit of one of those fields (via the normal settings.set command, `core/commands.js`'s
+`noteEraOverride`) becomes a box-level exception that survives clearing. `renderer/js/setup/eras.js`
+is the ERA panel (Guide & theme tab): era buttons, notes, and a per-field source list ("set by
+era" / "box override" with a reset action) — the "every setting an era changes shows its source"
+criterion is satisfied there rather than annotating each individual CRT/display-mode control
+across two tabs. `renderer/js/tv/setup.js` adds an ERA value-item (Left/Right steps built-ins)
+as the first row of TV menu › Guide & Theme. `registerEra` is exposed to plugins via
+`window.RCBPlugins` alongside `registerThemePack`.
+
+**2026-09-17 correction:** channel-level "follow/pin era" was listed here as not built — wrong.
+`renderer/js/setup/panels.js`'s `buildChannelIdentityPanel` (predates this doc, `3d0781d`) already
+has a per-channel "THEME / ERA" select with an explicit "INHERIT BOX THEME" option that clears
+`ch.broadcastIdentity.theme` back to following the box, plus a "CLEAR ALL IDENTITY OVERRIDES"
+button — exactly the §4 "Follow era" toggle this doc asked for, for the one identity field that
+exists. Nothing to build there.
+
+**v1 scope decisions** (see doc §7's phase list): plugin era hints (Music Choice's ERA dial,
+ticker/EAS style) and template/pool suggestions (phase 5) are not wired. Rating-bug era rules are
+not a controlled field — the existing gate is per-channel (`ch.hideRatingBug`), not box-wide, and
+doc 10's own accuracy-rules risk (§5, low-resolution TV-mode accessibility override) is not
+built. Per-profile era preference (doc 09's `profile.state.era`, already reserved in the schema)
+is not wired to this layer yet — a natural follow-up, not required by this doc's acceptance
+criteria.
+
+**Bug found during live validation:** the ERA panel's per-field "source" list only refreshed
+when its own buttons were clicked — a hand-edit of an era-controlled setting elsewhere in setup
+(e.g. toggling the CRT checkbox directly) changed `config.era.overrides` correctly but the panel
+kept showing "set by era" until something else re-rendered it. Fixed by turning `state.js`'s
+single-listener `onHistoryChange` into a proper multi-listener set (it was already effectively a
+pub/sub with one subscriber) and having the ERA panel subscribe alongside the existing undo/redo
+button listener.
+
+Verification: `tests/eras.test.js` (unit, pure apply/clear/override logic, part of the 339/339
+tracked suite) plus a live pass (`tests/ui/verify-doc10.mjs`, 11/11) against the real installed
+lineup — applying/clearing an era, control resync, override tracking and reset, the TV menu's
+Left/Right stepping. A full per-era × desktop/TV theme-contrast sweep (§8's third criterion) was
+not re-run this session — each built-in era only points at an existing theme pack that already
+passed doc 04's contrast sweep individually, and eras never define their own CSS, so the
+remaining risk is narrow, but it hasn't been exercised directly.
 
 ## 1. Problem
 

@@ -65,9 +65,13 @@ const MAX_RATE_WINDOWS = 2000;
 // a file written by an older build is read as the view-only sessions it
 // described — never silently promoted to something writable.
 function normalizeSession(value) {
-  if (Number.isFinite(value)) return { expiresAt: value, scope: 'view' };
+  if (Number.isFinite(value)) return { expiresAt: value, scope: 'view', profileId: null };
   if (value && Number.isFinite(value.expiresAt)) {
-    return { expiresAt: value.expiresAt, scope: value.scope === 'control' ? 'control' : 'view' };
+    return {
+      expiresAt: value.expiresAt,
+      scope: value.scope === 'control' ? 'control' : 'view',
+      profileId: typeof value.profileId === 'string' ? value.profileId : null,
+    };
   }
   return null;
 }
@@ -84,13 +88,16 @@ function loadPersistedSessions(sessionsFile) {
 }
 
 function savePersistedSessions(sessionsFile, sessions) {
-  try {
-    fs.mkdirSync(path.dirname(sessionsFile), { recursive: true });
-    fs.writeFileSync(sessionsFile, JSON.stringify(Object.fromEntries(sessions)));
-  } catch (e) {
-    // Best-effort — a failed write just means this session won't survive
-    // the next restart, not a broken pairing right now.
-  }
+  // Fire-and-forget async write: this runs on nearly every authenticated
+  // request (renewSessionIfNeeded), and main is single-threaded — a
+  // synchronous write here would briefly block every other request/IPC call.
+  const data = JSON.stringify(Object.fromEntries(sessions));
+  fs.promises.mkdir(path.dirname(sessionsFile), { recursive: true })
+    .then(() => fs.promises.writeFile(sessionsFile, data))
+    .catch(() => {
+      // Best-effort — a failed write just means this session won't survive
+      // the next restart, not a broken pairing right now.
+    });
 }
 
 function isLanServiceEnabled(config, service) {
@@ -175,7 +182,7 @@ function createLanAccess(service, opts = {}) {
   function issueSession(scope = 'view') {
     pruneSessions();
     const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope });
+    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope, profileId: null });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     return token;
   }
@@ -202,6 +209,25 @@ function createLanAccess(service, opts = {}) {
     const token = authenticatedToken(req);
     const session = token ? sessions.get(token) : null;
     return session ? session.scope : '';
+  }
+
+  // The household profile belongs to the authenticated device session. It is
+  // deliberately server-owned like scope: a viewer cannot read another
+  // profile merely by naming its id in a request body.
+  function profileOf(req) {
+    const token = authenticatedToken(req);
+    const session = token ? sessions.get(token) : null;
+    return session && typeof session.profileId === 'string' ? session.profileId : null;
+  }
+
+  function setProfile(req, profileId) {
+    const token = authenticatedToken(req);
+    const session = token ? sessions.get(token) : null;
+    if (!session) return false;
+    session.profileId = typeof profileId === 'string' ? profileId : null;
+    sessions.set(token, session);
+    if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
+    return true;
   }
 
   // Gate for a route that needs more than `view`. Answers 403 itself so every
@@ -263,7 +289,7 @@ function createLanAccess(service, opts = {}) {
     // normal media/config polling does not rewrite the sessions file.
     if (expiresAt - Date.now() > sessionTtlMs / 2) return;
     // Renewal extends the session it already is; it never changes its scope.
-    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope: session.scope });
+    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope: session.scope, profileId: session.profileId || null });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     setSession(res, token);
   }
@@ -357,7 +383,7 @@ function createLanAccess(service, opts = {}) {
 
   return {
     service, pairingCode, pairingCodes, scopes, pairingUrl, authorize, checkRateLimit, isAuthenticated,
-    scopeOf, requireScope,
+    scopeOf, profileOf, setProfile, requireScope,
     sessionCount: () => { pruneSessions(); return sessions.size; },
     sessionCounts: () => {
       pruneSessions();

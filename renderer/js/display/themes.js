@@ -20,7 +20,9 @@ const REPORTED_THEME_VARS = [
 ];
 
 export function applyTheme({ boxOnly = false } = {}) {
-  const themeId = effectiveThemeId(S.config, S.currentNumber, boxOnly);
+  const personalTheme = S.personalProfile?.state?.theme;
+  const themeConfig = personalTheme ? { ...S.config, theme: personalTheme } : S.config;
+  const themeId = effectiveThemeId(themeConfig, S.currentNumber, boxOnly);
   document.documentElement.dataset.theme = themeId;
   // A pack's guide composition (registerThemePack's guideLayout, docs/design/04
   // §4.1): layout is core's, chosen by name, never a theme's structural CSS.

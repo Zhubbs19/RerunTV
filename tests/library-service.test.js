@@ -172,9 +172,38 @@ test('moveRoot rewrites roots and item refs from a planned index', async () => {
   assert.equal(Object.keys(after.items).length, Object.keys(final.index.items).length);
 });
 
+test('removeItem forgets one catalogue item; removeRoot leaves its items behind (docs/design/07 §8)', async () => {
+  const { service, final } = await builtService();
+  const itemIds = Object.keys(final.index.items);
+  assert.equal(itemIds.length, 2);
+
+  const removedNothing = await service.call('removeItem', { id: 'itm_does_not_exist' });
+  assert.deepEqual(removedNothing, { removed: false });
+  await assert.rejects(service.call('removeItem', {}), /item id is required/);
+
+  const removed = await service.call('removeItem', { id: itemIds[0] });
+  assert.deepEqual(removed, { removed: true });
+  const afterItemRemove = await service.call('getIndex');
+  assert.equal(Object.keys(afterItemRemove.items).length, 1);
+  assert.equal(afterItemRemove.items[itemIds[0]], undefined);
+  assert.ok(afterItemRemove.items[itemIds[1]], 'the other item is untouched');
+
+  const rootId = final.index.roots[0].id;
+  await assert.rejects(service.call('removeRoot', {}), /location id is required/);
+  const rootResult = await service.call('removeRoot', { id: rootId });
+  assert.equal(rootResult.removed, true);
+  assert.equal(rootResult.orphaned, 1, 'the surviving item is now orphaned, not deleted');
+  const afterRootRemove = await service.call('getIndex');
+  assert.equal(afterRootRemove.roots.length, 0);
+  assert.ok(afterRootRemove.items[itemIds[1]], 'removeRoot never deletes items');
+
+  const removeRootAgain = await service.call('removeRoot', { id: rootId });
+  assert.equal(removeRootAgain.removed, false);
+});
+
 test('a LAN control session cannot rewrite the whole library', async () => {
   const { service } = await builtService();
-  for (const method of ['planMigration', 'finalizeMigration', 'commitMigration', 'moveRoot']) {
+  for (const method of ['planMigration', 'finalizeMigration', 'commitMigration', 'moveRoot', 'removeItem', 'removeRoot']) {
     assert.equal(REMOTE_METHODS.has(method), false, method);
     // eslint-disable-next-line no-await-in-loop
     await assert.rejects(service.call(method, {}, { remote: true }), /only be done on the host/);

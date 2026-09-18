@@ -65,6 +65,7 @@ const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServic
 const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
+const { createPersonalService, registerPersonalIpc } = require('./personal/service');
 const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
@@ -278,6 +279,10 @@ let activatedMediaSourceProviders = {};
 // existed.
 let pluginServicesRef = {};
 let viewerAccessUrls = [];
+// The control pairing code embedded in these (docs/design/06 §4) used to be
+// visible only on the loopback /server page — surfaced here too so it shows
+// on the host window/TV setup screen with the rest of the control surface.
+let viewerControlAccessUrls = [];
 // Always set once app.whenReady() starts main-media-bridge.js's host-only
 // server (never null past that point, and set unconditionally — not tied to
 // whether LAN viewer access is on). This is deliberately NOT the real LAN
@@ -308,6 +313,7 @@ registerConnectionsIpc(ipcMain);
 registerThemeIpc(ipcMain);
 registerLanIpc(ipcMain, {
   getViewerAccessUrls: () => viewerAccessUrls,
+  getViewerControlAccessUrls: () => viewerControlAccessUrls,
   getCompanionAccessUrls: () => pluginServicesRef.companionAccessUrls || [],
   getUserDataDir: () => app.getPath('userData'),
   QRCode,
@@ -354,6 +360,25 @@ function getLibraryService() {
   return libraryService;
 }
 registerLibraryIpc(ipcMain, { getService: getLibraryService });
+
+// ---------- Household profiles and personal state (docs/design/09) ----------
+let personalService = null;
+function publishPersonalEvent(channel, data) {
+  const win = getMainWindow();
+  if (win && !win.isDestroyed()) win.webContents.send(channel, data);
+  const bridge = pluginServicesRef && pluginServicesRef.viewerRemoteBridge;
+  if (bridge) bridge.publish(channel, data);
+}
+function getPersonalService() {
+  if (!personalService) personalService = createPersonalService({
+    dir: path.join(app.getPath('userData'), 'profiles'),
+    getConfig: loadConfig,
+    legacyHistoryFile: path.join(app.getPath('userData'), 'viewing-history.json'),
+    publish: publishPersonalEvent,
+  });
+  return personalService;
+}
+registerPersonalIpc(ipcMain, { getService: getPersonalService });
 registerHistoryIpc();
 registerDiagnosticsIpc(ipcMain, {
   app,
@@ -463,6 +488,7 @@ app.whenReady().then(async () => {
       // The library API for a control session. The route sets `remote`, which
       // keeps whole-library rewrites (migration, root moves) on the host.
       libraryCall: (method, payload, opts) => getLibraryService().call(method, payload, opts),
+      personalCall: (method, payload, opts) => getPersonalService().call(method, payload, opts),
       listPlugins: () => discoverPlugins().map((plugin) => (
         plugin.error ? plugin : {
           ...plugin,
@@ -480,6 +506,13 @@ app.whenReady().then(async () => {
     const viewerStarted = await viewerRuntime.ready;
     if (viewerStarted) {
       viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
+      // /control is what sets window.__controlClient (browser-api-shim.js
+      // reads location.pathname, not an injected marker — see doc 06 §3) —
+      // the path has to be in the URL before pairingUrl adds the code, not
+      // just the bare origin getViewerUrls() returns for the view link.
+      viewerControlAccessUrls = viewerRuntime.access.pairingCodes && viewerRuntime.access.pairingCodes.control
+        ? getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(`${entry.url}/control`, 'control') }))
+        : [];
       // Paired viewers refetch as soon as the host writes a change they'd
       // see, instead of waiting for their slow fallback poll. Only a notice
       // goes out — never config itself; each viewer fetches its own redacted

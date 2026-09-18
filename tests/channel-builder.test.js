@@ -59,3 +59,16 @@ test('invalid templates fail before touching config', () => {
   assert.throws(() => builder.validateTemplate({ templateVersion: 2 }), /not supported/);
   assert.throws(() => builder.validateTemplate({ templateVersion: 1, id: 'x', name: 'x', slots: {}, channel: {}, programming: [{ block: { play: { slot: 'missing' } } }] }), /unknown slot/);
 });
+
+test('registerTemplate (docs/design/08 §3.2) adds a plugin template to listTemplates, validated the same as import', () => {
+  const before = builder.listTemplates().length;
+  builder.registerTemplate({
+    templateVersion: 1, id: 'plugin-test-template', name: 'Plugin Test Template',
+    slots: { slot1: { label: 'Slot 1', match: { kind: 'episode' } } },
+    channel: { name: 'Plugin Test' },
+  });
+  const after = builder.listTemplates();
+  assert.equal(after.length, before + 1);
+  assert.ok(after.some((t) => t.id === 'plugin-test-template'));
+  assert.throws(() => builder.registerTemplate({ templateVersion: 1, id: 'bad' }), /missing required fields/);
+});

@@ -187,6 +187,7 @@ export const upNextDurationSlider = document.getElementById('upnext-duration-sli
 export const timeMachineEnabledEl = document.getElementById('timemachine-enabled');
 export const detailsEnabledEl = document.getElementById('details-enabled');
 export const viewerUrlStatusEl = document.getElementById('viewer-url-status');
+export const controlUrlStatusEl = document.getElementById('control-url-status');
 export const viewerEnabledEl = document.getElementById('viewer-enabled');
 export const startupServerEnabledEl = document.getElementById('startup-server-enabled');
 export const startupServerStatusEl = document.getElementById('startup-server-status');

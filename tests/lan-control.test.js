@@ -79,6 +79,12 @@ const postCommands = (port, token, body) => request(port, '/api/commands', {
   body: JSON.stringify(body),
 });
 
+const postPersonal = (port, token, method, body = {}) => request(port, `/api/personal/${method}`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+});
+
 test('the two pairing codes are different and each fixes its own session scope', async () => {
   const ctx = await startTestHost();
   try {
@@ -111,6 +117,38 @@ test('a view session cannot write, read control config, or read control state', 
     }
   } finally {
     await new Promise((resolve) => ctx.runtime.server.close(resolve));
+  }
+});
+
+test('a view session is bound to one personal profile without gaining config control', async () => {
+  const access = createLanAccess('viewer', { scopes: ['view', 'control'] });
+  const profiles = {
+    everyone: { id: 'everyone', name: 'Everyone', restriction: 'none', hasPin: false, revision: 0, state: { favorites: [] } },
+    family: { id: 'family', name: 'Family', restriction: 'kids', hasPin: false, revision: 0, state: { favorites: [5] } },
+  };
+  let commandProfileId = null;
+  const personalCall = async (method, payload) => {
+    if (method === 'listProfiles') return Object.values(profiles).map(({ state, ...summary }) => summary);
+    if (method === 'getProfile') return profiles[payload.id];
+    if (method === 'command') { commandProfileId = payload.profileId; return { ok: true, profile: profiles[payload.profileId] }; }
+    if (method === 'verifyProfile') return true;
+    throw new Error(`unexpected ${method}`);
+  };
+  const runtime = startViewerServer({}, {
+    host: '127.0.0.1', port: 0, access, personalCall, loadConfig: baseConfig,
+  });
+  assert.equal(await runtime.ready, true);
+  const port = runtime.server.address().port;
+  try {
+    const viewer = await pair(port, access.pairingCodes.view);
+    assert.equal((await postPersonal(port, viewer.token, 'getProfile')).json().result.id, 'everyone');
+    assert.equal((await postPersonal(port, viewer.token, 'selectProfile', { id: 'family' })).json().result.id, 'family');
+    const command = await postPersonal(port, viewer.token, 'command', { profileId: 'everyone', baseRevision: 0, command: { type: 'favorite.toggle', channel: 5 } });
+    assert.equal(command.status, 200);
+    assert.equal(commandProfileId, 'family', 'the host ignores a profile id supplied by the viewer');
+    assert.equal((await postCommands(port, viewer.token, { commands: [{ type: 'channel.rename', channel: 5, name: 'No' }] })).status, 403);
+  } finally {
+    await new Promise((resolve) => runtime.server.close(resolve));
   }
 });
 

@@ -912,6 +912,63 @@ window.RCBPlugins.registerThemePack('wood-console-70s', {
 });
 ```
 
+### `registerEra(era)`
+
+Adds an era to the ERA picker (Guide & theme setup, TV menu › Guide & Theme,
+docs/design/10). An era is data, never CSS — it names a `registerThemePack`
+id and a handful of box-wide presentation values; applying it changes those
+values (and only those), one undo step, exactly like picking one of the five
+built-in eras.
+
+```js
+window.RCBPlugins.registerEra({
+  id: 'my-plugin-1988', // required, unique
+  label: '1988 — My Plugin\'s Take', // required
+  range: [1988, 1988], // required, [startYear, endYear] — shown next to the label
+  presentation: { // required — only the keys you list are touched
+    theme: 'wood-console-70s', // must be a registered theme pack id
+    crtEnabled: true, crtScanlines: 75, crtCurvature: 50, crtGrain: 65,
+    resolution: 'sd240', aspect: '4:3', uiExtent: 'confined', clock24: false,
+  },
+  notes: ['Shown in the era notes panel — one string per line.'], // optional
+});
+```
+
+Applying/clearing is core's job (the ERA panel and TV menu already call it);
+a plugin only supplies the data. There is no dedicated hook for a plugin to
+react to an era being applied in v1 — a channel plugin reading its own
+`ctx.config` sees the same `config.era` shape (`{ id, fields, overrides, … }`)
+core does, if you need to know which one is active.
+
+### `registerTemplate(template)`
+
+Adds a channel template (docs/design/08) to CHANNELS › `+ ADD CHANNEL` ›
+FROM TEMPLATE, alongside the six built-ins. A template names no paths or
+media — only slots the library resolver matches against whatever the
+person's own tagged library has, and the block/breaks structure to compile
+around them once every required slot is filled.
+
+```js
+window.RCBPlugins.registerTemplate({
+  templateVersion: 1, // required, currently always 1
+  id: 'my-plugin-saturday-anime', // required, unique
+  name: 'Saturday Anime Block', // required
+  slots: { // required — at least one
+    anime: { label: 'Anime', match: { 'facets.genre': ['anime'] }, min: 4 },
+    bumpers: { label: 'Network bumpers', match: { kind: ['bumper'] }, optional: true },
+  },
+  channel: { name: 'Anime Block', rating: 'TV-14' }, // required
+  programming: [ // optional — omit for a channel with no pre-set schedule
+    { block: { days: [6], hours: [9, 12], play: { slot: 'anime' } } },
+  ],
+  breaks: { cadence: { everyMinutes: 11 }, pool: { slot: 'bumpers' } }, // optional
+});
+```
+
+Thrown validation errors (missing fields, a programming block naming an
+unknown slot) surface immediately at registration, the same as a malformed
+`.rerun-template.json` import would.
+
 `id` here is the *theme* id (`S.config.theme`'s value, e.g.
 `"wood-console-70s"`) — mirroring how the pack's own CSS keys off
 `html[data-theme="<id>"]` — not necessarily your plugin's manifest `id`

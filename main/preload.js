@@ -85,8 +85,12 @@ contextBridge.exposeInMainWorld('api', {
   applyConfigCommands: (batch, meta) => ipcRenderer.invoke('config:command', batch, meta),
   getConfigSnapshot: () => ipcRenderer.invoke('config:snapshot'),
   libraryCall: (method, payload) => ipcRenderer.invoke('library:call', method, payload),
+  personalCall: (method, payload) => ipcRenderer.invoke('personal:call', method, payload),
   getConfigRevision: () => ipcRenderer.invoke('config:revision'),
   onConfigApplied: (cb) => ipcRenderer.on('config:applied', (event, update) => cb(update)),
+  onPersonalChanged: (cb) => ipcRenderer.on('personal:changed', (event, update) => cb(update)),
+  onClientHandoff: (cb) => ipcRenderer.on('client:handoff', (event, update) => cb(update)),
+  onSharedSessionChanged: (cb) => ipcRenderer.on('session:changed', (event, update) => cb(update)),
   // LAN viewers only (browser-api-shim.js): the host window is the one
   // writing config, so there is nothing for it to be told.
   onConfigChanged: () => () => {},
@@ -204,6 +208,7 @@ contextBridge.exposeInMainWorld('api', {
   // viewer page itself is a separate, independent load of this same
   // renderer bundle served over HTTP, not driven through this bridge.
   getViewerUrl: () => ipcRenderer.invoke('viewer:getUrl'),
+  getViewerControlUrl: () => ipcRenderer.invoke('viewer:getControlUrl'),
   // TV clients (docs/design/01): save a Remote-test capture on the host, and
   // the phone/computer handoff URL + QR.
   saveRemoteProfile: (profile) => ipcRenderer.invoke('tvClient:saveRemoteProfile', profile),

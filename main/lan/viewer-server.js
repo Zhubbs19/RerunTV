@@ -56,6 +56,9 @@ const VIEWER_REMOTE_CHANNELS = new Set([
   // so /api/remote-events drops it for anything but a control session. See
   // CONTROL_ONLY_CHANNELS below.
   'config:applied',
+  'personal:changed',
+  'client:handoff',
+  'session:changed',
   // Companion app's party/alerts relays (plugins/companion-app/main.js).
   // In headless/server mode there's no mainWindow to receive these over
   // IPC at all — a paired LAN viewer is the only possible display, so
@@ -253,6 +256,58 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     const hasControlScope = (request, response) => (typeof access.requireScope === 'function'
       ? access.requireScope(request, response, 'control')
       : (response.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host does not offer control sessions.' })), false));
+
+    // Watching is personal even for a read-only TV session. The server binds
+    // one profile id to the authenticated session and ignores ids supplied by
+    // the browser for reads/writes. Profile creation and editing remain under
+    // /api/control/personal below.
+    if (url.pathname.startsWith('/api/personal/') && req.method === 'POST') {
+      if (typeof pluginRuntime.personalCall !== 'function') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'This host has no profile store.' }));
+        return;
+      }
+      const method = decodeURIComponent(url.pathname.slice('/api/personal/'.length));
+      let payload = {};
+      try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
+        return;
+      }
+      try {
+        const summaries = method === 'listProfiles' || method === 'selectProfile'
+          ? await pluginRuntime.personalCall('listProfiles', {}, { remote: true }) : null;
+        let selectedId = typeof access.profileOf === 'function' ? access.profileOf(req) : null;
+        if (!selectedId) selectedId = summaries?.find((entry) => entry.id === 'everyone')?.id || 'everyone';
+        let result;
+        if (method === 'listProfiles') {
+          result = summaries;
+        } else if (method === 'selectProfile') {
+          const target = summaries.find((entry) => entry.id === payload.id);
+          if (!target) throw new Error('Profile not found.');
+          const current = summaries.find((entry) => entry.id === selectedId);
+          if (current && current.restriction !== 'none' && current.hasPin) {
+            const verified = await pluginRuntime.personalCall('verifyProfile', { id: current.id, pin: payload.pin }, { remote: true });
+            if (!verified) throw new Error('The current profile PIN is incorrect.');
+          }
+          if (typeof access.setProfile !== 'function' || !access.setProfile(req, target.id)) throw new Error('This viewer cannot remember a profile.');
+          selectedId = target.id;
+          result = await pluginRuntime.personalCall('getProfile', { id: selectedId }, { remote: true });
+        } else if (method === 'getProfile') {
+          result = await pluginRuntime.personalCall('getProfile', { id: selectedId }, { remote: true });
+        } else if (method === 'command') {
+          result = await pluginRuntime.personalCall('command', { ...payload, profileId: selectedId }, { remote: true });
+        } else if (method === 'presence') {
+          result = await pluginRuntime.personalCall(method, { ...payload, profileId: selectedId }, { remote: true });
+        } else if (method === 'session' || method === 'handoff' || method === 'status') {
+          result = await pluginRuntime.personalCall(method, payload, { remote: true });
+        } else {
+          throw new Error('That profile action requires a control session.');
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: true, result }));
+      } catch (e) {
+        res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: false, error: e.message }));
+      }
+      return;
+    }
     if (url.pathname === '/api/commands' && req.method === 'POST') {
       if (!hasControlScope(req, res)) return;
       if (typeof pluginRuntime.applyCommands !== 'function') {
@@ -361,6 +416,30 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       return;
     }
 
+    // Profile state is separate from channels.json (docs/design/09 C5).
+    // A control session may manage it; view-only sessions never receive a
+    // profile store or learn which other profiles exist.
+    if (url.pathname.startsWith('/api/control/personal/') && req.method === 'POST') {
+      if (!hasControlScope(req, res)) return;
+      if (typeof pluginRuntime.personalCall !== 'function') {
+        res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'This host has no profile store.' }));
+        return;
+      }
+      const method = decodeURIComponent(url.pathname.slice('/api/control/personal/'.length));
+      let payload = {};
+      try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
+        return;
+      }
+      try {
+        const result = await pluginRuntime.personalCall(method, payload, { remote: true });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: true, result }));
+      } catch (e) {
+        res.writeHead(409, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ ok: false, error: e.message }));
+      }
+      return;
+    }
+
     if (url.pathname === '/api/control/state' && req.method === 'GET') {
       if (!hasControlScope(req, res)) return;
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
@@ -412,7 +491,12 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       // The cursor still advances past a filtered event, so a viewer simply
       // never sees it rather than retrying for something it will never get.
       const isControl = typeof access.scopeOf === 'function' && access.scopeOf(req) === 'control';
-      const events = isControl ? result.events : result.events.filter((event) => !CONTROL_ONLY_CHANNELS.has(event.channel));
+      const selectedProfile = typeof access.profileOf === 'function' ? access.profileOf(req) : null;
+      const events = result.events.filter((event) => {
+        if (!isControl && CONTROL_ONLY_CHANNELS.has(event.channel)) return false;
+        if (event.channel === 'personal:changed') return !!selectedProfile && event.data?.profileId === selectedProfile;
+        return true;
+      });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
         .end(JSON.stringify({ cursor: result.cursor, events }));
       return;

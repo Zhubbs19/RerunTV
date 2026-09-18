@@ -6,7 +6,7 @@
   const viewerMethods = [
     'getPathForFile', 'getAppVersion', 'selectFolder', 'selectImage', 'selectAudio', 'selectVideo',
     'selectExecutable', 'selectCss', 'scanFolder', 'checkPathsExist', 'probeDuration', 'listBackups', 'previewBackup',
-    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'applyConfigCommands', 'getConfigSnapshot', 'libraryCall', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged',
+    'restoreBackup', 'deleteBackup', 'setBackupLabel', 'setBackupPinned', 'createBackupNow', 'loadConfig', 'saveConfig', 'applyConfigCommands', 'getConfigSnapshot', 'libraryCall', 'personalCall', 'getConfigRevision', 'onConfigApplied', 'onConfigChanged', 'onPersonalChanged', 'onClientHandoff', 'onSharedSessionChanged',
     'exportConfig', 'openPrintableManual', 'importConfig', 'toFileUrl', 'basename', 'resolvePlayablePath',
     'transcode', 'toggleFullscreen', 'setAspectLock', 'setUiScale', 'onCompanionConfigChanged', 'onRemoteCommand', 'sendRemoteState',
     // The Companion app's ALERTS relays have to stay viewer-facing: in
@@ -43,6 +43,11 @@
     'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled',
+    // The control pairing code must never reach a `view`-scope viewer — that
+    // would let a read-only session learn its way to a writable one. Host
+    // window only, unlike getViewerUrl (the view code) just above it in
+    // viewerMethods, which is fine for a viewer to see.
+    'getViewerControlUrl',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
     'setKeepDisplayAwake', 'showSystemNotification',

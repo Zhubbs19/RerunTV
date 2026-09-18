@@ -248,12 +248,31 @@
         return { ok: false, error: `Could not reach the host: ${e.message}` };
       }
     },
+    personalCall: async (method, payload) => {
+      const administrative = new Set(['createProfile', 'updateProfile', 'deleteProfile']);
+      const route = administrative.has(method) ? '/api/control/personal/' : '/api/personal/';
+      if (administrative.has(method)) {
+        const scope = await controlScope();
+        if (!scope.control) return { ok: false, error: 'This device is paired to watch, not to manage household profiles.' };
+      }
+      try {
+        const response = await fetch(`${route}${encodeURIComponent(method)}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store', body: JSON.stringify(payload || {}),
+        });
+        return (await response.json().catch(() => null)) || { ok: false, error: `The host answered ${response.status}.` };
+      } catch (e) {
+        return { ok: false, error: `Could not reach the host: ${e.message}` };
+      }
+    },
     // Commands the host applied, for a control session only — the route drops
     // these for a view session, because they carry real config values. This is
     // the same update the Electron window gets on config:applied, so state.js
     // reconciles identically on both.
     onConfigApplied: (callback) => onViewerEvent('config:applied', callback),
     onConfigChanged: (callback) => onViewerEvent('config:changed', callback),
+    onPersonalChanged: (callback) => onViewerEvent('personal:changed', callback),
+    onClientHandoff: (callback) => onViewerEvent('client:handoff', callback),
+    onSharedSessionChanged: (callback) => onViewerEvent('session:changed', callback),
     exportConfig: readOnlyNoop('exportConfig'),
     importConfig: readOnlyNoop('importConfig'),
     openPrintableManual: readOnlyNoop('openPrintableManual'),

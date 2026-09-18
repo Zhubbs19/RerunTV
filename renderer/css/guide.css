@@ -20,7 +20,21 @@
      readability floor at a small simulated resolution. */
   min-width: var(--banner-min-width, clamp(160px, 45%, 380px));
   max-width: var(--banner-max-width, 60%);
-  padding: clamp(8px, 3%, 14px) clamp(10px, 4%, 18px);
+  /* Exposed as custom properties (not just a bare padding value) so a theme
+     pack's own slot decoration can stay aligned with this card's actual,
+     responsive padding instead of guessing/hardcoding it — see
+     [data-slot="guide-banner-number"] in theme-widescreen-grid-13/style.css,
+     whose flush number chip cancels this padding on three sides via a
+     negative margin. A theme file can't reach into guide.css's clamp(), so
+     without these it either has to hardcode the clamp's ceiling (silently
+     wrong, and clipping/misaligning the chip, whenever the clamp resolves
+     below it — which is the common case at TV-mode or simulated-resolution
+     widths, not a rare edge case) or duplicate the clamp expression itself
+     (drifts the moment this one changes). Any theme doing the same trick
+     should reference these, not its own copy of the numbers. */
+  --guide-banner-pad-y: clamp(8px, 3%, 14px);
+  --guide-banner-pad-x: clamp(10px, 4%, 18px);
+  padding: var(--guide-banner-pad-y) var(--guide-banner-pad-x);
   backdrop-filter: blur(1px);
   will-change: transform, opacity;
   /* Restarts on its own: showGuideOverlay()/its auto-hide timeout (guide.js)

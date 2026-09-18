@@ -886,7 +886,7 @@ async function activate(ctx) {
       if (!fs.existsSync(videoAbs)) continue;
       try {
         const meta = JSON.parse(fs.readFileSync(abs(name), 'utf8'));
-        tapes.push({ ...meta, id, path: videoAbs });
+        tapes.push({ ...meta, id, path: videoAbs, bytes: fs.statSync(videoAbs).size });
       } catch (e) { /* a sidecar we cannot read means a tape we cannot label — skip it rather than fail the whole shelf */ }
     }
     // Newest first: a shelf reads best with the tape you just made on the left.

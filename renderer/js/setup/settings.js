@@ -32,6 +32,8 @@ import { initFlowBuilder, renderFlowsList } from './flowbuilder.js';
 import { renderAutoCurateList } from './autocurate.js';
 import { renderTagTaxonomyPanel } from './tagtaxonomy-ui.js';
 import { renderLibraryPanels } from './library.js';
+import { refreshHouseholdPanel, renderHouseholdPanel } from './household.js';
+import { renderEraPanel } from './eras.js';
 import { attachSliderReadout } from './util.js';
 import { renderChannelList } from './channels.js';
 import { renderBoxStatus } from './channels-diagnostics.js';
@@ -50,7 +52,7 @@ import {
   noSignalTitleInput, noSignalMessageInput, noSignalCopyReset,
   displayModeAspectSelect, displayModeWindowSelect, displayModeResolutionSelect, displayModeAutoPrioritySelect,
   displayModeOverlaysNativeSizeEl, displayModeUiExtentSelect, hideTitleBarEnabledEl,
-  viewerEnabledEl, viewerUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
+  viewerEnabledEl, viewerUrlStatusEl, controlUrlStatusEl, startupServerEnabledEl, startupServerStatusEl, connectedDevicesListEl, setupScreen,
   setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl, staticDurationSlider, staticDurationVal, staticEnabledEl, staticIntensitySlider,
   setupBreadcrumbEl, helpShortcutsGridEl, helpChangelogListEl, helpVersionEl, checkUpdatesBtn,
   updateModeSelect, updateStatusLineEl, updateSettingsPanelEl,
@@ -69,6 +71,7 @@ import {
 } from '../core/dom.js';
 import { airCheckLabel, airChecks, clearAirChecks, removeAirCheck } from '../library/airchecks.js';
 import { clearViewingHistory, formatWatchTime, listViewingHistory, summarizeHistory } from '../playback/history.js';
+import { currentProfile, personalCommand } from '../personal/state.js';
 
 // Live numeric readouts for every box-wide range slider — wired once at
 // module load since these elements are all static (not rebuilt per-render),
@@ -365,6 +368,8 @@ export function renderSettingsPanels() {
   renderRemindersPanel();
   renderAirChecksPanel();
   renderViewingHistoryPanel();
+  renderHouseholdPanel();
+  renderEraPanel();
   if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
   if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
@@ -403,6 +408,7 @@ export function renderSettingsPanels() {
   renderLibraryPanels();
   renderBackupsList();
   renderViewerUrlStatus();
+  renderViewerControlUrlStatus();
   renderStartupServerStatus();
   renderConnectedDevices();
   sliderReadouts.forEach((r) => r.refresh());
@@ -518,6 +524,7 @@ setupTabBtns.forEach((btn) => {
     revealPanel(Array.from(setupTabPanels).find((p) => p.dataset.tabPanel === tab));
     if (tab === 'help') renderHelpTab();
     if (tab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
+    if (tab === 'household') refreshHouseholdPanel();
     restoreActiveSubtabPanels();
     syncDiagnosticsMonitor();
     updateBreadcrumb();
@@ -537,6 +544,7 @@ export function resetSetupTabs() {
   setupTabPanels.forEach((p) => p.classList.toggle('hidden', p.dataset.tabPanel !== lastSetupTab));
   if (lastSetupTab === 'help') renderHelpTab();
   if (lastSetupTab === 'plugins') { renderPluginsTab(); renderPluginDiagnostics(); }
+  if (lastSetupTab === 'household') refreshHouseholdPanel();
   restoreActiveSubtabPanels();
   syncDiagnosticsMonitor();
   updateBreadcrumb();
@@ -1461,6 +1469,11 @@ window.addEventListener('reruntv:open-setup-search', () => {
   renderSettingsSearch();
 });
 
+// Applying/clearing an era (eras.js) writes the theme/CRT/display-mode/clock
+// config paths this screen's own controls own, directly rather than through
+// their input handlers — resync those controls' displayed values.
+window.addEventListener('reruntv:era-applied', () => renderSettingsPanels());
+
 setupSearchEl.addEventListener('input', renderSettingsSearch);
 setupSearchEl.addEventListener('keydown', (event) => {
   const results = Array.from(setupSearchResultsEl.querySelectorAll('.setup-search-result'));
@@ -1663,7 +1676,28 @@ export function renderViewerUrlStatus() {
 viewerEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['network', 'viewerEnabled'], value: viewerEnabledEl.checked });
   viewerUrlStatusEl.textContent = `${viewerEnabledEl.checked ? 'Viewer access will start' : 'Viewer access will stop'} after RerunTV restarts.`;
+  renderViewerControlUrlStatus();
 });
+
+// docs/design/06 §4's control pairing code, previously visible only on the
+// loopback /server page (host-only IPC — see api-contract.js). Uses the same
+// "share with devices" toggle as the read-only viewer above, since /control
+// is served by the same LAN process.
+export function renderViewerControlUrlStatus() {
+  if (!controlUrlStatusEl || typeof window.api.getViewerControlUrl !== 'function') return;
+  if (!viewerEnabledEl.checked) {
+    controlUrlStatusEl.textContent = 'Off by default. Enable "Share with devices on this network" above, save, and restart RerunTV.';
+    return;
+  }
+  window.api.getViewerControlUrl().then((candidates) => {
+    if (!candidates || !candidates.length) {
+      controlUrlStatusEl.textContent = 'Not active yet. Restart RerunTV, or connect this computer to WiFi/ethernet.';
+      return;
+    }
+    const list = candidates.map((c) => `${c.url} (${c.name})`).join(', ');
+    controlUrlStatusEl.textContent = `Open one of these on a laptop, tablet or phone for the same setup screen — writable there, unlike the read-only viewer link above: ${list}`;
+  });
+}
 
 export async function renderStartupServerStatus(statusOverride = null) {
   if (!startupServerEnabledEl || !startupServerStatusEl) return;
@@ -1770,7 +1804,7 @@ export function renderRemindersPanel() {
   if (reminderAutoTuneEl) reminderAutoTuneEl.checked = !!S.config.reminderAutoTune;
   if (reminderNotifyEl) reminderNotifyEl.checked = S.config.reminderNotify !== false;
   if (!remindersListEl) return;
-  const reminders = (S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
+  const reminders = (currentProfile()?.state.reminders || S.config.reminders || []).slice().sort((a, b) => a.start - b.start);
   if (remindersClearAllBtn) remindersClearAllBtn.disabled = !reminders.length;
   remindersListEl.innerHTML = '';
   if (!reminders.length) {
@@ -1797,7 +1831,9 @@ export function renderRemindersPanel() {
     remove.className = 'btn';
     remove.textContent = 'REMOVE';
     remove.addEventListener('click', () => {
-      dispatch({ type: 'settings.set', path: ['reminders'], value: (S.config.reminders || []).filter((entry) => entry.id !== reminder.id) }, { label: 'Remove reminder' });
+      const next = (currentProfile()?.state.reminders || S.config.reminders || []).filter((entry) => entry.id !== reminder.id);
+      if (currentProfile()) personalCommand({ type: 'state.set', key: 'reminders', value: next }).then(renderRemindersPanel);
+      else dispatch({ type: 'settings.set', path: ['reminders'], value: next }, { label: 'Remove reminder' });
       renderRemindersPanel();
     });
     row.append(label, remove);
@@ -1814,7 +1850,7 @@ reminderNotifyEl?.addEventListener('change', () => {
 });
 
 remindersClearAllBtn?.addEventListener('click', async () => {
-  const count = (S.config.reminders || []).length;
+  const count = (currentProfile()?.state.reminders || S.config.reminders || []).length;
   if (!count) return;
   const ok = await confirmDialog({
     title: 'CLEAR REMINDERS',
@@ -1822,7 +1858,8 @@ remindersClearAllBtn?.addEventListener('click', async () => {
     confirmText: 'CLEAR ALL',
   });
   if (!ok) return;
-  dispatch({ type: 'settings.set', path: ['reminders'], value: [] }, { label: 'Clear reminders' });
+  if (currentProfile()) await personalCommand({ type: 'state.set', key: 'reminders', value: [] });
+  else dispatch({ type: 'settings.set', path: ['reminders'], value: [] }, { label: 'Clear reminders' });
   renderRemindersPanel();
 });
 

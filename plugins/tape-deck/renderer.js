@@ -68,7 +68,7 @@ function breakLabel(brk) {
 // the guide and the time machine both show the uncredited schedule, and so
 // does a tape. A tape therefore matches what the guide said was on, which
 // is the contract the rest of the app keeps.
-function planSegments(ctx, channel, startMs, endMs) {
+function planSegments(ctx, channel, startMs, endMs, includeBreaks = true) {
   const segments = [];
   const { resolveBreakAt, nextBreakBoundary, getChannelSchedule } = ctx.channels;
   let t = startMs;
@@ -84,6 +84,7 @@ function planSegments(ctx, channel, startMs, endMs) {
     if (brk && !isTextOnlyStationId(brk)) {
       const windowEnd = Math.min(brk.windowEnd, endMs);
       if (!(windowEnd > t)) { t += 1; continue; }
+      if (!includeBreaks) { t = windowEnd; continue; }
       const file = breakFile(brk.entry);
       const label = breakLabel(brk);
       const elapsedIn = (t - brk.windowStart) / 1000;
@@ -387,7 +388,7 @@ async function startRecording(ctx, opts) {
   flashToast(`READING SCHEDULE · CH ${channel.number}`);
   let segments;
   try {
-    segments = planSegments(ctx, channel, opts.startMs, opts.endMs);
+    segments = planSegments(ctx, channel, opts.startMs, opts.endMs, opts.breaks !== 'program');
   } catch (e) {
     flashToast('COULD NOT READ THAT CHANNEL’S SCHEDULE', 'bad');
     return { error: e.message };
@@ -968,7 +969,7 @@ function updateDeckClock(ctx) {
 // Loading is the whole point of the channel: a tape does not simply start,
 // it goes in, the mechanism takes it, and the deck thinks about it for a
 // moment before anything appears.
-function loadTape(ctx, tape) {
+function loadTape(ctx, tape, startSeconds = 0) {
   if (!tape) return;
   loaded = tape;
   deckState = 'loading';
@@ -1001,7 +1002,7 @@ function loadTape(ctx, tape) {
     playDeckSfx(ctx, 'engage', { disc: dvd });
     stageTimer = setTimeout(() => {
       if (dvd) showDiscMenu(ctx);
-      else beginPlayback(ctx, 0);
+      else beginPlayback(ctx, Math.max(0, Number(startSeconds) || 0));
     }, loadMs - seatMs);
   }, seatMs);
 }
@@ -1573,8 +1574,23 @@ window.RCBPlugins.registerRendererService(PLUGIN_ID, {
   // the planner, and so another plugin could trigger a tape if it ever
   // wanted one.
   record: (opts) => startRecording(window.RCBPlugins.ctx, opts),
-  plan: (channel, startMs, endMs) => planSegments(window.RCBPlugins.ctx, channel, startMs, endMs),
+  plan: (channel, startMs, endMs, includeBreaks = true) => planSegments(window.RCBPlugins.ctx, channel, startMs, endMs, includeBreaks),
   list: () => (typeof window.api.tapesList === 'function' ? window.api.tapesList() : Promise.resolve({ tapes: [] })),
+  delete: (tapeId) => (typeof window.api.tapesDelete === 'function' ? window.api.tapesDelete(tapeId) : Promise.resolve({ error: 'Deleting recordings is unavailable.' })),
+  play: async (tapeId, positionMs = 0) => {
+    if (!container) return { error: 'Tune to the tape deck channel first.' };
+    await refreshTapes(window.RCBPlugins.ctx, { repaint: true });
+    const tape = tapes.find((entry) => entry.id === tapeId);
+    if (!tape) return { error: 'That recording is no longer on the shelf.' };
+    loadTape(window.RCBPlugins.ctx, tape, Math.max(0, Number(positionMs) || 0) / 1000);
+    return { ok: true, tape };
+  },
+  nowPlaying: () => (loaded ? {
+    tapeId: loaded.id,
+    positionMs: Math.max(0, Number(window.RCBPlugins.ctx.player.currentTime) || 0) * 1000,
+    durationMs: Math.max(0, Number(window.RCBPlugins.ctx.player.duration) || Number(loaded.durationS) || 0) * 1000,
+    playing: deckState === 'playing',
+  } : null),
   status: () => lastStatus,
 });
 

@@ -7,11 +7,14 @@ import { sortedChannels } from '../core/channels.js';
 import { openHandoff } from './handoff.js';
 import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, cycleSleepTimer, toggleCrt } from '../playback/power.js';
 import { themePackEntries } from '../plugin/host.js';
-import { S, dispatch } from '../core/state.js';
+import { S, commitConfigPatch, dispatch } from '../core/state.js';
 import { applyTheme } from '../display/themes.js';
+import { applyDisplayMode } from '../display/mode.js';
+import { applyEra, clearEra, listEras } from '../display/eras.js';
 import { cycleChoice, stepNumber } from './setup-model.js';
 import { openLearnMode, openRemoteTest } from '../remote/test.js';
 import { openOnScreenKeyboard } from '../ui/on-screen-keyboard.js';
+import { isFavorite, toggleFavorite } from '../personal/state.js';
 
 const RATINGS = ['', 'TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'];
 const UPDATE_STRATEGIES = ['startup-auto', 'background-auto', 'background-notify', 'manual', 'off'];
@@ -65,7 +68,7 @@ function channelMenu(ch) {
       { label: neighbour(ch, -1) ? `MOVE UP (SWAP WITH CH ${neighbour(ch, -1).number})` : 'MOVE UP (ALREADY FIRST)', keepOpen: true, disabled: !neighbour(ch, -1), run: () => move(-1) },
       { label: neighbour(ch, 1) ? `MOVE DOWN (SWAP WITH CH ${neighbour(ch, 1).number})` : 'MOVE DOWN (ALREADY LAST)', keepOpen: true, disabled: !neighbour(ch, 1), run: () => move(1) },
       valueItem('SHOWN WHEN SURFING', () => (ch.hidden ? 'NO' : 'YES'), () => dispatch({ type: 'channel.set', channel: ch.number, field: 'hidden', value: !ch.hidden })),
-      valueItem('FAVOURITE', () => onOff(ch.favorite), () => dispatch({ type: 'channel.set', channel: ch.number, field: 'favorite', value: !ch.favorite })),
+      valueItem('FAVOURITE', () => onOff(isFavorite(ch.number)), () => toggleFavorite(ch.number)),
       valueItem('RATING', () => ch.rating || 'NONE', (d) => dispatch({ type: 'channel.set', channel: ch.number, field: 'rating', value: cycleChoice(RATINGS, ch.rating || '', d) || null })),
       {
         label: 'RENAME…',
@@ -117,9 +120,30 @@ function themeLabel(id) {
   return (entry && entry.label ? entry.label : id || 'DEFAULT').toUpperCase();
 }
 
+// docs/design/10 §6: Left/Right steps built-in eras (plus "BOX SETTINGS" for
+// no era), applying live behind the menu the same way THEME below does.
+function eraLabel(id) {
+  if (!id) return 'BOX SETTINGS';
+  const era = listEras().find((e) => e.id === id);
+  return era ? era.label.toUpperCase() : id.toUpperCase();
+}
+
+function applyEraVisuals() {
+  applyTheme();
+  applyCrtState();
+  applyDisplayMode();
+}
+
 function guideItems() {
   const display = () => S.config.display || {};
   return [
+    valueItem('ERA', () => eraLabel(S.config.era && S.config.era.id), (d) => {
+      const ids = [null, ...listEras().map((e) => e.id)];
+      const next = cycleChoice(ids, S.config.era ? S.config.era.id : null, d);
+      if (next) applyEra(S.config, next); else clearEra(S.config);
+      commitConfigPatch(next ? `Era: ${eraLabel(next)}` : 'Clear era');
+      applyEraVisuals();
+    }),
     // Live preview: each step applies the theme straight away.
     valueItem('THEME', () => themeLabel(S.config.theme), (d) => { setSetting(['theme'], cycleChoice(themeIds(), S.config.theme, d)); applyTheme(); }),
     valueItem('24-HOUR CLOCK', () => onOff(display().clock24), () => setSetting(['display', 'clock24'], !display().clock24)),

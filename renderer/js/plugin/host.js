@@ -72,6 +72,8 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { alertDialog } from '../setup/dialogs.js';
 import { MONTHS, S, WEEKDAYS, commitInPlace, dispatch, saveConfigDebounced, viewNow } from '../core/state.js';
+import { registerEra } from '../display/eras.js';
+import { registerTemplate } from '../library/channel-builder.js';
 import { pluginCommandType, registerPluginCommand } from '../core/commands.js';
 import { formatClock, formatSlotLabel, getDisplayTitle } from '../core/util.js';
 import { player } from '../core/dom.js';
@@ -774,6 +776,8 @@ function installGlobalApi() {
     registerMediaSourcePicker,
     registerThemePack,
     getThemePack,
+    registerEra,
+    registerTemplate,
     registerInterrupt,
     getInterrupt,
     anyOtherInterruptActive,
