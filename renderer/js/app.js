@@ -51,7 +51,9 @@ import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
 import { installTvPlatform } from './tv/platform.js';
-import { initPersonalState, isFavorite, personalCommand } from './personal/state.js';
+import {
+  initPersonalState, isFavorite, isHiddenForProfile, personalCommand, setFavorite,
+} from './personal/state.js';
 import { initDvrScheduler } from './personal/dvr-scheduler.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 
@@ -497,13 +499,24 @@ window.api.onRemoteTune((data) => {
   }
 });
 // Toggling a channel's FAVORITE/quickAccess flag from the companion app's
-// channel-list editor — mutates the same in-memory config the desktop setup
-// screen edits, so it's picked up by the existing debounced autosave with
-// no separate write path.
+// channel-list editor. quickAccess mutates the same in-memory config the
+// desktop setup screen edits, so it's picked up by the existing debounced
+// autosave with no separate write path. FAVORITE is different: doc 09 moved
+// favorites into per-profile storage (isFavorite/setFavorite, personal/
+// state.js), so writing ch.favorite here would toggle a field the on-screen
+// guide no longer reads once a household profile is active — go through the
+// same profile-aware command the desktop UI uses instead, falling back to
+// the legacy per-channel field only for a box with no profile loaded yet
+// (isFavorite's own fallback, so reads and writes agree on which value is
+// canonical).
 window.api.onRemoteSetChannelFlag((data) => {
   if (!data || !Number.isFinite(data.number)) return;
   const ch = getChannel(data.number);
   if (!ch || (data.field !== 'favorite' && data.field !== 'quickAccess')) return;
+  if (data.field === 'favorite' && S.personalProfile) {
+    setFavorite(data.number, !!data.value).catch((e) => console.error('[companion] favorite toggle failed:', e));
+    return;
+  }
   ch[data.field] = !!data.value;
   commitInPlace({ type: 'channel.set', channel: ch.number, field: data.field, value: ch[data.field] });
 });
@@ -684,7 +697,12 @@ function pushCompanionLineup() {
   const lineup = [];
   for (const ch of sortedChannels(S.config.channels || [])) {
     if (lineup.length >= COMPANION_LINEUP_MAX_CHANNELS) break;
-    if (ch.hidden) continue;
+    // isHiddenForProfile mirrors the box's own tuneToChannel guard (playback/
+    // core.js) — a household profile's parental restriction or explicit
+    // hidden list. Without this, a restricted profile's blocked channels
+    // still showed up with real now/next info in the companion's guide and
+    // channel list, even though tapping one would just no-signal on the box.
+    if (ch.hidden || isHiddenForProfile(ch.number)) continue;
     const row = {
       number: ch.number,
       name: ch.name || '',

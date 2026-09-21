@@ -386,15 +386,28 @@ async function activate(ctx) {
       // flags, since those can be edited on the box between snapshots.
       const cfg = await loadConfig();
       const live = Array.isArray(latestRemoteState.lineup) ? latestRemoteState.lineup : null;
-      const programByNumber = new Map((live || []).map((row) => [row.number, row]));
-      const channels = (cfg.channels || []).filter((ch) => !ch.hidden).map((ch) => {
-        const program = programByNumber.get(ch.number);
-        return {
-          number: ch.number, name: ch.name, favorite: !!ch.favorite, quickAccess: !!ch.quickAccess,
-          now: (program && program.now) || '', next: (program && program.next) || '',
-          endsAtMs: (program && program.endsAtMs) || null,
-        };
-      }).sort((a, b) => a.number - b.number);
+      // pushCompanionLineup (app.js) already excludes whatever the box's
+      // currently active household profile restricts (rating-based or an
+      // explicit hidden list) and reports the real, profile-aware favorite
+      // flag — a plain disk read can't know either of those. Once a live
+      // snapshot exists it's the authoritative visibility list, not just the
+      // now/next source; a box that hasn't pushed one yet (just started, or
+      // headless with no renderer) still falls back to the old disk-only
+      // behavior, same graceful degradation now/next already had.
+      const programByNumber = live ? new Map(live.map((row) => [row.number, row])) : null;
+      const channels = (cfg.channels || [])
+        .filter((ch) => !ch.hidden)
+        .filter((ch) => !programByNumber || programByNumber.has(ch.number))
+        .map((ch) => {
+          const program = programByNumber && programByNumber.get(ch.number);
+          return {
+            number: ch.number, name: ch.name,
+            favorite: program ? !!program.favorite : !!ch.favorite,
+            quickAccess: !!ch.quickAccess,
+            now: (program && program.now) || '', next: (program && program.next) || '',
+            endsAtMs: (program && program.endsAtMs) || null,
+          };
+        }).sort((a, b) => a.number - b.number);
       // Still a bare array, with the new fields added per row. The Android
       // companion reads this same route and indexes the response directly,
       // so wrapping it in an object would break every installed copy of it
