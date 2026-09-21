@@ -35,7 +35,7 @@ test('handoff points at the first access URL, with a QR, and explains when there
   const QRCode = { toDataURL: async (url) => `data:qr,${url}` };
   const none = await handoffInfo([], QRCode);
   assert.equal(none.url, '');
-  assert.match(none.label, /Companion/);
+  assert.match(none.label, /Share with devices on this network/);
   const info = await handoffInfo([{ name: 'Wi-Fi', url: 'http://192.168.1.5:8725/' }], QRCode, { deepLink: '/control/channels/7' });
   assert.equal(info.url, 'http://192.168.1.5:8725/control/channels/7');
   assert.equal(info.qrDataUrl, 'data:qr,http://192.168.1.5:8725/control/channels/7');
