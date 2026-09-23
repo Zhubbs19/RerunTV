@@ -50,6 +50,7 @@
     'getViewerControlUrl',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
+    'listScreens', 'setPreferredScreen',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',
     'onCompanionApplySettings', 'getCompanionUrl',

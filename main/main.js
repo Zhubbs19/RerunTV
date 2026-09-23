@@ -66,7 +66,8 @@ const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
 const { createPersonalService, registerPersonalIpc } = require('./personal/service');
-const { loadWindowState, saveWindowState, boundsOnScreen } = require('./config/window-state');
+const { loadWindowState, saveWindowState } = require('./config/window-state');
+const { planLaunch, trackScreenPlacement } = require('./ui/screen-placement');
 const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require('./lan/lan');
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
 const { fetchJsonCached } = require('./updater/api-cache');
@@ -121,18 +122,18 @@ registerAppSchemePrivileges();
 // (initial boot, macOS 'activate' with no windows open) omits it and falls
 // back to whatever's already saved in config, same as before this existed.
 function createWindow(overrides = {}) {
-  const saved = loadWindowState();
-  const bounds = saved && boundsOnScreen(saved) ? saved : {};
-  // No saved state (first launch, or userData was reset) used to fall back
-  // to a flat 1280x800 below regardless of the real display — on a 4K
-  // monitor that opens as a small window nowhere near filling the screen,
-  // and every cqw/cqh-scaled panel inside #display-frame (guide.css,
-  // setup.css) sizes itself off that too-small effective canvas, reading as
-  // a generally cramped/"smushed" layout rather than just a small window.
-  // Default to the current display's work area instead so a fresh box
-  // fills its screen like a real one would, same as the maximized-state
-  // case just below.
-  const defaultArea = screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea;
+  // Which screen, where on it, and whether maximized/fullscreen — per screen,
+  // so a TV that was off at launch or went to sleep gets the window back once
+  // it reappears (screen-placement.js). A fresh box fills the screen the
+  // cursor is on: a flat 1280x800 default read as a cramped layout on a 4K
+  // monitor, since every cqw/cqh-scaled panel sizes itself off the window.
+  const savedState = loadWindowState();
+  const placement = planLaunch({
+    displays: screen.getAllDisplays(),
+    state: savedState,
+    cursorDisplay: screen.getDisplayNearestPoint(screen.getCursorScreenPoint()),
+  });
+  const bounds = placement.bounds;
   const bootConfig = loadConfig();
   const hideTitleBar = overrides.hideTitleBar !== undefined
     ? overrides.hideTitleBar
@@ -140,10 +141,10 @@ function createWindow(overrides = {}) {
   let uiScalePreference = normalizeUiScalePreference((bootConfig.display || {}).uiScale);
 
   const mainWindow = new BrowserWindow({
-    width: bounds.width || defaultArea.width,
-    height: bounds.height || defaultArea.height,
-    x: bounds.x !== undefined ? bounds.x : defaultArea.x,
-    y: bounds.y !== undefined ? bounds.y : defaultArea.y,
+    width: bounds.width,
+    height: bounds.height,
+    x: bounds.x,
+    y: bounds.y,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#060606',
@@ -173,32 +174,32 @@ function createWindow(overrides = {}) {
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!url.startsWith('app://bundle/')) event.preventDefault();
   });
-  if (saved && saved.isMaximized) mainWindow.maximize();
+  if (placement.isMaximized) mainWindow.maximize();
+  if (placement.isFullScreen && !KIOSK) mainWindow.setFullScreen(true);
   // The launch flag rides on the page URL, the same ?mode= a browser client
   // uses, so usage-mode.js has one place to read it from.
   mainWindow.loadURL(`app://bundle/renderer/index.html${LAUNCH_MODE ? `?mode=${LAUNCH_MODE}` : ''}`);
-  mainWindow.webContents.on('did-finish-load', () => applyWindowUiScale(mainWindow, uiScalePreference));
+  mainWindow.webContents.on('did-finish-load', () => {
+    applyWindowUiScale(mainWindow, uiScalePreference);
+    // Fullscreen restored above happened before the page could hear about it.
+    sendFullscreenState();
+  });
 
-  let saveStateTimer = null;
-  const persistWindowState = () => {
-    if (mainWindow.isDestroyed()) return;
-    const isMaximized = mainWindow.isMaximized();
-    const b = isMaximized ? mainWindow.getNormalBounds() : mainWindow.getBounds();
-    saveWindowState({ ...b, isMaximized });
-  };
-  const persistWindowStateDebounced = () => {
-    clearTimeout(saveStateTimer);
-    saveStateTimer = setTimeout(persistWindowState, 500);
-  };
+  // Also owns window-state persistence (resize/move/fullscreen/close).
+  mainWindow.__screenPlacement = trackScreenPlacement(mainWindow, {
+    screen,
+    state: savedState,
+    saveState: saveWindowState,
+    plan: placement,
+    kiosk: KIOSK,
+  });
+
   let uiScaleTimer = null;
   mainWindow.on('resize', () => {
-    persistWindowStateDebounced();
     if (uiScalePreference !== 'auto') return;
     clearTimeout(uiScaleTimer);
     uiScaleTimer = setTimeout(() => applyWindowUiScale(mainWindow, uiScalePreference), 100);
   });
-  mainWindow.on('move', persistWindowStateDebounced);
-  mainWindow.on('close', persistWindowState);
 
   // Covers every way fullscreen can be entered/left — the F-key toggle
   // below (window:toggleFullscreen), OS-level window controls (macOS green
@@ -667,6 +668,21 @@ ipcMain.handle('window:setUiScale', async (event, preference) => {
   return mainWindow.__setUiScalePreference(preference);
 });
 
+// PICTURE & SOUND's "Show on screen" (screen-placement.js). The choice lives
+// in window-state.json, not channels.json: a display id only means something
+// on this machine.
+ipcMain.handle('window:listScreens', async () => {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.__screenPlacement) return null;
+  return mainWindow.__screenPlacement.listScreens();
+});
+
+ipcMain.handle('window:setPreferredScreen', async (event, ref) => {
+  const mainWindow = getMainWindow();
+  if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.__screenPlacement) return null;
+  return mainWindow.__screenPlacement.setPreferred(ref && typeof ref === 'object' ? ref : null);
+});
+
 // DISPLAY tab's "hide title bar" option (config.display.hideTitleBar) — a
 // borderless window that still behaves like a normal windowed app (movable,
 // resizable, coexists with the taskbar/other windows), unlike the real OS
@@ -674,7 +690,7 @@ ipcMain.handle('window:setUiScale', async (event, preference) => {
 // BrowserWindow construction, so there's no live way to strip/restore the
 // title bar on the existing window — this closes it and opens a replacement
 // with the new frame setting, reusing the same bounds-persistence the normal
-// close path already writes (persistWindowState, above) so the replacement
+// close path already writes (screen-placement.js) so the replacement
 // opens at the same size/position instead of resetting to a default.
 ipcMain.handle('window:setTitleBarHidden', async (event, hidden) => {
   const mainWindow = getMainWindow();

@@ -2,6 +2,7 @@ import { player } from './dom.js';
 import { getThemePack } from '../plugin/host.js';
 import { S } from './state.js';
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
+import { applyAudioOutputToContext } from '../display/audio-output.js';
 
 export const CUSTOM_SOUND_SLOTS = [
   ['button', 'BUTTON / CONTROL'], ['channelClick', 'CHANNEL BUTTON CLICK'], ['channelTune', 'CHANNEL TUNING'],
@@ -50,6 +51,7 @@ export function getAudioCtx() {
     S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     S.sfxGain = S.audioCtx.createGain();
     S.sfxGain.connect(S.audioCtx.destination);
+    applyAudioOutputToContext(S.audioCtx);
   }
   if (S.audioCtx.state === 'suspended') S.audioCtx.resume();
   S.sfxGain.gain.value = player.muted ? 0 : (typeof S.config.volume === 'number' ? S.config.volume : 1);

@@ -118,6 +118,10 @@ contextBridge.exposeInMainWorld('api', {
   // Enlarges the complete interface through Chromium's page zoom so core,
   // plugin UI, themes, dialogs, and the program guide remain in lockstep.
   setUiScale: (preference) => ipcRenderer.invoke('window:setUiScale', preference),
+  // PICTURE & SOUND's "Show on screen": the connected screens, and which one
+  // the window should live on ({ id, label }, or null for the last one used).
+  listScreens: () => ipcRenderer.invoke('window:listScreens'),
+  setPreferredScreen: (ref) => ipcRenderer.invoke('window:setPreferredScreen', ref),
   // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
   // reopens the real OS window with/without its frame, since that's a
   // BrowserWindow constructor-only option (see main.js's

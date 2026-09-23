@@ -7,6 +7,7 @@ import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from '
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from '../playback/power.js';
 import { applyTheme } from '../display/themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from '../core/state.js';
+import { getAudioOutputChoice, isAudioOutputPresent, listAudioOutputs, setAudioOutput } from '../display/audio-output.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
 import { searchActions } from './command-palette.js';
@@ -331,6 +332,7 @@ export function renderSettingsPanels() {
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
   uiScaleSelect.value = S.config.display.uiScale || 'auto';
   renderUsageModeSetting();
+  renderScreenSpeakersSettings();
   logoBugMotionSelect.value = S.config.display.logoBugMotion || 'none';
   renderLogoBugEditor();
   renderDynamicOverlaysEditor();
@@ -2085,6 +2087,106 @@ document.getElementById('tv-preview-btn')?.addEventListener('click', () => {
   window.dispatchEvent(new CustomEvent('reruntv:watch-tv'));
 });
 renderUsageModeSetting();
+
+// ---------- Screen & speakers ----------
+// Host window only: a LAN viewer has no OS window to place and plays sound
+// wherever its own browser does. Both lists are re-read whenever a select
+// gets focus, since screens and speakers come and go (a TV switched off).
+const screenTargetSelect = document.getElementById('screen-target-select');
+const screenTargetHelp = document.getElementById('screen-target-help');
+const audioOutputSelect = document.getElementById('audio-output-select');
+const audioOutputHelp = document.getElementById('audio-output-help');
+const SCREEN_HELP = 'RerunTV opens on this screen, and goes back to it when it reconnects, like after the TV wakes up.';
+const AUDIO_HELP = 'Play through the TV’s speakers without changing the Windows default. Set on this computer only.';
+let screenOptions = [];
+let audioOptions = [];
+
+function screenName(screen) {
+  const name = screen.label || (screen.primary ? 'Main screen' : 'Screen');
+  return `${name.toUpperCase()} — ${screen.width}×${screen.height}`;
+}
+
+function fillSelect(select, options, value) {
+  select.replaceChildren(...options.map((option) => {
+    const el = document.createElement('option');
+    el.value = option.value;
+    el.textContent = option.text;
+    return el;
+  }));
+  select.value = value;
+}
+
+async function renderScreenTarget() {
+  const row = screenTargetSelect && screenTargetSelect.closest('.setting-row');
+  if (!row) return;
+  const info = window.api && window.api.listScreens ? await window.api.listScreens().catch(() => null) : null;
+  row.hidden = !info;
+  if (!info) return;
+  const preferred = info.preferred;
+  const current = info.screens.find((screen) => screen.current);
+  screenOptions = [{ value: '', text: 'LAST ONE USED', ref: null }];
+  info.screens.forEach((screen) => {
+    screenOptions.push({ value: screen.id, text: `${screenName(screen)}${screen.current ? ' (HERE NOW)' : ''}`, ref: { id: screen.id, label: screen.label } });
+  });
+  const preferredConnected = preferred && info.screens.some((screen) => screen.id === preferred.id || (preferred.label && screen.label === preferred.label));
+  if (preferred && !preferredConnected) {
+    screenOptions.push({ value: preferred.id, text: `${(preferred.label || 'Saved screen').toUpperCase()} (NOT CONNECTED)`, ref: preferred });
+  }
+  const selected = !preferred ? ''
+    : (info.screens.find((screen) => screen.id === preferred.id) || info.screens.find((screen) => preferred.label && screen.label === preferred.label) || preferred).id;
+  fillSelect(screenTargetSelect, screenOptions, selected);
+  if (info.pendingReturn) {
+    screenTargetHelp.textContent = `Waiting for ${info.pendingReturn.label || 'the saved screen'} to reconnect. RerunTV moves there as soon as it does.`;
+  } else if (!preferred && current) {
+    screenTargetHelp.textContent = `${SCREEN_HELP} Now on ${current.label || 'this screen'}.`;
+  } else {
+    screenTargetHelp.textContent = SCREEN_HELP;
+  }
+}
+
+async function renderAudioOutput() {
+  const row = audioOutputSelect && audioOutputSelect.closest('.setting-row');
+  if (!row) return;
+  row.hidden = !!window.__isViewer;
+  if (window.__isViewer) return;
+  const outputs = await listAudioOutputs();
+  const choice = getAudioOutputChoice();
+  audioOptions = [{ value: '', text: 'SYSTEM DEFAULT', device: null }];
+  outputs.forEach((device) => audioOptions.push({ value: device.deviceId, text: device.label.toUpperCase(), device }));
+  let selected = '';
+  if (choice) {
+    const match = outputs.find((d) => d.deviceId === choice.deviceId) || outputs.find((d) => choice.label && d.label === choice.label);
+    if (match) selected = match.deviceId;
+    else {
+      audioOptions.push({ value: choice.deviceId, text: `${(choice.label || 'Saved output').toUpperCase()} (NOT CONNECTED)`, device: choice });
+      selected = choice.deviceId;
+    }
+  }
+  fillSelect(audioOutputSelect, audioOptions, selected);
+  audioOutputHelp.textContent = choice && !isAudioOutputPresent()
+    ? 'That output isn’t connected, so sound plays through the system default until it’s back.'
+    : AUDIO_HELP;
+}
+
+function renderScreenSpeakersSettings() {
+  Promise.all([renderScreenTarget(), renderAudioOutput()]).then(() => {
+    const panel = document.getElementById('screen-speakers-panel');
+    if (panel) panel.hidden = [...panel.querySelectorAll('.setting-row')].every((row) => row.hidden);
+  });
+}
+
+screenTargetSelect?.addEventListener('focus', () => renderScreenTarget());
+screenTargetSelect?.addEventListener('change', async () => {
+  const option = screenOptions.find((o) => o.value === screenTargetSelect.value);
+  if (window.api && window.api.setPreferredScreen) await window.api.setPreferredScreen(option ? option.ref : null);
+  renderScreenTarget();
+});
+audioOutputSelect?.addEventListener('focus', () => renderAudioOutput());
+audioOutputSelect?.addEventListener('change', async () => {
+  const option = audioOptions.find((o) => o.value === audioOutputSelect.value);
+  await setAudioOutput(option ? option.device : null);
+  renderAudioOutput();
+});
 
 uiScaleSelect.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'uiScale'], value: uiScaleSelect.value });
