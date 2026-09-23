@@ -705,6 +705,19 @@
               <div class="setting-row-control"><select id="tv-mode-screen-select"></select></div>
               <p class="setting-row-help" id="tv-mode-screen-help">Use the remote-friendly TV layout while the window is on this screen, and the desktop layout everywhere else.</p>
             </div>
+            <div class="setting-row" data-setting="screen-off-action" data-synonyms="tv off standby power follow hdmi sleep">
+              <label class="setting-row-label" for="screen-off-action-select">When the screen turns off</label>
+              <div class="setting-row-control"><select id="screen-off-action-select">
+                <option value="move">MOVE TO ANOTHER SCREEN</option>
+                <option value="standby">TURN THE BOX OFF TOO</option>
+              </select></div>
+              <p class="setting-row-help">Turning the box off too brings it back on when the screen returns. Works if Windows loses the TV when it’s switched off.</p>
+            </div>
+            <div class="setting-row" data-setting="screen-edge" data-synonyms="overscan cut off edges cropped safe area zoom underscan">
+              <label class="setting-row-label" for="screen-edge-slider">Screen edges</label>
+              <div class="setting-row-control"><input type="range" id="screen-edge-slider" min="0" max="6" step="0.5" value="0"> <span id="screen-edge-value">0%</span></div>
+              <p class="setting-row-help" id="screen-edge-help">If the TV cuts off the clock or banners, pull everything in until the white frame shows on all four sides. Saved for this screen only.</p>
+            </div>
             <div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output">
               <label class="setting-row-label" for="audio-output-select">Sound output</label>
               <div class="setting-row-control"><select id="audio-output-select"></select></div>
@@ -808,6 +821,14 @@
               <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
               <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
               <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
+            </div>
+            <div class="setting-row" data-setting="audio-leveler" data-synonyms="loudness normalize compressor night mode dialogue quiet loud">
+              <label class="setting-row-label" for="audio-leveler-select">Volume leveler</label>
+              <div class="setting-row-control"><select id="audio-leveler-select">
+                <option value="off">OFF</option>
+                <option value="on">ON</option>
+              </select></div>
+              <p class="setting-row-help" id="audio-leveler-help">Evens out loud and quiet shows and commercials. Each file is measured once in the background.</p>
             </div>
           </div>
         </div>

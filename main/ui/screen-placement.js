@@ -149,8 +149,14 @@ function recordState(state, display, { bounds, isMaximized, isFullScreen }, { pe
 // Takes over window-state persistence for `win` and follows screens coming
 // and going. `plan` is planLaunch's result, used to create the window.
 // onScreenChange({ id, label }) fires whenever the window ends up on a
-// different screen than before.
-function trackScreenPlacement(win, { screen, state: initialState, saveState, plan, kiosk = false, onScreenChange = () => {} }) {
+// different screen than before. onScreenPower('lost' | 'returned', { id, label })
+// fires when the screen the window was on goes away, and when that screen
+// comes back and the window returns to it (the renderer can follow the TV's
+// power with the box's own).
+function trackScreenPlacement(win, {
+  screen, state: initialState, saveState, plan, kiosk = false,
+  onScreenChange = () => {}, onScreenPower = () => {},
+}) {
   let state = initialState || {};
   let pending = plan.pendingReturn || null;
   let current = plan.display;
@@ -214,6 +220,7 @@ function trackScreenPlacement(win, { screen, state: initialState, saveState, pla
     // Automatic mode returns to whatever screen went away; a chosen screen
     // only pulls the window back to itself.
     if (!state.preferred || sameDisplay(removed, state.preferred)) pending = displayRef(removed);
+    onScreenPower('lost', displayRef(removed));
     relocating = true;
     // Fullscreen would otherwise follow the window onto the desk monitor and
     // cover it.
@@ -233,6 +240,7 @@ function trackScreenPlacement(win, { screen, state: initialState, saveState, pla
       if (!d) return;
       pending = null;
       moveTo(d);
+      onScreenPower('returned', displayRef(d));
     }, DISPLAY_SETTLE_MS);
   };
 

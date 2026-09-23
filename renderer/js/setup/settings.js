@@ -9,6 +9,8 @@ import { applyTheme } from '../display/themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from '../core/state.js';
 import { getAudioOutputChoice, isAudioOutputPresent, listAudioOutputs, setAudioOutput } from '../display/audio-output.js';
 import { getTvModeScreen, setTvModeScreen } from '../tv/usage-mode.js';
+import { flashScreenEdgeGuide, getCurrentScreen, getScreenEdge, getScreenOffAction, onCurrentScreenChange, setScreenEdge, setScreenOffAction } from '../display/tv-screen.js';
+import { applyLeveler } from '../playback/leveler.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
 import { searchActions } from './command-palette.js';
@@ -2256,7 +2258,69 @@ tvModeScreenSelect?.addEventListener('change', () => {
   renderUsageModeSetting();
 });
 
+const screenOffActionSelect = document.getElementById('screen-off-action-select');
+const screenEdgeSlider = document.getElementById('screen-edge-slider');
+const screenEdgeValue = document.getElementById('screen-edge-value');
+const screenEdgeHelp = document.getElementById('screen-edge-help');
+const SCREEN_EDGE_HELP = 'If the TV cuts off the clock or banners, pull everything in until the white frame shows on all four sides. Saved for this screen only.';
+
+function renderScreenPowerAndEdges() {
+  const hostWindow = !!(window.api && window.api.listScreens);
+  [screenOffActionSelect, screenEdgeSlider].forEach((el) => {
+    const row = el && el.closest('.setting-row');
+    if (row) row.hidden = !hostWindow;
+  });
+  if (!hostWindow) return;
+  if (screenOffActionSelect) screenOffActionSelect.value = getScreenOffAction();
+  if (screenEdgeSlider) {
+    const screen = getCurrentScreen();
+    const pct = getScreenEdge();
+    screenEdgeSlider.value = String(pct);
+    screenEdgeValue.textContent = `${pct}%`;
+    screenEdgeHelp.textContent = screen && screen.label
+      ? `${SCREEN_EDGE_HELP} Now adjusting ${screen.label}.`
+      : SCREEN_EDGE_HELP;
+  }
+}
+
+screenOffActionSelect?.addEventListener('change', () => setScreenOffAction(screenOffActionSelect.value));
+screenEdgeSlider?.addEventListener('input', () => {
+  setScreenEdge(Number(screenEdgeSlider.value));
+  screenEdgeValue.textContent = `${Number(screenEdgeSlider.value)}%`;
+  flashScreenEdgeGuide();
+});
+screenEdgeSlider?.addEventListener('focus', () => flashScreenEdgeGuide());
+onCurrentScreenChange(() => renderScreenPowerAndEdges());
+
+const audioLevelerSelect = document.getElementById('audio-leveler-select');
+audioLevelerSelect?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['audioLeveler'], value: audioLevelerSelect.value });
+  applyLeveler();
+  setTimeout(renderAudioLeveler, 500);
+});
+
+const LEVELER_HELP = 'Evens out loud and quiet shows and commercials. Each file is measured once in the background.';
+
+async function renderAudioLeveler() {
+  if (!audioLevelerSelect) return;
+  audioLevelerSelect.value = S.config.audioLeveler || 'off';
+  const help = document.getElementById('audio-leveler-help');
+  if (!help) return;
+  const status = window.api && window.api.getLoudnessStatus ? await window.api.getLoudnessStatus().catch(() => null) : null;
+  if (!status) {
+    help.textContent = window.__isViewer ? 'Levels the sound on the box itself, not on this device.' : LEVELER_HELP;
+  } else if (!status.available) {
+    help.textContent = 'Needs ffmpeg to measure files. Install it from Plug-ins › FFmpeg Transcode.';
+  } else if (S.config.audioLeveler === 'on' && status.queued) {
+    help.textContent = `${LEVELER_HELP} ${status.measured} measured, ${status.queued} to go.`;
+  } else {
+    help.textContent = LEVELER_HELP;
+  }
+}
+
 function renderScreenSpeakersSettings() {
+  renderScreenPowerAndEdges();
+  renderAudioLeveler();
   Promise.all([renderScreenTarget(), renderTvModeScreen(), renderAudioOutput()]).then(() => {
     const panel = document.getElementById('screen-speakers-panel');
     if (panel) panel.hidden = [...panel.querySelectorAll('.setting-row')].every((row) => row.hidden);

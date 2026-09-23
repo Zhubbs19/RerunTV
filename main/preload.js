@@ -129,6 +129,15 @@ contextBridge.exposeInMainWorld('api', {
   // Fires with { id, label } whenever the window ends up on a different
   // screen, for "TV mode on" (usage-mode.js).
   onScreenChange: (cb) => ipcRenderer.on('window:screenChanged', (event, ref) => cb(ref)),
+  // { state: 'lost' | 'returned', screen } when the window's screen goes away
+  // (a TV switched off) and when the window is back on it (tv-screen.js).
+  onScreenPower: (cb) => ipcRenderer.on('window:screenPower', (event, payload) => cb(payload)),
+  // Volume leveler (media/loudness.js): a local file's loudness in LUFS
+  // (measured with ffmpeg on first ask, then cached), and a background sweep.
+  getLoudness: (filePath, duration) => ipcRenderer.invoke('loudness:get', filePath, duration),
+  prefetchLoudness: (items) => ipcRenderer.invoke('loudness:prefetch', items),
+  cancelLoudnessPrefetch: () => ipcRenderer.invoke('loudness:cancelBackground'),
+  getLoudnessStatus: () => ipcRenderer.invoke('loudness:status'),
   // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
   // reopens the real OS window with/without its frame, since that's a
   // BrowserWindow constructor-only option (see main.js's

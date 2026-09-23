@@ -50,7 +50,9 @@
     'getViewerControlUrl',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
-    'listScreens', 'setPreferredScreen', 'onScreenChange',
+    'listScreens', 'setPreferredScreen', 'onScreenChange', 'onScreenPower',
+    // Host-only: ffmpeg measures files on the host's own disk.
+    'getLoudness', 'prefetchLoudness', 'cancelLoudnessPrefetch', 'getLoudnessStatus',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',
     'onCompanionApplySettings', 'getCompanionUrl',

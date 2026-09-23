@@ -296,7 +296,7 @@ registerCommand('config.patch', {
 // keeps this from becoming a second, unvalidated config.patch.
 const SETTING_LABELS = {
   crtEnabled: 'CRT effect', crtIntensity: 'CRT', staticEffect: 'channel static', contentVolume: 'content volume',
-  adVolume: 'commercial volume', display: 'display', upNext: 'up next banner', details: 'details page',
+  adVolume: 'commercial volume', audioLeveler: 'volume leveler', display: 'display', upNext: 'up next banner', details: 'details page',
   timeMachine: 'time machine', stationId: 'station ID', trivia: 'trivia', theme: 'theme',
   pictureMode: 'picture mode', aspectMode: 'aspect', displayMode: 'display mode', updates: 'updates',
   network: 'network', reminders: 'reminders', reminderAutoTune: 'reminder auto-tune',

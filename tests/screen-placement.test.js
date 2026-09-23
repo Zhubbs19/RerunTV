@@ -165,3 +165,23 @@ test('the page hears when the window lands on a different screen', (t) => {
   t.mock.timers.tick(500);
   assert.deepEqual(changes, [{ id: '2', label: 'HISENSE' }]);
 });
+
+test('the page hears the TV go away and come back, for following its power', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const screen = fakeScreen([desk, tv]);
+  const state = recordState({}, tv, { bounds: tv.workArea, isMaximized: false, isFullScreen: false });
+  const plan = planLaunch({ displays: screen.displays, state, cursorDisplay: desk });
+  const win = fakeWindow(plan.bounds);
+  const power = [];
+  trackScreenPlacement(win, { screen, state, saveState: () => {}, plan, onScreenPower: (s, ref) => power.push([s, ref.label]) });
+  screen.emit('display-removed', {}, desk);
+  assert.deepEqual(power, [], 'another screen going away is not the TV turning off');
+  screen.displays = [desk];
+  screen.emit('display-removed', {}, tv);
+  win.bounds = { x: 100, y: 100, width: 800, height: 600 };
+  t.mock.timers.tick(1000);
+  screen.displays = [desk, tv];
+  screen.emit('display-added', {}, tv);
+  t.mock.timers.tick(1200);
+  assert.deepEqual(power, [['lost', 'HISENSE'], ['returned', 'HISENSE']]);
+});

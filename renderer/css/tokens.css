@@ -372,8 +372,12 @@ code,
 
 #app {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  /* --screen-edge (a fraction per edge, tv-screen.js) pulls everything in
+     from a TV that trims the edges of its HDMI picture. The body's black
+     fills the trimmed border. Unset everywhere else. */
+  width: calc(100vw * (1 - 2 * var(--screen-edge, 0)));
+  height: calc(100vh * (1 - 2 * var(--screen-edge, 0)));
+  margin: calc(100vh * var(--screen-edge, 0)) calc(100vw * var(--screen-edge, 0));
   overflow: hidden;
   /* Centers #display-frame (below) when it's smaller than #app — the
      always-on letterbox/pillarbox behavior. migration-toast is position:
@@ -381,6 +385,19 @@ code,
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Screen edges' alignment frame (tv-screen.js): shown while adjusting, so
+   the edges can be pulled in until all four sides are visible on the TV. */
+#app.screen-edge-guide::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  border: 6px solid #fff;
+  outline: 6px solid #e0182d;
+  outline-offset: -18px;
 }
 
 /* Native Android TV viewer: just a black backdrop so there's no flash of

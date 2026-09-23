@@ -62,7 +62,8 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 // itself is app lifecycle, window creation, and the ipcMain registrations
 // that tie all of the above to the renderer.
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./media/protocol');
-const { FFMPEG_STATIC_PATH, setFfmpegPath } = require('./media/media');
+const { FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath } = require('./media/media');
+const { createLoudnessService, registerLoudnessIpc } = require('./media/loudness');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
 const { createPersonalService, registerPersonalIpc } = require('./personal/service');
@@ -195,6 +196,9 @@ function createWindow(overrides = {}) {
     onScreenChange: (ref) => {
       if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:screenChanged', ref);
     },
+    onScreenPower: (state, ref) => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:screenPower', { state, screen: ref });
+    },
   });
 
   let uiScaleTimer = null;
@@ -325,6 +329,12 @@ registerLanIpc(ipcMain, {
 });
 registerDialogIpc(ipcMain);
 registerFfmpegInstallIpc(ipcMain, { getMainWindow });
+// The volume leveler's per-file loudness (media/loudness.js). The ffmpeg-
+// transcode plugin's path once it's active, else whatever core found itself.
+registerLoudnessIpc(ipcMain, createLoudnessService({
+  userDataDir: app.getPath('userData'),
+  getFfmpegPath: () => getFfmpegPath() || FFMPEG_STATIC_PATH,
+}));
 registerStartupServerIpc(ipcMain);
 registerPluginsIpc(ipcMain, {
   getPluginMainLoadErrors: () => pluginMainLoadErrors,
