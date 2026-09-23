@@ -46,7 +46,7 @@ import { applyTheme, startThemeCheck } from './display/themes.js';
 import { initTouchControls } from './tv/touch.js';
 import { initUpdateNotice } from './update/notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv/menu.js';
-import { initUsageMode, isTvMode } from './tv/usage-mode.js';
+import { initUsageMode, installTvScreenRule, isTvMode } from './tv/usage-mode.js';
 import { installAudioOutput } from './display/audio-output.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
@@ -63,7 +63,7 @@ import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 initUsageMode();
 // Before any media plays, so the first tune already comes out of the chosen
 // speakers. The host window only: a LAN viewer plays wherever its browser does.
-if (!window.__isViewer) installAudioOutput();
+if (!window.__isViewer) { installAudioOutput(); installTvScreenRule(); }
 import { initLibrarySync } from './library/sync.js';
 import {
   renderChannelList, renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,

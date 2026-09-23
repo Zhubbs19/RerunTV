@@ -148,7 +148,9 @@ function recordState(state, display, { bounds, isMaximized, isFullScreen }, { pe
 
 // Takes over window-state persistence for `win` and follows screens coming
 // and going. `plan` is planLaunch's result, used to create the window.
-function trackScreenPlacement(win, { screen, state: initialState, saveState, plan, kiosk = false }) {
+// onScreenChange({ id, label }) fires whenever the window ends up on a
+// different screen than before.
+function trackScreenPlacement(win, { screen, state: initialState, saveState, plan, kiosk = false, onScreenChange = () => {} }) {
   let state = initialState || {};
   let pending = plan.pendingReturn || null;
   let current = plan.display;
@@ -156,6 +158,11 @@ function trackScreenPlacement(win, { screen, state: initialState, saveState, pla
   // mode, the user moving it off this screen cancels a pending return.
   let landed = plan.display;
   let relocating = false;
+  const setCurrent = (display) => {
+    const changed = !sameDisplay(display, current);
+    current = display;
+    if (changed) onScreenChange(displayRef(display));
+  };
   const timers = new Set();
   const later = (fn, ms) => {
     const t = setTimeout(() => { timers.delete(t); fn(); }, ms);
@@ -167,7 +174,7 @@ function trackScreenPlacement(win, { screen, state: initialState, saveState, pla
     const d = displayForBounds(screen.getAllDisplays(), win.getBounds());
     if (!d) return;
     if (pending && !state.preferred && landed && !sameDisplay(d, landed)) pending = null;
-    current = d;
+    setCurrent(d);
     state = recordState(state, d, {
       bounds: win.getNormalBounds(),
       isMaximized: win.isMaximized(),
@@ -197,7 +204,7 @@ function trackScreenPlacement(win, { screen, state: initialState, saveState, pla
     win.setBounds(bounds);
     if (restore && record && record.isMaximized) win.maximize();
     if (restore && record && record.isFullScreen && !kiosk) win.setFullScreen(true);
-    current = display;
+    setCurrent(display);
     landed = display;
     later(() => { relocating = false; persist(); }, RELOCATE_SETTLE_MS);
   };

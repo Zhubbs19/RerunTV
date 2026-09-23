@@ -192,6 +192,9 @@ function createWindow(overrides = {}) {
     saveState: saveWindowState,
     plan: placement,
     kiosk: KIOSK,
+    onScreenChange: (ref) => {
+      if (!mainWindow.isDestroyed()) mainWindow.webContents.send('window:screenChanged', ref);
+    },
   });
 
   let uiScaleTimer = null;

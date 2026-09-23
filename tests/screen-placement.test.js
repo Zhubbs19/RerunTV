@@ -149,3 +149,19 @@ test('choosing a connected screen moves the window there now', (t) => {
   assert.deepEqual(saves.at(-1).preferred, { id: '2', label: 'HISENSE' });
   assert.equal(listed.screens.find((s) => s.id === '2').width, 3840);
 });
+
+test('the page hears when the window lands on a different screen', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const screen = fakeScreen([desk, tv]);
+  const plan = planLaunch({ displays: screen.displays, state: null, cursorDisplay: desk });
+  const win = fakeWindow(plan.bounds);
+  const changes = [];
+  trackScreenPlacement(win, { screen, state: null, saveState: () => {}, plan, onScreenChange: (ref) => changes.push(ref) });
+  win.emit('move');
+  t.mock.timers.tick(500);
+  assert.deepEqual(changes, [], 'moving within the same screen says nothing');
+  win.bounds = { x: 2000, y: 0, width: 1000, height: 700 };
+  win.emit('move');
+  t.mock.timers.tick(500);
+  assert.deepEqual(changes, [{ id: '2', label: 'HISENSE' }]);
+});

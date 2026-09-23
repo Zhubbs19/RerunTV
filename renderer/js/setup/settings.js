@@ -8,6 +8,7 @@ import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, ap
 import { applyTheme } from '../display/themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from '../core/state.js';
 import { getAudioOutputChoice, isAudioOutputPresent, listAudioOutputs, setAudioOutput } from '../display/audio-output.js';
+import { getTvModeScreen, setTvModeScreen } from '../tv/usage-mode.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
 import { searchActions } from './command-palette.js';
@@ -1701,8 +1702,56 @@ export function renderViewerControlUrlStatus() {
   });
 }
 
+// "Open RerunTV when I sign in" (startup-server.js's window entry). Only one
+// startup entry is on at a time, so changing either re-reads both.
+const startupWindowEnabledEl = document.getElementById('startup-window-enabled');
+const startupWindowStatusEl = document.getElementById('startup-window-status');
+
+async function renderStartupWindowStatus(statusOverride = null) {
+  if (!startupWindowEnabledEl || !startupWindowStatusEl || typeof window.api.getStartupWindowStatus !== 'function') return;
+  let status = statusOverride;
+  if (!status) {
+    try {
+      status = await window.api.getStartupWindowStatus();
+    } catch (error) {
+      status = { supported: false, enabled: false, error: error.message };
+    }
+  }
+  startupWindowEnabledEl.checked = !!status.enabled;
+  startupWindowEnabledEl.disabled = !status.supported;
+  startupWindowEnabledEl.closest('.setting-row')?.classList.toggle('is-disabled', !status.supported);
+  if (status.reason === 'windows-only') {
+    startupWindowStatusEl.textContent = 'Opening at sign-in is currently available on Windows PCs.';
+  } else if (status.reason === 'installed-build-only') {
+    startupWindowStatusEl.textContent = 'Available in the installed RerunTV build. Development mode will not change Windows startup.';
+  } else if (status.error) {
+    startupWindowStatusEl.textContent = `Windows could not change the startup setting: ${status.error}`;
+  } else if (status.enabled && status.launchAllowed === false) {
+    startupWindowStatusEl.textContent = 'Registered, but disabled in Windows Startup Apps. Re-enable RerunTV there to open it at sign-in.';
+  } else if (status.enabled) {
+    startupWindowStatusEl.textContent = 'At sign-in, RerunTV opens on its screen (see Picture & Sound › Show on screen) and starts the network server too.';
+  } else {
+    startupWindowStatusEl.textContent = 'Open the box on its screen when you sign in to Windows, like a cable box that’s already on. Replaces the background server below.';
+  }
+}
+
+startupWindowEnabledEl?.addEventListener('change', async () => {
+  if (typeof window.api.setStartupWindowEnabled !== 'function') return;
+  startupWindowEnabledEl.disabled = true;
+  startupWindowStatusEl.textContent = startupWindowEnabledEl.checked
+    ? 'Adding RerunTV to Windows startup…'
+    : 'Removing RerunTV from Windows startup…';
+  try {
+    await renderStartupWindowStatus(await window.api.setStartupWindowEnabled(startupWindowEnabledEl.checked));
+  } catch (error) {
+    await renderStartupWindowStatus({ supported: true, enabled: false, error: error.message });
+  }
+  renderStartupServerStatus();
+});
+
 export async function renderStartupServerStatus(statusOverride = null) {
   if (!startupServerEnabledEl || !startupServerStatusEl) return;
+  renderStartupWindowStatus();
   const panel = startupServerEnabledEl.closest('.panel');
   if (typeof window.api.getStartupServerStatus !== 'function') {
     // The LAN viewer uses the same renderer files but intentionally receives
@@ -1747,6 +1796,7 @@ startupServerEnabledEl?.addEventListener('change', async () => {
   try {
     const status = await window.api.setStartupServerEnabled(startupServerEnabledEl.checked);
     await renderStartupServerStatus(status);
+    renderStartupWindowStatus();
   } catch (error) {
     await renderStartupServerStatus({ supported: true, enabled: false, error: error.message });
   }
@@ -2168,8 +2218,46 @@ async function renderAudioOutput() {
     : AUDIO_HELP;
 }
 
+const tvModeScreenSelect = document.getElementById('tv-mode-screen-select');
+const tvModeScreenHelp = document.getElementById('tv-mode-screen-help');
+const TV_SCREEN_HELP = 'Use the remote-friendly TV layout while the window is on this screen, and the desktop layout everywhere else.';
+let tvScreenOptions = [];
+
+async function renderTvModeScreen() {
+  const row = tvModeScreenSelect && tvModeScreenSelect.closest('.setting-row');
+  if (!row) return;
+  const info = window.api && window.api.listScreens ? await window.api.listScreens().catch(() => null) : null;
+  row.hidden = !info;
+  if (!info) return;
+  const chosen = getTvModeScreen();
+  tvScreenOptions = [{ value: '', text: 'OFF', ref: null }];
+  info.screens.forEach((screen) => tvScreenOptions.push({ value: screen.id, text: screenName(screen), ref: { id: screen.id, label: screen.label } }));
+  let selected = '';
+  if (chosen) {
+    const match = info.screens.find((screen) => screen.id === chosen.id) || info.screens.find((screen) => chosen.label && screen.label === chosen.label);
+    if (match) selected = match.id;
+    else {
+      tvScreenOptions.push({ value: chosen.id, text: `${(chosen.label || 'Saved screen').toUpperCase()} (NOT CONNECTED)`, ref: chosen });
+      selected = chosen.id;
+    }
+  }
+  fillSelect(tvModeScreenSelect, tvScreenOptions, selected);
+  const pref = getUsageModePreference();
+  tvModeScreenHelp.textContent = chosen && pref !== 'auto'
+    ? `Usage mode is set to ${pref.toUpperCase()} in System › This device, which wins over this. Set it to AUTO to use this.`
+    : TV_SCREEN_HELP;
+}
+
+tvModeScreenSelect?.addEventListener('focus', () => renderTvModeScreen());
+tvModeScreenSelect?.addEventListener('change', () => {
+  const option = tvScreenOptions.find((o) => o.value === tvModeScreenSelect.value);
+  setTvModeScreen(option ? option.ref : null);
+  renderTvModeScreen();
+  renderUsageModeSetting();
+});
+
 function renderScreenSpeakersSettings() {
-  Promise.all([renderScreenTarget(), renderAudioOutput()]).then(() => {
+  Promise.all([renderScreenTarget(), renderTvModeScreen(), renderAudioOutput()]).then(() => {
     const panel = document.getElementById('screen-speakers-panel');
     if (panel) panel.hidden = [...panel.querySelectorAll('.setting-row')].every((row) => row.hidden);
   });

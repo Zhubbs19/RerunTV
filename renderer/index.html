@@ -700,6 +700,11 @@
               <div class="setting-row-control"><select id="screen-target-select"></select></div>
               <p class="setting-row-help" id="screen-target-help">RerunTV opens on this screen, and goes back to it when it reconnects, like after the TV wakes up.</p>
             </div>
+            <div class="setting-row" data-setting="tv-mode-screen" data-synonyms="tv mode remote layout couch second screen hdmi">
+              <label class="setting-row-label" for="tv-mode-screen-select">TV mode on</label>
+              <div class="setting-row-control"><select id="tv-mode-screen-select"></select></div>
+              <p class="setting-row-help" id="tv-mode-screen-help">Use the remote-friendly TV layout while the window is on this screen, and the desktop layout everywhere else.</p>
+            </div>
             <div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output">
               <label class="setting-row-label" for="audio-output-select">Sound output</label>
               <div class="setting-row-control"><select id="audio-output-select"></select></div>
@@ -1144,8 +1149,13 @@
 <div class="setup-subtab-panel" data-subtab-panel="system">
         <div class="settings-grid">
 <div class="panel">
-          <div class="panel-toggle">BACKGROUND SERVER</div>
+          <div class="panel-toggle">WHEN I SIGN IN</div>
           <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="startup-window" data-synonyms="startup boot autostart login open on tv">
+              <label class="setting-row-label" for="startup-window-enabled">Open RerunTV when I sign in</label>
+              <div class="setting-row-control"><input type="checkbox" id="startup-window-enabled"></div>
+              <p class="setting-row-help" id="startup-window-status">Checking Windows startup settings…</p>
+            </div>
             <div class="setting-row" data-setting="startup-server" data-synonyms="headless boot startup">
               <label class="setting-row-label" for="startup-server-enabled">Start the server when I sign in</label>
               <div class="setting-row-control"><input type="checkbox" id="startup-server-enabled"></div>
