@@ -42,7 +42,7 @@
     // all. tests/api-surface.test.js keeps the two lists honest now.
     'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
-    'getStartupServerStatus', 'setStartupServerEnabled',
+    'getStartupServerStatus', 'setStartupServerEnabled', 'getStartupWindowStatus', 'setStartupWindowEnabled',
     // The control pairing code must never reach a `view`-scope viewer — that
     // would let a read-only session learn its way to a writable one. Host
     // window only, unlike getViewerUrl (the view code) just above it in
@@ -50,6 +50,9 @@
     'getViewerControlUrl',
     'getPostUpdateNotice', 'acknowledgePostUpdateNotice', 'onFullscreenChange', 'onCecKey',
     'setTitleBarHidden', 'reportThemeColors', 'reportInstalledThemes',
+    'listScreens', 'setPreferredScreen', 'onScreenChange', 'onScreenPower',
+    // Host-only: ffmpeg measures files on the host's own disk.
+    'getLoudness', 'prefetchLoudness', 'cancelLoudnessPrefetch', 'getLoudnessStatus',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',
     'onCompanionApplySettings', 'getCompanionUrl',

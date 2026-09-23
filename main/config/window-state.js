@@ -1,4 +1,4 @@
-const { app, screen } = require('electron');
+const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -20,15 +20,4 @@ function saveWindowState(state) {
   } catch (e) {}
 }
 
-// A saved position can point at a monitor that's since been unplugged —
-// only trust it if it still lands on a real display.
-function boundsOnScreen(bounds) {
-  if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number') return false;
-  return screen.getAllDisplays().some((d) => {
-    const a = d.workArea;
-    return bounds.x < a.x + a.width && bounds.x + bounds.width > a.x &&
-      bounds.y < a.y + a.height && bounds.y + bounds.height > a.y;
-  });
-}
-
-module.exports = { loadWindowState, saveWindowState, boundsOnScreen };
+module.exports = { loadWindowState, saveWindowState };

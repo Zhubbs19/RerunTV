@@ -46,7 +46,10 @@ import { applyTheme, startThemeCheck } from './display/themes.js';
 import { initTouchControls } from './tv/touch.js';
 import { initUpdateNotice } from './update/notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv/menu.js';
-import { initUsageMode, isTvMode } from './tv/usage-mode.js';
+import { initUsageMode, installTvScreenRule, isTvMode } from './tv/usage-mode.js';
+import { installAudioOutput } from './display/audio-output.js';
+import { installTvScreen } from './display/tv-screen.js';
+import { applyLeveler } from './playback/leveler.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
@@ -60,6 +63,9 @@ import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
 // Before anything renders: html[data-mode] decides layout and input model for
 // the whole app (docs/design/01, contract C1).
 initUsageMode();
+// Before any media plays, so the first tune already comes out of the chosen
+// speakers. The host window only: a LAN viewer plays wherever its browser does.
+if (!window.__isViewer) { installAudioOutput(); installTvScreenRule(); }
 import { initLibrarySync } from './library/sync.js';
 import {
   renderChannelList, renderCommercialsPanel, renderPreemptionWindowsEditor, renderStandbyPanel, renderSettingsPanels, resetSetupTabs,
@@ -568,6 +574,7 @@ function applyCompanionSettingsLive(changedSections) {
   applyAspectMode();
   applyMuteState();
   applyVolume();
+  applyLeveler();
   applyHintBarState();
   applyDisplayModeSettled();
   window.applyTickerState?.();
@@ -860,6 +867,7 @@ export async function showTvScreen() {
   window.applyTickerState?.();
   applyMuteState();
   applyVolume();
+  applyLeveler();
   applyHintBarState();
   applyTheme();
   applyDisplayModeSettled();
@@ -1193,6 +1201,7 @@ export function applyConfigDefaults(config) {
   if (config.muted == null) config.muted = false;
   if (config.adVolume == null) config.adVolume = 1;
   if (config.contentVolume == null) config.contentVolume = 1;
+  if (!['off', 'on'].includes(config.audioLeveler)) config.audioLeveler = 'off';
   if (!config.ticker) config.ticker = { enabled: false, text: '' };
   if (config.ticker.speed == null) config.ticker.speed = 30;
   if (!config.staticEffect) config.staticEffect = { enabled: true, intensity: 100, durationMs: 150 };
@@ -1346,8 +1355,11 @@ async function init() {
     }
     showSetupScreen();
   } else {
-    showTvScreen();
+    // Screen edges and following the TV's power start once the set is on:
+    // a TV that's still off at boot puts it straight back in standby.
+    await showTvScreen();
   }
+  if (!window.__isViewer && !window.__controlClient) installTvScreen();
 }
 
 // Keeps a LAN viewer's channel/block/interstitial data in sync with edits

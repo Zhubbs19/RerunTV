@@ -19,6 +19,8 @@ test('the mode resolves device choice > launch flag > client identity > desktop'
   assert.equal(resolveUsageMode({ query: '?mode=desktop', userAgent: androidTv }).mode, 'desktop', 'a flag beats identity');
   assert.deepEqual(resolveUsageMode({ preference: 'desktop', query: '?mode=tv', userAgent: androidTv }), { mode: 'desktop', source: 'device choice' });
   assert.equal(resolveUsageMode({ preference: 'auto', query: '?mode=tv' }).mode, 'tv', 'auto defers to the flag');
+  assert.deepEqual(resolveUsageMode({ onTvScreen: true, query: '?mode=desktop' }), { mode: 'tv', source: 'TV screen' }, 'the TV screen beats a flag');
+  assert.equal(resolveUsageMode({ preference: 'desktop', onTvScreen: true }).mode, 'desktop', 'an explicit device choice beats the TV screen');
   assert.equal(parseModeFlag('?foo=1&mode=TV'), 'tv');
   assert.equal(parseModeFlag('?mode=phone'), null);
 });

@@ -15,6 +15,7 @@ import { stopShuttle } from './timemachine.js';
 import { autoHideAfter } from '../core/util.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
+import { levelerGain } from './leveler.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -69,7 +70,7 @@ export function applyVolume() {
   const kindMult = isAdKind
     ? (typeof S.config.adVolume === 'number' ? S.config.adVolume : 1)
     : (typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1);
-  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult));
+  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult * levelerGain()));
 
   // Credits-squeeze video mode (playback.js's startCreditsSpeedup) plays a
   // real upNext-pool promo with its own audio while #player is force-muted

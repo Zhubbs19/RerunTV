@@ -10,16 +10,20 @@
 // Resolution, strongest first:
 //   1. this device's own choice (localStorage, per client — Electron keeps it
 //      in its own userData, a browser/WebView in its origin storage)
-//   2. a launch flag: ?mode=tv|desktop in the page URL (the Electron main
+//   2. this device's TV screen: the Electron window is on the screen picked
+//      in PICTURE & SOUND › "TV mode on" (a PC driving a TV over HDMI as a
+//      second screen). Off that screen, the steps below decide as usual.
+//   3. a launch flag: ?mode=tv|desktop in the page URL (the Electron main
 //      process adds it for `--mode=tv`, a browser client can type it)
-//   3. client identity: the Android TV WebView's RerunTV-AndroidTV UA
+//   4. client identity: the Android TV WebView's RerunTV-AndroidTV UA
 //      (tv-client-viewport.js), Samsung Tizen and LG webOS TV browsers
-//   4. desktop
+//   5. desktop
 // Nothing ever switches mode silently; a heuristic may only *suggest* it.
 
 export const USAGE_MODES = ['desktop', 'tv'];
 export const USAGE_MODE_PREFERENCES = ['auto', 'desktop', 'tv'];
 const STORAGE_KEY = 'reruntv.usageMode';
+const TV_SCREEN_KEY = 'reruntv.tvModeScreen';
 
 const TV_USER_AGENTS = [
   [/RerunTV-AndroidTV/i, 'Android TV client'],
@@ -28,8 +32,9 @@ const TV_USER_AGENTS = [
 ];
 
 // Pure: every input is passed in, so node:test can cover the precedence.
-export function resolveUsageMode({ preference, query, userAgent } = {}) {
+export function resolveUsageMode({ preference, query, userAgent, onTvScreen = false } = {}) {
   if (preference === 'desktop' || preference === 'tv') return { mode: preference, source: 'device choice' };
+  if (onTvScreen) return { mode: 'tv', source: 'TV screen' };
   const flag = parseModeFlag(query);
   if (flag) return { mode: flag, source: 'launch flag' };
   const identity = TV_USER_AGENTS.find(([pattern]) => pattern.test(userAgent || ''));
@@ -74,6 +79,7 @@ function stamp(resolved) {
 function environment(preference) {
   return {
     preference,
+    onTvScreen: isOnTvScreen(),
     query: typeof location !== 'undefined' ? location.search : '',
     userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
   };
@@ -134,4 +140,54 @@ export function setUsageModePreference(preference) {
 export function onUsageModeChange(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
+}
+
+// ---------- TV screen (Electron window only) ----------
+// { id, label } of the screen that means TV mode on this device, per device
+// like the mode choice itself. The window's current screen comes from main
+// (screen-placement.js), so dragging the window onto the TV flips the layout.
+let currentScreen = null;
+
+function sameScreen(a, b) {
+  if (!a || !b) return false;
+  return String(a.id) === String(b.id) || (!!a.label && a.label === b.label);
+}
+
+export function getTvModeScreen() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(TV_SCREEN_KEY) || 'null');
+    return parsed && parsed.id != null ? { id: String(parsed.id), label: String(parsed.label || '') } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isOnTvScreen() {
+  return sameScreen(currentScreen, getTvModeScreen());
+}
+
+function restamp() {
+  if (!previewing) stamp(resolveUsageMode(environment(readPreference())));
+}
+
+// ref null turns the rule off.
+export function setTvModeScreen(ref) {
+  try {
+    if (ref && ref.id != null) window.localStorage.setItem(TV_SCREEN_KEY, JSON.stringify({ id: String(ref.id), label: String(ref.label || '') }));
+    else window.localStorage.removeItem(TV_SCREEN_KEY);
+  } catch (e) { /* storage unavailable */ }
+  restamp();
+}
+
+// Called once from app.js, host window only.
+export function installTvScreenRule() {
+  const api = typeof window !== 'undefined' ? window.api : null;
+  if (!api || typeof api.listScreens !== 'function') return;
+  if (typeof api.onScreenChange === 'function') {
+    api.onScreenChange((ref) => { currentScreen = ref; restamp(); });
+  }
+  Promise.resolve(api.listScreens()).then((info) => {
+    const here = info && info.screens.find((screen) => screen.current);
+    if (here && !currentScreen) { currentScreen = { id: here.id, label: here.label }; restamp(); }
+  }).catch(() => {});
 }

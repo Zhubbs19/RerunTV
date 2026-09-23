@@ -10,6 +10,10 @@ contextBridge.exposeInMainWorld('api', {
   getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
   getStartupServerStatus: () => ipcRenderer.invoke('startupServer:getStatus'),
   setStartupServerEnabled: (enabled) => ipcRenderer.invoke('startupServer:setEnabled', enabled),
+  // Open the full window at sign-in instead (startup-server.js); turning one
+  // on turns the other off.
+  getStartupWindowStatus: () => ipcRenderer.invoke('startupWindow:getStatus'),
+  setStartupWindowEnabled: (enabled) => ipcRenderer.invoke('startupWindow:setEnabled', enabled),
   // 'dev-mode' (running from source, nothing to check against), 'up-to-date',
   // 'downloading' (found one, autoUpdater is fetching it now), 'disabled'
   // (config.updates.strategy is 'off'), or 'error'. Once a 'downloading' result
@@ -118,6 +122,22 @@ contextBridge.exposeInMainWorld('api', {
   // Enlarges the complete interface through Chromium's page zoom so core,
   // plugin UI, themes, dialogs, and the program guide remain in lockstep.
   setUiScale: (preference) => ipcRenderer.invoke('window:setUiScale', preference),
+  // PICTURE & SOUND's "Show on screen": the connected screens, and which one
+  // the window should live on ({ id, label }, or null for the last one used).
+  listScreens: () => ipcRenderer.invoke('window:listScreens'),
+  setPreferredScreen: (ref) => ipcRenderer.invoke('window:setPreferredScreen', ref),
+  // Fires with { id, label } whenever the window ends up on a different
+  // screen, for "TV mode on" (usage-mode.js).
+  onScreenChange: (cb) => ipcRenderer.on('window:screenChanged', (event, ref) => cb(ref)),
+  // { state: 'lost' | 'returned', screen } when the window's screen goes away
+  // (a TV switched off) and when the window is back on it (tv-screen.js).
+  onScreenPower: (cb) => ipcRenderer.on('window:screenPower', (event, payload) => cb(payload)),
+  // Volume leveler (media/loudness.js): a local file's loudness in LUFS
+  // (measured with ffmpeg on first ask, then cached), and a background sweep.
+  getLoudness: (filePath, duration) => ipcRenderer.invoke('loudness:get', filePath, duration),
+  prefetchLoudness: (items) => ipcRenderer.invoke('loudness:prefetch', items),
+  cancelLoudnessPrefetch: () => ipcRenderer.invoke('loudness:cancelBackground'),
+  getLoudnessStatus: () => ipcRenderer.invoke('loudness:status'),
   // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
   // reopens the real OS window with/without its frame, since that's a
   // BrowserWindow constructor-only option (see main.js's
