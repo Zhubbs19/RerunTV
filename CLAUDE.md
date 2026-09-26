@@ -167,6 +167,11 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `main-updater-state.js`), bounded/redacted logging for the support-bundle export
   (`main-diagnostics.js`), and pure config-summary/diffing for diagnostics (`config-diff.js`).
   Each has a header comment explaining its scope.
+- `main/splicer/` — the Video Splicer (setup › LIBRARY › SPLICER): command-line scripts
+  (`splice.js`, `combine.js`) run in an Electron utility process by `service.js`, which
+  queues runs and streams their output to `renderer/js/setup/splicer.js`. The cut editor's
+  data model is `renderer/js/library/splice-plan.js`. It was a plugin until 2026-09-26;
+  an installed copy is skipped (`FOLDED_INTO_CORE`, `main/plugins/plugins.js`).
 - `renderer/js/` — one file per concern (`playback.js`, `schedule.js`, `interstitials.js`,
   `guide.js`, `timemachine.js`, `power.js`, the `setup-*.js` files for the Channel Setup
   screen). `state.js` holds the single shared `S` object; `util.js` holds small pure helpers

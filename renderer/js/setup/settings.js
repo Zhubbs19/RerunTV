@@ -36,6 +36,7 @@ import { initFlowBuilder, renderFlowsList } from './flowbuilder.js';
 import { renderAutoCurateList } from './autocurate.js';
 import { renderTagTaxonomyPanel } from './tagtaxonomy-ui.js';
 import { renderLibraryPanels } from './library.js';
+import { renderSplicerPanels } from './splicer.js';
 import { refreshHouseholdPanel, renderHouseholdPanel } from './household.js';
 import { renderEraPanel } from './eras.js';
 import { attachSliderReadout } from './util.js';
@@ -411,6 +412,7 @@ export function renderSettingsPanels() {
   renderAutoCurateList();
   renderTagTaxonomyPanel();
   renderLibraryPanels();
+  renderSplicerPanels();
   renderBackupsList();
   renderViewerUrlStatus();
   renderViewerControlUrlStatus();

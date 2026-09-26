@@ -36,6 +36,8 @@ const OWN_DATA_ENTRIES = [
   'channels.json', 'window-state.json', 'api-cache.json',
   'update-state.json', 'viewing-history.json',
   'backups', 'plugins',
+  // The Video Splicer's remembered folders and options (main/splicer/service.js).
+  'video-splicer',
   // The media library's catalogue, reviews and smart channels (docs/design/07).
   'library',
   // Household profiles, favorites, DVR and personal history (docs/design/09).

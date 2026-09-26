@@ -163,6 +163,14 @@ the guide also scrolls backward into the past.
   no-signal copy overrides that inherit box defaults unless explicitly changed
 - **Opt-in library synchronization** — startup/periodic source polling for additions,
   missing titles, and unambiguous renames; automatic removal remains separately opt-in
+- **Video Splicer** (LIBRARY › SPLICER) — cut a taped or ripped compilation into separate
+  episode, commercial and bumper clips by finding black frames, silence, hard picture
+  changes or a recurring logo card. A cut editor with a player and timeline lets you
+  move, add and drop cuts, name and number episodes, and skip commercials that aired
+  twice; clips start on the exact frame without the dead air of the break, and go
+  straight onto a channel or into the ad pool. Runs queue in the background; clips can
+  also be joined back into one file. Needs FFmpeg (the FFmpeg Transcode plug-in); the
+  same tools run from a terminal too (`main/splicer/README.md`)
 - **Compared and pinned backups** — preview meaningful differences before restore and keep
   important snapshots out of automatic rotation
 - **Up-next banner** ~45s before a program ends

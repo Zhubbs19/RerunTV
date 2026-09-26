@@ -454,7 +454,6 @@
     onPartyJukeboxAdd: () => {},
     onPartyJukeboxSkipVote: () => {},
     onPartyJukeboxFun: () => {},
-    videoSplicerLaunch: readOnlyNoop('videoSplicerLaunch'),
     // AUX capture is inherently host-only — a viewer has no desktop of its
     // own to offer as a capture source.
     listDesktopSources: () => Promise.resolve([]),
