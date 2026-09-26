@@ -481,6 +481,7 @@
           <button class="setup-subtab-btn" data-subtab="librarysmart">SMART CHANNELS</button>
           <button class="setup-subtab-btn" data-subtab="librarysync">SYNC</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAGS</button>
+          <button class="setup-subtab-btn" data-subtab="librarysplicer">SPLICER</button>
         </div>
 
 <div class="setup-subtab-panel" data-subtab-panel="librarycatalogue">
@@ -564,6 +565,98 @@
           <label class="panel-toggle" style="cursor:default">TAG TAXONOMY</label>
           <span class="panel-status">Maintain a curated genre/era/mood vocabulary for autocomplete, and clean up tag drift (e.g. "scifi" vs "sci-fi") across every file, bumper, ad preset, and curation profile at once.</span>
           <div id="tagtaxonomy-root"></div>
+        </div>
+
+        </div>
+        </div>
+
+<!-- Video Splicer (main/splicer/, renderer/js/setup/splicer.js). The rows are
+     static so settings search finds them; results, the combine list and the
+     run readouts are drawn by splicer.js. -->
+<div class="setup-subtab-panel hidden" data-subtab-panel="librarysplicer">
+        <div class="settings-grid">
+
+        <div class="panel span-full splicer-panel" id="splicer-split-panel">
+          <div class="panel-toggle">SPLIT A RECORDING</div>
+          <span class="panel-status">Cut a tape or rip with shows, commercials and bumpers back to back into separate clips, sorted by length into episodes, commercials and bumpers folders. The recording itself is never changed.</span>
+          <p id="splicer-ffmpeg-note" class="panel-status splicer-note text-error hidden" role="status"></p>
+          <div class="panel-body setting-rows">
+            <div class="setting-row setting-row-wide" data-setting="splicer-source" data-synonyms="video splicer tape compilation vhs dvd rip cut chop split recording">
+              <label class="setting-row-label" for="splicer-source">Recording</label>
+              <div class="setting-row-control splicer-path-control">
+                <input type="text" id="splicer-source" class="title-row-input splicer-path" placeholder="A video file, or a folder of them" spellcheck="false" autocomplete="off">
+                <button type="button" id="splicer-source-file-btn" class="btn">FILE…</button>
+                <button type="button" id="splicer-source-folder-btn" class="btn">FOLDER…</button>
+              </div>
+              <p class="setting-row-help" id="splicer-source-help">A folder splits every video in it with the same settings.</p>
+            </div>
+            <div class="setting-row setting-row-wide" data-setting="splicer-out" data-synonyms="output destination clips folder">
+              <label class="setting-row-label" for="splicer-out">Save clips to</label>
+              <div class="setting-row-control splicer-path-control">
+                <input type="text" id="splicer-out" class="title-row-input splicer-path" placeholder="An output folder next to the recording" spellcheck="false" autocomplete="off">
+                <button type="button" id="splicer-out-btn" class="btn">CHOOSE…</button>
+              </div>
+              <p class="setting-row-help">Remembered for next time. Clips never overwrite ones already there.</p>
+            </div>
+            <div class="setting-row" data-setting="splicer-preset" data-synonyms="preset content type dvd broadcast master bumper promo reel mixed tape">
+              <label class="setting-row-label" for="splicer-preset">Kind of recording</label>
+              <div class="setting-row-control">
+                <select id="splicer-preset"></select>
+                <button type="button" id="splicer-preset-save-btn" class="btn" title="Keep these settings under a name of your own">SAVE AS…</button>
+                <button type="button" id="splicer-preset-delete-btn" class="btn btn-quiet" hidden>DELETE</button>
+              </div>
+              <p class="setting-row-help" id="splicer-preset-help"></p>
+            </div>
+          </div>
+          <details class="splicer-disclosure" id="splicer-options">
+            <summary>DETECTION AND CLIP SETTINGS</summary>
+            <div id="splicer-options-root" class="field-grid field-grid-wide splicer-options"></div>
+          </details>
+          <div class="library-actions">
+            <button type="button" id="splicer-detect-btn" class="btn" title="Find the cuts and open them in the editor, without writing anything">PREVIEW CUTS</button>
+            <button type="button" id="splicer-review-btn" class="btn" title="The same, with a before-and-after picture of every cut">REVIEW CUTS</button>
+            <button type="button" id="splicer-split-btn" class="btn btn-primary" title="Split straight away, without editing">SPLIT</button>
+          </div>
+          <div id="splicer-split-results" class="library-root splicer-results"></div>
+        </div>
+
+        <div class="panel span-full splicer-panel" id="splicer-runs-panel" hidden>
+          <div class="panel-toggle">RUNS</div>
+          <span class="panel-status">One runs at a time; the rest wait their turn. They keep going while you use the rest of RerunTV.</span>
+          <ol id="splicer-runs" class="splicer-runs" aria-label="Splicer runs"></ol>
+          <div class="library-actions">
+            <button type="button" id="splicer-runs-clear-btn" class="btn btn-quiet">CLEAR FINISHED</button>
+          </div>
+        </div>
+
+        <div class="panel span-full splicer-panel" id="splicer-combine-panel">
+          <div class="panel-toggle">COMBINE CLIPS</div>
+          <span class="panel-status">Join clips into one file, in the order listed. Clips that match are joined as they are; mismatched ones are re-encoded so the result still plays.</span>
+          <div class="library-actions">
+            <button type="button" id="splicer-add-clips-btn" class="btn">ADD CLIPS…</button>
+            <button type="button" id="splicer-add-folder-btn" class="btn" title="Every video in a folder, in filename order">ADD A FOLDER…</button>
+            <button type="button" id="splicer-clear-btn" class="btn btn-quiet">CLEAR</button>
+          </div>
+          <ol id="splicer-queue" class="splicer-queue" aria-label="Clips to combine, in order"></ol>
+          <video id="splicer-preview" class="splicer-preview" controls preload="metadata" hidden></video>
+          <div class="panel-body setting-rows">
+            <div class="setting-row setting-row-wide" data-setting="splicer-combine-out" data-synonyms="join merge concatenate output file">
+              <label class="setting-row-label" for="splicer-combine-out">Save as</label>
+              <div class="setting-row-control splicer-path-control">
+                <input type="text" id="splicer-combine-out" class="title-row-input splicer-path" placeholder="combined.mp4" spellcheck="false" autocomplete="off">
+                <button type="button" id="splicer-combine-out-btn" class="btn">CHOOSE…</button>
+              </div>
+            </div>
+            <div class="setting-row" data-setting="splicer-combine-reencode" data-synonyms="join merge glitch">
+              <label class="setting-row-label" for="splicer-combine-reencode">Always re-encode</label>
+              <div class="setting-row-control"><input type="checkbox" id="splicer-combine-reencode"></div>
+              <p class="setting-row-help">Slower. Use it if a joined file glitches where two clips meet.</p>
+            </div>
+          </div>
+          <div class="library-actions">
+            <button type="button" id="splicer-combine-btn" class="btn btn-primary">COMBINE</button>
+          </div>
+          <div id="splicer-combine-results" class="library-root splicer-results"></div>
         </div>
 
         </div>

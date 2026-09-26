@@ -11,6 +11,7 @@
 //   curation-scheduler.js  background auto-run for 'scheduled' curation profiles
 //   setup-tagtaxonomy.js   PROGRAMMING > TAG TAXONOMY: vocabulary + rename/remove tool
 //   library.js             LIBRARY > CATALOGUE / REVIEW / SMART CHANNELS (docs/design/07)
+//   splicer.js             LIBRARY > SPLICER: split a recording into clips, combine clips
 //   setup-settings.js      DISPLAY/AUDIO tabs, the setup-tab bar, cross-tab search
 //   setup-command-palette.js the Ctrl+K command palette
 //   setup-keyboard.js      undo/redo + full keyboard-nav overhaul (tab bars, list rows)
@@ -28,6 +29,7 @@ import './tagtaxonomy-ui.js';
 import './aircheck.js';
 import '../library/sync.js';
 import './library.js';
+import './splicer.js';
 import './household.js';
 import './eras.js';
 import '../plugin/diagnostics.js';

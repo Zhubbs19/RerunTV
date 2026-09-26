@@ -36,6 +36,8 @@ const OWN_DATA_ENTRIES = [
   'channels.json', 'window-state.json', 'api-cache.json',
   'update-state.json', 'viewing-history.json',
   'backups', 'plugins',
+  // The Video Splicer's remembered folders and options (main/splicer/service.js).
+  'video-splicer',
 ];
 
 // A plugin can declare manifest `"dataDir": "some-folder-name"` for a

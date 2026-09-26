@@ -89,6 +89,10 @@ contextBridge.exposeInMainWorld('api', {
   applyConfigCommands: (batch, meta) => ipcRenderer.invoke('config:command', batch, meta),
   getConfigSnapshot: () => ipcRenderer.invoke('config:snapshot'),
   libraryCall: (method, payload) => ipcRenderer.invoke('library:call', method, payload),
+  // Video Splicer (main/splicer/service.js): split a recording into clips or
+  // join clips into one file, with its runs' output streamed as events.
+  splicerCall: (method, payload) => ipcRenderer.invoke('splicer:call', method, payload),
+  onSplicerJob: (cb) => ipcRenderer.on('splicer:job', (event, data) => cb(data)),
   personalCall: (method, payload) => ipcRenderer.invoke('personal:call', method, payload),
   getConfigRevision: () => ipcRenderer.invoke('config:revision'),
   onConfigApplied: (cb) => ipcRenderer.on('config:applied', (event, update) => cb(update)),
@@ -218,7 +222,6 @@ contextBridge.exposeInMainWorld('api', {
   onPartyJukeboxAdd: (cb) => ipcRenderer.on('party:jukeboxAdd', (event, data) => cb(data)),
   onPartyJukeboxSkipVote: (cb) => ipcRenderer.on('party:jukeboxSkipVote', () => cb()),
   onPartyJukeboxFun: (cb) => ipcRenderer.on('party:jukeboxFun', (event, data) => cb(data)),
-  videoSplicerLaunch: () => ipcRenderer.invoke('videoSplicer:launch'),
   // AUX channel capture — see plugins/video-in/main.js's desktop:listSources.
   listDesktopSources: () => ipcRenderer.invoke('desktop:listSources'),
   sendPartyQueueState: (state) => ipcRenderer.send('party:queueState', state),

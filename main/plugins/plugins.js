@@ -91,6 +91,14 @@ function isBundledPluginId(id) {
 // Read/write are both best-effort. A missing/corrupt ledger makes existing
 // folders untracked and therefore preserves them; genuinely missing bundled
 // folders can still be seeded safely on that boot.
+// Plugins whose feature is now part of RerunTV itself. An installed copy is
+// skipped by discoverPlugins() so it can't register the same IPC channels
+// or show a second, older entry point in PLUG-INS.
+const FOLDED_INTO_CORE = {
+  'video-splicer': 'the Video Splicer is built in now (setup › LIBRARY › SPLICER).',
+};
+const reportedFoldedIntoCore = new Set();
+
 function seededManifestPath() {
   return path.join(getPluginsDir(), '.bundled-manifest.json');
 }
@@ -315,6 +323,15 @@ function discoverPlugins() {
         continue;
       }
       seen.add(manifest.id);
+      if (FOLDED_INTO_CORE[manifest.id]) {
+        // Left on disk (it may hold the person's own edits) but never loaded:
+        // core now owns its IPC channels and its data folder.
+        if (!reportedFoldedIntoCore.has(manifest.id)) {
+          reportedFoldedIntoCore.add(manifest.id);
+          recordDiagnostic('plugin-loader', 'log', `Skipped the old ${manifest.name || manifest.id} plugin: ${FOLDED_INTO_CORE[manifest.id]}`);
+        }
+        continue;
+      }
       // A matching source id alone is not ownership: an untracked folder may
       // intentionally collide with a bundled id and seedBundledPlugins()
       // promises not to adopt it. Only the external seeding ledger proves
