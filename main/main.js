@@ -66,6 +66,7 @@ const { FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath } = require('./media/me
 const { createLoudnessService, registerLoudnessIpc } = require('./media/loudness');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
+const { createSplicerService, registerSplicerIpc } = require('./splicer/service');
 const { createPersonalService, registerPersonalIpc } = require('./personal/service');
 const { loadWindowState, saveWindowState } = require('./config/window-state');
 const { planLaunch, trackScreenPlacement } = require('./ui/screen-placement');
@@ -376,6 +377,40 @@ function getLibraryService() {
   return libraryService;
 }
 registerLibraryIpc(ipcMain, { getService: getLibraryService });
+
+// ---------- Video Splicer (setup › LIBRARY › SPLICER) ----------
+// Created on first use, for the same userData reason as the library above.
+// ffmpeg is the transcode plugin's once it's active, else core's own, like
+// the volume leveler's.
+let splicerService = null;
+function getSplicerService() {
+  if (!splicerService) {
+    const { utilityProcess } = require('electron');
+    splicerService = createSplicerService({
+      dataDir: path.join(app.getPath('userData'), 'video-splicer'),
+      getFfmpegPath: () => getFfmpegPath() || FFMPEG_STATIC_PATH,
+      fork: (modulePath, args, options) => utilityProcess.fork(modulePath, args, options),
+      dialogs: {
+        open: async (options) => {
+          const result = await dialog.showOpenDialog(getMainWindow(), options);
+          return result.canceled ? null : result.filePaths;
+        },
+        save: async (options) => {
+          const result = await dialog.showSaveDialog(getMainWindow(), options);
+          return result.canceled ? null : result.filePath;
+        },
+      },
+      showItemInFolder: (target) => shell.showItemInFolder(target),
+      emit: (event) => {
+        const win = getMainWindow();
+        if (win && !win.isDestroyed()) win.webContents.send('splicer:job', event);
+      },
+    });
+  }
+  return splicerService;
+}
+registerSplicerIpc(ipcMain, { getService: getSplicerService });
+app.on('before-quit', () => { if (splicerService) splicerService.dispose(); });
 
 // ---------- Household profiles and personal state (docs/design/09) ----------
 let personalService = null;

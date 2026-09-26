@@ -24,7 +24,6 @@
     'spotifyStart', 'spotifyStop', 'spotifyGetStreamUrl', 'onSpotifyStatus', 'onSpotifyEvent',
     'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus',
     'sendPartyJukeboxState', 'onPartyJukeboxAdd', 'onPartyJukeboxSkipVote', 'onPartyJukeboxFun',
-    'videoSplicerLaunch',
     'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'saveRemoteProfile', 'getHandoffInfo', 'tmdbSearch', 'tmdbGetCredits',
     'captionsScanForFile', 'captionsExtractTrack', 'noaaGetActiveAlerts', 'noaaGetForecast', 'pluginsList', 'getDiagnostics', 'exportDiagnostics',
     'pluginsOpenFolder', 'pluginsSetEnabled', 'pluginsInstallFromZip', 'pluginsApproveCapabilities',
@@ -53,6 +52,9 @@
     'listScreens', 'setPreferredScreen', 'onScreenChange', 'onScreenPower',
     // Host-only: ffmpeg measures files on the host's own disk.
     'getLoudness', 'prefetchLoudness', 'cancelLoudnessPrefetch', 'getLoudnessStatus',
+    // Host-only for the same reason: the Video Splicer cuts and joins files
+    // on the host's disk, through the host's own file dialogs.
+    'splicerCall', 'onSplicerJob',
     'setKeepDisplayAwake', 'showSystemNotification',
     'historyAppend', 'historyList', 'historyClear',
     'onCompanionApplySettings', 'getCompanionUrl',
