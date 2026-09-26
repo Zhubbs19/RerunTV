@@ -155,6 +155,9 @@ const PLUGIN_ACTIONS = {
 const PLUGIN_ACTION_FALLBACK = {
   'move.up': 'key:ArrowUp', 'move.down': 'key:ArrowDown', 'move.left': 'key:ArrowLeft', 'move.right': 'key:ArrowRight',
   select: 'key:Enter', back: 'exit.prompt', info: 'info.show',
+  // Play/pause opened the menu on a plugin channel before plugins could take
+  // it, so a plugin that declines keeps that.
+  'media.playPause': 'menu.toggle',
 };
 
 function route(context, remoteKey, longPressed) {

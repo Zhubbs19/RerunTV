@@ -268,11 +268,18 @@ export function rawKeyId(evt) {
 export const PLUGIN_CHANNEL_ACTIONS = {
   up: 'move.up', down: 'move.down', left: 'move.left', right: 'move.right',
   ok: 'select', back: 'back', info: 'info',
+  // Transport buttons (ctx v8). A channel whose content can genuinely pause or
+  // seek (an on-demand music player, say) takes these; one that doesn't
+  // leaves them unhandled and core does what it did before.
+  playPause: 'media.playPause', rewind: 'media.rewind', fastForward: 'media.fastForward',
+  prev: 'media.previous', next: 'media.next',
 };
 
 const ACTION_KEYS = {
   'move.up': 'ArrowUp', 'move.down': 'ArrowDown', 'move.left': 'ArrowLeft', 'move.right': 'ArrowRight',
   select: 'Enter', back: 'Escape', info: 'i',
+  'media.playPause': 'MediaPlayPause', 'media.rewind': 'MediaRewind', 'media.fastForward': 'MediaFastForward',
+  'media.previous': 'MediaTrackPrevious', 'media.next': 'MediaTrackNext',
 };
 
 export function pluginActionFor(remoteKey) {

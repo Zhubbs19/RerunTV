@@ -5,6 +5,7 @@
 // so this file stays a plain folder walk with no ffmpeg/spawn dependency.
 const path = require('path');
 const { extractEmbeddedArt } = require('./embedded-art.js');
+const { readTrackTags, bufferIo } = require('./tags.js');
 
 const AUDIO_EXTENSIONS = new Set(['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac']);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
@@ -16,6 +17,8 @@ const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bm
 // not be pushed through IPC as base64.
 const MAX_AUDIO_BYTES = 120 * 1024 * 1024;
 const MAX_ART_BYTES = 8 * 1024 * 1024;
+// One rescan asks for a whole station's tags in batches; bound a single call.
+const MAX_TAG_BATCH = 200;
 
 function activate(ctx) {
   const { ipcMain, fs: pluginFs } = ctx;
@@ -40,6 +43,41 @@ function activate(ctx) {
       // An unreadable or malformed file costs a missing cover, nothing more.
       return { art: null, error: String(e && e.message ? e.message : e) };
     }
+  });
+
+  // Artist/title/album/year for a batch of tracks, read from their own tags
+  // (tags.js) so the channel can search by year and album even when the
+  // filenames carry neither. Only the few kilobytes a tag occupies are read,
+  // through ctx.fs.readRange; a host whose ctx.fs predates that falls back
+  // to reading the file, capped like embeddedArt above.
+  async function tagsFor(filePath) {
+    if (!filePath || typeof filePath !== 'string') return {};
+    if (!AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return {};
+    if (!pluginFs.existsSync(filePath)) return {};
+    if (typeof pluginFs.readRange === 'function' && typeof pluginFs.statSync === 'function') {
+      const size = pluginFs.statSync(filePath).size;
+      return readTrackTags({ size, readRange: (start, length) => pluginFs.readRange(filePath, start, length) });
+    }
+    const buf = await new Promise((resolve, reject) => {
+      pluginFs.readFile(filePath, (err, data) => (err ? reject(err) : resolve(data)));
+    });
+    if (!buf || buf.length > MAX_AUDIO_BYTES) return {};
+    return readTrackTags(bufferIo(buf));
+  }
+
+  ipcMain.handle('music-choice:readTags', async (event, opts) => {
+    const filePaths = Array.isArray(opts && opts.filePaths) ? opts.filePaths.slice(0, MAX_TAG_BATCH) : [];
+    const tags = [];
+    for (const filePath of filePaths) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        tags.push(await tagsFor(filePath));
+      } catch (e) {
+        // A malformed or unreadable file just has no tags to offer.
+        tags.push({});
+      }
+    }
+    return { tags };
   });
 
   ipcMain.handle('music-choice:scanFolder', async (event, opts) => {

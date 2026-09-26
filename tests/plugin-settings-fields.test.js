@@ -55,9 +55,9 @@ test('values are coerced to what the control can show', async () => {
   assert.equal(coerceFieldValue({ type: 'text' }, undefined), '');
 });
 
-test('ctx v7 exposes the kit as ctx.ui', () => {
+test('ctx v7+ exposes the kit as ctx.ui', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', 'plugin/host.js'), 'utf8');
-  assert.match(src, /const CTX_VERSION = 7;/);
+  assert.ok(Number(src.match(/const CTX_VERSION = (\d+);/)[1]) >= 7);
   const ui = src.match(/const ui = Object\.freeze\(\{([\s\S]*?)\}\);/);
   assert.ok(ui, 'ctx.ui is a frozen object');
   for (const name of ['Button', 'IconButton', 'Field', 'SettingRow', 'Toggle', 'Slider', 'Select', 'Segmented', 'NumberStepper', 'Tabs', 'ListDetail', 'Menu', 'MenuButton', 'Dialog', 'Toast', 'EmptyState', 'Badge', 'Chip', 'FocusScope', 'SpatialFocus']) {

@@ -251,7 +251,7 @@ await step("a plugin's own command is named, undoable and confined to its settin
       themeUnchanged: window.S.config.theme === themeBefore,
     };
   });
-  record('ctx is at v7', r.ctxVersion === 7, `v${r.ctxVersion}`);
+  record('ctx is at v7 or later', r.ctxVersion >= 7, `v${r.ctxVersion}`);
   record("the step carries the plugin's own label", r.label === 'Switch to the 1999 era', r.label);
   record('it wrote only that plugin\'s settings', r.applied === '1999' && r.channelsUnchanged && r.themeUnchanged, JSON.stringify(r));
   record('its touch tokens stay inside that plugin',

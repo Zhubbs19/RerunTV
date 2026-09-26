@@ -155,15 +155,185 @@ export function parseTrackMeta(filePath) {
   };
 }
 
-// A saved track record may carry hand-set fields; fall back to the filename.
+// A saved track record may carry hand-set fields, then whatever its own tags
+// said (read on rescan — see tags.js), then what the filename says.
 export function trackMetaOf(track) {
   const parsed = parseTrackMeta(track.path);
+  const tags = track.tags || {};
+  const artist = track.artist || tags.artist;
   return {
-    artist: track.artist || parsed.artist,
-    title: track.title || parsed.title,
-    album: track.album || parsed.album,
-    year: track.year || parsed.year,
+    artist: artist ? String(artist).toUpperCase() : parsed.artist,
+    title: track.title || tags.title || parsed.title,
+    album: track.album || tags.album || parsed.album,
+    year: track.year || tags.year || parsed.year,
+    albumArtist: tags.albumArtist ? String(tags.albumArtist).toUpperCase() : null,
   };
+}
+
+// ---------- Library search ----------
+// Everything here is pure over the stations' saved track lists, so it can be
+// tested without a DOM and never touches the live rotation's math.
+
+// Lower-case, accents off, punctuation to spaces: "Beyoncé" finds "beyonce",
+// "AC/DC" finds "ac dc".
+export function normalizeForSearch(text) {
+  return String(text || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// "1997", "1990s", "90s", "'90s", "1995-1999", "1995 to 1999" -> an inclusive
+// year range. Anything else is not a year query and returns null.
+export function parseYearQuery(query) {
+  const q = String(query || '').trim().toLowerCase().replace(/[‘’]/g, "'");
+  let m = q.match(/^((?:19|20)\d{2})$/);
+  if (m) return { from: Number(m[1]), to: Number(m[1]) };
+  m = q.match(/^((?:19|20)\d)0'?s$/);
+  if (m) return { from: Number(`${m[1]}0`), to: Number(`${m[1]}9`) };
+  m = q.match(/^'?(\d)0'?s$/);
+  if (m) {
+    const decade = Number(m[1]) >= 3 ? 1900 + Number(m[1]) * 10 : 2000 + Number(m[1]) * 10;
+    return { from: decade, to: decade + 9 };
+  }
+  m = q.match(/^((?:19|20)\d{2})\s*(?:-|–|to)\s*((?:19|20)\d{2})$/);
+  if (m) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    return { from: Math.min(a, b), to: Math.max(a, b) };
+  }
+  return null;
+}
+
+// One entry per distinct file across every station (a song in two stations'
+// folders is still one song), with its metadata resolved once.
+export function buildLibraryIndex(stations) {
+  const seen = new Set();
+  const index = [];
+  (stations || []).forEach((station) => {
+    (station.tracks || []).forEach((track) => {
+      if (!track || !track.path || seen.has(track.path)) return;
+      seen.add(track.path);
+      const meta = trackMetaOf(track);
+      index.push({
+        track,
+        meta,
+        stationId: station.id,
+        artistKey: normalizeForSearch(meta.artist),
+        albumKey: normalizeForSearch(meta.album),
+        haystack: normalizeForSearch([meta.artist, meta.albumArtist, meta.title, meta.album, meta.year].filter(Boolean).join(' ')),
+      });
+    });
+  });
+  return index;
+}
+
+function matchesWords(haystack, words) {
+  return words.every((w) => haystack.includes(w));
+}
+
+// Album order is file order, which is track-number order for any sensibly
+// named rip; everything else sorts artist -> album -> file.
+function byArtistAlbumPath(a, b) {
+  return a.artistKey.localeCompare(b.artistKey)
+    || a.albumKey.localeCompare(b.albumKey)
+    || a.track.path.localeCompare(b.track.path);
+}
+
+function groupRows(entries, keyOf, rowOf) {
+  const groups = new Map();
+  entries.forEach((entry) => {
+    const key = keyOf(entry);
+    if (key == null) return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+  return [...groups.entries()].map(([key, members]) => rowOf(key, members.sort(byArtistAlbumPath)));
+}
+
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? '' : 'S'}`;
+}
+
+export const SEARCH_TABS = [
+  { id: 'stations', label: 'STATIONS' },
+  { id: 'songs', label: 'SONGS' },
+  { id: 'artists', label: 'ARTISTS' },
+  { id: 'albums', label: 'ALBUMS' },
+  { id: 'years', label: 'YEARS' },
+];
+
+// Rows for one search tab: { label, sub, tracks } where `tracks` is the play
+// queue picking that row starts. A song row's queue is every song result from
+// that one on, so picking a song from an artist search keeps playing that
+// artist.
+export function searchLibrary(index, query, tab) {
+  const words = normalizeForSearch(query).split(' ').filter(Boolean);
+  const years = parseYearQuery(query);
+  const inYears = (entry) => {
+    const y = Number(entry.meta.year);
+    return !!years && y >= years.from && y <= years.to;
+  };
+
+  if (tab === 'songs') {
+    const hits = index.filter((e) => !words.length || inYears(e) || matchesWords(e.haystack, words)).sort(byArtistAlbumPath);
+    const queue = hits.map((h) => h.track);
+    return hits.map((e, i) => ({
+      label: e.meta.title,
+      sub: [e.meta.artist, e.meta.album, e.meta.year].filter(Boolean).join(' · '),
+      tracks: queue.slice(i),
+    }));
+  }
+
+  if (tab === 'artists') {
+    const hits = index.filter((e) => !words.length || matchesWords(normalizeForSearch(`${e.meta.artist} ${e.meta.albumArtist || ''}`), words));
+    return groupRows(hits, (e) => e.meta.artist, (artist, members) => {
+      const albums = new Set(members.map((m) => m.meta.album).filter(Boolean));
+      return {
+        label: artist,
+        sub: [albums.size ? plural(albums.size, 'ALBUM') : null, plural(members.length, 'SONG')].filter(Boolean).join(' · '),
+        tracks: members.map((m) => m.track),
+      };
+    }).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  if (tab === 'albums') {
+    const hits = index.filter((e) => e.meta.album && (!words.length || inYears(e)
+      || matchesWords(normalizeForSearch(`${e.meta.album} ${e.meta.artist} ${e.meta.albumArtist || ''}`), words)));
+    return groupRows(hits, (e) => `${normalizeForSearch(e.meta.albumArtist || e.meta.artist)}\u0000${e.albumKey}`, (key, members) => {
+      const first = members[0].meta;
+      const year = members.map((m) => m.meta.year).find(Boolean);
+      return {
+        label: first.album,
+        artist: first.albumArtist || first.artist,
+        sub: [first.albumArtist || first.artist, year, plural(members.length, 'SONG')].filter(Boolean).join(' · '),
+        tracks: members.map((m) => m.track),
+      };
+    }).sort((a, b) => a.artist.localeCompare(b.artist) || a.label.localeCompare(b.label));
+  }
+
+  if (tab === 'years') {
+    const hits = index.filter((e) => e.meta.year && (!words.length || (years ? inYears(e) : matchesWords(e.haystack, words))));
+    const byYear = groupRows(hits, (e) => String(e.meta.year), (year, members) => ({
+      label: year, order: Number(year), sub: plural(members.length, 'SONG'), tracks: members.map((m) => m.track),
+    }));
+    // Each decade gets a "whole decade" row ahead of its own years: the
+    // natural way to ask a music channel for "the '90s" from a remote.
+    const decades = groupRows(hits, (e) => String(Math.floor(Number(e.meta.year) / 10) * 10), (decade, members) => ({
+      label: `THE ${decade}s`, order: Number(decade) - 0.5, sub: `WHOLE DECADE · ${plural(members.length, 'SONG')}`, tracks: members.map((m) => m.track),
+    }));
+    return [...decades, ...byYear].sort((a, b) => a.order - b.order);
+  }
+  return [];
+}
+
+// Where a paused live rotation carries on from: the rest of the loop, starting
+// with the song that was playing, in rotation order.
+export function rotationQueueFrom(station, pb) {
+  const tracks = (station && station.tracks || []).filter((t) => t.durationSec > 0);
+  if (!tracks.length || !pb) return [];
+  return tracks.slice(pb.index).concat(tracks.slice(0, pb.index));
 }
 
 // Kept as the old two-field shape because settings.js and every saved track
@@ -374,11 +544,48 @@ function selectedStation(settings) {
 let els = null;
 let tickTimer = null;
 let currentLoadedTrackPath = null;
-let browserOpen = false;
-let browserHighlightId = null; // navigation cursor inside the open browser, separate from what's actually playing until confirmed
 let endedHandler = null;
 let errorHandler = null;
 let bgVideoPath = null; // avoid re-setting the same <video> src every tick (restarts playback)
+
+// The browser (OK): station list plus library search, one tab each.
+let browserOpen = false;
+let browserTab = 'stations';
+let browserQuery = '';
+// Row index in browserRows; -1 is the search field itself, which only exists
+// as a row in TV mode (a remote reaches it with ▲ and opens the on-screen
+// keyboard with OK). On a keyboard the field simply has focus.
+let browserCursor = 0;
+let browserRows = [];
+let libraryIndex = null;
+
+// ---------- On demand ----------
+// The live rotation is a pure function of (station, now) and cannot pause or
+// seek — it is a broadcast. Pausing, seeking, skipping, or picking something
+// from search steps OFF the broadcast into an on-demand session instead, the
+// way digital cable's Music Choice On Demand sat beside its linear channels.
+// While it lasts the player's own clock is the truth, not viewNow(): that is
+// the whole point of it. Leaving it (Back/L, the end of the list, a station
+// pick, the time machine) drops straight back onto the live rotation, which
+// has kept "playing" the whole time.
+//
+//   { queue: [track], index, label, paused }
+let od = null;
+let flashText = null;
+let flashTimer = null;
+// Guards a hardware media key arriving both as a keydown and through the OS
+// media session, which would otherwise pause and immediately resume.
+let lastPauseChangeAt = 0;
+
+function isTvMode() {
+  return document.documentElement.dataset.mode === 'tv';
+}
+
+function flash(text) {
+  flashText = text;
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { flashText = null; flashTimer = null; }, 1400);
+}
 
 // The one place playback actually switches to a different station — anchors
 // a never-tuned station to "now" (so its loop math has a starting point),
@@ -386,6 +593,7 @@ let bgVideoPath = null; // avoid re-setting the same <video> src every tick (res
 // current track. Called from a confirmed browser pick, the ▲/▼ quick-cycle,
 // and settings.js right after a brand-new station is created.
 function switchToStation(ctx, id) {
+  od = null;
   updateSettings({ selectedStationId: id });
   currentLoadedTrackPath = null;
   const station = selectedStation(getSettings());
@@ -469,37 +677,76 @@ function updateAlbumArt(trackPath) {
   });
 }
 
+// Tells the OS what song this is, so its media overlay reads right while
+// this channel is tuned. Core sets the channel's own metadata on every tune.
+let mediaSessionTrackPath = null;
+function updateMediaSessionTrack(track, meta) {
+  const ms = navigator.mediaSession;
+  if (!ms || typeof window.MediaMetadata !== 'function' || mediaSessionTrackPath === track.path) return;
+  mediaSessionTrackPath = track.path;
+  try {
+    ms.metadata = new window.MediaMetadata({ title: meta.title, artist: meta.artist, album: meta.album || `MUSIC CHOICE · CH ${CHANNEL_NUMBER}` });
+  } catch (e) { /* decoration only */ }
+}
+
 function updateNowPlayingUi(pb, era) {
   if (!els) return;
   const meta = trackMetaOf(pb.track);
   els.artistEl.textContent = meta.artist;
   els.titleEl.textContent = meta.title;
   updateAlbumArt(pb.track.path);
+  updateMediaSessionTrack(pb.track, meta);
+
+  let label = 'NOW PLAYING';
+  if (od) label = od.paused ? '❚❚ PAUSED · ON DEMAND' : '▶ ON DEMAND';
+  els.nowLabelEl.textContent = flashText || label;
+  els.root.dataset.ondemand = od ? (od.paused ? 'paused' : 'playing') : '';
 
   // ALBUM (YEAR) — the two fields the real on-screen slide carried that this
   // plugin never showed. Only rendered when the filename actually yielded
-  // them, and only in the eras that displayed them.
+  // them, and only in the eras that displayed them. On demand always shows
+  // it: that screen was a menu pick, not the freeze-frame broadcast.
   const albumParts = [];
   if (meta.album) albumParts.push(meta.album);
   if (meta.year) albumParts.push(`(${meta.year})`);
-  const albumText = era.albumLine ? albumParts.join(' ') : '';
+  const albumText = (era.albumLine || od) ? albumParts.join(' ') : '';
   els.albumEl.textContent = albumText;
   els.albumEl.classList.toggle('hidden', !albumText);
 
   // The transport readout is a modern affordance — no cable audio service
-  // ever put a progress bar or an up-next line on screen (see the ERAS
-  // comment above), so the period eras simply do not build one.
-  els.transportEl.classList.toggle('hidden', !era.transport);
-  els.upNextEl.classList.toggle('hidden', !era.transport);
-  if (!era.transport) return;
+  // ever put a progress bar or an up-next line on the broadcast (see the ERAS
+  // comment above), so the period eras do not build one live. On demand is
+  // different: you are seeking, so you need to see where you are.
+  const transport = era.transport || !!od;
+  els.transportEl.classList.toggle('hidden', !transport);
+  els.upNextEl.classList.toggle('hidden', !transport);
+  if (!transport) return;
   els.elapsedEl.textContent = formatClock(pb.offsetSec);
   els.durationEl.textContent = formatClock(pb.track.durationSec);
   const pct = pb.track.durationSec ? Math.min(100, (pb.offsetSec / pb.track.durationSec) * 100) : 0;
   els.progressFillEl.style.width = `${pct}%`;
-  const nextMeta = trackMetaOf(pb.nextTrack);
-  els.upNextEl.textContent = pb.totalTracks > 1
-    ? `UP NEXT: ${nextMeta.artist} – ${nextMeta.title}`
-    : '';
+  const nextMeta = pb.nextTrack ? trackMetaOf(pb.nextTrack) : null;
+  if (od) {
+    els.upNextEl.textContent = nextMeta ? `NEXT: ${nextMeta.artist} – ${nextMeta.title}` : 'LAST SONG — THEN BACK TO THE LIVE CHANNEL';
+  } else {
+    els.upNextEl.textContent = pb.totalTracks > 1 && nextMeta ? `UP NEXT: ${nextMeta.artist} – ${nextMeta.title}` : '';
+  }
+}
+
+function updateHint() {
+  if (!els) return;
+  const tv = isTvMode();
+  let text;
+  if (od) {
+    text = tv
+      ? '◀▶ SEEK · ⏯ PLAY/PAUSE · ⏮⏭ SONG · OK SEARCH · BACK LIVE'
+      : '◀▶ SEEK · SPACE PLAY/PAUSE · [ ] SONG · OK SEARCH · L BACK TO LIVE';
+  } else {
+    text = tv
+      ? '◀▶ CHANGE STATION · OK SEARCH & STATIONS · ⏯ PAUSE · ▲▼ CHANGE CHANNEL'
+      : '◀▶ CHANGE STATION · OK SEARCH & STATIONS · SPACE PAUSE · ▲▼ CHANGE CHANNEL';
+  }
+  if (els.hintEl.textContent !== text) els.hintEl.textContent = text;
 }
 
 // The bottom strip. Only the text swaps; the strip itself stays put, which
@@ -507,8 +754,11 @@ function updateNowPlayingUi(pb, era) {
 // the secondary information beneath it is what rotates.
 let lastInfoSlideText = null;
 function updateInfoStrip(station, settings, pb, era, nowMs) {
+  showInfoSlide(resolveInfoSlide(buildInfoSlides(station, settings, pb), nowMs, era.slideMs));
+}
+
+function showInfoSlide(slide) {
   if (!els) return;
-  const slide = resolveInfoSlide(buildInfoSlides(station, settings, pb), nowMs, era.slideMs);
   if (!slide) {
     els.infoStripEl.classList.add('hidden');
     lastInfoSlideText = null;
@@ -559,6 +809,19 @@ function tick(ctx) {
   if (!station) return;
   const nowMs = ctx.viewNow();
   const era = applyEraAndDaypart(settings, nowMs);
+  updateHint();
+  // The time machine is about the broadcast; an on-demand session has no
+  // place in it, so scrubbing drops back to the live rotation.
+  if (od && window.S && window.S.timeMachineOn) {
+    od = null;
+    currentLoadedTrackPath = null;
+    updateHint();
+  }
+  if (od) {
+    els.stationNameEl.textContent = 'ON DEMAND';
+    tickOnDemand(ctx, era);
+    return;
+  }
   els.stationNameEl.textContent = station.name || 'UNTITLED STATION';
   const pb = computeStationPlayback(station, nowMs);
   if (!pb) {
@@ -595,38 +858,337 @@ function tick(ctx) {
   updateSlideshow(station, nowMs, era);
 }
 
+function tickOnDemand(ctx, era) {
+  const track = od.queue[od.index];
+  const p = ctx.player;
+  const durationSec = Number.isFinite(p.duration) && p.duration > 0 ? p.duration : (track.durationSec || 0);
+  els.nowPlayingEl.classList.remove('hidden');
+  els.probeHintEl.classList.add('hidden');
+  updateNowPlayingUi({
+    track: { ...track, durationSec },
+    offsetSec: currentLoadedTrackPath === track.path ? (p.currentTime || 0) : 0,
+    nextTrack: od.queue[od.index + 1] || null,
+    totalTracks: od.queue.length,
+  }, era);
+  showInfoSlide({ kind: 'ondemand', label: 'ON DEMAND', text: `${od.label} — SONG ${od.index + 1} OF ${od.queue.length}` });
+}
+
+function loadOnDemandTrack(ctx, startSec) {
+  const session = od;
+  const track = session.queue[session.index];
+  currentLoadedTrackPath = track.path;
+  window.api.toFileUrl(track.path).then((url) => {
+    if (od !== session || session.queue[session.index] !== track || window.S.currentNumber !== CHANNEL_NUMBER) return;
+    ctx.player.loop = false;
+    ctx.player.src = url;
+    ctx.player.load();
+    const onMeta = () => {
+      ctx.player.removeEventListener('loadedmetadata', onMeta);
+      if (startSec > 0) ctx.player.currentTime = startSec;
+      tick(ctx);
+    };
+    ctx.player.addEventListener('loadedmetadata', onMeta);
+    if (!session.paused) ctx.player.play().catch(() => {});
+  });
+}
+
+// Starts a session on `queue` (a search pick). Returns false for an empty one.
+function startOnDemand(ctx, queue, label) {
+  if (!queue || !queue.length) return false;
+  od = { queue, index: 0, label, paused: false };
+  loadOnDemandTrack(ctx, 0);
+  flash('▶ ON DEMAND');
+  tick(ctx);
+  return true;
+}
+
+// Steps off the live rotation at exactly the song and second it was on, so
+// pausing or seeking a broadcast carries on from where you were rather than
+// restarting anything. The queue is the rest of the loop in rotation order.
+function enterOnDemandFromLive(ctx, paused) {
+  const station = selectedStation();
+  const pb = station && computeStationPlayback(station, ctx.viewNow());
+  if (!pb) return false;
+  const loaded = currentLoadedTrackPath === pb.track.path;
+  od = { queue: rotationQueueFrom(station, pb), index: 0, label: station.name || 'THIS STATION', paused };
+  if (!loaded) loadOnDemandTrack(ctx, pb.offsetSec);
+  else if (paused) ctx.player.pause();
+  return true;
+}
+
+function setPaused(ctx, paused) {
+  if (!od) {
+    if (!paused || !enterOnDemandFromLive(ctx, true)) return false;
+  } else {
+    od.paused = paused;
+    if (paused) ctx.player.pause();
+    else ctx.player.play().catch(() => {});
+  }
+  lastPauseChangeAt = performance.now();
+  tick(ctx);
+  return true;
+}
+
+// For the paths a single hardware key can arrive on twice (a keydown and the
+// OS media session): the second one inside the window is the same press.
+function pressedRecently() {
+  return performance.now() - lastPauseChangeAt < 400;
+}
+
+function togglePause(ctx) {
+  if (pressedRecently()) return true;
+  return setPaused(ctx, !(od && od.paused));
+}
+
+function seekBy(ctx, deltaSec) {
+  if (!od && !enterOnDemandFromLive(ctx, false)) return false;
+  const p = ctx.player;
+  const track = od.queue[od.index];
+  const duration = Number.isFinite(p.duration) && p.duration > 0 ? p.duration : (track.durationSec || 0);
+  let target = (p.currentTime || 0) + deltaSec;
+  if (duration) target = Math.min(target, Math.max(0, duration - 1));
+  p.currentTime = Math.max(0, target);
+  flash(deltaSec < 0 ? `◀◀ ${Math.abs(deltaSec)} SEC` : `▶▶ ${deltaSec} SEC`);
+  tick(ctx);
+  return true;
+}
+
+function skipTrack(ctx, dir, auto) {
+  if (!od && !enterOnDemandFromLive(ctx, false)) return false;
+  // Previous means "start of this song" unless you are already near it, the
+  // way every CD player's ⏮ behaves.
+  if (dir < 0 && ((ctx.player.currentTime || 0) > 3 || od.index === 0)) {
+    ctx.player.currentTime = 0;
+    tick(ctx);
+    return true;
+  }
+  const next = od.index + dir;
+  if (next >= od.queue.length) {
+    leaveOnDemand(ctx, 'BACK TO LIVE');
+    return true;
+  }
+  od.index = next;
+  if (auto) od.paused = false;
+  loadOnDemandTrack(ctx, 0);
+  if (!auto) flash(dir < 0 ? '⏮ PREVIOUS SONG' : '⏭ NEXT SONG');
+  tick(ctx);
+  return true;
+}
+
+function leaveOnDemand(ctx, message) {
+  if (!od) return;
+  od = null;
+  currentLoadedTrackPath = null;
+  if (message) flash(message);
+  tick(ctx);
+}
+
+// The OS media keys and media overlay. Explicit play/pause handlers stop
+// Chromium's default of toggling the element itself, which would pause the
+// broadcast with nothing on screen saying so. Core keeps next/previous track
+// as channel up/down (broadcast-fx.js's initMediaSession).
+function bindMediaSession(ctx) {
+  const ms = navigator.mediaSession;
+  if (!ms || typeof ms.setActionHandler !== 'function') return;
+  const bind = (action, fn) => { try { ms.setActionHandler(action, fn); } catch (e) { /* unsupported */ } };
+  bind('pause', () => { if (!pressedRecently()) setPaused(ctx, true); });
+  bind('play', () => { if (!pressedRecently()) setPaused(ctx, false); });
+  bind('seekbackward', () => seekBy(ctx, -10));
+  bind('seekforward', () => seekBy(ctx, 10));
+}
+
+function unbindMediaSession() {
+  const ms = navigator.mediaSession;
+  if (!ms || typeof ms.setActionHandler !== 'function') return;
+  ['pause', 'play', 'seekbackward', 'seekforward'].forEach((action) => {
+    try { ms.setActionHandler(action, null); } catch (e) { /* unsupported */ }
+  });
+}
+
+// A long result list is capped on screen; the count still says how many.
+const MAX_ROWS = 300;
+
+// Rows for the current tab. Each is { label, sub, right, swatch, active, run }.
+function buildBrowserRows(ctx) {
+  const settings = getSettings();
+  const stations = settings.stations || [];
+  if (browserTab === 'stations') {
+    const rows = [];
+    // Transport as rows too, so a remote with nothing but a D-pad and OK can
+    // still pause, resume and go back to live.
+    if (od) {
+      rows.push({ label: od.paused ? '▶ RESUME' : '❚❚ PAUSE', sub: `ON DEMAND · ${od.label}`, run: () => setPaused(ctx, !od.paused) });
+      rows.push({ label: '● BACK TO THE LIVE CHANNEL', sub: 'RETURN TO THE STATION ROTATION', run: () => leaveOnDemand(ctx, 'BACK TO LIVE') });
+    } else if (selectedStation(settings) && computeStationPlayback(selectedStation(settings), ctx.viewNow())) {
+      rows.push({ label: '❚❚ PAUSE THIS SONG', sub: 'THEN ◀▶ TO SEEK', run: () => setPaused(ctx, true) });
+    }
+    stations.forEach((station) => {
+      const theme = themeFor(station);
+      rows.push({
+        label: station.name || 'UNTITLED STATION',
+        sub: theme.label,
+        right: plural((station.tracks || []).length, 'TRACK'),
+        swatch: theme.accent,
+        stationId: station.id,
+        active: !od && station.id === settings.selectedStationId,
+        run: () => switchToStation(ctx, station.id),
+      });
+    });
+    return rows;
+  }
+  if (!libraryIndex) libraryIndex = buildLibraryIndex(stations);
+  const tabLabel = (SEARCH_TABS.find((t) => t.id === browserTab) || {}).label || '';
+  return searchLibrary(libraryIndex, browserQuery, browserTab).map((row) => ({
+    label: row.label,
+    sub: row.sub,
+    right: browserTab === 'songs' ? '' : '▶ PLAY ALL',
+    run: () => startOnDemand(ctx, row.tracks, browserTab === 'songs' ? `SEARCH: ${browserQuery.trim().toUpperCase() || 'ALL SONGS'}` : `${tabLabel.replace(/S$/, '')}: ${row.label}`),
+  }));
+}
+
+function emptyMessage() {
+  const anyTags = (libraryIndex || []).some((e) => e.track.tagsRead);
+  if (browserTab === 'years' || browserTab === 'albums') {
+    const word = browserTab === 'years' ? 'YEARS' : 'ALBUMS';
+    if (!anyTags) return `NO ${word} FOUND YET — RESCAN YOUR STATIONS IN SETTINGS TO READ EACH SONG'S TAGS`;
+  }
+  return browserQuery.trim() ? `NOTHING MATCHES “${browserQuery.trim().toUpperCase()}”` : 'NO SONGS YET — ADD A STATION FOLDER IN SETTINGS';
+}
+
 function renderBrowser(ctx) {
   if (!els) return;
-  const stations = getSettings().stations || [];
+  browserRows = buildBrowserRows(ctx);
+  const searching = browserTab !== 'stations';
+  const minCursor = searching && isTvMode() ? -1 : 0;
+  browserCursor = Math.max(minCursor, Math.min(browserCursor, browserRows.length - 1));
+
+  els.browserTabsEl.querySelectorAll('[data-tab]').forEach((tabEl) => {
+    tabEl.classList.toggle('mc-browser-tab-active', tabEl.dataset.tab === browserTab);
+  });
+  els.browserSearchEl.classList.toggle('hidden', !searching);
+  els.browserSearchEl.classList.toggle('mc-browser-row-active', searching && browserCursor === -1);
+  if (els.browserInputEl.value !== browserQuery) els.browserInputEl.value = browserQuery;
+  els.browserCountEl.textContent = searching ? plural(browserRows.length, 'RESULT') : '';
+
   els.browserListEl.innerHTML = '';
-  stations.forEach((station) => {
-    const theme = themeFor(station);
+  if (!browserRows.length && searching) {
+    const empty = document.createElement('div');
+    empty.className = 'mc-browser-empty';
+    empty.textContent = emptyMessage();
+    els.browserListEl.appendChild(empty);
+  }
+  browserRows.slice(0, MAX_ROWS).forEach((rowData, i) => {
     const row = document.createElement('div');
     row.className = 'mc-browser-row';
-    if (station.id === browserHighlightId) row.classList.add('mc-browser-row-active');
-    row.dataset.stationId = station.id;
-    row.innerHTML = `
-      <span class="mc-browser-swatch" style="background:${theme.accent}"></span>
-      <span class="mc-browser-name">${station.name || 'UNTITLED STATION'}</span>
-      <span class="mc-browser-genre">${theme.label}</span>
-      <span class="mc-browser-count">${(station.tracks || []).length} TRACKS</span>
-    `;
-    row.addEventListener('click', () => { switchToStation(ctx, station.id); closeBrowser(); });
+    if (i === browserCursor) row.classList.add('mc-browser-row-active');
+    if (rowData.active) row.classList.add('mc-browser-row-current');
+    const cell = (cls, text) => {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text || '';
+      row.appendChild(span);
+      return span;
+    };
+    const swatch = cell('mc-browser-swatch', '');
+    if (rowData.swatch) swatch.style.background = rowData.swatch;
+    else swatch.classList.add('mc-browser-swatch-blank');
+    cell('mc-browser-name', rowData.label);
+    cell('mc-browser-genre', rowData.sub);
+    cell('mc-browser-count', rowData.right);
+    row.addEventListener('click', () => { browserCursor = i; activateBrowserRow(ctx); });
     els.browserListEl.appendChild(row);
   });
+  const activeEl = els.browserListEl.querySelector('.mc-browser-row-active');
+  if (activeEl && activeEl.scrollIntoView) activeEl.scrollIntoView({ block: 'nearest' });
+
+  // On a keyboard the field just has focus while a search tab is up; in TV
+  // mode it is a row the remote selects instead (see browserCursor).
+  if (searching && !isTvMode()) {
+    if (document.activeElement !== els.browserInputEl) els.browserInputEl.focus();
+  } else if (document.activeElement === els.browserInputEl) {
+    els.browserInputEl.blur();
+  }
+  els.browserHintEl.textContent = searching
+    ? (isTvMode() ? '▲▼ SELECT · OK PLAY (OK ON THE SEARCH BOX TO TYPE) · ◀▶ TAB · BACK CLOSE' : 'TYPE TO SEARCH · ▲▼ SELECT · ENTER PLAY · ◀▶ TAB · ESC CLOSE')
+    : '▲▼ SELECT · OK TUNE · ◀▶ SEARCH TABS · ESC CANCEL';
 }
 
 function openBrowser(ctx) {
   if (!els || !(getSettings().stations || []).length) return;
   browserOpen = true;
-  browserHighlightId = getSettings().selectedStationId;
+  browserTab = 'stations';
+  libraryIndex = null; // rebuilt from the current settings on first search
+  const firstStation = buildBrowserRows(ctx).findIndex((r) => r.active);
+  browserCursor = Math.max(0, firstStation);
   els.browserEl.classList.remove('hidden');
   renderBrowser(ctx);
 }
 function closeBrowser() {
   browserOpen = false;
-  browserHighlightId = null;
-  if (els) els.browserEl.classList.add('hidden');
+  browserRows = [];
+  if (!els) return;
+  els.browserEl.classList.add('hidden');
+  if (document.activeElement === els.browserInputEl) els.browserInputEl.blur();
+}
+
+function switchBrowserTab(ctx, dir) {
+  const i = SEARCH_TABS.findIndex((t) => t.id === browserTab);
+  setBrowserTab(ctx, SEARCH_TABS[(i + dir + SEARCH_TABS.length) % SEARCH_TABS.length].id);
+}
+
+function setBrowserTab(ctx, id) {
+  browserTab = id;
+  // TV mode lands on the search box when there is nothing typed yet, since
+  // that is the thing to do first; otherwise straight on the first result.
+  browserCursor = id !== 'stations' && isTvMode() && !browserQuery ? -1 : 0;
+  renderBrowser(ctx);
+}
+
+function activateBrowserRow(ctx) {
+  if (browserCursor === -1) { openSearchKeyboard(ctx); return; }
+  const row = browserRows[browserCursor];
+  if (!row) return;
+  closeBrowser();
+  row.run();
+}
+
+function openSearchKeyboard(ctx) {
+  if (!ctx.input || typeof ctx.input.openKeyboard !== 'function') return;
+  ctx.input.openKeyboard({ title: 'SEARCH MUSIC', value: browserQuery, maxLength: 40 }).then((text) => {
+    if (text == null || !browserOpen) return;
+    browserQuery = text;
+    browserCursor = 0;
+    renderBrowser(ctx);
+  });
+}
+
+function browserMove(ctx, delta) {
+  if (!browserRows.length && browserCursor !== -1) return;
+  const minCursor = browserTab !== 'stations' && isTvMode() ? -1 : 0;
+  const last = Math.min(browserRows.length, MAX_ROWS) - 1;
+  browserCursor = Math.max(minCursor, Math.min(last, browserCursor + delta));
+  renderBrowser(ctx);
+}
+
+// Keys typed into the search box. app.js ignores keys while a text field has
+// focus, so the list's own navigation is handled here instead.
+function onSearchInputKey(ctx, e) {
+  const input = els && els.browserInputEl;
+  if (!input) return;
+  const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+  const atEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+  let handled = true;
+  if (e.key === 'ArrowDown') browserMove(ctx, 1);
+  else if (e.key === 'ArrowUp') browserMove(ctx, -1);
+  else if (e.key === 'PageDown') browserMove(ctx, 8);
+  else if (e.key === 'PageUp') browserMove(ctx, -8);
+  else if (e.key === 'ArrowLeft' && atStart) switchBrowserTab(ctx, -1);
+  else if (e.key === 'ArrowRight' && atEnd) switchBrowserTab(ctx, 1);
+  else if (e.key === 'Enter') activateBrowserRow(ctx);
+  else if (e.key === 'Escape') {
+    if (input.value) { browserQuery = ''; browserCursor = 0; renderBrowser(ctx); } else closeBrowser();
+  } else handled = false;
+  if (handled) { e.preventDefault(); e.stopPropagation(); }
 }
 
 function cycleStation(ctx, dir) {
@@ -638,14 +1200,6 @@ function cycleStation(ctx, dir) {
   switchToStation(ctx, next.id);
 }
 
-function browserMove(ctx, dir) {
-  const stations = getSettings().stations || [];
-  if (!stations.length) return;
-  const curIdx = Math.max(0, stations.findIndex((s) => s.id === browserHighlightId));
-  const next = stations[(curIdx + dir + stations.length) % stations.length];
-  browserHighlightId = next.id;
-  renderBrowser(ctx);
-}
 
 window.RCBPlugins.registerChannelType('music-choice-channel', {
   number: CHANNEL_NUMBER,
@@ -707,7 +1261,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           <div class="mc-now-playing hidden" data-el="now-playing">
             <img class="mc-art hidden" data-el="art" alt="">
             <div class="mc-now-copy">
-            <div class="mc-nowlabel">NOW PLAYING</div>
+            <div class="mc-nowlabel" data-el="now-label">NOW PLAYING</div>
             <div class="mc-artist" data-el="artist"></div>
             <div class="mc-title" data-el="title"></div>
             <div class="mc-album hidden" data-el="album"></div>
@@ -723,12 +1277,20 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
             </div>
             </div>
           </div>
-          <div class="mc-hint">◀▶ CHANGE STATION &middot; OK STATION LIST &middot; ▲▼ CHANGE CHANNEL</div>
+          <div class="mc-hint" data-el="hint"></div>
         </div>
         <div class="mc-browser hidden" data-el="browser">
-          <div class="mc-browser-title">CHOOSE A STATION</div>
+          <div class="mc-browser-tabs" data-el="browser-tabs">
+            ${SEARCH_TABS.map((t) => `<span class="mc-browser-tab" data-tab="${t.id}">${t.label}</span>`).join('')}
+          </div>
+          <label class="mc-browser-search hidden" data-el="browser-search">
+            <span class="mc-browser-search-icon" aria-hidden="true">⌕</span>
+            <input type="text" class="mc-browser-input" data-el="browser-input" maxlength="40" spellcheck="false" autocomplete="off"
+              placeholder="SONG, ARTIST, ALBUM OR YEAR (1997, 90s, 1995-1999)" aria-label="Search music">
+            <span class="mc-browser-result-count" data-el="browser-count"></span>
+          </label>
           <div class="mc-browser-list" data-el="browser-list"></div>
-          <div class="mc-browser-hint">▲▼ SELECT &middot; OK TUNE &middot; ESC CANCEL</div>
+          <div class="mc-browser-hint" data-el="browser-hint"></div>
         </div>
       </div>
     `;
@@ -744,7 +1306,34 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       upNextEl: q('up-next'), vuEl: q('vu'),
       infoStripEl: q('info-strip'), infoLabelEl: q('info-label'), infoTextEl: q('info-text'),
       browserEl: q('browser'), browserListEl: q('browser-list'),
+      nowLabelEl: q('now-label'), hintEl: q('hint'),
+      browserTabsEl: q('browser-tabs'), browserSearchEl: q('browser-search'), browserInputEl: q('browser-input'),
+      browserCountEl: q('browser-count'), browserHintEl: q('browser-hint'),
     };
+
+    // A fresh tune-in always starts on the live rotation.
+    od = null;
+    browserOpen = false;
+    browserQuery = '';
+    updateHint();
+    els.browserTabsEl.querySelectorAll('[data-tab]').forEach((tabEl) => {
+      tabEl.addEventListener('click', () => setBrowserTab(ctx, tabEl.dataset.tab));
+    });
+    els.browserInputEl.addEventListener('keydown', (e) => onSearchInputKey(ctx, e));
+    els.browserInputEl.addEventListener('input', () => {
+      browserQuery = els.browserInputEl.value;
+      browserCursor = 0;
+      renderBrowser(ctx);
+    });
+    // In TV mode the box is a row, not a text field: clicking or tapping it
+    // (touch controls) opens the on-screen keyboard like OK does.
+    els.browserSearchEl.addEventListener('mousedown', (e) => { if (isTvMode()) e.preventDefault(); });
+    els.browserSearchEl.addEventListener('click', (e) => {
+      if (!isTvMode()) return;
+      e.preventDefault();
+      browserCursor = -1;
+      openSearchKeyboard(ctx);
+    });
 
     const settings = getSettings();
     const stations = settings.stations || [];
@@ -759,37 +1348,47 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     applyStationTheme(station);
     applyStationBackground(station);
 
-    endedHandler = () => tick(ctx); // re-derive from now() rather than blindly advancing one index
-    errorHandler = () => tick(ctx);
+    // Live: re-derive from now() rather than blindly advancing one index. On
+    // demand: the next song in the queue (and back to live after the last).
+    endedHandler = () => (od ? skipTrack(ctx, 1, true) : tick(ctx));
+    // An unplayable file on demand is skipped rather than retried forever.
+    errorHandler = () => (od ? skipTrack(ctx, 1, true) : tick(ctx));
     ctx.player.addEventListener('ended', endedHandler);
     ctx.player.addEventListener('error', errorHandler);
+    bindMediaSession(ctx);
 
     currentLoadedTrackPath = null;
     tick(ctx);
-    tickTimer = setInterval(() => tick(ctx), 1000);
+    // Four times a second rather than once: the on-demand progress bar and
+    // seek readout need to feel attached to the keys. Live ticks are cheap —
+    // everything expensive in tick() is gated on the track actually changing.
+    tickTimer = setInterval(() => tick(ctx), 250);
   },
   stop(ctx) {
     if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
     if (endedHandler) { ctx.player.removeEventListener('ended', endedHandler); endedHandler = null; }
     if (errorHandler) { ctx.player.removeEventListener('error', errorHandler); errorHandler = null; }
+    unbindMediaSession();
     if (els) {
       els.bgVideoEl.pause();
       els.bgVideoEl.removeAttribute('src');
     }
+    if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+    flashText = null;
+    od = null;
     currentLoadedTrackPath = null;
     bgVideoPath = null;
     lastSlideshowIndex = -1;
     lastInfoSlideText = null;
     artTrackPath = null;
+    mediaSessionTrackPath = null;
     browserOpen = false;
+    browserRows = [];
+    libraryIndex = null;
     els = null;
   },
   onOk(ctx) {
-    if (browserOpen) {
-      if (browserHighlightId) switchToStation(ctx, browserHighlightId);
-      closeBrowser();
-      return true;
-    }
+    if (browserOpen) { activateBrowserRow(ctx); return true; }
     if ((getSettings().stations || []).length) { openBrowser(ctx); return true; }
     return false;
   },
@@ -808,6 +1407,15 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
   // Station cycling now lives on Left/Right, which core only uses to shuttle
   // and only while the time machine is on — so that case defers too. Nothing
   // else is claimed, in either state.
+  //
+  // The browser takes ◀▶ for its tabs, which core does not use while the
+  // list is up either. Transport keys are only claimed where core has no
+  // meaning for them on this channel: Space (core's second OK key — Enter
+  // still opens the list), the Media* keys, [ ] (core's break jumps, which
+  // only run under the time machine, where this defers anyway), and on
+  // demand ◀▶ and L/Escape, which mean "seek" and "back to live" here the
+  // same way they do for the time machine.
+  //
   // TV mode (ctx v5): remote actions arrive here, forwarded to the same
   // handling onKey already does. Anything not handled goes back to core, so
   // ▲▼ still change channel and Back still asks to leave.
@@ -819,7 +1427,11 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     if (browserOpen) {
       if (key === 'ArrowUp') { browserMove(ctx, -1); return true; }
       if (key === 'ArrowDown') { browserMove(ctx, 1); return true; }
-      if (key === 'Enter' || key === ' ') { if (browserHighlightId) switchToStation(ctx, browserHighlightId); closeBrowser(); return true; }
+      if (key === 'PageUp') { browserMove(ctx, -8); return true; }
+      if (key === 'PageDown') { browserMove(ctx, 8); return true; }
+      if (key === 'ArrowLeft') { switchBrowserTab(ctx, -1); return true; }
+      if (key === 'ArrowRight') { switchBrowserTab(ctx, 1); return true; }
+      if (key === 'Enter' || key === ' ') { activateBrowserRow(ctx); return true; }
       if (key === 'Escape') { closeBrowser(); return true; }
       // Anything this list does not itself use belongs to core. Close first,
       // so tuning away or opening the guide does not leave the browser up
@@ -828,6 +1440,23 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       return false;
     }
     if (window.S && window.S.timeMachineOn) return false;
+    if (key === ' ' || key === 'MediaPlayPause') return togglePause(ctx);
+    if (key === 'MediaPause') return pressedRecently() || setPaused(ctx, true);
+    if (key === 'MediaPlay') return !od || pressedRecently() || setPaused(ctx, false);
+    if (key === 'MediaRewind') return seekBy(ctx, -30);
+    if (key === 'MediaFastForward') return seekBy(ctx, 30);
+    // A desktop keyboard's ⏮⏭ keys stay core's (the OS media session maps
+    // them to channel down/up, and could deliver the same press twice); a TV
+    // remote's arrive here as onAction('media.previous'/'media.next').
+    const trackKey = isTvMode() && (key === 'MediaTrackPrevious' || key === 'MediaTrackNext');
+    if (key === '[' || (trackKey && key === 'MediaTrackPrevious')) return skipTrack(ctx, -1, false);
+    if (key === ']' || (trackKey && key === 'MediaTrackNext')) return skipTrack(ctx, 1, false);
+    if (od) {
+      if (key === 'ArrowLeft') return seekBy(ctx, -10);
+      if (key === 'ArrowRight') return seekBy(ctx, 10);
+      if (key === 'Escape' || key === 'l' || key === 'L') { leaveOnDemand(ctx, 'BACK TO LIVE'); return true; }
+      return false;
+    }
     if (key === 'ArrowLeft') { cycleStation(ctx, -1); return true; }
     if (key === 'ArrowRight') { cycleStation(ctx, 1); return true; }
     return false;

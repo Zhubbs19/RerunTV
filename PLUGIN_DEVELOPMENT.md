@@ -329,7 +329,9 @@ time, so refresh transparently inside them rather than assuming a token
 stays valid.
 
 `ctx.fs` is similar but always available (no declaration needed): reads
-(`existsSync`/`readFile`/`readFileSync`/`readdirSync`) take any path — this
+(`existsSync`/`readFile`/`readFileSync`/`readdirSync`/`statSync`, plus
+`readRange(path, start, length)`, which resolves a Buffer of at most `length`
+bytes so a header or tag reader need not load a whole media file) take any path — this
 is deliberately unrestricted, since checking whether a user-configured
 executable exists is a legitimate need with no folder to scope it to in
 advance. Writes (`writeFile`/`writeFileSync`/`mkdirSync`/`createWriteStream`/
@@ -589,8 +591,11 @@ window.RCBPlugins.registerChannelType('my-plugin', {
   onAction(action, ctx) {
     // optional (ctx v5) — in TV mode, remote buttons arrive here as actions
     // instead of keys: 'move.up', 'move.down', 'move.left', 'move.right',
-    // 'select', 'back', 'info'. Return true if you handled it; otherwise core
-    // does what it would have (▲▼ change channel, Back asks to leave). The
+    // 'select', 'back', 'info', and since v8 the transport buttons
+    // 'media.playPause', 'media.rewind', 'media.fastForward', 'media.previous',
+    // 'media.next'. Return true if you handled it; otherwise core does what it
+    // would have (▲▼ change channel, Back asks to leave, play/pause opens the
+    // menu). The
     // simplest adoption forwards to your existing onKey:
     //   const key = ctx.input.keyForAction(action); return key ? this.onKey(key, ctx) : false;
     // onKey keeps working everywhere; desktop mode never calls onAction.
@@ -750,7 +755,7 @@ the piece you need instead of pulling every key off the flat object:
 - `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
 - `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
 - `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)
-- `ctx.input` — `{ usageMode, keyForAction, actions }` (v5, see `onAction` under `registerChannelType` above)
+- `ctx.input` — `{ usageMode, keyForAction, actions }` (v5, see `onAction` under `registerChannelType` above), plus `openKeyboard({ title, value, maxLength })` (v8): the D-pad on-screen keyboard, resolving the typed text (upper-cased) or `null` if cancelled — use it for text entry in TV mode, where a focused `<input>` can't be typed into from a remote
 - `ctx.ui` — the component kit (v6, see "Building UI with `ctx.ui`" below)
 - `ctx.commands` — `{ register, dispatch, type }` (v7, see "Undoable edits with
   `ctx.commands`" below)

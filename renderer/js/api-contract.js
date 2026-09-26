@@ -39,7 +39,7 @@
     // quitApp as null and the music-choice pair not at all, so
     // createApiSurface threw and a LAN browser ended up with no window.api at
     // all. tests/api-surface.test.js keeps the two lists honest now.
-    'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt',
+    'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt', 'musicChoiceReadTags',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled', 'getStartupWindowStatus', 'setStartupWindowEnabled',
     // The control pairing code must never reach a `view`-scope viewer — that

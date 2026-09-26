@@ -11,7 +11,8 @@
   "capabilities": {
     "ipc": [
       { "channel": "music-choice:scanFolder", "why": "recursively finds audio files in a station's music folder, and image files in a slideshow background folder" },
-      { "channel": "music-choice:embeddedArt", "why": "reads the cover image stored inside a track's own tags, to show on screen while it plays, when no cover image sits beside it in the folder" }
+      { "channel": "music-choice:embeddedArt", "why": "reads the cover image stored inside a track's own tags, to show on screen while it plays, when no cover image sits beside it in the folder" },
+      { "channel": "music-choice:readTags", "why": "reads each track's artist, title, album and year from its own tags when a station is rescanned, so you can search the channel by song, artist, album or year" }
     ]
   }
 }

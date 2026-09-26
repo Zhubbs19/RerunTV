@@ -744,7 +744,10 @@ export function pluginDiagnosticsSnapshot() {
 // v7 added ctx.commands (docs/design/05 §3) — a plugin registers its own named,
 // undoable commands over its own settings, instead of writing them through
 // ctx.saveConfigDebounced as anonymous patches.
-const CTX_VERSION = 7;
+// v8 added the transport actions to onAction ('media.playPause',
+// 'media.rewind', 'media.fastForward', 'media.previous', 'media.next') and
+// ctx.input.openKeyboard, the D-pad on-screen keyboard.
+const CTX_VERSION = 8;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -760,7 +763,10 @@ function installGlobalApi() {
   const search = { registerEntries: registerSettingsSearchEntries };
   // docs/design/01 §6.6: which mode this device is in, and the keyboard key an
   // action corresponds to (so onAction can forward to an existing onKey).
-  const input = { usageMode, keyForAction, actions: Object.values(PLUGIN_CHANNEL_ACTIONS) };
+  // openKeyboard resolves the typed text, or null when cancelled. Imported on
+  // first use: nothing needs the keyboard until a plugin actually asks.
+  const openKeyboard = (opts) => import('../ui/on-screen-keyboard.js').then((m) => m.openOnScreenKeyboard(opts));
+  const input = { usageMode, keyForAction, openKeyboard, actions: Object.values(PLUGIN_CHANNEL_ACTIONS) };
   // The component kit (docs/design/04 §3): the same controls core's own
   // screens are built from, with TV density and D-pad focus built in.
   const ui = Object.freeze({
