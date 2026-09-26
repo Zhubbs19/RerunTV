@@ -257,7 +257,8 @@
   height: 100%;
   background: var(--mc-accent);
   width: 0%;
-  transition: width 1s linear;
+  /* Matches the 250ms tick, so a seek lands without a long glide. */
+  transition: width 250ms linear;
 }
 .mc-upnext {
   margin-top: 10px;
@@ -348,16 +349,70 @@
   z-index: 5;
   display: flex;
   flex-direction: column;
-  background: rgba(5, 5, 10, 0.92);
+  background: rgba(5, 5, 10, 0.96);
   padding: 40px 60px;
   pointer-events: auto;
 }
-.mc-browser-title {
+/* Tabs across the top: STATIONS, then the four ways to search the library.
+   ◀▶ moves between them, so they read as one row of cable-box menu tabs. */
+.mc-browser-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.mc-browser-tab {
   font-family: var(--font-display, sans-serif);
-  font-size: 22px;
+  font-size: 16px;
   letter-spacing: 1.5px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+}
+.mc-browser-tab-active {
+  color: #111;
+  background: var(--mc-accent);
+  border-color: var(--mc-accent);
+}
+.mc-browser-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.05);
   color: #fff;
-  margin-bottom: 18px;
+  cursor: text;
+}
+.mc-browser-search.hidden { display: none; }
+.mc-browser-search.mc-browser-row-active { border-color: var(--mc-accent); }
+.mc-browser-search-icon { font-size: 18px; opacity: 0.7; }
+.mc-browser-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.mc-browser-input::placeholder { color: rgba(255, 255, 255, 0.35); }
+.mc-browser-result-count {
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+.mc-browser-empty {
+  padding: 18px 14px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
 }
 .mc-browser-list {
   flex: 1;
@@ -368,7 +423,7 @@
 }
 .mc-browser-row {
   display: grid;
-  grid-template-columns: 14px 1fr auto auto;
+  grid-template-columns: 14px minmax(0, 1.4fr) minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
   padding: 10px 14px;
@@ -381,12 +436,33 @@
   border-color: rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.1);
 }
+/* The station that is on right now, distinct from the cursor. */
+.mc-browser-row-current .mc-browser-name::after {
+  content: '  ◆ ON NOW';
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--mc-accent);
+}
+.mc-browser-name,
+.mc-browser-genre {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-browser-swatch-blank { visibility: hidden; }
 .mc-browser-swatch {
   width: 14px;
   height: 14px;
   border-radius: 50%;
 }
 .mc-browser-name { font-weight: 700; }
+/* A paused on-demand song dims the copy slightly so PAUSED reads at a glance
+   across the room. */
+.mc-channel[data-ondemand="paused"] .mc-artist,
+.mc-channel[data-ondemand="paused"] .mc-title { opacity: 0.6; }
+.mc-channel[data-ondemand] .mc-nowlabel { color: var(--mc-accent); }
+.mc-channel[data-ondemand=""] .mc-nowlabel { color: rgba(255, 255, 255, 0.6); }
 .mc-browser-genre {
   font-size: 12px;
   letter-spacing: 1px;

@@ -234,4 +234,4 @@ function extractEmbeddedArt(buf) {
   return pic;
 }
 
-module.exports = { extractEmbeddedArt, readId3, readFlac, readMp4 };
+module.exports = { extractEmbeddedArt, readId3, readFlac, readMp4, synchsafe, walkAtoms };

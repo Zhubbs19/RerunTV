@@ -16,6 +16,47 @@ function newStation() {
   };
 }
 
+// Rescanning = list the folder, probe durations for new files, then read each
+// new file's tags (artist/title/album/year) so the channel's search can find
+// songs by album and year even when the filenames carry neither. Files already
+// probed and tag-read keep their saved data, so a rescan only pays for what
+// changed. `onProgress(text)` reports each phase.
+const TAG_BATCH = 25;
+
+async function readTagsInto(tracks, onProgress) {
+  if (!window.api.musicChoiceReadTags) return;
+  const pending = tracks.filter((t) => !t.tagsRead);
+  for (let i = 0; i < pending.length; i += TAG_BATCH) {
+    onProgress(`READING SONG TAGS… ${i}/${pending.length}`);
+    const batch = pending.slice(i, i + TAG_BATCH);
+    // eslint-disable-next-line no-await-in-loop
+    const result = await window.api.musicChoiceReadTags({ filePaths: batch.map((t) => t.path) }).catch(() => null);
+    // A failed batch (the plugin's capability not yet approved, say) leaves
+    // these unread so the next rescan tries them again.
+    if (!result || !Array.isArray(result.tags)) return;
+    batch.forEach((track, j) => {
+      const tags = result.tags[j] || {};
+      track.tags = Object.keys(tags).length ? tags : null;
+      track.tagsRead = true;
+    });
+  }
+}
+
+async function scanStationTracks(station, onProgress) {
+  onProgress('SCANNING FOLDER…');
+  // Host-only: it reads the host's own filesystem, so it is absent on a LAN
+  // viewer or control panel (renderer/js/api-contract.js).
+  if (!window.api.musicChoiceScanFolder) throw new Error('SCANNING ONLY WORKS ON THE HOST DEVICE.');
+  const { files, error } = await window.api.musicChoiceScanFolder({ folderPath: station.folderPath, kind: 'audio' });
+  if (error) throw new Error(`SCAN FAILED — ${error}`);
+  const existingByPath = new Map((station.tracks || []).map((t) => [t.path, t]));
+  const tracks = (files || []).map((p) => existingByPath.get(p) || { path: p, artist: null, title: null, durationSec: 0 });
+  onProgress(`PROBING DURATIONS… 0/${tracks.length}`);
+  await probeAllDurations(tracks, (done, total) => onProgress(`PROBING DURATIONS… ${done}/${total}`));
+  await readTagsInto(tracks, onProgress);
+  return tracks;
+}
+
 function totalDuration(station) {
   const secs = (station.tracks || []).reduce((sum, t) => sum + (t.durationSec || 0), 0);
   const h = Math.floor(secs / 3600);
@@ -79,12 +120,19 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
     layout: 'wide',
     render(container, ctx) {
       container.innerHTML = `
-        <div class="panel-status">A retro digital-cable-style music channel (CH 910). Each "station" is a music folder plus a genre color theme — flip between them live with &uarr;/&darr; or OK while tuned to the channel.</div>
+        <div class="panel-status">A retro digital-cable-style music channel (CH 910). Each "station" is a music folder plus a genre color theme — flip between them live with &larr;/&rarr;, or press OK for the station list and to search every station's songs by title, artist, album or year. Space (&#x23EF; on a remote) pauses; while paused or playing a search pick, &larr;/&rarr; seek.</div>
+        <div class="panel-status">Searching by album and year uses each song's own tags, read when a station is rescanned. Stations scanned before this was added need one more RESCAN.</div>
         <div data-el="list"></div>
-        <button type="button" data-el="add-station" class="btn btn-primary">+ ADD STATION</button>
+        <div class="block-row">
+          <button type="button" data-el="add-station" class="btn btn-primary">+ ADD STATION</button>
+          <button type="button" data-el="rescan-all" class="btn">RESCAN ALL STATIONS</button>
+        </div>
+        <div class="panel-status hidden" data-el="rescan-all-progress"></div>
       `;
       const listEl = container.querySelector('[data-el="list"]');
       const addBtn = container.querySelector('[data-el="add-station"]');
+      const rescanAllBtn = container.querySelector('[data-el="rescan-all"]');
+      const rescanAllProgress = container.querySelector('[data-el="rescan-all-progress"]');
 
       // The section's own `ctx.settings` is a one-time snapshot (taken when
       // the panel was expanded — see setup-plugin-settings.js's makeContext),
@@ -103,6 +151,37 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
         const next = stations().map((s, i) => (i === idx ? { ...s, ...patch } : s));
         commit(next);
       }
+      // By id, not index: a scan is slow enough for the list to change under
+      // it (a station removed or added meanwhile).
+      function commitStationTracks(id, tracks) {
+        const next = stations().map((s) => (s.id === id ? { ...s, tracks, anchorMs: s.anchorMs || Date.now() } : s));
+        commit(next);
+      }
+
+      rescanAllBtn.addEventListener('click', async () => {
+        const list = stations().filter((s) => s.folderPath);
+        if (!list.length) return;
+        rescanAllBtn.disabled = true;
+        rescanAllProgress.classList.remove('hidden');
+        let failed = 0;
+        for (let i = 0; i < list.length; i++) {
+          const st = list[i];
+          const prefix = `${i + 1}/${list.length} ${st.name || 'UNTITLED STATION'}: `;
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            const tracks = await scanStationTracks(st, (text) => { rescanAllProgress.textContent = prefix + text; });
+            commitStationTracks(st.id, tracks);
+          } catch (e) {
+            failed += 1;
+            rescanAllProgress.textContent = prefix + e.message;
+          }
+        }
+        rescanAllBtn.disabled = false;
+        rescanAllProgress.textContent = failed
+          ? `DONE — ${failed} OF ${list.length} STATIONS COULD NOT BE SCANNED.`
+          : `DONE — ${list.length} STATIONS RESCANNED.`;
+        setTimeout(renderList, 600);
+      });
 
       addBtn.addEventListener('click', () => {
         const st = newStation();
@@ -195,22 +274,14 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
             if (!st || !st.folderPath) return;
             const progressEl = q('scan-progress');
             progressEl.classList.remove('hidden');
-            progressEl.textContent = 'SCANNING FOLDER…';
-            // Host-only: it reads the host's own filesystem, so it is absent
-            // on a LAN viewer or control panel (renderer/js/api-contract.js).
-            if (!window.api.musicChoiceScanFolder) {
-              progressEl.textContent = 'SCANNING ONLY WORKS ON THE HOST DEVICE.';
+            let tracks;
+            try {
+              tracks = await scanStationTracks(st, (text) => { progressEl.textContent = text; });
+            } catch (e) {
+              progressEl.textContent = e.message;
               return;
             }
-            const { files, error } = await window.api.musicChoiceScanFolder({ folderPath: st.folderPath, kind: 'audio' });
-            if (error) { progressEl.textContent = `SCAN FAILED — ${error}`; return; }
-            const existingByPath = new Map((st.tracks || []).map((t) => [t.path, t]));
-            const tracks = (files || []).map((p) => existingByPath.get(p) || { path: p, artist: null, title: null, durationSec: 0 });
-            progressEl.textContent = `PROBING DURATIONS… 0/${tracks.length}`;
-            await probeAllDurations(tracks, (done, total) => {
-              progressEl.textContent = `PROBING DURATIONS… ${done}/${total}`;
-            });
-            updateStationAt(idx, { tracks, anchorMs: st.anchorMs || Date.now() });
+            commitStationTracks(st.id, tracks);
             progressEl.textContent = `DONE — ${tracks.length} TRACKS.`;
             setTimeout(renderList, 600);
           });

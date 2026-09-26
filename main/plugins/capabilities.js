@@ -195,6 +195,21 @@ function createCheckedFs(pluginId, dataDir, userDirs = []) {
     readFile: (p, ...rest) => fs.readFile(p, ...rest),
     readFileSync: (p, ...rest) => fs.readFileSync(p, ...rest),
     readdirSync: (p, ...rest) => fs.readdirSync(p, ...rest),
+    statSync: (p, ...rest) => fs.statSync(p, ...rest),
+    // Up to `length` bytes from `start`, resolved as a Buffer that is shorter
+    // at end of file. Same unrestricted read as readFile, just bounded, so a
+    // tag or header reader does not have to pull a whole media file into
+    // memory to look at its first few kilobytes.
+    readRange: async (p, start, length) => {
+      const handle = await fs.promises.open(p, 'r');
+      try {
+        const buf = Buffer.alloc(Math.max(0, Math.floor(length) || 0));
+        const { bytesRead } = await handle.read(buf, 0, buf.length, Math.max(0, Math.floor(start) || 0));
+        return buf.subarray(0, bytesRead);
+      } finally {
+        await handle.close();
+      }
+    },
     writeFile: (relPath, ...rest) => fs.writeFile(resolveDataPath(relPath), ...rest),
     writeFileSync: (relPath, ...rest) => fs.writeFileSync(resolveDataPath(relPath), ...rest),
     mkdirSync: (relPath, ...rest) => fs.mkdirSync(resolveDataPath(relPath), ...rest),
