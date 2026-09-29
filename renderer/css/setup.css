@@ -4697,6 +4697,52 @@ html[data-theme] .btn[aria-disabled="true"] {
   font-size: 13px;
   letter-spacing: 1.5px;
 }
+#setup-screen .setup-view-switch {
+  margin-top: auto;
+  padding: 12px 6px 0;
+  border-top: 1px solid var(--border);
+}
+#setup-screen .setup-view-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+}
+#setup-screen .setup-view-options { display: flex; gap: 4px; }
+#setup-screen .setup-view-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px;
+  color: var(--button-fg);
+  background: var(--control-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius, var(--radius-sm));
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#setup-screen .setup-view-btn:hover { background: var(--control-hover-bg, var(--control-bg)); }
+#setup-screen .setup-view-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.12);
+}
+#setup-screen .setup-view-btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+#setup-screen .setup-view-help {
+  display: block;
+  margin-top: 8px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+#setup-screen[data-settings-view="simple"] :is(.setup-tab-btn, .setup-subtab-btn):not([data-simple-settings]),
+#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="audio"]) .panel:not([data-simple-settings]),
+#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="audio"]) .panel[data-simple-settings] .setting-row:not([data-simple-settings]),
+#setup-screen[data-settings-view="simple"] #display-theme-font-settings,
+#setup-screen[data-settings-view="simple"] .setup-advanced-channel-action,
+#setup-screen[data-settings-view="simple"] .edit-header-copyfrom { display: none !important; }
 #setup-screen .setup-main {
   grid-area: main;
   display: flex;
@@ -4785,6 +4831,10 @@ html[data-theme] .btn[aria-disabled="true"] {
   #setup-screen .setup-sidebar-watch { width: auto; flex: 0 0 auto; }
   #setup-screen .setup-tabs { flex-direction: row; }
   #setup-screen .setup-tab-btn { width: auto; white-space: nowrap; }
+  #setup-screen .setup-view-switch { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-top: 0; padding: 0 4px; border-top: 0; }
+  #setup-screen .setup-view-label { margin-bottom: 0; white-space: nowrap; }
+  #setup-screen .setup-view-options { min-width: 145px; }
+  #setup-screen .setup-view-help { display: none; }
   #setup-screen .setup-nav { flex-wrap: wrap; padding: 8px 12px; }
   #setup-screen .setup-search-wrap { flex-basis: 100%; }
   #setup-screen .setup-content { padding: 12px; }

@@ -139,16 +139,24 @@
           </div>
           <button type="button" id="setup-watch-btn" class="btn setup-sidebar-watch" title="Back to live TV (Ctrl+Enter)">&#9654;<span class="setup-sidebar-watch-label"> WATCH TV</span></button>
           <nav class="setup-tabs" id="setup-tabs" aria-label="Settings sections" aria-orientation="vertical">
-            <button class="setup-tab-btn active" data-tab="channels">CHANNELS</button>
+            <button class="setup-tab-btn active" data-tab="channels" data-simple-settings>CHANNELS</button>
             <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
             <button class="setup-tab-btn" data-tab="library">LIBRARY</button>
-            <button class="setup-tab-btn" data-tab="display">PICTURE &amp; SOUND</button>
-            <button class="setup-tab-btn" data-tab="guide">GUIDE &amp; THEME</button>
+            <button class="setup-tab-btn" data-tab="display" data-simple-settings>PICTURE &amp; SOUND</button>
+            <button class="setup-tab-btn" data-tab="guide" data-simple-settings>GUIDE &amp; THEME</button>
             <button class="setup-tab-btn" data-tab="household">HOUSEHOLD</button>
-            <button class="setup-tab-btn" data-tab="audio">SYSTEM</button>
+            <button class="setup-tab-btn" data-tab="audio" data-simple-settings>SYSTEM</button>
             <button class="setup-tab-btn" data-tab="plugins">PLUG-INS</button>
-            <button class="setup-tab-btn" data-tab="help">HELP</button>
+            <button class="setup-tab-btn" data-tab="help" data-simple-settings>HELP</button>
           </nav>
+          <div class="setup-view-switch" role="group" aria-label="Settings view">
+            <span class="setup-view-label">SETTINGS VIEW</span>
+            <div class="setup-view-options">
+              <button type="button" id="setup-view-simple" class="setup-view-btn" aria-pressed="false">SIMPLE</button>
+              <button type="button" id="setup-view-advanced" class="setup-view-btn" aria-pressed="true">ADVANCED</button>
+            </div>
+            <span class="setup-view-help">Simple shows everyday controls. Search can still find everything.</span>
+          </div>
         </aside>
         <div class="setup-main">
         <div class="setup-nav">
@@ -665,14 +673,14 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="display">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="picture">PICTURE</button>
-          <button class="setup-subtab-btn" data-subtab="sound">SOUND</button>
+          <button class="setup-subtab-btn active" data-subtab="picture" data-simple-settings>PICTURE</button>
+          <button class="setup-subtab-btn" data-subtab="sound" data-simple-settings>SOUND</button>
         </div>
 
 <div class="setup-subtab-panel" data-subtab-panel="picture">
         <div class="settings-grid">
 
-        <div class="panel">
+        <div class="panel" data-simple-settings>
           <div class="panel-toggle">CRT EFFECT</div>
           <div id="crt-preview" class="crt-preview">
             <div class="crt-preview-picture"></div>
@@ -683,7 +691,7 @@
             <div class="crt-grain"></div>
           </div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="crt-enabled" data-synonyms="tube scanlines retro">
+            <div class="setting-row" data-setting="crt-enabled" data-synonyms="tube scanlines retro" data-simple-settings>
               <label class="setting-row-label" for="crt-enabled">CRT effect</label>
               <div class="setting-row-control"><input type="checkbox" id="crt-enabled" checked></div>
               <p class="setting-row-help">Same as the C key while watching. Off keeps the sliders below but stops the effect.</p>
@@ -746,10 +754,10 @@
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-simple-settings>
           <div class="panel-toggle">PICTURE MODE &amp; ASPECT</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="picture-mode">
+            <div class="setting-row" data-setting="picture-mode" data-simple-settings>
               <label class="setting-row-label" for="picture-mode-select">Picture mode</label>
               <div class="setting-row-control"><select id="picture-mode-select">
                 <option value="standard">STANDARD</option>
@@ -758,7 +766,7 @@
               </select></div>
               <p class="setting-row-help">Also cycles with the V key while watching.</p>
             </div>
-            <div class="setting-row" data-setting="aspect-mode" data-synonyms="letterbox crop stretch zoom">
+            <div class="setting-row" data-setting="aspect-mode" data-synonyms="letterbox crop stretch zoom" data-simple-settings>
               <label class="setting-row-label" for="aspect-mode-select">Aspect ratio</label>
               <div class="setting-row-control"><select id="aspect-mode-select">
                 <option value="contain">STANDARD (SAFE)</option>
@@ -785,10 +793,10 @@
           </div>
         </div>
 
-        <div class="panel" id="screen-speakers-panel">
+        <div class="panel" id="screen-speakers-panel" data-simple-settings>
           <div class="panel-toggle">SCREEN &amp; SPEAKERS</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="screen-target" data-synonyms="monitor display hdmi tv second screen move window">
+            <div class="setting-row" data-setting="screen-target" data-synonyms="monitor display hdmi tv second screen move window" data-simple-settings>
               <label class="setting-row-label" for="screen-target-select">Show on screen</label>
               <div class="setting-row-control"><select id="screen-target-select"></select></div>
               <p class="setting-row-help" id="screen-target-help">RerunTV opens on this screen, and goes back to it when it reconnects, like after the TV wakes up.</p>
@@ -811,7 +819,7 @@
               <div class="setting-row-control"><input type="range" id="screen-edge-slider" min="0" max="6" step="0.5" value="0"> <span id="screen-edge-value">0%</span></div>
               <p class="setting-row-help" id="screen-edge-help">If the TV cuts off the clock or banners, pull everything in until the white frame shows on all four sides. Saved for this screen only.</p>
             </div>
-            <div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output">
+            <div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output" data-simple-settings>
               <label class="setting-row-label" for="audio-output-select">Sound output</label>
               <div class="setting-row-control"><select id="audio-output-select"></select></div>
               <p class="setting-row-help" id="audio-output-help">Play through the TV’s speakers without changing the Windows default. Set on this computer only.</p>
@@ -902,20 +910,20 @@
 
         <div class="setup-subtab-panel hidden" data-subtab-panel="sound">
         <div class="settings-grid">
-<div class="panel">
+<div class="panel" data-simple-settings>
           <div class="panel-toggle">VOLUME</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio">
+            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio" data-simple-settings>
               <label class="setting-row-label" for="content-volume-slider">Shows and movies</label>
               <div class="setting-row-control"><input type="range" id="content-volume-slider" min="0" max="100" value="100"></div>
               <p class="setting-row-help">A share of the master volume (the + and − keys).</p>
             </div>
-            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads">
+            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads" data-simple-settings>
               <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
               <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
               <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
             </div>
-            <div class="setting-row" data-setting="audio-leveler" data-synonyms="loudness normalize compressor night mode dialogue quiet loud">
+            <div class="setting-row" data-setting="audio-leveler" data-synonyms="loudness normalize compressor night mode dialogue quiet loud" data-simple-settings>
               <label class="setting-row-label" for="audio-leveler-select">Volume leveler</label>
               <div class="setting-row-control"><select id="audio-leveler-select">
                 <option value="off">OFF</option>
@@ -937,10 +945,10 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="guide">
         <div class="settings-grid">
-<div class="panel">
+<div class="panel" data-simple-settings>
           <div class="panel-toggle">GUIDE</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="guide-slots" data-synonyms="guide slots columns hours">
+            <div class="setting-row" data-setting="guide-slots" data-synonyms="guide slots columns hours" data-simple-settings>
               <label class="setting-row-label" for="guide-slots-select">Guide width</label>
               <div class="setting-row-control"><select id="guide-slots-select">
                 <option value="2">2 (1 HR)</option>
@@ -982,7 +990,7 @@
               <div class="setting-row-control"><input type="range" id="reminder-lead-minutes-slider" min="1" max="30" step="1" value="1"></div>
               <p class="setting-row-help">How early a program reminder pops up.</p>
             </div>
-            <div class="setting-row setting-row-wide" data-setting="guide-theme" data-synonyms="theme skin look style era">
+            <div class="setting-row setting-row-wide" data-setting="guide-theme" data-synonyms="theme skin look style era" data-simple-settings>
               <span class="setting-row-label">Guide theme</span>
               <div class="setting-row-control">
               <!-- Options are built at runtime from installed "pack" plugins
@@ -1013,7 +1021,7 @@
           <div id="display-theme-font-settings" class="plugin-settings-section"></div>
         </div>
 
-<div class="panel span-full">
+<div class="panel span-full" data-simple-settings>
           <div class="panel-toggle">ERA</div>
           <div class="panel-body">
             <p class="setting-row-help">Pick a decade and the theme, CRT look, screen shape, resolution and clock follow together as one change. Channels and programming never change.</p>
@@ -1023,15 +1031,15 @@
           </div>
         </div>
 
-<div class="panel">
+<div class="panel" data-simple-settings>
           <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="clock24" data-synonyms="time format military">
+            <div class="setting-row" data-setting="clock24" data-synonyms="time format military" data-simple-settings>
               <label class="setting-row-label" for="clock24-enabled">24-hour clock</label>
               <div class="setting-row-control"><input type="checkbox" id="clock24-enabled"></div>
               <p class="setting-row-help">Show 18:30 instead of 6:30 PM.</p>
             </div>
-            <div class="setting-row" data-setting="hintbar">
+            <div class="setting-row" data-setting="hintbar" data-simple-settings>
               <label class="setting-row-label" for="hintbar-enabled">Show the hint bar</label>
               <div class="setting-row-control"><input type="checkbox" id="hintbar-enabled" checked></div>
               <p class="setting-row-help">The strip of shortcuts along the bottom. H hides it while watching.</p>
@@ -1253,19 +1261,19 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="audio">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="system">POWER</button>
-          <button class="setup-subtab-btn" data-subtab="updates">UPDATES</button>
-          <button class="setup-subtab-btn" data-subtab="backups">BACKUPS</button>
+          <button class="setup-subtab-btn active" data-subtab="system" data-simple-settings>POWER</button>
+          <button class="setup-subtab-btn" data-subtab="updates" data-simple-settings>UPDATES</button>
+          <button class="setup-subtab-btn" data-subtab="backups" data-simple-settings>BACKUPS</button>
           <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
           <button class="setup-subtab-btn" data-subtab="status">DIAGNOSTICS</button>
         </div>
 
 <div class="setup-subtab-panel" data-subtab-panel="system">
         <div class="settings-grid">
-<div class="panel">
+<div class="panel" data-simple-settings>
           <div class="panel-toggle">WHEN I SIGN IN</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="startup-window" data-synonyms="startup boot autostart login open on tv">
+            <div class="setting-row" data-setting="startup-window" data-synonyms="startup boot autostart login open on tv" data-simple-settings>
               <label class="setting-row-label" for="startup-window-enabled">Open RerunTV when I sign in</label>
               <div class="setting-row-control"><input type="checkbox" id="startup-window-enabled"></div>
               <p class="setting-row-help" id="startup-window-status">Checking Windows startup settings…</p>
@@ -1289,10 +1297,10 @@
 
         
 
-        <div class="panel">
+        <div class="panel" data-simple-settings>
           <div class="panel-toggle">POWER &amp; PLAYBACK</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="keep-display-awake" data-synonyms="screensaver sleep monitor">
+            <div class="setting-row" data-setting="keep-display-awake" data-synonyms="screensaver sleep monitor" data-simple-settings>
               <label class="setting-row-label" for="keep-display-awake">Keep the display awake</label>
               <div class="setting-row-control"><input type="checkbox" id="keep-display-awake" checked></div>
               <p class="setting-row-help">Stop the screensaver and monitor sleep while the TV is on.</p>
@@ -1302,12 +1310,12 @@
               <div class="setting-row-control"><input type="checkbox" id="playback-resync-enabled" checked></div>
               <p class="setting-row-help">Every 20 seconds, nudge the picture back to where the schedule says it should be.</p>
             </div>
-            <div class="setting-row" data-setting="standby-enabled" data-synonyms="idle sleep timer off">
+            <div class="setting-row" data-setting="standby-enabled" data-synonyms="idle sleep timer off" data-simple-settings>
               <label class="setting-row-label" for="standby-enabled">Auto standby</label>
               <div class="setting-row-control"><input type="checkbox" id="standby-enabled"></div>
               <p class="setting-row-help">Power the TV off when nobody has touched it for a while.</p>
             </div>
-            <div class="setting-row" data-setting="standby-interval" data-depends-on="standby-enabled">
+            <div class="setting-row" data-setting="standby-interval" data-depends-on="standby-enabled" data-simple-settings>
               <label class="setting-row-label" for="standby-interval">Standby after</label>
               <div class="setting-row-control"><input type="number" id="standby-interval" min="1" value="15"> <span class="setting-row-unit">min idle</span></div>
             </div>
@@ -1319,11 +1327,11 @@
 
 <div class="setup-subtab-panel hidden" data-subtab-panel="updates">
             <div class="settings-grid">
-              <div class="panel span-full" id="update-settings-panel">
+              <div class="panel span-full" id="update-settings-panel" data-simple-settings>
                 <label class="panel-toggle" style="cursor:default">🔄 SOFTWARE UPDATES <span id="help-version" class="help-version"></span></label>
                 <span class="panel-status">Choose when RerunTV checks and how a downloaded update is installed. Before-launch mode keeps the full app closed until the newest version is ready; network or update errors fall through to a normal launch.</span>
                 <div class="setting-rows">
-            <div class="setting-row" data-setting="update-policy" data-synonyms="upgrade version auto update">
+            <div class="setting-row" data-setting="update-policy" data-synonyms="upgrade version auto update" data-simple-settings>
               <label class="setting-row-label" for="update-mode-select">Update policy</label>
               <div class="setting-row-control"><select id="update-mode-select" class="block-hour-select">
                     <option value="startup-auto">BEFORE APP OPENS — INSTALL AUTOMATICALLY</option>
@@ -1343,7 +1351,7 @@
 <div class="setup-subtab-panel hidden" data-subtab-panel="backups">
         <div class="settings-grid">
 
-        <div class="panel span-full">
+        <div class="panel span-full" data-simple-settings>
           <label class="panel-toggle" style="cursor:default">EXPORT &amp; IMPORT</label>
           <span class="panel-status">Export saves every channel and setting to a JSON file you can keep or move to another machine. Import replaces everything currently loaded with an exported file; importing a channel adds one channel package.</span>
           <div class="backup-restore block-row">
@@ -1354,7 +1362,7 @@
           </div>
         </div>
 
-        <div class="panel span-full">
+        <div class="panel span-full" data-simple-settings>
           <label class="panel-toggle" style="cursor:default">CONFIG BACKUPS</label>
           <span class="panel-status">Automatic snapshots of channels.json — one at the start of each session, plus at most one every 15 minutes while actively editing. Restoring replaces everything currently loaded (a snapshot of the current state is taken first, so a restore is itself undoable).</span>
           <div class="block-row">
@@ -1608,8 +1616,8 @@
 
         <div class="setup-tab-panel hidden" data-tab-panel="help">
           <div class="setup-subtabs">
-            <button class="setup-subtab-btn active" data-subtab="guide">FEATURE GUIDE</button>
-            <button class="setup-subtab-btn" data-subtab="shortcuts">SHORTCUTS</button>
+            <button class="setup-subtab-btn active" data-subtab="guide" data-simple-settings>FEATURE GUIDE</button>
+            <button class="setup-subtab-btn" data-subtab="shortcuts" data-simple-settings>SHORTCUTS</button>
             <button class="setup-subtab-btn" data-subtab="releases">WHAT'S NEW</button>
           </div>
 

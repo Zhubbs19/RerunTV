@@ -432,6 +432,12 @@ const setupTabPanels = document.querySelectorAll('.setup-tab-panel');
 // The page body scrolls inside #setup-content; the sidebar, header and status
 // bar stay put (docs/design/03 §4).
 const setupContentEl = document.getElementById('setup-content');
+const settingsViewButtons = {
+  simple: document.getElementById('setup-view-simple'),
+  advanced: document.getElementById('setup-view-advanced'),
+};
+const SETTINGS_VIEW_KEY = 'reruntv.settingsView';
+let settingsView = 'advanced';
 installSettingDependencies(setupScreen);
 
 // Watch TV in the sidebar is the same action as the status bar's button.
@@ -450,6 +456,50 @@ document.getElementById('setup-watch-btn')?.addEventListener('click', () => docu
 // whichever sub-tab is currently marked active.
 let lastSetupTab = 'channels';
 
+// This is a per-device navigation preference, not part of the shared channel
+// config. The same controls and save handlers are used in both views.
+function setSettingsView(view, persist = true) {
+  const nextView = view === 'simple' ? 'simple' : 'advanced';
+  const changed = settingsView !== nextView;
+  settingsView = nextView;
+  setupScreen.dataset.settingsView = settingsView;
+  Object.entries(settingsViewButtons).forEach(([name, button]) => {
+    button?.setAttribute('aria-pressed', String(name === settingsView));
+  });
+  if (persist) {
+    try { window.localStorage.setItem(SETTINGS_VIEW_KEY, settingsView); } catch (e) { /* storage unavailable */ }
+  }
+  if (changed && persist && S.config?.channels) renderChannelList();
+  const activeTab = Array.from(setupTabBtns).find((button) => button.classList.contains('active'));
+  if (activeTab) updateSetupHeading(activeTab.dataset.tab);
+  if (settingsView !== 'simple') return;
+  if (activeTab && !activeTab.hasAttribute('data-simple-settings')) {
+    document.querySelector('.setup-tab-btn[data-tab="channels"]')?.click();
+    return;
+  }
+  const activePanel = document.querySelector('.setup-tab-panel:not(.hidden)');
+  const activeSubtab = activePanel?.querySelector('.setup-subtab-btn.active');
+  if (activeSubtab && !activeSubtab.hasAttribute('data-simple-settings')) {
+    activePanel.querySelector('.setup-subtab-btn[data-simple-settings]')?.click();
+  }
+}
+
+function isSimpleSearchTarget(target) {
+  const tabPanel = target.closest('.setup-tab-panel');
+  if (!tabPanel) return true;
+  const tabButton = document.querySelector(`.setup-tab-btn[data-tab="${tabPanel.dataset.tabPanel}"]`);
+  if (!tabButton?.hasAttribute('data-simple-settings')) return false;
+  const subPanel = target.closest('.setup-subtab-panel');
+  if (subPanel && !tabPanel.querySelector(`.setup-subtab-btn[data-subtab="${subPanel.dataset.subtabPanel}"]`)?.hasAttribute('data-simple-settings')) return false;
+  if (['display', 'guide', 'audio'].includes(tabPanel.dataset.tabPanel)) {
+    const panel = target.closest('.panel');
+    if (panel && !panel.hasAttribute('data-simple-settings')) return false;
+    const row = target.closest('.setting-row');
+    if (row && panel && !row.hasAttribute('data-simple-settings')) return false;
+  }
+  return true;
+}
+
 // Sections follow docs/design/03 §3. The data-tab ids are older than the
 // names: display is Picture & sound, audio is System.
 const SETUP_SECTION_COPY = {
@@ -462,6 +512,13 @@ const SETUP_SECTION_COPY = {
   audio: ['SYSTEM', 'Power, updates, backups, air checks, and diagnostics.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP', 'How the box works, keyboard shortcuts, and what’s new.'],
+};
+const SIMPLE_SECTION_DESCRIPTIONS = {
+  channels: 'Add a channel, choose its media, and start watching.',
+  display: 'Adjust the picture, screen, speakers, and volume.',
+  guide: 'Choose the guide theme, era, clock, and hint bar.',
+  audio: 'Set startup and power behavior, updates, and backups.',
+  help: 'Get started and find keyboard shortcuts.',
 };
 
 // System › Diagnostics refreshes every second while it is on screen, and only then.
@@ -482,7 +539,7 @@ function updateSetupHeading(tab) {
   const titleEl = document.getElementById('setup-page-title');
   const descriptionEl = document.getElementById('setup-page-description');
   if (titleEl) titleEl.textContent = title;
-  if (descriptionEl) descriptionEl.textContent = description;
+  if (descriptionEl) descriptionEl.textContent = settingsView === 'simple' ? (SIMPLE_SECTION_DESCRIPTIONS[tab] || description) : description;
 }
 
 function closeSettingsSearch() {
@@ -523,6 +580,7 @@ function updateBreadcrumb() {
 
 setupTabBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
+    if (settingsView === 'simple' && !btn.hasAttribute('data-simple-settings')) setSettingsView('advanced');
     closeSettingsSearch();
     const tab = btn.dataset.tab;
     lastSetupTab = tab;
@@ -570,6 +628,7 @@ document.querySelectorAll('.setup-subtabs').forEach((bar) => {
   const btns = Array.from(bar.querySelectorAll('.setup-subtab-btn'));
   btns.forEach((btn) => {
     btn.addEventListener('click', () => {
+      if (settingsView === 'simple' && !btn.hasAttribute('data-simple-settings')) setSettingsView('advanced');
       btns.forEach((b) => b.classList.toggle('active', b === btn));
       parent.querySelectorAll(':scope > .setup-subtab-panel').forEach((p) => {
         p.classList.toggle('hidden', p.dataset.subtabPanel !== btn.dataset.subtab);
@@ -580,6 +639,11 @@ document.querySelectorAll('.setup-subtabs').forEach((bar) => {
     });
   });
 });
+
+settingsViewButtons.simple?.addEventListener('click', () => setSettingsView('simple'));
+settingsViewButtons.advanced?.addEventListener('click', () => setSettingsView('advanced'));
+try { setSettingsView(window.localStorage.getItem(SETTINGS_VIEW_KEY), false); }
+catch (e) { setSettingsView('advanced', false); }
 
 // Re-applies whichever sub-tab is currently marked active in each bar —
 // needed after the global search below temporarily reveals every sub-tab
@@ -1403,6 +1467,7 @@ function navigateToSearchEntry(entry) {
     if (!entry.disabled) entry.run();
     return;
   }
+  if (settingsView === 'simple' && !isSimpleSearchTarget(entry.target)) setSettingsView('advanced');
   const topButton = document.querySelector(`.setup-tab-btn[data-tab="${entry.tab}"]`);
   if (topButton) topButton.click();
   if (entry.subtab) {

@@ -375,6 +375,10 @@ export function renderChannelList() {
         },
         { id: 'advanced', label: 'ADVANCED', build: (c, p) => p.appendChild(advancedOptions) },
       ];
+      const simpleChannelView = document.getElementById('setup-screen')?.dataset.settingsView === 'simple';
+      const availableEditTabs = simpleChannelView
+        ? editTabs.filter((tab) => tab.id === 'overview' || tab.id === 'content')
+        : editTabs;
 
       const editPanel = document.createElement('div');
       editPanel.className = 'titles-panel edit-panel hidden';
@@ -397,7 +401,7 @@ export function renderChannelList() {
       // connected screen (paired LAN viewer, Android TV client) instead of
       // this device's own setup-preview banner above.
       const previewOnBtn = document.createElement('button');
-      previewOnBtn.className = 'btn';
+      previewOnBtn.className = 'btn setup-advanced-channel-action';
       previewOnBtn.textContent = 'PREVIEW ON…';
       previewOnBtn.title = 'Tune a connected TV or LAN viewer to this channel';
       previewOnBtn.disabled = ch.files.length === 0;
@@ -408,7 +412,7 @@ export function renderChannelList() {
       // presets, and pool entries. IMPORT CHANNEL merges this package into
       // another box without replacing unrelated settings.
       const editHeaderExportBtn = document.createElement('button');
-      editHeaderExportBtn.className = 'btn';
+      editHeaderExportBtn.className = 'btn setup-advanced-channel-action';
       editHeaderExportBtn.textContent = 'EXPORT CHANNEL…';
       editHeaderExportBtn.title = 'Save just this channel\'s settings to its own JSON file';
       editHeaderExportBtn.addEventListener('click', async () => {
@@ -426,7 +430,7 @@ export function renderChannelList() {
       editHeaderRow.appendChild(editHeaderExportBtn);
 
       const saveTemplateBtn = document.createElement('button');
-      saveTemplateBtn.className = 'btn';
+      saveTemplateBtn.className = 'btn setup-advanced-channel-action';
       saveTemplateBtn.textContent = 'SAVE AS TEMPLATE…';
       saveTemplateBtn.title = 'Export this channel structure without media paths';
       saveTemplateBtn.disabled = !(ch.blocks || []).length;
@@ -499,10 +503,10 @@ export function renderChannelList() {
       enableDynamicBarKeyboard(editTabBar, '.edit-tab-btn');
 
       let activeEditTab = channelPageFor(openChannelEditTabs.get(ch.number));
-      if (!editTabs.some((t) => t.id === activeEditTab)) activeEditTab = editTabs[0].id;
+      if (!availableEditTabs.some((t) => t.id === activeEditTab)) activeEditTab = availableEditTabs[0].id;
       function renderEditTabBar() {
         editTabBar.innerHTML = '';
-        editTabs.forEach((t) => {
+        availableEditTabs.forEach((t) => {
           const tabBtn = document.createElement('button');
           const tabActive = t.id === activeEditTab;
           tabBtn.className = 'btn edit-tab-btn' + (tabActive ? ' active' : '') + (t.soon ? ' edit-tab-soon' : '');
@@ -524,7 +528,7 @@ export function renderChannelList() {
         });
       }
       function renderEditTabContent() {
-        const t = editTabs.find((t) => t.id === activeEditTab) || editTabs[0];
+        const t = availableEditTabs.find((t) => t.id === activeEditTab) || availableEditTabs[0];
         editTabContent.setAttribute('aria-labelledby', `channel-${ch.number}-edit-tab-${t.id}`);
         editTabContent.innerHTML = '';
         t.build(ch, editTabContent);
