@@ -72,7 +72,7 @@ export function renderEraPanel() {
         notesEl.appendChild(p);
       });
     } else {
-      notesEl.textContent = 'No era selected — every presentation setting below follows its own box-wide value.';
+      notesEl.textContent = 'No era selected — picture and guide settings can be adjusted individually.';
     }
   }
 
