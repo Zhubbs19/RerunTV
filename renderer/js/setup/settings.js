@@ -469,6 +469,7 @@ function setSettingsView(view, persist = true) {
   if (persist) {
     try { window.localStorage.setItem(SETTINGS_VIEW_KEY, settingsView); } catch (e) { /* storage unavailable */ }
   }
+  if (changed && persist && setupContentEl) setupContentEl.scrollTop = 0;
   if (changed && persist && S.config?.channels) renderChannelList();
   const activeTab = Array.from(setupTabBtns).find((button) => button.classList.contains('active'));
   if (activeTab) updateSetupHeading(activeTab.dataset.tab);

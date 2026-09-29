@@ -4805,6 +4805,74 @@ html[data-theme] .btn[aria-disabled="true"] {
 @media (max-width: 760px) {
   #setup-screen[data-settings-view="simple"] #era-picker { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Advanced Guide keeps the dense controls readable without leaving an empty
+   three-column strip beside them. */
+#setup-screen[data-settings-view="advanced"] .setup-tab-panel[data-tab-panel="guide"] > .settings-grid {
+  width: 100%;
+  max-width: 1380px;
+  margin-inline: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#setup-screen[data-settings-view="advanced"] #guide-settings-panel { grid-column: 1 / -1; }
+#setup-screen[data-settings-view="advanced"] #guide-settings-panel .panel-body.setting-rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 24px;
+}
+#setup-screen[data-settings-view="advanced"] #guide-settings-panel .setting-row-wide { grid-column: 1 / -1; }
+#setup-screen[data-settings-view="advanced"] #clock-hint-settings-panel { grid-column: 1; }
+#setup-screen[data-settings-view="advanced"] #no-signal-settings-panel { grid-column: 2; grid-row: 3; }
+#setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px 24px;
+}
+#setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body > .setting-row-help {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  margin: 0;
+}
+#setup-screen[data-settings-view="advanced"] #era-picker {
+  display: grid;
+  grid-column: 1;
+  grid-row: 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: none;
+  overflow: visible;
+}
+#setup-screen[data-settings-view="advanced"] #era-picker .btn { min-width: 0; white-space: normal; text-align: center; }
+#setup-screen[data-settings-view="advanced"] #era-notes { grid-column: 1; grid-row: 3; color: var(--text-muted); font-size: 12px; line-height: 1.45; }
+#setup-screen[data-settings-view="advanced"] #era-fields-list {
+  grid-column: 2;
+  grid-row: 2 / span 2;
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+}
+#setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body:has(#era-fields-list:empty) { grid-template-columns: minmax(0, 1fr); }
+#setup-screen[data-settings-view="advanced"] #era-fields-list:empty { display: none; }
+@media (min-width: 1101px) {
+  #setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body:has(#era-fields-list:empty) #era-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1100px) {
+  #setup-screen[data-settings-view="advanced"] .setup-tab-panel[data-tab-panel="guide"] > .settings-grid,
+  #setup-screen[data-settings-view="advanced"] #guide-settings-panel .panel-body.setting-rows,
+  #setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #setup-screen[data-settings-view="advanced"] :is(#clock-hint-settings-panel, #no-signal-settings-panel, #era-picker, #era-notes, #era-fields-list) {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+@media (max-width: 760px) {
+  #setup-screen[data-settings-view="advanced"] #era-picker { grid-template-columns: minmax(0, 1fr); }
+}
 #setup-screen .setup-main {
   grid-area: main;
   display: flex;
