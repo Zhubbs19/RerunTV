@@ -4826,6 +4826,9 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* The last row soaks up whatever height the taller fields list needs, so the
+     picker and its note stay together instead of splitting apart. */
+  grid-template-rows: auto auto 1fr;
   align-items: start;
   gap: 12px 24px;
 }
@@ -5107,6 +5110,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   flex-wrap: wrap;
 }
 #setup-screen .setting-row-control select { max-width: min(320px, 100%); }
+#setup-screen [data-setting="household-session"] .setting-row-control .btn { white-space: nowrap; }
 #setup-screen .setting-row-control input[type="range"] { width: 150px; accent-color: var(--accent); }
 #setup-screen .setting-row-control input[type="number"] { width: 72px; }
 #setup-screen .setting-row-control input[type="text"] { width: 190px; }
