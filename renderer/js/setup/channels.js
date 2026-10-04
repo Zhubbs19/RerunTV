@@ -4,6 +4,9 @@
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { applyConfigDefaults, showTvScreen } from '../app.js';
 import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } from '../library/channel-package.js';
+import { applySettingsBundle, buildSettingsBundle, readSettingsBundle } from '../library/settings-bundle.js';
+import { applyAspectMode, applyCrtState, applyHintBarState, applyPictureMode, applyVolume } from '../playback/power.js';
+import { applyTheme } from '../display/themes.js';
 import { compileTemplate, describeChannel, listTemplates, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
@@ -17,7 +20,7 @@ import {
   addChannelBtn, bulkActionsBar, bulkFavoriteOffBtn, bulkFavoriteOnBtn, bulkRatingApplyBtn,
   bulkRatingSelect, bulkRemoveBtn, bulkSelectAllBtn, bulkSelectedCountEl, bulkShuffleOffBtn,
   bulkShuffleOnBtn, bulkVolumeApplyBtn, bulkVolumeInheritBtn, bulkVolumeSlider,
-  channelFilterEl, channelImportBtn, channelListEl, channelListPaneEl, configExportBtn, configImportBtn, doneBtn,
+  channelFilterEl, channelImportBtn, channelListEl, channelListPaneEl, configExportBtn, configImportBtn, doneBtn, settingsExportBtn, settingsImportBtn,
   previewBannerEl, previewModalBlockEl, previewModalCancelBtn, previewModalChannelLabelEl, previewModalDatetimeEl,
   previewModalEl, previewModalGoBtn, previewModalNowBtn, previewModalQuickEl, rescanAllBtn, scanProgressEl,
   subChannelsEnabledEl,
@@ -2373,6 +2376,48 @@ channelImportBtn.addEventListener('click', async () => {
     `Imported CH ${targetNumber} with ${result.added.flows} flow(s), ${result.added.presets} preset(s), and ${result.added.pool} bumper/pool entr${result.added.pool === 1 ? 'y' : 'ies'}.`,
     { title: result.replaced ? 'CHANNEL REPLACED' : 'CHANNEL IMPORTED' },
   );
+});
+
+settingsExportBtn.addEventListener('click', async () => {
+  try {
+    const filePath = await window.api.exportConfig(buildSettingsBundle(S.config), 'reruntv-settings.json');
+    if (!filePath) return;
+    scanProgressEl.classList.remove('hidden');
+    scanProgressEl.textContent = `SETTINGS EXPORTED TO ${filePath}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 3000);
+  } catch (e) {
+    alertDialog(`Export failed: ${e.message}`, { variant: 'error' });
+  }
+});
+
+settingsImportBtn.addEventListener('click', async () => {
+  let imported;
+  try { imported = await window.api.importConfig(); }
+  catch (e) { alertDialog(`Import failed: ${e.message}`, { variant: 'error' }); return; }
+  if (!imported) return;
+  const settings = readSettingsBundle(imported);
+  if (!settings) {
+    await alertDialog("That file isn't a settings-only export. Use EXPORT SETTINGS ONLY to make one; full configs still use IMPORT CONFIG.", { title: 'NOT A SETTINGS FILE', variant: 'error' });
+    return;
+  }
+  const names = Object.keys(settings).length;
+  if (!(await confirmDialog({
+    title: 'IMPORT SETTINGS?',
+    message: `This replaces ${names} settings group${names === 1 ? '' : 's'} (look, volume, controls, plug-in options). Channels, the ad pool and watching history are not touched. Undo (Ctrl+Z) reverts it.`,
+    confirmText: 'IMPORT SETTINGS',
+  }))) return;
+  applySettingsBundle(S.config, settings);
+  commitConfigPatch('Import settings');
+  // Bring the live picture, sound and theme in line with what was imported.
+  applyTheme();
+  applyAspectMode();
+  applyPictureMode();
+  applyCrtState();
+  applyHintBarState();
+  applyVolume();
+  renderCommercialsPanel();
+  renderStandbyPanel();
+  renderSettingsPanels();
 });
 
 configImportBtn.addEventListener('click', async () => {

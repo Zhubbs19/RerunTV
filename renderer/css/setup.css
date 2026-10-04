@@ -5109,6 +5109,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .setting-row-control select { max-width: min(320px, 100%); }
 #setup-screen .setting-row-control input[type="range"] { width: 150px; accent-color: var(--accent); }
 #setup-screen .setting-row-control input[type="number"] { width: 72px; }
+#setup-screen .setting-row-control input[type="text"] { width: 190px; }
 #setup-screen .setting-row-control input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
 #setup-screen .setting-row-control .title-row-input { width: min(260px, 100%); }
 #setup-screen .setting-row-value,
@@ -5162,6 +5163,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 #setup-screen .setting-row-control input[type="range"] { flex: 0 1 130px; min-width: 70px; }
 #setup-screen .setting-row-control input[type="number"],
 #setup-screen .setting-row-control input[type="password"],
+#setup-screen .setting-row-control input[type="text"],
 #setup-screen .setting-row-control select {
   height: 30px;
   box-sizing: border-box;
@@ -5793,3 +5795,8 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 /* SEND TO RERUNTV. */
 .splicer-send-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .splicer-send-what { min-width: 220px; color: var(--text); font-size: var(--font-size-label); font-weight: 600; }
+
+/* "Reset this panel" row at the foot of panels that own a set of settings. */
+#setup-screen .panel-reset-row { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px dashed var(--border); }
+#setup-screen .panel-reset-btn { font-size: 11px; opacity: 0.85; }
+#setup-screen .panel-reset-btn:disabled { opacity: 0.4; cursor: default; }

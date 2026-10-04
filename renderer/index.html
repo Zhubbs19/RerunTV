@@ -774,7 +774,7 @@
           </div>
         </div>
 
-        <div class="panel" data-simple-settings>
+        <div class="panel" data-simple-settings data-reset-keys='[["display","autoFillWidescreen"],["display","autoFillMaxCropPct"],["display","removeBakedBars"],["display","bezelInsetScale"]]'>
           <div class="panel-toggle">PICTURE MODE &amp; ASPECT</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="picture-mode" data-simple-settings>
@@ -986,7 +986,7 @@
         </div>
 <div class="setup-subtab-panel" data-subtab-panel="guidegrid">
         <div class="settings-grid">
-<div class="panel" id="guide-settings-panel" data-simple-settings>
+<div class="panel" id="guide-settings-panel" data-simple-settings data-reset-keys='[["display","guideSlots"],["display","guideSlotMinutes"],["display","guideChannelNames"],["display","guideMergeShorts"],["display","guideSpecialsAtTop"],["display","guideLivePreview"],["display","guideCardDuration"],["reminderLeadMinutes"]]'>
           <div class="panel-toggle">GUIDE</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="guide-slots" data-synonyms="guide slots columns hours" data-simple-settings>
@@ -1042,7 +1042,7 @@
             </div>
           </div>
         </div>
-        <div class="panel span-full">
+        <div class="panel span-full" data-reset-keys='[["reminderAutoTune"],["reminderNotify"]]'>
           <div class="panel-toggle">PROGRAM REMINDERS</div>
           <span class="panel-status">Reminders set from the guide's program search (open the guide with G, then press / and search). Each one fires once and clears itself a few minutes after its program ends. REMINDER LEAD TIME above controls how early.</span>
           <div class="panel-body">
@@ -1136,7 +1136,7 @@
 </div>
 <div class="setup-subtab-panel hidden" data-subtab-panel="guideonscreen">
         <div class="settings-grid">
-<div class="panel" id="clock-hint-settings-panel" data-simple-settings>
+<div class="panel" id="clock-hint-settings-panel" data-simple-settings data-reset-keys='[["display","clock24"],["display","hintBar"],["display","hintBarCompact"],["display","hintBarSlide"],["display","hintBarShowDuration"],["display","hintBarHideDuration"]]'>
           <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="clock24" data-synonyms="time format military" data-simple-settings>
@@ -1171,7 +1171,7 @@
 
         
 
-        <div class="panel" id="no-signal-settings-panel">
+        <div class="panel" id="no-signal-settings-panel" data-reset-keys='[["display","noSignalTitle"],["display","noSignalMessage"]]'>
           <div class="panel-toggle">NO SIGNAL SCREEN</div>
           <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
           <div class="panel-body no-signal-copy-settings">
@@ -1194,7 +1194,7 @@
           <div id="hintbar-items-list" class="hintbar-items-list"></div>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-reset-keys='[["display","logoBugFollowPicture"],["display","logoBugReferenceHeight"],["display","logoBugVaryWithContent"],["display","logoBugHideOnBreaks"],["display","logoBugHideNumber"],["display","logoBugMotion"]]'>
           <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
           <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
           <div class="setting-rows">
@@ -1206,13 +1206,18 @@
             <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
               <label class="setting-row-label" for="logo-bug-ref-height">Bug and overlay sizes were set on</label>
               <div class="setting-row-control"><select id="logo-bug-ref-height">
-                <option value="auto">AUTOMATIC (DETECT THE DISPLAY)</option>
+                <option value="auto">AUTOMATIC</option>
                 <option value="1080">A 1080p SCREEN</option>
                 <option value="1440">A 1440p SCREEN</option>
                 <option value="2160">A 4K SCREEN</option>
                 <option value="0">DON’T SCALE (FIXED PIXELS)</option>
               </select></div>
               <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. Automatic scales them from the display this box was first opened on, and re-fits them whenever the window moves to a different display. Bug sizes you set in the editor remember their own screen.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-default-size" data-synonyms="logo bug channel bug size small big default all channels">
+              <label class="setting-row-label" for="logo-bug-default-size">Default bug size</label>
+              <div class="setting-row-control"><input type="range" id="logo-bug-default-size" min="28" max="240" step="2" value="46"> <span class="setting-row-unit" id="logo-bug-default-size-value"></span></div>
+              <p class="setting-row-help">The bug size for every channel that hasn't set its own in the live editor. Shown at the size sizes were set for, and scaled to your screen.</p>
             </div>
             <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
               <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>
@@ -1392,7 +1397,7 @@
 
         
 
-        <div class="panel">
+        <div class="panel" data-reset-keys='[["controls"]]'>
           <div class="panel-toggle">TUNING &amp; CONTROLS</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="startup-channel" data-synonyms="boot power on first channel resume">
@@ -1488,6 +1493,8 @@
             <button id="config-export-btn" class="btn">EXPORT CONFIG…</button>
             <button id="channel-import-btn" class="btn">IMPORT CHANNEL…</button>
             <button id="config-import-btn" class="btn">IMPORT CONFIG…</button>
+            <button id="settings-export-btn" class="btn" title="Look, controls and options only — no channels">EXPORT SETTINGS ONLY…</button>
+            <button id="settings-import-btn" class="btn" title="Apply a settings-only file; channels are left alone">IMPORT SETTINGS ONLY…</button>
             <button id="config-restore-auto-btn" class="btn">🔄 RESTORE CHANNELS FROM DISK</button>
           </div>
         </div>

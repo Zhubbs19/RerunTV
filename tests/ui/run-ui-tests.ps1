@@ -175,7 +175,7 @@ if ($UserDataSource) {
     $stderr = Join-Path $PSScriptRoot 'electron-stderr.log'
     # Screenshot capture stalls when Chromium's top-level window is hidden.
     # Keep the automated rendering surface visible for the duration of the run.
-    $electronProc = Start-Process -FilePath $electronCmd -ArgumentList @('.', "--remote-debugging-port=$port") `
+    $electronProc = Start-Process -FilePath $electronCmd -ArgumentList @('.', "--remote-debugging-port=$port", '--allow-multiple-instances') `
         -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru -WindowStyle Normal
 
     Write-Host "Waiting for the CDP endpoint to come up..." -ForegroundColor Cyan

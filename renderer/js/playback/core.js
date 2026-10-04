@@ -330,7 +330,13 @@ export async function playChannelLive(ch, opts) {
     // explicitly rather than leaving it to fail inside transcodeVideo — no
     // local file for the transcode rename-swap dance to operate on.
     if (resolved.transcodable === false) {
-      showNoSignal('PLAYBACK ERROR', `CH ${ch.number} — ${base.toUpperCase()}: FILE FROM A PLUGIN MEDIA SOURCE CAN'T BE AUTO-FIXED`, 'error');
+      // Name the source and the usual cause rather than showing its opaque
+      // file reference: a media-source plug-in that isn't approved, isn't
+      // signed in, or can't reach its server fails exactly like this.
+      const provider = /^mediasource:([^:]+):/i.exec(String(base))?.[1];
+      showNoSignal('PLAYBACK ERROR', provider
+        ? `CH ${ch.number} — CAN'T REACH THE "${provider.toUpperCase()}" MEDIA SOURCE. CHECK ITS PLUG-IN IS APPROVED AND SIGNED IN (SETUP › PLUG-INS).`
+        : `CH ${ch.number} — ${base.toUpperCase()}: FILE FROM A PLUGIN MEDIA SOURCE CAN'T BE AUTO-FIXED`, 'error');
       return;
     }
 

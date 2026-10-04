@@ -6,7 +6,11 @@ const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, No
 // the other's edits, and both would also try to bind the same remote/
 // plugin-owned HTTP ports. Refusing a second launch (and focusing the
 // existing window instead) avoids both.
-const gotSingleInstanceLock = app.requestSingleInstanceLock();
+//
+// --allow-multiple-instances skips the lock for development and the UI test
+// harness, which run against a throwaway copy of userData and so can run
+// beside a real, open RerunTV. Never used by the installed app's shortcuts.
+const gotSingleInstanceLock = process.argv.includes('--allow-multiple-instances') || app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   // Nothing expensive has run yet (no window, no config load, no server
   // ports bound) — exit immediately rather than letting the rest of this

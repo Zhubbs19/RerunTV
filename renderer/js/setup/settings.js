@@ -67,7 +67,7 @@ import {
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
-  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugRefHeightEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
+  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugRefHeightEl, logoBugDefaultSizeEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
   reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
   airChecksListEl, airChecksClearAllBtn,
@@ -407,6 +407,10 @@ export function renderSettingsPanels() {
     const dpr = window.devicePixelRatio || 1;
     refHelp.textContent = `${refHelp.dataset.base} This display: ${Math.round(window.screen.width * dpr)}×${Math.round(window.screen.height * dpr)}; sizes set for ${S.config.display.logoBugAuthoredHeight || 1080}p.`;
   }
+  const defaultProfile = (S.config.display.logoBugProfiles || []).find((p) => !p.aspect && !p.resolution);
+  logoBugDefaultSizeEl.value = String((defaultProfile && defaultProfile.size) || 46);
+  const sizeReadout = document.getElementById('logo-bug-default-size-value');
+  if (sizeReadout) sizeReadout.textContent = `${logoBugDefaultSizeEl.value} PX`;
   logoBugVaryEl.checked = !!S.config.display.logoBugVaryWithContent;
   logoBugHideBreaksEl.checked = !!S.config.display.logoBugHideOnBreaks;
   logoBugHideNumberEl.checked = !!S.config.display.logoBugHideNumber;
@@ -2673,9 +2677,77 @@ aspectAutofillMaxEl.addEventListener('change', () => {
 });
 logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); reframePicture(); });
 logoBugRefHeightEl.addEventListener('change', () => { setDisplay('logoBugReferenceHeight', logoBugRefHeightEl.value === 'auto' ? undefined : Number(logoBugRefHeightEl.value)); reframePicture(); });
+logoBugDefaultSizeEl.addEventListener('input', () => {
+  const size = parseInt(logoBugDefaultSizeEl.value, 10);
+  const readout = document.getElementById('logo-bug-default-size-value');
+  if (readout) readout.textContent = `${size} PX`;
+  const profiles = (S.config.display.logoBugProfiles || []).map((p) => ({ ...p }));
+  let target = profiles.find((p) => !p.aspect && !p.resolution);
+  if (!target) { target = { id: 'default', aspect: null, resolution: null, x: 94, y: 90, size }; profiles.push(target); }
+  target.size = size;
+  delete target.width;
+  delete target.height;
+  dispatch({ type: 'settings.set', path: ['display', 'logoBugProfiles'], value: profiles }, { coalesce: 'display:logoBugDefaultSize' });
+  reframePicture();
+});
 logoBugVaryEl.addEventListener('change', () => { setDisplay('logoBugVaryWithContent', logoBugVaryEl.checked); reframePicture(); });
 logoBugHideBreaksEl.addEventListener('change', () => setDisplay('logoBugHideOnBreaks', logoBugHideBreaksEl.checked));
 logoBugHideNumberEl.addEventListener('change', () => { setDisplay('logoBugHideNumber', logoBugHideNumberEl.checked); reframePicture(); });
+
+// ---------- Reset a panel to its defaults ----------
+// A panel marked data-reset-keys='[["display","clock24"],…]' gets a RESET
+// button listing the settings it owns. Resetting removes those keys, so every
+// reader falls back to its own default, as one undoable step (UNDO below).
+function resetPanelKeys(panel) {
+  let paths = [];
+  try { paths = JSON.parse(panel.dataset.resetKeys || '[]'); } catch (e) { paths = []; }
+  const present = paths.filter((path) => {
+    let node = S.config;
+    for (const key of path) {
+      if (node == null || typeof node !== 'object' || !Object.prototype.hasOwnProperty.call(node, key)) return false;
+      node = node[key];
+    }
+    return true;
+  });
+  return present;
+}
+
+document.querySelectorAll('.panel[data-reset-keys]').forEach((panel) => {
+  const row = document.createElement('div');
+  row.className = 'panel-body panel-reset-row';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'btn panel-reset-btn';
+  button.textContent = 'RESET THIS PANEL TO DEFAULTS';
+  row.appendChild(button);
+  panel.appendChild(row);
+  const refreshState = () => {
+    const count = resetPanelKeys(panel).length;
+    button.disabled = count === 0;
+    button.title = count ? `Puts ${count} changed setting${count === 1 ? '' : 's'} back to default (undoable)` : 'Already at the defaults';
+  };
+  button.addEventListener('click', () => {
+    const present = resetPanelKeys(panel);
+    if (!present.length) return;
+    const title = (panel.querySelector('.panel-toggle')?.textContent || 'panel').trim().toLowerCase();
+    dispatch(present.map((path) => ({ type: 'settings.set', path, value: undefined })), { label: `Reset ${title}` });
+    applyAspectMode();
+    applyPictureMode();
+    applyCrtState();
+    applyHintBarState();
+    applyVolume();
+    renderSettingsPanels();
+    reframePicture();
+    button.textContent = 'RESET ✓ (UNDO BELOW)';
+    setTimeout(() => { button.textContent = 'RESET THIS PANEL TO DEFAULTS'; refreshState(); }, 2500);
+  });
+  // The state follows config changes from anywhere (edits, undo, search).
+  refreshState();
+  panel.addEventListener('mouseenter', refreshState);
+  panel.addEventListener('change', () => setTimeout(refreshState, 200));
+  panel.addEventListener('input', () => setTimeout(refreshState, 300));
+  window.addEventListener('reruntv:config-replaced', refreshState);
+});
 
 // ---------- Tuning & controls (System) ----------
 const controlsCfg = () => S.config.controls || {};
