@@ -261,7 +261,17 @@ function plural(n, word) {
 // Songs with no album tag are gathered into one "singles" item per artist, so
 // nothing in the library is out of reach of the cabinet. The query filters on
 // artist, album and song title, or by year (1997, 90s, 1995-1999).
-export function buildCabinet(index, query) {
+export const CABINET_VIEWS = [
+  { id: 'all', label: 'ALL' },
+  { id: 'albums', label: 'ALBUMS' },
+  { id: 'singles', label: 'SINGLES' },
+  { id: 'artists', label: 'BY ARTIST' },
+];
+
+// view: 'all' (albums, with each artist's loose songs as one "singles" item),
+// 'albums' (albums only), 'singles' (every song with no album tag, one item
+// each) or 'artists' (one item per artist holding all of their songs).
+export function buildCabinet(index, query, view) {
   const words = normalizeForSearch(query).split(' ').filter(Boolean);
   const years = parseYearQuery(query);
   const hits = index.filter((e) => {
@@ -273,15 +283,31 @@ export function buildCabinet(index, query) {
   hits.slice().sort(byArtistAlbumPath).forEach((e) => {
     const artist = e.meta.albumArtist || e.meta.artist || 'UNKNOWN ARTIST';
     const album = e.meta.album || '';
-    const key = `${normalizeForSearch(artist)}\u0000${normalizeForSearch(album)}`;
-    if (!groups.has(key)) groups.set(key, { key, artist, album, year: null, tracks: [] });
+    if (view === 'albums' && !album) return;
+    if (view === 'singles' && album) return;
+    let key = `${normalizeForSearch(artist)}\u0000${normalizeForSearch(album)}`;
+    if (view === 'artists') key = normalizeForSearch(artist);
+    if (view === 'singles') key = `${key}\u0000${e.track.path}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        artist,
+        album: view === 'artists' || view === 'singles' ? '' : album,
+        title: view === 'singles' ? e.meta.title : '',
+        kind: view === 'artists' ? 'artist' : view === 'singles' ? 'single' : (album ? 'album' : 'singles'),
+        albums: new Set(),
+        year: null,
+        tracks: [],
+      });
+    }
     const g = groups.get(key);
     g.tracks.push(e.track);
+    if (album) g.albums.add(album);
     if (!g.year && e.meta.year) g.year = String(e.meta.year);
   });
   const items = [...groups.values()].map((g) => {
     const first = (g.artist.match(/[A-Z0-9]/i) || ['#'])[0].toUpperCase();
-    return { ...g, letter: /[0-9]/.test(first) ? '#' : first };
+    return { ...g, albumCount: g.albums.size, albums: undefined, letter: /[0-9]/.test(first) ? '#' : first };
   });
   items.sort((a, b) => normalizeForSearch(a.artist).localeCompare(normalizeForSearch(b.artist))
     || (Number(a.year) || 9999) - (Number(b.year) || 9999)
@@ -905,6 +931,7 @@ function tickOnDemand(ctx, era) {
   const track = od.queue[od.index];
   const p = ctx.player;
   const durationSec = Number.isFinite(p.duration) && p.duration > 0 ? p.duration : (track.durationSec || 0);
+  if ((p.currentTime || 0) > 1) od.errors = 0;
   els.nowPlayingEl.classList.remove('hidden');
   els.probeHintEl.classList.add('hidden');
   updateNowPlayingUi({
@@ -946,7 +973,9 @@ function startOnDemand(ctx, queue, label, opts) {
     }
     label = `${label} · SHUFFLED`;
   }
-  od = { queue, index: 0, label, paused: false };
+  // scoped: this queue is what was picked (an album, an artist, search
+  // results), so when it runs out it follows SELECTION END, not the live rotation.
+  od = { queue, index: 0, label, paused: false, scoped: true };
   loadOnDemandTrack(ctx, 0);
   flash('▶ ON DEMAND');
   tick(ctx);
@@ -1089,10 +1118,22 @@ function skipTrack(ctx, dir, auto) {
     tick(ctx);
     return true;
   }
-  const next = od.index + dir;
+  let next = od.index + dir;
   if (next >= od.queue.length) {
-    leaveOnDemand(ctx, 'BACK TO LIVE');
-    return true;
+    const end = od.scoped ? (getSettings().selectionEnd || 'repeat') : 'live';
+    if (end === 'repeat') {
+      next = 0;
+      flash('↻ FROM THE TOP');
+    } else if (end === 'stop') {
+      od.paused = true;
+      ctx.player.pause();
+      flash('■ END OF SELECTION');
+      tick(ctx);
+      return true;
+    } else {
+      leaveOnDemand(ctx, 'BACK TO LIVE');
+      return true;
+    }
   }
   od.index = next;
   if (auto) od.paused = false;
@@ -1294,6 +1335,24 @@ function cabinetStyle() {
   return getSettings().cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
 }
 
+function cabinetView() {
+  const v = getSettings().cabinetView;
+  return CABINET_VIEWS.some((x) => x.id === v) ? v : 'all';
+}
+
+// What to call an item: an album's title, a song's title, or the artist's
+// own name with how much of theirs is on the channel.
+function cabinetItemTitle(item) {
+  if (item.kind === 'artist') return item.artist;
+  if (item.kind === 'single') return item.title || 'UNTITLED';
+  return item.album || 'SINGLES & OTHER SONGS';
+}
+function cabinetItemSub(item) {
+  if (item.kind === 'artist') return [item.albumCount ? plural(item.albumCount, 'ALBUM') : null, plural(item.tracks.length, 'SONG')].filter(Boolean).join(' · ');
+  if (item.kind === 'single') return [item.artist, item.year].filter(Boolean).join(' · ');
+  return [item.artist, item.year, plural(item.tracks.length, 'SONG')].filter(Boolean).join(' · ');
+}
+
 function cabinetHint() {
   if (!cab) return '';
   if (cab.focus === 'case') return '▲▼ SELECT · OK PLAY · ◀▶ OTHER ALBUM · ESC BACK TO THE SHELF';
@@ -1306,15 +1365,17 @@ function cabinetHint() {
 function renderCabinet(ctx) {
   if (!libraryIndex) libraryIndex = buildLibraryIndex(getSettings().stations || []);
   const style = cabinetStyle();
-  const sig = `${browserQuery}|${style}|${libraryIndex.length}`;
+  const view = cabinetView();
+  const sig = `${browserQuery}|${style}|${view}|${libraryIndex.length}`;
   if (!cab || cab.sig !== sig) {
-    const items = buildCabinet(libraryIndex, browserQuery).slice(0, MAX_CABINET_ITEMS);
+    const items = buildCabinet(libraryIndex, browserQuery, view).slice(0, MAX_CABINET_ITEMS);
     cab = { items, sig, cursor: 0, focus: (cab && cab.focus) || 'shelf', caseRow: 0, els: [] };
     buildCabinetShelves(ctx, style);
   }
   els.cabinetEl.dataset.style = style;
   els.cabStyleBtn.textContent = style === 'cd' ? '◉ CD RACK' : '◉ RECORD CRATE';
-  els.browserCountEl.textContent = plural(cab.items.length, 'ALBUM');
+  els.cabViewBtn.textContent = `▤ ${(CABINET_VIEWS.find((v) => v.id === view) || {}).label}`;
+  els.browserCountEl.textContent = plural(cab.items.length, view === 'artists' ? 'ARTIST' : view === 'singles' ? 'SINGLE' : 'ITEM');
   els.cabEmptyEl.classList.toggle('hidden', cab.items.length > 0);
   els.cabEmptyEl.textContent = emptyMessage();
   updateCabinetSelection(ctx);
@@ -1340,13 +1401,13 @@ function buildCabinetShelves(ctx, style) {
     const el = document.createElement('div');
     el.className = 'mc-cab-item';
     el.style.setProperty('--h', String(cabinetHue(item)));
-    el.title = `${item.artist}${item.album ? ` — ${item.album}` : ''}`;
+    el.title = `${item.artist}${item.kind === 'artist' ? '' : ` — ${cabinetItemTitle(item)}`}`;
     const text = document.createElement('span');
     text.className = 'mc-cab-item-text';
     const artist = document.createElement('b');
     artist.textContent = item.artist;
     text.appendChild(artist);
-    text.appendChild(document.createTextNode(item.album || 'SINGLES'));
+    text.appendChild(document.createTextNode(item.kind === 'artist' ? cabinetItemSub(item) : (item.kind === 'single' ? item.title : (item.album || 'SINGLES'))));
     el.appendChild(text);
     el.addEventListener('click', () => { cab.cursor = i; cab.focus = 'case'; cab.caseRow = 0; renderBrowser(ctx); });
     host.appendChild(el);
@@ -1374,8 +1435,8 @@ function updateCabinetSelection(ctx) {
   if (!item) return;
   const el = cab.els[cab.cursor];
   if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  els.cabHoldTitleEl.textContent = item.album || 'SINGLES & OTHER SONGS';
-  els.cabHoldSubEl.textContent = [item.artist, item.year, plural(item.tracks.length, 'SONG')].filter(Boolean).join(' · ');
+  els.cabHoldTitleEl.textContent = cabinetItemTitle(item);
+  els.cabHoldSubEl.textContent = item.kind === 'artist' ? cabinetItemSub(item) : cabinetItemSub(item);
   // Looking for cover art touches the disk, so wait until the browsing
   // pauses on an album rather than probing every spine the cursor passes.
   els.cabHoldArtEl.classList.add('hidden');
@@ -1404,15 +1465,15 @@ function renderCase(ctx) {
   const item = cab.items[cab.cursor];
   pull.classList.remove('hidden');
   pull.style.setProperty('--h', String(cabinetHue(item)));
-  els.cabCaseTitleEl.textContent = item.album || 'SINGLES & OTHER SONGS';
-  els.cabCaseSubEl.textContent = [item.artist, item.year].filter(Boolean).join(' · ');
+  els.cabCaseTitleEl.textContent = cabinetItemTitle(item);
+  els.cabCaseSubEl.textContent = item.kind === 'artist' ? cabinetItemSub(item) : [item.artist, item.year].filter(Boolean).join(' · ');
   setCabinetCover(els.cabCaseArtEl, item);
-  els.cabCaseFallbackEl.textContent = item.album || item.artist;
+  els.cabCaseFallbackEl.textContent = item.kind === 'artist' ? item.artist : (item.title || item.album || item.artist);
   const rows = [
-    { label: '▶ PLAY ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, false) },
-    { label: '🔀 SHUFFLE ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, true) },
+    { label: item.kind === 'artist' ? '▶ PLAY ARTIST' : item.kind === 'single' ? '▶ PLAY SONG' : '▶ PLAY ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, false) },
+    ...(item.tracks.length > 1 ? [{ label: item.kind === 'artist' ? '🔀 SHUFFLE ARTIST' : '🔀 SHUFFLE ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, true) }] : []),
     ...item.tracks.map((track, i) => ({
-      label: `${String(i + 1).padStart(2, '0')}  ${trackMetaOf(track).title}`,
+      label: `${String(i + 1).padStart(2, '0')}  ${trackMetaOf(track).title}${item.kind === 'artist' && trackMetaOf(track).album ? `  ·  ${trackMetaOf(track).album}` : ''}`,
       right: track.durationSec ? formatClock(track.durationSec) : '',
       run: () => playFromCabinet(ctx, item.tracks.slice(i), item, false),
     })),
@@ -1439,7 +1500,8 @@ function renderCase(ctx) {
 
 function playFromCabinet(ctx, queue, item, shuffle) {
   closeBrowser();
-  startOnDemand(ctx, queue, `${item.album || item.artist}${item.album ? ` — ${item.artist}` : ''}`.toUpperCase(), { shuffle });
+  const label = item.kind === 'artist' ? item.artist : `${cabinetItemTitle(item)} — ${item.artist}`;
+  startOnDemand(ctx, queue, label.toUpperCase(), { shuffle });
 }
 
 // The item on the next shelf up or down, nearest in position along it.
@@ -1673,7 +1735,10 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           <div class="mc-cabinet hidden" data-el="cabinet" data-style="cd">
             <div class="mc-cab-plate">
               <span class="mc-cab-plate-title">MUSIC LIBRARY</span>
-              <button type="button" class="mc-cab-style" data-el="cab-style"></button>
+              <span class="mc-cab-plate-buttons">
+                <button type="button" class="mc-cab-style" data-el="cab-view"></button>
+                <button type="button" class="mc-cab-style" data-el="cab-style"></button>
+              </span>
             </div>
             <div class="mc-cab-body">
               <div class="mc-cab-shelves" data-el="cab-shelves"></div>
@@ -1722,12 +1787,17 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       browserTabsEl: q('browser-tabs'), browserSearchEl: q('browser-search'), browserInputEl: q('browser-input'),
       browserCountEl: q('browser-count'), browserHintEl: q('browser-hint'),
       cabinetEl: q('cabinet'), cabShelvesEl: q('cab-shelves'), cabIndexEl: q('cab-index'), cabEmptyEl: q('cab-empty'),
-      cabStyleBtn: q('cab-style'), cabHoldingEl: q('cab-holding'), cabHoldArtEl: q('cab-hold-art'),
+      cabStyleBtn: q('cab-style'), cabViewBtn: q('cab-view'), cabHoldingEl: q('cab-holding'), cabHoldArtEl: q('cab-hold-art'),
       cabHoldTitleEl: q('cab-hold-title'), cabHoldSubEl: q('cab-hold-sub'), cabPullEl: q('cab-pull'),
       cabCaseArtEl: q('cab-case-art'), cabCaseFallbackEl: q('cab-case-fallback'), cabCaseTitleEl: q('cab-case-title'),
       cabCaseSubEl: q('cab-case-sub'), cabCaseListEl: q('cab-case-list'),
     };
     cab = null;
+    els.cabViewBtn.addEventListener('click', () => {
+      const i = CABINET_VIEWS.findIndex((v) => v.id === cabinetView());
+      updateSettings({ cabinetView: CABINET_VIEWS[(i + 1) % CABINET_VIEWS.length].id });
+      renderBrowser(ctx);
+    });
     els.cabStyleBtn.addEventListener('click', () => {
       updateSettings({ cabinetStyle: cabinetStyle() === 'cd' ? 'vinyl' : 'cd' });
       renderBrowser(ctx);
@@ -1774,7 +1844,14 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
     // demand: the next song in the queue (and back to live after the last).
     endedHandler = () => (od ? onTrackEnded(ctx) : tick(ctx));
     // An unplayable file on demand is skipped rather than retried forever.
-    errorHandler = () => (od ? skipTrack(ctx, 1, true) : tick(ctx));
+    errorHandler = () => {
+      if (!od) { tick(ctx); return; }
+      // Several unplayable songs in a row (a moved drive) end the session
+      // instead of looping through them forever on repeat.
+      od.errors = (od.errors || 0) + 1;
+      if (od.errors > od.queue.length) { leaveOnDemand(ctx, 'SONGS UNPLAYABLE — BACK TO LIVE'); return; }
+      skipTrack(ctx, 1, true);
+    };
     ctx.player.addEventListener('ended', endedHandler);
     ctx.player.addEventListener('error', errorHandler);
     bindMediaSession(ctx);

@@ -1121,6 +1121,14 @@ export function applyConfigDefaults(config) {
   }
   config.display.logoBugProfiles = normalizeLogoBugProfiles(config.display.logoBugProfiles);
   if (config.display.logoBugAutoAdjust == null) config.display.logoBugAutoAdjust = false;
+  // Automatic bug/overlay sizing (DISPLAY › Logo bug › "sizes were set on")
+  // needs the screen the sizes were made for. The display the box is first
+  // opened on after this was added stands in for it, recorded once; moving
+  // to a 1080p or 4K display later then scales from that. A host-only
+  // record: a LAN viewer reads the host's, it doesn't write its own.
+  if (config.display.logoBugAuthoredHeight == null && !window.__isViewer) {
+    config.display.logoBugAuthoredHeight = Math.round(window.screen && window.screen.height ? window.screen.height : 1080);
+  }
   if (![0, 1, 2.5, 5, 10].includes(Number(config.display.overlaySnapIncrement))) {
     config.display.overlaySnapIncrement = 0;
   }

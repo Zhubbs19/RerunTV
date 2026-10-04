@@ -78,10 +78,11 @@ function ruleMatchesCurrentContent(ch, rule) {
 // screen's height against the "sizes were set on" height (DISPLAY › Logo bug,
 // shared with the logo bug), the same as the bug itself. 0 there means fixed.
 function overlayScale() {
-  const setting = S.config.display && S.config.display.logoBugReferenceHeight;
+  const display = S.config.display || {};
+  const setting = display.logoBugReferenceHeight;
   if (setting === 0) return 1;
   const h = crtContainer.clientHeight;
-  return h > 0 ? Math.min(4, Math.max(0.25, h / (Number(setting) || 1080))) : 1;
+  return h > 0 ? Math.min(4, Math.max(0.25, h / (Number(setting) || Number(display.logoBugAuthoredHeight) || 1080))) : 1;
 }
 
 export function triggerDynamicOverlays(ch, trigger) {

@@ -400,7 +400,13 @@ export function renderSettingsPanels() {
   aspectAutofillEl.checked = !!S.config.display.autoFillWidescreen;
   aspectAutofillMaxEl.value = Number.isFinite(S.config.display.autoFillMaxCropPct) ? S.config.display.autoFillMaxCropPct : 30;
   logoBugFollowPictureEl.checked = S.config.display.logoBugFollowPicture !== false;
-  logoBugRefHeightEl.value = String(S.config.display.logoBugReferenceHeight != null ? S.config.display.logoBugReferenceHeight : 1080);
+  logoBugRefHeightEl.value = S.config.display.logoBugReferenceHeight != null ? String(S.config.display.logoBugReferenceHeight) : 'auto';
+  const refHelp = logoBugRefHeightEl.closest('.setting-row')?.querySelector('.setting-row-help');
+  if (refHelp) {
+    if (!refHelp.dataset.base) refHelp.dataset.base = refHelp.textContent;
+    const dpr = window.devicePixelRatio || 1;
+    refHelp.textContent = `${refHelp.dataset.base} This display: ${Math.round(window.screen.width * dpr)}×${Math.round(window.screen.height * dpr)}; sizes set for ${S.config.display.logoBugAuthoredHeight || 1080}p.`;
+  }
   logoBugVaryEl.checked = !!S.config.display.logoBugVaryWithContent;
   logoBugHideBreaksEl.checked = !!S.config.display.logoBugHideOnBreaks;
   logoBugHideNumberEl.checked = !!S.config.display.logoBugHideNumber;
@@ -2666,7 +2672,7 @@ aspectAutofillMaxEl.addEventListener('change', () => {
   reframePicture();
 });
 logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); reframePicture(); });
-logoBugRefHeightEl.addEventListener('change', () => { setDisplay('logoBugReferenceHeight', Number(logoBugRefHeightEl.value)); reframePicture(); });
+logoBugRefHeightEl.addEventListener('change', () => { setDisplay('logoBugReferenceHeight', logoBugRefHeightEl.value === 'auto' ? undefined : Number(logoBugRefHeightEl.value)); reframePicture(); });
 logoBugVaryEl.addEventListener('change', () => { setDisplay('logoBugVaryWithContent', logoBugVaryEl.checked); reframePicture(); });
 logoBugHideBreaksEl.addEventListener('change', () => setDisplay('logoBugHideOnBreaks', logoBugHideBreaksEl.checked));
 logoBugHideNumberEl.addEventListener('change', () => { setDisplay('logoBugHideNumber', logoBugHideNumberEl.checked); reframePicture(); });

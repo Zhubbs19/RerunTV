@@ -4,7 +4,7 @@
 // row-editing code); channel-list/bulk-action rendering lives in
 // setup-channels.js.
 import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags, parseMediaRef } from '../core/channels.js';
-import { applyLogoBugPlacement } from '../playback/broadcast-fx.js';
+import { applyLogoBugPlacement, updateLogoBug } from '../playback/broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from '../plugin/host.js';
 import { removeFolderFromChannel } from './channels.js';
 import { S, commitInPlace, dispatch, viewNow } from '../core/state.js';
@@ -1271,6 +1271,32 @@ export function buildLogoBugPanel(ch, panelEl) {
     hideOnBreakLabel.appendChild(hideOnBreakCheckbox);
     hideOnBreakLabel.appendChild(document.createTextNode('HIDE LOGO BUG DURING BREAKS'));
     panelEl.appendChild(hideOnBreakLabel);
+
+    // The channel number chip under a logo: this channel can show it or hide
+    // it whatever the box-wide setting says (DISPLAY › Logo bug), or inherit.
+    const numberRow = document.createElement('div');
+    numberRow.className = 'block-row';
+    const numberLabel = document.createElement('span');
+    numberLabel.className = 'block-count';
+    numberLabel.textContent = 'CHANNEL NUMBER ON THE BUG';
+    const numberSelect = document.createElement('select');
+    numberSelect.className = 'block-hour-select';
+    [['', 'BOX DEFAULT'], ['show', 'SHOW'], ['hide', 'HIDE']].forEach(([value, name]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = name;
+      numberSelect.appendChild(opt);
+    });
+    numberSelect.value = ch.logoBugHideNumber === true ? 'hide' : ch.logoBugHideNumber === false ? 'show' : '';
+    numberSelect.addEventListener('change', () => {
+      if (numberSelect.value === '') delete ch.logoBugHideNumber;
+      else ch.logoBugHideNumber = numberSelect.value === 'hide';
+      commitOwnerFields(ch, ['logoBugHideNumber']);
+      if (ch.number === S.currentNumber) updateLogoBug(ch);
+    });
+    numberRow.appendChild(numberLabel);
+    numberRow.appendChild(numberSelect);
+    panelEl.appendChild(numberRow);
 
     // Seasonal icon overrides (ch.iconOverrides, channels.js) — independent
     // of the placement-override checkbox above, since the icon is always

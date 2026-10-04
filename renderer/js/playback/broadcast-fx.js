@@ -462,11 +462,22 @@ function activeLogoBugContext() {
 // writes one), else DISPLAY › Logo bug › "Sizes were set on". 0 = off.
 const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 1080;
 function logoBugScale(profile) {
-  const setting = S.config.display && S.config.display.logoBugReferenceHeight;
+  const display = S.config.display || {};
+  const setting = display.logoBugReferenceHeight;
   if (setting === 0) return 1;
-  const refH = Number(profile.refH) || Number(setting) || DEFAULT_LOGO_BUG_REFERENCE_HEIGHT;
+  // A stamped profile knows its own screen; otherwise a chosen size; otherwise
+  // (automatic, the default) the display the sizes were first used on.
+  const refH = Number(profile.refH) || Number(setting) || Number(display.logoBugAuthoredHeight) || DEFAULT_LOGO_BUG_REFERENCE_HEIGHT;
   const h = crtContainer.clientHeight;
   return h > 0 ? Math.min(4, Math.max(0.25, h / refH)) : 1;
+}
+
+// Whether the channel number chip is left off the bug: this channel's own
+// setting (true hides it, false shows it) over the box-wide one (DISPLAY ›
+// Logo bug); unset inherits.
+function logoBugHidesNumber(ch) {
+  if (ch && (ch.logoBugHideNumber === true || ch.logoBugHideNumber === false)) return ch.logoBugHideNumber;
+  return !!(S.config.display && S.config.display.logoBugHideNumber);
 }
 
 function applyLogoBugProfileStyles(element, profile) {
@@ -588,7 +599,7 @@ export function updateLogoBug(ch) {
     }
     // See buildChannelBadge (channels.js) — same "icon otherwise hides the
     // number entirely" fix, same shared .badge-num chip (overlays.css).
-    if (!(S.config.display && S.config.display.logoBugHideNumber)) {
+    if (!logoBugHidesNumber(ch)) {
       const numChip = document.createElement('span');
       numChip.className = 'badge-num';
       numChip.textContent = String(ch.number);
@@ -632,7 +643,7 @@ function logoBugBurnKeyFor(ch) {
   // Includes the effective icon so a seasonal swap (resolveEffectiveIcon,
   // channels.js) re-renders the ghost's own content immediately instead of
   // it staying stale until the next channel/profile change.
-  return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}:${resolveEffectiveIcon(ch, viewNow()) || ''}`;
+  return `${ch.number}:${profile.id || `${profile.x},${profile.y}`}:${resolveEffectiveIcon(ch, viewNow()) || ''}:${logoBugHidesNumber(ch) ? 'n' : 'c'}`;
 }
 
 function tickLogoBugGhost() {
@@ -695,10 +706,12 @@ function applyLogoBugGhost(ch) {
         logoBugGhostEl.appendChild(img);
         // Mirrors the real logo bug (updateLogoBug above) — the ghost should
         // show the same content it's an afterimage of, chip included.
-        const numChip = document.createElement('span');
-        numChip.className = 'badge-num';
-        numChip.textContent = String(ch.number);
-        logoBugGhostEl.appendChild(numChip);
+        if (!logoBugHidesNumber(ch)) {
+          const numChip = document.createElement('span');
+          numChip.className = 'badge-num';
+          numChip.textContent = String(ch.number);
+          logoBugGhostEl.appendChild(numChip);
+        }
       } else {
         logoBugGhostEl.style.background = channelColor(ch);
         logoBugGhostEl.textContent = String(ch.number);

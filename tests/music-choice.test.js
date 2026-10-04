@@ -287,3 +287,19 @@ test('buildCabinet: one item per album, sorted by artist then year, singles kept
   assert.equal(cabinetHue(all[0]), cabinetHue(all[0]), 'a spine colour is stable');
   assert.ok(cabinetHue(all[0]) >= 0 && cabinetHue(all[0]) < 360);
 });
+
+test('buildCabinet views: albums only, singles only, by artist', async () => {
+  const { buildLibraryIndex, buildCabinet } = await loadRenderer();
+  const index = buildLibraryIndex(stations);
+  const albums = buildCabinet(index, '', 'albums');
+  assert.ok(albums.length > 0 && albums.every((i) => i.kind === 'album' && i.album));
+  const singles = buildCabinet(index, '', 'singles');
+  assert.ok(singles.every((i) => i.kind === 'single' && i.tracks.length === 1 && !i.album));
+  const artists = buildCabinet(index, '', 'artists');
+  assert.ok(artists.every((i) => i.kind === 'artist'));
+  assert.equal(artists.reduce((n, i) => n + i.tracks.length, 0), 4, 'every song belongs to one artist item');
+  assert.equal(new Set(artists.map((i) => i.artist)).size, artists.length, 'one item per artist');
+  // Everything view = albums + singles-per-artist, covering the same songs.
+  const all = buildCabinet(index, '', 'all');
+  assert.equal(all.reduce((n, i) => n + i.tracks.length, 0), 4);
+});

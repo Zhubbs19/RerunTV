@@ -66,7 +66,7 @@ function totalDuration(station) {
 
 window.RCBPlugins.registerPluginSettings('music-choice-channel', {
   schemaVersion: 2,
-  defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [], seekStepSec: 10, arrowKeys: 'seek', repeatMode: 'off', shuffleOnDemand: false, cabinetStyle: 'cd' },
+  defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [], seekStepSec: 10, arrowKeys: 'seek', repeatMode: 'off', shuffleOnDemand: false, cabinetStyle: 'cd', cabinetView: 'all', selectionEnd: 'repeat' },
   validate(settings) {
     if (!Array.isArray(settings.stations)) return 'stations must be an array';
     if (settings.factoids != null && !Array.isArray(settings.factoids)) return 'factoids must be an array';
@@ -153,6 +153,24 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
           </select>
           <span class="panel-status">The CABINET tab (press OK on the channel) shelves every album on it. It can also be switched from the cabinet itself.</span>
         </div>
+        <div class="field">
+          <span class="field-label">CABINET SHOWS</span>
+          <select class="block-hour-select" data-el="cabview">
+            <option value="all">EVERYTHING (ALBUMS, AND SINGLES AS ONE ITEM PER ARTIST)</option>
+            <option value="albums">ALBUMS ONLY</option>
+            <option value="singles">SINGLES ONLY (SONGS WITH NO ALBUM TAG)</option>
+            <option value="artists">BY ARTIST</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="field-label">WHEN A PICKED ALBUM OR ARTIST ENDS</span>
+          <select class="block-hour-select" data-el="selend">
+            <option value="repeat">PLAY IT AGAIN FROM THE TOP</option>
+            <option value="stop">STOP</option>
+            <option value="live">GO BACK TO THE LIVE CHANNEL</option>
+          </select>
+          <span class="panel-status">An album, artist or search result you pick stays the playlist: ⏭ ⏮ and the end of the last song follow this instead of drifting back to the live rotation.</span>
+        </div>
         <label class="field"><input type="checkbox" data-el="shuffle"> SHUFFLE SEARCH RESULTS WHEN PLAYED ON DEMAND</label>
       `;
       const q = (el) => container.querySelector(`[data-el="${el}"]`);
@@ -162,12 +180,16 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
       q('repeat').value = settings.repeatMode || 'off';
       q('shuffle').checked = !!settings.shuffleOnDemand;
       q('cabinet').value = settings.cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
+      q('cabview').value = ['albums', 'singles', 'artists'].includes(settings.cabinetView) ? settings.cabinetView : 'all';
+      q('selend').value = settings.selectionEnd || 'repeat';
       q('arrows').addEventListener('change', () => save({ arrowKeys: q('arrows').value }));
       q('step').addEventListener('change', () => {
         const n = Math.round(Math.min(60, Math.max(2, parseFloat(q('step').value) || 10)));
         q('step').value = n;
         save({ seekStepSec: n });
       });
+      q('cabview').addEventListener('change', () => save({ cabinetView: q('cabview').value }));
+      q('selend').addEventListener('change', () => save({ selectionEnd: q('selend').value }));
       q('cabinet').addEventListener('change', () => save({ cabinetStyle: q('cabinet').value }));
       q('repeat').addEventListener('change', () => save({ repeatMode: q('repeat').value }));
       q('shuffle').addEventListener('change', () => save({ shuffleOnDemand: q('shuffle').checked }));

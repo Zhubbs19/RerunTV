@@ -1206,12 +1206,13 @@
             <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
               <label class="setting-row-label" for="logo-bug-ref-height">Bug and overlay sizes were set on</label>
               <div class="setting-row-control"><select id="logo-bug-ref-height">
+                <option value="auto">AUTOMATIC (DETECT THE DISPLAY)</option>
                 <option value="1080">A 1080p SCREEN</option>
                 <option value="1440">A 1440p SCREEN</option>
                 <option value="2160">A 4K SCREEN</option>
                 <option value="0">DON’T SCALE (FIXED PIXELS)</option>
               </select></div>
-              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. The bug and the pop-up overlays are scaled to match your screen from this size. Bug sizes you set in the editor remember their own screen.</p>
+              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. Automatic scales them from the display this box was first opened on, and re-fits them whenever the window moves to a different display. Bug sizes you set in the editor remember their own screen.</p>
             </div>
             <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
               <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>
