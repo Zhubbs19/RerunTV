@@ -7,7 +7,7 @@ import {
 import { nextBreakStart, prevBreakStart, resolveBreakAt } from '../core/interstitials.js';
 import { playChannelLive, scheduleBlockBoundaryRetune } from './core.js';
 import { cancelUpNextBar, checkBreakState, renderDynamicText, resetActiveBreakState } from './breaks.js';
-import { applyTvBezel, pushRemoteState } from './power.js';
+import { applyTvBezel, flashMessage, pushRemoteState } from './power.js';
 import { computeLivePosition } from '../core/schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, WEEKDAYS, viewNow } from '../core/state.js';
 import { querySchedule } from '../core/schedule-query.js';
@@ -659,6 +659,20 @@ export async function returnToLive() {
   if (S.timeMachineOn) updateVcrOsd();
   Toast('LIVE', { element: crtToggleFlash, key: 'returnToLive', duration: 1200 });
   pushRemoteState();
+}
+
+// J: back to the start of the show on screen, the way a DVR's "start over"
+// does. Uses the time machine's own jump (so the schedule stays honest: you
+// are watching it as it aired, L returns to live) and says so when the time
+// machine is off, since that is the one thing it needs.
+export async function restartCurrentShow() {
+  if (!timeMachineAvailable()) {
+    flashMessage('START OVER NEEDS THE TIME MACHINE — TURN IT ON IN SETTINGS', 'restartShowFlashTimer');
+    return;
+  }
+  const start = currentProgramStart();
+  if (start == null) return;
+  await timeMachineGoTo(start, 'START OF THIS SHOW');
 }
 
 export function enterTimeMachine() {

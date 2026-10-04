@@ -48,6 +48,8 @@ export function searchActions() {
     { label: 'Snapshot the config now', hint: 'SYSTEM', run: click('backups-snapshot-now-btn'), keywords: 'backup' },
     { label: 'Export config…', hint: 'SYSTEM', run: click('config-export-btn'), keywords: 'backup save file' },
     { label: 'Import config…', hint: 'SYSTEM', run: click('config-import-btn'), keywords: 'restore load file' },
+    { label: 'Export settings only…', hint: 'SYSTEM', run: click('settings-export-btn'), keywords: 'look controls options no channels second machine' },
+    { label: 'Import settings only…', hint: 'SYSTEM', run: click('settings-import-btn'), keywords: 'look controls options no channels second machine' },
     { label: 'Import a channel…', hint: 'SYSTEM', run: click('channel-import-btn') },
     { label: 'Restore channels from disk', hint: 'SYSTEM', run: click('config-restore-auto-btn'), keywords: 'recover reload' },
     { label: 'Start watching', hint: 'CTRL+ENTER', run: click('done-btn'), keywords: 'watch tv exit done' },

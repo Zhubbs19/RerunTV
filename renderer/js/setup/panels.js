@@ -1259,18 +1259,28 @@ export function buildLogoBugPanel(ch, panelEl) {
     // breaks, some keep it up through them — independent of placement
     // override above, so it works whether or not this channel overrides the
     // box-wide profile. Default off (today's "always visible" behavior).
-    const hideOnBreakLabel = document.createElement('label');
-    hideOnBreakLabel.className = 'shuffle-toggle';
-    const hideOnBreakCheckbox = document.createElement('input');
-    hideOnBreakCheckbox.type = 'checkbox';
-    hideOnBreakCheckbox.checked = !!ch.logoBugHidesOnBreak;
-    hideOnBreakCheckbox.addEventListener('change', () => {
-      ch.logoBugHidesOnBreak = hideOnBreakCheckbox.checked;
+    const hideOnBreakRow = document.createElement('div');
+    hideOnBreakRow.className = 'block-row';
+    const hideOnBreakLabel = document.createElement('span');
+    hideOnBreakLabel.className = 'block-count';
+    hideOnBreakLabel.textContent = 'LOGO BUG DURING BREAKS';
+    const hideOnBreakSelect = document.createElement('select');
+    hideOnBreakSelect.className = 'block-hour-select';
+    [['', 'BOX DEFAULT'], ['hide', 'HIDE IT'], ['show', 'KEEP IT UP']].forEach(([value, name]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = name;
+      hideOnBreakSelect.appendChild(opt);
+    });
+    hideOnBreakSelect.value = ch.logoBugHidesOnBreak === true ? 'hide' : ch.logoBugHidesOnBreak === 'show' ? 'show' : '';
+    hideOnBreakSelect.addEventListener('change', () => {
+      if (hideOnBreakSelect.value === '') delete ch.logoBugHidesOnBreak;
+      else ch.logoBugHidesOnBreak = hideOnBreakSelect.value === 'hide' ? true : 'show';
       commitOwnerFields(ch, ['logoBugHidesOnBreak']);
     });
-    hideOnBreakLabel.appendChild(hideOnBreakCheckbox);
-    hideOnBreakLabel.appendChild(document.createTextNode('HIDE LOGO BUG DURING BREAKS'));
-    panelEl.appendChild(hideOnBreakLabel);
+    hideOnBreakRow.appendChild(hideOnBreakLabel);
+    hideOnBreakRow.appendChild(hideOnBreakSelect);
+    panelEl.appendChild(hideOnBreakRow);
 
     // The channel number chip under a logo: this channel can show it or hide
     // it whatever the box-wide setting says (DISPLAY › Logo bug), or inherit.

@@ -101,6 +101,7 @@
         <div id="update-changelog-version" class="update-changelog-version"></div>
         <h2 id="update-changelog-title" class="update-changelog-title">WHAT'S NEW IN RERUNTV</h2>
         <div id="update-changelog-body" class="update-changelog-body"></div>
+        <div id="update-changelog-highlights" class="highlights-list update-changelog-highlights"></div>
         <div class="update-changelog-actions">
           <button id="update-changelog-view-all" class="btn">VIEW ALL RELEASE NOTES</button>
           <button id="update-changelog-done" class="btn btn-primary">START WATCHING</button>
@@ -223,6 +224,29 @@
               <input type="range" id="bulk-volume-slider" min="0" max="100" value="100">
               <button id="bulk-volume-apply-btn" class="btn">APPLY</button>
               <button id="bulk-volume-inherit-btn" class="btn">INHERIT</button>
+            </span>
+            <span class="bulk-action-group">
+              LOGO NUMBER
+              <select id="bulk-logo-number-select">
+                <option value="">BOX DEFAULT</option>
+                <option value="show">SHOW</option>
+                <option value="hide">HIDE</option>
+              </select>
+              <button id="bulk-logo-number-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              LOGO IN BREAKS
+              <select id="bulk-logo-breaks-select">
+                <option value="">BOX DEFAULT</option>
+                <option value="hide">HIDE IT</option>
+                <option value="show">KEEP IT UP</option>
+              </select>
+              <button id="bulk-logo-breaks-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              ASPECT
+              <select id="bulk-aspect-select"></select>
+              <button id="bulk-aspect-apply-btn" class="btn">APPLY</button>
             </span>
             <button id="bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
           </div>
@@ -1364,6 +1388,7 @@
           <button class="setup-subtab-btn active" data-subtab="system" data-simple-settings>POWER</button>
           <button class="setup-subtab-btn" data-subtab="updates" data-simple-settings>UPDATES</button>
           <button class="setup-subtab-btn" data-subtab="backups" data-simple-settings>BACKUPS</button>
+          <button class="setup-subtab-btn" data-subtab="keys">KEYS</button>
           <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
           <button class="setup-subtab-btn" data-subtab="status">DIAGNOSTICS</button>
         </div>
@@ -1397,7 +1422,7 @@
 
         
 
-        <div class="panel" data-reset-keys='[["controls"]]'>
+        <div class="panel" data-reset-keys='[["controls"],["channelVolumes"]]'>
           <div class="panel-toggle">TUNING &amp; CONTROLS</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="startup-channel" data-synonyms="boot power on first channel resume">
@@ -1423,6 +1448,26 @@
               <label class="setting-row-label" for="volume-step">Volume step</label>
               <div class="setting-row-control"><input type="number" id="volume-step" min="1" max="25" value="10"> <span class="setting-row-unit">%</span></div>
               <p class="setting-row-help">How much each + or − press changes the volume.</p>
+            </div>
+            <div class="setting-row" data-setting="remember-channel-volume" data-synonyms="volume each channel level memory per channel">
+              <label class="setting-row-label" for="remember-channel-volume">Remember each channel's volume</label>
+              <div class="setting-row-control"><input type="checkbox" id="remember-channel-volume"></div>
+              <p class="setting-row-help">Tuning back to a channel returns it to the volume you left it at.</p>
+            </div>
+            <div class="setting-row" data-setting="tune-fade-in" data-synonyms="fade sound start loud tuning soft">
+              <label class="setting-row-label" for="tune-fade-in">Fade the sound in after tuning</label>
+              <div class="setting-row-control"><select id="tune-fade-in">
+                <option value="0">OFF</option>
+                <option value="400">QUICK (0.4 SEC)</option>
+                <option value="900">SOFT (0.9 SEC)</option>
+                <option value="1800">SLOW (1.8 SEC)</option>
+              </select></div>
+              <p class="setting-row-help">Softens a loud start when changing channel.</p>
+            </div>
+            <div class="setting-row" data-setting="sleep-fade-out" data-synonyms="sleep timer fade volume quiet">
+              <label class="setting-row-label" for="sleep-fade-out">Fade out before the sleep timer</label>
+              <div class="setting-row-control"><input type="checkbox" id="sleep-fade-out" checked></div>
+              <p class="setting-row-help">The sound fades over the last 25 seconds instead of cutting off.</p>
             </div>
             <div class="setting-row" data-setting="volume-max" data-synonyms="volume limit cap loud ceiling">
               <label class="setting-row-label" for="volume-max">Maximum volume</label>
@@ -1512,6 +1557,16 @@
           </div>
         </div>
 
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="keys">
+        <div class="settings-grid">
+        <div class="panel span-full" data-reset-keys='[["keyMap"]]'>
+          <div class="panel-toggle">KEYBOARD SHORTCUTS</div>
+          <span class="panel-status">Pick the key for each action while watching. Click a key, then press the one you want; Esc cancels. Digits, the volume keys, the arrows and a few plug-in keys can't be reassigned. The hint bar and the shortcuts list follow your choices.</span>
+          <div id="keymap-editor" class="keymap-editor"></div>
+        </div>
         </div>
         </div>
 
@@ -1786,6 +1841,11 @@
 
           <div class="setup-subtab-panel hidden" data-subtab-panel="releases">
             <div class="settings-grid">
+              <div class="panel span-full" data-simple-settings>
+                <label class="panel-toggle" style="cursor:default">✨ NEW THINGS TO TRY</label>
+                <span class="panel-status">Recent additions you might not have found. Each button opens the page and highlights the setting.</span>
+                <div id="help-highlights" class="highlights-list"></div>
+              </div>
               <div class="panel span-full">
                 <label class="panel-toggle" style="cursor:default">🆕 WHAT'S NEW</label>
                 <span class="panel-status">Recently shipped, newest first — a running log of what changed under the hood.</span>
@@ -2093,7 +2153,8 @@
         <span data-hint-key="channel">&uarr;&darr; CHANGE CHANNEL</span>
         <span data-hint-key="favorites" data-hint-secondary="true">SHIFT+&uarr;&darr; FAVORITES</span>
         <span data-hint-key="direct-entry" data-hint-secondary="true">0-9 DIRECT ENTRY</span>
-        <span data-hint-key="last" data-hint-secondary="true">BKSP LAST</span>
+        <span data-hint-key="restart" data-hint-secondary="true">J START OVER</span>
+        <span data-hint-key="last" data-hint-secondary="true">BKSP LAST · SHIFT+BKSP RECENT</span>
         <span data-hint-key="guide">G GUIDE</span>
         <span data-hint-key="setup">S SETUP</span>
         <span data-hint-key="mute">M MUTE</span>

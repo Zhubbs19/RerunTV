@@ -47,10 +47,12 @@ async function scanStationTracks(station, onProgress) {
   // Host-only: it reads the host's own filesystem, so it is absent on a LAN
   // viewer or control panel (renderer/js/api-contract.js).
   if (!window.api.musicChoiceScanFolder) throw new Error('SCANNING ONLY WORKS ON THE HOST DEVICE.');
-  const { files, error } = await window.api.musicChoiceScanFolder({ folderPath: station.folderPath, kind: 'audio' });
+  const { files, modified, error } = await window.api.musicChoiceScanFolder({ folderPath: station.folderPath, kind: 'audio' });
   if (error) throw new Error(`SCAN FAILED — ${error}`);
   const existingByPath = new Map((station.tracks || []).map((t) => [t.path, t]));
   const tracks = (files || []).map((p) => existingByPath.get(p) || { path: p, artist: null, title: null, durationSec: 0 });
+  // When each song reached the library (its file's modified time).
+  if (Array.isArray(modified)) tracks.forEach((track, i) => { if (modified[i]) track.addedAt = modified[i]; });
   onProgress(`PROBING DURATIONS… 0/${tracks.length}`);
   await probeAllDurations(tracks, (done, total) => onProgress(`PROBING DURATIONS… ${done}/${total}`));
   await readTagsInto(tracks, onProgress);
@@ -160,6 +162,8 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
             <option value="albums">ALBUMS ONLY</option>
             <option value="singles">SINGLES ONLY (SONGS WITH NO ALBUM TAG)</option>
             <option value="artists">BY ARTIST</option>
+            <option value="favorites">★ FAVOURITES</option>
+            <option value="recent">🆕 RECENTLY ADDED (RESCAN TO FILL)</option>
           </select>
         </div>
         <div class="field">
@@ -180,7 +184,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
       q('repeat').value = settings.repeatMode || 'off';
       q('shuffle').checked = !!settings.shuffleOnDemand;
       q('cabinet').value = settings.cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
-      q('cabview').value = ['albums', 'singles', 'artists'].includes(settings.cabinetView) ? settings.cabinetView : 'all';
+      q('cabview').value = ['albums', 'singles', 'artists', 'favorites', 'recent'].includes(settings.cabinetView) ? settings.cabinetView : 'all';
       q('selend').value = settings.selectionEnd || 'repeat';
       q('arrows').addEventListener('change', () => save({ arrowKeys: q('arrows').value }));
       q('step').addEventListener('change', () => {

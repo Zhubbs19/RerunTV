@@ -1850,3 +1850,27 @@ html[data-mode="tv"].cursor-idle * { cursor: none !important; }
   letter-spacing: 1px;
   color: var(--text-muted);
 }
+
+/* Recent channels (Shift+Backspace): a small list card over the picture. */
+.recent-channels {
+  position: absolute;
+  left: 50%;
+  top: 14%;
+  transform: translateX(-50%);
+  z-index: 14;
+  min-width: 320px;
+  padding: 12px 16px;
+  background: var(--surface-panel, rgba(6, 10, 32, 0.92));
+  border: 2px solid var(--accent, #ffd02e);
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  color: var(--text, #fff);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.recent-channels.hidden { display: none; }
+.recent-channels-title { font-weight: 800; letter-spacing: 2px; font-size: 13px; color: var(--accent, #ffd02e); margin-bottom: 8px; }
+.recent-channels-empty { font-size: 12px; opacity: 0.7; letter-spacing: 1px; }
+.recent-channels-row { padding: 6px 10px; font-size: 15px; font-weight: 700; letter-spacing: 1px; cursor: pointer; white-space: pre; border: 1px solid transparent; }
+.recent-channels-row.active, .recent-channels-row:hover { border-color: var(--accent, #ffd02e); background: rgba(255, 255, 255, 0.08); }
+body:has(.crt.power-off) .recent-channels,
+body:has(.crt.guide-active) .recent-channels { display: none; }

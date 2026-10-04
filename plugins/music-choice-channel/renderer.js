@@ -266,6 +266,8 @@ export const CABINET_VIEWS = [
   { id: 'albums', label: 'ALBUMS' },
   { id: 'singles', label: 'SINGLES' },
   { id: 'artists', label: 'BY ARTIST' },
+  { id: 'favorites', label: '★ FAVOURITES' },
+  { id: 'recent', label: '🆕 RECENT' },
 ];
 
 // view: 'all' (albums, with each artist's loose songs as one "singles" item),
@@ -274,16 +276,26 @@ export const CABINET_VIEWS = [
 export function buildCabinet(index, query, view) {
   const words = normalizeForSearch(query).split(' ').filter(Boolean);
   const years = parseYearQuery(query);
+  // What the query is matched against follows the view: BY ARTIST looks at
+  // artist names only, ALBUMS at album and artist, SINGLES at song and artist.
+  // The cabinet never matches on a song title inside an album, which is what
+  // made an artist search turn up unrelated albums.
+  const scopeText = (e) => {
+    const artist = `${e.meta.artist || ''} ${e.meta.albumArtist || ''}`;
+    if (view === 'artists') return artist;
+    if (view === 'singles') return `${e.meta.title || ''} ${artist}`;
+    return `${e.meta.album || ''} ${artist}`;
+  };
   const hits = index.filter((e) => {
     if (!words.length) return true;
     if (years) { const y = Number(e.meta.year); return y >= years.from && y <= years.to; }
-    return matchesWords(e.haystack, words);
+    return matchesWords(normalizeForSearch(scopeText(e)), words);
   });
   const groups = new Map();
   hits.slice().sort(byArtistAlbumPath).forEach((e) => {
     const artist = e.meta.albumArtist || e.meta.artist || 'UNKNOWN ARTIST';
     const album = e.meta.album || '';
-    if (view === 'albums' && !album) return;
+    if ((view === 'albums' || view === 'recent') && !album) return;
     if (view === 'singles' && album) return;
     let key = `${normalizeForSearch(artist)}\u0000${normalizeForSearch(album)}`;
     if (view === 'artists') key = normalizeForSearch(artist);
@@ -296,6 +308,7 @@ export function buildCabinet(index, query, view) {
         title: view === 'singles' ? e.meta.title : '',
         kind: view === 'artists' ? 'artist' : view === 'singles' ? 'single' : (album ? 'album' : 'singles'),
         albums: new Set(),
+        addedAt: 0,
         year: null,
         tracks: [],
       });
@@ -303,12 +316,16 @@ export function buildCabinet(index, query, view) {
     const g = groups.get(key);
     g.tracks.push(e.track);
     if (album) g.albums.add(album);
+    if (e.track.addedAt > g.addedAt) g.addedAt = e.track.addedAt;
     if (!g.year && e.meta.year) g.year = String(e.meta.year);
   });
   const items = [...groups.values()].map((g) => {
     const first = (g.artist.match(/[A-Z0-9]/i) || ['#'])[0].toUpperCase();
     return { ...g, albumCount: g.albums.size, albums: undefined, letter: /[0-9]/.test(first) ? '#' : first };
   });
+  // RECENT: newest additions first, only what has a date (a rescan records
+  // them), capped to a manageable shelf.
+  if (view === 'recent') return items.filter((i) => i.addedAt > 0).sort((a, b) => b.addedAt - a.addedAt).slice(0, 60);
   items.sort((a, b) => normalizeForSearch(a.artist).localeCompare(normalizeForSearch(b.artist))
     || (Number(a.year) || 9999) - (Number(b.year) || 9999)
     || a.album.localeCompare(b.album));
@@ -470,8 +487,47 @@ async function firstLoadable(paths) {
   return null;
 }
 
-export async function resolveAlbumArt(trackPath) {
-  if (trackArtCache.has(trackPath)) return trackArtCache.get(trackPath);
+// Which of a folder's image files is the album cover. The usual names first
+// (cover, folder, front), then the ones Windows Media Player and iTunes leave
+// behind (AlbumArt_{GUID}_Large.jpg, AlbumArtSmall.jpg, "Artist - Album.jpg"),
+// then any other picture, biggest-sounding name first. Booklet scans and
+// thumbnails rank last. Pure, so it is tested.
+export function rankAlbumArtFiles(files) {
+  const score = (file) => {
+    const name = String(file).replace(/\\/g, '/').split('/').pop().replace(/\.[^.]+$/, '').toLowerCase();
+    if (/^(cover|folder|front|albumart|album)$/.test(name)) return 0;
+    if (/^albumart_\{[^}]+\}_large$/.test(name)) return 1;
+    if (/(^|[^a-z])(cover|front|folder)([^a-z]|$)/.test(name)) return 2;
+    if (/^albumart_\{[^}]+\}_small$|^albumartsmall$/.test(name)) return 4;
+    if (/(back|inlay|booklet|disc|cd\d?$|thumb|small)/.test(name)) return 6;
+    return 3;
+  };
+  return [...files].sort((a, b) => score(a) - score(b) || String(a).localeCompare(String(b)))[0] || null;
+}
+
+// The images sitting in a track's own folder, found by listing it (the fixed
+// names above can't guess a GUID). The plug-in's folder scan walks subfolders
+// too; only files directly beside the track count.
+async function listFolderArt(dir) {
+  if (!window.api || !window.api.musicChoiceScanFolder) return null;
+  const result = await window.api.musicChoiceScanFolder({ folderPath: dir, kind: 'image' }).catch(() => null);
+  const norm = (p) => String(p).replace(/\\/g, '/');
+  const beside = ((result && result.files) || []).filter((f) => norm(f).slice(0, norm(f).lastIndexOf('/')) === norm(dir));
+  const best = rankAlbumArtFiles(beside);
+  if (!best) return null;
+  const url = await window.api.toFileUrl(best).catch(() => null);
+  return url && await probeImage(url) ? url : null;
+}
+
+// opts.embedded === false: a shelf thumbnail, which should not read whole
+// audio files just to look for a cover inside one; only the item in hand does.
+export async function resolveAlbumArt(trackPath, opts) {
+  const embedded = !(opts && opts.embedded === false);
+  const cacheKey = embedded ? trackPath : `${trackPath}|sidecar`;
+  if (trackArtCache.has(cacheKey)) return trackArtCache.get(cacheKey);
+  if (embedded && trackArtCache.has(`${trackPath}|sidecar`) && trackArtCache.get(`${trackPath}|sidecar`)) {
+    return trackArtCache.get(`${trackPath}|sidecar`);
+  }
   const { dir, trackArt, folderArt } = albumArtCandidates(trackPath);
   if (!dir) return null;
 
@@ -481,8 +537,13 @@ export async function resolveAlbumArt(trackPath) {
       found = folderArtCache.get(dir);
     } else {
       found = await firstLoadable(folderArt);
+      if (!found) found = await listFolderArt(dir);
       folderArtCache.set(dir, found);
     }
+  }
+  if (!found && !embedded) {
+    trackArtCache.set(cacheKey, null);
+    return null;
   }
   // Only now go to the file's own tags. Sidecar images are a cheap path
   // check; reading a tag means the main process reads the whole audio file
@@ -1218,6 +1279,7 @@ function buildBrowserRows(ctx) {
 }
 
 function emptyMessage() {
+  if (browserTab === 'cabinet' && cabinetView() === 'recent') return 'NOTHING DATED YET — RESCAN YOUR STATIONS IN SETTINGS TO RECORD WHEN SONGS WERE ADDED';
   const anyTags = (libraryIndex || []).some((e) => e.track.tagsRead);
   if (browserTab === 'years' || browserTab === 'albums') {
     const word = browserTab === 'years' ? 'YEARS' : 'ALBUMS';
@@ -1335,6 +1397,18 @@ function cabinetStyle() {
   return getSettings().cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
 }
 
+// Starred cabinet items, kept in the plugin's own settings.
+function cabinetFavoriteKey(item) { return `${item.kind}:${item.key}`; }
+function favoriteKeys() { return new Set(getSettings().favorites || []); }
+function toggleCabinetFavorite(item) {
+  const keys = favoriteKeys();
+  const key = cabinetFavoriteKey(item);
+  const on = !keys.has(key);
+  if (on) keys.add(key); else keys.delete(key);
+  updateSettings({ favorites: [...keys] });
+  return on;
+}
+
 function cabinetView() {
   const v = getSettings().cabinetView;
   return CABINET_VIEWS.some((x) => x.id === v) ? v : 'all';
@@ -1366,9 +1440,19 @@ function renderCabinet(ctx) {
   if (!libraryIndex) libraryIndex = buildLibraryIndex(getSettings().stations || []);
   const style = cabinetStyle();
   const view = cabinetView();
-  const sig = `${browserQuery}|${style}|${view}|${libraryIndex.length}`;
+  const sig = `${browserQuery}|${style}|${view}|${libraryIndex.length}|${favoriteKeys().size}`;
   if (!cab || cab.sig !== sig) {
-    const items = buildCabinet(libraryIndex, browserQuery, view).slice(0, MAX_CABINET_ITEMS);
+    let items;
+    if (view === 'favorites') {
+      // Starred albums, singles and artists from every view, in shelf order.
+      const favs = favoriteKeys();
+      items = [...buildCabinet(libraryIndex, browserQuery, 'all'), ...buildCabinet(libraryIndex, browserQuery, 'artists')]
+        .filter((i) => favs.has(cabinetFavoriteKey(i)))
+        .sort((a, b) => normalizeForSearch(a.artist).localeCompare(normalizeForSearch(b.artist)) || a.kind.localeCompare(b.kind));
+    } else {
+      items = buildCabinet(libraryIndex, browserQuery, view);
+    }
+    items = items.slice(0, MAX_CABINET_ITEMS);
     cab = { items, sig, cursor: 0, focus: (cab && cab.focus) || 'shelf', caseRow: 0, els: [] };
     buildCabinetShelves(ctx, style);
   }
@@ -1382,15 +1466,81 @@ function renderCabinet(ctx) {
   renderCase(ctx);
 }
 
+// Cover art on the shelves: each spine or sleeve looks for its album's cover
+// only once it scrolls into view, a few at a time, and without opening audio
+// files (just the folder's own pictures). The item in hand still reads
+// embedded art, so a library with covers only inside the tags still shows
+// them in the case and the strip below.
+let cabArtObserver = null;
+const cabArtQueue = [];
+let cabArtActive = 0;
+const CAB_ART_CONCURRENCY = 3;
+
+// Second chance for albums with no picture file: the cover inside the first
+// song's tags. That reads a whole audio file, so it runs one at a time and
+// only after the cheap folder lookup came up empty.
+const cabEmbeddedQueue = [];
+let cabEmbeddedActive = false;
+
+function showShelfArt(job, url) {
+  if (url && job.el.isConnected) {
+    job.img.src = url;
+    job.img.classList.remove('hidden');
+    job.el.classList.add('mc-cab-has-art');
+  }
+}
+
+function pumpEmbeddedCabinetArt() {
+  if (cabEmbeddedActive) return;
+  const job = cabEmbeddedQueue.shift();
+  if (!job) return;
+  if (!job.el.isConnected) { pumpEmbeddedCabinetArt(); return; }
+  cabEmbeddedActive = true;
+  resolveAlbumArt(job.item.tracks[0].path).then((url) => showShelfArt(job, url)).catch(() => {})
+    .finally(() => { cabEmbeddedActive = false; pumpEmbeddedCabinetArt(); });
+}
+
+function pumpCabinetArt() {
+  while (cabArtActive < CAB_ART_CONCURRENCY && cabArtQueue.length) {
+    const job = cabArtQueue.shift();
+    if (!job.el.isConnected) continue;
+    cabArtActive += 1;
+    resolveAlbumArt(job.item.tracks[0].path, { embedded: false }).then((url) => {
+      showShelfArt(job, url);
+      if (!url) { cabEmbeddedQueue.push(job); pumpEmbeddedCabinetArt(); }
+    }).catch(() => {}).finally(() => { cabArtActive -= 1; pumpCabinetArt(); });
+  }
+}
+
+function observeCabinetArt(host, el, item, img) {
+  if (typeof IntersectionObserver !== 'function') return;
+  if (!cabArtObserver) {
+    cabArtObserver = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const job = entry.target.__cabArtJob;
+        cabArtObserver.unobserve(entry.target);
+        if (job) { cabArtQueue.push(job); pumpCabinetArt(); }
+      });
+    }, { root: host, rootMargin: '200px 0px' });
+  }
+  el.__cabArtJob = { el, item, img };
+  cabArtObserver.observe(el);
+}
+
 function buildCabinetShelves(ctx, style) {
   const host = els.cabShelvesEl;
+  if (cabArtObserver) { cabArtObserver.disconnect(); cabArtObserver = null; }
+  cabArtQueue.length = 0;
+  cabEmbeddedQueue.length = 0;
   host.innerHTML = '';
   els.cabIndexEl.innerHTML = '';
   cab.els = [];
   const firstOfLetter = new Map();
   let lastLetter = null;
+  const byDate = cabinetView() === 'recent';
   cab.items.forEach((item, i) => {
-    if (item.letter !== lastLetter) {
+    if (!byDate && item.letter !== lastLetter) {
       lastLetter = item.letter;
       firstOfLetter.set(item.letter, i);
       const divider = document.createElement('div');
@@ -1399,7 +1549,7 @@ function buildCabinetShelves(ctx, style) {
       host.appendChild(divider);
     }
     const el = document.createElement('div');
-    el.className = 'mc-cab-item';
+    el.className = `mc-cab-item${favoriteKeys().has(cabinetFavoriteKey(item)) ? ' mc-cab-fav' : ''}`;
     el.style.setProperty('--h', String(cabinetHue(item)));
     el.title = `${item.artist}${item.kind === 'artist' ? '' : ` — ${cabinetItemTitle(item)}`}`;
     const text = document.createElement('span');
@@ -1408,7 +1558,13 @@ function buildCabinetShelves(ctx, style) {
     artist.textContent = item.artist;
     text.appendChild(artist);
     text.appendChild(document.createTextNode(item.kind === 'artist' ? cabinetItemSub(item) : (item.kind === 'single' ? item.title : (item.album || 'SINGLES'))));
+    const art = document.createElement('img');
+    art.className = 'mc-cab-item-art hidden';
+    art.alt = '';
+    art.draggable = false;
+    el.appendChild(art);
     el.appendChild(text);
+    observeCabinetArt(host, el, item, art);
     el.addEventListener('click', () => { cab.cursor = i; cab.focus = 'case'; cab.caseRow = 0; renderBrowser(ctx); });
     host.appendChild(el);
     cab.els.push(el);
@@ -1469,9 +1625,19 @@ function renderCase(ctx) {
   els.cabCaseSubEl.textContent = item.kind === 'artist' ? cabinetItemSub(item) : [item.artist, item.year].filter(Boolean).join(' · ');
   setCabinetCover(els.cabCaseArtEl, item);
   els.cabCaseFallbackEl.textContent = item.kind === 'artist' ? item.artist : (item.title || item.album || item.artist);
+  const isFav = favoriteKeys().has(cabinetFavoriteKey(item));
+  const queueRows = od ? [
+    { label: '＋ PLAY NEXT', run: () => queueFromCabinet(ctx, item, true) },
+    { label: '＋ ADD TO THE END OF THE QUEUE', run: () => queueFromCabinet(ctx, item, false) },
+  ] : [];
   const rows = [
     { label: item.kind === 'artist' ? '▶ PLAY ARTIST' : item.kind === 'single' ? '▶ PLAY SONG' : '▶ PLAY ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, false) },
     ...(item.tracks.length > 1 ? [{ label: item.kind === 'artist' ? '🔀 SHUFFLE ARTIST' : '🔀 SHUFFLE ALBUM', run: () => playFromCabinet(ctx, item.tracks, item, true) }] : []),
+    ...queueRows,
+    {
+      label: isFav ? '☆ REMOVE FROM FAVOURITES' : '★ ADD TO FAVOURITES',
+      run: () => { toggleCabinetFavorite(item); renderBrowser(ctx); },
+    },
     ...item.tracks.map((track, i) => ({
       label: `${String(i + 1).padStart(2, '0')}  ${trackMetaOf(track).title}${item.kind === 'artist' && trackMetaOf(track).album ? `  ·  ${trackMetaOf(track).album}` : ''}`,
       right: track.durationSec ? formatClock(track.durationSec) : '',
@@ -1496,6 +1662,17 @@ function renderCase(ctx) {
   });
   const active = els.cabCaseListEl.querySelector('.mc-cab-case-row-active');
   if (active && active.scrollIntoView) active.scrollIntoView({ block: 'nearest' });
+}
+
+// Adds an item's songs to the on-demand queue in play: right after the song on
+// now (PLAY NEXT) or at the end. Leaves the cabinet so the readout shows it.
+function queueFromCabinet(ctx, item, next) {
+  if (!od) return;
+  const at = next ? od.index + 1 : od.queue.length;
+  od.queue.splice(at, 0, ...item.tracks);
+  closeBrowser();
+  flash(`${next ? '＋ PLAYS NEXT' : '＋ ADDED TO THE QUEUE'}: ${cabinetItemTitle(item).toUpperCase()}`);
+  tick(ctx);
 }
 
 function playFromCabinet(ctx, queue, item, shuffle) {
@@ -1736,6 +1913,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
             <div class="mc-cab-plate">
               <span class="mc-cab-plate-title">MUSIC LIBRARY</span>
               <span class="mc-cab-plate-buttons">
+                <button type="button" class="mc-cab-style" data-el="cab-random" title="Open a random item">🎲 SURPRISE ME</button>
                 <button type="button" class="mc-cab-style" data-el="cab-view"></button>
                 <button type="button" class="mc-cab-style" data-el="cab-style"></button>
               </span>
@@ -1787,12 +1965,19 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
       browserTabsEl: q('browser-tabs'), browserSearchEl: q('browser-search'), browserInputEl: q('browser-input'),
       browserCountEl: q('browser-count'), browserHintEl: q('browser-hint'),
       cabinetEl: q('cabinet'), cabShelvesEl: q('cab-shelves'), cabIndexEl: q('cab-index'), cabEmptyEl: q('cab-empty'),
-      cabStyleBtn: q('cab-style'), cabViewBtn: q('cab-view'), cabHoldingEl: q('cab-holding'), cabHoldArtEl: q('cab-hold-art'),
+      cabStyleBtn: q('cab-style'), cabViewBtn: q('cab-view'), cabRandomBtn: q('cab-random'), cabHoldingEl: q('cab-holding'), cabHoldArtEl: q('cab-hold-art'),
       cabHoldTitleEl: q('cab-hold-title'), cabHoldSubEl: q('cab-hold-sub'), cabPullEl: q('cab-pull'),
       cabCaseArtEl: q('cab-case-art'), cabCaseFallbackEl: q('cab-case-fallback'), cabCaseTitleEl: q('cab-case-title'),
       cabCaseSubEl: q('cab-case-sub'), cabCaseListEl: q('cab-case-list'),
     };
     cab = null;
+    els.cabRandomBtn.addEventListener('click', () => {
+      if (!cab || !cab.items.length) return;
+      cab.cursor = Math.floor(Math.random() * cab.items.length);
+      cab.focus = 'case';
+      cab.caseRow = 0;
+      renderBrowser(ctx);
+    });
     els.cabViewBtn.addEventListener('click', () => {
       const i = CABINET_VIEWS.findIndex((v) => v.id === cabinetView());
       updateSettings({ cabinetView: CABINET_VIEWS[(i + 1) % CABINET_VIEWS.length].id });

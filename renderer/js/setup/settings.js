@@ -12,6 +12,9 @@ import { getTvModeScreen, setTvModeScreen } from '../tv/usage-mode.js';
 import { flashScreenEdgeGuide, getCurrentScreen, getScreenEdge, getScreenOffAction, onCurrentScreenChange, setScreenEdge, setScreenOffAction } from '../display/tv-screen.js';
 import { applyLeveler } from '../playback/leveler.js';
 import { applyBakedBars } from '../playback/bars.js';
+import { KEY_ACTIONS, effectiveKey, keyProblem } from '../core/keymap.js';
+import { applyKeyHints } from '../core/key-remap.js';
+import { renderHighlights } from '../update/highlights.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
 import { searchActions } from './command-palette.js';
@@ -67,7 +70,7 @@ import {
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
-  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugRefHeightEl, logoBugDefaultSizeEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
+  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugRefHeightEl, logoBugDefaultSizeEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, rememberChannelVolumeEl, tuneFadeInEl, sleepFadeOutEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
   reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
   airChecksListEl, airChecksClearAllBtn,
@@ -2694,6 +2697,64 @@ logoBugVaryEl.addEventListener('change', () => { setDisplay('logoBugVaryWithCont
 logoBugHideBreaksEl.addEventListener('change', () => setDisplay('logoBugHideOnBreaks', logoBugHideBreaksEl.checked));
 logoBugHideNumberEl.addEventListener('change', () => { setDisplay('logoBugHideNumber', logoBugHideNumberEl.checked); reframePicture(); });
 
+// ---------- Help › What's new: things to try ----------
+const helpHighlightsEl = document.getElementById('help-highlights');
+if (helpHighlightsEl) renderHighlights(helpHighlightsEl);
+
+// ---------- Keyboard shortcuts (System › Keys) ----------
+function renderKeymapEditor() {
+  const host = document.getElementById('keymap-editor');
+  if (!host) return;
+  const map = S.config.keyMap || {};
+  host.innerHTML = '';
+  const message = document.createElement('div');
+  message.className = 'keymap-message panel-status';
+  KEY_ACTIONS.forEach((action) => {
+    const row = document.createElement('div');
+    row.className = 'keymap-row';
+    const label = document.createElement('span');
+    label.className = 'keymap-label';
+    label.textContent = action.label;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn keymap-key';
+    const current = effectiveKey(map, action);
+    button.textContent = current.toUpperCase();
+    button.classList.toggle('keymap-changed', current !== action.key);
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn keymap-reset';
+    reset.textContent = current === action.key ? '' : `RESET (${action.key.toUpperCase()})`;
+    reset.hidden = current === action.key;
+    reset.addEventListener('click', () => {
+      dispatch({ type: 'settings.set', path: ['keyMap', action.id], value: undefined });
+      applyKeyHints();
+      renderKeymapEditor();
+    });
+    button.addEventListener('click', () => {
+      button.textContent = 'PRESS A KEY…';
+      message.textContent = '';
+      const onKey = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        window.removeEventListener('keydown', onKey, true);
+        if (event.key === 'Escape') { renderKeymapEditor(); return; }
+        const problem = keyProblem(S.config.keyMap || {}, action.id, event.key);
+        if (problem) { renderKeymapEditor(); const m = document.querySelector('#keymap-editor .keymap-message'); if (m) m.textContent = problem; return; }
+        const chosen = event.key.toLowerCase();
+        dispatch({ type: 'settings.set', path: ['keyMap', action.id], value: chosen === action.key ? undefined : chosen });
+        applyKeyHints();
+        renderKeymapEditor();
+      };
+      window.addEventListener('keydown', onKey, true);
+    });
+    row.append(label, button, reset);
+    host.appendChild(row);
+  });
+  host.appendChild(message);
+}
+document.querySelector('.setup-subtab-btn[data-subtab="keys"]')?.addEventListener('click', renderKeymapEditor);
+
 // ---------- Reset a panel to its defaults ----------
 // A panel marked data-reset-keys='[["display","clock24"],…]' gets a RESET
 // button listing the settings it owns. Resetting removes those keys, so every
@@ -2737,6 +2798,8 @@ document.querySelectorAll('.panel[data-reset-keys]').forEach((panel) => {
     applyHintBarState();
     applyVolume();
     renderSettingsPanels();
+    renderKeymapEditor();
+    applyKeyHints();
     reframePicture();
     button.textContent = 'RESET ✓ (UNDO BELOW)';
     setTimeout(() => { button.textContent = 'RESET THIS PANEL TO DEFAULTS'; refreshState(); }, 2500);
@@ -2772,6 +2835,9 @@ function renderControlsPanel() {
   sleepStepsEl.value = (Array.isArray(c.sleepSteps) && c.sleepSteps.length ? c.sleepSteps : [30, 60, 90, 120]).join(', ');
   volumeStepEl.value = Number.isFinite(c.volumeStepPct) ? c.volumeStepPct : 10;
   volumeMaxEl.value = Number.isFinite(c.volumeMaxPct) ? c.volumeMaxPct : 100;
+  rememberChannelVolumeEl.checked = !!c.rememberChannelVolume;
+  sleepFadeOutEl.checked = c.sleepFadeOut !== false;
+  tuneFadeInEl.value = String(Number.isFinite(c.tuneFadeInMs) ? c.tuneFadeInMs : 0);
 }
 
 const setControl = (key, value, opts) => dispatch({ type: 'settings.set', path: ['controls', key], value }, opts);
@@ -2805,6 +2871,9 @@ volumeStepEl.addEventListener('change', () => {
   volumeStepEl.value = pct;
   setControl('volumeStepPct', pct);
 });
+rememberChannelVolumeEl.addEventListener('change', () => setControl('rememberChannelVolume', rememberChannelVolumeEl.checked));
+sleepFadeOutEl.addEventListener('change', () => setControl('sleepFadeOut', sleepFadeOutEl.checked));
+tuneFadeInEl.addEventListener('change', () => setControl('tuneFadeInMs', parseInt(tuneFadeInEl.value, 10) || 0));
 volumeMaxEl.addEventListener('input', () => {
   const pct = parseInt(volumeMaxEl.value, 10);
   setControl('volumeMaxPct', pct, { coalesce: 'settings:volumeMax' });

@@ -26,7 +26,8 @@ import {
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
 import { tuneTimingEnabled } from '../core/perf.js';
-import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
+import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTuneVolume, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
+import { noteRecentChannel } from './recent-channels.js';
 import { cancelAllInterrupts, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from '../plugin/host.js';
 import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
@@ -777,6 +778,8 @@ export async function tuneToChannel(number, opts) {
   const prevNumber = S.currentNumber;
   if (prevNumber != null && prevNumber !== number) S.previousNumber = prevNumber;
   S.currentNumber = number;
+  noteRecentChannel(number);
+  applyTuneVolume(number);
   if (!opts.sharedSync) syncSharedTune(number);
   window.applyTheme?.();
   applyChannelIdentity(ch);

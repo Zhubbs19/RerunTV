@@ -5800,3 +5800,20 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 #setup-screen .panel-reset-row { display: flex; justify-content: flex-end; padding-top: 8px; border-top: 1px dashed var(--border); }
 #setup-screen .panel-reset-btn { font-size: 11px; opacity: 0.85; }
 #setup-screen .panel-reset-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* SYSTEM › KEYS: one row per remappable action. */
+#setup-screen .keymap-editor { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 6px 24px; padding: 12px 4px 4px; }
+#setup-screen .keymap-row { display: grid; grid-template-columns: 1fr 88px 104px; gap: 10px; align-items: center; }
+#setup-screen .keymap-label { font-weight: 700; }
+#setup-screen .keymap-key { font-family: var(--font-mono, monospace); font-weight: 800; letter-spacing: 1px; text-align: center; }
+#setup-screen .keymap-key.keymap-changed { border-color: var(--accent); color: var(--accent); }
+#setup-screen .keymap-reset { font-size: 11px; opacity: 0.85; }
+#setup-screen .keymap-message { grid-column: 1 / -1; min-height: 1.4em; color: var(--accent); }
+
+/* "New things to try": one line of text and a TAKE ME THERE button each. */
+.highlights-list { display: flex; flex-direction: column; gap: 6px; padding: 10px 4px 4px; }
+.highlight-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 12px; border: 1px solid var(--border, rgba(255, 255, 255, 0.2)); border-radius: 3px; }
+.highlight-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.highlight-text strong { letter-spacing: 0.5px; }
+.highlight-text span { font-size: 12px; opacity: 0.8; }
+.update-changelog-highlights { margin-top: 12px; max-height: 32vh; overflow-y: auto; }

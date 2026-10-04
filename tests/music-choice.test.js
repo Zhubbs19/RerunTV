@@ -303,3 +303,30 @@ test('buildCabinet views: albums only, singles only, by artist', async () => {
   const all = buildCabinet(index, '', 'all');
   assert.equal(all.reduce((n, i) => n + i.tracks.length, 0), 4);
 });
+
+test('rankAlbumArtFiles picks the cover from Windows-style and ripped-folder names', async () => {
+  const { rankAlbumArtFiles } = await loadRenderer();
+  const guid = '{B5020207-474E-4720-FC45-262E674CA600}';
+  assert.equal(
+    rankAlbumArtFiles([`C:\m\a\AlbumArtSmall.jpg`, `C:\m\a\AlbumArt_${guid}_Small.jpg`, `C:\m\a\AlbumArt_${guid}_Large.jpg`]),
+    `C:\m\a\AlbumArt_${guid}_Large.jpg`,
+  );
+  assert.equal(rankAlbumArtFiles(['x/AlbumArtSmall.jpg', 'x/Folder.jpg']), 'x/Folder.jpg');
+  assert.equal(rankAlbumArtFiles(['x/back.jpg', 'x/Train - Train.jpg']), 'x/Train - Train.jpg', 'a named scan beats a back cover');
+  assert.equal(rankAlbumArtFiles([]), null);
+});
+
+test('buildCabinet matches the query to the view: artists by artist only, never by song title', async () => {
+  const { buildLibraryIndex, buildCabinet } = await loadRenderer();
+  const index = buildLibraryIndex(stations);
+  // A song title that happens to contain an artist's name must not pull its album in.
+  const s2 = [{ id: 's', name: 'x', tracks: [
+    { path: 'C:/M/Alpha/Disc/01 Beta Song.mp3', durationSec: 100 },
+    { path: 'C:/M/Beta/Other/01 Plain.mp3', durationSec: 100 },
+  ] }];
+  const idx = buildLibraryIndex(s2);
+  const byArtist = buildCabinet(idx, 'beta', 'artists');
+  assert.deepEqual(byArtist.map((i) => i.artist.toLowerCase()), ['beta']);
+  assert.ok(buildCabinet(idx, 'beta', 'all').every((i) => /beta/i.test(`${i.artist} ${i.album}`)), 'all view: artist or album only');
+  assert.equal(buildCabinet(index, '', 'artists').length > 0, true);
+});

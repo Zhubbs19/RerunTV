@@ -1,4 +1,4 @@
-import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace } from './core/state.js';
+import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
 import { randomInterstitialId, getDisplayTitle } from './core/util.js';
 import {
@@ -33,7 +33,7 @@ import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, s
 import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './setup/pin-lock.js';
 import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './core/audio.js';
 import {
-  enterTimeMachine, exitTimeMachine, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
+  enterTimeMachine, exitTimeMachine, restartCurrentShow, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
 } from './playback/timemachine.js';
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
@@ -51,6 +51,8 @@ import { installAudioOutput } from './display/audio-output.js';
 import { installTvScreen } from './display/tv-screen.js';
 import { applyLeveler } from './playback/leveler.js';
 import { applyBakedBars } from './playback/bars.js';
+import { handleRecentKey, toggleRecentChannels } from './playback/recent-channels.js';
+import { applyKeyHints, remapKeyboardEvent } from './core/key-remap.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
@@ -255,6 +257,9 @@ export function handleKey(e) {
   // own toggle rather than being eaten here.
   if (S.scanTimer != null && e.key !== 'n' && e.key !== 'N') stopChannelScan();
 
+  // The recent-channels card (Shift+Backspace) takes its own keys while up.
+  if (handleRecentKey(e)) return;
+
   if (triggerVirtualChannelKey(S.currentNumber, e.key)) return;
 
   if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
@@ -307,7 +312,7 @@ export function handleKey(e) {
       if (e.shiftKey) changeFavoriteChannel(-1); else changeChannel(-1);
       break;
     case 'Backspace':
-      jumpToLastChannel();
+      if (e.shiftKey) toggleRecentChannels(); else jumpToLastChannel();
       break;
     case 'ArrowLeft':
       if (S.timeMachineOn) startShuttle(-1);
@@ -339,6 +344,10 @@ export function handleKey(e) {
     case 'l':
     case 'L':
       returnToLive();
+      break;
+    case 'j':
+    case 'J':
+      restartCurrentShow();
       break;
     case ' ':
     case 'Enter':
@@ -455,7 +464,7 @@ export function handleKey(e) {
 window.addEventListener('keydown', (e) => {
   if (routeKeydown(e)) return;
   if (exitPromptOpen()) { e.preventDefault(); return; } // modal over live TV
-  handleKey(e);
+  handleKey(remapKeyboardEvent(e));
 });
 installTvInput({ handleKey });
 // Never switches on its own — it only offers (docs/design/01 §4).
@@ -579,6 +588,7 @@ function applyCompanionSettingsLive(changedSections) {
   applyLeveler();
   applyBakedBars();
   applyHintBarState();
+  applyKeyHints();
   applyDisplayModeSettled();
   window.applyTickerState?.();
   pushRemoteState();
@@ -873,6 +883,7 @@ export async function showTvScreen() {
   applyLeveler();
   applyBakedBars();
   applyHintBarState();
+  applyKeyHints();
   applyTheme();
   applyDisplayModeSettled();
   applyLogoBugPlacement();
@@ -1128,6 +1139,11 @@ export function applyConfigDefaults(config) {
   // record: a LAN viewer reads the host's, it doesn't write its own.
   if (config.display.logoBugAuthoredHeight == null && !window.__isViewer) {
     config.display.logoBugAuthoredHeight = Math.round(window.screen && window.screen.height ? window.screen.height : 1080);
+    // On a big screen with logo sizes already tuned, that guess may be wrong
+    // (tuned on a 1080p screen, first opened on a 4K one), so ask once.
+    const tuned = (config.display.logoBugProfiles || []).some((p) => p.size !== 46 || p.aspect || p.resolution)
+      || (config.channels || []).some((c) => Array.isArray(c.logoBugProfiles) && c.logoBugProfiles.length > 1);
+    if (tuned && config.display.logoBugAuthoredHeight > 1200) config.display.logoBugAuthoredAsk = true;
   }
   if (![0, 1, 2.5, 5, 10].includes(Number(config.display.overlaySnapIncrement))) {
     config.display.overlaySnapIncrement = 0;
@@ -1235,6 +1251,27 @@ export function applyConfigDefaults(config) {
   return config;
 }
 
+// One-time question after the first launch on a big screen with logo sizes
+// already tuned: were they set up on this screen? Decides the size the
+// Automatic scaling starts from (DISPLAY › Logo bug).
+async function askAboutDisplaySizes() {
+  const d = S.config && S.config.display;
+  if (!d || !d.logoBugAuthoredAsk || window.__isViewer) return;
+  const height = d.logoBugAuthoredHeight;
+  const sameScreen = await confirmDialog({
+    title: 'YOUR LOGO SIZES',
+    message: `RerunTV can now size the logo bug and pop-up overlays for whichever screen it is on. This screen is ${Math.round(window.screen.width * (window.devicePixelRatio || 1))}×${Math.round(window.screen.height * (window.devicePixelRatio || 1))}. Were your logo sizes set up on this screen, or on a smaller 1080p one?`,
+    danger: false,
+    confirmText: 'THIS SCREEN',
+    cancelText: 'A 1080p SCREEN',
+  });
+  dispatch([
+    { type: 'settings.set', path: ['display', 'logoBugAuthoredHeight'], value: sameScreen ? height : 1080 },
+    { type: 'settings.set', path: ['display', 'logoBugAuthoredAsk'], value: undefined },
+  ], { skipUndo: true });
+  applyLogoBugPlacement();
+}
+
 async function init() {
   const loaded = await window.api.loadConfig();
   const isFirstRun = !!loaded._isFirstRun;
@@ -1295,6 +1332,8 @@ async function init() {
   // baseline, not as a user edit that Ctrl+Z should be able to undo.
   resetUndoBaseline();
   applyHintBarState();
+  applyKeyHints();
+  askAboutDisplaySizes();
   // Any plugin's own periodic/self-starting behavior (a random-alert
   // schedule, a poll loop, etc.) self-starts from its own module top-level
   // code once loadPlugins()'s dynamic imports resolve, rather than being

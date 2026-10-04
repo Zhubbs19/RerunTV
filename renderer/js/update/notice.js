@@ -5,6 +5,7 @@
 // meaty enough — a real decision with two buttons, not just a dismiss —
 // to earn its own file.
 import { showSetupScreen } from '../app.js';
+import { renderHighlights } from './highlights.js';
 import { playConfiguredSound } from '../core/audio.js';
 import {
   updateToastEl, updateToastTextEl, updateToastViewNotesBtn, updateToastInstallBtn, updateToastDismissBtn,
@@ -79,6 +80,8 @@ function showPostUpdate(notice) {
   updateChangelogVersionEl.textContent = from ? `${from}  →  ${to}` : to;
   updateChangelogTitleEl.textContent = notice.name || `WHAT'S NEW IN RERUNTV ${to}`;
   updateChangelogBodyEl.textContent = readableReleaseNotes(notice.notes);
+  const highlightsEl = document.getElementById('update-changelog-highlights');
+  if (highlightsEl) renderHighlights(highlightsEl, { onGo: () => closePostUpdate(), showSetup: showSetupScreen });
   updateChangelogEl.classList.remove('hidden');
   playConfiguredSound('notification');
   updateChangelogDoneBtn.focus({ preventScroll: true });

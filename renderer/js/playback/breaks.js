@@ -198,6 +198,16 @@ const BREAK_LABELS = {
 // content-to-content cuts) — matches tv.css's own fallback transition-
 // duration, so behavior is unchanged for anyone who never touches the new
 // per-entry fields (setup-interstitials.js).
+// Whether the logo bug steps aside for breaks on this channel: its own choice
+// (true hides, 'show' keeps it up) over the box-wide one; unset inherits. An
+// old `false` from when this was a plain checkbox means "not asked", so it
+// inherits too.
+export function logoBugHidesOnBreakFor(ch) {
+  if (ch.logoBugHidesOnBreak === 'show') return false;
+  if (ch.logoBugHidesOnBreak === true) return true;
+  return !!(S.config.display && S.config.display.logoBugHideOnBreaks);
+}
+
 const DEFAULT_FADE_OUT_MS = 180;
 const DEFAULT_FADE_IN_MS = 220;
 // How long checkBreakState will keep deferring a boundary-timer cutoff for a
@@ -298,7 +308,7 @@ function startBreak(ch, resolved, key) {
   // visible" behavior unchanged). Only for breaks that actually take over
   // the screen — not the text-only "you're watching" station-ID bar, which
   // doesn't interrupt content and coexists with the bug in real practice.
-  if ((ch.logoBugHidesOnBreak || (S.config.display && S.config.display.logoBugHideOnBreaks)) && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
+  if (logoBugHidesOnBreakFor(ch) && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
   // Marks when content stopped airing so endBreak can credit exactly this
   // much back (see S.contentLostMs) — a text-only station ID never stops
   // content, so it has nothing to credit.
@@ -562,7 +572,7 @@ function endBreak(ch) {
     S.breakEnteredAtMs = 0;
   }
   if (shouldResume && S.currentNumber === ch.number && S.isPoweredOn) {
-    if (ch.logoBugHidesOnBreak || (S.config.display && S.config.display.logoBugHideOnBreaks)) updateLogoBug(ch);
+    if (logoBugHidesOnBreakFor(ch)) updateLogoBug(ch);
     (async () => {
       await fadeOutPlayer();
       // fadeInOnReady: reveal only once the resumed show has actually

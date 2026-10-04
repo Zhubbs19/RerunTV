@@ -822,3 +822,51 @@
 .mc-cab-case-time { font-family: var(--font-mono, monospace); font-size: 12px; opacity: 0.55; }
 
 .mc-cab-plate-buttons { display: inline-flex; gap: 8px; }
+
+/* Starred items carry a gold star on the spine or sleeve. */
+.mc-cab-fav::after {
+  content: '★';
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  transform: translateX(-50%);
+  z-index: 2;
+  color: #ffd84a;
+  font-size: 14px;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+
+/* Cover art on the shelves. A record sleeve becomes its cover; a CD spine
+   carries a small square of it at the foot, as a sticker would. */
+.mc-cab-item-art { display: block; }
+.mc-cab-item-art.hidden { display: none; }
+.mc-cabinet[data-style="vinyl"] .mc-cab-item-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.mc-cabinet[data-style="vinyl"] .mc-cab-has-art .mc-cab-item-text {
+  z-index: 1;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0, rgba(0, 0, 0, 0) 62%);
+}
+.mc-cabinet[data-style="vinyl"] .mc-cab-has-art::before { z-index: 1; }
+.mc-cabinet[data-style="cd"] .mc-cab-item-art {
+  position: absolute;
+  left: 2px;
+  bottom: 12px;
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  z-index: 2;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.mc-cabinet[data-style="cd"] .mc-cab-has-art .mc-cab-item-text { padding-bottom: 46px; }
+/* A bigger cover for the album in hand. */
+.mc-cab-holding-cover { width: 84px; height: 84px; }
+.mc-cab-holding { min-height: 96px; }

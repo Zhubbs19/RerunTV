@@ -71,7 +71,7 @@ export function applyVolume() {
   const kindMult = isAdKind
     ? (typeof S.config.adVolume === 'number' ? S.config.adVolume : 1)
     : (typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1);
-  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult * levelerGain()));
+  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult * levelerGain() * (S.tuneFadeGain == null ? 1 : S.tuneFadeGain) * (S.sleepFadeGain == null ? 1 : S.sleepFadeGain)));
 
   // Credits-squeeze video mode (playback.js's startCreditsSpeedup) plays a
   // real upNext-pool promo with its own audio while #player is force-muted
@@ -166,6 +166,44 @@ function volumeStep() {
   return Number.isFinite(pct) ? Math.min(25, Math.max(1, pct)) / 100 : 0.1;
 }
 
+// "Remember each channel's volume" (SETTINGS › System › Tuning & controls):
+// the level you left a channel at comes back when you tune to it. Kept in its
+// own host-local key so a volume change doesn't make paired TVs refetch the
+// whole lineup.
+function rememberVolumeOn() {
+  return !!(S.config.controls && S.config.controls.rememberChannelVolume);
+}
+
+function rememberChannelVolume() {
+  if (!rememberVolumeOn() || S.currentNumber == null) return;
+  const next = { ...(S.config.channelVolumes || {}), [S.currentNumber]: S.config.volume };
+  S.config.channelVolumes = next;
+  commitInPlace({ type: 'settings.set', path: ['channelVolumes'], value: next }, { skipUndo: true });
+}
+
+// Called by every tune: the remembered level for this channel, then the
+// optional fade-in from silence (tuneFadeInMs) so a loud start is softened.
+export function applyTuneVolume(number) {
+  const remembered = rememberVolumeOn() && S.config.channelVolumes ? S.config.channelVolumes[number] : null;
+  if (typeof remembered === 'number' && remembered >= 0 && remembered <= 1 && remembered !== S.config.volume) {
+    S.config.volume = Math.min(volumeMax(), remembered);
+    volumeBarFillEl.style.width = `${Math.round((S.config.volume / volumeMax()) * 100)}%`;
+  }
+  const fadeMs = Number(S.config.controls && S.config.controls.tuneFadeInMs);
+  cancelAnimationFrame(S.tuneFadeRAF);
+  if (!(fadeMs > 0)) { S.tuneFadeGain = 1; applyVolume(); return; }
+  const start = performance.now();
+  S.tuneFadeGain = 0;
+  applyVolume();
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / fadeMs);
+    S.tuneFadeGain = t * t;
+    applyVolume();
+    if (t < 1) S.tuneFadeRAF = requestAnimationFrame(step);
+  };
+  S.tuneFadeRAF = requestAnimationFrame(step);
+}
+
 export function adjustVolume(delta) {
   const current = typeof S.config.volume === 'number' ? S.config.volume : 1;
   const max = volumeMax();
@@ -180,6 +218,7 @@ export function adjustVolume(delta) {
     { type: 'settings.set', path: ['muted'], value: S.config.muted },
   ], { skipUndo: true });
   sfxVolumeTick(delta > 0);
+  rememberChannelVolume();
 
   volumeBarFillEl.style.width = `${Math.round((S.config.volume / max) * 100)}%`;
   avoidLogoBugOverlap();
@@ -722,6 +761,12 @@ export function applyVhsQuality(ch) {
 // persisted in config. Reuses the same crtToggleFlash confirmation pattern
 // as toggleCrt().
 const DEFAULT_SLEEP_STEPS = [30, 60, 90, 120];
+// Length of the sleep timer's fade-out; 0 = a straight cut. On by default.
+function sleepFadeMs() {
+  const c = S.config.controls || {};
+  if (c.sleepFadeOut === false) return 0;
+  return 25000;
+}
 // The steps are SETTINGS › System › Tuning & controls; OFF is always first.
 export function sleepOptions() {
   const steps = S.config.controls && S.config.controls.sleepSteps;
@@ -735,8 +780,30 @@ export function cycleSleepTimer() {
   const next = options[(idx + 1) % options.length];
   S.sleepMinutes = next;
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
+  clearTimeout(S.sleepFadeTimer);
+  cancelAnimationFrame(S.sleepFadeRAF);
+  S.sleepFadeGain = 1;
+  applyVolume();
   if (next > 0) {
-    S.sleepTimer = setTimeout(() => { if (S.isPoweredOn) powerOff(); }, next * 60000);
+    S.sleepTimer = setTimeout(() => {
+      if (S.isPoweredOn) powerOff();
+      S.sleepFadeGain = 1; // back to full for the next time it's switched on
+    }, next * 60000);
+    // The last stretch fades the sound out instead of cutting it, like
+    // falling asleep to a real TV's sleep timer (SETTINGS › Tuning & controls).
+    const fadeMs = sleepFadeMs();
+    if (fadeMs > 0 && next * 60000 > fadeMs) {
+      S.sleepFadeTimer = setTimeout(() => {
+        const begin = performance.now();
+        const step = (now) => {
+          const t = Math.min(1, (now - begin) / fadeMs);
+          S.sleepFadeGain = 1 - t;
+          applyVolume();
+          if (t < 1 && S.isPoweredOn) S.sleepFadeRAF = requestAnimationFrame(step);
+        };
+        S.sleepFadeRAF = requestAnimationFrame(step);
+      }, next * 60000 - fadeMs);
+    }
   }
   flashMessage(next > 0 ? `SLEEP TIMER: ${next} MIN` : 'SLEEP TIMER: OFF', 'sleepTimerFlashTimer');
 }

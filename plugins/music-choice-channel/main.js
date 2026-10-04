@@ -106,7 +106,15 @@ function activate(ctx) {
     }
     walk(folderPath);
     results.sort();
-    return { files: results };
+    // File modification times, in the same order, for the cabinet's RECENT
+    // shelf (when each song reached the library). Audio scans only.
+    let modified;
+    if (kind === 'audio' && typeof pluginFs.statSync === 'function') {
+      modified = results.map((file) => {
+        try { return Math.round(pluginFs.statSync(file).mtimeMs || 0); } catch (e) { return 0; }
+      });
+    }
+    return { files: results, modified };
   });
 }
 

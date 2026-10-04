@@ -1677,6 +1677,31 @@ bulkRatingApplyBtn.addEventListener('click', () => {
   setOnSelected('rating', bulkRatingSelect.value || null, 'Set rating');
   renderChannelList();
 });
+// More things worth setting across a whole selection at once: how the logo
+// bug treats the channel number and ad breaks, and the aspect handling.
+const bulkLogoNumberSelect = document.getElementById('bulk-logo-number-select');
+const bulkLogoBreaksSelect = document.getElementById('bulk-logo-breaks-select');
+const bulkAspectSelect = document.getElementById('bulk-aspect-select');
+CHANNEL_ASPECT_OPTIONS.forEach((option) => {
+  const opt = document.createElement('option');
+  opt.value = option.value;
+  opt.textContent = option.label;
+  bulkAspectSelect.appendChild(opt);
+});
+document.getElementById('bulk-logo-number-apply-btn').addEventListener('click', () => {
+  const v = bulkLogoNumberSelect.value;
+  setOnSelected('logoBugHideNumber', v === 'hide' ? true : v === 'show' ? false : null, 'Set logo number');
+  renderChannelList();
+});
+document.getElementById('bulk-logo-breaks-apply-btn').addEventListener('click', () => {
+  const v = bulkLogoBreaksSelect.value;
+  setOnSelected('logoBugHidesOnBreak', v === 'hide' ? true : v === 'show' ? 'show' : null, 'Set logo in breaks');
+  renderChannelList();
+});
+document.getElementById('bulk-aspect-apply-btn').addEventListener('click', () => {
+  setOnSelected('aspectRatio', bulkAspectSelect.value || null, 'Set aspect');
+  renderChannelList();
+});
 attachSliderReadout(bulkVolumeSlider, { suffix: '%' });
 bulkVolumeApplyBtn.addEventListener('click', () => {
   setOnSelected('volume', parseInt(bulkVolumeSlider.value, 10) / 100, 'Set volume');
