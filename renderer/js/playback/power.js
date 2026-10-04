@@ -12,7 +12,7 @@ import { resetCreditsSpeedup } from './broadcast-fx.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from '../plugin/host.js';
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, viewNow, commitInPlace } from '../core/state.js';
 import { stopShuttle } from './timemachine.js';
-import { autoHideAfter } from '../core/util.js';
+import { autoHideAfter, settingNumber } from '../core/util.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
 import { levelerGain } from './leveler.js';
@@ -166,13 +166,13 @@ function avoidLogoBugOverlap() {
 // SETTINGS › System › Tuning & controls: step size and ceiling for the volume
 // keys. Callers pass +/-0.1; only the sign matters.
 export function volumeMax() {
-  const pct = Number(S.config.controls && S.config.controls.volumeMaxPct);
-  return Number.isFinite(pct) ? Math.min(100, Math.max(10, pct)) / 100 : 1;
+  const pct = settingNumber(S.config.controls && S.config.controls.volumeMaxPct);
+  return pct != null ? Math.min(100, Math.max(10, pct)) / 100 : 1;
 }
 
 function volumeStep() {
-  const pct = Number(S.config.controls && S.config.controls.volumeStepPct);
-  return Number.isFinite(pct) ? Math.min(25, Math.max(1, pct)) / 100 : 0.1;
+  const pct = settingNumber(S.config.controls && S.config.controls.volumeStepPct);
+  return pct != null ? Math.min(25, Math.max(1, pct)) / 100 : 0.1;
 }
 
 // "Remember each channel's volume" (SETTINGS › System › Tuning & controls):

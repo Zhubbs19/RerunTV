@@ -1,6 +1,6 @@
 import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
-import { randomInterstitialId, getDisplayTitle } from './core/util.js';
+import { randomInterstitialId, getDisplayTitle, settingNumber } from './core/util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
   guideOverlay, channelEntryEl, stationIdBarEl, triviaCardEl, channelFilterEl, shortcutsOverlayEl, detailsOverlayEl,
@@ -155,8 +155,8 @@ export function pushDigit(d) {
   void channelEntryEl.offsetWidth;
   channelEntryEl.classList.add('digit-flash');
   clearTimeout(S.entryTimer);
-  const entryDelay = Number(S.config.controls && S.config.controls.entryDelayMs);
-  S.entryTimer = setTimeout(commitEntry, Number.isFinite(entryDelay) ? Math.min(3000, Math.max(0, entryDelay)) : 800);
+  const entryDelay = settingNumber(S.config.controls && S.config.controls.entryDelayMs);
+  S.entryTimer = setTimeout(commitEntry, entryDelay != null ? Math.min(3000, Math.max(0, entryDelay)) : 800);
 }
 
 export function commitEntry() {

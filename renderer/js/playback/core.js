@@ -36,7 +36,7 @@ import {
 import { S, viewNow, commitInPlace } from '../core/state.js';
 import { isFavorite, isHiddenForProfile, syncSharedTune } from '../personal/state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
-import { isEnabledByDefault } from '../core/util.js';
+import { isEnabledByDefault, settingNumber } from '../core/util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 import { waitForMediaSourceReady as waitForProviderMediaSource } from './recovery.js';
 import { historyEnabled, recordViewing } from './history.js';
@@ -1059,8 +1059,8 @@ export function changeChannel(direction) {
 // app.js arranges by calling stopChannelScan() from the keydown handler.
 const DEFAULT_SCAN_DWELL_S = 8;
 function scanDwellMs() {
-  const s = Number(S.config.controls && S.config.controls.scanDwellSec);
-  return (Number.isFinite(s) ? Math.min(60, Math.max(2, s)) : DEFAULT_SCAN_DWELL_S) * 1000;
+  const s = settingNumber(S.config.controls && S.config.controls.scanDwellSec);
+  return (s != null ? Math.min(60, Math.max(2, s)) : DEFAULT_SCAN_DWELL_S) * 1000;
 }
 
 export function isChannelScanning() {

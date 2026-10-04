@@ -218,6 +218,15 @@ export function isEnabledByDefault(config) {
 }
 
 // Fisher-Yates, in place.
+// A numeric setting, or null when it is unset, blank or not a number. Plain
+// Number() reads null and '' as 0, which a clamp would turn into a real value
+// (a cleared field in the phone Settings editor became a 10% volume ceiling).
+export function settingNumber(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function shuffleArray(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
