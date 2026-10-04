@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }), api: {} };
 const { pathToFileURL } = require('node:url');
 
 const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', 'core', 'util.js')).href);
