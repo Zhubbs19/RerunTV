@@ -990,7 +990,16 @@
                 <option value="3" selected>3 (1.5 HR)</option>
                 <option value="4">4 (2 HR)</option>
               </select></div>
-              <p class="setting-row-help">How many half-hour columns the guide shows.</p>
+              <p class="setting-row-help">How many time columns the guide shows.</p>
+            </div>
+            <div class="setting-row" data-setting="guide-slot-minutes" data-synonyms="guide time column half hour 15 30 60 minutes">
+              <label class="setting-row-label" for="guide-slot-minutes">Time per column</label>
+              <div class="setting-row-control"><select id="guide-slot-minutes">
+                <option value="15">15 MINUTES</option>
+                <option value="30" selected>30 MINUTES</option>
+                <option value="60">1 HOUR</option>
+              </select></div>
+              <p class="setting-row-help">The length of each column in the guide. Shorter columns suit short shows and music videos.</p>
             </div>
             <div class="setting-row" data-setting="guide-channel-names" data-synonyms="channel names call letters abbreviate abbreviation short names station letters retro">
               <label class="setting-row-label" for="guide-channel-names-select">Channel names</label>
@@ -1176,14 +1185,14 @@
               <p class="setting-row-help">Place and size the bug relative to the picture, not the whole screen, so it never lands on black bars and stays the same size on 4:3, widescreen and 16:9 content. On by default.</p>
             </div>
             <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
-              <label class="setting-row-label" for="logo-bug-ref-height">Bug sizes were set on</label>
+              <label class="setting-row-label" for="logo-bug-ref-height">Bug and overlay sizes were set on</label>
               <div class="setting-row-control"><select id="logo-bug-ref-height">
                 <option value="1080">A 1080p SCREEN</option>
                 <option value="1440">A 1440p SCREEN</option>
                 <option value="2160">A 4K SCREEN</option>
                 <option value="0">DON’T SCALE (FIXED PIXELS)</option>
               </select></div>
-              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. The bug is scaled to match your screen from this size. Sizes you set in the editor remember their own screen.</p>
+              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. The bug and the pop-up overlays are scaled to match your screen from this size. Bug sizes you set in the editor remember their own screen.</p>
             </div>
             <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
               <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>

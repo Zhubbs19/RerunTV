@@ -11,6 +11,20 @@ const PPV_PARODY_EVENTS = [
   { title: 'EVENT #405: EXTREME MICROWAVE POPCORN CHAMPIONSHIP', price: '$14.95' },
 ];
 
+// SETTINGS › Plug-ins › Pay-per-view can replace the parody lineup, change how
+// often the featured event changes, and how long an order unscrambles for.
+function ppvSettings() {
+  return (window.RCBPlugins.ctx.getPluginSettings && window.RCBPlugins.ctx.getPluginSettings('pay-per-view')) || {};
+}
+function ppvEvents() {
+  const custom = (ppvSettings().events || []).filter((e) => e && String(e.title || '').trim());
+  return custom.length ? custom : PPV_PARODY_EVENTS;
+}
+function unscrambleSeconds() {
+  const n = Number(ppvSettings().unscrambleSeconds);
+  return Number.isFinite(n) ? Math.min(600, Math.max(5, n)) : 30;
+}
+
 let ppvEventIdx = 0;
 let ppvUnscrambledUntil = 0;
 let currentContainer = null;
@@ -23,7 +37,7 @@ function updateScrambleState() {
 
 function openOrderModal() {
   if (!currentContainer) return;
-  const event = PPV_PARODY_EVENTS[ppvEventIdx];
+  const event = ppvEvents()[ppvEventIdx] || ppvEvents()[0];
   currentContainer.querySelector('[data-el="modal-event"]').textContent = event.title;
   currentContainer.querySelector('[data-el="modal-price"]').textContent = event.price;
   currentContainer.querySelector('[data-el="modal"]').classList.remove('hidden');
@@ -42,9 +56,9 @@ function closeSuccessModal() {
 function confirmOrder() {
   closeOrderModal();
   window.playPurchaseConfirmSound();
-  ppvUnscrambledUntil = Date.now() + 30000;
+  ppvUnscrambledUntil = Date.now() + unscrambleSeconds() * 1000;
   updateScrambleState();
-  const event = PPV_PARODY_EVENTS[ppvEventIdx];
+  const event = ppvEvents()[ppvEventIdx] || ppvEvents()[0];
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="success-title"]').textContent = event.title;
   currentContainer.querySelector('[data-el="success-price"]').textContent = `${event.price} CHARGED TO CABLE BILL`;
@@ -59,9 +73,10 @@ window.RCBPlugins.registerChannelType('pay-per-view', {
   onOk: openOrderModal,
   render(container, ctx) {
     currentContainer = container;
-    const slot = Math.floor(ctx.viewNow() / (15 * 60 * 1000));
-    ppvEventIdx = slot % PPV_PARODY_EVENTS.length;
-    const event = PPV_PARODY_EVENTS[ppvEventIdx];
+    const rotate = Number(ppvSettings().rotateMinutes);
+    const slot = Math.floor(ctx.viewNow() / ((Number.isFinite(rotate) ? Math.min(240, Math.max(1, rotate)) : 15) * 60 * 1000));
+    ppvEventIdx = slot % ppvEvents().length;
+    const event = ppvEvents()[ppvEventIdx] || ppvEvents()[0];
 
     container.innerHTML = `
       <div class="ppv-channel">
@@ -103,7 +118,7 @@ window.RCBPlugins.registerChannelType('pay-per-view', {
           <div class="preview-modal-title">CABLE VISION PAY-PER-VIEW</div>
           <div class="ppv-modal-event" data-el="success-title"></div>
           <div class="ppv-modal-price" data-el="success-price"></div>
-          <p class="ppv-modal-notice">Your 30-second unscrambled viewing window has been activated. Enjoy the show!</p>
+          <p class="ppv-modal-notice">Your ${unscrambleSeconds()}-second unscrambled viewing window has been activated. Enjoy the show!</p>
           <div class="preview-modal-actions">
             <button data-el="success-close" data-modal-dismiss class="btn btn-primary ppv-success-btn">📺 WATCH UNSCRAMBLED EVENT NOW</button>
           </div>

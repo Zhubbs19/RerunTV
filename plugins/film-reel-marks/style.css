@@ -19,3 +19,5 @@
 .film-reel-mark.show { opacity: 1; }
 .crt.guide-active .film-reel-mark,
 .crt.power-off .film-reel-mark { display: none; }
+
+.film-reel-mark.film-reel-left { right: auto; left: 22px; }

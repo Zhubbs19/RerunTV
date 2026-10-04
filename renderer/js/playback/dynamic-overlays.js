@@ -6,7 +6,7 @@
 // wins: see [[dynamic_overlays_rule_shape]] in channels.js's
 // normalizeDynamicOverlays comment.
 import { DEFAULT_OVERLAY_DURATION_MS, isVideoMediaPath } from '../core/channels.js';
-import { dynamicOverlayEl } from '../core/dom.js';
+import { crtContainer, dynamicOverlayEl } from '../core/dom.js';
 import { effectiveContentTags } from '../core/interstitials.js';
 import { computeLivePosition } from '../core/schedule.js';
 import { S } from '../core/state.js';
@@ -74,6 +74,16 @@ function ruleMatchesCurrentContent(ch, rule) {
 // shown, false otherwise — callers that have their own built-in fallback
 // rendering (e.g. flashRatingBug/showMovieRatingCard, playback.js) use this
 // to know whether they still need to render that fallback themselves.
+// Overlay sizes are in pixels set on one screen, so they are scaled by the
+// screen's height against the "sizes were set on" height (DISPLAY › Logo bug,
+// shared with the logo bug), the same as the bug itself. 0 there means fixed.
+function overlayScale() {
+  const setting = S.config.display && S.config.display.logoBugReferenceHeight;
+  if (setting === 0) return 1;
+  const h = crtContainer.clientHeight;
+  return h > 0 ? Math.min(4, Math.max(0.25, h / (Number(setting) || 1080))) : 1;
+}
+
 export function triggerDynamicOverlays(ch, trigger) {
   const rule = effectiveDynamicOverlays(ch).find((r) => r.trigger === trigger && r.mediaPath && ruleMatchesCurrentContent(ch, r));
   if (!rule) return false;
@@ -81,7 +91,7 @@ export function triggerDynamicOverlays(ch, trigger) {
   hideTimer = null;
   activeTrigger = trigger;
   dynamicOverlayEl.innerHTML = '';
-  dynamicOverlayEl.style.setProperty('--dynamic-overlay-size', `${rule.size}px`);
+  dynamicOverlayEl.style.setProperty('--dynamic-overlay-size', `${Math.round(rule.size * overlayScale())}px`);
   // 'custom' is drag-placed (x/y percentages) rather than one of
   // CORNER_STYLE's fixed presets — everything CORNER_STYLE would normally
   // set (right/bottom/transform) is cleared explicitly first since a

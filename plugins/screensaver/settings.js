@@ -14,6 +14,12 @@ window.RCBPlugins.registerPluginSettings('screensaver', {
           AFTER <input type="number" min="1" data-el="interval"> MIN IDLE
         </div>
         <div class="panel-interval">
+          TEXT <input type="text" class="title-row-input" maxlength="30" placeholder="RETRO CABLE BOX / PLEASE STAND BY" data-el="text">
+        </div>
+        <div class="panel-interval">
+          <label><input type="checkbox" data-el="skip-plugin"> DON'T START ON PLUG-IN CHANNELS (MUSIC, WEATHER…)</label>
+        </div>
+        <div class="panel-interval">
           VARIANT
           <select data-el="variant">
             <option value="auto">AUTO (MATCHES ACTIVE THEME ERA)</option>
@@ -30,6 +36,10 @@ window.RCBPlugins.registerPluginSettings('screensaver', {
     const q = (sel) => container.querySelector(`[data-el="${sel}"]`);
     const enabledEl = q('enabled');
     const intervalEl = q('interval');
+    q('text').value = cfg.text || '';
+    q('skip-plugin').checked = !!cfg.skipPluginChannels;
+    q('text').addEventListener('change', () => { cfg.text = q('text').value.trim(); ctx.saveConfigDebounced(); });
+    q('skip-plugin').addEventListener('change', () => { cfg.skipPluginChannels = q('skip-plugin').checked; ctx.saveConfigDebounced(); });
     const variantEl = q('variant');
     enabledEl.checked = !!cfg.enabled;
     intervalEl.value = cfg.intervalMinutes || 5;

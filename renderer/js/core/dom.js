@@ -176,6 +176,7 @@ export const hintBarHideDurationEl = document.getElementById('hintbar-hide-durat
 export const hintBarHideDurationValEl = document.getElementById('hintbar-hide-duration-val');
 export const hintBarEl = document.getElementById('hint-bar');
 export const hintBarItemsListEl = document.getElementById('hintbar-items-list');
+export const guideSlotMinutesSelect = document.getElementById('guide-slot-minutes');
 export const guideSlotsSelect = document.getElementById('guide-slots-select');
 export const uiScaleSelect = document.getElementById('ui-scale-select');
 export const guideCardDurationSlider = document.getElementById('guide-card-duration-slider');

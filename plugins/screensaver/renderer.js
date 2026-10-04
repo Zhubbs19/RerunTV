@@ -85,8 +85,25 @@ function show() {
     scheduleTimer();
     return;
   }
+  // Plugin channels (the music channel, weather, the test pattern…) are
+  // meant to be watched without touching anything, so the screensaver can be
+  // told to leave them alone (SETTINGS › Plug-ins › Idle screensaver).
+  const cfg = S.config.screensaver || {};
+  const onRealChannel = (S.config.channels || []).some((c) => c.number === S.currentNumber);
+  if (cfg.skipPluginChannels && !onRealChannel) { scheduleTimer(); return; }
   applyScreensaverVariant();
+  applyScreensaverText();
   screensaverEl.classList.remove('hidden');
+}
+
+// The words on the bouncing mark and the stand-by slate: yours instead of the
+// stock ones when set. Blank puts the stock text back.
+export function applyScreensaverText() {
+  const text = String((S.config.screensaver && S.config.screensaver.text) || '').trim().toUpperCase();
+  const bounce = screensaverEl.querySelector('.screensaver-bounce');
+  const slate = screensaverEl.querySelector('.standby-slate');
+  if (bounce) bounce.textContent = text || 'RETRO CABLE BOX';
+  if (slate) slate.textContent = text || 'PLEASE STAND BY';
 }
 
 function scheduleTimer() {

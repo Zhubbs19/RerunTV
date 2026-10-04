@@ -460,7 +460,7 @@ function activeLogoBugContext() {
 // relative size on a 4K screen as on 1080p. Scale by the screen's height
 // against the height the profile was set on: its own stamp (the live editor
 // writes one), else DISPLAY › Logo bug › "Sizes were set on". 0 = off.
-const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 2160;
+const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 1080;
 function logoBugScale(profile) {
   const setting = S.config.display && S.config.display.logoBugReferenceHeight;
   if (setting === 0) return 1;

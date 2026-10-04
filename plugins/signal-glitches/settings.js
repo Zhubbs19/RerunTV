@@ -23,6 +23,15 @@ window.RCBPlugins.registerPluginSettings('signal-glitches', {
             <span data-el="intensity-value"></span>
           </div>
           <div class="panel-interval">
+            GLITCH LENGTH
+            <select data-el="length">
+              <option value="0.5">BRIEF (HALF)</option>
+              <option value="1">NORMAL</option>
+              <option value="2">LONG (DOUBLE)</option>
+              <option value="3">VERY LONG</option>
+            </select>
+          </div>
+          <div class="panel-interval">
             EFFECTS
             <label class="shuffle-toggle"><input type="checkbox" data-el="effect-static">STATIC/TEARING</label>
             <label class="shuffle-toggle"><input type="checkbox" data-el="effect-roll">PICTURE ROLL</label>
@@ -37,6 +46,11 @@ window.RCBPlugins.registerPluginSettings('signal-glitches', {
       const maxEl = q('max-interval');
       const intensityEl = q('intensity');
       const intensityValueEl = q('intensity-value');
+      const lengthEl = q('length');
+      lengthEl.value = String(settings.lengthScale || 1);
+      lengthEl.addEventListener('change', () => {
+        window.RCBPlugins.ctx.settings.updatePluginSettings('signal-glitches', { lengthScale: parseFloat(lengthEl.value) || 1 });
+      });
       const effectStaticEl = q('effect-static');
       const effectRollEl = q('effect-roll');
       const effectDropoutEl = q('effect-dropout');

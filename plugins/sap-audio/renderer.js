@@ -52,8 +52,21 @@ function cycleAudioTrack() {
 // hides the toast/resets nothing else, since the hint-bar item's own
 // visibility already only ever depends on the registered interrupt existing
 // (applyHintBarState, power.js), not any per-file state this plugin tracks.
+// The track to start on (SETTINGS › Plug-ins › SAP / Alternate Audio). Only
+// the number is known, never the language, so this is "track 2" and not
+// "Spanish". A file with fewer tracks than that plays on its first.
+function applyDefaultTrack() {
+  const cfg = S.config.sapAudio || {};
+  const want = (Number(cfg.defaultTrack) || 1) - 1;
+  const tracks = player.audioTracks;
+  if (want < 1 || !tracks || tracks.length <= want) return;
+  for (let i = 0; i < tracks.length; i++) tracks[i].enabled = i === want;
+}
+
 window.RCBPlugins.registerCoreHook('content-playing', () => {
   toastEl.classList.add('hidden');
+  // Chromium may not list every track until a moment after the file starts.
+  [0, 400, 1500].forEach((ms) => setTimeout(applyDefaultTrack, ms));
 });
 
 window.RCBPlugins.registerInterrupt('sap-audio', {

@@ -8,6 +8,7 @@ window.RCBPlugins.registerPluginSettings('local-weather', {
       <label class="panel-toggle">LOCAL WEATHER (CH 3)</label>
       <div class="panel-body">
         <input type="text" data-el="location" class="title-row-input" placeholder="ANYTOWN, USA" maxlength="40">
+        <select data-el="units"><option value="F">°F · MPH</option><option value="C">°C · KM/H</option></select>
         <button type="button" data-el="audio-btn" class="btn">CHOOSE BACKGROUND AUDIO</button>
         <button type="button" data-el="audio-clear-btn" class="btn remove-btn">CLEAR</button>
       </div>
@@ -25,6 +26,11 @@ window.RCBPlugins.registerPluginSettings('local-weather', {
     };
 
     locationEl.value = cfg.location || '';
+    q('units').value = cfg.units === 'C' ? 'C' : 'F';
+    q('units').addEventListener('change', () => {
+      cfg.units = q('units').value;
+      ctx.saveConfigDebounced();
+    });
     renderAudioStatus();
 
     locationEl.addEventListener('input', () => {

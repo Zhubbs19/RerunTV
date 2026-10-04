@@ -1,4 +1,4 @@
-import { GUIDE_SLOT_MS, S } from './state.js';
+import { guideSlotMs, S } from './state.js';
 
 export function getDisplayTitle(file) {
   if (file.title && file.title.trim()) return file.title.trim();
@@ -193,7 +193,7 @@ export function basenameNoExt(filePath) {
 }
 
 export function floorToSlot(ms) {
-  return Math.floor(ms / GUIDE_SLOT_MS) * GUIDE_SLOT_MS;
+  return Math.floor(ms / guideSlotMs()) * guideSlotMs();
 }
 
 export function formatSlotLabel(ms) {

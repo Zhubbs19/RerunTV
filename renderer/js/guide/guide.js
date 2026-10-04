@@ -11,7 +11,7 @@ import { showDetailsOverlay } from '../tv/details.js';
 import { tuneToChannel } from '../playback/core.js';
 import { breakEntriesInWindow } from '../core/interstitials.js';
 import { computeLivePosition, getChannelSchedule } from '../core/schedule.js';
-import { GUIDE_SLOT_MS, MONTHS, S, WEEKDAYS, viewNow, commitInPlace } from '../core/state.js';
+import { guideSlotMs, MONTHS, S, WEEKDAYS, viewNow, commitInPlace } from '../core/state.js';
 import { searchUpcomingPrograms } from './program-search.js';
 import { guideGenreStyleForFile } from './genres.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
@@ -376,7 +376,7 @@ export function applyGuideDockMode() {
 export function toggleGuideDockMode() {
   S.guideDocked = !S.guideDocked;
   applyGuideDockMode();
-  positionNowLine(S.guideWindowStart + GUIDE_SLOT_MS * guideSlots());
+  positionNowLine(S.guideWindowStart + guideSlotMs() * guideSlots());
 }
 
 // TV menu › SEARCH while the guide is open (doc 11 §2.3): the same filter
@@ -452,7 +452,7 @@ function mergeShortsEnabled() {
 const LABEL_MIN_PX = 52;
 function microProgramMs() {
   if (!mergeShortsEnabled()) return 0;
-  const windowMs = GUIDE_SLOT_MS * guideSlots();
+  const windowMs = guideSlotMs() * guideSlots();
   // The header's first column is the channel rail; before the first render
   // fills it in, a rendered rail cell (or the rail's ceiling) stands in.
   const railEl = guideTimeHeaderEl.firstElementChild || guideRowsEl.querySelector('.guide-row-chan');
@@ -572,7 +572,7 @@ export function openGuideReminders() {
 // same rule as ◀ (moveGuideSelectionTime).
 export function shiftGuideDay(direction) {
   const DAY = 86400000;
-  const windowMs = GUIDE_SLOT_MS * guideSlots();
+  const windowMs = guideSlotMs() * guideSlots();
   const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
   const floor = floorToSlot(viewNow());
   let start = S.guideWindowStart + direction * DAY;
@@ -600,7 +600,7 @@ export function openGuideProgramActions() {
     items.push({ label: 'TUNE', run: () => { tuneToChannel(row.number); closeGuideGrid(); } });
   } else {
     const { ch } = row;
-    const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+    const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + guideSlotMs() * (guideSlots() + 6));
     const cell = cells[cellIndexAt(cells, S.guideSelTime)];
     if (cell && cell.kind === 'run') {
       heading = `${runLabel(cell)} · CH ${formatChannelNumber(ch.number)}`;
@@ -961,7 +961,7 @@ window.addEventListener('resize', () => {
     fitDockedGuideHeight();
     const idx = selectedIndex(currentGuideRows(), S.guideSelNumber);
     if (idx >= 0) scrollSelectedRowIntoView(idx);
-    positionNowLine(S.guideWindowStart + GUIDE_SLOT_MS * guideSlots());
+    positionNowLine(S.guideWindowStart + guideSlotMs() * guideSlots());
   });
 });
 
@@ -1009,7 +1009,7 @@ export function renderGuideGrid() {
   }
   const selIdx = selectedIndex(rows, S.guideSelNumber);
   S.guideSelNumber = rows[selIdx].number;
-  const windowEnd = S.guideWindowStart + GUIDE_SLOT_MS * guideSlots();
+  const windowEnd = S.guideWindowStart + guideSlotMs() * guideSlots();
 
   // Measured once per render: the shorts threshold is a pixel width (see
   // microProgramMs), and reading layout per row while appending rows would
@@ -1030,7 +1030,7 @@ export function renderGuideGrid() {
   guideTimeHeaderEl.style.gridTemplateColumns = `var(--guide-chan-col, 170px) repeat(${guideSlots()}, 1fr)`;
   guideTimeHeaderEl.innerHTML = '<div></div>' + Array.from(
     { length: guideSlots() },
-    (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * GUIDE_SLOT_MS)}</div>`
+    (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * guideSlotMs())}</div>`
   ).join('');
 
   // Gridline spacing tracks the configurable slot count.
@@ -1159,8 +1159,8 @@ export function moveGuideSelectionTime(direction) {
   // The time machine turns the guide into a two-way browser; without it
   // the guide stays live-only and can't scroll into the past.
   const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
-  const rangeStart = floorToSlot(now) - (canRewind ? GUIDE_SLOT_MS * 8 : 0);
-  const rangeEnd = S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6);
+  const rangeStart = floorToSlot(now) - (canRewind ? guideSlotMs() * 8 : 0);
+  const rangeEnd = S.guideWindowStart + guideSlotMs() * (guideSlots() + 6);
   // Cells, not raw entries: a merged run of shorts is one step.
   const schedule = guideCells(ch, rangeStart, rangeEnd);
   if (schedule.length === 0) return;
@@ -1174,7 +1174,7 @@ export function moveGuideSelectionTime(direction) {
   const target = schedule[newIdx];
   S.guideSelTime = target.start + 1;
 
-  const windowEnd = S.guideWindowStart + GUIDE_SLOT_MS * guideSlots();
+  const windowEnd = S.guideWindowStart + guideSlotMs() * guideSlots();
   if (target.start < S.guideWindowStart) {
     S.guideWindowStart = canRewind
       ? floorToSlot(target.start)
@@ -1195,7 +1195,7 @@ function showDetailsForGuideSelection() {
   const row = selectedRow();
   if (!row || row.kind !== 'channel') return;
   const { ch } = row;
-  const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+  const cells = guideCells(ch, S.guideWindowStart, S.guideWindowStart + guideSlotMs() * (guideSlots() + 6));
   const cell = cells[cellIndexAt(cells, S.guideSelTime)];
   const entry = cell && cell.kind === 'program' ? cell.entry : null;
   if (!entry) return;
@@ -1255,7 +1255,7 @@ export function handleGuideGridKey(e) {
       if (row && row.kind === 'special') {
         tuneToChannel(row.number);
       } else if (selCh) {
-        const cells = guideCells(selCh, S.guideWindowStart, S.guideWindowStart + GUIDE_SLOT_MS * (guideSlots() + 6));
+        const cells = guideCells(selCh, S.guideWindowStart, S.guideWindowStart + guideSlotMs() * (guideSlots() + 6));
         const selCell = cells[cellIndexAt(cells, S.guideSelTime)];
         if (selCell && selCell.kind === 'run') {
           openRunList(selCh, selCell, selectedCellEl());

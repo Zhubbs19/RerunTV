@@ -172,7 +172,8 @@ function guideItems() {
     // Live preview: each step applies the theme straight away.
     valueItem('THEME', () => themeLabel(S.config.theme), (d) => { setSetting(['theme'], cycleChoice(themeIds(), S.config.theme, d)); applyTheme(); }),
     valueItem('24-HOUR CLOCK', () => onOff(display().clock24), () => setSetting(['display', 'clock24'], !display().clock24)),
-    valueItem('GUIDE WIDTH', () => `${display().guideSlots || 3} HALF-HOURS`, (d) => setSetting(['display', 'guideSlots'], cycleChoice([2, 3, 4], display().guideSlots || 3, d))),
+    valueItem('GUIDE COLUMN', () => `${display().guideSlotMinutes || 30} MIN`, (d) => setSetting(['display', 'guideSlotMinutes'], cycleChoice([15, 30, 60], display().guideSlotMinutes || 30, d))),
+    valueItem('GUIDE WIDTH', () => `${display().guideSlots || 3} COLUMNS`, (d) => setSetting(['display', 'guideSlots'], cycleChoice([2, 3, 4], display().guideSlots || 3, d))),
     valueItem('CHANNEL NAMES', () => (display().guideChannelNames === 'short' ? 'CALL LETTERS' : 'FULL'), () => setSetting(['display', 'guideChannelNames'], display().guideChannelNames === 'short' ? 'full' : 'short')),
     valueItem('GROUP SHORTS', () => onOff(display().guideMergeShorts !== false), () => setSetting(['display', 'guideMergeShorts'], display().guideMergeShorts === false)),
     valueItem('SPECIALS AT THE TOP', () => onOff(display().guideSpecialsAtTop), () => setSetting(['display', 'guideSpecialsAtTop'], !display().guideSpecialsAtTop)),

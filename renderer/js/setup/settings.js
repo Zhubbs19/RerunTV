@@ -49,7 +49,7 @@ import {
   adVolumeSlider, contentVolumeSlider, crtBurninSlider, crtEnabledEl, crtCurvatureSlider, crtFlickerSlider, crtGrainSlider, crtScanlinesSlider,
   crtVignetteSlider,
   clock24El, detailsEnabledEl,
-  guideSlotsSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl, uiScaleSelect,
+  guideSlotsSelect, guideSlotMinutesSelect, guideCardDurationSlider, reminderLeadMinutesSlider, hintBarEnabledEl, hintBarCompactEl, hintBarSlideEnabledEl, uiScaleSelect,
   hintBarShowDurationEl, hintBarShowDurationValEl, hintBarHideDurationEl, hintBarHideDurationValEl,
   aspectModeSelect, bootPowerAnimEnabledEl, crtOverlayWholeScreenEnabledEl, ignoreThemeCrtBiasEnabledEl, guideOpenCloseAnimEnabledEl, guideAnimSpeedSlider,
   guideLivePreviewEnabledEl,
@@ -335,6 +335,7 @@ export function renderSettingsPanels() {
   adVolumeSlider.value = Math.round((typeof S.config.adVolume === 'number' ? S.config.adVolume : 1) * 100);
   contentVolumeSlider.value = Math.round((typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1) * 100);
   guideSlotsSelect.value = String(S.config.display.guideSlots || 3);
+  guideSlotMinutesSelect.value = String(S.config.display.guideSlotMinutes || 30);
   uiScaleSelect.value = S.config.display.uiScale || 'auto';
   renderUsageModeSetting();
   renderScreenSpeakersSettings();
@@ -399,7 +400,7 @@ export function renderSettingsPanels() {
   aspectAutofillEl.checked = !!S.config.display.autoFillWidescreen;
   aspectAutofillMaxEl.value = Number.isFinite(S.config.display.autoFillMaxCropPct) ? S.config.display.autoFillMaxCropPct : 30;
   logoBugFollowPictureEl.checked = S.config.display.logoBugFollowPicture !== false;
-  logoBugRefHeightEl.value = String(S.config.display.logoBugReferenceHeight != null ? S.config.display.logoBugReferenceHeight : 2160);
+  logoBugRefHeightEl.value = String(S.config.display.logoBugReferenceHeight != null ? S.config.display.logoBugReferenceHeight : 1080);
   logoBugVaryEl.checked = !!S.config.display.logoBugVaryWithContent;
   logoBugHideBreaksEl.checked = !!S.config.display.logoBugHideOnBreaks;
   logoBugHideNumberEl.checked = !!S.config.display.logoBugHideNumber;
@@ -2195,6 +2196,9 @@ adVolumeSlider.addEventListener('input', () => {
 contentVolumeSlider.addEventListener('input', () => {
   dispatch({ type: 'settings.set', path: ['contentVolume'], value: parseInt(contentVolumeSlider.value, 10) / 100 }, { coalesce: 'settings:contentVolume' });
   applyVolume();
+});
+guideSlotMinutesSelect.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'guideSlotMinutes'], value: parseInt(guideSlotMinutesSelect.value, 10) || 30 });
 });
 guideSlotsSelect.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideSlots'], value: parseInt(guideSlotsSelect.value, 10) || 3 });

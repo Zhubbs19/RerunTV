@@ -8,19 +8,21 @@
      (logo bug, rating bug, the now-playing channel card, up-next/station-id
      bars) so the ticker never covers them. */
   z-index: 1;
-  background: rgba(6, 10, 32, 0.82);
+  background: var(--ticker-bg, rgba(6, 10, 32, 0.82));
   border-top: 2px solid var(--gold);
   overflow: hidden;
-  padding: 9px 0;
+  padding: calc(9px * var(--ticker-scale, 1)) 0;
 }
+.ticker-bar.ticker-top { top: 0; bottom: auto; border-top: 0; border-bottom: 2px solid var(--gold); }
+.ticker-bar.ticker-in-break { display: none; }
 .ticker-crawl {
   display: inline-block;
   white-space: nowrap;
   font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 16px;
+  font-size: calc(16px * var(--ticker-scale, 1));
   letter-spacing: 1px;
-  color: var(--gold);
+  color: var(--ticker-color, var(--gold));
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
   padding-left: 100%;
   animation: ticker-crawl-anim var(--ticker-speed, 30s) linear infinite;

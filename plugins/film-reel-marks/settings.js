@@ -14,6 +14,8 @@ window.RCBPlugins.registerPluginSettings('film-reel-marks', {
         <div class="panel-body">
           <div class="panel-interval">
             EVERY <input type="number" data-el="interval" min="1" style="max-width:5em"> MIN (MOVIES ONLY)
+            DOT STAYS <input type="number" data-el="dot-seconds" min="0.3" max="10" step="0.1" style="max-width:5em"> SEC
+            CORNER <select data-el="corner"><option value="right">TOP RIGHT</option><option value="left">TOP LEFT</option></select>
           </div>
           <div id="film-reel-marks-channel-list"></div>
         </div>
@@ -24,6 +26,16 @@ window.RCBPlugins.registerPluginSettings('film-reel-marks', {
       const intervalEl = q('interval');
       enabledEl.checked = settings.enabled !== false;
       intervalEl.value = settings.intervalMin || 20;
+      q('dot-seconds').value = Number.isFinite(settings.dotSeconds) ? settings.dotSeconds : 1.2;
+      q('corner').value = settings.corner === 'left' ? 'left' : 'right';
+      q('dot-seconds').addEventListener('change', () => {
+        const n = Math.min(10, Math.max(0.3, parseFloat(q('dot-seconds').value) || 1.2));
+        q('dot-seconds').value = n;
+        window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { dotSeconds: n });
+      });
+      q('corner').addEventListener('change', () => {
+        window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { corner: q('corner').value });
+      });
 
       enabledEl.addEventListener('change', () => {
         window.RCBPlugins.ctx.settings.updatePluginSettings('film-reel-marks', { enabled: enabledEl.checked });

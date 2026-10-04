@@ -240,6 +240,11 @@ export const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)
 export const POWER_OFF_ANIM_MS = REDUCE_MOTION ? 0 : 380;
 export const POWER_ON_ANIM_MS = REDUCE_MOTION ? 0 : 550;
 export const GUIDE_SLOT_MS = 30 * 60 * 1000;
+// One guide column. 30 minutes unless SETTINGS › Guide sets 15 or 60.
+export function guideSlotMs() {
+  const min = Number(S.config && S.config.display && S.config.display.guideSlotMinutes);
+  return (min === 15 || min === 60 ? min : 30) * 60 * 1000;
+}
 export const BADGE_COLORS = ['#f0b429', '#6fe0f2', '#8b93f5', '#ff6b5b', '#5fd68a', '#e0895f'];
 export const WEEKDAYS = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];

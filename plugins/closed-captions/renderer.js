@@ -38,8 +38,11 @@ export function setCaptionsEnabled(enabled) {
 function pickTrack(tracks) {
   const sidecar = tracks.find((t) => t.type === 'sidecar');
   if (sidecar) return sidecar;
-  const english = tracks.find((t) => t.type === 'embedded' && t.lang === 'eng');
-  return english || tracks[0];
+  // The preferred language (SETTINGS › Closed captions, an ISO 639-2 code
+  // such as eng, spa or fre), else the first stream found.
+  const wanted = String(cfg().language || 'eng').trim().toLowerCase();
+  const preferred = wanted && wanted !== 'any' ? tracks.find((t) => t.type === 'embedded' && String(t.lang || '').toLowerCase() === wanted) : null;
+  return preferred || tracks[0];
 }
 
 async function onContentPlaying({ file, ch }) {
@@ -72,7 +75,13 @@ async function onContentPlaying({ file, ch }) {
   trackEl.src = extracted.url;
   trackEl.srclang = track.lang || 'en';
   trackEl.addEventListener('load', () => {
-    if (trackEl.track) trackEl.track.mode = 'showing';
+    if (!trackEl.track) return;
+    trackEl.track.mode = 'showing';
+    // Captions at the top of the picture when asked (clear of a lower-third
+    // or a ticker); a cue's line 1 is the first row from the top.
+    if (cfg().position === 'top') {
+      Array.from(trackEl.track.cues || []).forEach((cue) => { cue.snapToLines = true; cue.line = 1; });
+    }
   });
   player.appendChild(trackEl);
   activeTrackEl = trackEl;
@@ -103,7 +112,15 @@ const DEFAULT_CAPTION_STYLE = {
 export function applyCaptionStyle() {
   const pack = window.RCBPlugins.getThemePack ? window.RCBPlugins.getThemePack(S.config.theme) : null;
   const style = (pack && pack.captionStyle) || DEFAULT_CAPTION_STYLE;
-  const sizeScale = cfg().sizeScale || 1;
+  const c = cfg();
+  const sizeScale = c.sizeScale || 1;
+  const FONTS = { sans: 'Arial, Helvetica, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: '"Courier New", monospace' };
+  const EDGES = { none: 'none', shadow: '2px 2px 3px rgba(0, 0, 0, 0.9)', outline: '-1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000' };
+  const background = Number.isFinite(c.bgOpacity) ? `rgba(0, 0, 0, ${Math.min(100, Math.max(0, c.bgOpacity)) / 100})` : (style.background || DEFAULT_CAPTION_STYLE.background);
+  const color = /^#[0-9a-f]{3,8}$/i.test(c.color || '') ? c.color : (style.color || DEFAULT_CAPTION_STYLE.color);
+  const fontFamily = FONTS[c.font] || style.fontFamily || DEFAULT_CAPTION_STYLE.fontFamily;
+  const textShadow = EDGES[c.edge] || style.textShadow || DEFAULT_CAPTION_STYLE.textShadow;
+  const textTransform = c.allCaps ? 'uppercase' : (style.textTransform || DEFAULT_CAPTION_STYLE.textTransform);
   let styleEl = document.getElementById('cc-style');
   if (!styleEl) {
     styleEl = document.createElement('style');
@@ -112,13 +129,13 @@ export function applyCaptionStyle() {
   }
   styleEl.textContent = `
     #player::cue {
-      background: ${style.background || DEFAULT_CAPTION_STYLE.background};
-      color: ${style.color || DEFAULT_CAPTION_STYLE.color};
-      font-family: ${style.fontFamily || DEFAULT_CAPTION_STYLE.fontFamily};
+      background: ${background};
+      color: ${color};
+      font-family: ${fontFamily};
       font-size: calc(${style.fontSize || DEFAULT_CAPTION_STYLE.fontSize} * ${sizeScale});
-      text-transform: ${style.textTransform || DEFAULT_CAPTION_STYLE.textTransform};
+      text-transform: ${textTransform};
       padding: ${style.padding || DEFAULT_CAPTION_STYLE.padding};
-      text-shadow: ${style.textShadow || DEFAULT_CAPTION_STYLE.textShadow};
+      text-shadow: ${textShadow};
     }
   `;
 }

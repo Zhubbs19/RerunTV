@@ -15,7 +15,18 @@ document.querySelector('.crt').appendChild(cardEl);
 const mediaEl = cardEl.querySelector('.sponsor-billboard-media');
 const nameEl = cardEl.querySelector('.sponsor-billboard-name');
 
-const CARD_DURATION_MS = 12000;
+const DEFAULT_CARD_SECONDS = 12;
+// How often a channel's card may come back (SETTINGS › Plug-ins › Sponsor
+// billboard): every airing, at most once an hour, or once a day. Remembered
+// for this session only; real time, since it is about the viewer, not the
+// schedule.
+const lastShownAt = new Map();
+const MIN_GAP_MS = { always: 0, hour: 3600000, day: 86400000 };
+
+function cardMs() {
+  const s = Number((window.RCBPlugins.ctx.getPluginSettings('sponsor-billboard') || {}).cardSeconds);
+  return (Number.isFinite(s) ? Math.min(60, Math.max(3, s)) : DEFAULT_CARD_SECONDS) * 1000;
+}
 let hideTimer = null;
 // Tracks the last file path a card was (or wasn't) considered for — a
 // break-resume of the SAME file re-fires 'content-playing' with an
@@ -46,6 +57,10 @@ window.RCBPlugins.registerCoreHook('content-playing', ({ file, ch }) => {
   if (!isNewFile) return;
   const sponsor = ch && sponsorFor(ch.number);
   if (!sponsor) return;
+  const every = (window.RCBPlugins.ctx.getPluginSettings('sponsor-billboard') || {}).showEvery;
+  const gap = MIN_GAP_MS[every] || 0;
+  if (gap && Date.now() - (lastShownAt.get(ch.number) || 0) < gap) return;
+  lastShownAt.set(ch.number, Date.now());
   clearTimeout(hideTimer);
   nameEl.textContent = sponsor.name || '';
   nameEl.classList.toggle('hidden', !sponsor.name);
@@ -78,5 +93,5 @@ window.RCBPlugins.registerCoreHook('content-playing', ({ file, ch }) => {
   hideTimer = setTimeout(() => {
     cardEl.classList.remove('show');
     setTimeout(() => cardEl.classList.add('hidden'), 400);
-  }, CARD_DURATION_MS);
+  }, cardMs());
 });

@@ -36,7 +36,38 @@ export function applyTickerState() {
   crawlEl.textContent = text;
   barEl.classList.toggle('hidden', !on);
   barEl.style.setProperty('--ticker-speed', `${Math.max(1, (tk && tk.speed) || 30)}s`);
+  applyTickerStyle();
 }
+
+// Look of the bar (SETTINGS › Plug-ins › Text ticker), always the box-wide
+// config.ticker whichever text a channel runs. The size is a multiplier on a
+// base that follows the screen's height, so it reads the same on 1080p and 4K.
+function applyTickerStyle() {
+  const S = window.S;
+  const st = (S.config && S.config.ticker) || {};
+  const crt = document.querySelector('.crt');
+  const scale = crt && crt.clientHeight ? Math.min(3, Math.max(0.5, crt.clientHeight / 1080)) : 1;
+  barEl.style.setProperty('--ticker-scale', String(scale * (Number(st.sizeScale) || 1)));
+  barEl.classList.toggle('ticker-top', st.position === 'top');
+  /^#[0-9a-f]{6}$/i.test(st.color || '') ? barEl.style.setProperty('--ticker-color', st.color) : barEl.style.removeProperty('--ticker-color');
+  if (/^#[0-9a-f]{6}$/i.test(st.bgColor || '') || Number.isFinite(st.bgOpacity)) {
+    const hex = /^#[0-9a-f]{6}$/i.test(st.bgColor || '') ? st.bgColor : '#060a20';
+    const op = Number.isFinite(st.bgOpacity) ? Math.min(100, Math.max(0, st.bgOpacity)) / 100 : 0.82;
+    const n = parseInt(hex.slice(1), 16);
+    barEl.style.setProperty('--ticker-bg', `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${op})`);
+  } else {
+    barEl.style.removeProperty('--ticker-bg');
+  }
+}
+
+// "Hide during ad breaks": the crawl would sit over a commercial, so it
+// steps aside while a break is on screen and returns after.
+setInterval(() => {
+  const S = window.S;
+  const st = (S.config && S.config.ticker) || {};
+  barEl.classList.toggle('ticker-in-break', !!(st.hideInBreaks && S.activeBreakKey));
+}, 500);
+window.addEventListener('resize', applyTickerStyle);
 
 // Kept as the exact global name documented in PLUGIN_DEVELOPMENT.md's
 // "functions core exposes" table — core (app.js, party.js) and any other

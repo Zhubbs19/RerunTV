@@ -53,6 +53,13 @@ function drawNoise() {
   }
 }
 
+// "Glitch length" (settings): every effect's duration is its base length times
+// this, so a glitch can be a flicker or a proper dropout.
+function lengthScale() {
+  const n = Number((window.RCBPlugins.ctx.getPluginSettings('signal-glitches') || {}).lengthScale);
+  return Number.isFinite(n) ? Math.min(4, Math.max(0.25, n)) : 1;
+}
+
 function cfg() {
   const settings = window.RCBPlugins.ctx.getPluginSettings('signal-glitches');
   const effects = settings.effects || {};
@@ -90,7 +97,7 @@ function fireStaticGlitch(intensity) {
     drawTimer = null;
     rootEl.classList.add('hidden');
     scheduleNext();
-  }, GLITCH_DURATION_MS);
+  }, GLITCH_DURATION_MS * lengthScale());
 }
 
 function firePictureRoll(intensity) {
@@ -104,7 +111,7 @@ function firePictureRoll(intensity) {
   setTimeout(() => {
     crt.classList.remove('signal-glitch-rolling');
     scheduleNext();
-  }, ROLL_DURATION_MS);
+  }, ROLL_DURATION_MS * lengthScale());
 }
 
 // Directly modulates the real <video> element's own playbackRate/volume —
@@ -126,7 +133,7 @@ function fireAudioDropout(intensity) {
     elapsed += DROPOUT_STEP_MS;
     player.playbackRate = Math.max(0.5, originalRate + (Math.random() - 0.5) * 0.12 * scale);
     player.volume = Math.random() < 0.15 * scale ? originalVolume * (1 - 0.8 * scale) : originalVolume;
-    if (elapsed >= DROPOUT_DURATION_MS) {
+    if (elapsed >= DROPOUT_DURATION_MS * lengthScale()) {
       clearInterval(wobbleTimer);
       player.playbackRate = originalRate;
       player.volume = originalVolume;

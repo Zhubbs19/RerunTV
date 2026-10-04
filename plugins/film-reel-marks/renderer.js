@@ -17,6 +17,8 @@ function cfg() {
   return {
     enabled: settings.enabled !== false, // default on
     intervalMin: settings.intervalMin || 20,
+    dotSeconds: Number.isFinite(settings.dotSeconds) ? Math.min(10, Math.max(0.3, settings.dotSeconds)) : 1.2,
+    corner: settings.corner === 'left' ? 'left' : 'right',
     channelOverrides: settings.channelOverrides || {},
   };
 }
@@ -31,11 +33,12 @@ function enabledForChannel(ch) {
 }
 
 function flashDot() {
+  dotEl.classList.toggle('film-reel-left', cfg().corner === 'left');
   dotEl.classList.remove('hidden');
   dotEl.classList.remove('show');
   void dotEl.offsetWidth; // force reflow so back-to-back flashes replay
   dotEl.classList.add('show');
-  setTimeout(() => dotEl.classList.remove('show'), 1200);
+  setTimeout(() => dotEl.classList.remove('show'), cfg().dotSeconds * 1000);
 }
 
 function stopChain() {

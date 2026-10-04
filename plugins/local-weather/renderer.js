@@ -138,20 +138,32 @@ function applyLocationText(text) {
   currentContainer.querySelector('[data-el="location"]').textContent = text;
 }
 
+// Forecasts are produced in °F and mph (the NWS and the generator both are);
+// SETTINGS › Plug-ins › Local weather can show °C and km/h instead.
+function metric() {
+  return !!(window.S && window.S.config.weather && window.S.config.weather.units === 'C');
+}
+function temp(f) { return metric() ? Math.round((f - 32) * 5 / 9) : f; }
+function windText(text) {
+  return metric()
+    ? String(text).replace(/(\d+)/g, (m) => String(Math.round(Number(m) * 1.609))).replace(/mph/i, 'km/h')
+    : text;
+}
+
 function applyData(w, isLive) {
   if (!currentContainer) return;
   currentContainer.querySelector('[data-el="source"]').classList.toggle('hidden', !isLive);
   currentContainer.querySelector('[data-el="condition"]').textContent = w.condition;
-  currentContainer.querySelector('[data-el="temp"]').textContent = `${w.tempF}°F`;
-  currentContainer.querySelector('[data-el="high"]').textContent = `${w.high}°`;
-  currentContainer.querySelector('[data-el="low"]').textContent = `${w.low}°`;
+  currentContainer.querySelector('[data-el="temp"]').textContent = `${temp(w.tempF)}°${metric() ? 'C' : 'F'}`;
+  currentContainer.querySelector('[data-el="high"]').textContent = `${temp(w.high)}°`;
+  currentContainer.querySelector('[data-el="low"]').textContent = `${temp(w.low)}°`;
 
   // Wind/chance-of-precip/NWS prose only exist on a real forecast — hidden
   // for the synthetic generator, which has nothing to put here.
   const detailEl = currentContainer.querySelector('[data-el="detail"]');
   const descEl = currentContainer.querySelector('[data-el="description"]');
   const detailParts = [];
-  if (w.wind) detailParts.push(`WIND ${w.wind}`);
+  if (w.wind) detailParts.push(`WIND ${windText(w.wind)}`);
   if (w.pop != null) detailParts.push(`${w.pop}% CHANCE OF PRECIP`);
   detailEl.textContent = detailParts.join('   ·   ');
   detailEl.classList.toggle('hidden', detailParts.length === 0);
@@ -171,7 +183,7 @@ function applyData(w, isLive) {
     cond.textContent = f.condition;
     const hilo = document.createElement('div');
     hilo.className = 'wfd-hilo';
-    hilo.textContent = `${f.high}° / ${f.low}°`;
+    hilo.textContent = `${temp(f.high)}° / ${temp(f.low)}°`;
     card.appendChild(day);
     card.appendChild(cond);
     card.appendChild(hilo);

@@ -12,11 +12,32 @@ window.RCBPlugins.registerPluginSettings('sponsor-billboard', {
       container.innerHTML = `
         <label class="panel-toggle">SPONSOR BILLBOARD</label>
         <div class="panel-body">
+          <div class="panel-interval">
+            CARD STAYS <input type="number" min="3" max="60" data-el="seconds" style="width:4em"> SEC
+            SHOW <select data-el="every">
+              <option value="always">EVERY AIRING</option>
+              <option value="hour">AT MOST ONCE AN HOUR PER CHANNEL</option>
+              <option value="day">AT MOST ONCE A DAY PER CHANNEL</option>
+            </select>
+          </div>
           <div id="sponsor-billboard-list"></div>
         </div>
         <span class="panel-status">Set a sponsor name and/or logo image/video for a channel to show a "THIS PROGRAM BROUGHT TO YOU BY..." card once at the start of every airing on that channel. Both blank = no card for that channel.</span>
       `;
       const listEl = container.querySelector('#sponsor-billboard-list');
+      const own = window.RCBPlugins.ctx.settings.getPluginSettings('sponsor-billboard');
+      const secondsEl = container.querySelector('[data-el="seconds"]');
+      const everyEl = container.querySelector('[data-el="every"]');
+      secondsEl.value = Number.isFinite(own.cardSeconds) ? own.cardSeconds : 12;
+      everyEl.value = own.showEvery || 'always';
+      secondsEl.addEventListener('change', () => {
+        const n = Math.round(Math.min(60, Math.max(3, parseFloat(secondsEl.value) || 12)));
+        secondsEl.value = n;
+        window.RCBPlugins.ctx.settings.updatePluginSettings('sponsor-billboard', { cardSeconds: n });
+      });
+      everyEl.addEventListener('change', () => {
+        window.RCBPlugins.ctx.settings.updatePluginSettings('sponsor-billboard', { showEvery: everyEl.value });
+      });
 
       // A pre-media sponsor entry was a plain string (the name) —
       // normalized to { name, mediaPath } here so editing an old config
