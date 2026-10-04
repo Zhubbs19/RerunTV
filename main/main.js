@@ -64,6 +64,7 @@ let interactiveBootInProgress = STARTUP_UPDATE_UI;
 const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServices, setAllowedMediaSrcPorts, mimeFor } = require('./media/protocol');
 const { FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath } = require('./media/media');
 const { createLoudnessService, registerLoudnessIpc } = require('./media/loudness');
+const { createCropDetectService, registerCropDetectIpc } = require('./media/cropdetect');
 const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
 const { createSplicerService, registerSplicerIpc } = require('./splicer/service');
@@ -333,6 +334,11 @@ registerFfmpegInstallIpc(ipcMain, { getMainWindow });
 // The volume leveler's per-file loudness (media/loudness.js). The ffmpeg-
 // transcode plugin's path once it's active, else whatever core found itself.
 registerLoudnessIpc(ipcMain, createLoudnessService({
+  userDataDir: app.getPath('userData'),
+  getFfmpegPath: () => getFfmpegPath() || FFMPEG_STATIC_PATH,
+}));
+// Baked-in black bars (media/cropdetect.js), same ffmpeg as the leveler.
+registerCropDetectIpc(ipcMain, createCropDetectService({
   userDataDir: app.getPath('userData'),
   getFfmpegPath: () => getFfmpegPath() || FFMPEG_STATIC_PATH,
 }));

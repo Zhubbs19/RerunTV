@@ -257,8 +257,9 @@ export function entryWaitMs(entry) {
   return (entry && entry.waitMs) || 0;
 }
 
-function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags) {
-  const entry = pickDeterministic(poolFor(pool, type, ch, block, fileTags), seedKey, slotIndex);
+function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags, exclude) {
+  const candidates = poolFor(pool, type, ch, block, fileTags);
+  const entry = pickDeterministic(exclude ? candidates.filter((e) => !exclude.has(e)) : candidates, seedKey, slotIndex);
   if (!entry) return null;
   const durationS = entryDurationS(entry, fallbackDurationS);
   return { entry, windowStart, windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry) };
@@ -275,6 +276,14 @@ function windowEndingAt(pool, type, ch, block, seedKey, slotIndex, windowEnd, fa
   const durationS = entryDurationS(entry, fallbackDurationS);
   const waitMs = entryWaitMs(entry);
   return { entry, windowStart: windowEnd - durationS * 1000 - waitMs, windowEnd };
+}
+
+// The three SETTINGS › break cadence "no repeats" switches. The single
+// noRepeatInBreak switch that preceded them still applies to all three until
+// one of them is set explicitly.
+function noRepeatSetting(key) {
+  const cm = S.config.commercials || {};
+  return cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
 }
 
 // Generous upper bound on any realistic podMax — keeps each pod's N
@@ -328,10 +337,21 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   const commTags = firstNonEmpty(optCommTags, ccOverride && ccOverride.commercialTags, fileTags);
   const outTags = firstNonEmpty(optOutTags, ccOverride && ccOverride.bumpOutTags, fileTags);
 
+  // "No repeats in a break" (SETTINGS › break cadence): each commercial and
+  // bump-in/out ident airs at most once per pod. Still a pure function of
+  // (pool, seedKey, slotIndex) — the exclusion is derived from the pod's own
+  // earlier picks, nothing tracked. A pod stops early when it runs out of
+  // distinct commercials rather than repeating one.
+  const noRepeatCommercials = noRepeatSetting('noRepeatCommercials');
+  const noRepeatBumpers = noRepeatSetting('noRepeatBumpers');
+  const used = new Set();
+  const unusedIf = (on, list) => (on ? list.filter((e) => !used.has(e)) : list);
+
   const segments = [];
   let cursor = windowStart;
 
   const inEntry = pickDeterministic(poolFor(pool, 'adBreakIn', ch, block, inTags, targetTiming), `${seedKey}:in`, slotIndex);
+  if (inEntry) used.add(inEntry);
   if (inEntry) {
     const dur = entryDurationS(inEntry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(inEntry);
@@ -340,15 +360,16 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   }
 
   for (let i = 0; i < podSize; i++) {
-    const entry = pickDeterministic(poolFor(pool, 'commercial', ch, block, commTags, targetTiming), seedKey, slotIndex * POD_SLOT_STRIDE + i);
+    const entry = pickDeterministic(unusedIf(noRepeatCommercials, poolFor(pool, 'commercial', ch, block, commTags, targetTiming)), seedKey, slotIndex * POD_SLOT_STRIDE + i);
     if (!entry) break;
+    used.add(entry);
     const dur = entryDurationS(entry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(entry);
     segments.push({ type: 'commercial', entry, windowStart: cursor, windowEnd });
     cursor = windowEnd;
   }
 
-  const outEntry = pickDeterministic(poolFor(pool, 'adBreakOut', ch, block, outTags, targetTiming), `${seedKey}:out`, slotIndex);
+  const outEntry = pickDeterministic(unusedIf(noRepeatBumpers, poolFor(pool, 'adBreakOut', ch, block, outTags, targetTiming)), `${seedKey}:out`, slotIndex);
   if (outEntry) {
     const dur = entryDurationS(outEntry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(outEntry);
@@ -540,6 +561,8 @@ export function resolveBreakAt(ch, atMs) {
         let cursor = bs.fileStartMs;
         for (const segMeta of flowSegsToProcess) {
           const steps = segMeta.steps || [];
+          // Interstitials already aired earlier in this flow segment.
+          const usedSteps = noRepeatSetting('noRepeatInterstitials') ? new Set() : null;
           for (let si = 0; si < steps.length; si++) {
             const step = steps[si];
             if (step.type === 'adPod') {
@@ -575,10 +598,11 @@ export function resolveBreakAt(ch, atMs) {
               const fallbackDurationS = poolType === 'localAvail' ? LOCAL_AVAIL_DURATION_S : 0;
               let win = null;
               for (const t of typesToTry) {
-                win = windowFor(pool, t, ch, block, `${seedKey}:${segMeta.label}:${si}`, segMeta.slotIndex * 100 + si, cursor, fallbackDurationS, stepTags);
+                win = windowFor(pool, t, ch, block, `${seedKey}:${segMeta.label}:${si}`, segMeta.slotIndex * 100 + si, cursor, fallbackDurationS, stepTags, usedSteps);
                 if (win) break;
               }
               if (win) {
+                if (usedSteps) usedSteps.add(win.entry);
                 if (atMs >= win.windowStart && atMs < win.windowEnd) {
                   return { type: win.entry ? win.entry.type : poolType, label: segMeta.label, entry: win.entry, windowStart: win.windowStart, windowEnd: win.windowEnd };
                 }

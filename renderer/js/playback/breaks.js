@@ -298,7 +298,7 @@ function startBreak(ch, resolved, key) {
   // visible" behavior unchanged). Only for breaks that actually take over
   // the screen — not the text-only "you're watching" station-ID bar, which
   // doesn't interrupt content and coexists with the bug in real practice.
-  if (ch.logoBugHidesOnBreak && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
+  if ((ch.logoBugHidesOnBreak || (S.config.display && S.config.display.logoBugHideOnBreaks)) && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
   // Marks when content stopped airing so endBreak can credit exactly this
   // much back (see S.contentLostMs) — a text-only station ID never stops
   // content, so it has nothing to credit.
@@ -562,7 +562,7 @@ function endBreak(ch) {
     S.breakEnteredAtMs = 0;
   }
   if (shouldResume && S.currentNumber === ch.number && S.isPoweredOn) {
-    if (ch.logoBugHidesOnBreak) updateLogoBug(ch);
+    if (ch.logoBugHidesOnBreak || (S.config.display && S.config.display.logoBugHideOnBreaks)) updateLogoBug(ch);
     (async () => {
       await fadeOutPlayer();
       // fadeInOnReady: reveal only once the resumed show has actually

@@ -50,6 +50,7 @@ import { initUsageMode, installTvScreenRule, isTvMode } from './tv/usage-mode.js
 import { installAudioOutput } from './display/audio-output.js';
 import { installTvScreen } from './display/tv-screen.js';
 import { applyLeveler } from './playback/leveler.js';
+import { applyBakedBars } from './playback/bars.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
@@ -151,7 +152,8 @@ export function pushDigit(d) {
   void channelEntryEl.offsetWidth;
   channelEntryEl.classList.add('digit-flash');
   clearTimeout(S.entryTimer);
-  S.entryTimer = setTimeout(commitEntry, 800);
+  const entryDelay = Number(S.config.controls && S.config.controls.entryDelayMs);
+  S.entryTimer = setTimeout(commitEntry, Number.isFinite(entryDelay) ? Math.min(3000, Math.max(0, entryDelay)) : 800);
 }
 
 export function commitEntry() {
@@ -575,6 +577,7 @@ function applyCompanionSettingsLive(changedSections) {
   applyMuteState();
   applyVolume();
   applyLeveler();
+  applyBakedBars();
   applyHintBarState();
   applyDisplayModeSettled();
   window.applyTickerState?.();
@@ -868,6 +871,7 @@ export async function showTvScreen() {
   applyMuteState();
   applyVolume();
   applyLeveler();
+  applyBakedBars();
   applyHintBarState();
   applyTheme();
   applyDisplayModeSettled();
@@ -890,7 +894,9 @@ export async function showTvScreen() {
 
   const list = sortedChannels();
   if (list.length === 0) return;
-  const resume = list.find((c) => c.number === S.config.lastChannel);
+  const startup = S.config.controls && S.config.controls.startupChannel;
+  const wanted = startup === 'first' ? list[0].number : (typeof startup === 'number' ? startup : S.config.lastChannel);
+  const resume = list.find((c) => c.number === wanted);
   tuneToChannel((resume || list[0]).number, { silent: true });
   resetIdleTimer();
 }

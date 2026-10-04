@@ -114,6 +114,7 @@ export const S = {
   logoBugBurnKey: null,
   logoBugBurnStartMs: null,
   logoBugBurnTimer: null,
+  pictureRect: null,
   timeMachineOn: false,
   shuttleDir: 0,
   shuttleSpeedIdx: 0,

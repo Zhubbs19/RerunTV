@@ -37,7 +37,8 @@ export function timeMachineAvailable() {
 }
 
 export function updateTimeShiftBadge() {
-  if (Math.abs(S.timeOffsetMs) < 1000) {
+  const showBadge = !(S.config.timeMachine && S.config.timeMachine.showTimeShiftBadge === false);
+  if (!showBadge || Math.abs(S.timeOffsetMs) < 1000) {
     timeShiftBadgeEl.classList.add('hidden');
     return;
   }

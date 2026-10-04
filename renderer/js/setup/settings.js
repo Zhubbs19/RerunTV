@@ -3,7 +3,7 @@
 import { applyConfigDefaults } from '../app.js';
 import { CUSTOM_SOUND_SLOTS } from '../core/audio.js';
 import { applyDisplayMode } from '../display/mode.js';
-import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost } from '../playback/broadcast-fx.js';
+import { applyLogoBugMotion, applyLogoBugPlacement, refreshLogoBugGhost, updateLogoBug } from '../playback/broadcast-fx.js';
 import { applyAspectMode, applyPictureMode, applyCrtState, applyHintBarState, applyVolume, applyTvBezel, applyDisplayWakeLock } from '../playback/power.js';
 import { applyTheme } from '../display/themes.js';
 import { S, commitInPlace, dispatch, saveConfigNow, pushUndoSnapshot } from '../core/state.js';
@@ -11,14 +11,15 @@ import { getAudioOutputChoice, isAudioOutputPresent, listAudioOutputs, setAudioO
 import { getTvModeScreen, setTvModeScreen } from '../tv/usage-mode.js';
 import { flashScreenEdgeGuide, getCurrentScreen, getScreenEdge, getScreenOffAction, onCurrentScreenChange, setScreenEdge, setScreenOffAction } from '../display/tv-screen.js';
 import { applyLeveler } from '../playback/leveler.js';
+import { applyBakedBars } from '../playback/bars.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
 import { searchActions } from './command-palette.js';
 import { searchUpcomingPrograms } from '../guide/program-search.js';
 import { viewNow } from '../core/state.js';
-import { formatChannelNumber } from '../core/channels.js';
+import { formatChannelNumber, sortedChannels } from '../core/channels.js';
 import { getChannel } from '../core/channels.js';
-import { exitTimeMachine } from '../playback/timemachine.js';
+import { exitTimeMachine, updateTimeShiftBadge } from '../playback/timemachine.js';
 import { pad2, toDatetimeLocalValue, escapeHtml } from '../core/util.js';
 import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './util.js';
 import { getPluginSearchEntries, runCoreHooks, themePackEntries, getThemePack } from '../plugin/host.js';
@@ -66,7 +67,7 @@ import {
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
-  timeMachineEnabledEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
+  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
   reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
   airChecksListEl, airChecksClearAllBtn,
@@ -391,6 +392,15 @@ export function renderSettingsPanels() {
   }
   detailsEnabledEl.checked = S.config.details.enabled !== false;
   timeMachineEnabledEl.checked = !!S.config.timeMachine.enabled;
+  timeMachineBadgeEl.checked = S.config.timeMachine.showTimeShiftBadge !== false;
+  renderControlsPanel();
+  aspectBarsEl.checked = !!S.config.display.removeBakedBars;
+  renderBakedBarsStatus();
+  aspectAutofillEl.checked = !!S.config.display.autoFillWidescreen;
+  aspectAutofillMaxEl.value = Number.isFinite(S.config.display.autoFillMaxCropPct) ? S.config.display.autoFillMaxCropPct : 30;
+  logoBugFollowPictureEl.checked = S.config.display.logoBugFollowPicture !== false;
+  logoBugHideBreaksEl.checked = !!S.config.display.logoBugHideOnBreaks;
+  logoBugHideNumberEl.checked = !!S.config.display.logoBugHideNumber;
   stationIdEnabledEl.checked = S.config.stationId.enabled !== false;
   stationIdIntervalEl.value = S.config.stationId.intervalMinutes || 15;
   staticEnabledEl.checked = S.config.staticEffect.enabled !== false;
@@ -2612,6 +2622,117 @@ document.addEventListener('pointerdown', (event) => {
 timeMachineEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['timeMachine', 'enabled'], value: timeMachineEnabledEl.checked });
   if (!S.config.timeMachine.enabled && S.timeMachineOn) exitTimeMachine({ toLive: true });
+});
+// ---------- Widescreen fill and logo bug options (Display) ----------
+// Re-frames the picture and re-places the bug so the change shows at once.
+function reframePicture() {
+  if (player.videoWidth) applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
+  updateLogoBug(getChannel(S.currentNumber));
+}
+const setDisplay = (key, value) => dispatch({ type: 'settings.set', path: ['display', key], value });
+const BARS_HELP = 'Finds black bars that are part of the video itself and frames the picture without them. Each file is checked once in the background.';
+async function renderBakedBarsStatus() {
+  const help = document.getElementById('aspect-bars-help');
+  if (!help) return;
+  const status = window.api && window.api.getCropStatus ? await window.api.getCropStatus().catch(() => null) : null;
+  if (!status) {
+    help.textContent = window.__isViewer ? 'Frames the picture on the box itself, not on this device.' : BARS_HELP;
+  } else if (!status.available) {
+    help.textContent = 'Needs ffmpeg to check files. Install it from Plug-ins › FFmpeg Transcode.';
+  } else if (S.config.display.removeBakedBars && status.queued) {
+    help.textContent = `${BARS_HELP} ${status.checked} checked (${status.withBars} with bars), ${status.queued} to go.`;
+  } else if (status.checked) {
+    help.textContent = `${BARS_HELP} ${status.checked} checked, ${status.withBars} with bars.`;
+  } else {
+    help.textContent = BARS_HELP;
+  }
+}
+aspectBarsEl.addEventListener('change', () => {
+  setDisplay('removeBakedBars', aspectBarsEl.checked);
+  applyBakedBars();
+  setTimeout(renderBakedBarsStatus, 500);
+});
+aspectAutofillEl.addEventListener('change', () => { setDisplay('autoFillWidescreen', aspectAutofillEl.checked); reframePicture(); });
+aspectAutofillMaxEl.addEventListener('change', () => {
+  const pct = Math.round(Math.min(60, Math.max(2, parseFloat(aspectAutofillMaxEl.value) || 30)));
+  aspectAutofillMaxEl.value = pct;
+  setDisplay('autoFillMaxCropPct', pct);
+  reframePicture();
+});
+logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); reframePicture(); });
+logoBugHideBreaksEl.addEventListener('change', () => setDisplay('logoBugHideOnBreaks', logoBugHideBreaksEl.checked));
+logoBugHideNumberEl.addEventListener('change', () => { setDisplay('logoBugHideNumber', logoBugHideNumberEl.checked); reframePicture(); });
+
+// ---------- Tuning & controls (System) ----------
+const controlsCfg = () => S.config.controls || {};
+
+function renderControlsPanel() {
+  const c = controlsCfg();
+  startupChannelEl.innerHTML = '';
+  const addOption = (value, label) => {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label;
+    startupChannelEl.appendChild(opt);
+  };
+  addOption('last', 'LAST CHANNEL WATCHED');
+  addOption('first', 'FIRST CHANNEL');
+  for (const ch of sortedChannels()) addOption(String(ch.number), `CH ${formatChannelNumber(ch.number)}${ch.name ? ` · ${ch.name}` : ''}`);
+  const startup = c.startupChannel;
+  startupChannelEl.value = typeof startup === 'number' ? String(startup) : (startup === 'first' ? 'first' : 'last');
+  if (startupChannelEl.value === '') startupChannelEl.value = 'last';
+  entryDelayEl.value = ((Number.isFinite(c.entryDelayMs) ? c.entryDelayMs : 800) / 1000).toFixed(1);
+  scanDwellEl.value = Number.isFinite(c.scanDwellSec) ? c.scanDwellSec : 8;
+  sleepStepsEl.value = (Array.isArray(c.sleepSteps) && c.sleepSteps.length ? c.sleepSteps : [30, 60, 90, 120]).join(', ');
+  volumeStepEl.value = Number.isFinite(c.volumeStepPct) ? c.volumeStepPct : 10;
+  volumeMaxEl.value = Number.isFinite(c.volumeMaxPct) ? c.volumeMaxPct : 100;
+}
+
+const setControl = (key, value, opts) => dispatch({ type: 'settings.set', path: ['controls', key], value }, opts);
+const clampNum = (el, min, max, fallback) => {
+  const n = parseFloat(el.value);
+  return Math.min(max, Math.max(min, Number.isFinite(n) ? n : fallback));
+};
+
+startupChannelEl.addEventListener('change', () => {
+  const v = startupChannelEl.value;
+  setControl('startupChannel', v === 'last' || v === 'first' ? v : Number(v));
+});
+entryDelayEl.addEventListener('change', () => {
+  const sec = clampNum(entryDelayEl, 0.2, 3, 0.8);
+  entryDelayEl.value = sec.toFixed(1);
+  setControl('entryDelayMs', Math.round(sec * 1000));
+});
+scanDwellEl.addEventListener('change', () => {
+  const sec = Math.round(clampNum(scanDwellEl, 2, 60, 8));
+  scanDwellEl.value = sec;
+  setControl('scanDwellSec', sec);
+});
+sleepStepsEl.addEventListener('change', () => {
+  const steps = [...new Set(sleepStepsEl.value.split(/[,\s]+/).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 1440).map(Math.round))].sort((a, b) => a - b);
+  const value = steps.length ? steps : [30, 60, 90, 120];
+  sleepStepsEl.value = value.join(', ');
+  setControl('sleepSteps', value);
+});
+volumeStepEl.addEventListener('change', () => {
+  const pct = Math.round(clampNum(volumeStepEl, 1, 25, 10));
+  volumeStepEl.value = pct;
+  setControl('volumeStepPct', pct);
+});
+volumeMaxEl.addEventListener('input', () => {
+  const pct = parseInt(volumeMaxEl.value, 10);
+  setControl('volumeMaxPct', pct, { coalesce: 'settings:volumeMax' });
+  // Lowering the ceiling pulls an over-limit volume down with it.
+  if (typeof S.config.volume === 'number' && S.config.volume > pct / 100) {
+    S.config.volume = pct / 100;
+    commitInPlace({ type: 'settings.set', path: ['volume'], value: S.config.volume }, { skipUndo: true });
+    applyVolume();
+  }
+});
+
+timeMachineBadgeEl.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['timeMachine', 'showTimeShiftBadge'], value: timeMachineBadgeEl.checked });
+  updateTimeShiftBadge();
 });
 upNextEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['upNext', 'enabled'], value: upNextEnabledEl.checked });

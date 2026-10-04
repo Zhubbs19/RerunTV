@@ -142,6 +142,12 @@ contextBridge.exposeInMainWorld('api', {
   prefetchLoudness: (items) => ipcRenderer.invoke('loudness:prefetch', items),
   cancelLoudnessPrefetch: () => ipcRenderer.invoke('loudness:cancelBackground'),
   getLoudnessStatus: () => ipcRenderer.invoke('loudness:status'),
+  // Baked-in black bars (media/cropdetect.js): the picture's box inside a
+  // local file's frame, found with ffmpeg and cached, plus a background sweep.
+  getCrop: (filePath, duration) => ipcRenderer.invoke('cropdetect:get', filePath, duration),
+  prefetchCrops: (items) => ipcRenderer.invoke('cropdetect:prefetch', items),
+  cancelCropPrefetch: () => ipcRenderer.invoke('cropdetect:cancelBackground'),
+  getCropStatus: () => ipcRenderer.invoke('cropdetect:status'),
   // DISPLAY tab's HIDE TITLE BAR toggle (setup-settings.js) — closes and
   // reopens the real OS window with/without its frame, since that's a
   // BrowserWindow constructor-only option (see main.js's

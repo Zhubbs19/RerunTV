@@ -303,7 +303,7 @@ const SETTING_LABELS = {
   reminderNotify: 'reminder notifications', reminderLeadMinutes: 'reminder lead time',
   viewingHistory: 'viewing history', keepDisplayAwake: 'keep display awake', playbackResync: 'playback resync',
   customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
-  muted: 'mute', volume: 'volume', lastChannel: 'last channel', librarySync: 'library sync',
+  controls: 'tuning & controls', muted: 'mute', volume: 'volume', lastChannel: 'last channel', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
 };
 const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));

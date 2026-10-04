@@ -52,6 +52,7 @@
     'listScreens', 'setPreferredScreen', 'onScreenChange', 'onScreenPower',
     // Host-only: ffmpeg measures files on the host's own disk.
     'getLoudness', 'prefetchLoudness', 'cancelLoudnessPrefetch', 'getLoudnessStatus',
+    'getCrop', 'prefetchCrops', 'cancelCropPrefetch', 'getCropStatus',
     // Host-only for the same reason: the Video Splicer cuts and joins files
     // on the host's disk, through the host's own file dialogs.
     'splicerCall', 'onSplicerJob',

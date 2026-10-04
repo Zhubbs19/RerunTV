@@ -1048,7 +1048,11 @@ export function changeChannel(direction) {
 // — a time-machine session scanning at ×7200 would otherwise flip channels
 // faster than they could load. Stopped by literally any other input, which
 // app.js arranges by calling stopChannelScan() from the keydown handler.
-const SCAN_DWELL_MS = 8000;
+const DEFAULT_SCAN_DWELL_S = 8;
+function scanDwellMs() {
+  const s = Number(S.config.controls && S.config.controls.scanDwellSec);
+  return (Number.isFinite(s) ? Math.min(60, Math.max(2, s)) : DEFAULT_SCAN_DWELL_S) * 1000;
+}
 
 export function isChannelScanning() {
   return S.scanTimer != null;
@@ -1072,7 +1076,7 @@ export function toggleChannelScan() {
     if (!S.isPoweredOn || S.isSetupOpen) { stopChannelScan({ silent: true }); return; }
     changeChannel(1);
     showGuideOverlay();
-  }, SCAN_DWELL_MS);
+  }, scanDwellMs());
   return true;
 }
 

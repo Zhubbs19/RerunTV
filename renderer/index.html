@@ -266,6 +266,21 @@
               <div class="setting-row-control"><input type="number" id="commercials-interval" min="1" value="10"> <span class="setting-row-unit">min</span></div>
               <p class="setting-row-help">The default for every channel. Flows and channels can override it.</p>
             </div>
+            <div class="setting-row" data-setting="commercials-no-repeat" data-synonyms="commercial ad duplicate repeat same">
+              <label class="setting-row-label" for="commercials-no-repeat">No repeat commercials</label>
+              <div class="setting-row-control"><input type="checkbox" id="commercials-no-repeat"></div>
+              <p class="setting-row-help">Each commercial airs at most once per ad break. A break ends early if it runs out of different ads.</p>
+            </div>
+            <div class="setting-row" data-setting="bumpers-no-repeat" data-synonyms="bumper ident bump-in bump-out duplicate repeat same">
+              <label class="setting-row-label" for="bumpers-no-repeat">No repeat bumpers</label>
+              <div class="setting-row-control"><input type="checkbox" id="bumpers-no-repeat"></div>
+              <p class="setting-row-help">The bump-in and bump-out idents of an ad break can’t be the same clip.</p>
+            </div>
+            <div class="setting-row" data-setting="interstitials-no-repeat" data-synonyms="interstitial flow station id promo duplicate repeat same">
+              <label class="setting-row-label" for="interstitials-no-repeat">No repeat interstitials</label>
+              <div class="setting-row-control"><input type="checkbox" id="interstitials-no-repeat"></div>
+              <p class="setting-row-help">Within one flow’s break sequence, a bumper, promo or ident clip airs at most once.</p>
+            </div>
             <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
               <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
               <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>
@@ -462,6 +477,11 @@
               <label class="setting-row-label" for="timemachine-enabled">Time machine</label>
               <div class="setting-row-control"><input type="checkbox" id="timemachine-enabled"></div>
               <p class="setting-row-help">Press T to shuttle back and forward through the schedule; [ and ] jump between breaks.</p>
+            </div>
+            <div class="setting-row" data-setting="timemachine-badge" data-depends-on="timemachine-enabled" data-synonyms="time shift badge indicator offset">
+              <label class="setting-row-label" for="timemachine-badge">Time shift badge</label>
+              <div class="setting-row-control"><input type="checkbox" id="timemachine-badge" checked></div>
+              <p class="setting-row-help">Show the “TIME SHIFT −x:xx” badge in the corner whenever the picture isn’t live.</p>
             </div>
           </div>
         </div>
@@ -774,6 +794,21 @@
                 <option value="fill">FILL (CROP, NO DISTORTION)</option>
               </select></div>
               <p class="setting-row-help">How video fits the screen. Also cycles with the A key.</p>
+            </div>
+            <div class="setting-row" data-setting="aspect-bars" data-synonyms="black bars baked letterbox pillarbox crop detect ffmpeg">
+              <label class="setting-row-label" for="aspect-bars">Remove baked-in black bars</label>
+              <div class="setting-row-control"><input type="checkbox" id="aspect-bars"></div>
+              <p class="setting-row-help" id="aspect-bars-help">Finds black bars that are part of the video itself and frames the picture without them. Each file is checked once in the background.</p>
+            </div>
+            <div class="setting-row" data-setting="aspect-autofill" data-synonyms="widescreen letterbox black bars crop zoom scope cinemascope">
+              <label class="setting-row-label" for="aspect-autofill">Fill widescreen content</label>
+              <div class="setting-row-control"><input type="checkbox" id="aspect-autofill"></div>
+              <p class="setting-row-help">Crop the sides of content wider than the screen so it fills the picture instead of sitting between black bars. Channels with their own aspect setting are left alone.</p>
+            </div>
+            <div class="setting-row" data-setting="aspect-autofill-max" data-depends-on="aspect-autofill">
+              <label class="setting-row-label" for="aspect-autofill-max">Never crop more than</label>
+              <div class="setting-row-control"><input type="number" id="aspect-autofill-max" min="2" max="60" value="30"> <span class="setting-row-unit">% of the width</span></div>
+              <p class="setting-row-help">Very wide films keep their bars rather than losing more than this. 16:9 is 0%, 2.35:1 is about 24%.</p>
             </div>
             <div class="setting-row" data-setting="movie-mode">
               <label class="setting-row-label" for="movie-mode-enabled">Movie mode</label>
@@ -1135,6 +1170,21 @@
           <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
           <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
           <div class="setting-rows">
+            <div class="setting-row" data-setting="logo-follow-picture" data-synonyms="logo bug channel bug letterbox black bars size scale">
+              <label class="setting-row-label" for="logo-bug-follow-picture">Keep the bug on the picture</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-follow-picture" checked></div>
+              <p class="setting-row-help">Place and size the bug relative to the picture, not the whole screen, so it never lands on black bars and stays the same size on 4:3, widescreen and 16:9 content. On by default.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-hide-breaks" data-synonyms="logo bug channel bug commercial bumper hide">
+              <label class="setting-row-label" for="logo-bug-hide-breaks">Hide the bug during ad breaks</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-breaks"></div>
+              <p class="setting-row-help">No bug over commercials and bumpers. A channel can still turn this on for itself.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-hide-number" data-synonyms="logo bug channel number chip">
+              <label class="setting-row-label" for="logo-bug-hide-number">Hide the channel number on the bug</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-number"></div>
+              <p class="setting-row-help">Leave off the small number chip that sits under a logo. Bugs with no logo are just the number, so they are unaffected.</p>
+            </div>
             <div class="setting-row" data-setting="logo-motion" data-synonyms="logo bug animation">
               <label class="setting-row-label" for="logo-bug-motion-select">Logo motion</label>
               <div class="setting-row-control"><select id="logo-bug-motion-select">
@@ -1296,6 +1346,41 @@
         
 
         
+
+        <div class="panel">
+          <div class="panel-toggle">TUNING &amp; CONTROLS</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="startup-channel" data-synonyms="boot power on first channel resume">
+              <label class="setting-row-label" for="startup-channel">Channel at start-up</label>
+              <div class="setting-row-control"><select id="startup-channel"></select></div>
+              <p class="setting-row-help">Where the TV tunes when RerunTV opens.</p>
+            </div>
+            <div class="setting-row" data-setting="entry-delay" data-synonyms="digits number remote typing wait commit">
+              <label class="setting-row-label" for="entry-delay">Channel number delay</label>
+              <div class="setting-row-control"><input type="number" id="entry-delay" min="0.2" max="3" step="0.1" value="0.8"> <span class="setting-row-unit">sec</span></div>
+              <p class="setting-row-help">How long to wait after the last digit before tuning. Enter tunes right away.</p>
+            </div>
+            <div class="setting-row" data-setting="scan-dwell" data-synonyms="scan channel surf auto flip">
+              <label class="setting-row-label" for="scan-dwell">Scan stays on each channel</label>
+              <div class="setting-row-control"><input type="number" id="scan-dwell" min="2" max="60" value="8"> <span class="setting-row-unit">sec</span></div>
+            </div>
+            <div class="setting-row" data-setting="sleep-steps" data-synonyms="sleep timer minutes z">
+              <label class="setting-row-label" for="sleep-steps">Sleep timer steps</label>
+              <div class="setting-row-control"><input type="text" id="sleep-steps" value="30, 60, 90, 120" placeholder="30, 60, 90, 120"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">Z cycles through off and these lengths, separated by commas.</p>
+            </div>
+            <div class="setting-row" data-setting="volume-step" data-synonyms="volume keys increment">
+              <label class="setting-row-label" for="volume-step">Volume step</label>
+              <div class="setting-row-control"><input type="number" id="volume-step" min="1" max="25" value="10"> <span class="setting-row-unit">%</span></div>
+              <p class="setting-row-help">How much each + or − press changes the volume.</p>
+            </div>
+            <div class="setting-row" data-setting="volume-max" data-synonyms="volume limit cap loud ceiling">
+              <label class="setting-row-label" for="volume-max">Maximum volume</label>
+              <div class="setting-row-control"><input type="range" id="volume-max" min="10" max="100" value="100"></div>
+              <p class="setting-row-help">The volume keys stop here. Handy when the TV is much louder than the PC.</p>
+            </div>
+          </div>
+        </div>
 
         <div class="panel" data-simple-settings>
           <div class="panel-toggle">POWER &amp; PLAYBACK</div>

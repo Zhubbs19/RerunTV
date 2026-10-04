@@ -16,6 +16,7 @@ import { autoHideAfter } from '../core/util.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
 import { levelerGain } from './leveler.js';
+import { currentBakedCrop } from './bars.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -153,9 +154,22 @@ function avoidLogoBugOverlap() {
   volumeIndicatorEl.style.bottom = `${(crtRect.bottom - bugRect.top) + 16}px`;
 }
 
+// SETTINGS › System › Tuning & controls: step size and ceiling for the volume
+// keys. Callers pass +/-0.1; only the sign matters.
+export function volumeMax() {
+  const pct = Number(S.config.controls && S.config.controls.volumeMaxPct);
+  return Number.isFinite(pct) ? Math.min(100, Math.max(10, pct)) / 100 : 1;
+}
+
+function volumeStep() {
+  const pct = Number(S.config.controls && S.config.controls.volumeStepPct);
+  return Number.isFinite(pct) ? Math.min(25, Math.max(1, pct)) / 100 : 0.1;
+}
+
 export function adjustVolume(delta) {
   const current = typeof S.config.volume === 'number' ? S.config.volume : 1;
-  S.config.volume = Math.min(1, Math.max(0, Math.round((current + delta) * 100) / 100));
+  const max = volumeMax();
+  S.config.volume = Math.min(max, Math.max(0, Math.round((current + Math.sign(delta) * volumeStep()) * 100) / 100));
   applyVolume();
   if (delta > 0 && player.muted) {
     S.config.muted = false;
@@ -167,7 +181,7 @@ export function adjustVolume(delta) {
   ], { skipUndo: true });
   sfxVolumeTick(delta > 0);
 
-  volumeBarFillEl.style.width = `${Math.round(S.config.volume * 100)}%`;
+  volumeBarFillEl.style.width = `${Math.round((S.config.volume / max) * 100)}%`;
   avoidLogoBugOverlap();
   volumeIndicatorEl.classList.add('show');
   S.volumeHideTimer = autoHideAfter(S.volumeHideTimer, 1500, () => volumeIndicatorEl.classList.remove('show'));
@@ -466,8 +480,16 @@ export function refreshPictureArea() {
   applyTvBezel(player.videoWidth, player.videoHeight, getChannel(S.currentNumber));
 }
 
+// Frames the picture, then tells the logo bug where the picture ended up so a
+// bug anchored to the picture (DISPLAY › Logo bug) can follow it.
 export function applyTvBezel(videoWidth, videoHeight, ch) {
+  applyTvBezelInner(videoWidth, videoHeight, ch);
+  window.dispatchEvent(new Event('reruntv:picture-framed'));
+}
+
+function applyTvBezelInner(videoWidth, videoHeight, ch) {
   if (!videoWidth || !videoHeight) {
+    S.pictureRect = null;
     player.style.left = '';
     player.style.top = '';
     player.style.width = '';
@@ -480,12 +502,30 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
     return;
   }
 
-  const effective = effectiveAspectSetting(ch);
-  const ratio = CROP_RATIOS[effective];
+  let effective = effectiveAspectSetting(ch);
   const containerW = crtContainer.clientWidth;
   // Not clientHeight: the docked guide takes the bottom of the screen in TV
   // mode, and the picture is framed inside what is left (see pictureAreaHeight).
   const containerH = pictureAreaHeight();
+  // Auto-fill widescreen (DISPLAY › Picture): content wider than the screen
+  // would sit between black bars, so crop its sides to fill instead — but
+  // only when that costs no more than the configured share of the picture.
+  // A channel's own aspect override and the stretch/fill modes win as usual.
+  const display = S.config.display || {};
+  // Baked-in black bars (DISPLAY › Picture › Remove baked-in black bars, found
+  // by ffmpeg in main — bars.js): the picture inside the frame is what gets
+  // fitted below, and the bars around it are clipped away. contentW/H is that
+  // picture in video pixels; the whole frame when there are no bars.
+  const baked = currentBakedCrop();
+  const contentW = baked ? videoWidth * baked.w : videoWidth;
+  const contentH = baked ? videoHeight * baked.h : videoHeight;
+  if (effective === 'contain' && !(ch && ch.aspectRatio) && display.autoFillWidescreen) {
+    const videoAspect = contentW / contentH;
+    const screenAspect = containerW / containerH;
+    const maxCrop = Math.min(0.6, Math.max(0.02, (Number.isFinite(display.autoFillMaxCropPct) ? display.autoFillMaxCropPct : 30) / 100));
+    if (videoAspect > screenAspect && (1 - screenAspect / videoAspect) <= maxCrop) effective = 'fill';
+  }
+  const ratio = CROP_RATIOS[effective];
 
   // A border is only worth showing when the effective mode actually leaves
   // letterbox space to frame — plain 'fill'/'stretch' cover the screen
@@ -496,7 +536,7 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
   // like a movie poster" choice, so even a slim margin should still show it.
   let borderEligible = !!ratio;
   if (effective === 'contain') {
-    const rawRect = computeContainedRect(containerW, containerH, videoWidth, videoHeight);
+    const rawRect = computeContainedRect(containerW, containerH, contentW, contentH);
     borderEligible = Math.max(rawRect.left, rawRect.top) >= MIN_BEZEL_MARGIN_PX;
   }
 
@@ -530,12 +570,37 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
   // that shape exactly — two passes of the same fit math. Every other mode
   // just fits straight into the safe area.
   const targetBox = ratio ? computeFitRect(availableRect, ratio, 1, 'contain') : availableRect;
-  const finalRect = computeFitRect(targetBox, videoWidth, videoHeight, cssFitFor(effective));
+  const finalRect = computeFitRect(targetBox, contentW, contentH, cssFitFor(effective));
+  // The element itself: just finalRect, or — with baked bars — the whole
+  // frame scaled so its picture lands exactly on finalRect.
+  let elRect = finalRect;
+  if (baked) {
+    const sx = finalRect.width / contentW;
+    const sy = finalRect.height / contentH;
+    elRect = {
+      left: finalRect.left - baked.x * videoWidth * sx,
+      top: finalRect.top - baked.y * videoHeight * sy,
+      width: videoWidth * sx,
+      height: videoHeight * sy,
+    };
+  }
 
-  player.style.left = `${finalRect.left}px`;
-  player.style.top = `${finalRect.top}px`;
-  player.style.width = `${finalRect.width}px`;
-  player.style.height = `${finalRect.height}px`;
+  // The part of the picture actually on screen (a cropped picture overhangs
+  // the box it fills), for anything that should sit on the picture itself.
+  const shown = ratio ? targetBox : finalRect;
+  const pLeft = Math.max(0, shown.left);
+  const pTop = Math.max(0, shown.top);
+  S.pictureRect = {
+    left: pLeft,
+    top: pTop,
+    width: Math.max(1, Math.min(containerW, shown.left + shown.width) - pLeft),
+    height: Math.max(1, Math.min(containerH, shown.top + shown.height) - pTop),
+    containerH,
+  };
+  player.style.left = `${elRect.left}px`;
+  player.style.top = `${elRect.top}px`;
+  player.style.width = `${elRect.width}px`;
+  player.style.height = `${elRect.height}px`;
   // finalRect already IS the fitted/cropped box (computeFitRect did the
   // contain/cover math by hand) — 'fill' just stretches #player's content
   // to exactly match it, a no-op for contain/cover since those rects were
@@ -552,11 +617,12 @@ export function applyTvBezel(videoWidth, videoHeight, ch) {
   // edges. clip-path insets are relative to #player's own (already
   // oversized) box, so translate targetBox's container-relative edges into
   // offsets from #player's edges first.
-  if (ratio) {
-    const insetTop = targetBox.top - finalRect.top;
-    const insetLeft = targetBox.left - finalRect.left;
-    const insetRight = (finalRect.left + finalRect.width) - (targetBox.left + targetBox.width);
-    const insetBottom = (finalRect.top + finalRect.height) - (targetBox.top + targetBox.height);
+  if (ratio || baked) {
+    // `shown` is what stays visible: the ratio box, or the picture sans bars.
+    const insetTop = shown.top - elRect.top;
+    const insetLeft = shown.left - elRect.left;
+    const insetRight = (elRect.left + elRect.width) - (shown.left + shown.width);
+    const insetBottom = (elRect.top + elRect.height) - (shown.top + shown.height);
     player.style.clipPath = `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
   } else {
     player.style.clipPath = '';
@@ -655,10 +721,18 @@ export function applyVhsQuality(ch) {
 // — a per-viewing-session control like a real remote's sleep button, not
 // persisted in config. Reuses the same crtToggleFlash confirmation pattern
 // as toggleCrt().
-const SLEEP_OPTIONS = [0, 30, 60, 90, 120];
+const DEFAULT_SLEEP_STEPS = [30, 60, 90, 120];
+// The steps are SETTINGS › System › Tuning & controls; OFF is always first.
+export function sleepOptions() {
+  const steps = S.config.controls && S.config.controls.sleepSteps;
+  const valid = Array.isArray(steps) ? steps.filter((n) => Number.isFinite(n) && n > 0) : [];
+  return [0, ...(valid.length ? valid : DEFAULT_SLEEP_STEPS)];
+}
+
 export function cycleSleepTimer() {
-  const idx = SLEEP_OPTIONS.indexOf(S.sleepMinutes || 0);
-  const next = SLEEP_OPTIONS[(idx + 1) % SLEEP_OPTIONS.length];
+  const options = sleepOptions();
+  const idx = options.indexOf(S.sleepMinutes || 0);
+  const next = options[(idx + 1) % options.length];
   S.sleepMinutes = next;
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
   if (next > 0) {

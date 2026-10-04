@@ -449,6 +449,24 @@ function activeLogoBugContext() {
 // keep the stored placement responsive without rewriting the user's profile.
 function applyLogoBugProfileStyles(element, profile) {
   const { width, height } = logoBugProfileDimensions(profile);
+  const rect = S.config.display && S.config.display.logoBugFollowPicture !== false ? S.pictureRect : null;
+  if (rect) {
+    // Anchored to the picture, not the screen: positions are a share of the
+    // picture and the size scales with its height (profiles are authored
+    // against a full-screen picture), so the bug sits on letterboxed content
+    // and reads the same size on 4:3, scope and 16:9 alike.
+    const scale = rect.height / rect.containerH;
+    const w = Math.min(width * scale, rect.width);
+    const h = Math.min(height * scale, rect.height);
+    element.style.setProperty('--logo-bug-size', `${Math.min(profile.size * scale, rect.width, rect.height)}px`);
+    element.style.setProperty('--logo-bug-width', `${w}px`);
+    element.style.setProperty('--logo-bug-height', `${h}px`);
+    const x = rect.left + Math.min(Math.max(0, (profile.x / 100) * rect.width), Math.max(0, rect.width - w));
+    const y = rect.top + Math.min(Math.max(0, (profile.y / 100) * rect.height), Math.max(0, rect.height - h));
+    element.style.left = `${x}px`;
+    element.style.top = `${y}px`;
+    return;
+  }
   element.style.setProperty('--logo-bug-size', `min(${profile.size}px, 100%)`);
   element.style.setProperty('--logo-bug-width', `min(${width}px, 100%)`);
   element.style.setProperty('--logo-bug-height', `min(${height}px, 100%)`);
@@ -472,6 +490,15 @@ export function applyLogoBugPlacement(ch) {
   if (Number.isFinite(profile.opacity)) logoBugEl.style.setProperty('--logo-bug-opacity', profile.opacity / 100);
   else logoBugEl.style.removeProperty('--logo-bug-opacity');
 }
+
+// The picture was re-framed (new file, resize, aspect change): a bug anchored
+// to the picture moves with it.
+window.addEventListener('reruntv:picture-framed', () => {
+  if (S.config && S.config.display && S.config.display.logoBugFollowPicture !== false && S.currentNumber != null) {
+    applyLogoBugPlacement(getChannel(S.currentNumber));
+    applyLogoBugGhost(getChannel(S.currentNumber));
+  }
+});
 
 // ---------- OS media session ----------
 // Tells the operating system what's airing, so the media keys on a keyboard
@@ -533,10 +560,12 @@ export function updateLogoBug(ch) {
     }
     // See buildChannelBadge (channels.js) — same "icon otherwise hides the
     // number entirely" fix, same shared .badge-num chip (overlays.css).
-    const numChip = document.createElement('span');
-    numChip.className = 'badge-num';
-    numChip.textContent = String(ch.number);
-    logoBugEl.appendChild(numChip);
+    if (!(S.config.display && S.config.display.logoBugHideNumber)) {
+      const numChip = document.createElement('span');
+      numChip.className = 'badge-num';
+      numChip.textContent = String(ch.number);
+      logoBugEl.appendChild(numChip);
+    }
     logoBugEl.classList.remove('hidden');
   } else {
     logoBugEl.style.background = channelColor(ch);

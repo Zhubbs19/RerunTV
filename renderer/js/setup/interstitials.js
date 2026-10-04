@@ -11,7 +11,7 @@
 import { formatChannelNumber, getChannel, newInterstitialPoolEntry, parseMediaRef, sortedChannels, tryGetDisplayName } from '../core/channels.js';
 import { cloneJson } from '../core/commands.js';
 import {
-  commercialsIntervalEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
+  commercialsIntervalEl, commercialsNoRepeatEl, bumpersNoRepeatEl, interstitialsNoRepeatEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
   interstitialsBulkBarEl, interstitialsBulkChannelApplyBtn, interstitialsBulkChannelSelectEl,
   interstitialsBulkCountEl, interstitialsBulkRemoveBtn, interstitialsBulkSelectAllBtn, interstitialsBulkTagApplyBtn,
   interstitialsBulkTagInputEl, interstitialsBulkToggleBtn, interstitialsDetailEl,
@@ -402,6 +402,18 @@ function addPoolEntries(entries) {
 export function renderCommercialsPanel() {
   const cm = S.config.commercials;
   commercialsIntervalEl.value = cm.intervalMinutes || 10;
+  for (const [el, key] of NO_REPEAT_TOGGLES) el.checked = cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
+}
+
+const NO_REPEAT_TOGGLES = [
+  [commercialsNoRepeatEl, 'noRepeatCommercials'],
+  [bumpersNoRepeatEl, 'noRepeatBumpers'],
+  [interstitialsNoRepeatEl, 'noRepeatInterstitials'],
+];
+for (const [el, key] of NO_REPEAT_TOGGLES) {
+  el.addEventListener('change', () => {
+    dispatch({ type: 'settings.set', path: ['commercials', key], value: el.checked });
+  });
 }
 
 commercialsIntervalEl.addEventListener('change', () => {
