@@ -979,6 +979,12 @@
         </div>
 
         <div class="setup-tab-panel hidden" data-tab-panel="guide">
+        <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="guidegrid" data-simple-settings>GUIDE</button>
+          <button class="setup-subtab-btn" data-subtab="guidetheme" data-simple-settings>THEME</button>
+          <button class="setup-subtab-btn" data-subtab="guideonscreen" data-simple-settings>ON-SCREEN</button>
+        </div>
+<div class="setup-subtab-panel" data-subtab-panel="guidegrid">
         <div class="settings-grid">
 <div class="panel" id="guide-settings-panel" data-simple-settings>
           <div class="panel-toggle">GUIDE</div>
@@ -1034,6 +1040,57 @@
               <div class="setting-row-control"><input type="range" id="reminder-lead-minutes-slider" min="1" max="30" step="1" value="1"></div>
               <p class="setting-row-help">How early a program reminder pops up.</p>
             </div>
+          </div>
+        </div>
+        <div class="panel span-full">
+          <div class="panel-toggle">PROGRAM REMINDERS</div>
+          <span class="panel-status">Reminders set from the guide's program search (open the guide with G, then press / and search). Each one fires once and clears itself a few minutes after its program ends. REMINDER LEAD TIME above controls how early.</span>
+          <div class="panel-body">
+            <div class="setting-row" data-setting="reminder-auto-tune">
+              <label class="setting-row-label" for="reminder-auto-tune">Tune when a reminder is due</label>
+              <div class="setting-row-control"><input type="checkbox" id="reminder-auto-tune"></div>
+              <p class="setting-row-help">Change the channel for you instead of waiting for TUNE NOW.</p>
+            </div>
+            <div class="setting-row" data-setting="reminder-notify">
+              <label class="setting-row-label" for="reminder-notify">Desktop notifications</label>
+              <div class="setting-row-control"><input type="checkbox" id="reminder-notify" checked></div>
+              <p class="setting-row-help">Also notify when the RerunTV window isn’t in front.</p>
+            </div>
+          </div>
+          <div id="reminders-list" class="titles-list"></div>
+          <div class="panel-body">
+            <button id="reminders-clear-all" class="btn" type="button">CLEAR ALL REMINDERS</button>
+          </div>
+        </div>
+
+        
+
+        <div class="panel span-full">
+          <div class="panel-toggle">GUIDE GENRE COLORS</div>
+          <span class="panel-status">Optionally color program cells by their first GENRE facet. Each theme keeps its own palette; the active selection color always remains theme-controlled.</span>
+          <div class="panel-body guide-genre-settings">
+            <div class="setting-row" data-setting="guide-genre-colors">
+              <label class="setting-row-label" for="guide-genre-colors-enabled">Color programs by genre</label>
+              <div class="setting-row-control"><input id="guide-genre-colors-enabled" type="checkbox"></div>
+            </div>
+            <div id="guide-genre-theme-label" class="panel-status"></div>
+            <div id="guide-genre-color-list" class="guide-genre-color-list"></div>
+            <div class="guide-genre-add-row">
+              <input id="guide-genre-add-name" class="title-row-input" type="text" maxlength="40" placeholder="CUSTOM GENRE">
+              <input id="guide-genre-add-color" type="color" value="#3559a8" aria-label="Custom genre color">
+              <button id="guide-genre-add-btn" class="btn" type="button">ADD GENRE</button>
+              <button id="guide-genre-reset-btn" class="btn" type="button">RESET THIS THEME</button>
+            </div>
+          </div>
+        </div>
+
+        </div>
+</div>
+<div class="setup-subtab-panel hidden" data-subtab-panel="guidetheme">
+        <div class="settings-grid">
+<div class="panel span-full" id="guide-theme-panel" data-simple-settings>
+          <div class="panel-toggle">GUIDE THEME</div>
+          <div class="panel-body setting-rows">
             <div class="setting-row setting-row-wide" data-setting="guide-theme" data-synonyms="theme skin look style era" data-simple-settings>
               <span class="setting-row-label">Guide theme</span>
               <div class="setting-row-control">
@@ -1075,6 +1132,10 @@
           </div>
         </div>
 
+        </div>
+</div>
+<div class="setup-subtab-panel hidden" data-subtab-panel="guideonscreen">
+        <div class="settings-grid">
 <div class="panel" id="clock-hint-settings-panel" data-simple-settings>
           <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
           <div class="panel-body setting-rows">
@@ -1110,29 +1171,6 @@
 
         
 
-        <div class="panel span-full">
-          <div class="panel-toggle">PROGRAM REMINDERS</div>
-          <span class="panel-status">Reminders set from the guide's program search (open the guide with G, then press / and search). Each one fires once and clears itself a few minutes after its program ends. REMINDER LEAD TIME above controls how early.</span>
-          <div class="panel-body">
-            <div class="setting-row" data-setting="reminder-auto-tune">
-              <label class="setting-row-label" for="reminder-auto-tune">Tune when a reminder is due</label>
-              <div class="setting-row-control"><input type="checkbox" id="reminder-auto-tune"></div>
-              <p class="setting-row-help">Change the channel for you instead of waiting for TUNE NOW.</p>
-            </div>
-            <div class="setting-row" data-setting="reminder-notify">
-              <label class="setting-row-label" for="reminder-notify">Desktop notifications</label>
-              <div class="setting-row-control"><input type="checkbox" id="reminder-notify" checked></div>
-              <p class="setting-row-help">Also notify when the RerunTV window isn’t in front.</p>
-            </div>
-          </div>
-          <div id="reminders-list" class="titles-list"></div>
-          <div class="panel-body">
-            <button id="reminders-clear-all" class="btn" type="button">CLEAR ALL REMINDERS</button>
-          </div>
-        </div>
-
-        
-
         <div class="panel" id="no-signal-settings-panel">
           <div class="panel-toggle">NO SIGNAL SCREEN</div>
           <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
@@ -1147,25 +1185,6 @@
               <p class="setting-row-help">{channel} inserts the tuned number.</p>
             </div>
             <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
-          </div>
-        </div>
-
-        <div class="panel span-full">
-          <div class="panel-toggle">GUIDE GENRE COLORS</div>
-          <span class="panel-status">Optionally color program cells by their first GENRE facet. Each theme keeps its own palette; the active selection color always remains theme-controlled.</span>
-          <div class="panel-body guide-genre-settings">
-            <div class="setting-row" data-setting="guide-genre-colors">
-              <label class="setting-row-label" for="guide-genre-colors-enabled">Color programs by genre</label>
-              <div class="setting-row-control"><input id="guide-genre-colors-enabled" type="checkbox"></div>
-            </div>
-            <div id="guide-genre-theme-label" class="panel-status"></div>
-            <div id="guide-genre-color-list" class="guide-genre-color-list"></div>
-            <div class="guide-genre-add-row">
-              <input id="guide-genre-add-name" class="title-row-input" type="text" maxlength="40" placeholder="CUSTOM GENRE">
-              <input id="guide-genre-add-color" type="color" value="#3559a8" aria-label="Custom genre color">
-              <button id="guide-genre-add-btn" class="btn" type="button">ADD GENRE</button>
-              <button id="guide-genre-reset-btn" class="btn" type="button">RESET THIS THEME</button>
-            </div>
           </div>
         </div>
 
@@ -1228,9 +1247,10 @@
           <div id="dynamic-overlays-editor"></div>
         </div>
         </div>
+</div>
         </div>
 
-        <div class="setup-tab-panel hidden" data-tab-panel="household">
+<div class="setup-tab-panel hidden" data-tab-panel="household">
         <div id="network-settings-grid" class="settings-grid">
 <div class="panel span-full">
           <div class="panel-toggle">WHO'S WATCHING</div>
