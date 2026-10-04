@@ -53,6 +53,7 @@ import { applyLeveler } from './playback/leveler.js';
 import { applyBakedBars } from './playback/bars.js';
 import { handleRecentKey, toggleRecentChannels } from './playback/recent-channels.js';
 import { applyKeyHints, remapKeyboardEvent } from './core/key-remap.js';
+import { fillNewSettingDefaults } from './core/setting-defaults.js';
 import { installTvSuggestion } from './tv/suggest.js';
 import { showTvWizard } from './tv/wizard.js';
 import { installGamepad } from './tv/gamepad.js';
@@ -501,7 +502,9 @@ window.api.onRemoteCommand((cmd) => {
     // visible, turning the remote's SETUP button into a one-way trip. A real
     // KeyboardEvent reaches those same setup listeners and keeps every
     // tab/subtab/dialog navigable from the Companion.
-    window.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true }));
+    // A remote button always means the default key, whatever the keyboard is remapped to.
+    window.__remoteKeyDispatch = true;
+    try { window.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true })); } finally { window.__remoteKeyDispatch = false; }
   } else {
     handleKey({ ...init, preventDefault() {} });
   }
@@ -906,7 +909,9 @@ export async function showTvScreen() {
   const list = sortedChannels();
   if (list.length === 0) return;
   const startup = S.config.controls && S.config.controls.startupChannel;
-  const wanted = startup === 'first' ? list[0].number : (typeof startup === 'number' ? startup : S.config.lastChannel);
+  // A channel number may arrive as text from the Companion's Settings editor.
+  const startupNumber = typeof startup === 'string' && startup.trim() !== '' ? Number(startup) : startup;
+  const wanted = startup === 'first' ? list[0].number : (typeof startupNumber === 'number' && Number.isFinite(startupNumber) ? startupNumber : S.config.lastChannel);
   const resume = list.find((c) => c.number === wanted);
   tuneToChannel((resume || list[0]).number, { silent: true });
   resetIdleTimer();
@@ -1145,6 +1150,8 @@ export function applyConfigDefaults(config) {
       || (config.channels || []).some((c) => Array.isArray(c.logoBugProfiles) && c.logoBugProfiles.length > 1);
     if (tuned && config.display.logoBugAuthoredHeight > 1200) config.display.logoBugAuthoredAsk = true;
   }
+  // Settings added since: written as real keys so the Companion's Settings tab can edit them.
+  fillNewSettingDefaults(config);
   if (![0, 1, 2.5, 5, 10].includes(Number(config.display.overlaySnapIncrement))) {
     config.display.overlaySnapIncrement = 0;
   }

@@ -21,7 +21,7 @@ function translator() {
 // Ctrl/Alt/Meta combinations are never remapped.
 export function remapKeyboardEvent(e) {
   const t = translator();
-  if (!t.active || e.ctrlKey || e.altKey || e.metaKey) return e;
+  if (window.__remoteKeyDispatch || !t.active || e.ctrlKey || e.altKey || e.metaKey) return e;
   const key = t.translate(e.key);
   if (key === e.key) return e;
   return new Proxy(e, {

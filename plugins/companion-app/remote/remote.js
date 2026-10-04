@@ -17,7 +17,7 @@
   // top-level scalar, so lifting them is just a move — no key appears in
   // two groups, and nothing else about how they save changes.
   var GROUPS = [
-    ['EVERYDAY', ['volume', 'muted', 'contentVolume', 'adVolume', 'crtEnabled', 'pictureMode', 'aspectMode']],
+    ['EVERYDAY', ['volume', 'muted', 'contentVolume', 'adVolume', 'crtEnabled', 'pictureMode', 'aspectMode', 'controls']],
     ['DISPLAY', ['display', 'crtIntensity', 'displayMode', 'staticEffect', 'testPattern']],
     ['PROGRAMMING', ['interstitials', 'commercials', 'curationProfiles', 'tagTaxonomy', 'trivia', 'upNext', 'ticker', 'reminders', 'reminderLeadMinutes', 'stationId', 'details', 'vintageAudio', 'customSounds', 'timeMachine']],
     ['SYSTEM', ['autoStandby', 'network', 'pinLock', 'librarySync']],
@@ -38,6 +38,27 @@
     theme: 'Which era of on-screen guide and menus the box wears.',
     'display.uiScale': 'Size of the TV’s own interface, not this page.',
     'updates.strategy': 'When a downloaded update is allowed to install.',
+    'controls.startupChannel': 'Where the TV tunes when it opens: last, first, or a channel number.',
+    'controls.entryDelayMs': 'How long the box waits after the last digit before tuning.',
+    'controls.scanDwellSec': 'How long SCAN stays on each channel.',
+    'controls.sleepSteps': 'The sleep timer lengths, in minutes. The Z key cycles through them.',
+    'controls.volumeStepPct': 'How much each volume press changes the level.',
+    'controls.volumeMaxPct': 'The volume keys stop here — handy when the TV is much louder than the PC.',
+    'controls.rememberChannelVolume': 'Tuning back to a channel returns it to the volume you left it at.',
+    'controls.tuneFadeInMs': 'Fades the sound in after changing channel, to soften a loud start (0 = off).',
+    'controls.sleepFadeOut': 'The sound fades over the last 25 seconds of the sleep timer instead of cutting off.',
+    'display.guideSlotMinutes': 'Length of each guide column in minutes.',
+    'display.autoFillWidescreen': 'Crop the sides of widescreen content so it fills the picture instead of showing black bars.',
+    'display.autoFillMaxCropPct': 'The most of the width widescreen fill may crop; wider films keep their bars.',
+    'display.removeBakedBars': 'Find black bars that are part of the video itself and frame just the picture.',
+    'display.logoBugFollowPicture': 'Place and size the logo bug against the picture, so it never sits on black bars.',
+    'display.logoBugHideOnBreaks': 'No logo bug over commercials and bumpers.',
+    'display.logoBugHideNumber': 'Leave the channel number chip off logos.',
+    'display.logoBugVaryWithContent': 'Switch logo size with the content’s aspect ratio and resolution instead of one size everywhere.',
+    'timeMachine.showTimeShiftBadge': 'Show the TIME SHIFT badge while the picture is not live.',
+    'commercials.noRepeatCommercials': 'Each commercial airs at most once per ad break.',
+    'commercials.noRepeatBumpers': 'The bump-in and bump-out idents of a break can’t be the same clip.',
+    'commercials.noRepeatInterstitials': 'Within a flow, a bumper or promo clip airs at most once.',
   };
   var EXCLUDED_SETTINGS = new Set(['channels', 'plugins', 'pluginSettingsMeta', 'lastChannel', 'theme']);
   var ENUMS = {
@@ -49,6 +70,8 @@
     'displayMode.autoPriority': [['metadata', 'FILE RESOLUTION FIRST'], ['era', 'ERA TAG FIRST']],
     'displayMode.uiExtent': [['confined', 'CONFINED TO CONTENT'], ['fullscreen', 'EXTEND BEYOND PILLARBOX']],
     'display.guideSlots': [['2', '2 / 1 HOUR'], ['3', '3 / 1.5 HOURS'], ['4', '4 / 2 HOURS']],
+    'display.guideSlotMinutes': [['15', '15 MINUTES'], ['30', '30 MINUTES'], ['60', '1 HOUR']],
+    'controls.tuneFadeInMs': [['0', 'OFF'], ['400', 'QUICK (0.4 SEC)'], ['900', 'SOFT (0.9 SEC)'], ['1800', 'SLOW (1.8 SEC)']],
     'display.uiScale': [['auto', 'AUTO (RECOMMENDED)'], ['100', '100%'], ['125', '125%'], ['150', '150%'], ['175', '175%'], ['200', '200%']],
     'display.logoBugMotion': [['none', 'NONE (STATIC)'], ['pulse', 'PULSE'], ['glow', 'GLOW'], ['slide-in', 'SLIDE IN ON TUNE']],
     'crtIntensity.overlayScope': [['video', 'VIDEO ONLY'], ['wholeScreen', 'WHOLE SCREEN']],
@@ -75,8 +98,18 @@
     'display.hintBarHideDuration': [0, 1500, 50, 'ms', 1],
     'staticEffect.intensity': [0, 100, 1, '%', 1], 'staticEffect.durationMs': [0, 1000, 50, 'ms', 1],
     'upNext.duration': [3000, 15000, 500, 'ms', 1], reminderLeadMinutes: [1, 30, 1, ' min', 1],
+    'controls.entryDelayMs': [200, 3000, 100, 'ms', 1], 'controls.scanDwellSec': [2, 60, 1, ' sec', 1],
+    'controls.volumeStepPct': [1, 25, 1, '%', 1], 'controls.volumeMaxPct': [10, 100, 5, '%', 1],
+    'display.autoFillMaxCropPct': [2, 60, 1, '%', 1],
   };
-  var LABELS = { 'display.uiScale': 'TV INTERFACE SIZE', theme: 'TV THEME' };
+  var LABELS = {
+    'display.uiScale': 'TV INTERFACE SIZE', theme: 'TV THEME', controls: 'TUNING & CONTROLS',
+    'controls.tuneFadeInMs': 'FADE IN AFTER TUNING', 'controls.sleepFadeOut': 'FADE OUT BEFORE SLEEP',
+    'controls.entryDelayMs': 'CHANNEL NUMBER DELAY', 'controls.scanDwellSec': 'SCAN STAYS ON EACH CHANNEL',
+    'controls.volumeStepPct': 'VOLUME STEP', 'controls.volumeMaxPct': 'MAXIMUM VOLUME',
+    'display.guideSlotMinutes': 'GUIDE COLUMN LENGTH', 'display.autoFillWidescreen': 'FILL WIDESCREEN CONTENT',
+    'display.removeBakedBars': 'REMOVE BAKED-IN BLACK BARS', 'display.logoBugFollowPicture': 'KEEP THE LOGO BUG ON THE PICTURE',
+  };
   var localScale = document.getElementById('companion-ui-scale');
   function applyLocalScale(value) {
     value = ['100', '125', '150', '175', '200'].includes(value) ? value : '100';
@@ -347,7 +380,7 @@
       area.addEventListener('change', function () { try { var parsed = JSON.parse(area.value); if (!Array.isArray(parsed)) throw new Error(); field.classList.remove('invalid'); setPatch(path, parsed); } catch (e) { field.classList.add('invalid'); feedback('INVALID JSON LIST', true); } }); field.appendChild(area); return withHelp(field, path);
     }
     if (typeof value === 'boolean') {
-      field.classList.add('checkbox'); field.replaceChildren(); var check = document.createElement('input'); check.type = 'checkbox'; check.checked = value; var text = document.createElement('span'); text.textContent = labelFor(key); check.addEventListener('change', function () { setPatch(path, check.checked); }); field.append(check, text); return withHelp(field, path);
+      field.classList.add('checkbox'); field.replaceChildren(); var check = document.createElement('input'); check.type = 'checkbox'; check.checked = value; var text = document.createElement('span'); text.textContent = LABELS[dotted] || labelFor(key); check.addEventListener('change', function () { setPatch(path, check.checked); }); field.append(check, text); return withHelp(field, path);
     }
     var enumValues = dotted === 'theme' ? state.themes.map(function (theme) { return [theme.id, theme.label]; }) : ENUMS[dotted];
     if (enumValues) {
@@ -581,10 +614,25 @@
     var fill = document.getElementById('volume-meter-fill');
     if (typeof remoteState.volume === 'number') {
       var percent = Math.round(Math.max(0, Math.min(1, remoteState.volume)) * 100);
-      readout.textContent = muted ? 'MUTED' : percent + '%';
+      // A maximum volume below 100% (SETTINGS › Tuning & controls) is the end
+      // of the meter, and is said so the phone doesn't look stuck short of full.
+      var ceiling = typeof remoteState.volumeMax === 'number' && remoteState.volumeMax > 0 && remoteState.volumeMax < 1 ? remoteState.volumeMax : 1;
+      readout.textContent = muted ? 'MUTED' : percent + '%' + (ceiling < 1 ? ' · MAX ' + Math.round(ceiling * 100) + '%' : '');
       readout.classList.toggle('is-muted', muted);
-      fill.style.width = percent + '%';
+      fill.style.width = Math.min(100, Math.round((percent / (ceiling * 100)) * 100)) + '%';
     }
+
+    // Recent channels: shown once there is somewhere to jump back to.
+    var recentPanel = document.getElementById('recent-panel');
+    var recentGrid = document.getElementById('recent-channels');
+    var recent = Array.isArray(remoteState.recent) ? remoteState.recent : [];
+    var recentKey = JSON.stringify(recent);
+    if (recentGrid.dataset.key !== recentKey) {
+      recentGrid.dataset.key = recentKey;
+      recentGrid.replaceChildren();
+      recent.forEach(function (channel) { recentGrid.appendChild(channelButton(channel)); });
+    }
+    recentPanel.hidden = !recent.length;
 
     setLiveText('pictureMode', labelFrom(MODE_LABELS.pictureMode, remoteState.pictureMode));
     setLiveText('aspectMode', labelFrom(MODE_LABELS.aspectMode, remoteState.aspectMode));
@@ -637,7 +685,8 @@
       remoteState = remoteState || {};
       state.watchingNumber = remoteState.number;
       if (remoteState.number != null) {
-        var mode = remoteState.timeMachineOn ? (remoteState.shuttleDir < 0 ? ' · REW' : remoteState.shuttleDir > 0 ? ' · FF' : ' · TIME MACHINE') : '';
+        var behind = remoteState.timeOffsetMin ? ' ' + (remoteState.timeOffsetMin < 0 ? '−' : '+') + Math.abs(remoteState.timeOffsetMin) + ' MIN' : '';
+        var mode = remoteState.timeMachineOn ? (remoteState.shuttleDir < 0 ? ' · REW' : remoteState.shuttleDir > 0 ? ' · FF' : ' · TIME MACHINE') + behind : '';
         watching.textContent = 'CH ' + remoteState.number + (remoteState.name ? ' — ' + String(remoteState.name).toUpperCase() : '') + mode;
         // What is on this second, not just which channel. Deliberately says
         // "commercial break" during one rather than naming the show, which

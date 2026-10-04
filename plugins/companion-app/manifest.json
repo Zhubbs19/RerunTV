@@ -1,7 +1,7 @@
 {
   "id": "companion-app",
   "name": "Companion App",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Unified responsive control surface for the Android Companion and any phone browser — full remote and guide navigation, Time Machine, channel management, live alerts/ticker, every box-wide and plugin setting, and channel-folder browsing/downloads. One authenticated UI and pairing covers all features, so Android and browser controls stay in sync.",
   "category": "system",
   "main": "main.js",

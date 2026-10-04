@@ -47,6 +47,15 @@ export function pushRemoteState() {
     audioMode: S.sapMode || 'stereo',
     timeMachineOn: !!S.timeMachineOn,
     shuttleDir: S.shuttleDir || 0,
+    // How far behind live the picture is (minutes), for the phone's readout.
+    timeOffsetMin: Math.round((S.timeOffsetMs || 0) / 60000),
+    // The ceiling the volume keys stop at, so the phone's meter reads against it.
+    volumeMax: volumeMax(),
+    // The last few channels watched, for a RECENT row on the phone.
+    recent: (S.recentChannels || []).filter((n) => n !== S.currentNumber).slice(0, 6).map((n) => {
+      const rc = getChannel(n);
+      return { number: n, name: rc ? rc.name : null };
+    }),
     quickJumpSlots: { ...S.quickJumpSlots },
     // What is actually on screen this second, so a remote can say so rather
     // than only naming the channel. Break-aware on purpose: a phone showing

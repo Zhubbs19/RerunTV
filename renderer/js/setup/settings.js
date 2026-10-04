@@ -14,6 +14,7 @@ import { applyLeveler } from '../playback/leveler.js';
 import { applyBakedBars } from '../playback/bars.js';
 import { KEY_ACTIONS, effectiveKey, keyProblem } from '../core/keymap.js';
 import { applyKeyHints } from '../core/key-remap.js';
+import { defaultForPath } from '../core/setting-defaults.js';
 import { renderHighlights } from '../update/highlights.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
 import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
@@ -2762,13 +2763,15 @@ document.querySelector('.setup-subtab-btn[data-subtab="keys"]')?.addEventListene
 function resetPanelKeys(panel) {
   let paths = [];
   try { paths = JSON.parse(panel.dataset.resetKeys || '[]'); } catch (e) { paths = []; }
+  // The ones that differ from their default (or, with no default, that are set at all).
   const present = paths.filter((path) => {
     let node = S.config;
     for (const key of path) {
       if (node == null || typeof node !== 'object' || !Object.prototype.hasOwnProperty.call(node, key)) return false;
       node = node[key];
     }
-    return true;
+    const fallback = defaultForPath(path, S.config);
+    return fallback === undefined || JSON.stringify(fallback) !== JSON.stringify(node);
   });
   return present;
 }
@@ -2791,7 +2794,7 @@ document.querySelectorAll('.panel[data-reset-keys]').forEach((panel) => {
     const present = resetPanelKeys(panel);
     if (!present.length) return;
     const title = (panel.querySelector('.panel-toggle')?.textContent || 'panel').trim().toLowerCase();
-    dispatch(present.map((path) => ({ type: 'settings.set', path, value: undefined })), { label: `Reset ${title}` });
+    dispatch(present.map((path) => ({ type: 'settings.set', path, value: defaultForPath(path, S.config) })), { label: `Reset ${title}` });
     applyAspectMode();
     applyPictureMode();
     applyCrtState();
@@ -2827,7 +2830,9 @@ function renderControlsPanel() {
   addOption('last', 'LAST CHANNEL WATCHED');
   addOption('first', 'FIRST CHANNEL');
   for (const ch of sortedChannels()) addOption(String(ch.number), `CH ${formatChannelNumber(ch.number)}${ch.name ? ` · ${ch.name}` : ''}`);
-  const startup = c.startupChannel;
+  // A channel number may be saved as text (the Companion's Settings editor does).
+  const startupRaw = c.startupChannel;
+  const startup = typeof startupRaw === 'string' && startupRaw.trim() !== '' && Number.isFinite(Number(startupRaw)) ? Number(startupRaw) : startupRaw;
   startupChannelEl.value = typeof startup === 'number' ? String(startup) : (startup === 'first' ? 'first' : 'last');
   if (startupChannelEl.value === '') startupChannelEl.value = 'last';
   entryDelayEl.value = ((Number.isFinite(c.entryDelayMs) ? c.entryDelayMs : 800) / 1000).toFixed(1);
