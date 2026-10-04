@@ -436,7 +436,16 @@ function activeLogoBugProfiles(ch) {
   return (ch && ch.logoBugProfiles) || (S.config.display && S.config.display.logoBugProfiles) || [];
 }
 
+// The profile set is matched against the content's aspect and resolution, so
+// a 4:3 or SD file can land on a differently sized profile (or the 46px
+// default) than the 16:9 one next to it. "Same bug size for all content"
+// (default on) always matches the 16:9 native profile instead, so the bug
+// is one size whatever is playing; the picture-anchored position still
+// follows the content.
+const REFERENCE_LOGO_BUG_CONTEXT = { aspect: '16:9', resolution: 'native' };
+
 function activeLogoBugContext() {
+  if (!(S.config.display && S.config.display.logoBugVaryWithContent)) return REFERENCE_LOGO_BUG_CONTEXT;
   return S.config.display && S.config.display.logoBugAutoAdjust
     ? resolveContentDisplayMode()
     : resolveEffectiveDisplayMode();
@@ -452,10 +461,10 @@ function applyLogoBugProfileStyles(element, profile) {
   const rect = S.config.display && S.config.display.logoBugFollowPicture !== false ? S.pictureRect : null;
   if (rect) {
     // Anchored to the picture, not the screen: positions are a share of the
-    // picture and the size scales with its height (profiles are authored
-    // against a full-screen picture), so the bug sits on letterboxed content
-    // and reads the same size on 4:3, scope and 16:9 alike.
-    const scale = rect.height / rect.containerH;
+    // picture, so the bug sits on letterboxed content. The size is the
+    // profile's own, in screen pixels, so it doesn't change with the shape
+    // of the picture.
+    const scale = 1;
     const w = Math.min(width * scale, rect.width);
     const h = Math.min(height * scale, rect.height);
     element.style.setProperty('--logo-bug-size', `${Math.min(profile.size * scale, rect.width, rect.height)}px`);
