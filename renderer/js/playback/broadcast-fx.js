@@ -16,7 +16,7 @@ import {
   pickLogoBugProfile, resolveEffectiveIcon,
 } from '../core/channels.js';
 import {
-  capabilityBadgeEl, contentAdvisoryCardEl, creditsSqueezeChannelEl, creditsSqueezePanelEl,
+  crtContainer, capabilityBadgeEl, contentAdvisoryCardEl, creditsSqueezeChannelEl, creditsSqueezePanelEl,
   creditsSqueezeTitleEl, creditsSqueezeVideoEl, episodeStatusBugEl, formatDisclaimerCardEl, logoBugEl,
   logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player, ratingBugEl,
   staticCanvas, staticCtx,
@@ -456,17 +456,32 @@ function activeLogoBugContext() {
 // while leaving a profile's stored dimensions unchanged; a raw `left: 94%`
 // can then put part of the bug past the right/bottom edge. CSS min()/clamp()
 // keep the stored placement responsive without rewriting the user's profile.
+// Bug sizes are stored in screen pixels, so the same number is half the
+// relative size on a 4K screen as on 1080p. Scale by the screen's height
+// against the height the profile was set on: its own stamp (the live editor
+// writes one), else DISPLAY › Logo bug › "Sizes were set on". 0 = off.
+const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 2160;
+function logoBugScale(profile) {
+  const setting = S.config.display && S.config.display.logoBugReferenceHeight;
+  if (setting === 0) return 1;
+  const refH = Number(profile.refH) || Number(setting) || DEFAULT_LOGO_BUG_REFERENCE_HEIGHT;
+  const h = crtContainer.clientHeight;
+  return h > 0 ? Math.min(4, Math.max(0.25, h / refH)) : 1;
+}
+
 function applyLogoBugProfileStyles(element, profile) {
-  const { width, height } = logoBugProfileDimensions(profile);
+  const scale = logoBugScale(profile);
+  const { width: rawWidth, height: rawHeight } = logoBugProfileDimensions(profile);
+  const width = rawWidth * scale;
+  const height = rawHeight * scale;
   const rect = S.config.display && S.config.display.logoBugFollowPicture !== false ? S.pictureRect : null;
   if (rect) {
     // Anchored to the picture, not the screen: positions are a share of the
     // picture, so the bug sits on letterboxed content. The size is the
     // profile's own, in screen pixels, so it doesn't change with the shape
     // of the picture.
-    const scale = 1;
-    const w = Math.min(width * scale, rect.width);
-    const h = Math.min(height * scale, rect.height);
+    const w = Math.min(width, rect.width);
+    const h = Math.min(height, rect.height);
     element.style.setProperty('--logo-bug-size', `${Math.min(profile.size * scale, rect.width, rect.height)}px`);
     element.style.setProperty('--logo-bug-width', `${w}px`);
     element.style.setProperty('--logo-bug-height', `${h}px`);
@@ -476,7 +491,7 @@ function applyLogoBugProfileStyles(element, profile) {
     element.style.top = `${y}px`;
     return;
   }
-  element.style.setProperty('--logo-bug-size', `min(${profile.size}px, 100%)`);
+  element.style.setProperty('--logo-bug-size', `min(${profile.size * scale}px, 100%)`);
   element.style.setProperty('--logo-bug-width', `min(${width}px, 100%)`);
   element.style.setProperty('--logo-bug-height', `min(${height}px, 100%)`);
   element.style.left = `clamp(0px, ${profile.x}%, max(0px, calc(100% - var(--logo-bug-width))))`;
@@ -502,6 +517,10 @@ export function applyLogoBugPlacement(ch) {
 
 // The picture was re-framed (new file, resize, aspect change): a bug anchored
 // to the picture moves with it.
+// A resize changes the screen height the size scales against.
+window.addEventListener('resize', () => {
+  if (S.config && S.config.display && S.currentNumber != null) applyLogoBugPlacement(getChannel(S.currentNumber));
+});
 window.addEventListener('reruntv:picture-framed', () => {
   if (S.config && S.config.display && S.config.display.logoBugFollowPicture !== false && S.currentNumber != null) {
     applyLogoBugPlacement(getChannel(S.currentNumber));

@@ -67,7 +67,7 @@ import {
   player,
   stationIdEnabledEl, stationIdIntervalEl, themeSelect,
   themeBrowserToggle, themeBrowserCurrentLabel, themeBrowserEl, themeBrowserSearch, themeBrowserClose, themeBrowserGroups, themeBrowserEmpty,
-  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
+  timeMachineEnabledEl, timeMachineBadgeEl, aspectBarsEl, aspectAutofillEl, aspectAutofillMaxEl, logoBugFollowPictureEl, logoBugRefHeightEl, logoBugVaryEl, logoBugHideBreaksEl, logoBugHideNumberEl, startupChannelEl, entryDelayEl, scanDwellEl, sleepStepsEl, volumeStepEl, volumeMaxEl, triviaEnabledEl, triviaIntervalEl, upNextEnabledEl,
   pinCancelBtn, pinCodeInputEl, pinCodeRevealBtn, pinLockEnabledEl,
   reminderAutoTuneEl, reminderNotifyEl, remindersListEl, remindersClearAllBtn,
   airChecksListEl, airChecksClearAllBtn,
@@ -399,6 +399,7 @@ export function renderSettingsPanels() {
   aspectAutofillEl.checked = !!S.config.display.autoFillWidescreen;
   aspectAutofillMaxEl.value = Number.isFinite(S.config.display.autoFillMaxCropPct) ? S.config.display.autoFillMaxCropPct : 30;
   logoBugFollowPictureEl.checked = S.config.display.logoBugFollowPicture !== false;
+  logoBugRefHeightEl.value = String(S.config.display.logoBugReferenceHeight != null ? S.config.display.logoBugReferenceHeight : 2160);
   logoBugVaryEl.checked = !!S.config.display.logoBugVaryWithContent;
   logoBugHideBreaksEl.checked = !!S.config.display.logoBugHideOnBreaks;
   logoBugHideNumberEl.checked = !!S.config.display.logoBugHideNumber;
@@ -2661,6 +2662,7 @@ aspectAutofillMaxEl.addEventListener('change', () => {
   reframePicture();
 });
 logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); reframePicture(); });
+logoBugRefHeightEl.addEventListener('change', () => { setDisplay('logoBugReferenceHeight', Number(logoBugRefHeightEl.value)); reframePicture(); });
 logoBugVaryEl.addEventListener('change', () => { setDisplay('logoBugVaryWithContent', logoBugVaryEl.checked); reframePicture(); });
 logoBugHideBreaksEl.addEventListener('change', () => setDisplay('logoBugHideOnBreaks', logoBugHideBreaksEl.checked));
 logoBugHideNumberEl.addEventListener('change', () => { setDisplay('logoBugHideNumber', logoBugHideNumberEl.checked); reframePicture(); });

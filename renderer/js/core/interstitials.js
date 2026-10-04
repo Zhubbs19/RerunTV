@@ -281,7 +281,13 @@ function windowEndingAt(pool, type, ch, block, seedKey, slotIndex, windowEnd, fa
 // The three SETTINGS › break cadence "no repeats" switches. The single
 // noRepeatInBreak switch that preceded them still applies to all three until
 // one of them is set explicitly.
-function noRepeatSetting(key) {
+function noRepeatSetting(key, ch, block) {
+  // A block's or channel's own commercials config can force it on or off;
+  // unset inherits (block, then channel, then the box-wide setting).
+  for (const owner of [block, ch]) {
+    const own = owner && owner.commercials && owner.commercials[key];
+    if (own === true || own === false) return own;
+  }
   const cm = S.config.commercials || {};
   return cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
 }
@@ -342,8 +348,8 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   // (pool, seedKey, slotIndex) — the exclusion is derived from the pod's own
   // earlier picks, nothing tracked. A pod stops early when it runs out of
   // distinct commercials rather than repeating one.
-  const noRepeatCommercials = noRepeatSetting('noRepeatCommercials');
-  const noRepeatBumpers = noRepeatSetting('noRepeatBumpers');
+  const noRepeatCommercials = noRepeatSetting('noRepeatCommercials', ch, block);
+  const noRepeatBumpers = noRepeatSetting('noRepeatBumpers', ch, block);
   const used = new Set();
   const unusedIf = (on, list) => (on ? list.filter((e) => !used.has(e)) : list);
 
@@ -562,7 +568,7 @@ export function resolveBreakAt(ch, atMs) {
         for (const segMeta of flowSegsToProcess) {
           const steps = segMeta.steps || [];
           // Interstitials already aired earlier in this flow segment.
-          const usedSteps = noRepeatSetting('noRepeatInterstitials') ? new Set() : null;
+          const usedSteps = noRepeatSetting('noRepeatInterstitials', ch, block) ? new Set() : null;
           for (let si = 0; si < steps.length; si++) {
             const step = steps[si];
             if (step.type === 'adPod') {

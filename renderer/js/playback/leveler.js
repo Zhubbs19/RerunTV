@@ -26,6 +26,7 @@ const known = new Map();
 let currentPath = null;
 let installed = false;
 let sweepStarted = false;
+const SWEEP_START_DELAY_MS = 30 * 1000;
 
 export function currentLevelerMode() {
   const mode = S.config && S.config.audioLeveler;
@@ -68,7 +69,11 @@ export function applyLeveler() {
       sweepStarted = true;
       // Measure the rest of the lineup in the background, so later files
       // start at the right level instead of settling a moment in.
-      api.prefetchLoudness(lineupMediaItems(S.config)).catch(() => {});
+      // Held back while the app is still starting up, so the sweep doesn't
+      // compete with boot, plugin loading and the first tune.
+      setTimeout(() => {
+        if (sweepStarted && currentLevelerMode() !== 'off') api.prefetchLoudness(lineupMediaItems(S.config)).catch(() => {});
+      }, SWEEP_START_DELAY_MS);
     }
     if (player.currentSrc) onLoadedMetadata();
   }

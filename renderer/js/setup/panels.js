@@ -1187,6 +1187,37 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
     podRow.appendChild(podSuffix);
     panelEl.appendChild(podRow);
 
+    // Per-channel/block "no repeats" overrides of the box-wide switches
+    // (SETTINGS › Break cadence). Unset inherits.
+    [
+      ['noRepeatCommercials', 'NO REPEAT ADS'],
+      ['noRepeatBumpers', 'NO REPEAT BUMPERS'],
+      ['noRepeatInterstitials', 'NO REPEAT INTERSTITIALS'],
+    ].forEach(([key, label]) => {
+      const row = document.createElement('div');
+      row.className = 'block-row';
+      const text = document.createElement('span');
+      text.className = 'block-count';
+      text.textContent = label;
+      const select = document.createElement('select');
+      select.className = 'block-hour-select';
+      [['', 'BOX DEFAULT'], ['on', 'ON'], ['off', 'OFF']].forEach(([value, name]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = name;
+        select.appendChild(opt);
+      });
+      select.value = cc[key] === true ? 'on' : cc[key] === false ? 'off' : '';
+      select.addEventListener('change', () => {
+        if (select.value === '') delete cc[key];
+        else cc[key] = select.value === 'on';
+        commitOwnerFields(owner, ['commercials']);
+      });
+      row.appendChild(text);
+      row.appendChild(select);
+      panelEl.appendChild(row);
+    });
+
     if (opts.onChange) opts.onChange();
   }
 

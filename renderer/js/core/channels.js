@@ -210,6 +210,9 @@ export function normalizeLogoBugProfiles(profiles) {
     // opacity is a 0-100 percentage; absent means "use the CSS default"
     // (55%) so old configs without this field round-trip unchanged.
     if (Number.isFinite(Number(profile.opacity))) entry.opacity = Math.min(100, Math.max(0, Number(profile.opacity)));
+    // The screen height (CSS px) the size was set on, stamped by the live
+    // editor, so the bug scales to other screens (see logoBugScale, broadcast-fx.js).
+    if (Number.isFinite(Number(profile.refH)) && Number(profile.refH) > 0) entry.refH = Math.round(Number(profile.refH));
     normalized.push(entry);
   });
   if (!seen.has('*|*')) normalized.push(foldLogoBugCorner(null, null)[0]);

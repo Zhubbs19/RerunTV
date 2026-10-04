@@ -1175,6 +1175,16 @@
               <div class="setting-row-control"><input type="checkbox" id="logo-bug-follow-picture" checked></div>
               <p class="setting-row-help">Place and size the bug relative to the picture, not the whole screen, so it never lands on black bars and stays the same size on 4:3, widescreen and 16:9 content. On by default.</p>
             </div>
+            <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
+              <label class="setting-row-label" for="logo-bug-ref-height">Bug sizes were set on</label>
+              <div class="setting-row-control"><select id="logo-bug-ref-height">
+                <option value="1080">A 1080p SCREEN</option>
+                <option value="1440">A 1440p SCREEN</option>
+                <option value="2160">A 4K SCREEN</option>
+                <option value="0">DON’T SCALE (FIXED PIXELS)</option>
+              </select></div>
+              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. The bug is scaled to match your screen from this size. Sizes you set in the editor remember their own screen.</p>
+            </div>
             <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
               <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>
               <div class="setting-row-control"><input type="checkbox" id="logo-bug-vary"></div>

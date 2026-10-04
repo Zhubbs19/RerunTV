@@ -273,3 +273,17 @@ test('rotationQueueFrom continues the loop from the song that was playing', asyn
   assert.equal(pb.index, 1);
   assert.deepEqual(rotationQueueFrom(station, pb).map((t) => t.path), ['2', '3', '1']);
 });
+
+test('buildCabinet: one item per album, sorted by artist then year, singles kept', async () => {
+  const { buildLibraryIndex, buildCabinet, cabinetHue } = await loadRenderer();
+  const index = buildLibraryIndex(stations);
+  const all = buildCabinet(index, '');
+  assert.equal(all.reduce((n, item) => n + item.tracks.length, 0), 4, 'every song is on a shelf');
+  const artists = all.map((item) => item.artist);
+  assert.deepEqual(artists, [...artists].sort((a, b) => a.localeCompare(b)));
+  assert.ok(all.every((item) => /^[A-Z#]$/.test(item.letter)));
+  assert.ok(buildCabinet(index, 'oasis').every((i) => i.artist === 'OASIS'));
+  assert.equal(buildCabinet(index, 'zzzz-nothing').length, 0);
+  assert.equal(cabinetHue(all[0]), cabinetHue(all[0]), 'a spine colour is stable');
+  assert.ok(cabinetHue(all[0]) >= 0 && cabinetHue(all[0]) < 360);
+});

@@ -15,6 +15,7 @@ import { S } from '../core/state.js';
 import { lineupMediaItems, mediaPathFromUrl } from './leveler-model.js';
 import { refreshPictureArea } from './power.js';
 
+const SWEEP_START_DELAY_MS = 30 * 1000;
 // path -> { x, y, w, h } as fractions of the frame, or null for "no bars".
 const known = new Map();
 let installed = false;
@@ -64,8 +65,12 @@ export function applyBakedBars() {
     if (!sweepStarted) {
       sweepStarted = true;
       // Check the rest of the lineup in the background, so later files are
-      // framed correctly from their first frame.
-      api.prefetchCrops(lineupMediaItems(S.config)).catch(() => {});
+      // framed correctly from their first frame. Held back while the app is
+      // still starting up (boot, plugins, the first tune) so it doesn't
+      // compete with them for the disk and CPU.
+      setTimeout(() => {
+        if (sweepStarted && bakedBarsEnabled()) api.prefetchCrops(lineupMediaItems(S.config)).catch(() => {});
+      }, SWEEP_START_DELAY_MS);
     }
     if (player.currentSrc) onLoadedMetadata();
   }

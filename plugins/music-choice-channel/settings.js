@@ -66,7 +66,7 @@ function totalDuration(station) {
 
 window.RCBPlugins.registerPluginSettings('music-choice-channel', {
   schemaVersion: 2,
-  defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [] },
+  defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [], seekStepSec: 10, arrowKeys: 'seek', repeatMode: 'off', shuffleOnDemand: false, cabinetStyle: 'cd' },
   validate(settings) {
     if (!Array.isArray(settings.stations)) return 'stations must be an array';
     if (settings.factoids != null && !Array.isArray(settings.factoids)) return 'factoids must be an array';
@@ -113,6 +113,64 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
         const lines = factoidsEl.value.split('\n').map((l) => l.trim()).filter(Boolean);
         window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { factoids: lines });
       });
+    },
+  }, {
+    id: 'playback',
+    label: 'PLAYBACK CONTROLS',
+    render(container) {
+      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+      container.innerHTML = `
+        <div class="panel-status">
+          The live channel is a broadcast, so pausing or seeking steps onto an on-demand session of the
+          same songs (Back or L returns to live). These set how the controls behave.
+        </div>
+        <div class="field">
+          <span class="field-label">◀▶ KEYS</span>
+          <select class="block-hour-select" data-el="arrows">
+            <option value="seek">SEEK WITHIN THE SONG</option>
+            <option value="station">CHANGE STATION WHILE LIVE</option>
+          </select>
+          <span class="panel-status">Either way, OK opens the station list. On demand, ◀▶ always seeks.</span>
+        </div>
+        <div class="field">
+          <span class="field-label">SEEK STEP (SECONDS)</span>
+          <input type="number" class="block-hour-select" data-el="step" min="2" max="60" style="width:5em">
+          <span class="panel-status">Holding the key makes the step grow, up to six times this.</span>
+        </div>
+        <div class="field">
+          <span class="field-label">REPEAT</span>
+          <select class="block-hour-select" data-el="repeat">
+            <option value="off">OFF</option>
+            <option value="song">THIS SONG</option>
+            <option value="queue">ALL SONGS IN THE LIST</option>
+          </select>
+        </div>
+        <div class="field">
+          <span class="field-label">CABINET STYLE</span>
+          <select class="block-hour-select" data-el="cabinet">
+            <option value="cd">CD RACK (SPINES ON SHELVES)</option>
+            <option value="vinyl">RECORD CRATE (SLEEVES)</option>
+          </select>
+          <span class="panel-status">The CABINET tab (press OK on the channel) shelves every album on it. It can also be switched from the cabinet itself.</span>
+        </div>
+        <label class="field"><input type="checkbox" data-el="shuffle"> SHUFFLE SEARCH RESULTS WHEN PLAYED ON DEMAND</label>
+      `;
+      const q = (el) => container.querySelector(`[data-el="${el}"]`);
+      const save = (patch) => window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', patch);
+      q('arrows').value = settings.arrowKeys === 'station' ? 'station' : 'seek';
+      q('step').value = Number.isFinite(settings.seekStepSec) ? settings.seekStepSec : 10;
+      q('repeat').value = settings.repeatMode || 'off';
+      q('shuffle').checked = !!settings.shuffleOnDemand;
+      q('cabinet').value = settings.cabinetStyle === 'vinyl' ? 'vinyl' : 'cd';
+      q('arrows').addEventListener('change', () => save({ arrowKeys: q('arrows').value }));
+      q('step').addEventListener('change', () => {
+        const n = Math.round(Math.min(60, Math.max(2, parseFloat(q('step').value) || 10)));
+        q('step').value = n;
+        save({ seekStepSec: n });
+      });
+      q('cabinet').addEventListener('change', () => save({ cabinetStyle: q('cabinet').value }));
+      q('repeat').addEventListener('change', () => save({ repeatMode: q('repeat').value }));
+      q('shuffle').addEventListener('change', () => save({ shuffleOnDemand: q('shuffle').checked }));
     },
   }, {
     id: 'stations',

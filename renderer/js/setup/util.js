@@ -633,6 +633,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
         ...(activeTarget === 'logo-bug' ? (() => {
           const { width, height } = channels.logoBugProfileDimensions(base);
           const dim = { size: base.size };
+          if (base.refH) dim.refH = base.refH;
           if (width !== base.size) dim.width = width;
           if (height !== base.size) dim.height = height;
           return dim;
@@ -726,6 +727,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     setTargetProfiles(targetProfiles().map((profile) => {
       if (profile.id !== activeId) return profile;
       const next = { ...profile, ...patch };
+      // A logo bug size is in screen pixels; remember which screen it was set on.
+      if (activeTarget === 'logo-bug' && patch.size != null) next.refH = Math.round(overlay.clientHeight);
       // Keys set to the DELETE sentinel are removed from the stored profile
       // (e.g. width/height when the logo bug is resized back to a square).
       Object.keys(next).forEach((k) => { if (next[k] === DELETE) delete next[k]; });

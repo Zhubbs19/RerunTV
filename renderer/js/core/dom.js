@@ -146,6 +146,7 @@ export const aspectBarsEl = document.getElementById('aspect-bars');
 export const aspectAutofillEl = document.getElementById('aspect-autofill');
 export const aspectAutofillMaxEl = document.getElementById('aspect-autofill-max');
 export const logoBugFollowPictureEl = document.getElementById('logo-bug-follow-picture');
+export const logoBugRefHeightEl = document.getElementById('logo-bug-ref-height');
 export const logoBugVaryEl = document.getElementById('logo-bug-vary');
 export const logoBugHideBreaksEl = document.getElementById('logo-bug-hide-breaks');
 export const logoBugHideNumberEl = document.getElementById('logo-bug-hide-number');

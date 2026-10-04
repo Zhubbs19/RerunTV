@@ -5,7 +5,8 @@
 // phone or computer.
 import { sortedChannels } from '../core/channels.js';
 import { openHandoff } from './handoff.js';
-import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, cycleSleepTimer, toggleCrt } from '../playback/power.js';
+import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, cycleSleepTimer, refreshPictureArea, toggleCrt } from '../playback/power.js';
+import { applyBakedBars } from '../playback/bars.js';
 import { themePackEntries } from '../plugin/host.js';
 import { S, commitConfigPatch, dispatch } from '../core/state.js';
 import { applyTheme } from '../display/themes.js';
@@ -98,6 +99,7 @@ function crt(key) {
 }
 
 function pictureItems() {
+  const display = () => S.config.display || {};
   return [
     valueItem('CRT EFFECT', () => onOff(S.config.crtEnabled !== false), () => toggleCrt()),
     valueItem('SCANLINES', () => pct(crt('scanlines')), (d) => { setSetting(['crtIntensity', 'scanlines'], stepNumber(crt('scanlines'), d), 'crt:scanlines'); applyCrtState(); }),
@@ -106,6 +108,29 @@ function pictureItems() {
     valueItem('ASPECT', () => String(S.config.aspectMode || 'auto').toUpperCase(), () => cycleAspectMode()),
     valueItem('SHOW VOLUME', () => pct((S.config.contentVolume ?? 1) * 100), (d) => { setSetting(['contentVolume'], stepNumber((S.config.contentVolume ?? 1) * 100, d) / 100, 'settings:contentVolume'); applyVolume(); }),
     valueItem('COMMERCIAL VOLUME', () => pct((S.config.adVolume ?? 1) * 100), (d) => { setSetting(['adVolume'], stepNumber((S.config.adVolume ?? 1) * 100, d) / 100, 'settings:adVolume'); applyVolume(); }),
+    valueItem('FILL WIDESCREEN', () => onOff(display().autoFillWidescreen), () => { setSetting(['display', 'autoFillWidescreen'], !display().autoFillWidescreen); refreshPictureArea(); }),
+    valueItem('REMOVE BLACK BARS', () => onOff(display().removeBakedBars), () => { setSetting(['display', 'removeBakedBars'], !display().removeBakedBars); applyBakedBars(); }),
+    valueItem('LOGO ON THE PICTURE', () => onOff(display().logoBugFollowPicture !== false), () => { setSetting(['display', 'logoBugFollowPicture'], display().logoBugFollowPicture === false); refreshPictureArea(); }),
+    valueItem('HIDE LOGO IN BREAKS', () => onOff(display().logoBugHideOnBreaks), () => setSetting(['display', 'logoBugHideOnBreaks'], !display().logoBugHideOnBreaks)),
+  ];
+}
+
+// ---------- Tuning & controls ----------
+
+function controlsItems() {
+  const c = () => S.config.controls || {};
+  const startupChoices = () => ['last', 'first', ...sortedChannels().map((ch) => ch.number)];
+  const startupLabel = (v) => (v === 'first' ? 'FIRST CHANNEL' : typeof v === 'number' ? `CH ${v}` : 'LAST WATCHED');
+  return [
+    valueItem('STARTS ON', () => startupLabel(c().startupChannel), (d) => setSetting(['controls', 'startupChannel'], cycleChoice(startupChoices(), c().startupChannel || 'last', d))),
+    valueItem('NUMBER ENTRY WAIT', () => `${((Number.isFinite(c().entryDelayMs) ? c().entryDelayMs : 800) / 1000).toFixed(1)} SEC`, (d) => setSetting(['controls', 'entryDelayMs'], stepNumber(Number.isFinite(c().entryDelayMs) ? c().entryDelayMs : 800, d, { min: 200, max: 3000, step: 200 }))),
+    valueItem('SCAN STAYS', () => `${Number.isFinite(c().scanDwellSec) ? c().scanDwellSec : 8} SEC`, (d) => setSetting(['controls', 'scanDwellSec'], stepNumber(Number.isFinite(c().scanDwellSec) ? c().scanDwellSec : 8, d, { min: 2, max: 60, step: 2 }))),
+    valueItem('VOLUME STEP', () => pct(Number.isFinite(c().volumeStepPct) ? c().volumeStepPct : 10), (d) => setSetting(['controls', 'volumeStepPct'], stepNumber(Number.isFinite(c().volumeStepPct) ? c().volumeStepPct : 10, d, { min: 1, max: 25, step: 1 }))),
+    valueItem('MAXIMUM VOLUME', () => pct(Number.isFinite(c().volumeMaxPct) ? c().volumeMaxPct : 100), (d) => {
+      const next = stepNumber(Number.isFinite(c().volumeMaxPct) ? c().volumeMaxPct : 100, d, { min: 10, max: 100, step: 10 });
+      setSetting(['controls', 'volumeMaxPct'], next);
+      if (typeof S.config.volume === 'number' && S.config.volume > next / 100) { S.config.volume = next / 100; setSetting(['volume'], S.config.volume); applyVolume(); }
+    }),
   ];
 }
 
@@ -211,6 +236,7 @@ export function tvSetupItems(section) {
       { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
     ]),
     section('UPDATES', 'SETUP · UPDATES', updateItems),
+    section('CONTROLS', 'SETUP · CONTROLS', controlsItems),
     section('POWER', 'SETUP · POWER', powerItems),
     { label: 'EDIT ON PHONE OR COMPUTER', run: () => openHandoff() },
   ];
