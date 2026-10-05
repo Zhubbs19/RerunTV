@@ -318,12 +318,63 @@ export function resolveOverlayLayoutContext() {
 // repositions those by explicit top-left corner instead (transform-
 // origin:'top left', no base transform), same as it always has; this is
 // purely for preserving each target's own DEFAULT appearance.
+// The width of the frame a saved position was laid out on: a 16:9 or 4:3
+// placement was made on a screen of that shape at this height, whatever shape
+// the picture is now. Placements with no shape were made on the current frame.
+export function authoredFrameWidth(profile, height, currentWidth) {
+  if (profile && profile.aspect === '4:3') return height * 4 / 3;
+  if (profile && profile.aspect === '16:9') return height * 16 / 9;
+  return currentWidth;
+}
+
+// A badge's saved x or y is a share of the frame it was laid out on (whole);
+// the gap it leaves to the nearer edge of that frame is kept, in pixels, as the
+// gap to the picture's edge (start..start+span). The left/top it needs does not
+// depend on the badge's own size: a badge near the far edge keeps its far gap
+// because its near edge keeps the same distance from the far edge of the frame.
+export function badgePosition(percent, start, span, whole) {
+  if (!(whole > 0)) return start + (percent / 100) * span;
+  const at = (percent / 100) * whole;
+  const pos = at >= whole / 2 ? start + span - (whole - at) : start + at;
+  return Math.min(Math.max(start, pos), start + span);
+}
+
+// The inverse: the saved percent that puts a badge's left/top at `position`.
+// The layout editor draws and drags the badge where it lands, then stores this.
+export function badgeStoredPercent(position, start, span, whole) {
+  if (!(whole > 0)) return span > 0 ? Math.max(0, (position - start) / span * 100) : 0;
+  const fromStart = position - start;
+  const fromEnd = whole - (start + span - position);
+  const startValid = fromStart < whole / 2;
+  const endValid = fromEnd >= whole / 2;
+  const useEnd = endValid && (!startValid || (start + span - position) < fromStart);
+  return Math.max(0, (useEnd ? fromEnd : fromStart) / whole * 100);
+}
+
 // The corner badges that sit on the picture rather than on the screen, like
 // the logo bug (DISPLAY › Logo bug › Keep the bug on the picture). Their CSS
-// offsets add --picture-inset-* (overlays.css); a saved custom position gets
-// the same gap added here. The cards and bars stay on the screen.
+// offsets add --picture-inset-* (overlays.css); a saved custom position keeps
+// its gap to the nearer edge of the frame it was laid out on (badgePosition).
+// The cards and bars stay on the screen.
 export const PICTURE_FOLLOWING_OVERLAYS = new Set(['rating-bug', 'episode-status-bug', 'capability-badge', 'timeshift-badge']);
 let pictureInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+let insetsLayerSize = '';
+
+// Where a saved badge position lands on the picture, in the overlay layer's
+// pixels, or null when it is placed on the screen.
+function placedOnPicture(id, profile) {
+  if (!PICTURE_FOLLOWING_OVERLAYS.has(id)) return null;
+  if (S.config && S.config.display && S.config.display.logoBugFollowPicture === false) return null;
+  const layer = document.getElementById('overlay-extend-layer');
+  if (!layer || !layer.clientWidth || !layer.clientHeight) return null;
+  const width = layer.clientWidth;
+  const height = layer.clientHeight;
+  const frameWidth = authoredFrameWidth(profile, height, width);
+  return {
+    left: badgePosition(profile.x, pictureInsets.left, width - pictureInsets.left - pictureInsets.right, frameWidth),
+    top: badgePosition(profile.y, pictureInsets.top, height - pictureInsets.top - pictureInsets.bottom, height),
+  };
+}
 
 // How far the picture is in from each edge of the overlay layer, in the
 // layer's own pixels (black bars, or the docked guide). Zero when the picture
@@ -352,7 +403,9 @@ export function applyPictureInsets() {
       bottom: gap((box.bottom - bottom) / layerY),
     };
   }
-  if (Object.keys(next).every((side) => next[side] === pictureInsets[side])) return;
+  const layerSize = layer ? `${layer.clientWidth}x${layer.clientHeight}` : '';
+  if (layerSize === insetsLayerSize && Object.keys(next).every((side) => next[side] === pictureInsets[side])) return;
+  insetsLayerSize = layerSize;
   pictureInsets = next;
   Object.keys(next).forEach((side) => layer && layer.style.setProperty(`--picture-inset-${side}`, `${next[side]}px`));
   applyOverlayLayouts();
@@ -419,12 +472,11 @@ export function applyOverlayLayouts() {
     }
     const base = (!profile && OVERLAY_BASE_TRANSFORMS[id]) ? `${OVERLAY_BASE_TRANSFORMS[id]} ` : '';
     if (profile) {
-      // A badge on the picture keeps its gap to the nearer picture edge.
-      const follows = PICTURE_FOLLOWING_OVERLAYS.has(id);
-      const dx = follows ? (profile.x < 50 ? pictureInsets.left : -pictureInsets.right) : 0;
-      const dy = follows ? (profile.y < 50 ? pictureInsets.top : -pictureInsets.bottom) : 0;
-      element.style.left = dx ? `calc(${profile.x}% + ${dx}px)` : `${profile.x}%`;
-      element.style.top = dy ? `calc(${profile.y}% + ${dy}px)` : `${profile.y}%`;
+      // A badge on the picture keeps its gap to the nearer edge of the frame
+      // it was laid out on, as pixels from the picture's edge.
+      const placed = placedOnPicture(id, profile);
+      element.style.left = placed ? `${placed.left}px` : `${profile.x}%`;
+      element.style.top = placed ? `${placed.top}px` : `${profile.y}%`;
       element.style.right = 'auto';
       element.style.bottom = 'auto';
     }

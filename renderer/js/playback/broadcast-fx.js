@@ -21,7 +21,7 @@ import {
   logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player, ratingBugEl,
   staticCanvas, staticCtx,
 } from '../core/dom.js';
-import { resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
+import { authoredFrameWidth, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { applyMuteState, applyVolume } from './power.js';
 import { getThemePack } from '../plugin/host.js';
 import { pickDeterministic, poolFor } from '../core/interstitials.js';
@@ -483,11 +483,7 @@ function logoBugHidesNumber(ch) {
 // The width of the frame a profile was laid out on: a 16:9 or 4:3 profile was
 // placed on a screen of that shape at this height, whatever shape the picture
 // is now. Profiles with no shape were placed on the current frame.
-export function logoBugAuthoredWidth(profile, height, currentWidth) {
-  if (profile && profile.aspect === '4:3') return height * 4 / 3;
-  if (profile && profile.aspect === '16:9') return height * 16 / 9;
-  return currentWidth;
-}
+export const logoBugAuthoredWidth = authoredFrameWidth;
 
 // One axis of a bug anchored to the picture. The profile's position is a share
 // of the frame it was laid out on (`whole`), and the gap it leaves to the nearer

@@ -113,7 +113,6 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const safeTitle = el('div', { className: 'logobug-live-safe logobug-live-safe-title' }, el('span', { text: 'TITLE SAFE' }));
   const pictureFrame = el('div', { className: 'logobug-live-picture hidden' }, el('span', { text: 'PICTURE' }));
   const othersLayer = el('div', { className: 'logobug-live-others' });
-  const ghost = el('div', { className: 'logobug-live-ghost hidden' }, el('span', { text: 'LANDS HERE ON THE PICTURE' }));
   const guideV = el('div', { className: 'logobug-live-guide logobug-live-guide-v hidden' });
   const guideH = el('div', { className: 'logobug-live-guide logobug-live-guide-h hidden' });
   const gaps = ['left', 'right', 'top', 'bottom'].map((side) => el('div', { className: `logobug-live-gap logobug-live-gap-${side} hidden` }, el('span')));
@@ -134,7 +133,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     selection.appendChild(handle);
     return handle;
   });
-  overlay.append(safeAction, safeTitle, pictureFrame, othersLayer, ghost, ...gaps, guideV, guideH, selection, tag);
+  overlay.append(safeAction, safeTitle, pictureFrame, othersLayer, ...gaps, guideV, guideH, selection, tag);
 
   // ---------- Panel ----------
 
@@ -327,41 +326,68 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     return { x: axis(left, width, pic.left, pic.width, frameW), y: axis(top, height, pic.top, pic.height, H()) };
   }
 
+  // The logo and the corner badges are placed on the picture: their box here
+  // is where they land, and these convert to and from the stored x/y.
+  const isPlaced = () => isLogo() || (followsPicture() && displayMode.PICTURE_FOLLOWING_OVERLAYS.has(activeTarget));
+
+  function placedLanding(profile) {
+    if (isLogo()) return logoLanding(profile);
+    const pic = pictureBox();
+    const frameW = displayMode.authoredFrameWidth(profile, H(), W());
+    const scale = profile.scale || 1;
+    const element = targetElement();
+    return {
+      left: displayMode.badgePosition(profile.x, pic.left, pic.width, frameW),
+      top: displayMode.badgePosition(profile.y, pic.top, pic.height, H()),
+      width: element.offsetWidth * scale,
+      height: element.offsetHeight * scale,
+    };
+  }
+
+  function placedStoredXY(profile, left, top, width, height) {
+    if (isLogo()) return logoStoredXY(profile, left, top, width, height);
+    const pic = pictureBox();
+    const frameW = displayMode.authoredFrameWidth(profile, H(), W());
+    return {
+      x: displayMode.badgeStoredPercent(left, pic.left, pic.width, frameW),
+      y: displayMode.badgeStoredPercent(top, pic.top, pic.height, H()),
+    };
+  }
+
   // What the fields and readouts show: where it is on screen, as a share of it.
   function shownXY(profile) {
-    if (!isLogo()) return { x: profile.x, y: profile.y };
-    const land = logoLanding(profile);
+    if (!isPlaced()) return { x: profile.x, y: profile.y };
+    const land = placedLanding(profile);
     return { x: land.left / W() * 100, y: land.top / H() * 100 };
   }
 
   // Moves the selected element to a screen position (shares of the screen).
+  // Where the box's top-left may go, in pixels: anywhere on the screen, except
+  // that the logo and corner badges stay on the picture they are placed on.
+  function moveBounds(width, height) {
+    if (isPlaced() && followsPicture()) {
+      const pic = pictureBox();
+      return { minX: pic.left, maxX: Math.max(pic.left, pic.left + pic.width - width), minY: pic.top, maxY: Math.max(pic.top, pic.top + pic.height - height) };
+    }
+    return { minX: 0, maxX: Math.max(0, W() - width), minY: 0, maxY: Math.max(0, H() - height) };
+  }
+
+  function positionLimits() {
+    const b = moveBounds(selection.offsetWidth, selection.offsetHeight);
+    return { minX: b.minX / W() * 100, maxX: b.maxX / W() * 100, minY: b.minY / H() * 100, maxY: b.maxY / H() * 100 };
+  }
+
   function setScreenPosition(xPercent, yPercent) {
-    const max = maxPosition();
-    const x = clamp(xPercent, 0, max.x);
-    const y = clamp(yPercent, 0, max.y);
+    const limits = positionLimits();
+    const x = clamp(xPercent, limits.minX, limits.maxX);
+    const y = clamp(yPercent, limits.minY, limits.maxY);
     const profile = activeProfile();
-    if (isLogo() && profile) {
-      const stored = logoStoredXY(profile, x / 100 * W(), y / 100 * H(), selection.offsetWidth, selection.offsetHeight);
+    if (isPlaced() && profile) {
+      const stored = placedStoredXY(profile, x / 100 * W(), y / 100 * H(), selection.offsetWidth, selection.offsetHeight);
       updateProfile({ x: round1(stored.x), y: round1(stored.y) });
     } else {
       updateProfile({ x: round1(x), y: round1(y) });
     }
-  }
-
-  // Where the selected element ends up once it is placed on the picture, or
-  // null when it is placed on the screen (the logo is drawn there already, and
-  // cards and bars stay on the screen) or the setting is off.
-  function landingBox(profile) {
-    if (!followsPicture() || isLogo()) return null;
-    const pic = pictureBox();
-    const width = selection.offsetWidth;
-    const height = selection.offsetHeight;
-    if (displayMode.PICTURE_FOLLOWING_OVERLAYS.has(activeTarget)) {
-      const dx = profile.x < 50 ? pic.left : -(W() - (pic.left + pic.width));
-      const dy = profile.y < 50 ? pic.top : -(H() - (pic.top + pic.height));
-      return { left: profile.x / 100 * W() + dx, top: profile.y / 100 * H() + dy, width, height };
-    }
-    return null;
   }
 
   // ---------- Snap + context ----------
@@ -511,7 +537,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   // Bounds-check a profile's x/y against the CURRENT overlay size (whichever
   // shape/resolution frame is active). Null when it is already fully on screen.
   function overflowFix(profile) {
-    if (isLogo()) return null; // the logo's place on the picture is always on screen
+    if (isPlaced()) return null; // a placement on the picture is always on screen
     const element = targetElement();
     const dims = isBarTarget() ? { width: (profile.width || 0) / 100 * W(), height: (profile.height || 0) / 100 * H() }
         : { width: element.offsetWidth * (profile.scale || 1), height: element.offsetHeight * (profile.scale || 1) };
@@ -689,17 +715,13 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     Object.assign(node.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
   }
 
-  // The picture box, the ghost where the element lands on it, the readout tag.
+  // The picture box and the readout tag.
   function renderPreview(profile) {
     const pic = pictureBox();
     const isFull = pic.left < 1 && pic.top < 1 && pic.width > W() - 2 && pic.height > H() - 2;
     pictureFrame.classList.toggle('hidden', isFull);
     if (!isFull) place(pictureFrame, pic);
-    const landing = landingBox(profile);
     const own = { left: selection.offsetLeft, top: selection.offsetTop, width: selection.offsetWidth, height: selection.offsetHeight };
-    const moved = landing && (Math.abs(landing.left - own.left) > 2 || Math.abs(landing.top - own.top) > 2);
-    ghost.classList.toggle('hidden', !moved);
-    if (moved) place(ghost, landing);
     // The readout rides above the box, or below it when there is no room.
     const readout = shownXY(profile);
     tag.textContent = `${readout.x.toFixed(1)}%, ${readout.y.toFixed(1)}% · ${sizeSummary(profile)}${selection.title ? ` · ${selection.title.toUpperCase()}` : ''}`;
@@ -797,7 +819,16 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       const scale = profile.scale || 1;
       selection.style.width = `${element.offsetWidth * scale}px`;
       selection.style.height = `${element.offsetHeight * scale}px`;
-      Object.assign(element.style, { left: `${profile.x}%`, top: `${profile.y}%`, right: 'auto', bottom: 'auto', transformOrigin: 'top left', transform: `scale(${scale})` });
+      const land = isPlaced() ? placedLanding(profile) : null;
+      if (land) {
+        selection.style.left = `${land.left}px`;
+        selection.style.top = `${land.top}px`;
+      }
+      Object.assign(element.style, {
+        left: land ? `${land.left}px` : `${profile.x}%`,
+        top: land ? `${land.top}px` : `${profile.y}%`,
+        right: 'auto', bottom: 'auto', transformOrigin: 'top left', transform: `scale(${scale})`,
+      });
     }
     const shape = `${profile.aspect} · ${profile.resolution === 'native' ? 'NATIVE' : String(profile.resolution).toUpperCase()}`;
     context.textContent = comparing ? 'SHOWING THE ORIGINAL'
@@ -851,8 +882,9 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   // The logo's size patch from a new width/height and the box's top-left, in
   // overlay pixels. Shared by the handles and the numeric fields.
   function logoSizePatch(nextW, nextH, left, top, bypass) {
-    const clampedLeft = clamp(left, 0, W() - nextW);
-    const clampedTop = clamp(top, 0, H() - nextH);
+    const bounds = moveBounds(nextW, nextH);
+    const clampedLeft = clamp(left, bounds.minX, bounds.maxX);
+    const clampedTop = clamp(top, bounds.minY, bounds.maxY);
     const newSize = Math.round(Math.min(nextW, nextH));
     // left/top are where the box sits on screen; store the matching x/y.
     const landedLeft = snapPercent(clampedLeft / W() * 100, Math.max(0, 100 - nextW / W() * 100), bypass) / 100 * W();
@@ -944,18 +976,19 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     trackDrag(event, (nextEvent) => {
       const width = selection.offsetWidth;
       const height = selection.offsetHeight;
-      const maxX = Math.max(0, 100 - width / W() * 100);
-      const maxY = Math.max(0, 100 - height / H() * 100);
+      const limits = positionLimits();
       const rawX = ((nextEvent.clientX - offsetX - rect.left) / rect.width) * 100;
       const rawY = ((nextEvent.clientY - offsetY - rect.top) / rect.height) * 100;
-      let x = snapPercent(rawX, maxX, nextEvent.altKey);
-      let y = snapPercent(rawY, maxY, nextEvent.altKey);
+      let x = clamp(snapPercent(rawX, limits.maxX, nextEvent.altKey), limits.minX, limits.maxX);
+      let y = clamp(snapPercent(rawY, limits.maxY, nextEvent.altKey), limits.minY, limits.maxY);
       let snapped = null;
       if (!nextEvent.altKey) {
         // The pointer's own position, not the grid's, decides what it is near.
-        snapped = smartSnap(clamp(rawX, 0, maxX) / 100 * W(), clamp(rawY, 0, maxY) / 100 * H(), width, height);
-        if (snapped.x) x = clamp((clamp(rawX, 0, maxX) / 100 * W() + snapped.x.delta) / W() * 100, 0, maxX);
-        if (snapped.y) y = clamp((clamp(rawY, 0, maxY) / 100 * H() + snapped.y.delta) / H() * 100, 0, maxY);
+        const nearX = clamp(rawX, limits.minX, limits.maxX);
+        const nearY = clamp(rawY, limits.minY, limits.maxY);
+        snapped = smartSnap(nearX / 100 * W(), nearY / 100 * H(), width, height);
+        if (snapped.x) x = clamp((nearX / 100 * W() + snapped.x.delta) / W() * 100, limits.minX, limits.maxX);
+        if (snapped.y) y = clamp((nearY / 100 * H() + snapped.y.delta) / H() * 100, limits.minY, limits.maxY);
       }
       showGuides(snapped);
       setScreenPosition(x, y);
@@ -972,8 +1005,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       const scaleX = W() / overlayRect.width;
       const scaleY = H() / overlayRect.height;
       const startPointer = { x: event.clientX, y: event.clientY };
-      const startLeft = isLogo() ? selection.offsetLeft : profile.x / 100 * W();
-      const startTop = isLogo() ? selection.offsetTop : profile.y / 100 * H();
+      const startLeft = isPlaced() ? selection.offsetLeft : profile.x / 100 * W();
+      const startTop = isPlaced() ? selection.offsetTop : profile.y / 100 * H();
       const affectsW = edge.includes('e') || edge.includes('w');
       const affectsH = edge.includes('n') || edge.includes('s');
       const deltas = (nextEvent) => ({ dx: (nextEvent.clientX - startPointer.x) * scaleX, dy: (nextEvent.clientY - startPointer.y) * scaleY });
@@ -1032,13 +1065,13 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
           const size = clamp(snapScale((profile.scale || 1) * ratio, nextEvent.altKey), 0.5, 3);
           const nextWidth = targetElement().offsetWidth * size;
           const nextHeight = targetElement().offsetHeight * size;
-          const left = clamp(edge.includes('w') ? startLeft + startSize - nextWidth : startLeft, 0, W() - nextWidth);
-          const top = clamp(edge.includes('n') ? startTop + startHeight - nextHeight : startTop, 0, H() - nextHeight);
-          updateProfile({
-            scale: Math.round(size * 100) / 100,
-            x: round1(snapPercent(left / W() * 100, Math.max(0, 100 - nextWidth / W() * 100), nextEvent.altKey)),
-            y: round1(snapPercent(top / H() * 100, Math.max(0, 100 - nextHeight / H() * 100), nextEvent.altKey)),
-          });
+          const bounds = moveBounds(nextWidth, nextHeight);
+          const left = clamp(edge.includes('w') ? startLeft + startSize - nextWidth : startLeft, bounds.minX, bounds.maxX);
+          const top = clamp(edge.includes('n') ? startTop + startHeight - nextHeight : startTop, bounds.minY, bounds.maxY);
+          const landedLeft = snapPercent(left / W() * 100, Math.max(0, 100 - nextWidth / W() * 100), nextEvent.altKey) / 100 * W();
+          const landedTop = snapPercent(top / H() * 100, Math.max(0, 100 - nextHeight / H() * 100), nextEvent.altKey) / 100 * H();
+          const stored = isPlaced() ? placedStoredXY(profile, landedLeft, landedTop, nextWidth, nextHeight) : { x: landedLeft / W() * 100, y: landedTop / H() * 100 };
+          updateProfile({ scale: Math.round(size * 100) / 100, x: round1(stored.x), y: round1(stored.y) });
         });
       }
     });
@@ -1061,8 +1094,10 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     const gap = Math.round(28 * H() / 1080);
     const width = selection.offsetWidth;
     const height = selection.offsetHeight;
-    const left = column === 0 ? gap : column === 1 ? (W() - width) / 2 : W() - width - gap;
-    const top = row === 0 ? gap : row === 1 ? (H() - height) / 2 : H() - height - gap;
+    // The picture for things placed on it, the screen for everything else.
+    const area = isPlaced() && followsPicture() ? pictureBox() : { left: 0, top: 0, width: W(), height: H() };
+    const left = column === 0 ? area.left + gap : column === 1 ? area.left + (area.width - width) / 2 : area.left + area.width - width - gap;
+    const top = row === 0 ? area.top + gap : row === 1 ? area.top + (area.height - height) / 2 : area.top + area.height - height - gap;
     setScreenPosition(left / W() * 100, top / H() * 100);
     flashGaps();
     updateDock();
