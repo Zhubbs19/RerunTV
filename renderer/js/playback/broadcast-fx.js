@@ -444,7 +444,7 @@ function activeLogoBugProfiles(ch) {
 // follows the content.
 const REFERENCE_LOGO_BUG_CONTEXT = { aspect: '16:9', resolution: 'native' };
 
-function activeLogoBugContext() {
+export function activeLogoBugContext() {
   if (!(S.config.display && S.config.display.logoBugVaryWithContent)) return REFERENCE_LOGO_BUG_CONTEXT;
   return S.config.display && S.config.display.logoBugAutoAdjust
     ? resolveContentDisplayMode()
@@ -461,7 +461,7 @@ function activeLogoBugContext() {
 // against the height the profile was set on: its own stamp (the live editor
 // writes one), else DISPLAY › Logo bug › "Sizes were set on". 0 = off.
 const DEFAULT_LOGO_BUG_REFERENCE_HEIGHT = 1080;
-function logoBugScale(profile) {
+export function logoBugScale(profile) {
   const display = S.config.display || {};
   const setting = display.logoBugReferenceHeight;
   if (setting === 0) return 1;

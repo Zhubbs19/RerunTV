@@ -42,8 +42,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
   const snapIncrementSnapshot = Number(S.config.display && S.config.display.overlaySnapIncrement) || 0;
   const overlayLayoutsSnapshot = deepClone((S.config.display && S.config.display.overlayLayouts) || {});
-  const [{ showSetupScreen, showTvScreen }, displayMode, channels] = await Promise.all([
-    import('../app.js'), import('../display/mode.js'), import('../core/channels.js'),
+  const [{ showSetupScreen, showTvScreen }, displayMode, channels, fx] = await Promise.all([
+    import('../app.js'), import('../display/mode.js'), import('../core/channels.js'), import('../playback/broadcast-fx.js'),
   ]);
 
   await showTvScreen();
@@ -227,15 +227,35 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     renderProfile();
   }
 
+  // The logo is placed by the same rule the screen uses: one profile for all
+  // content unless DISPLAY › Logo bug says it varies. Editing any other
+  // profile would change something that is not the logo on screen.
+  const logoIsPinned = () => activeTarget === 'logo-bug' && !(S.config.display && S.config.display.logoBugVaryWithContent);
+
   function currentContext() {
+    if (activeTarget === 'logo-bug') return fx.activeLogoBugContext();
     return autoAdjust.checked ? displayMode.resolveContentDisplayMode() : displayMode.resolveEffectiveDisplayMode();
   }
 
+  // The logo's size on screen: its stored size scaled to this screen's height
+  // the way the running logo is, so the box drawn here is the logo itself. A
+  // resize stamps the profile with this screen's height (updateProfile), after
+  // which stored and drawn sizes are the same.
+  function logoDims(profile) {
+    const stored = channels.logoBugProfileDimensions(profile);
+    const scale = fx.logoBugScale(profile);
+    return { width: stored.width * scale, height: stored.height * scale };
+  }
+
   function syncAutoState() {
-    previewSelects.forEach(([node]) => { node.disabled = autoAdjust.checked; });
-    previewHelp.textContent = autoAdjust.checked
-      ? 'Following what is playing, so these three are off.'
-      : 'Saved separately for each picture shape and resolution.';
+    const pinned = logoIsPinned();
+    previewSelects.forEach(([node]) => { node.disabled = autoAdjust.checked || pinned; });
+    autoAdjust.disabled = pinned;
+    previewHelp.textContent = pinned
+      ? 'The logo uses one placement for all content (DISPLAY › Logo bug), so these are off.'
+      : autoAdjust.checked
+        ? 'Following what is playing, so these three are off.'
+        : 'Saved separately for each picture shape and resolution.';
   }
 
   // ---------- Profiles ----------
@@ -291,7 +311,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   // shape/resolution frame is active). Null when it is already fully on screen.
   function overflowFix(profile) {
     const element = targetElement();
-    const dims = activeTarget === 'logo-bug' ? channels.logoBugProfileDimensions(profile)
+    const dims = activeTarget === 'logo-bug' ? logoDims(profile)
       : isBarTarget() ? { width: (profile.width || 0) / 100 * overlay.clientWidth, height: (profile.height || 0) / 100 * overlay.clientHeight }
         : { width: element.offsetWidth * (profile.scale || 1), height: element.offsetHeight * (profile.scale || 1) };
     const maxX = Math.max(0, 100 - dims.width / overlay.clientWidth * 100);
@@ -365,7 +385,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     lockLabel.classList.toggle('hidden', activeTarget !== 'logo-bug');
     fieldB.classList.toggle('hidden', !(activeTarget === 'logo-bug' || isBarTarget()));
     if (activeTarget === 'logo-bug') {
-      const { width, height } = channels.logoBugProfileDimensions(profile);
+      const { width, height } = logoDims(profile);
       aLabel.textContent = 'WIDTH PX'; bLabel.textContent = 'HEIGHT PX';
       Object.assign(inputs.a, { min: '14', max: String(Math.min(400, overlay.clientWidth)), step: '1' });
       Object.assign(inputs.b, { min: '14', max: String(Math.min(400, overlay.clientHeight)), step: '1' });
@@ -385,7 +405,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
 
   function sizeSummary(profile) {
     if (activeTarget === 'logo-bug') {
-      const { width, height } = channels.logoBugProfileDimensions(profile);
+      const { width, height } = logoDims(profile);
       return width === height ? `${Math.round(width)}px` : `${Math.round(width)}×${Math.round(height)}px`;
     }
     if (isBarTarget()) return `${(profile.width != null ? profile.width : 100).toFixed(1)}% × ${(profile.height != null ? profile.height : 12).toFixed(1)}%`;
@@ -400,12 +420,12 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     selection.style.top = `${profile.y}%`;
     opacityField.classList.toggle('hidden', activeTarget !== 'logo-bug');
     if (activeTarget === 'logo-bug') {
-      const { width, height } = channels.logoBugProfileDimensions(profile);
+      const { width, height } = logoDims(profile);
       selection.style.width = `${width}px`;
       selection.style.height = `${height}px`;
       logo.style.left = `${profile.x}%`;
       logo.style.top = `${profile.y}%`;
-      logo.style.setProperty('--logo-bug-size', `${profile.size}px`);
+      logo.style.setProperty('--logo-bug-size', `${Math.min(width, height)}px`);
       logo.style.setProperty('--logo-bug-width', `${width}px`);
       logo.style.setProperty('--logo-bug-height', `${height}px`);
       const opacity = Number.isFinite(profile.opacity) ? profile.opacity : 55;
@@ -425,7 +445,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       Object.assign(element.style, { left: `${profile.x}%`, top: `${profile.y}%`, right: 'auto', bottom: 'auto', transformOrigin: 'top left', transform: `scale(${scale})` });
     }
     const shape = `${profile.aspect} · ${profile.resolution === 'native' ? 'NATIVE' : String(profile.resolution).toUpperCase()}`;
-    context.textContent = autoAdjust.checked ? `SAVING FOR ${shape} (WHAT IS PLAYING)` : `SAVING FOR ${shape}`;
+    context.textContent = logoIsPinned() ? `SAVING FOR ${shape} · ALL CONTENT`
+      : autoAdjust.checked ? `SAVING FOR ${shape} · NOW PLAYING` : `SAVING FOR ${shape}`;
     const snap = snapIncrement();
     status.textContent = `X ${profile.x.toFixed(1)}% Y ${profile.y.toFixed(1)}% · ${sizeSummary(profile)} · SNAP ${snap ? `${snap}%` : 'OFF'}`;
     setInput(inputs.x, profile.x.toFixed(1));
@@ -542,7 +563,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       if (activeTarget === 'logo-bug') {
         // Width and height are independent: E/W handles change width, N/S
         // height, corners both (Shift on a corner locks the proportions).
-        const { width: startW, height: startH } = channels.logoBugProfileDimensions(profile);
+        const { width: startW, height: startH } = logoDims(profile);
         const clampW = (v, bypass) => Math.min(400, overlay.clientWidth, Math.max(14, snapLogoSize(v, bypass)));
         const clampH = (v, bypass) => Math.min(400, overlay.clientHeight, Math.max(14, snapLogoSize(v, bypass)));
         trackDrag(event, (nextEvent) => {
@@ -617,7 +638,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     const profile = activeProfile();
     if (!profile) return;
     if (activeTarget === 'logo-bug') {
-      const { width, height } = channels.logoBugProfileDimensions(profile);
+      const { width, height } = logoDims(profile);
       const step = (big ? 10 : 2) * direction;
       const nextW = clamp(Math.round(width + step), 14, Math.min(400, overlay.clientWidth));
       const nextH = clamp(Math.round(height * nextW / width), 14, Math.min(400, overlay.clientHeight));
@@ -658,7 +679,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     const raw = Number(which === 'a' ? inputs.a.value : inputs.b.value);
     if (!profile || !Number.isFinite(raw) || (which === 'a' ? inputs.a.value : inputs.b.value) === '') return;
     if (activeTarget === 'logo-bug') {
-      const { width, height } = channels.logoBugProfileDimensions(profile);
+      const { width, height } = logoDims(profile);
       const maxW = Math.min(400, overlay.clientWidth);
       const maxH = Math.min(400, overlay.clientHeight);
       let nextW = width;
@@ -695,6 +716,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   targetSelect.addEventListener('change', () => {
     activeTarget = targetSelect.value;
     activeId = null;
+    syncAutoState();
     selectProfileForContext();
   });
   dockButton.addEventListener('click', () => {
