@@ -212,10 +212,8 @@ async function activate(ctx) {
         .filter((f) => /\.(mp3|wav|m4a|ogg|flac)$/i.test(f))
         .sort((a, b) => a.localeCompare(b));
     } catch (e) {
-      // Folder moved/unmounted since it was configured. NOTE: under isolation a
-      // folder outside this plugin's granted paths also lands here (reads answer
-      // empty) — soundboardFolder lives in config.party, not pluginSettings, so
-      // manifest userPaths cannot grant it (needs a core change).
+      // Folder moved/unmounted since it was configured (the manifest's
+      // userPaths grants this folder read access under isolation).
       return [];
     }
   }

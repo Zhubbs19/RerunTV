@@ -466,6 +466,22 @@ async function bootApp() {
   // boot has had time to populate it) so that server can be handed the same
   // reference rather than a snapshot.
   const pluginServices = {};
+  // Sidecar subtitle lookup for isolated plugins: their fs reads can't reach a
+  // media file's own folder, so core answers "which of these exist" for the
+  // fixed subtitle names next to a given file (and nothing else).
+  pluginServices['core.findSidecars'] = async (filePath, exts) => {
+    if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) return [];
+    const allowed = new Set(['.vtt', '.srt', '.ass', '.ssa']);
+    const dir = path.dirname(filePath);
+    const base = path.basename(filePath, path.extname(filePath));
+    const found = [];
+    for (const ext of (Array.isArray(exts) ? exts : ['.vtt', '.srt'])) {
+      if (!allowed.has(ext)) continue; // eslint-disable-line no-continue
+      const candidate = path.join(dir, base + ext);
+      try { await fs.promises.access(candidate); found.push(candidate); } catch (e) { /* not there */ }
+    }
+    return found;
+  };
   pluginServicesRef = pluginServices;
   setMediaDispatchServices(pluginServices);
   wireAppQuitPropagation();

@@ -106,10 +106,12 @@ function activate(ctx) {
     if (!filePath) return { tracks: [] };
     const tracks = [];
 
-    for (const candidate of sidecarCandidates(filePath)) {
-      if (fs.existsSync(candidate)) {
-        tracks.push({ type: 'sidecar', ext: path.extname(candidate).slice(1), path: candidate });
-      }
+    // An isolated plugin can't read the media folder itself, so core checks for it.
+    let sidecars = [];
+    try { sidecars = await ctx.callService('core.findSidecars', filePath, SUBTITLE_EXTENSIONS); } catch (e) { /* older core: fall back below */ }
+    if (!sidecars || !sidecars.length) sidecars = sidecarCandidates(filePath).filter((candidate) => fs.existsSync(candidate));
+    for (const candidate of sidecars) {
+      tracks.push({ type: 'sidecar', ext: path.extname(candidate).slice(1), path: candidate });
     }
 
     const ffmpegPath = ctx.services.ffmpegPath;

@@ -1254,12 +1254,37 @@ export function handleGuideGridKey(e) {
       hideProgramResults();
       guideSearchEl.focus();
       e.preventDefault();
+      return;
+    }
+    // Arrow keys walk the results: up/down between rows, left/right between a
+    // row's title and its REMIND ME button.
+    const arrow = { ArrowDown: [1, 0], ArrowUp: [-1, 0], ArrowRight: [0, 1], ArrowLeft: [0, -1] }[e.key];
+    if (arrow) {
+      const rows = Array.from(programResultsEl.querySelectorAll('.guide-program-result'));
+      const rowIndex = rows.findIndex((row) => row.contains(e.target));
+      if (rowIndex >= 0) {
+        const buttons = Array.from(rows[rowIndex].querySelectorAll('button'));
+        const col = Math.max(0, buttons.indexOf(e.target));
+        if (arrow[0]) {
+          const next = rows[rowIndex + arrow[0]];
+          if (next) { const nb = next.querySelectorAll('button'); nb[Math.min(col, nb.length - 1)].focus(); }
+          else if (arrow[0] < 0) guideSearchEl.focus();
+        } else {
+          const target = buttons[col + arrow[1]];
+          if (target && !target.disabled) target.focus();
+        }
+        e.preventDefault();
+      }
     }
     return;
   }
   // While the filter box has focus, only intercept Escape — everything
   // else (letters, digits, arrows for cursor movement) is normal typing.
   if (document.activeElement === guideSearchEl) {
+    if (e.key === 'ArrowDown' && programResultsEl && !programResultsEl.classList.contains('hidden')) {
+      const first = programResultsEl.querySelector('.guide-program-result button');
+      if (first) { first.focus(); e.preventDefault(); return; }
+    }
     if (e.key === 'Tab') {
       // Tab moves on to the program-search results when there are any.
       if (!programResultsEl || programResultsEl.classList.contains('hidden') || !programResultsEl.querySelector('button:not([disabled])')) {

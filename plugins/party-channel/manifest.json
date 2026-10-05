@@ -9,6 +9,7 @@
   "settings": "settings.js",
   "style": "style.css",
   "dataDir": "party-uploads",
+  "userPaths": "party.soundboardFolder",
   "dependsOn": ["ffmpeg-transcode"],
   "isolated": true,
   "capabilities": {

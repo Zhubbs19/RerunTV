@@ -151,8 +151,14 @@ function resolveUserPaths(manifest, baseCtx) {
   if (typeof manifest.userPaths !== 'string' || !manifest.userPaths) return [];
   let configured;
   try {
-    const stored = (baseCtx.loadConfig().pluginSettings || {})[manifest.id] || {};
-    configured = stored[manifest.userPaths];
+    const config = baseCtx.loadConfig();
+    if (manifest.userPaths.includes('.')) {
+      // "party.soundboardFolder": a setting kept in the box config rather than pluginSettings
+      configured = manifest.userPaths.split('.').reduce((node, key) => (node && typeof node === 'object' ? node[key] : undefined), config);
+    } else {
+      const stored = (config.pluginSettings || {})[manifest.id] || {};
+      configured = stored[manifest.userPaths];
+    }
   } catch (e) {
     return []; // unreadable config at boot costs the grant, not the plugin
   }

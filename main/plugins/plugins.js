@@ -50,8 +50,9 @@ function ensurePluginsDir() {
 // as main-*.js — included in electron-builder's `files`), as opposed to
 // third-party plugins a user drops into userData/plugins/ by hand. App-owned
 // copies are refreshed whenever their shipped source hash changes; an
-// untracked folder that merely collides with a bundled id is never adopted
-// or overwritten. Local edits to an app-owned bundled copy survive ordinary
+// untracked folder that collides with a bundled id is adopted on the next
+// start and synced to the shipped source (see the enrol branch in the seeding
+// function below), so a copy that fell out of the ledger can't stay frozen. Local edits to an app-owned bundled copy survive ordinary
 // restarts, but a later app update to that same plugin intentionally wins.
 // In a packaged build, plugins/ is unpacked from the asar (package.json's
 // asarUnpack — the seeding copy below uses fs.cpSync, which doesn't get
@@ -711,6 +712,16 @@ function installPluginFromZip(zipPath, opts) {
     return { success: false, alreadyExists: true, id: manifest.id, name: manifest.name || manifest.id };
   }
 
+  // The approval signature covers declared capabilities only. A re-install that
+  // flips isolation or widens dataDir/userPaths changes what the plugin may touch
+  // without changing that signature, so note it and make the caller revoke approval.
+  const sandboxShape = (m) => JSON.stringify([!!(m && m.isolated), (m && m.dataDir) || null, (m && m.userPaths) || null]);
+  let shapeChanged = false;
+  try {
+    const oldManifest = JSON.parse(fs.readFileSync(path.join(destDir, 'manifest.json'), 'utf-8'));
+    shapeChanged = sandboxShape(oldManifest) !== sandboxShape(manifest);
+  } catch (e) { /* no previous install to compare */ }
+
   try {
     if (fs.existsSync(destDir)) fs.rmSync(destDir, { recursive: true, force: true });
     fs.mkdirSync(destDir, { recursive: true });
@@ -734,7 +745,7 @@ function installPluginFromZip(zipPath, opts) {
     return { success: false, error: `Extraction failed (${e.message}).` };
   }
 
-  return { success: true, id: manifest.id, name: manifest.name || manifest.id };
+  return { success: true, id: manifest.id, name: manifest.name || manifest.id, shapeChanged };
 }
 
 // Permanently deletes a plugin's own folder under userData/plugins/ — the
@@ -869,7 +880,10 @@ function registerPluginsIpc(ipcMain, deps) {
       throw new Error(`"${verb}" is a reserved media-source verb and can't be called via mediaSource:callHook — it's only ever invoked internally by core's own dispatch layer.`);
     }
     recordDiagnostic('plugin-capability', 'log', `${providerId} called media-source hook ${verb}`);
-    return callMediaService(getPluginServicesRef(), providerId, verb, args || []);
+    // Sign-in, folder pickers and collection scans wait on a person or a slow
+    // provider, well past the 20s default RPC timeout.
+    const SLOW_HOOKS = new Set(['signIn', 'configure', 'listFolders', 'pickFolder', 'scanCollection']);
+    return callMediaService(getPluginServicesRef(), providerId, verb, args || [], SLOW_HOOKS.has(verb) ? 6 * 60 * 1000 : undefined);
   });
 
   // A filtered projection of the same discoverPlugins() data plugins:list
@@ -972,7 +986,11 @@ function registerPluginsIpc(ipcMain, deps) {
       if (result.canceled || result.filePaths.length === 0) return { cancelled: true };
       [zipPath] = result.filePaths;
     }
-    return { zipPath, ...installPluginFromZip(zipPath, { overwrite: opts.overwrite }) };
+    const installed = installPluginFromZip(zipPath, { overwrite: opts.overwrite });
+    if (installed.success && installed.shapeChanged) {
+      installed.hostUpdate = await configHost.applyCommands({ type: 'plugin.setApproval', id: installed.id, signature: null }, { source: 'plugins' });
+    }
+    return { zipPath, ...installed };
   });
 
   ipcMain.handle('plugins:setEnabled', async (event, id, enabled) => {
