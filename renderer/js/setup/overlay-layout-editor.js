@@ -297,21 +297,65 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     return { left: (W() - width) / 2, top: (H() - height) / 2, width, height };
   }
 
+  const isLogo = () => activeTarget === 'logo-bug';
+
+  // The logo is drawn where it will actually be: its box here is its place on
+  // the picture, not the stored share of the frame. These two convert between
+  // the box and the stored x/y, exactly inverse to the running logo's rule.
+  function logoLanding(profile) {
+    const { width, height } = logoDims(profile);
+    if (!followsPicture()) return { left: profile.x / 100 * W(), top: profile.y / 100 * H(), width, height };
+    const pic = pictureBox();
+    const frameW = fx.logoBugAuthoredWidth(profile, H(), W());
+    return {
+      left: fx.logoBugPosition(profile.x, Math.min(width, pic.width), pic.left, pic.width, frameW),
+      top: fx.logoBugPosition(profile.y, Math.min(height, pic.height), pic.top, pic.height, H()),
+      width,
+      height,
+    };
+  }
+
+  function logoStoredXY(profile, left, top, width, height) {
+    if (!followsPicture()) return { x: left / W() * 100, y: top / H() * 100 };
+    const pic = pictureBox();
+    const frameW = fx.logoBugAuthoredWidth(profile, H(), W());
+    const axis = (at, size, start, span, whole) => {
+      const fromEnd = at + size / 2 > start + span / 2;
+      const stored = fromEnd ? whole - (start + span - at - size) - size : at - start;
+      return Math.max(0, stored / whole * 100);
+    };
+    return { x: axis(left, width, pic.left, pic.width, frameW), y: axis(top, height, pic.top, pic.height, H()) };
+  }
+
+  // What the fields and readouts show: where it is on screen, as a share of it.
+  function shownXY(profile) {
+    if (!isLogo()) return { x: profile.x, y: profile.y };
+    const land = logoLanding(profile);
+    return { x: land.left / W() * 100, y: land.top / H() * 100 };
+  }
+
+  // Moves the selected element to a screen position (shares of the screen).
+  function setScreenPosition(xPercent, yPercent) {
+    const max = maxPosition();
+    const x = clamp(xPercent, 0, max.x);
+    const y = clamp(yPercent, 0, max.y);
+    const profile = activeProfile();
+    if (isLogo() && profile) {
+      const stored = logoStoredXY(profile, x / 100 * W(), y / 100 * H(), selection.offsetWidth, selection.offsetHeight);
+      updateProfile({ x: round1(stored.x), y: round1(stored.y) });
+    } else {
+      updateProfile({ x: round1(x), y: round1(y) });
+    }
+  }
+
   // Where the selected element ends up once it is placed on the picture, or
-  // null when it is placed on the screen (cards, bars) or the setting is off.
+  // null when it is placed on the screen (the logo is drawn there already, and
+  // cards and bars stay on the screen) or the setting is off.
   function landingBox(profile) {
-    if (!followsPicture()) return null;
+    if (!followsPicture() || isLogo()) return null;
     const pic = pictureBox();
     const width = selection.offsetWidth;
     const height = selection.offsetHeight;
-    if (activeTarget === 'logo-bug') {
-      return {
-        left: fx.logoBugPosition(profile.x, width, pic.left, pic.width, W(), pic),
-        top: fx.logoBugPosition(profile.y, height, pic.top, pic.height, H(), pic),
-        width,
-        height,
-      };
-    }
     if (displayMode.PICTURE_FOLLOWING_OVERLAYS.has(activeTarget)) {
       const dx = profile.x < 50 ? pic.left : -(W() - (pic.left + pic.width));
       const dy = profile.y < 50 ? pic.top : -(H() - (pic.top + pic.height));
@@ -467,9 +511,9 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   // Bounds-check a profile's x/y against the CURRENT overlay size (whichever
   // shape/resolution frame is active). Null when it is already fully on screen.
   function overflowFix(profile) {
+    if (isLogo()) return null; // the logo's place on the picture is always on screen
     const element = targetElement();
-    const dims = activeTarget === 'logo-bug' ? logoDims(profile)
-      : isBarTarget() ? { width: (profile.width || 0) / 100 * W(), height: (profile.height || 0) / 100 * H() }
+    const dims = isBarTarget() ? { width: (profile.width || 0) / 100 * W(), height: (profile.height || 0) / 100 * H() }
         : { width: element.offsetWidth * (profile.scale || 1), height: element.offsetHeight * (profile.scale || 1) };
     const maxX = Math.max(0, 100 - dims.width / W() * 100);
     const maxY = Math.max(0, 100 - dims.height / H() * 100);
@@ -657,7 +701,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     ghost.classList.toggle('hidden', !moved);
     if (moved) place(ghost, landing);
     // The readout rides above the box, or below it when there is no room.
-    tag.textContent = `${profile.x.toFixed(1)}%, ${profile.y.toFixed(1)}% · ${sizeSummary(profile)}${selection.title ? ` · ${selection.title.toUpperCase()}` : ''}`;
+    const readout = shownXY(profile);
+    tag.textContent = `${readout.x.toFixed(1)}%, ${readout.y.toFixed(1)}% · ${sizeSummary(profile)}${selection.title ? ` · ${selection.title.toUpperCase()}` : ''}`;
     const above = own.top > 30;
     tag.style.left = `${clamp(own.left, 0, Math.max(0, W() - tag.offsetWidth - 4))}px`;
     tag.style.top = `${above ? own.top - tag.offsetHeight - 6 : own.top + own.height + 6}px`;
@@ -728,11 +773,13 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     selection.style.top = `${profile.y}%`;
     opacityField.classList.toggle('hidden', activeTarget !== 'logo-bug');
     if (activeTarget === 'logo-bug') {
-      const { width, height } = logoDims(profile);
+      const { left, top, width, height } = logoLanding(profile);
+      selection.style.left = `${left}px`;
+      selection.style.top = `${top}px`;
       selection.style.width = `${width}px`;
       selection.style.height = `${height}px`;
-      logo.style.left = `${profile.x}%`;
-      logo.style.top = `${profile.y}%`;
+      logo.style.left = `${left}px`;
+      logo.style.top = `${top}px`;
       logo.style.setProperty('--logo-bug-size', `${Math.min(width, height)}px`);
       logo.style.setProperty('--logo-bug-width', `${width}px`);
       logo.style.setProperty('--logo-bug-height', `${height}px`);
@@ -759,9 +806,10 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     scopePill.textContent = `APPLIES TO ${scopeLabel()}`;
     const overlapping = renderOthers();
     const snap = snapIncrement();
-    status.textContent = `X ${profile.x.toFixed(1)}% Y ${profile.y.toFixed(1)}% · ${sizeSummary(profile)} · SNAP ${snap ? `${snap}%` : 'OFF'}${overlapping ? ` · OVERLAPS ${overlapping}` : ''}`;
-    setInput(inputs.x, profile.x.toFixed(1));
-    setInput(inputs.y, profile.y.toFixed(1));
+    const shown = shownXY(profile);
+    status.textContent = `X ${shown.x.toFixed(1)}% Y ${shown.y.toFixed(1)}% · ${sizeSummary(profile)} · SNAP ${snap ? `${snap}%` : 'OFF'}${overlapping ? ` · OVERLAPS ${overlapping}` : ''}`;
+    setInput(inputs.x, shown.x.toFixed(1));
+    setInput(inputs.y, shown.y.toFixed(1));
     configureSizeFields(profile);
     renderPreview(profile);
     // Handles sit inside the box when it touches the screen edge, where
@@ -806,10 +854,14 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     const clampedLeft = clamp(left, 0, W() - nextW);
     const clampedTop = clamp(top, 0, H() - nextH);
     const newSize = Math.round(Math.min(nextW, nextH));
+    // left/top are where the box sits on screen; store the matching x/y.
+    const landedLeft = snapPercent(clampedLeft / W() * 100, Math.max(0, 100 - nextW / W() * 100), bypass) / 100 * W();
+    const landedTop = snapPercent(clampedTop / H() * 100, Math.max(0, 100 - nextH / H() * 100), bypass) / 100 * H();
+    const stored = logoStoredXY(activeProfile(), landedLeft, landedTop, nextW, nextH);
     return {
       size: newSize,
-      x: round1(snapPercent(clampedLeft / W() * 100, Math.max(0, 100 - nextW / W() * 100), bypass)),
-      y: round1(snapPercent(clampedTop / H() * 100, Math.max(0, 100 - nextH / H() * 100), bypass)),
+      x: round1(stored.x),
+      y: round1(stored.y),
       width: Math.round(nextW) !== newSize ? Math.round(nextW) : DELETE,
       height: Math.round(nextH) !== newSize ? Math.round(nextH) : DELETE,
     };
@@ -906,7 +958,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
         if (snapped.y) y = clamp((clamp(rawY, 0, maxY) / 100 * H() + snapped.y.delta) / H() * 100, 0, maxY);
       }
       showGuides(snapped);
-      updateProfile({ x: round1(x), y: round1(y) });
+      setScreenPosition(x, y);
     });
   });
 
@@ -920,8 +972,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       const scaleX = W() / overlayRect.width;
       const scaleY = H() / overlayRect.height;
       const startPointer = { x: event.clientX, y: event.clientY };
-      const startLeft = profile.x / 100 * W();
-      const startTop = profile.y / 100 * H();
+      const startLeft = isLogo() ? selection.offsetLeft : profile.x / 100 * W();
+      const startTop = isLogo() ? selection.offsetTop : profile.y / 100 * H();
       const affectsW = edge.includes('e') || edge.includes('w');
       const affectsH = edge.includes('n') || edge.includes('s');
       const deltas = (nextEvent) => ({ dx: (nextEvent.clientX - startPointer.x) * scaleX, dy: (nextEvent.clientY - startPointer.y) * scaleY });
@@ -1011,8 +1063,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     const height = selection.offsetHeight;
     const left = column === 0 ? gap : column === 1 ? (W() - width) / 2 : W() - width - gap;
     const top = row === 0 ? gap : row === 1 ? (H() - height) / 2 : H() - height - gap;
-    const max = maxPosition();
-    updateProfile({ x: round1(clamp(left / W() * 100, 0, max.x)), y: round1(clamp(top / H() * 100, 0, max.y)) });
+    setScreenPosition(left / W() * 100, top / H() * 100);
     flashGaps();
     updateDock();
   }
@@ -1026,7 +1077,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       const step = (big ? 10 : 2) * direction;
       const nextW = clamp(Math.round(width + step), 14, Math.min(400, W()));
       const nextH = clamp(Math.round(height * nextW / width), 14, Math.min(400, H()));
-      updateProfile(logoSizePatch(nextW, nextH, profile.x / 100 * W(), profile.y / 100 * H(), true));
+      updateProfile(logoSizePatch(nextW, nextH, selection.offsetLeft, selection.offsetTop, true));
     } else if (isBarTarget()) {
       updateProfile({ height: round1(clamp((profile.height != null ? profile.height : 12) + (big ? 2 : 0.5) * direction, 1, 100)) });
     } else {
@@ -1039,10 +1090,9 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   selection.addEventListener('keydown', (event) => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const step = event.shiftKey ? 5 : nudgeStep();
-    const max = maxPosition();
     const profile = activeProfile();
     if (!profile) return;
-    let { x, y } = profile;
+    let { x, y } = shownXY(profile);
     if (event.key === 'ArrowLeft') x -= step;
     else if (event.key === 'ArrowRight') x += step;
     else if (event.key === 'ArrowUp') y -= step;
@@ -1052,7 +1102,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     else return;
     event.preventDefault();
     checkpoint('nudge');
-    updateProfile({ x: round1(clamp(x, 0, max.x)), y: round1(clamp(y, 0, max.y)) });
+    setScreenPosition(x, y);
     flashGaps();
     updateDock();
   });
@@ -1060,12 +1110,12 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   inputs.x.addEventListener('input', () => {
     if (inputs.x.value === '') return;
     checkpoint('type-x');
-    updateProfile({ x: round1(clamp(Number(inputs.x.value) || 0, 0, maxPosition().x)) });
+    setScreenPosition(Number(inputs.x.value) || 0, shownXY(activeProfile()).y);
   });
   inputs.y.addEventListener('input', () => {
     if (inputs.y.value === '') return;
     checkpoint('type-y');
-    updateProfile({ y: round1(clamp(Number(inputs.y.value) || 0, 0, maxPosition().y)) });
+    setScreenPosition(shownXY(activeProfile()).x, Number(inputs.y.value) || 0);
   });
   [inputs.x, inputs.y, inputs.a, inputs.b].forEach((input) => input.addEventListener('change', () => { renderProfile(); updateDock(); }));
 
@@ -1087,7 +1137,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
         nextH = clamp(Math.round(raw), 14, maxH);
         if (lockInput.checked) nextW = clamp(Math.round(nextH * width / height), 14, maxW);
       }
-      updateProfile(logoSizePatch(nextW, nextH, profile.x / 100 * W(), profile.y / 100 * H(), true));
+      updateProfile(logoSizePatch(nextW, nextH, selection.offsetLeft, selection.offsetTop, true));
     } else if (isBarTarget()) {
       updateProfile(which === 'a' ? { width: round1(clamp(raw, 2, 100)) } : { height: round1(clamp(raw, 1, 100)) });
     } else {

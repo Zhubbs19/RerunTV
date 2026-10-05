@@ -480,18 +480,28 @@ function logoBugHidesNumber(ch) {
   return !!(S.config.display && S.config.display.logoBugHideNumber);
 }
 
-// One axis of a bug anchored to the picture. The profile's position is where
-// the bug sits on the whole screen, and the gap it leaves to the nearer screen
-// edge is kept as the gap to the picture's edge, so a bug tuned for a full
-// 16:9 picture isn't pushed against (or over) the edge of a narrower one. A
-// picture that doesn't fill the screen on this axis also gets a minimum gap.
-export function logoBugPosition(percent, size, start, span, whole, rect) {
+// The width of the frame a profile was laid out on: a 16:9 or 4:3 profile was
+// placed on a screen of that shape at this height, whatever shape the picture
+// is now. Profiles with no shape were placed on the current frame.
+export function logoBugAuthoredWidth(profile, height, currentWidth) {
+  if (profile && profile.aspect === '4:3') return height * 4 / 3;
+  if (profile && profile.aspect === '16:9') return height * 16 / 9;
+  return currentWidth;
+}
+
+// One axis of a bug anchored to the picture. The profile's position is a share
+// of the frame it was laid out on (`whole`), and the gap it leaves to the nearer
+// edge of that frame is kept, in pixels, as the gap to the picture's edge. So a
+// bug placed with a comfortable margin on a 16:9 screen keeps that margin on
+// 4:3 or letterboxed content instead of shrinking with the picture. The editor
+// inverts this exactly (overlay-layout-editor.js), so what is dragged is where
+// it lands.
+export function logoBugPosition(percent, size, start, span, whole) {
   if (!(whole > 0)) return start + Math.min(Math.max(0, (percent / 100) * span), Math.max(0, span - size));
   const at = (percent / 100) * whole;
-  const inset = span < whole - 2 ? 0.03 * Math.min(rect.width, rect.height) : 0;
   const pos = at + size / 2 > whole / 2
-    ? start + span - Math.max(whole - at - size, inset) - size
-    : start + Math.max(at, inset);
+    ? start + span - (whole - at - size) - size
+    : start + at;
   return Math.min(Math.max(start, pos), start + Math.max(0, span - size));
 }
 
@@ -511,8 +521,9 @@ function applyLogoBugProfileStyles(element, profile) {
     element.style.setProperty('--logo-bug-size', `${Math.min(profile.size * scale, rect.width, rect.height)}px`);
     element.style.setProperty('--logo-bug-width', `${w}px`);
     element.style.setProperty('--logo-bug-height', `${h}px`);
-    element.style.left = `${logoBugPosition(profile.x, w, rect.left, rect.width, rect.containerW, rect)}px`;
-    element.style.top = `${logoBugPosition(profile.y, h, rect.top, rect.height, rect.containerH, rect)}px`;
+    const framed = logoBugAuthoredWidth(profile, rect.containerH, rect.containerW);
+    element.style.left = `${logoBugPosition(profile.x, w, rect.left, rect.width, framed)}px`;
+    element.style.top = `${logoBugPosition(profile.y, h, rect.top, rect.height, rect.containerH)}px`;
     return;
   }
   element.style.setProperty('--logo-bug-size', `min(${profile.size * scale}px, 100%)`);
