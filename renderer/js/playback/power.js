@@ -653,6 +653,7 @@ function applyTvBezelInner(videoWidth, videoHeight, ch) {
     top: pTop,
     width: Math.max(1, Math.min(containerW, onScreen.left + onScreen.width) - pLeft),
     height: Math.max(1, Math.min(containerH, onScreen.top + onScreen.height) - pTop),
+    containerW,
     containerH,
   };
   player.style.left = `${elRect.left}px`;

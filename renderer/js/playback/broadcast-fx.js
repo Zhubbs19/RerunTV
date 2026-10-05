@@ -480,6 +480,21 @@ function logoBugHidesNumber(ch) {
   return !!(S.config.display && S.config.display.logoBugHideNumber);
 }
 
+// One axis of a bug anchored to the picture. The profile's position is where
+// the bug sits on the whole screen, and the gap it leaves to the nearer screen
+// edge is kept as the gap to the picture's edge, so a bug tuned for a full
+// 16:9 picture isn't pushed against (or over) the edge of a narrower one. A
+// picture that doesn't fill the screen on this axis also gets a minimum gap.
+function logoBugPosition(percent, size, start, span, whole, rect) {
+  if (!(whole > 0)) return start + Math.min(Math.max(0, (percent / 100) * span), Math.max(0, span - size));
+  const at = (percent / 100) * whole;
+  const inset = span < whole - 2 ? 0.03 * Math.min(rect.width, rect.height) : 0;
+  const pos = at + size / 2 > whole / 2
+    ? start + span - Math.max(whole - at - size, inset) - size
+    : start + Math.max(at, inset);
+  return Math.min(Math.max(start, pos), start + Math.max(0, span - size));
+}
+
 function applyLogoBugProfileStyles(element, profile) {
   const scale = logoBugScale(profile);
   const { width: rawWidth, height: rawHeight } = logoBugProfileDimensions(profile);
@@ -496,10 +511,8 @@ function applyLogoBugProfileStyles(element, profile) {
     element.style.setProperty('--logo-bug-size', `${Math.min(profile.size * scale, rect.width, rect.height)}px`);
     element.style.setProperty('--logo-bug-width', `${w}px`);
     element.style.setProperty('--logo-bug-height', `${h}px`);
-    const x = rect.left + Math.min(Math.max(0, (profile.x / 100) * rect.width), Math.max(0, rect.width - w));
-    const y = rect.top + Math.min(Math.max(0, (profile.y / 100) * rect.height), Math.max(0, rect.height - h));
-    element.style.left = `${x}px`;
-    element.style.top = `${y}px`;
+    element.style.left = `${logoBugPosition(profile.x, w, rect.left, rect.width, rect.containerW, rect)}px`;
+    element.style.top = `${logoBugPosition(profile.y, h, rect.top, rect.height, rect.containerH, rect)}px`;
     return;
   }
   element.style.setProperty('--logo-bug-size', `min(${profile.size * scale}px, 100%)`);
