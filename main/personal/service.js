@@ -94,12 +94,46 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
   const sessions = new Map();
   const clients = new Map();
 
+  // Only a genuinely absent index means "first run". Anything else that stops it
+  // loading (unreadable, unparseable, wrong shape) must not fall through to
+  // migrateEveryone(), which would write a fresh index over the household's real
+  // profiles: keep a copy for recovery and refuse instead.
   function readIndex() {
     if (index) return index;
-    try { index = JSON.parse(fs.readFileSync(indexFile, 'utf8')); } catch (e) { index = null; }
-    if (!index || !Array.isArray(index.profiles)) index = { schemaVersion: SCHEMA_VERSION, profiles: [], activeProfileId: null, migratedAt: null };
+    let loaded = null;
+    let problem = null;
+    try {
+      loaded = JSON.parse(fs.readFileSync(indexFile, 'utf8'));
+      if (!loaded || !Array.isArray(loaded.profiles)) problem = new Error('unexpected contents');
+    } catch (e) {
+      if (e.code !== 'ENOENT') problem = e;
+    }
+    if (problem) {
+      try { fs.copyFileSync(indexFile, `${indexFile}.corrupt-${now()}`); } catch (e) { /* unreadable even to copy */ }
+      throw new Error(`The profile index could not be read (${problem.message}). A copy was kept next to it; nothing was changed.`);
+    }
+    index = loaded || { schemaVersion: SCHEMA_VERSION, profiles: [], activeProfileId: null, migratedAt: null };
     if (!index.profiles.length) migrateEveryone();
     return index;
+  }
+
+  // Wrong-PIN limiter: a four-digit PIN is only 10^4 guesses, so after 5 wrong
+  // tries on one profile it refuses for a minute (per profile, in memory).
+  const PIN_MAX_WRONG = 5;
+  const PIN_WINDOW_MS = 60 * 1000;
+  const pinFailures = new Map(); // profile id -> { count, start }
+  function checkProfilePin(profile, pin) {
+    if (!profile.pinHash) return true;
+    const t = now();
+    const entry = pinFailures.get(profile.id);
+    if (entry && t - entry.start < PIN_WINDOW_MS && entry.count >= PIN_MAX_WRONG) {
+      throw new Error('Too many wrong PIN attempts. Try again in a minute.');
+    }
+    if (verifyPin(pin, profile.pinHash)) { pinFailures.delete(profile.id); return true; }
+    const fresh = entry && t - entry.start < PIN_WINDOW_MS ? entry : { count: 0, start: t };
+    fresh.count += 1;
+    pinFailures.set(profile.id, fresh);
+    return false;
   }
 
   function saveIndex() { atomicJson(indexFile, index, now); }
@@ -109,7 +143,15 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
     const summary = readIndex().profiles.find((entry) => entry.id === id);
     if (!summary) throw new Error('Profile not found.');
     let raw;
-    try { raw = JSON.parse(fs.readFileSync(profileFile(id), 'utf8')); } catch (e) { raw = summary; }
+    try {
+      raw = JSON.parse(fs.readFileSync(profileFile(id), 'utf8'));
+    } catch (e) {
+      // The summary has no pinHash, so substituting it for an unreadable file
+      // would silently drop the profile's PIN. Only a missing file of an
+      // unprotected profile may fall back to it; everything else fails closed.
+      if (e.code === 'ENOENT' && !summary.hasPin) raw = summary;
+      else throw new Error('That profile could not be read, so the action was refused.');
+    }
     return normalizeProfile(raw, summary);
   }
 
@@ -147,7 +189,7 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
 
   function updateProfile(payload = {}) {
     const profile = readProfile(payload.id);
-    if (profile.pinHash && !verifyPin(payload.currentPin, profile.pinHash)) throw new Error('The current profile PIN is incorrect.');
+    if (!checkProfilePin(profile, payload.currentPin)) throw new Error('The current profile PIN is incorrect.');
     if (payload.name != null) profile.name = String(payload.name).trim().slice(0, 40) || profile.name;
     if (/^#[0-9a-f]{6}$/i.test(payload.color || '')) profile.color = payload.color;
     if (['none', 'kids', 'teen'].includes(payload.restriction)) profile.restriction = payload.restriction;
@@ -249,8 +291,8 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
     getProfile: ({ id } = {}) => publicProfile(readProfile(id || readIndex().activeProfileId), true),
     createProfile,
     updateProfile,
-    verifyProfile({ id, pin } = {}) { return verifyPin(pin, readProfile(id).pinHash); },
-    deleteProfile({ id, pin } = {}) { const current = readIndex(); if (id === 'everyone') throw new Error('The Everyone profile cannot be deleted.'); const profile = readProfile(id); if (!verifyPin(pin, profile.pinHash)) throw new Error('The profile PIN is incorrect.'); current.profiles = current.profiles.filter((entry) => entry.id !== id); if (current.activeProfileId === id) current.activeProfileId = 'everyone'; try { fs.unlinkSync(profileFile(id)); } catch (e) {} saveIndex(); return true; },
+    verifyProfile({ id, pin } = {}) { return checkProfilePin(readProfile(id), pin); },
+    deleteProfile({ id, pin } = {}) { const current = readIndex(); if (id === 'everyone') throw new Error('The Everyone profile cannot be deleted.'); const profile = readProfile(id); if (!checkProfilePin(profile, pin)) throw new Error('The profile PIN is incorrect.'); current.profiles = current.profiles.filter((entry) => entry.id !== id); if (current.activeProfileId === id) current.activeProfileId = 'everyone'; try { fs.unlinkSync(profileFile(id)); } catch (e) {} saveIndex(); return true; },
     command,
     handoff(payload = {}) {
       if (!payload.targetClientId || !Number.isFinite(payload.channel) || !Number.isFinite(payload.timeOffsetMs)) throw new Error('A handoff needs a target client, channel and clock offset.');

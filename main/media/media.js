@@ -165,7 +165,26 @@ async function renameWithRetry(from, to) {
 // (which now just calls this and returns the result) so the actual
 // transcode/swap logic lives alongside the rest of this module's
 // media-path helpers instead of inline in app-wiring code.
-async function transcodeVideo(srcPath) {
+const transcodesInFlight = new Map(); // srcPath -> Promise
+// ffmpeg prints progress to stderr continuously; this long with no output at
+// all means it is hung (a dead network share, a stuck decoder) and gets killed.
+const TRANSCODE_STALL_MS = 5 * 60 * 1000;
+
+function transcodeVideo(srcPath) {
+  if (typeof srcPath !== 'string' || !path.isAbsolute(srcPath) || /^mediasource:/i.test(srcPath)) {
+    return Promise.resolve({ error: 'Only an absolute local file path can be transcoded.' });
+  }
+  // A second request for the same file (double click, retry) joins the run
+  // already in progress instead of racing it over the same pending/backup files.
+  const running = transcodesInFlight.get(srcPath);
+  if (running) return running;
+  const job = transcodeVideoUncoordinated(srcPath)
+    .finally(() => { transcodesInFlight.delete(srcPath); });
+  transcodesInFlight.set(srcPath, job);
+  return job;
+}
+
+async function transcodeVideoUncoordinated(srcPath) {
   recoverPendingSwap(srcPath);
 
   const backupPath = backupPathFor(srcPath);
@@ -195,15 +214,24 @@ async function transcodeVideo(srcPath) {
     ], { stdio: ['ignore', 'ignore', 'pipe'] });
 
     let stderr = '';
+    let watchdog = null;
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = setTimeout(() => { try { ff.kill(); } catch (e) { /* already gone */ } }, TRANSCODE_STALL_MS);
+    };
+    armWatchdog();
     ff.stderr.on('data', (d) => {
+      armWatchdog();
       stderr = (stderr + d.toString()).slice(-4096);
     });
 
     ff.on('error', (err) => {
+      clearTimeout(watchdog);
       resolve({ error: `couldn't launch bundled ffmpeg (${err.message})` });
     });
 
     ff.on('close', async (code) => {
+      clearTimeout(watchdog);
       if (code === 0 && fs.existsSync(pendingPath)) {
         try {
           // original -> backup, then transcoded -> takes over original's path.

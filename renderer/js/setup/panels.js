@@ -960,7 +960,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
 
   const hint = document.createElement('div');
   hint.className = 'titles-empty';
-  hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE CONFIGURED IN PROGRAMMING (CADENCE & PRESETS; ADVANCED FLOWS WHEN NEEDED). THIS TOGGLE IS A GLOBAL KILL-SWITCH FOR ADS ON THIS CHANNEL ONLY.';
+  hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE CONFIGURED IN PROGRAMMING (CADENCE & PRESETS; ADVANCED FLOWS WHEN NEEDED). THIS TOGGLE IS A PER-CHANNEL MASTER SWITCH FOR ADS.';
   panelEl.appendChild(hint);
 
   // Channel-wide content tags — applied to EVERY file on this channel, on
@@ -1096,7 +1096,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
       intervalInput.value = cc.intervalMinutes || '';
       intervalInput.placeholder = String((S.config.commercials && S.config.commercials.intervalMinutes) || 10);
       intervalInput.addEventListener('change', () => {
-        cc.intervalMinutes = parsePositiveInt(intervalInput.value, null);
+        cc.intervalMinutes = parsePositiveInt(intervalInput.value, null); intervalInput.value = cc.intervalMinutes != null ? cc.intervalMinutes : '';
         commitOwnerFields(owner, ['commercials']);
       });
       const intervalSuffix = document.createElement('span');
@@ -1154,7 +1154,7 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
     podMinInput.className = 'block-hour-select';
     podMinInput.value = cc.podMin || 1;
     podMinInput.addEventListener('change', () => {
-      cc.podMin = parsePositiveInt(podMinInput.value, 1);
+      cc.podMin = parsePositiveInt(podMinInput.value, 1); podMinInput.value = cc.podMin;
       if ((cc.podMax || 1) < cc.podMin) {
         cc.podMax = cc.podMin;
         podMaxInput.value = cc.podMax;
@@ -1390,7 +1390,7 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     leadInput.title = 'How many seconds before a file ends its credits are assumed to start, by default — a specific title can override this.';
     leadInput.value = cfg.leadSeconds || 90;
     leadInput.addEventListener('change', () => {
-      cfg.leadSeconds = parsePositiveInt(leadInput.value, 90);
+      cfg.leadSeconds = parsePositiveInt(leadInput.value, 90); leadInput.value = cfg.leadSeconds;
       commitOwnerFields(ch, ['creditsSpeedup']);
     });
     grid.appendChild(leadInput);
@@ -1582,11 +1582,17 @@ export function buildTickerLayoutPanel(ch, panelEl) {
       liveBtn.textContent = `TUNE TO CHANNEL ${ch.number} & EDIT`;
       liveBtn.addEventListener('click', () => openLiveLogoBugEditor({
         getProfiles: () => ch.tickerLayout,
-        setProfiles: (profiles) => { ch.tickerLayout = profiles; },
+        setProfiles: (profiles) => {
+          ch.tickerLayout = profiles;
+          commitInPlace({ type: 'channel.set', channel: ch.number, field: 'tickerLayout', value: profiles }, { coalesce: `ch:${ch.number}:tickerLayout` });
+        },
         perChannelOverlay: {
           targetId: 'ticker-bar',
           getProfiles: () => ch.tickerLayout,
-          setProfiles: (profiles) => { ch.tickerLayout = profiles; },
+          setProfiles: (profiles) => {
+          ch.tickerLayout = profiles;
+          commitInPlace({ type: 'channel.set', channel: ch.number, field: 'tickerLayout', value: profiles }, { coalesce: `ch:${ch.number}:tickerLayout` });
+        },
         },
         channelNumber: ch.number,
       }));
@@ -1661,7 +1667,7 @@ export function buildTickerLayoutPanel(ch, panelEl) {
       commitOwnerFields(ch, ['tickerContent'], { coalesce: `ch:${ch.number}:ticker-text` });
     });
     speedEl.addEventListener('change', () => {
-      ch.tickerContent.speed = parseInt(speedEl.value, 10) || 30;
+      ch.tickerContent.speed = Math.min(120, Math.max(5, parseInt(speedEl.value, 10) || 30)); speedEl.value = ch.tickerContent.speed;
       window.applyTickerState?.();
       commitOwnerFields(ch, ['tickerContent']);
     });
@@ -1786,6 +1792,6 @@ export function buildChannelIdentityPanel(ch, panelEl) {
   });
   const clear = document.createElement('button');
   clear.className = 'btn'; clear.textContent = 'CLEAR ALL IDENTITY OVERRIDES';
-  clear.addEventListener('click', () => { delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); commitOwnerFields(ch, ['broadcastIdentity'], { label: `Clear CH ${ch.number} identity` }); });
+  clear.addEventListener('click', async () => { if (!(await confirmDialog({ title: 'CLEAR IDENTITY OVERRIDES?', message: `Remove every identity override on CH ${ch.number} and go back to the box defaults? You can undo this.`, confirmText: 'CLEAR', danger: true }))) return; delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); commitOwnerFields(ch, ['broadcastIdentity'], { label: `Clear CH ${ch.number} identity` }); });
   panelEl.append(intro, grid, clear);
 }

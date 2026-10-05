@@ -61,10 +61,17 @@ function getPlatformInstallInfo() {
   return { method: 'unsupported', label: `${process.platform}/${process.arch}` };
 }
 
+// The whole download must finish within this window, and may not exceed the
+// size cap (the real builds are ~100 MB), so a stalled or hostile server can't
+// hang the install forever or fill memory.
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+const MAX_DOWNLOAD_BYTES = 400 * 1024 * 1024;
+
 async function downloadToBuffer(url, onProgress) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`download failed: HTTP ${res.status}`);
   const totalBytes = Number(res.headers.get('content-length')) || 0;
+  if (totalBytes > MAX_DOWNLOAD_BYTES) throw new Error('download is larger than expected — aborting');
   const reader = res.body.getReader();
   const chunks = [];
   let receivedBytes = 0;
@@ -74,6 +81,10 @@ async function downloadToBuffer(url, onProgress) {
     if (done) break;
     chunks.push(value);
     receivedBytes += value.length;
+    if (receivedBytes > MAX_DOWNLOAD_BYTES) {
+      reader.cancel().catch(() => {});
+      throw new Error('download exceeded the size limit — aborting');
+    }
     onProgress({ phase: 'downloading', receivedBytes, totalBytes });
   }
   return Buffer.concat(chunks.map((c) => Buffer.from(c)));
@@ -111,7 +122,10 @@ async function installFfmpeg(onProgress) {
 
 function registerFfmpegInstallIpc(ipcMain, { getMainWindow }) {
   ipcMain.handle('ffmpeg:installInfo', () => getPlatformInstallInfo());
+  let installInFlight = false;
   ipcMain.handle('ffmpeg:install', async () => {
+    if (installInFlight) return { error: 'An ffmpeg install is already running.' };
+    installInFlight = true;
     const win = getMainWindow();
     const sendProgress = (data) => { if (win && !win.isDestroyed()) win.webContents.send('ffmpeg:installProgress', data); };
     try {
@@ -119,6 +133,8 @@ function registerFfmpegInstallIpc(ipcMain, { getMainWindow }) {
       return { path: installedPath };
     } catch (e) {
       return { error: e.message };
+    } finally {
+      installInFlight = false;
     }
   });
 }

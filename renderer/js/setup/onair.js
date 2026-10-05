@@ -407,14 +407,20 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
       if (!folder) return;
       browseBtn.disabled = true;
       previewLine.textContent = 'Scanning folder…';
-      const paths = await window.api.scanFolder('local', folder);
       const files = [];
-      for (let i = 0; i < paths.length; i++) {
-        previewLine.textContent = `Reading video ${i + 1} of ${paths.length}…`;
-        // eslint-disable-next-line no-await-in-loop -- one video element at a time, as the BLOCKS folder picker does
-        files.push({ path: paths[i], duration: await probeDuration(paths[i]), source: 'local' });
+      try {
+        const paths = await window.api.scanFolder('local', folder);
+        for (let i = 0; i < (paths || []).length; i++) {
+          previewLine.textContent = `Reading video ${i + 1} of ${paths.length}…`;
+          // eslint-disable-next-line no-await-in-loop -- one video element at a time, as the BLOCKS folder picker does
+          files.push({ path: paths[i], duration: await probeDuration(paths[i]), source: 'local' });
+        }
+      } catch (err) {
+        previewLine.textContent = `Couldn't read that folder: ${(err && err.message) || err}`;
+        return;
+      } finally {
+        browseBtn.disabled = false;
       }
-      browseBtn.disabled = false;
       if (!files.length) { previewLine.textContent = 'No videos in that folder.'; return; }
       const key = `browse:${folder}`;
       const label = String(folder).split(/[\\/]/).filter(Boolean).pop() || folder;
@@ -979,6 +985,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
         laneEl.removeEventListener('pointermove', onMove);
         laneEl.removeEventListener('pointerup', onUp);
         laneEl.removeEventListener('pointercancel', onCancel);
+        laneEl.removeEventListener('lostpointercapture', onCancel);
         window.removeEventListener('keydown', onKey, true);
         if (frame) { cancelAnimationFrame(frame); frame = 0; }
         grid.querySelectorAll('.onair-row.drop-target').forEach((r) => r.classList.remove('drop-target'));
@@ -1012,6 +1019,10 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
       laneEl.addEventListener('pointermove', onMove);
       laneEl.addEventListener('pointerup', onUp);
       laneEl.addEventListener('pointercancel', onCancel);
+      // If the lane is re-rendered (or capture is lost) mid-gesture no pointerup ever
+      // arrives; without this the capture-phase window keydown listener leaked and
+      // swallowed every later Escape.
+      laneEl.addEventListener('lostpointercapture', onCancel);
       window.addEventListener('keydown', onKey, true);
     });
 

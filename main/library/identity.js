@@ -85,11 +85,21 @@ function hasContentEvidence(fingerprint) {
 //              transferred to the new content — that is how a re-encode or a
 //              recycled filename silently inherits the wrong title otherwise.
 //   new        nothing known matches
-function classify(observed, candidates = []) {
+//
+// `presentRefs` (optional Set) is every ref the current scan actually listed. A
+// content match whose own ref is still listed has not gone anywhere: this file
+// is a second copy (a duplicate), so it is `new`, never a `moved` that would
+// repoint the original item at the copy and strand the first file.
+function classify(observed, candidates = [], presentRefs = null) {
   const atRef = candidates.filter((item) => item.ref === observed.ref);
-  const byContent = candidates.filter((item) => sameContent(item.fingerprint, observed.fingerprint));
+  const allByContent = candidates.filter((item) => sameContent(item.fingerprint, observed.fingerprint));
+  const stillPresent = (item) => !!presentRefs && item.ref !== observed.ref && presentRefs.has(item.ref);
+  // Several matches stay ambiguous exactly as before; the duplicate rule only
+  // decides the single-match case, where "the one match is still there" means
+  // this file is a second copy.
+  const byContent = allByContent.length === 1 && stillPresent(allByContent[0]) ? [] : allByContent;
 
-  if (atRef.length && byContent.some((item) => item.id === atRef[0].id)) {
+  if (atRef.length && allByContent.some((item) => item.id === atRef[0].id)) {
     return { kind: 'same', item: atRef[0], confidence: 'high' };
   }
   // An item catalogued at this ref with NO content evidence of its own cannot

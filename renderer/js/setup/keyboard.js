@@ -245,10 +245,15 @@ function enableRovingList(containerEl, rowSelector, activateSelector, deleteSele
     else if (e.key === 'End') { e.preventDefault(); rows[rows.length - 1] && rows[rows.length - 1].focus(); }
     else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      const target = activateSelector ? e.target.querySelector(activateSelector) : e.target;
-      if (target) target.click();
+      // The activate target can be absent (channel rows no longer carry an .edit-btn —
+      // their actions moved into the row menu), so fall back to activating the row itself.
+      const target = (activateSelector && e.target.querySelector(activateSelector)) || e.target;
+      target.click();
     } else if (e.key === 'Delete' && deleteSelector) {
-      const target = e.target.querySelector(deleteSelector);
+      // Scoped to the row's own summary when it has one, so an open card's nested
+      // entries' remove buttons are never what Delete reaches.
+      const summary = activateSelector ? e.target.querySelector(activateSelector) : null;
+      const target = (summary && summary.querySelector(deleteSelector)) || (summary ? null : e.target.querySelector(deleteSelector));
       if (target) { e.preventDefault(); target.click(); }
     }
   });

@@ -13,6 +13,14 @@ import { renderChannelList } from './channels.js';
 import { renderInterstitialsList, renderPresetsList } from './interstitials.js';
 import { renderAutoCurateList } from './autocurate.js';
 
+// A config from before the taxonomy existed (or a hand-edited one) can lack the
+// object or any single category list; every reader goes through here.
+function taxList(key) {
+  if (!S.config.tagTaxonomy || typeof S.config.tagTaxonomy !== 'object') S.config.tagTaxonomy = { genres: [], eras: [], moods: [] };
+  if (!Array.isArray(S.config.tagTaxonomy[key])) S.config.tagTaxonomy[key] = [];
+  return S.config.tagTaxonomy[key];
+}
+
 const CATEGORIES = [
   ['genres', 'GENRES'],
   ['eras', 'ERAS'],
@@ -41,7 +49,7 @@ function buildCategoryCard(categoryKey, label) {
 
   const chipRow = document.createElement('div');
   chipRow.className = 'tagtaxonomy-chip-row';
-  const list = S.config.tagTaxonomy[categoryKey];
+  const list = taxList(categoryKey);
   if (!list.length) {
     const empty = document.createElement('span');
     empty.className = 'panel-status';
@@ -58,7 +66,7 @@ function buildCategoryCard(categoryKey, label) {
     removeBtn.textContent = '×';
     removeBtn.title = `Remove "${tag}" from ${label} (doesn't touch any file/entry already tagged with it)`;
     removeBtn.addEventListener('click', () => {
-      S.config.tagTaxonomy[categoryKey] = S.config.tagTaxonomy[categoryKey].filter((t) => t !== tag);
+      S.config.tagTaxonomy[categoryKey] = taxList(categoryKey).filter((t) => t !== tag);
       commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',categoryKey], value: S.config.tagTaxonomy[categoryKey] });
       renderTagTaxonomyPanel();
     });
@@ -80,7 +88,7 @@ function buildCategoryCard(categoryKey, label) {
   const commitAdd = () => {
     const t = addInput.value.trim().toLowerCase();
     if (!t) return;
-    if (!S.config.tagTaxonomy[categoryKey].includes(t)) S.config.tagTaxonomy[categoryKey].push(t);
+    if (!taxList(categoryKey).includes(t)) taxList(categoryKey).push(t);
     addInput.value = '';
     commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',categoryKey], value: S.config.tagTaxonomy[categoryKey] });
     renderTagTaxonomyPanel();
@@ -137,7 +145,7 @@ function buildUsageRow(entry) {
     badge.title = entry.categories.includes(key)
       ? `Remove from ${label}` : `Add to ${label} (marks this an official ${label.slice(0, -1).toLowerCase()})`;
     badge.addEventListener('click', () => {
-      const list = S.config.tagTaxonomy[key];
+      const list = taxList(key);
       const idx = list.indexOf(entry.tag);
       if (idx === -1) list.push(entry.tag); else list.splice(idx, 1);
       commitInPlace({ type: 'settings.set', path: ['tagTaxonomy',key], value: list });

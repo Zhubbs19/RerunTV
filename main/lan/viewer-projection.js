@@ -98,6 +98,15 @@ function sanitizeAppliedUpdate(update) {
   const commands = update.commands.map((cmd) => {
     if (!cmd || typeof cmd !== 'object') return cmd;
     const clean = sanitizeViewerConfig(cmd);
+    // A plugin's settings object can hold a secret under any key name, so its
+    // values never ride the bus at all; the command still announces that plugin's
+    // settings changed.
+    if (cmd.type === 'plugin.setSettings') {
+      delete clean.settings;
+      delete clean.value;
+      clean.redacted = true;
+      return clean;
+    }
     const addressed = []
       .concat(Array.isArray(cmd.path) ? cmd.path : [])
       .concat(typeof cmd.key === 'string' ? [cmd.key] : [])

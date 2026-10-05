@@ -1,4 +1,4 @@
-import { S, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch } from './core/state.js';
+import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
 import { randomInterstitialId, getDisplayTitle, settingNumber } from './core/util.js';
 import {
@@ -1330,6 +1330,7 @@ async function init() {
   // already have their own explicit user-driven confirmation flows and
   // don't need a second notice layered on top.
   const beforeMigration = JSON.stringify(loaded);
+  setConfigNormalizer(applyConfigDefaults); // a host resync must be normalized like boot is
   S.config = applyConfigDefaults(loaded);
   await initPersonalState();
   if (window.__isViewer) window.api.setUiScale(S.config.display.uiScale);

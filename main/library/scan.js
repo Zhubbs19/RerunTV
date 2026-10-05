@@ -58,6 +58,7 @@ async function scanRoot({ store, root, list, fingerprint, probeDuration = null, 
   };
 
   const entries = await list(root.ref);
+  const presentRefs = new Set(entries.map((entry) => entry.ref));
   for (let i = 0; i < entries.length; i += 1) {
     if (signal && signal.aborted) { report.aborted = true; break; }
     const entry = entries[i];
@@ -88,7 +89,7 @@ async function scanRoot({ store, root, list, fingerprint, probeDuration = null, 
     // Candidates are drawn from the WHOLE library, not just this root: a file
     // moved between two catalogued roots should read as `moved`, not as one
     // `missing` plus one `added`.
-    const verdict = identity.classify(observed, store.allItems().filter(live));
+    const verdict = identity.classify(observed, store.allItems().filter(live), presentRefs);
 
     if (verdict.kind === 'same' || verdict.kind === 'moved') {
       seenItemIds.add(verdict.item.id);

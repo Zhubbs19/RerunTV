@@ -296,6 +296,10 @@ function seedOneBundledPlugin(name, dest, seeded) {
 // version, description, style, renderer, settings, main, dir, error} per entry — a
 // malformed manifest or duplicate id shows up as `error` rather than
 // throwing, so one broken plugin folder can't take the rest down with it.
+function isSafeDataDirName(name) {
+  return /^[A-Za-z0-9._-]+$/.test(name) && name !== '.' && name !== '..';
+}
+
 function discoverPlugins() {
   const dir = ensurePluginsDir();
   const seen = new Set();
@@ -367,7 +371,9 @@ function discoverPlugins() {
         // pluginDeclaredDataDirs() in main-config.js, which reads this same
         // field to carry the folder along during the portable-userData
         // migration.
-        dataDir: typeof manifest.dataDir === 'string' ? manifest.dataDir : null,
+        // A single plain folder name under userData; anything else (separators,
+        // "..", absolute paths) is dropped so it can never aim outside it.
+        dataDir: typeof manifest.dataDir === 'string' && isSafeDataDirName(manifest.dataDir) ? manifest.dataDir : null,
         userPaths: typeof manifest.userPaths === 'string' ? manifest.userPaths : null,
         // What this plugin's main.js declares it needs to touch — enforced
         // by buildCheckedCtx() below, and shown to the user as an approval
@@ -446,7 +452,8 @@ function orderByDependencies(plugins) {
 // or changed capability set is allowed to activate at all.
 function buildCheckedCtx(baseCtx, manifest, pluginDir) {
   const { allowedIpc, allowedSpawn, allowedPorts } = allowedSetsFor(manifest.capabilities);
-  const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
+  const dataDir = typeof manifest.dataDir === 'string' && isSafeDataDirName(manifest.dataDir)
+    ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
   if (dataDir) fs.mkdirSync(dataDir, { recursive: true });
   const userDirs = resolveUserPaths(manifest, baseCtx);
 
@@ -739,9 +746,10 @@ function installPluginFromZip(zipPath, opts) {
 // too since this is a destructive filesystem operation that shouldn't trust
 // the caller alone.
 function uninstallPlugin(id) {
-  const plugin = discoverPlugins().find((x) => x.id === id && !x.error);
+  const plugin = discoverPlugins().find((x) => x.id === id || (x.error && x.dir === id));
   if (!plugin) return { success: false, error: `Plugin "${id}" not found.` };
-  if (plugin.bundled) return { success: false, error: `"${plugin.name}" ships with the app and can't be fully uninstalled — disable it instead.` };
+  if (!plugin.dir || /[\/]/.test(plugin.dir) || plugin.dir === '.' || plugin.dir === '..') return { success: false, error: `Plugin "${id}" not found.` };
+  if (plugin.bundled || isBundledPluginId(plugin.id || plugin.dir) || isBundledPluginId(plugin.dir)) return { success: false, error: `"${plugin.name || plugin.dir}" ships with the app and can't be fully uninstalled — disable it instead.` };
   const pluginDir = path.join(getPluginsDir(), plugin.dir);
   try {
     fs.rmSync(pluginDir, { recursive: true, force: true });
@@ -781,12 +789,23 @@ function uninstallPlugin(id) {
 // discoverPlugins() call, e.g. if this is ever invoked standalone.
 function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   const inactive = new Set(inactiveIds || []);
+  // A plugin whose activate() threw may already own some of its channels;
+  // registering a second handler for one of those throws, which would skip every
+  // channel after it. Each registration is tried on its own instead.
+  const tolerantIpc = {
+    handle: (channel, fn) => { try { ipcMain.handle(channel, fn); } catch (e) { /* already registered */ } },
+    handleOnce: (channel, fn) => { try { ipcMain.handleOnce(channel, fn); } catch (e) { /* already registered */ } },
+    on: (...a) => ipcMain.on(...a),
+    once: (...a) => ipcMain.once(...a),
+    removeHandler: (...a) => ipcMain.removeHandler(...a),
+    removeListener: (...a) => ipcMain.removeListener(...a),
+  };
   (plugins || discoverPlugins()).forEach((plugin) => {
     if (plugin.error || !plugin.main) return;
     if (!inactive.has(plugin.id)) return; // active plugins register their own real handlers via activate()
     try {
       const mod = require(path.join(getPluginsDir(), plugin.dir, plugin.main));
-      if (mod && typeof mod.registerFallback === 'function') mod.registerFallback(ipcMain);
+      if (mod && typeof mod.registerFallback === 'function') mod.registerFallback(tolerantIpc);
     } catch (e) {
       // Broken plugin main.js — main-plugins.js's own loadMainPlugins() (for
       // active plugins) already surfaces load errors in the PLUGINS tab;
@@ -886,6 +905,14 @@ function registerPluginsIpc(ipcMain, deps) {
   // in flight can't revert it; the returned hostUpdate lets the renderer
   // apply the same change to its own copy straight away.
   ipcMain.handle('plugins:approveCapabilities', async (event, id, signature) => {
+    // The renderer only names a plugin; what gets approved is computed here from
+    // the plugin's own manifest, so a compromised or buggy caller can't approve
+    // a capability set the user was never shown.
+    const target = typeof id === 'string' ? discoverPlugins().find((p) => !p.error && p.id === id) : null;
+    if (!target) return { ok: false, error: 'Unknown plugin.' };
+    if (signature !== capabilitiesSignature(target.capabilities)) {
+      return { ok: false, error: 'The permissions this plugin declares changed since they were shown — reopen the PLUGINS tab and review them again.' };
+    }
     const hostUpdate = await configHost.applyCommands({ type: 'plugin.setApproval', id, signature }, { source: 'plugins' });
     return { ok: true, hostUpdate };
   });

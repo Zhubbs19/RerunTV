@@ -2109,7 +2109,8 @@ export function renderAirChecksPanel() {
     remove.type = 'button';
     remove.className = 'btn';
     remove.textContent = 'REMOVE';
-    remove.addEventListener('click', () => {
+    remove.addEventListener('click', async () => {
+      if (!(await confirmDialog({ title: 'REMOVE AIR CHECK', message: `Remove "${airCheckLabel(mark)}" from your marked moments?`, confirmText: 'REMOVE', danger: true }))) return;
       removeAirCheck(mark.id);
       renderAirChecksPanel();
     });
@@ -2907,7 +2908,7 @@ stationIdEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['stationId', 'enabled'], value: stationIdEnabledEl.checked });
 });
 stationIdIntervalEl.addEventListener('change', () => {
-  dispatch({ type: 'settings.set', path: ['stationId', 'intervalMinutes'], value: parsePositiveInt(stationIdIntervalEl.value, 15) });
+  dispatch({ type: 'settings.set', path: ['stationId', 'intervalMinutes'], value: (stationIdIntervalEl.value = parsePositiveInt(stationIdIntervalEl.value, 15)) });
 });
 staticEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['staticEffect', 'enabled'], value: staticEnabledEl.checked });
@@ -2927,7 +2928,7 @@ triviaEnabledEl.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['trivia', 'enabled'], value: triviaEnabledEl.checked });
 });
 triviaIntervalEl.addEventListener('change', () => {
-  dispatch({ type: 'settings.set', path: ['trivia', 'intervalMinutes'], value: parsePositiveInt(triviaIntervalEl.value, 20) });
+  dispatch({ type: 'settings.set', path: ['trivia', 'intervalMinutes'], value: (triviaIntervalEl.value = parsePositiveInt(triviaIntervalEl.value, 20)) });
 });
 
 if (pinLockEnabledEl) pinLockEnabledEl.addEventListener('change', () => { dispatch({ type: 'settings.set', path: ['pinLock', 'enabled'], value: pinLockEnabledEl.checked }); });

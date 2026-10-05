@@ -1397,7 +1397,7 @@ function renderPluginChannelSection(list) {
       numInput.title = "This plugin's channel number can't be changed — its own code depends on staying at this number.";
     } else {
       numInput.addEventListener('change', () => {
-        const v = parseInt(numInput.value, 10);
+        const v = parseChannelNumber(numInput.value);
         if (Number.isNaN(v) || v < 0 || v === override.number) { numInput.value = override.number; return; }
         const inUse = realNums.has(v) || ids.some((otherId) => {
           if (otherId === id) return false;

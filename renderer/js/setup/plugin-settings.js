@@ -24,7 +24,7 @@ function fieldControl(field, value, onValue, id) {
     return slider;
   }
   if (field.type === 'number') return NumberStepper({ id, value, min: field.min, max: field.max, step: field.step, onChange: onValue, label: field.label });
-  if (field.type === 'select') return Select({ id, options: field.options, value, onChange: (v) => onValue(coerceFieldValue(field, v)) });
+  if (field.type === 'select') return Select({ id, options: field.options, value, label: field.label, onChange: (v) => onValue(coerceFieldValue(field, v)) });
   const input = h('input', { type: field.type === 'color' ? 'color' : 'text', value: value == null ? '' : String(value), className: 'title-row-input', placeholder: field.placeholder || '' });
   input.id = id;
   input.addEventListener('change', () => onValue(input.value));
@@ -85,8 +85,8 @@ export function renderChannelDisplaySettings(container, pluginId, channelDefinit
   container.innerHTML = `
     <label class="panel-toggle" style="cursor:default;">CHANNEL DISPLAY</label>
     <span class="panel-status">Overrides apply only while this plugin channel is tuned. INHERIT uses the box-wide display setting.</span>
-    <div class="panel-interval">RESOLUTION OVERRIDE<select data-el="resolution" class="title-row-input"></select></div>
-    <div class="panel-interval">DISPLAY ASPECT OVERRIDE<select data-el="aspect" class="title-row-input"></select></div>
+    <div class="panel-interval">RESOLUTION OVERRIDE<select data-el="resolution" class="title-row-input" aria-label="Resolution override"></select></div>
+    <div class="panel-interval">DISPLAY ASPECT OVERRIDE<select data-el="aspect" class="title-row-input" aria-label="Display aspect override"></select></div>
   `;
   const resolutionEl = container.querySelector('[data-el="resolution"]');
   const aspectEl = container.querySelector('[data-el="aspect"]');
@@ -137,9 +137,9 @@ export function renderThemeFontSettings(container, themeId) {
     <label class="panel-toggle" style="cursor:default;">THEME TYPOGRAPHY</label>
     <span class="panel-status">Override this theme's typography without changing its colors or layout. THEME DEFAULT restores the plugin's intended font.</span>
     <div class="theme-font-settings-grid">
-      <div class="panel-interval">DISPLAY / NUMBERS<select data-font-role="display"></select></div>
-      <div class="panel-interval">BUTTONS / GUIDE<select data-font-role="ui"></select></div>
-      <div class="panel-interval">BODY / DESCRIPTIONS<select data-font-role="body"></select></div>
+      <div class="panel-interval">DISPLAY / NUMBERS<select data-font-role="display" aria-label="Display and numbers font"></select></div>
+      <div class="panel-interval">BUTTONS / GUIDE<select data-font-role="ui" aria-label="Buttons and guide font"></select></div>
+      <div class="panel-interval">BODY / DESCRIPTIONS<select data-font-role="body" aria-label="Body and descriptions font"></select></div>
     </div>
     <button type="button" class="btn" data-el="reset-fonts">RESET TYPOGRAPHY</button>
   `;

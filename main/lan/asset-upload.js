@@ -13,6 +13,22 @@ const path = require('path');
 const crypto = require('crypto');
 
 const MAX_ASSET_BYTES = 8 * 1024 * 1024;
+// The assets folder as a whole is capped too: a paired editor could otherwise
+// upload 8 MB files until the host's disk is full.
+const MAX_ASSETS_TOTAL_BYTES = 200 * 1024 * 1024;
+
+function assetsFolderBytes(dir) {
+  let total = 0;
+  try {
+    fs.readdirSync(dir).forEach((name) => {
+      try {
+        const st = fs.statSync(path.join(dir, name));
+        if (st.isFile()) total += st.size;
+      } catch (e) { /* vanished mid-scan */ }
+    });
+  } catch (e) { /* folder not created yet */ }
+  return total;
+}
 // SVG excluded on purpose: it can carry <script>, and this file is later
 // referenced from real app surfaces (channel logo/overlay), not just shown
 // back to the uploader in a sandboxed guest page the way party-channel's
@@ -43,6 +59,7 @@ function receiveAssetUpload(assetsDir, req, busboy) {
     let settled = false;
     let sawFile = false;
     let tooBig = false;
+    let cleanup = null; // set once a destination file exists
     const finish = (result) => {
       if (settled) return;
       settled = true;
@@ -59,8 +76,18 @@ function receiveAssetUpload(assetsDir, req, busboy) {
       }
       const fileName = randomName(ext);
       fs.mkdirSync(assetsDir, { recursive: true });
+      if (assetsFolderBytes(assetsDir) + MAX_ASSET_BYTES > MAX_ASSETS_TOTAL_BYTES) {
+        fileStream.resume();
+        finish({ ok: false, status: 507, error: 'The assets folder is full. Remove some uploaded images first.' });
+        return;
+      }
       const destPath = path.join(assetsDir, fileName);
       const writeStream = fs.createWriteStream(destPath);
+      cleanup = () => {
+        fileStream.unpipe(writeStream);
+        writeStream.destroy();
+        fs.unlink(destPath, () => {});
+      };
       fileStream.on('limit', () => { tooBig = true; });
       fileStream.pipe(writeStream);
       writeStream.on('finish', () => {
@@ -76,8 +103,18 @@ function receiveAssetUpload(assetsDir, req, busboy) {
 
     bb.on('error', (e) => finish({ ok: false, status: 400, error: e.message }));
     bb.on('close', () => { if (!sawFile) finish({ ok: false, status: 400, error: 'No file received.' }); });
+    // A client that drops mid-upload must not leave a truncated file behind or
+    // a promise that never settles.
+    req.on('aborted', () => {
+      if (cleanup && !settled) cleanup();
+      finish({ ok: false, status: 400, error: 'Upload aborted' });
+    });
+    req.on('error', () => {
+      if (cleanup && !settled) cleanup();
+      finish({ ok: false, status: 400, error: 'Upload failed' });
+    });
     req.pipe(bb);
   });
 }
 
-module.exports = { receiveAssetUpload, MAX_ASSET_BYTES, EXT_BY_MIME };
+module.exports = { receiveAssetUpload, MAX_ASSET_BYTES, MAX_ASSETS_TOTAL_BYTES, EXT_BY_MIME };

@@ -24,7 +24,7 @@ import {
 } from '../core/schedule.js';
 import { cloneJson } from '../core/commands.js';
 import { MONTHS, BADGE_COLORS, S, WEEKDAYS, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
-import { confirmDialog } from './dialogs.js';
+import { alertDialog, confirmDialog } from './dialogs.js';
 import { buildOnAirPanel } from './onair.js';
 import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from '../core/util.js';
 
@@ -121,6 +121,7 @@ function renderDayOverrideRow(block, ov, { className, onRemove, onChange } = {})
   row.className = className || 'block-row';
 
   const fileSel = document.createElement('select');
+  fileSel.setAttribute('aria-label', 'File for this day');
   fileSel.className = 'block-hour-select';
   const autoOpt = document.createElement('option');
   autoOpt.value = '';
@@ -610,12 +611,12 @@ export function buildSchedulePanel(ch, panelEl) {
   function renderBroadcastHours() {
     broadcastHoursWrap.innerHTML = '';
     if (!ch.broadcastHours.enabled) return;
-    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.startHour, (v) => setBroadcastHours({ startHour: v })));
+    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.startHour, (v) => setBroadcastHours({ startHour: v }), 'Broadcast day starts at'));
     const dashEl = document.createElement('span');
     dashEl.className = 'block-dash';
     dashEl.textContent = '→';
     broadcastHoursWrap.appendChild(dashEl);
-    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.endHour, (v) => setBroadcastHours({ endHour: v })));
+    broadcastHoursWrap.appendChild(hourSelect(ch.broadcastHours.endHour, (v) => setBroadcastHours({ endHour: v }), 'Broadcast day ends at'));
   }
   renderBroadcastHours();
 
@@ -656,8 +657,9 @@ export function buildSchedulePanel(ch, panelEl) {
     return daysRow;
   }
 
-  function hourSelect(value, onChange) {
+  function hourSelect(value, onChange, label = 'Hour') {
     const sel = document.createElement('select');
+    sel.setAttribute('aria-label', label);
     sel.className = 'block-hour-select';
     for (let h = 0; h < 24; h++) {
       const opt = document.createElement('option');
@@ -670,9 +672,10 @@ export function buildSchedulePanel(ch, panelEl) {
     return sel;
   }
 
-  function monthDaySelect(month, day, onChange) {
+  function monthDaySelect(month, day, onChange, label = 'Date') {
     const wrap = document.createElement('span');
     const monthSel = document.createElement('select');
+    monthSel.setAttribute('aria-label', `${label} month`);
     monthSel.className = 'block-hour-select';
     MONTHS.forEach((m, i) => {
       const opt = document.createElement('option');
@@ -682,6 +685,7 @@ export function buildSchedulePanel(ch, panelEl) {
     });
     monthSel.value = String(month);
     const daySel = document.createElement('select');
+    daySel.setAttribute('aria-label', `${label} day`);
     daySel.className = 'block-hour-select';
     for (let d = 1; d <= 31; d++) {
       const opt = document.createElement('option');
@@ -690,8 +694,16 @@ export function buildSchedulePanel(ch, panelEl) {
       daySel.appendChild(opt);
     }
     daySel.value = String(day);
-    monthSel.addEventListener('change', () => onChange(parseInt(monthSel.value, 10), parseInt(daySel.value, 10)));
-    daySel.addEventListener('change', () => onChange(parseInt(monthSel.value, 10), parseInt(daySel.value, 10)));
+    // Feb 30 / Apr 31 can't exist: clamp the day to the month's length (Feb 29 stays
+    // allowed — these are yearly MM-DD dates, so leap years must remain reachable).
+    const emit = () => {
+      const m = parseInt(monthSel.value, 10);
+      const maxDay = new Date(2000, m, 0).getDate();
+      if (parseInt(daySel.value, 10) > maxDay) daySel.value = String(maxDay);
+      onChange(m, parseInt(daySel.value, 10));
+    };
+    monthSel.addEventListener('change', emit);
+    daySel.addEventListener('change', emit);
     wrap.appendChild(monthSel);
     wrap.appendChild(daySel);
     return wrap;
@@ -755,7 +767,10 @@ export function buildSchedulePanel(ch, panelEl) {
       });
       row.prepend(monthDaySelect(m, d, (nm, nd) => {
         const newKey = `${String(nm).padStart(2, '0')}-${String(nd).padStart(2, '0')}`;
-        if (newKey !== key) {
+        if (newKey !== key && block.dayOverrides[newKey]) {
+          // Moving onto a day that already has an override would silently replace it.
+          alertDialog(`${MONTHS[nm - 1]} ${nd} already has an override. Remove or edit that one first.`, { variant: 'error' });
+        } else if (newKey !== key) {
           delete block.dayOverrides[key];
           block.dayOverrides[newKey] = ov;
           commitBlockFields(block, ['dayOverrides'], { label: 'Move day override' });
@@ -770,8 +785,18 @@ export function buildSchedulePanel(ch, panelEl) {
     addBtn.className = 'btn';
     addBtn.textContent = '+ ADD DAY OVERRIDE';
     addBtn.addEventListener('click', () => {
-      let key = '12-01', n = 1;
-      while (block.dayOverrides[key] && n <= 31) { key = `12-${String(n).padStart(2, '0')}`; n++; }
+      // First free day, starting at the block's own start date (not December 1).
+      const t = block.trigger || {};
+      const startMonth = Number.isInteger(t.startMonth) ? t.startMonth : 12;
+      const startDay = Number.isInteger(t.startDay) ? t.startDay : 1;
+      const base = new Date(2000, startMonth - 1, startDay);
+      let key = null;
+      for (let i = 0; i < 366 && !key; i++) {
+        const dt = new Date(base.getTime() + i * 86400000);
+        const candidate = `${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+        if (!block.dayOverrides[candidate]) key = candidate;
+      }
+      if (!key) { alertDialog('Every day of the year already has an override.'); return; }
       block.dayOverrides[key] = { file: null, title: '', unlockTime: '', skip: false, note: '' };
       commitBlockFields(block, ['dayOverrides'], { label: 'Override a day' });
       renderDayOverrides(block, container);
@@ -865,9 +890,9 @@ export function buildSchedulePanel(ch, panelEl) {
       let narrowRow = null;
       let narrowFieldsRow = null;
       if (isDateRange) {
-        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; commitBlockFields(block, ['trigger']); }));
+        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; commitBlockFields(block, ['trigger']); }, 'Start'));
         scheduleRow.appendChild(dash());
-        scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; commitBlockFields(block, ['trigger']); }));
+        scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; commitBlockFields(block, ['trigger']); }, 'End'));
 
         // Optional narrowing layered on top of the date match — "25 Days of
         // Christmas, but only 6-10pm" or "every Friday in October" — same
@@ -905,15 +930,15 @@ export function buildSchedulePanel(ch, panelEl) {
         if (narrowed) {
           narrowFieldsRow = document.createElement('div');
           narrowFieldsRow.className = 'block-card-row';
-          narrowFieldsRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }));
+          narrowFieldsRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }, 'Start hour'));
           narrowFieldsRow.appendChild(dash());
-          narrowFieldsRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }));
+          narrowFieldsRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }, 'End hour'));
           narrowFieldsRow.appendChild(buildDaysRow(block.trigger, () => commitBlockFields(block, ['trigger'])));
         }
       } else {
-        scheduleRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }));
+        scheduleRow.appendChild(hourSelect(block.trigger.startHour, (v) => { block.trigger.startHour = v; commitBlockFields(block, ['trigger']); }, 'Start hour'));
         scheduleRow.appendChild(dash());
-        scheduleRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }));
+        scheduleRow.appendChild(hourSelect(block.trigger.endHour, (v) => { block.trigger.endHour = v; commitBlockFields(block, ['trigger']); }, 'End hour'));
         scheduleRow.appendChild(buildDaysRow(block.trigger, () => commitBlockFields(block, ['trigger'])));
       }
 
@@ -952,6 +977,7 @@ export function buildSchedulePanel(ch, panelEl) {
           ? [['loop', 'LOOP'], ['marathon', 'MARATHON'], ['daily', 'DAILY (ADVENT)'], ['weekly', 'WEEKLY']]
           : [['loop', 'LOOP'], ['weekly', 'WEEKLY ROTATION']];
         const modeSelect = document.createElement('select');
+        modeSelect.setAttribute('aria-label', 'Block playback mode');
         modeSelect.className = 'block-hour-select';
         modeOptions.forEach(([v, label]) => {
           const opt = document.createElement('option');
@@ -1023,25 +1049,40 @@ export function buildSchedulePanel(ch, panelEl) {
         const prior = cloneJson(block);
         const folder = await window.api.selectFolder();
         if (!folder) return;
-        block.folder = folder;
-        block.files = [];
-        renderBlocks();
-
+        // Scan first, assign after: a failed or empty scan used to leave the block
+        // pointing at a new folder with no files at all.
+        folderBtn.disabled = true;
         scanProgressEl.classList.remove('hidden');
         scanProgressEl.textContent = 'SCANNING BLOCK FOLDER…';
-        const paths = await window.api.scanFolder('local', folder);
-        const files = [];
-        for (let i = 0; i < paths.length; i++) {
-          scanProgressEl.textContent = `PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`;
-          const duration = await probeDuration(paths[i]);
-          files.push({ path: paths[i], duration, source: 'local' });
+        let hideAfterMs = 0;
+        try {
+          const paths = await window.api.scanFolder('local', folder);
+          if (!Array.isArray(paths) || !paths.length) {
+            scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER — BLOCK LEFT AS IT WAS';
+            hideAfterMs = 3000;
+            return;
+          }
+          const files = [];
+          for (let i = 0; i < paths.length; i++) {
+            scanProgressEl.textContent = `PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`;
+            // eslint-disable-next-line no-await-in-loop
+            const duration = await probeDuration(paths[i]);
+            files.push({ path: paths[i], duration, source: 'local' });
+          }
+          if (ch.shuffle) shuffleArray(files);
+          block.folder = folder;
+          block.files = files;
+          block.anchor = Date.now();
+          commitBlockEdit(block, prior);
+        } catch (err) {
+          scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
+          hideAfterMs = 4000;
+        } finally {
+          folderBtn.disabled = false;
+          if (hideAfterMs) setTimeout(() => scanProgressEl.classList.add('hidden'), hideAfterMs);
+          else scanProgressEl.classList.add('hidden');
+          renderBlocks();
         }
-        if (ch.shuffle) shuffleArray(files);
-        block.files = files;
-        block.anchor = Date.now();
-        scanProgressEl.classList.add('hidden');
-        renderBlocks();
-        commitBlockEdit(block, prior);
       });
       contentRow.appendChild(folderBtn);
 

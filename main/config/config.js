@@ -64,7 +64,7 @@ function pluginDeclaredDataDirs(userDataDir) {
       if (!entry.isDirectory()) return;
       try {
         const manifest = JSON.parse(fs.readFileSync(path.join(userDataDir, 'plugins', entry.name, 'manifest.json'), 'utf-8'));
-        if (typeof manifest.dataDir === 'string' && manifest.dataDir) dirs.push(manifest.dataDir);
+        if (typeof manifest.dataDir === 'string' && /^[A-Za-z0-9._-]+$/.test(manifest.dataDir) && manifest.dataDir !== '.' && manifest.dataDir !== '..') dirs.push(manifest.dataDir);
       } catch (e) { /* unreadable/missing manifest — nothing to learn from it */ }
     });
   } catch (e) { /* no plugins folder at the old location at all */ }

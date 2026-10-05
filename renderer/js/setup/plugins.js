@@ -137,7 +137,22 @@ async function revokeCapabilityApproval(p) {
 // reappear on the next boot; the button itself is already hidden for those
 // (see the p.bundled check in renderPluginsList) so this only ever fires for
 // a genuinely removable third-party install.
+function uninstallButton(p) {
+  const uninstallBtn = document.createElement('button');
+  uninstallBtn.type = 'button';
+  uninstallBtn.className = 'btn btn-danger';
+  uninstallBtn.textContent = 'FULLY UNINSTALL';
+  uninstallBtn.addEventListener('click', () => confirmUninstallPlugin(p));
+  return uninstallBtn;
+}
+
+// Staged enable/disable changes live at module scope so a re-render (RESCAN, a
+// capability approval, an install) does not silently drop checkbox changes the
+// user has not saved yet. Cleared when saved; pruned of plugins that vanished.
+const pendingPluginChanges = new Map();
+
 async function confirmUninstallPlugin(p) {
+  p = { ...p, name: p.name || p.dir, id: p.id || p.dir }; // a plugin that failed to load has no id/name, only its folder
   const ok = await confirmDialog({
     title: 'UNINSTALL PLUGIN',
     message: `Permanently delete ${p.name} from disk? This removes its files entirely — not just disables it — and can't be undone. You'll need to restart the app afterward.`,
@@ -422,7 +437,9 @@ export async function renderPluginsList() {
   // whole list is rebuilt from scratch on every renderPluginsList() call
   // anyway (RESCAN, install, or a completed save) — a fresh Map each time
   // is exactly "no unsaved changes yet" for that fresh render.
-  const pendingChanges = new Map();
+  const pendingChanges = pendingPluginChanges;
+  const knownIds = new Set(plugins.filter((x) => !x.error).map((x) => x.id));
+  [...pendingChanges.keys()].forEach((id) => { if (!knownIds.has(id)) pendingChanges.delete(id); });
 
   function updateSaveUi() {
     if (!pluginsSaveBtn) return;
@@ -451,9 +468,11 @@ export async function renderPluginsList() {
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.className = 'shuffle-toggle';
-      checkbox.checked = originalEnabled;
-      row.dataset.enabled = String(originalEnabled);
+      if (pendingChanges.has(p.id) && pendingChanges.get(p.id) === originalEnabled) pendingChanges.delete(p.id); // saved elsewhere meanwhile
+      checkbox.checked = pendingChanges.has(p.id) ? pendingChanges.get(p.id) : originalEnabled;
+      row.dataset.enabled = String(checkbox.checked);
       row.classList.toggle('is-disabled', !checkbox.checked);
+      row.classList.toggle('pending-change', pendingChanges.has(p.id));
       checkbox.addEventListener('change', () => {
         if (checkbox.checked === originalEnabled) pendingChanges.delete(p.id);
         else pendingChanges.set(p.id, checkbox.checked);
@@ -494,9 +513,10 @@ export async function renderPluginsList() {
     if (!p.error) {
       attention = needsAttention(p);
       const onlyUnapproved = attention && isOnlyUnapprovedPermissions(p);
+      const effectivelyOff = pendingChanges.has(p.id) ? !pendingChanges.get(p.id) : disabledIdsAtRender.includes(p.id);
       const status = document.createElement('span');
-      status.className = `plugin-row-status${onlyUnapproved ? ' needs-approval' : (attention ? ' needs-attention' : (disabledIdsAtRender.includes(p.id) ? ' is-off' : ''))}`;
-      status.textContent = onlyUnapproved ? 'NEEDS APPROVAL' : (attention ? 'ATTENTION' : (disabledIdsAtRender.includes(p.id) ? 'OFF' : 'ENABLED'));
+      status.className = `plugin-row-status${onlyUnapproved ? ' needs-approval' : (attention ? ' needs-attention' : (effectivelyOff ? ' is-off' : ''))}`;
+      status.textContent = onlyUnapproved ? 'NEEDS APPROVAL' : (attention ? 'ATTENTION' : (effectivelyOff ? 'OFF' : 'ENABLED'));
       nameLine.appendChild(status);
       row.dataset.attention = String(attention);
     }
@@ -540,6 +560,7 @@ export async function renderPluginsList() {
       err.className = 'plugin-row-error';
       err.textContent = p.error;
       detail.appendChild(err);
+      if (!p.bundled) detail.appendChild(uninstallButton(p));
     } else {
       if (p.description) {
         const desc = document.createElement('div');
@@ -608,18 +629,17 @@ export async function renderPluginsList() {
         revokeBtn.textContent = 'REVOKE PERMISSIONS';
         revokeBtn.addEventListener('click', () => revokeCapabilityApproval(p));
         permActions.appendChild(revokeBtn);
-        // A bundled plugin can't actually be uninstalled — it just reappears
-        // (still disabled) on the next boot — see isBundledPluginId(),
-        // main-plugins.js. Only offer the button where it can mean something.
-        if (!p.bundled) {
-          const uninstallBtn = document.createElement('button');
-          uninstallBtn.type = 'button';
-          uninstallBtn.className = 'btn btn-danger';
-          uninstallBtn.textContent = 'FULLY UNINSTALL';
-          uninstallBtn.addEventListener('click', () => confirmUninstallPlugin(p));
-          permActions.appendChild(uninstallBtn);
-        }
         detailsTarget.appendChild(permActions);
+      }
+      // A bundled plugin can't actually be uninstalled — it just reappears
+      // (still disabled) on the next boot — see isBundledPluginId(),
+      // main-plugins.js. Any other plugin can be removed, whatever its permission
+      // state (including one with nothing to approve, or one that failed to load).
+      if (!p.bundled) {
+        const removeActions = document.createElement('div');
+        removeActions.className = 'plugin-row-perm-actions';
+        removeActions.appendChild(uninstallButton(p));
+        detailsTarget.appendChild(removeActions);
       }
       const kinds = document.createElement('div');
       kinds.className = 'plugin-row-kinds';
@@ -718,7 +738,7 @@ export async function renderPluginsList() {
     entry.dataset.search = [p.name, p.id, p.dir, p.description, ...(p.dependsOn || [])].filter(Boolean).join(' ').toLowerCase();
     entry.dataset.category = effectiveCategory(p);
     entry.dataset.attention = needsAttention(p) ? 'true' : 'false';
-    entry.dataset.enabled = p.error ? 'false' : String(!disabledIdsAtRender.includes(p.id));
+    entry.dataset.enabled = p.error ? 'false' : String(pendingChanges.has(p.id) ? pendingChanges.get(p.id) : !disabledIdsAtRender.includes(p.id));
     entry.appendChild(row);
 
     if (hasSettings) {
@@ -782,6 +802,7 @@ async function commitPendingPluginChanges(plugins, pendingChanges) {
     applyHostUpdate(changed && changed.hostUpdate);
   }
   const savedCount = pendingChanges.size;
+  pendingChanges.clear();
   await renderPluginsList();
   // Set after the re-render (which rebuilds the list but never touches this
   // status element) rather than before it, so the message is what's

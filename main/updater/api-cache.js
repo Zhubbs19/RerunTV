@@ -102,7 +102,20 @@ function isBlockedFetchTarget(rawUrl) {
   const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (BLOCKED_HOSTNAMES.has(host)) return true;
   if (isPrivateIPv4(host)) return true;
-  if (host === '::1' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true; // IPv6 loopback/link-local/unique-local
+  // The fc/fd/fe80 prefix checks are for literal IPv6 only — a hostname such as
+  // "fdic.gov" or "fc.example.com" must not be mistaken for a unique-local range.
+  if (host.includes(':')) {
+    if (host === '::1' || host.startsWith('fe80:') || host.startsWith('fc') || host.startsWith('fd')) return true; // loopback/link-local/unique-local
+    // IPv4-mapped (::ffff:a.b.c.d, which URL normalizes to ::ffff:7f00:1): judge the embedded IPv4.
+    const mapped = /^::ffff:(?:(\d{1,3}(?:\.\d{1,3}){3})|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/.exec(host);
+    if (mapped) {
+      if (mapped[1]) return isPrivateIPv4(mapped[1]);
+      const hi = parseInt(mapped[2], 16);
+      const lo = parseInt(mapped[3], 16);
+      return isPrivateIPv4(`${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`);
+    }
+    if (host.startsWith('::ffff:')) return true; // unrecognized mapped form — refuse rather than guess
+  }
   return false;
 }
 
@@ -119,7 +132,19 @@ async function fetchJsonCached(key, url, opts, ttlMs) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { ...opts, signal: controller.signal });
+    // Redirects are followed by hand so every hop passes the same private-address
+    // filter; a public URL that 302s to 169.254.169.254 is refused.
+    let res;
+    let target = url;
+    for (let hop = 0; ; hop++) {
+      // eslint-disable-next-line no-await-in-loop
+      res = await fetch(target, { ...opts, redirect: 'manual', signal: controller.signal });
+      if (res.status < 300 || res.status >= 400) break;
+      const location = res.headers.get('location');
+      if (!location || hop >= 3) throw new Error('too many redirects');
+      target = new URL(location, target).toString();
+      if (isBlockedFetchTarget(target)) throw new Error('fetchJsonCached: refusing a redirect to a private/internal address');
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     store[key] = { at: Date.now(), data };

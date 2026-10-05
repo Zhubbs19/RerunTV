@@ -15,7 +15,7 @@ export async function openDynamicOverlayPositionEditor({ rule, onApply, channelN
 
   const crt = document.querySelector('.crt');
   const app = document.getElementById('app');
-  if (!crt || !app) return;
+  if (!crt || !app) { await showSetupScreen(); return; } // don't strand the user on the TV screen
 
   const overlay = document.createElement('div');
   overlay.className = 'logobug-live-overlay';
@@ -84,18 +84,31 @@ export async function openDynamicOverlayPositionEditor({ rule, onApply, channelN
     if (!overlay.clientWidth || !overlay.clientHeight) return { maxX: 100, maxY: 100 };
     return { maxX: Math.max(0, 100 - size / overlay.clientWidth * 100), maxY: Math.max(0, 100 - size / overlay.clientHeight * 100) };
   }
-  function render() {
+  function render(echoAll = false) {
     const { maxX, maxY } = bounds();
     x = Math.round(Math.min(maxX, Math.max(0, x)) * 10) / 10;
     y = Math.round(Math.min(maxY, Math.max(0, y)) * 10) / 10;
     Object.assign(selection.style, { left: `${x}%`, top: `${y}%`, width: `${size}px`, height: `${size}px` });
     status.textContent = `X ${x.toFixed(1)}%  Y ${y.toFixed(1)}%`;
-    xInput.value = x.toFixed(1); yInput.value = y.toFixed(1);
+    if (echoAll || document.activeElement !== xInput) xInput.value = x.toFixed(1);
+    if (echoAll || document.activeElement !== yInput) yInput.value = y.toFixed(1);
   }
-  function setPosition(nextX, nextY) { x = Number(nextX) || 0; y = Number(nextY) || 0; render(); }
+  // A blank or unparseable value keeps the current coordinate instead of snapping it to 0.
+  function setPosition(nextX, nextY) {
+    const nx = Number(nextX); const ny = Number(nextY);
+    if (Number.isFinite(nx)) x = nx;
+    if (Number.isFinite(ny)) y = ny;
+    render();
+  }
 
-  xInput.addEventListener('input', () => setPosition(xInput.value, y));
-  yInput.addEventListener('input', () => setPosition(x, yInput.value));
+  // Typing is applied live but the field being typed in is not rewritten under the
+  // cursor; leaving it (change) echoes the clamped, rounded value.
+  const typed = (input, apply) => {
+    input.addEventListener('input', () => { if (input.value.trim() !== '') apply(input.value); });
+    input.addEventListener('change', () => { if (input.value.trim() !== '') apply(input.value); render(true); });
+  };
+  typed(xInput, (value) => setPosition(value, y));
+  typed(yInput, (value) => setPosition(x, value));
   selection.addEventListener('keydown', (event) => {
     const step = event.shiftKey ? 5 : 0.5;
     let nextX = x; let nextY = y;

@@ -95,7 +95,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const crt = document.querySelector('.crt');
   const app = document.getElementById('app');
   const logo = document.getElementById('logo-bug');
-  if (!crt || !app || !logo) return;
+  if (!crt || !app || !logo) { await showSetupScreen(); return; } // don't strand the user on the TV screen
   const targetLabels = new Map([['logo-bug', 'CHANNEL LOGO'], ...displayMode.OVERLAY_LAYOUT_TARGETS.map(({ id, label }) => [id, label])]);
   const previewElements = new Map([...targetLabels.keys()].map((id) => {
     const element = document.getElementById(id);

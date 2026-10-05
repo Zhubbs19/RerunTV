@@ -264,7 +264,10 @@ function helperBinaryPaths(baseCtx) {
 
 function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, appRootDir) {
   return new Promise((resolve) => {
-    const dataDir = manifest.dataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
+    // Single plain folder name only (discovery already filters it; re-checked here
+    // because this is what actually becomes a filesystem permission).
+    const safeDataDir = typeof manifest.dataDir === 'string' && /^[A-Za-z0-9._-]+$/.test(manifest.dataDir) && manifest.dataDir !== '.' && manifest.dataDir !== '..';
+    const dataDir = safeDataDir ? path.join(baseCtx.app.getPath('userData'), manifest.dataDir) : null;
     if (dataDir) require('fs').mkdirSync(dataDir, { recursive: true });
     const userDirs = resolveUserPaths(manifest, baseCtx);
 
@@ -324,7 +327,14 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
     // registering this after sendInitWhenReady() would lose that result and
     // turn a successful activation into a timeout.
     childRpc.on('activate-result', (result) => {
-      if (result.ok) runningChildren.add({ child, pluginId: manifest.id });
+      if (result.ok) {
+        runningChildren.add({ child, pluginId: manifest.id });
+      } else {
+        // A failed activation leaves a live process that may already hold
+        // service/route registrations; kill it (the exit handler below purges
+        // them) rather than leaving a half-started plugin answering calls.
+        try { child.kill(); } catch (e) { /* already gone */ }
+      }
       settle(result);
     });
 

@@ -115,7 +115,11 @@ function createCheckedSpawn(pluginId, allowedSpawn) {
     const base = stripExeSuffix(path.basename(bin));
     if (!allowedSpawn.has(base)) throw capabilityError(pluginId, 'spawn', bin, 'spawn');
     recordDiagnostic('plugin-capability', 'log', `${pluginId} spawned declared binary ${base}`);
-    return nodeSpawn(bin, args, opts);
+    // A declared binary is launched directly. A plugin-supplied shell:true would
+    // let "ffmpeg" smuggle arbitrary shell syntax, and detached:true would let the
+    // child outlive the app, so both are overridden.
+    const { shell, detached, ...safeOpts } = opts || {};
+    return nodeSpawn(bin, args, { ...safeOpts, shell: false, detached: false });
   };
 }
 

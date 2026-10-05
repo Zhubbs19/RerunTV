@@ -417,7 +417,7 @@ for (const [el, key] of NO_REPEAT_TOGGLES) {
 }
 
 commercialsIntervalEl.addEventListener('change', () => {
-  dispatch({ type: 'settings.set', path: ['commercials', 'intervalMinutes'], value: parsePositiveInt(commercialsIntervalEl.value, 10) });
+  dispatch({ type: 'settings.set', path: ['commercials', 'intervalMinutes'], value: (commercialsIntervalEl.value = parsePositiveInt(commercialsIntervalEl.value, 10)) });
 });
 
 // Data-driven type table for the interstitials pool editor — one row per
@@ -849,7 +849,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     weightInput.value = entry.weight || 1;
     weightInput.addEventListener('change', () => {
       const prior = cloneJson(entry);
-      entry.weight = parseInt(weightInput.value, 10) || 1;
+      entry.weight = Math.max(1, parseInt(weightInput.value, 10) || 1); weightInput.value = entry.weight;
       commitItemEdit('pool', [entry, prior]);
     });
     mainGrid.appendChild(labeledField('WEIGHT', weightInput));
@@ -931,7 +931,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       leadInput.value = entry.leadDays != null ? entry.leadDays : 7;
       leadInput.addEventListener('change', () => {
         const prior = cloneJson(entry);
-        entry.leadDays = parsePositiveInt(leadInput.value, 0);
+        entry.leadDays = parsePositiveInt(leadInput.value, 0); leadInput.value = entry.leadDays;
         commitItemEdit('pool', [entry, prior]);
       });
       secondGrid.appendChild(labeledField('LEAD DAYS', leadInput));
@@ -955,7 +955,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     fadeInInput.value = entry.fadeInMs != null ? entry.fadeInMs : '';
     fadeInInput.addEventListener('change', () => {
       const prior = cloneJson(entry);
-      entry.fadeInMs = fadeInInput.value.trim() === '' ? null : parsePositiveInt(fadeInInput.value, 0);
+      entry.fadeInMs = fadeInInput.value.trim() === '' ? null : parsePositiveInt(fadeInInput.value, 0); fadeInInput.value = entry.fadeInMs != null ? entry.fadeInMs : '';
       commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('FADE IN (MS, BLANK = DEFAULT)', fadeInInput));
@@ -969,7 +969,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     fadeOutInput.value = entry.fadeOutMs != null ? entry.fadeOutMs : '';
     fadeOutInput.addEventListener('change', () => {
       const prior = cloneJson(entry);
-      entry.fadeOutMs = fadeOutInput.value.trim() === '' ? null : parsePositiveInt(fadeOutInput.value, 0);
+      entry.fadeOutMs = fadeOutInput.value.trim() === '' ? null : parsePositiveInt(fadeOutInput.value, 0); fadeOutInput.value = entry.fadeOutMs != null ? entry.fadeOutMs : '';
       commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('FADE OUT (MS, BLANK = DEFAULT)', fadeOutInput));
@@ -983,7 +983,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     waitInput.value = entry.waitMs || '';
     waitInput.addEventListener('change', () => {
       const prior = cloneJson(entry);
-      entry.waitMs = parsePositiveInt(waitInput.value, 0);
+      entry.waitMs = parsePositiveInt(waitInput.value, 0); waitInput.value = entry.waitMs;
       commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('WAIT AFTER (MS, BLANK = NONE)', waitInput));
@@ -1061,7 +1061,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
         durationInput.value = entry.durationS || 15;
         durationInput.addEventListener('change', () => {
           const prior = cloneJson(entry);
-          entry.durationS = parsePositiveInt(durationInput.value, 15);
+          entry.durationS = parsePositiveInt(durationInput.value, 15); durationInput.value = entry.durationS;
           commitItemEdit('pool', [entry, prior]);
         });
         secondGrid.appendChild(labeledField('SECONDS', durationInput));
@@ -1755,7 +1755,7 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
     intervalInput.placeholder = '10';
     intervalInput.addEventListener('change', () => {
       const prior = cloneJson(preset);
-      preset.intervalMinutes = parsePositiveInt(intervalInput.value, null);
+      preset.intervalMinutes = parsePositiveInt(intervalInput.value, null); intervalInput.value = preset.intervalMinutes != null ? preset.intervalMinutes : '';
       commitItemEdit('presets', [preset, prior]);
     });
     grid.appendChild(labeledField('EVERY (MIN)', intervalInput));
@@ -1797,7 +1797,7 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
   podMinInput.value = preset.podMin || 1;
   podMinInput.addEventListener('change', () => {
     const prior = cloneJson(preset);
-    preset.podMin = parsePositiveInt(podMinInput.value, 1);
+    preset.podMin = parsePositiveInt(podMinInput.value, 1); podMinInput.value = preset.podMin;
     if ((preset.podMax || 1) < preset.podMin) {
       preset.podMax = preset.podMin;
       podMaxInput.value = preset.podMax;
@@ -1907,5 +1907,5 @@ standbyEnabledEl.addEventListener('change', () => {
 });
 
 standbyIntervalEl.addEventListener('change', () => {
-  dispatch({ type: 'settings.set', path: ['autoStandby', 'intervalMinutes'], value: parsePositiveInt(standbyIntervalEl.value, 15) });
+  dispatch({ type: 'settings.set', path: ['autoStandby', 'intervalMinutes'], value: (standbyIntervalEl.value = parsePositiveInt(standbyIntervalEl.value, 15)) });
 });

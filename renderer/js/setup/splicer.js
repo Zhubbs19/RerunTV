@@ -23,7 +23,8 @@ import { Badge, Button, Chip, EmptyState, IconButton } from '../ui/button.js';
 import { Dialog } from '../ui/dialog.js';
 import { Field } from '../ui/field.js';
 import { h } from '../ui/kit-core.js';
-import { S, dispatch } from '../core/state.js';
+import { S, dispatch, viewNow } from '../core/state.js';
+import { applyPlaylistPreservingAir } from '../library/reanchor.js';
 import { freshChannel, mediaRefId, newInterstitialPoolEntry } from '../core/channels.js';
 import { confirmDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
@@ -803,7 +804,9 @@ async function addEpisodesToChannel(items, target, suggestedName) {
   if (!ch.folders.some((e) => e.source === 'local' && e.ref === folder)) ch.folders.push(entry);
   const known = new Set((ch.files || []).map((f) => f.path));
   const fresh = probed.filter((f) => !known.has(f.path)).map((f) => ({ ...f, folder: entry.id, source: 'local' }));
-  ch.files = (ch.files || []).concat(fresh);
+  // Appended, and re-anchored so what is airing now keeps airing (a bare append
+  // changes the loop length, which shifts every position the old anchor implied).
+  applyPlaylistPreservingAir(ch, (ch.files || []).concat(fresh), viewNow());
   // Anchor is set once, the first time a channel gets any content — the
   // loop then extends from the same reference point.
   if (!ch.anchor) ch.anchor = Date.now();

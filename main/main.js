@@ -624,7 +624,7 @@ async function bootApp() {
   pluginMainLoadErrors = loadResult.loadErrors;
   pluginsNeedingApproval = loadResult.needsApproval;
   pluginsNeedingIntegrityApproval = loadResult.needsIntegrityApproval;
-  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval, pluginsNeedingIntegrityApproval), ipcMain, loadResult.allPlugins);
+  registerFallbackHandlers(disabledPluginIds.concat(pluginsNeedingApproval, pluginsNeedingIntegrityApproval, Object.keys(loadResult.loadErrors || {})), ipcMain, loadResult.allPlugins);
   setFfmpegPath(pluginServices.ffmpegPath || null);
   activatedMediaSourceProviders = loadResult.activatedMediaSourceProviders;
   setApprovedMediaSourceProviders(loadResult.activatedMediaSourceProviders);

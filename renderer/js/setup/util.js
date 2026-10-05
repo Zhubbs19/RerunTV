@@ -652,23 +652,23 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
       const row = document.createElement('div');
       row.className = 'dynamic-overlay-rule-row';
 
-      function monthDayInput(value, onChange) {
+      function monthDayInput(value, onChange, max) {
         const input = document.createElement('input');
         input.type = 'number';
         input.min = 1;
         input.className = 'block-priority-input';
         input.value = value;
         input.addEventListener('change', () => {
-          onChange(parsePositiveInt(input.value, 1));
+          const v = Math.min(max, parsePositiveInt(input.value, 1)); input.value = v; onChange(v);
           setOverrides(overrides);
         });
         return input;
       }
 
-      const startMonthInput = monthDayInput(o.startMonth, (v) => { o.startMonth = Math.min(12, v); });
-      const startDayInput = monthDayInput(o.startDay, (v) => { o.startDay = Math.min(31, v); });
-      const endMonthInput = monthDayInput(o.endMonth, (v) => { o.endMonth = Math.min(12, v); });
-      const endDayInput = monthDayInput(o.endDay, (v) => { o.endDay = Math.min(31, v); });
+      const startMonthInput = monthDayInput(o.startMonth, (v) => { o.startMonth = Math.min(12, v); }, 12);
+      const startDayInput = monthDayInput(o.startDay, (v) => { o.startDay = Math.min(31, v); }, 31);
+      const endMonthInput = monthDayInput(o.endMonth, (v) => { o.endMonth = Math.min(12, v); }, 12);
+      const endDayInput = monthDayInput(o.endDay, (v) => { o.endDay = Math.min(31, v); }, 31);
 
       const mediaField = document.createElement('div');
       mediaField.className = 'dynamic-overlay-rule-media';
@@ -841,7 +841,7 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         minuteInput.className = 'block-priority-input';
         minuteInput.value = w.startMinute != null ? w.startMinute : 0;
         minuteInput.addEventListener('change', () => {
-          w.startMinute = Math.min(59, Math.max(0, parsePositiveInt(minuteInput.value, 0)));
+          w.startMinute = Math.min(59, Math.max(0, parsePositiveInt(minuteInput.value, 0))); minuteInput.value = w.startMinute;
           setWindows(windows);
         });
 
@@ -851,7 +851,7 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         durationInput.className = 'block-priority-input';
         durationInput.value = w.durationMin || 30;
         durationInput.addEventListener('change', () => {
-          w.durationMin = Math.max(1, parsePositiveInt(durationInput.value, 30));
+          w.durationMin = Math.max(1, parsePositiveInt(durationInput.value, 30)); durationInput.value = w.durationMin;
           setWindows(windows);
         });
 

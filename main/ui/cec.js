@@ -44,6 +44,7 @@ function startCecHelper({ onKey, onError = () => {}, command = 'cec-client', arg
     return () => {};
   }
   let buffer = '';
+  let stopped = false;
   child.stdout.on('data', (chunk) => {
     buffer += chunk.toString('utf8');
     const lines = buffer.split(/\r?\n/);
@@ -53,8 +54,17 @@ function startCecHelper({ onKey, onError = () => {}, command = 'cec-client', arg
       if (press) onKey(press);
     });
   });
+  // Nothing reads cec-client's stderr, so an unread pipe would eventually fill
+  // and stall it; drain it (the key presses all arrive on stdout).
+  if (child.stderr && typeof child.stderr.on === 'function') child.stderr.on('data', () => {});
   child.on('error', (e) => onError(e));
-  return () => { try { child.kill(); } catch (e) { /* already gone */ } };
+  // cec-client quitting (adapter unplugged, TV off the bus) ends key delivery;
+  // say so once instead of failing silently.
+  child.on('exit', (code, signal) => {
+    if (stopped) return;
+    onError(new Error(`cec-client exited (${signal || `code ${code}`})`));
+  });
+  return () => { stopped = true; try { child.kill(); } catch (e) { /* already gone */ } };
 }
 
 module.exports = { CEC_CODES, parseCecLine, startCecHelper };

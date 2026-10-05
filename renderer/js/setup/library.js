@@ -403,7 +403,7 @@ async function removeRootEntry(entry) {
 // automatic tagging pass ever overwrites a hand edit (§5's own rule).
 function itemEditorBody(item) {
   const titleInput = h('input', { type: 'text', className: 'title-row-input', value: item.title || '' });
-  const kindSelect = h('select', {}, ...KINDS.map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
+  const kindSelect = h('select', {}, ...(item.kind && !KINDS.includes(item.kind) ? [item.kind] : []).concat(KINDS).map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
   const seriesNameInput = h('input', { type: 'text', className: 'title-row-input', value: (item.series && item.series.name) || '' });
   const seasonInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.season != null) ? String(item.series.season) : '' });
   const episodeInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.episode != null) ? String(item.series.episode) : '' });
@@ -434,6 +434,10 @@ function itemEditorBody(item) {
         fields.series = { ...(item.series || {}), name: seriesName };
         if (seasonInput.value !== '') fields.series.season = Number(seasonInput.value);
         if (episodeInput.value !== '') fields.series.episode = Number(episodeInput.value);
+        fields.provenance.series = 'user';
+      } else if (item.series) {
+        // Blank series name clears the series instead of silently keeping the old one.
+        fields.series = null;
         fields.provenance.series = 'user';
       }
       return fields;
@@ -827,6 +831,7 @@ function planRebuild(channel, index) {
 
 async function rebuildChannel(channel) {
   await run(`rebuild:${channel.number}`, async () => {
+    const guard = configGuard();
     const { plan, atMs, unchanged } = planRebuild(channel, L.index);
     const missing = plan.summary.sources.filter((source) => source.error);
     if (missing.length) throw new Error(`CH ${channel.number} uses a saved query that no longer exists, so it can’t be rebuilt.`);
@@ -859,6 +864,7 @@ async function rebuildChannel(channel) {
       confirmText: 'REBUILD',
     });
     if (!ok) return;
+    if (guard.changed() || !S.config.channels.includes(channel)) throw new Error(`Your channels changed while this was open, so CH ${channel.number} was not rebuilt. Try again.`);
     dispatch({
       type: 'channel.rematerialize', channel: channel.number, files: plan.files, anchor: plan.anchor,
       materializedAt: Date.now(), // audit timestamp, real time

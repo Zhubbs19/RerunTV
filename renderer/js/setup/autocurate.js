@@ -24,6 +24,18 @@ let editingProfileOriginal = null; // the live S.config.curationProfiles entry e
 let isNewProfile = false; // editingProfile hasn't been pushed to S.config.curationProfiles yet
 let previewProposal = null; // last curateChannel() result for editingProfile, or null
 let previewSeed = 0;
+let editingProfileBaseline = ''; // JSON of editingProfile as opened/last saved — CLOSE compares against it to spot unsaved edits
+
+// Profiles saved by an older build can lack whole sub-objects the editor reads
+// unguarded (themeSeeds.genre, contentPoolScope.folders, dayPartTemplate.length).
+function withProfileDefaults(profile) {
+  const defaults = freshCurationProfile();
+  profile.themeSeeds = { ...defaults.themeSeeds, ...(profile.themeSeeds || {}) };
+  profile.contentPoolScope = { ...defaults.contentPoolScope, ...(profile.contentPoolScope || {}) };
+  if (!Array.isArray(profile.dayPartTemplate)) profile.dayPartTemplate = [];
+  if (!Array.isArray(profile.bumperStyleTags)) profile.bumperStyleTags = [];
+  return profile;
+}
 
 // De-duped by id (a folder scanned into more than one channel — same
 // physical path, same content-derived id, see mediaRefId in channels.js —
@@ -73,6 +85,7 @@ function ensureSaved(profile) {
     if (idx !== -1) S.config.curationProfiles[idx] = stored;
   }
   editingProfileOriginal = stored;
+  editingProfileBaseline = JSON.stringify(profile);
 }
 
 function buildFolderScopeEditor(profile) {
@@ -344,7 +357,9 @@ function buildProfileEditor(profile) {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn remove-btn';
   cancelBtn.textContent = 'CLOSE';
-  cancelBtn.addEventListener('click', () => {
+  cancelBtn.addEventListener('click', async () => {
+    if (editingProfile && JSON.stringify(editingProfile) !== editingProfileBaseline
+      && !(await confirmDialog({ title: 'DISCARD CHANGES?', message: 'This profile has edits that were not saved. Closing the editor throws them away.', confirmText: 'DISCARD', danger: true }))) return;
     // editingProfile is only ever a working clone (see ensureSaved()'s
     // comment) — discarding it here without saving is a real, working
     // revert, not just clearing the editor's own reference.
@@ -508,6 +523,17 @@ function buildPreviewCard(profile) {
       ? `Create channel ${summary.channelNumber} with this lineup${dayPartNote}? This can be undone with Ctrl+Z.`
       : `Add ${summary.fileCount} new file(s)${dayPartNote} and ${summary.newInterstitialTypes.length} new bumper(s) to channel ${summary.channelNumber}? Existing content is never removed. This can be undone with Ctrl+Z.`;
     if (!(await confirmDialog(confirmMsg))) return;
+    // The preview was computed before the dialog opened; the lineup or the profile
+    // may have changed under it. Recompute and only apply if it is what was confirmed.
+    const fresh = curateChannel(profile, previewSeed);
+    const was = previewProposal.diffSummary;
+    const now = fresh.diffSummary;
+    previewProposal = fresh;
+    if (now.targetMissing || now.fileCount !== was.fileCount || now.channelNumber !== was.channelNumber) {
+      renderAutoCurateList();
+      await alertDialog('The lineup changed since this preview was made, so nothing was applied. Review the refreshed preview and APPLY again.');
+      return;
+    }
     profile.lastRunAt = Date.now();
     ensureSaved(profile);
     applyCurationProposal(previewProposal);
@@ -568,7 +594,8 @@ function buildProfileRow(profile) {
   editBtn.textContent = 'EDIT / PREVIEW';
   editBtn.addEventListener('click', () => {
     // A clone, not the live S.config object — see ensureSaved()'s comment.
-    editingProfile = deepClone(profile);
+    editingProfile = withProfileDefaults(deepClone(profile));
+    editingProfileBaseline = JSON.stringify(editingProfile);
     editingProfileOriginal = profile;
     isNewProfile = false;
     previewProposal = null;
@@ -621,6 +648,7 @@ export function renderAutoCurateList() {
   addBtn.textContent = '+ NEW PROFILE';
   addBtn.addEventListener('click', () => {
     editingProfile = freshCurationProfile();
+    editingProfileBaseline = JSON.stringify(editingProfile);
     editingProfileOriginal = null;
     isNewProfile = true;
     previewProposal = null;
