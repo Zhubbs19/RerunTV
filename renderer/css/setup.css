@@ -2821,8 +2821,10 @@ html[data-theme] .btn[aria-disabled="true"] {
 }
 .breakpoint-pin:active { cursor: grabbing; }
 
-/* Live overlay layout editor. The old detached miniature logo preview was
-   removed; all positioning uses the running CRT's real coordinate space. */
+/* Live overlay layout editor (setup/overlay-layout-editor.js, and the custom
+   overlay placement editor in setup/overlay-editor.js, which shares the stage
+   and the toolbar basics). All positioning uses the running CRT's real
+   coordinate space. */
 .logobug-live-description { display: block; margin: 0 0 10px; }
 .logobug-live-open { margin: 0; }
 
@@ -2833,24 +2835,52 @@ html[data-theme] .btn[aria-disabled="true"] {
   z-index: 60;
   touch-action: none;
   cursor: crosshair;
-  background-color: rgba(0, 0, 0, 0.12);
+  background-color: rgba(0, 0, 0, 0.08);
+}
+/* The grid: faint lines at the snap step, a firmer line every quarter. */
+.logobug-live-overlay:not([data-guides="safe"]):not([data-guides="off"]) {
   background-image:
-    linear-gradient(rgba(var(--accent-2-rgb), 0.34) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(var(--accent-2-rgb), 0.34) 1px, transparent 1px),
-    linear-gradient(rgba(var(--accent-rgb), 0.55) 2px, transparent 2px),
-    linear-gradient(90deg, rgba(var(--accent-rgb), 0.55) 2px, transparent 2px);
+    linear-gradient(rgba(var(--accent-2-rgb), 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--accent-2-rgb), 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(var(--accent-rgb), 0.38) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--accent-rgb), 0.38) 1px, transparent 1px);
   background-size: var(--overlay-grid-step) var(--overlay-grid-step), var(--overlay-grid-step) var(--overlay-grid-step), 25% 25%, 25% 25%;
 }
 .logobug-live-overlay.snap-enabled {
-  background-color: rgba(var(--accent-rgb), 0.08);
-  box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.72);
+  background-color: rgba(var(--accent-rgb), 0.06);
+  box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.6);
 }
+/* TV safe areas: a set top box can lose the outer few percent to overscan. */
+.logobug-live-safe {
+  display: none;
+  position: absolute;
+  pointer-events: none;
+  border: 1px dashed rgba(255, 255, 255, 0.75);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+}
+.logobug-live-safe span {
+  position: absolute;
+  left: 6px;
+  top: 3px;
+  padding: 0 4px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  font: 600 10px var(--font-ui);
+  letter-spacing: 1px;
+}
+.logobug-live-safe-action { inset: 3.5%; }
+.logobug-live-safe-title { inset: 5%; border-style: dotted; }
+.logobug-live-safe-title span { top: auto; bottom: 3px; }
+.logobug-live-overlay[data-guides="safe"] .logobug-live-safe,
+.logobug-live-overlay[data-guides="both"] .logobug-live-safe { display: block; }
+
 .logobug-live-selection {
   position: absolute;
   min-width: 28px;
   min-height: 28px;
   border: 2px solid var(--accent);
   outline: 1px solid rgba(0, 0, 0, 0.85);
+  background: rgba(var(--accent-rgb), 0.1);
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 18px rgba(var(--accent-rgb), 0.8);
   cursor: move;
   touch-action: none;
@@ -2877,44 +2907,123 @@ html[data-theme] .btn[aria-disabled="true"] {
 .logobug-live-anchor-s  { left: calc(50% - 7px); bottom: -8px; cursor: ns-resize; }
 .logobug-live-anchor-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
 .logobug-live-anchor-w  { left: -8px; top: calc(50% - 7px); cursor: ew-resize; }
+/* A box against the edge of the screen keeps its handles inside it, where
+   handles centred on the border would be cut off. */
+.logobug-live-selection.at-left .logobug-live-anchor-nw,
+.logobug-live-selection.at-left .logobug-live-anchor-w,
+.logobug-live-selection.at-left .logobug-live-anchor-sw { left: 1px; }
+.logobug-live-selection.at-right .logobug-live-anchor-ne,
+.logobug-live-selection.at-right .logobug-live-anchor-e,
+.logobug-live-selection.at-right .logobug-live-anchor-se { right: 1px; }
+.logobug-live-selection.at-top .logobug-live-anchor-nw,
+.logobug-live-selection.at-top .logobug-live-anchor-n,
+.logobug-live-selection.at-top .logobug-live-anchor-ne { top: 1px; }
+.logobug-live-selection.at-bottom .logobug-live-anchor-sw,
+.logobug-live-selection.at-bottom .logobug-live-anchor-s,
+.logobug-live-selection.at-bottom .logobug-live-anchor-se { bottom: 1px; }
+
+/* The control panel. The custom overlay editor uses it as a plain row; the
+   layout editor adds data-dock so it can sit on the edge away from the
+   selection. */
 .logobug-live-toolbar {
   position: fixed;
   left: 50%;
   bottom: 18px;
   z-index: 1000;
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
-  gap: 10px;
+  gap: 10px 12px;
+  box-sizing: border-box;
   max-width: calc(100vw - 28px);
+  max-height: calc(100vh - 36px);
+  overflow-y: auto;
   padding: 12px 14px;
   color: var(--text);
-  background: rgba(5, 8, 18, 0.96);
+  background: rgba(5, 8, 18, 0.97);
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-hard-lg), 0 0 22px rgba(var(--accent-rgb), 0.3);
   transform: translateX(-50%);
 }
+.logobug-live-toolbar[data-dock] { width: min(1320px, calc(100vw - 28px)); }
+.logobug-live-toolbar[data-dock="top"] { top: 18px; bottom: auto; }
 .logobug-live-title { color: var(--accent); font-family: var(--font-display); font-weight: 700; letter-spacing: 1px; }
 .logobug-live-status { min-width: 190px; color: var(--accent-2); font-family: var(--font-ui); font-size: 12px; }
+.logobug-live-head {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+}
+.logobug-live-head .logobug-live-status { flex: 1 1 200px; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+.logobug-live-head-buttons { display: flex; gap: 6px; margin-left: auto; }
+.logobug-live-context {
+  padding: 3px 11px;
+  color: var(--accent-2);
+  border: 1px solid var(--accent-2);
+  border-radius: 999px;
+  font: 600 11px var(--font-ui);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.logobug-live-small { min-height: 30px; padding: 4px 10px; font-size: 11px; }
+.logobug-live-body { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+.logobug-live-group {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 4px 10px 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.logobug-live-group-wide { flex-basis: 100%; }
+.logobug-live-group legend { padding: 0 6px; color: var(--accent-2); font: 700 10px var(--font-ui); letter-spacing: 1.5px; }
+.logobug-live-group-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 10px; }
+.logobug-live-help { flex: 1 1 100%; margin: 0; color: var(--text-muted); font: 11px/1.4 var(--font-ui); }
+.logobug-live-hint { flex: 1 1 100%; margin: 0; color: var(--text-muted); font: 11px/1.4 var(--font-ui); }
+.logobug-live-confirm {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  background: rgba(var(--accent-rgb), 0.14);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  font: 13px var(--font-ui);
+}
+.logobug-live-confirm.hidden { display: none; }
+.logobug-live-toolbar.is-collapsed .logobug-live-body,
+.logobug-live-toolbar.is-collapsed .logobug-live-hint { display: none; }
 .logobug-live-coordinates { display: flex; gap: 6px; }
 .logobug-live-coordinate input {
-  width: 70px;
+  width: 78px;
   min-height: 34px;
   padding: 5px 7px;
   color: var(--accent);
   background: var(--surface-0);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  font: 600 12px var(--font-ui);
+  font: 600 13px var(--font-ui);
 }
-.logobug-live-field { display: grid; gap: 3px; color: var(--text-muted); font-family: var(--font-ui); font-size: 10px; letter-spacing: 1px; }
-.logobug-live-field select { min-width: 92px; }
-.logobug-live-field:first-of-type select { min-width: 190px; }
-.logobug-live-snap select { min-width: 74px; }
-.logobug-live-opacity { min-width: 90px; }
-.logobug-live-opacity input[type="range"] { width: 100%; }
-.logobug-live-auto { align-self: center; color: var(--text); font-family: var(--font-ui); font-size: 11px; white-space: nowrap; }
-.logobug-live-actions { display: flex; gap: 7px; }
+.logobug-live-field { display: grid; gap: 3px; color: var(--text-muted); font-family: var(--font-ui); font-size: 11px; letter-spacing: 1px; }
+.logobug-live-label { color: var(--text-muted); font: 600 11px var(--font-ui); letter-spacing: 1px; }
+.logobug-live-field select { min-width: 104px; min-height: 34px; }
+.logobug-live-target select { min-width: 250px; }
+.logobug-live-snap select { min-width: 84px; }
+.logobug-live-opacity { min-width: 130px; }
+.logobug-live-slider { display: flex; align-items: center; gap: 8px; min-height: 34px; }
+.logobug-live-slider input[type="range"] { flex: 1 1 90px; min-width: 90px; }
+.logobug-live-value { min-width: 38px; color: var(--accent); font: 600 12px var(--font-ui); text-align: right; }
+.logobug-live-auto { align-self: center; color: var(--text); font-family: var(--font-ui); font-size: 12px; white-space: nowrap; }
+.logobug-live-actions { display: flex; flex: 0 0 auto; align-self: end; gap: 8px; margin-left: auto; }
+.logobug-live-actions .btn { min-height: 40px; }
 
 /* buildDynamicOverlaysEditor's rule-row list (setup-util.js) — box-wide
    (DISPLAY tab) and per-channel (CHANNELS > edit > OVERLAYS tab) both reuse
@@ -2995,8 +3104,9 @@ html[data-theme] .btn[aria-disabled="true"] {
 }
 .guide-genre-add-row .title-row-input { flex: 1 1 180px; min-width: 0; }
 @media (max-width: 1180px) {
-  .logobug-live-toolbar { flex-wrap: wrap; justify-content: center; }
+  .logobug-live-toolbar { justify-content: center; }
   .logobug-live-status { min-width: 150px; }
+  .logobug-live-actions { margin-left: 0; }
 }
 
 /* One pool entry / ad preset as a collapsible card — a compact one-line

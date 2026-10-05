@@ -139,6 +139,10 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   sentence-case label wired `for` its control and a one-line help.
   - Use `data-depends-on` for settings that only apply while a switch is on.
   - Add `data-synonyms` for words people would search for.
+- **Live layout editor** (the O key, LIVE EDITOR buttons): `setup/overlay-layout-editor.js`,
+  re-exported by `setup/util.js`. The panel docks to the edge away from the selection, so a new control
+  must not assume a fixed position. Keep the `.logobug-live-*` class names: the UI harness and the custom
+  overlay editor (`overlay-editor.js`) share them.
 - **Search:** rows become search results automatically, and new setup actions go in
   `setup-command-palette.js`'s `searchActions()`.
 - **A channel's SCHEDULE page** is ON AIR · BLOCKS · CALENDAR (docs/design/02 §4.5).
