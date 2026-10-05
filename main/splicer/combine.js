@@ -67,8 +67,10 @@ async function probeStream(input) {
   const duration = durMatch ? (+durMatch[1]) * 3600 + (+durMatch[2]) * 60 + (+durMatch[3]) : null;
   const videoMatch = stderr.match(/Video:\s*(\w+).*?(\d{2,5})x(\d{2,5})/);
   const audioMatch = stderr.match(/Audio:\s*(\w+)/);
+  const fpsMatch = stderr.match(/(\d+(?:\.\d+)?)\s*fps/);
   return {
     duration,
+    fps: fpsMatch ? parseFloat(fpsMatch[1]) : null,
     videoCodec: videoMatch ? videoMatch[1] : null,
     width: videoMatch ? parseInt(videoMatch[2], 10) : null,
     height: videoMatch ? parseInt(videoMatch[3], 10) : null,
@@ -102,18 +104,30 @@ async function combineStreamCopy(inputs, outFile) {
   }
 }
 
-async function combineReencode(inputs, outFile, hasAudio) {
+// The concat filter needs every input to match, so each clip is first scaled
+// (letterboxed, never stretched) to the first clip's size and frame rate, and
+// its audio brought to one sample rate and layout.
+async function combineReencode(inputs, outFile, hasAudio, target = {}) {
+  const width = (target.width || 1280) & ~1;
+  const height = (target.height || 720) & ~1;
+  const fps = target.fps && target.fps > 1 && target.fps < 121 ? target.fps : 30;
   const args = [];
   inputs.forEach((f) => { args.push('-i', f); });
-  const streamPairs = inputs.map((_, i) => hasAudio ? `[${i}:v:0][${i}:a:0]` : `[${i}:v:0]`).join('');
-  const filter = `${streamPairs}concat=n=${inputs.length}:v=1:a=${hasAudio ? 1 : 0}[outv]${hasAudio ? '[outa]' : ''}`;
+  const prep = inputs.map((_, i) => {
+    const video = `[${i}:v:0]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p[v${i}]`;
+    const audio = hasAudio ? `;[${i}:a:0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]` : '';
+    return video + audio;
+  });
+  const streamPairs = inputs.map((_, i) => hasAudio ? `[v${i}][a${i}]` : `[v${i}]`).join('');
+  const filter = `${prep.join(';')};${streamPairs}concat=n=${inputs.length}:v=1:a=${hasAudio ? 1 : 0}[outv]${hasAudio ? '[outa]' : ''}`;
   args.push('-filter_complex', filter, '-map', '[outv]');
   if (hasAudio) args.push('-map', '[outa]');
-  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18');
+  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p');
   if (hasAudio) args.push('-c:a', 'aac');
   args.push('-y', outFile);
   const { code, stderr } = await runFfmpeg(args);
-  if (code !== 0) throw new Error(`concat filter re-encode failed:\n${stderr.slice(-800)}`);
+  if (code !== 0) throw new Error(`concat filter re-encode failed:
+${stderr.slice(-800)}`);
 }
 
 async function main() {
@@ -165,7 +179,7 @@ async function main() {
       await combineStreamCopy(inputs, outFile);
     } catch (err) {
       console.log(`Stream-copy concat failed (${err.message.split('\n')[0]}), falling back to re-encode...`);
-      await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio));
+      await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0]);
     }
   } else {
     if (!forceReencode) {
@@ -176,7 +190,7 @@ async function main() {
     } else {
       console.log('Re-encoding (--reencode) via the concat filter...');
     }
-    await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio));
+    await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0]);
   }
 
   const outDuration = await probeStream(outFile);
