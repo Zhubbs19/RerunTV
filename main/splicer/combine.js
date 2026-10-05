@@ -28,7 +28,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { runFfmpeg, runFfmpegWithProgress } = require('./ffmpeg-runner');
+const { runFfmpeg, runFfmpegWithProgress, runFfmpegCollectStdout } = require('./ffmpeg-runner');
 const { DEFAULT_VIDEO_EXTS, parseArgs } = require('./cuts');
 
 function collectInputs(argv) {
@@ -68,6 +68,9 @@ async function probeStream(input) {
   const videoMatch = stderr.match(/Video:\s*(\w+).*?(\d{2,5})x(\d{2,5})/);
   const audioMatch = stderr.match(/Audio:\s*(\w+)/);
   const fpsMatch = stderr.match(/(\d+(?:\.\d+)?)\s*fps/);
+  const audioLine = (stderr.match(/Audio:[^\n]*/) || [''])[0];
+  const rateMatch = audioLine.match(/(\d+)\s*Hz/);
+  const layoutMatch = audioLine.match(/Hz,\s*([^,]+),/);
   return {
     duration,
     fps: fpsMatch ? parseFloat(fpsMatch[1]) : null,
@@ -75,6 +78,8 @@ async function probeStream(input) {
     width: videoMatch ? parseInt(videoMatch[2], 10) : null,
     height: videoMatch ? parseInt(videoMatch[3], 10) : null,
     audioCodec: audioMatch ? audioMatch[1] : null,
+    audioRate: rateMatch ? parseInt(rateMatch[1], 10) : null,
+    audioLayout: layoutMatch ? layoutMatch[1].trim() : null,
     hasAudio: !!audioMatch,
   };
 }
@@ -82,7 +87,143 @@ async function probeStream(input) {
 // What differs between the clips, by name, or [] when stream-copy is safe.
 function mismatches(probes) {
   const first = probes[0];
-  return ['videoCodec', 'width', 'height', 'hasAudio', 'audioCodec'].filter((key) => probes.some((p) => p[key] !== first[key]));
+  return ['videoCodec', 'width', 'height', 'fps', 'hasAudio', 'audioCodec', 'audioRate', 'audioLayout'].filter((key) => probes.some((p) => p[key] !== first[key]));
+}
+
+// ---------- Encoders ----------
+
+let encoderNames = null;
+async function hasEncoder(name) {
+  if (!encoderNames) {
+    try {
+      const out = (await runFfmpegCollectStdout(['-hide_banner', '-encoders'])).toString();
+      encoderNames = new Set(out.split('\n').map((line) => (line.match(/^\s[VAS][.\w]{5}\s+(\S+)/) || [])[1]).filter(Boolean));
+    } catch (e) {
+      encoderNames = new Set();
+    }
+  }
+  return encoderNames.has(name);
+}
+
+// An encoder that is listed can still fail (no NVIDIA card), so try it once.
+const workingEncoders = new Map();
+async function canEncode(name) {
+  if (!workingEncoders.has(name)) {
+    let ok = false;
+    if (await hasEncoder(name)) {
+      const { code } = await runFfmpeg(['-v', 'error', '-f', 'lavfi', '-i', 'color=s=256x256:d=0.2', '-c:v', name, '-f', 'null', '-']);
+      ok = code === 0;
+    }
+    workingEncoders.set(name, ok);
+  }
+  return workingEncoders.get(name);
+}
+
+// Video encode arguments for a codec name as ffmpeg reports it, or null when
+// this ffmpeg can't write that codec.
+async function videoEncoderFor(codec) {
+  if (codec === 'h264') {
+    if (await canEncode('h264_nvenc')) return ['-c:v', 'h264_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '20', '-b:v', '0'];
+    if (await hasEncoder('libx264')) return ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18'];
+  } else if (codec === 'hevc') {
+    if (await canEncode('hevc_nvenc')) return ['-c:v', 'hevc_nvenc', '-preset', 'p5', '-rc', 'vbr', '-cq', '24', '-b:v', '0'];
+    if (await hasEncoder('libx265')) return ['-c:v', 'libx265', '-preset', 'veryfast', '-crf', '22'];
+  } else if (codec === 'vp9') {
+    if (await hasEncoder('libvpx-vp9')) return ['-c:v', 'libvpx-vp9', '-crf', '28', '-b:v', '0', '-deadline', 'good', '-cpu-used', '5', '-row-mt', '1'];
+  } else if (codec === 'av1') {
+    if (await hasEncoder('libsvtav1')) return ['-c:v', 'libsvtav1', '-crf', '30', '-preset', '8'];
+    if (await canEncode('av1_nvenc')) return ['-c:v', 'av1_nvenc', '-preset', 'p5', '-cq', '32', '-b:v', '0'];
+  }
+  return null;
+}
+
+async function audioEncoderFor(codec) {
+  const names = { aac: 'aac', opus: 'libopus', mp3: 'libmp3lame', vorbis: 'libvorbis', ac3: 'ac3' };
+  return names[codec] && await hasEncoder(names[codec]) ? ['-c:a', names[codec], ...(codec === 'opus' ? ['-b:a', '128k'] : [])] : null;
+}
+
+const AUDIO_CHANNELS = { mono: 1, stereo: 2 };
+
+// ---------- Matching odd clips to the rest ----------
+
+const signature = (p) => [p.videoCodec, p.width, p.height, p.fps === null ? '' : p.fps.toFixed(2), p.hasAudio, p.audioCodec, p.audioRate, p.audioLayout].join('|');
+
+// Rough encode cost per second of footage, so the cheaper plan wins: VP9 on
+// the CPU runs about as slow as the footage plays, an NVIDIA encoder many
+// times faster.
+const ENCODER_COST = { h264_nvenc: 0.1, hevc_nvenc: 0.1, av1_nvenc: 0.1, libx264: 0.3, libsvtav1: 0.5, libx265: 0.8, 'libvpx-vp9': 1.2 };
+
+// Plans a join that converts as little as possible. Two candidates: convert the
+// clips that differ to the most common format (so the rest are copied), or
+// convert every clip that isn't already H.264 in that shape. Whichever costs
+// less encoding time wins. Returns null when neither can be done safely (audio
+// in only some clips, or no encoder this ffmpeg has).
+async function planConversion(probes) {
+  if (probes.some((p) => !p.videoCodec || p.hasAudio !== probes[0].hasAudio)) return null;
+  const counts = new Map();
+  probes.forEach((p) => counts.set(signature(p), (counts.get(signature(p)) || 0) + 1));
+  let bestKey = null;
+  counts.forEach((n, key) => { if (bestKey === null || n > counts.get(bestKey)) bestKey = key; });
+  const common = probes.find((p) => signature(p) === bestKey);
+  const hasAudio = common.hasAudio;
+
+  const targets = [common];
+  if (common.videoCodec !== 'h264') {
+    targets.push({ ...common, videoCodec: 'h264', ...(hasAudio ? { audioCodec: 'aac', audioRate: 48000, audioLayout: 'stereo' } : {}) });
+  }
+
+  const plans = [];
+  for (const target of targets) {
+    const video = await videoEncoderFor(target.videoCodec);
+    if (!video) continue;
+    let audio = [];
+    if (hasAudio) {
+      audio = await audioEncoderFor(target.audioCodec);
+      if (!audio || !AUDIO_CHANNELS[target.audioLayout] || !target.audioRate) continue;
+    }
+    const odd = probes.map((p, i) => (signature(p) === signature(target) ? -1 : i)).filter((i) => i >= 0);
+    const cost = odd.reduce((sum, i) => sum + (probes[i].duration || 1), 0) * (ENCODER_COST[video[1]] || 1);
+    plans.push({ target, odd, video, audio, cost });
+  }
+  plans.sort((a, b) => a.cost - b.cost);
+  return plans[0] || null;
+}
+
+async function convertClip(input, outFile, plan, duration, onPercent) {
+  const { target } = plan;
+  const width = target.width & ~1;
+  const height = target.height & ~1;
+  const fps = target.fps && target.fps > 1 && target.fps < 121 ? target.fps : 30;
+  const args = ['-y', '-i', input, '-map', '0:v:0'];
+  if (target.hasAudio) args.push('-map', '0:a:0');
+  args.push('-vf', `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p`);
+  args.push(...plan.video);
+  if (target.hasAudio) args.push('-af', `aresample=${target.audioRate}`, '-ac', String(AUDIO_CHANNELS[target.audioLayout]), ...plan.audio);
+  args.push('-strict', '-2', outFile);
+  const { code, stderr } = await runFfmpegWithProgress(args, duration, onPercent);
+  if (code !== 0) throw new Error(`converting ${path.basename(input)} failed:\n${stderr.slice(-800)}`);
+}
+
+// Converts the odd clips into a temp folder, then joins everything by copy.
+async function combineConverted(inputs, outFile, probes, plan) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reruntv-combine-'));
+  try {
+    const total = plan.odd.reduce((sum, i) => sum + (probes[i].duration || 1), 0);
+    let done = 0;
+    const joined = inputs.slice();
+    for (const [n, i] of plan.odd.entries()) {
+      console.log(`Converting ${path.basename(inputs[i])} to match the rest (${n + 1} of ${plan.odd.length})...`);
+      const converted = path.join(tmpDir, `clip${i}.mp4`);
+      const span = probes[i].duration || 1;
+      await convertClip(inputs[i], converted, plan, probes[i].duration, (pct) => console.log(`Converting [${Math.min(100, Math.round(((done + span * pct / 100) / total) * 100))}/100]`));
+      done += span;
+      joined[i] = converted;
+    }
+    console.log('Joining...');
+    await combineStreamCopy(joined, outFile);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 async function combineStreamCopy(inputs, outFile) {
@@ -117,7 +258,7 @@ async function combineReencode(inputs, outFile, hasAudio, target = {}, totalDura
   const filter = `${prep.join(';')};${streamPairs}concat=n=${inputs.length}:v=1:a=${hasAudio ? 1 : 0}[outv]${hasAudio ? '[outa]' : ''}`;
   args.push('-filter_complex', filter, '-map', '[outv]');
   if (hasAudio) args.push('-map', '[outa]');
-  args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p');
+  args.push(...(await videoEncoderFor('h264')), '-pix_fmt', 'yuv420p');
   if (hasAudio) args.push('-c:a', 'aac');
   args.push('-y', outFile);
   // The page reads "[n/100]" as progress; a long encode otherwise looks hung.
@@ -169,27 +310,45 @@ async function main() {
   const compatible = differences.length === 0;
   const totalDuration = probes.every((p) => p.duration) ? probes.reduce((sum, p) => sum + p.duration, 0) : null;
   const forceReencode = !!argv.reencode;
+  let converted = 0;
 
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
 
-  if (!forceReencode && compatible) {
+  const hasAudio = probes.every((p) => p.hasAudio);
+  const reencodeAll = async () => {
+    await combineReencode(inputs, outFile, hasAudio, probes[0], totalDuration);
+    return 'reencode';
+  };
+  let method;
+
+  if (forceReencode) {
+    console.log('Re-encoding every clip (--reencode)...');
+    method = await reencodeAll();
+  } else if (compatible) {
     console.log('Inputs are compatible — using fast stream-copy concat...');
     try {
       await combineStreamCopy(inputs, outFile);
+      method = 'copy';
     } catch (err) {
       console.log(`Stream-copy concat failed (${err.message.split('\n')[0]}), falling back to re-encode...`);
-      await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0], totalDuration);
+      method = await reencodeAll();
     }
   } else {
-    if (!forceReencode) {
-      console.log(
-        `Inputs differ in ${differences.join(', ')} — stream-copy concat would likely produce a broken ` +
-        'file, so re-encoding instead (slower, but safe). Pass --reencode next time to skip this check.'
-      );
+    console.log(`Inputs differ in ${differences.join(', ')} — stream-copy alone would produce a broken file.`);
+    const plan = await planConversion(probes);
+    if (plan) {
+      console.log(`Converting ${plan.odd.length} of ${inputs.length} clips to ${plan.target.videoCodec}${plan.target.width ? ` ${plan.target.width}x${plan.target.height}` : ''}; the other ${inputs.length - plan.odd.length} are copied as they are.`);
+      try {
+        await combineConverted(inputs, outFile, probes, plan);
+        method = 'convert';
+        converted = plan.odd.length;
+      } catch (err) {
+        console.log(`Matching the odd clips failed (${err.message.split('\n')[0]}), re-encoding everything instead...`);
+      }
     } else {
-      console.log('Re-encoding (--reencode) via the concat filter...');
+      console.log('These clips can\'t be matched one by one (mixed audio, or no encoder for their format), so re-encoding everything.');
     }
-    await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0], totalDuration);
+    if (!method) method = await reencodeAll();
   }
 
   const outDuration = await probeStream(outFile);
@@ -197,7 +356,7 @@ async function main() {
 
   if (argv['json-out']) {
     fs.writeFileSync(path.resolve(argv['json-out']), JSON.stringify({
-      out: outFile, duration: outDuration.duration, inputs, method: (!forceReencode && compatible) ? 'copy' : 'reencode',
+      out: outFile, duration: outDuration.duration, inputs, method, converted,
     }, null, 2));
   }
 }

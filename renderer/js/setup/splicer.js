@@ -932,7 +932,9 @@ async function combine() {
     const out = $('splicer-combine-out').value.trim();
     const files = V.queue.slice();
     const { result } = await startRun({ kind: 'combine', files, out, reencode: $('splicer-combine-reencode').checked }, `Combine ${plural(files.length, 'clip')} into ${basename(out) || 'one file'}`);
-    const how = result.method === 'copy' ? 'joined as they were' : 're-encoded to match';
+    const how = result.method === 'copy' ? 'joined as they were'
+      : result.method === 'convert' ? `joined, ${plural(result.converted || 0, 'clip')} converted to match`
+        : 're-encoded to match';
     $('splicer-combine-results').replaceChildren(
       note(`Wrote ${basename(result.out)}${result.duration ? ` (${formatDuration(result.duration)})` : ''} — ${plural(files.length, 'clip')} ${how}.`, 'success'),
       h('div', { className: 'library-actions' }, openFolderButton(result.out, 'SHOW FILE')),
