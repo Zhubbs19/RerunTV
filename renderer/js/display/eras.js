@@ -103,20 +103,33 @@ function writePath(root, path, value) {
   node[path[path.length - 1]] = value;
 }
 
+function deletePath(obj, path) {
+  let node = obj;
+  for (let i = 0; i < path.length - 1; i++) {
+    if (typeof node[path[i]] !== 'object' || node[path[i]] == null) return;
+    node = node[path[i]];
+  }
+  delete node[path[path.length - 1]];
+}
+
 // Mutates `config` in place; caller records it (commitConfigPatch, one undo
 // step) same as curation/library sync do for other whole-config transforms.
 export function applyEra(config, eraId) {
   const era = getEra(eraId);
   if (!era) throw new Error(`Unknown era "${eraId}".`);
   const previousValues = {};
+  // Fields that had no value before (JSON drops undefined, so presence is
+  // tracked explicitly): clearing deletes them rather than leaving the era's value.
+  const absentFields = [];
   const fields = [];
   ERA_FIELDS.forEach(({ key, path }) => {
     if (!Object.prototype.hasOwnProperty.call(era.presentation, key)) return;
     previousValues[key] = readPath(config, path);
+    if (previousValues[key] === undefined) absentFields.push(key);
     writePath(config, path, era.presentation[key]);
     fields.push(key);
   });
-  config.era = { id: era.id, appliedAt: Date.now(), fields, previousValues, overrides: [] };
+  config.era = { id: era.id, appliedAt: Date.now(), fields, previousValues, absentFields, overrides: [] };
   return config.era;
 }
 
@@ -128,7 +141,9 @@ export function clearEra(config) {
   const state = config.era;
   if (!state) return;
   const overrides = new Set(state.overrides || []);
+  const absent = new Set(state.absentFields || []);
   ERA_FIELDS.forEach(({ key, path }) => {
+    if (absent.has(key) && !overrides.has(key)) { deletePath(config, path); return; }
     if (!Object.prototype.hasOwnProperty.call(state.previousValues, key) || overrides.has(key)) return;
     const previous = state.previousValues[key];
     if (previous === undefined) return;

@@ -39,8 +39,7 @@ export function searchUpcomingPrograms(channels, query, fromMs, { horizonMs = 7 
       if (seen.has(key)) continue;
       seen.add(key);
       results.push({ channel, entry, title });
-      if (results.length >= limit) return results.sort((a, b) => a.entry.start - b.entry.start || a.channel.number - b.channel.number);
     }
   }
-  return results.sort((a, b) => a.entry.start - b.entry.start || a.channel.number - b.channel.number);
+  return results.sort((a, b) => a.entry.start - b.entry.start || a.channel.number - b.channel.number).slice(0, limit);
 }

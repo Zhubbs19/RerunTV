@@ -44,16 +44,13 @@ function resolveFfmpegFromPath() {
   return null;
 }
 
-let FFMPEG_STATIC_PATH = null;
-try {
-  FFMPEG_STATIC_PATH = require('ffmpeg-static').replace('app.asar', 'app.asar.unpacked');
-} catch (e) {
-  FFMPEG_STATIC_PATH = resolveFfmpegFromPath();
-  if (FFMPEG_STATIC_PATH) {
-    console.log(`ffmpeg-static not installed — using system ffmpeg found on PATH instead: ${FFMPEG_STATIC_PATH}`);
-  } else {
-    console.warn('ffmpeg-static not installed and no system ffmpeg found on PATH — the ffmpeg-transcode plugin will fail to load, everything else is unaffected:', e.message);
-  }
+// ffmpeg-static is no longer a dependency (not in package.json), so the only
+// bundled-free source is a system ffmpeg on PATH.
+const FFMPEG_STATIC_PATH = resolveFfmpegFromPath();
+if (FFMPEG_STATIC_PATH) {
+  console.log(`Using system ffmpeg found on PATH: ${FFMPEG_STATIC_PATH}`);
+} else {
+  console.warn('No system ffmpeg found on PATH — the ffmpeg-transcode plugin will fail to load, everything else is unaffected');
 }
 
 let activeFfmpegPath = null;

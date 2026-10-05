@@ -127,6 +127,8 @@ export function installAudioOutput() {
   HTMLMediaElement.prototype.play = function play(...args) {
     if (!elements.has(this.__audioOutputRef)) {
       this.__audioOutputRef = new WeakRef(this);
+      // Drop refs whose element has been collected so the set can't grow forever.
+      for (const ref of elements) if (!ref.deref()) elements.delete(ref);
       elements.add(this.__audioOutputRef);
     }
     if (resolvedId || this.sinkId) sinkElement(this, resolvedId);

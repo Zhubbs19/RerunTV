@@ -159,7 +159,12 @@ class MainActivity : AppCompatActivity() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val allowedHost = prefs.host
                 return if (request.url.host == allowedHost) false else {
-                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, request.url))
+                    // Only hand real web links to the system; never forward
+                    // intent:, file:, content: or other schemes from a page.
+                    val scheme = request.url.scheme
+                    if (scheme == "http" || scheme == "https") {
+                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, request.url))
+                    }
                     true
                 }
             }

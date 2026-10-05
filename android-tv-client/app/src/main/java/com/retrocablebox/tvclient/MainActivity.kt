@@ -397,6 +397,17 @@ class MainActivity : AppCompatActivity() {
         loadHost(value)
     }
 
+    // True only when `uri` has the same scheme, host and port as the paired
+    // host (currentHost). Uncompiled-in-review: keep this small.
+    private fun isPairedOrigin(uri: android.net.Uri): Boolean {
+        val paired = currentHost?.let { android.net.Uri.parse(it) } ?: return false
+        fun portOf(u: android.net.Uri): Int =
+            if (u.port != -1) u.port else if (u.scheme == "https") 443 else 80
+        return uri.scheme != null && uri.scheme == paired.scheme &&
+            uri.host != null && uri.host == paired.host &&
+            portOf(uri) == portOf(paired)
+    }
+
     private fun loadHost(host: String) {
         currentHost = host
         hasLoadedSuccessfully = false
@@ -672,6 +683,13 @@ class MainActivity : AppCompatActivity() {
     // same concern (this WebView load didn't end up showing a working
     // page, do something about it instead of leaving a dead screen).
     private inner class RetroCableBoxWebViewClient : WebViewClient() {
+        // This WebView exposes the AndroidRemoteBridge JS interface, so it must
+        // never navigate away from the paired host: any other page would get the
+        // bridge. Returning true blocks the navigation (nothing is loaded or sent).
+        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+            return !isPairedOrigin(request.url)
+        }
+
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
             super.onReceivedError(view, request, error)
             // Two guards, not just one: isForMainFrame alone turned out not

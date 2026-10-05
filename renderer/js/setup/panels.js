@@ -1407,7 +1407,8 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     rateInput.title = 'Playback speed multiplier during the sped-up stretch.';
     rateInput.value = cfg.rate || 3;
     rateInput.addEventListener('change', () => {
-      cfg.rate = Math.max(2, parsePositiveInt(rateInput.value, 3));
+      cfg.rate = Math.min(8, Math.max(2, parsePositiveInt(rateInput.value, 3)));
+      rateInput.value = cfg.rate;
       commitOwnerFields(ch, ['creditsSpeedup']);
     });
     grid.appendChild(rateInput);

@@ -32,6 +32,8 @@ function activate(ctx) {
     if (!AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return { art: null };
     if (!pluginFs.existsSync(filePath)) return { art: null };
     try {
+      // Size check BEFORE reading: an oversized file is skipped without loading it.
+      if (typeof pluginFs.statSync === 'function' && pluginFs.statSync(filePath).size > MAX_AUDIO_BYTES) return { art: null };
       const buf = await new Promise((resolve, reject) => {
         pluginFs.readFile(filePath, (err, data) => (err ? reject(err) : resolve(data)));
       });

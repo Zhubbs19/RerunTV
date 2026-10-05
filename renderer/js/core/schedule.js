@@ -92,6 +92,14 @@ export function mdKey(dateMs) {
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Calendar-day step (not +/-24h): a DST day is 23 or 25 hours long.
+function addLocalDays(dayStartMs, n) {
+  const d = new Date(dayStartMs);
+  d.setDate(d.getDate() + n);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
 function startOfLocalDay(dateMs) {
   const d = new Date(dateMs);
   d.setHours(0, 0, 0, 0);
@@ -156,7 +164,7 @@ function resolveDayContent(block, dayStartMs, safety) {
   const t = block.trigger;
   if (dayStartMs < cycleStartMs(dayStartMs, t)) return null;
   const ov = block.dayOverrides && block.dayOverrides[mdKey(dayStartMs)];
-  if (ov && ov.skip) return resolveDayContent(block, dayStartMs - DAY_MS, safety - 1);
+  if (ov && ov.skip) return resolveDayContent(block, addLocalDays(dayStartMs, -1), safety - 1);
   if (block.finale && isLastDayOfRange(dayStartMs, t)) {
     return { finale: true };
   }
@@ -178,7 +186,7 @@ function resolveDayContent(block, dayStartMs, safety) {
 // block's own start), so resolveActiveSource tries the next candidate.
 function resolveDailySource(block, atMs) {
   const today = startOfLocalDay(atMs);
-  const effectiveDay = atMs < unlockMsFor(block, today) ? today - DAY_MS : today;
+  const effectiveDay = atMs < unlockMsFor(block, today) ? addLocalDays(today, -1) : today;
   const content = resolveDayContent(block, effectiveDay, DAILY_SAFETY_CAP);
   if (!content) return null;
   if (content.finale) {
@@ -198,7 +206,7 @@ function resolveDailySource(block, atMs) {
 function occurrenceDayFor(atMs, t) {
   const d = new Date(atMs);
   const today = startOfLocalDay(atMs);
-  if (t.startHour > t.endHour && d.getHours() < t.startHour) return today - DAY_MS;
+  if (t.startHour > t.endHour && d.getHours() < t.startHour) return addLocalDays(today, -1);
   return today;
 }
 
@@ -307,6 +315,7 @@ export function nextSourceBoundary(ch, fromMs, capMs) {
   const b = from.block;
   const isDailyRollover = b && b.trigger.type === 'dateRange' && (b.mode === 'daily' || b.mode === 'weekly') &&
     !from.key.endsWith('-finale');
+  let fast = null;
   if (isDailyRollover) {
     const today = startOfLocalDay(fromMs);
     const todayUnlock = unlockMsFor(b, today);
@@ -318,19 +327,26 @@ export function nextSourceBoundary(ch, fromMs, capMs) {
     if (t.startHour != null && t.endHour != null) {
       const windowEnd = new Date(today);
       windowEnd.setHours(t.endHour, 0, 0, 0);
-      if (fromMs < todayUnlock) return todayUnlock;
-      if (fromMs < windowEnd.getTime()) return windowEnd.getTime();
+      if (fromMs < todayUnlock) fast = todayUnlock;
+      else if (fromMs < windowEnd.getTime()) fast = windowEnd.getTime();
     }
-    return fromMs < todayUnlock ? todayUnlock : unlockMsFor(b, today + DAY_MS);
+    if (fast == null) fast = fromMs < todayUnlock ? todayUnlock : unlockMsFor(b, addLocalDays(today, 1));
+    // Never hand back a time at/before fromMs (DST oddities): fall through to the scan.
+    if (!(fast > fromMs)) fast = null;
   }
+  // The scan also runs for the fast path, capped at its value, so a different
+  // block taking over before the unlock/window end is still noticed.
+  const scanCap = fast != null ? (capMs != null ? Math.min(capMs, fast) : fast) : capMs;
   const d = new Date(fromMs);
   d.setMinutes(0, 0, 0);
   for (let i = 1; i <= BOUNDARY_SCAN_HOURS; i++) {
     const hourStart = d.getTime() + i * 3600000;
-    if (capMs != null && hourStart > capMs) return Infinity;
-    if (resolveActiveSource(ch, hourStart).key !== from.key) return hourStart;
+    if (scanCap != null && hourStart > scanCap) break;
+    if (hourStart > fromMs && resolveActiveSource(ch, hourStart).key !== from.key) {
+      return fast != null ? Math.min(hourStart, fast) : hourStart;
+    }
   }
-  return Infinity;
+  return fast != null ? fast : Infinity;
 }
 
 // A channel's broadcast day — outside these hours it goes off the air
@@ -360,7 +376,7 @@ export function nextBroadcastHoursBoundary(ch, fromMs) {
   const fromState = isWithinBroadcastHours(ch, fromMs);
   const dayStart = startOfLocalDay(fromMs);
   for (let day = 0; day <= 1; day++) {
-    const base = new Date(dayStart + day * DAY_MS);
+    const base = new Date(addLocalDays(dayStart, day));
     const candidates = [bh.startHour, bh.endHour]
       .map((h) => { const d = new Date(base); d.setHours(h, 0, 0, 0); return d.getTime(); })
       .filter((t) => t > fromMs)

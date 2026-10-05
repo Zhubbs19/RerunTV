@@ -132,8 +132,26 @@ function escapeHtml(value) {
 
 function isLoopbackRequest(req) {
   const ip = requestIp(req);
-  return ip === '::1' || ip === '127.0.0.1' || ip.startsWith('127.')
-    || ip.startsWith('::ffff:127.');
+  if (!(ip === '::1' || ip === '127.0.0.1' || ip.startsWith('127.')
+    || ip.startsWith('::ffff:127.'))) return false;
+  // The socket address alone is not enough: a webpage in the user's own
+  // browser can reach 127.0.0.1 too (DNS rebinding points an attacker's
+  // hostname at it). Only a Host header naming a loopback address on this
+  // server's own port passes, so a rebound hostname is refused.
+  let hostUrl;
+  try { hostUrl = new URL(`http://${req.headers.host || ''}`); } catch (e) { return false; }
+  const hostname = hostUrl.hostname;
+  if (hostname !== '127.0.0.1' && hostname !== 'localhost' && hostname !== '[::1]') return false;
+  const localPort = req.socket && req.socket.localPort;
+  return !localPort || Number(hostUrl.port || 80) === localPort;
+}
+
+// A browser attaches Origin to cross-site writes. A LAN client that is not a
+// browser (the Android app) sends none; one that does must be talking to us.
+function originMatchesHost(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
 }
 
 function controlPage({ access, state, controlToken, canStop }) {
@@ -221,7 +239,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     // the process. The stop request also needs an unguessable page-embedded
     // header, so an unrelated local webpage cannot submit it cross-origin.
     if (url.pathname === '/server' || url.pathname === '/server/stop') {
-      if (!isLoopbackRequest(req)) { res.writeHead(404).end('Not found'); return; }
+      if (!isLoopbackRequest(req)) { res.writeHead(403).end('Forbidden'); return; }
       if (url.pathname === '/server' && req.method === 'GET') {
         const state = typeof pluginRuntime.getControlState === 'function'
           ? pluginRuntime.getControlState() : {};
@@ -312,6 +330,14 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     if (url.pathname === '/api/commands' && req.method === 'POST') {
       if (!hasControlScope(req, res)) return;
       trackConnection('viewer', req, 'control');
+      // A browser form post can't send JSON, and a cross-site fetch() that
+      // does is stopped by the Origin check; both close a CSRF route to the
+      // host's config writer.
+      if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))
+          || !originMatchesHost(req)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Forbidden' }));
+        return;
+      }
       if (typeof pluginRuntime.applyCommands !== 'function') {
         res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This host cannot accept commands' }));
         return;
@@ -523,7 +549,10 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
       // same one-time-code mechanism as main.js's viewerControlAccessUrls,
       // just built here because this route is reached by any device, not
       // only the host window.
-      const controlUrls = access.pairingCodes && access.pairingCodes.control
+      // Only a session that already holds control scope may be handed the
+      // control code; a view-only device would otherwise pair up to control.
+      const canMintControl = typeof access.scopeOf === 'function' && access.scopeOf(req) === 'control';
+      const controlUrls = canMintControl && access.pairingCodes && access.pairingCodes.control
         ? [{ url: access.pairingUrl(`${url.origin}/control`, 'control') }]
         : [];
       const info = controlUrls.length

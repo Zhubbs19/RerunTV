@@ -123,6 +123,7 @@ export function NumberStepper({ value = 0, min = -Infinity, max = Infinity, step
     const dir = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[event.key];
     if (!dir) return;
     event.preventDefault();
+    event.stopPropagation(); // the arrow steps the value; it must not also move channel/focus
     commit(stepValue(input.value, bounds, dir));
   });
   input.addEventListener('change', () => commit(stepValue(input.value, bounds, 0)));

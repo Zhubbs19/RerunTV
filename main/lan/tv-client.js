@@ -35,6 +35,17 @@ function prepareRemoteProfile(input, now = Date.now()) {
   return { ok: true, profile, fileName: `${name}-${stamp}.json` };
 }
 
+// Any paired device can post captures, so the folder must not grow forever.
+const MAX_SAVED_PROFILES = 20;
+function pruneRemoteProfiles(dir) {
+  try {
+    const files = fs.readdirSync(dir).filter((f) => f.endsWith('.json'))
+      .map((f) => { const p = path.join(dir, f); return { p, t: fs.statSync(p).mtimeMs }; })
+      .sort((a, b) => b.t - a.t);
+    files.slice(MAX_SAVED_PROFILES).forEach((f) => { try { fs.unlinkSync(f.p); } catch (e) { /* in use — next save retries */ } });
+  } catch (e) { /* best effort */ }
+}
+
 function saveRemoteProfile(userDataDir, input, now = Date.now()) {
   const prepared = prepareRemoteProfile(input, now);
   if (!prepared.ok) return { ok: false, error: prepared.error };
@@ -42,6 +53,7 @@ function saveRemoteProfile(userDataDir, input, now = Date.now()) {
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, prepared.fileName);
   fs.writeFileSync(file, `${JSON.stringify(prepared.profile, null, 2)}\n`);
+  pruneRemoteProfiles(dir);
   return { ok: true, path: file };
 }
 

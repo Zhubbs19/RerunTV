@@ -48,6 +48,12 @@ export function showOnboarding({ updateStrategy = 'startup-auto' } = {}) {
 
     let step = 0;
     let selectedStrategy = updateStrategy;
+    const returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const close = () => {
+      overlay.removeEventListener('keydown', onKeydown);
+      overlay.remove();
+      if (returnFocus && returnFocus.isConnected) returnFocus.focus();
+    };
 
     function renderWelcome() {
       box.innerHTML = '';
@@ -76,6 +82,7 @@ export function showOnboarding({ updateStrategy = 'startup-auto' } = {}) {
       actions.className = 'confirm-dialog-actions';
       const next = makeButton('CONTINUE', 'btn btn-primary');
       next.addEventListener('click', () => { step = 1; renderUpdates(); });
+      next.dataset.onboardingDefault = '1';
       actions.appendChild(next);
       box.append(kicker, title, message, list, actions);
       next.focus();
@@ -125,8 +132,7 @@ export function showOnboarding({ updateStrategy = 'startup-auto' } = {}) {
       const finish = makeButton('SAVE & OPEN CHANNEL SETUP', 'btn btn-primary');
       back.addEventListener('click', () => { step = 0; renderWelcome(); });
       finish.addEventListener('click', () => {
-        overlay.removeEventListener('keydown', onKeydown);
-        overlay.remove();
+        close();
         resolve({ updateStrategy: selectedStrategy || 'startup-auto' });
       });
       actions.append(back, finish);
@@ -135,8 +141,29 @@ export function showOnboarding({ updateStrategy = 'startup-auto' } = {}) {
     }
 
     function onKeydown(event) {
+      if (event.key === 'Escape') {
+        // The wizard can't be skipped (it resolves the first-run choices), but Esc
+        // steps back from the second page instead of doing nothing at all.
+        event.preventDefault();
+        event.stopPropagation();
+        if (step === 1) { step = 0; renderWelcome(); }
+        return;
+      }
+      if (event.key === 'Tab') {
+        const focusable = Array.from(box.querySelectorAll('button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])'))
+          .filter((el) => !el.disabled);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
+        return;
+      }
       if (event.key !== 'Enter' || event.target?.matches('button')) return;
       event.preventDefault();
+      // Enter on a radio only moves on to the primary button; finishing the flow
+      // needs a deliberate second press (the radio's own choice is already set).
+      if (event.target?.matches('input[type="radio"]')) { box.querySelector('.btn-primary')?.focus(); return; }
       box.querySelector('.btn-primary')?.click();
     }
 

@@ -95,15 +95,21 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 | `X` | Mark an air check — save this moment to come back to |
 | `T` | Time machine — VCR shuttle mode |
 | `L` | Return to live |
+| `J` | Start the current show over from the beginning |
+| `O` | Open the logo / layout editor for the tuned channel |
 | `[` `]` | Jump to the previous/next commercial break (time machine only) |
 | `B` | Trigger a breaking-news overlay on demand |
 | `K` | Toggle closed captions |
 | `SHIFT` + `↑`/`↓` | Jump between favorite channels |
 | `BKSP` | Return to the last channel |
+| `SHIFT` + `BKSP` | Recent channels card |
 | `H` | Hide/show the hint bar |
 | `?` | Open the TV menu |
 | `CTRL` + `1`–`4` | Save the current channel to a quick-jump slot |
 | `ALT` + `1`–`4` | Recall a quick-jump slot |
+
+The single-letter keys above (G, S, M, C, V, A, Z, F, P, O, T, J, L, N, I, X, H) can be remapped under
+**SETTINGS › System › Keys**.
 
 ### Time machine
 
@@ -245,46 +251,37 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 
 ```
 main/
-  main.js                    Entry point: window creation, lifecycle, app:// protocol
-  main-protocol.js           app:// scheme handler (HTTP Range support for media/plugins)
-  main-plugins.js            Plugin discovery, install/enable, capability approval
-  main-plugin-capabilities.js  Capability normalization + the checked spawn/http/fs
-                                primitives shared by both plugin trust modes below
-  main-plugin-isolation.js   Spawns an isolated plugin's main.js as its own OS process
-  main-media.js              Folder scanning, codec-compatibility transcode
-  main-media-dispatch.js     Routes a channel's `path` to local disk or a plugin's
-                              mediaSource capability
-  main-media-bridge.js       Loopback HTTP server for a mediaSource-plugin ref in the host
-                              window when the LAN viewer server is off
-  main-config.js             channels.json load/save, backups, update-time userData guard
-  main-history.js            viewing-history.json — the append-only viewing log, kept
-                              out of channels.json on purpose
-  main-updater.js            Background update checks, guided/silent install (electron-updater)
-  main-updater-state.js      Pure update-history/version-transition helpers
-  main-lan.js                Local network address/port helpers
-  main-lan-security.js       Shared pairing-code + session-cookie auth for the LAN servers
-  main-discovery-server.js   LAN auto-discovery for the remote/viewer
-  main-viewer-server.js      LAN viewer HTTP server
-  main-viewer-projection.js  Redacts config before it reaches the LAN viewer
-  main-startup-server.js     Registers server mode with the OS's startup-apps list
-  main-connections.js        WATCH ON OTHER DEVICES connection tracking
-  main-api-cache.js          Disk cache for third-party API responses (TMDB, NOAA, ...)
-  main-diagnostics.js        Bounded/redacted logging for the support-bundle export
-  config-diff.js             Pure config-summary/diffing for diagnostics
-  main-dialogs.js            Shared file/folder picker IPC handlers
-  main-ui-scale.js           Interface scaling for high-DPI/4K displays
-  main-window-ref.js         Shared BrowserWindow reference
-  main-window-state.js       Remembers window size/position between launches
-  main-http-util.js          Shared readJsonBody()/serveStaticFile() for the remote/party/
-                              plugin HTTP servers
-  main-mime.js               Extension -> Content-Type lookup, no Electron dependency
-  main-path-safety.js        Shared path-containment/spawn-binary-name helpers
-  rpc-channel.js             Request/response + event RPC used across the isolation boundary
-  plugin-isolation-runtime.js  The entire contents of an isolated plugin's own forked OS
-                                process — the counterpart to main-plugin-isolation.js, which
-                                only covers the host side of that boundary
+  main.js                    Entry point: window creation, lifecycle, IPC registration
   preload.js                 contextBridge — exposes window.api.* to the renderer
   update-progress-preload.js contextBridge for the separate update-progress.html window
+  config/                    config.js channels.json load/save, backups, update-time userData
+                             guard · host.js config revisions + command replay · diff.js pure
+                             config-summary diffing · window-state.js · window-ref.js
+  plugins/                   plugins.js discovery, install/enable, capability approval ·
+                             capabilities.js normalization + checked spawn/http/fs primitives ·
+                             isolation.js spawns an isolated plugin as its own OS process ·
+                             isolation-runtime.js the code running inside that process ·
+                             rpc-channel.js RPC used across the isolation boundary
+  media/                     media.js folder scanning, codec-compatibility transcode ·
+                             dispatch.js routes a channel's `path` to local disk or a plugin's
+                             mediaSource capability · bridge.js loopback HTTP server for a
+                             mediaSource ref · protocol.js app:// scheme handler (HTTP Range
+                             support) · loudness.js · cropdetect.js · ffmpeg-install.js · mime.js
+  lan/                       lan.js address/port helpers · security.js pairing-code +
+                             session-cookie auth · viewer-server.js LAN viewer HTTP server ·
+                             viewer-projection.js config redaction for the viewer ·
+                             discovery-server.js auto-discovery · startup-server.js server-mode
+                             startup entry · connections.js WATCH ON OTHER DEVICES tracking ·
+                             control-browse.js · asset-upload.js · tv-client.js
+  updater/                   updater.js background checks, guided/silent install
+                             (electron-updater) · state.js pure update-history helpers ·
+                             api-cache.js disk cache for third-party API responses
+  diagnostics/               diagnostics.js bounded/redacted support-bundle logging ·
+                             history.js viewing-history.json (kept out of channels.json)
+  library/ personal/ splicer/  library store/scan/migrate, household/DVR service, Video Splicer
+  ui/                        dialogs.js file/folder pickers · scale.js interface scaling ·
+                             screen-placement.js · cec.js
+  util/                      http.js shared readJsonBody()/serveStaticFile() · path-safety.js
 plugins/
   <plugin-id>/manifest.json  id, category, capabilities, isolation
   <plugin-id>/main.js        optional — main-process half (IPC handlers, etc.)
@@ -297,66 +294,42 @@ renderer/
   css/                       tokens · setup · tv · overlays · guide
   js/
     app.js                   Entry point: init, screen switching, keyboard map
-    state.js                 Shared mutable state (S) + the viewNow() viewing clock
-    dom.js                   Every element reference, resolved once
-    plugins.js                     Plugin registry + the registerX() extension points
-    plugin-settings-schema.js      Optional schemaVersion/defaults/validate/migrations
-                                    contract for a plugin's own settings
-    channels.js, schedule.js       Channel lookup + the live-schedule/dayparting math
-    playback-core.js               Tuning and primary media playback
-    playback-breaks.js             Commercial/interstitial playback state
-    playback-broadcast-fx.js       Up-next, logo bug, and broadcast presentation
-    playback-order.js              Natural/reverse/shuffle playback ordering
-    playback-recovery.js           Provider-backed (mediaSource plugin) fetch/recovery
-    interstitials.js               Deterministic commercial/interstitial-break resolver
-                                    (resolveBreakAt) — the engine playback modules/guide.js/
-                                    timemachine.js all read to decide what's airing when
-    virtual.js                     Renders/tears down the currently-tuned plugin channel
-    guide.js, guide-genres.js      Now-playing banner, the time-grid guide, genre palettes
-    program-search.js              Seven-day program search across channels
-    themes.js, display-mode.js     Theme switching; AUTO resolution/aspect simulation
-    broadcast-identity.js          Per-channel theme/tune/no-signal identity overrides
-    dynamic-overlays.js            Scheduled/break-triggered image/video overlays
-    timemachine.js                 VCR shuttle
-    airchecks.js                   Marked moments — a channel plus an instant on the
-                                    viewing clock, recalled by shifting that clock
-    history.js                     Viewing-history recording/summaries (the log itself
-                                    lives in main-history.js's own file)
-    power.js                       Power, standby, volume, CRT state
-    curation*.js, tagtaxonomy.js   Auto-curation engine (tagging, template scheduling,
-                                    background regeneration)
-    library-sync.js, library-sync-core.js, library-relink.js
-                                    Opt-in channel-folder resync and the channel-health
-                                    relink workflow
-    channel-package.js             Portable single-channel export/import
-    config-schema.js               Schema-versioning scaffold for the top-level app config
-    update-notice.js, update-progress.js
-                                    The update-ready toast and the separate update-progress
-                                    window
-    plugin-diagnostics.js          Plugin registration/capability inventory for diagnostics
-    api-contract.js                Canonical window.api surface, checked against the
-                                    sandboxed preload
-    setup*.js (family)             Setup screen: channel list, schedule/calendar,
-                                    settings, interstitials + flow builder, plugins tab,
-                                    tag taxonomy, command palette, keyboard nav, drag-drop,
-                                    backups, channel-preview, cross-channel diagnostics,
-                                    overlay-position editor
-    tv-menu.js                     The D-pad-navigable action menu opened by `?`
-    tv-client-viewport.js          Cross-device CSS-pixel viewport normalization for the
-                                    Android TV client
-    touch-controls.js              LAN-viewer touch input translation
-    audio.js                       Shared AudioContext/SFX mix bus
-    browser-api-shim.js            Browser fallback for window.api on the LAN viewer
-    details.js                     Program-details overlay (`I` key)
-    onboarding.js                  First-run welcome screen
-    pin-lock.js                    PIN-lock parental control
-    perf.js                        FPS counter
-    util.js                        Title-cleanup/formatting/id-generation helpers
+    api-contract.js          Canonical window.api surface, checked against the preload
+    browser-api-shim.js      Browser fallback for window.api on the LAN viewer
+    core/                    state.js shared state (S) + the viewNow() viewing clock ·
+                             schedule.js live-schedule/dayparting math · interstitials.js
+                             deterministic break resolver (resolveBreakAt) · commands.js
+                             config-edit commands + undo · schedule-query.js · channels.js ·
+                             dom.js · keymap.js / key-remap.js · audio.js · config-schema.js ·
+                             util.js · perf.js · tagtaxonomy.js · programming-rules.js
+    playback/                core.js tuning and primary playback · breaks.js
+                             commercial/interstitial state · broadcast-fx.js · order.js ·
+                             recovery.js mediaSource fetch/recovery · virtual.js plugin
+                             channel rendering · timemachine.js VCR shuttle · power.js ·
+                             history.js · bars.js · leveler*.js · recent-channels.js ·
+                             dynamic-overlays.js
+    guide/                   guide.js banner + time-grid guide · genres.js · model.js ·
+                             program-search.js
+    timeline/                edits.js · render.js · scrubber.js
+    setup/                   Setup screen (index.js entry): channels, schedule/onair,
+                             settings, interstitials + flowbuilder, plugins tab, command
+                             palette, keyboard nav, drag-drop, backups, overlay editors,
+                             onboarding, pin-lock.js (PIN-lock parental control), splicer
+    tv/                      TV mode: usage-mode.js, input.js, menu.js, setup.js, details.js
+                             (`I` key), touch.js, gamepad.js, client-viewport.js, wizard.js
+    remote/                  input.js, profile.js, test.js — remote-button normalization
+    display/                 themes.js, eras.js, mode.js, identity.js, contrast.js, audio-output.js
+    library/                 sync*.js, relink.js, channel-package.js, curation*.js, airchecks.js
+    personal/                dvr.js, dvr-scheduler.js, state.js
+    plugin/                  host.js plugin registry + registerX() extension points ·
+                             settings-schema.js · diagnostics.js
+    update/                  notice.js, progress.js, highlights.js
+    ui/                      Shared component kit (button, dialog, field, tabs, toast, ...)
 ```
 
-Core stays plugin-agnostic — nothing in `main/` or `renderer/js/` (outside `plugins.js`
+Core stays plugin-agnostic — nothing in `main/` or `renderer/js/` (outside `plugin/host.js`
 itself) names a specific plugin. Every channel and on-screen feature registers itself
-into core through `plugins.js`'s extension points (`registerChannelType`,
+into core through `plugin/host.js`'s extension points (`registerChannelType`,
 `registerThemePack`, `registerCoreHook`, `registerSettingsPanel`, `registerInterrupt`,
 and a few more), so installing or removing a plugin folder is the entire surface area of
 adding or dropping a feature.
@@ -369,7 +342,7 @@ search and a pinned status bar holding save state, undo/redo and Start Watching
 The renderer is served over a custom `app://` scheme rather than `file://`, because
 Chromium refuses to load ES modules from a `file://` origin. That choice cascades: a
 non-`file://` page also can't load `file://` media, so video is streamed through the same
-handler — which is why `serveFile` in `main/main-protocol.js` implements Range requests.
+handler — which is why `serveFile` in `main/media/protocol.js` implements Range requests.
 The schedule math seeks constantly, so partial requests are load-bearing, not optional.
 
 No bundler and no build step; the modules load natively.
@@ -399,7 +372,8 @@ npm run dist    # installer (nsis / dmg / AppImage)
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
 if no tests are discovered. The larger real-Electron/CDP suite lives under the tracked
 `tests/ui/` working directory; run it with
-`powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`.
+`powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`. (The repo's `.gitignore`
+ignores `*.mjs`, so new harness files there need `git add -f`; see `tests/ui/README.md`.)
 
 Release plugin contents are explicit in `build/bundled-plugins.json`; machine-local
 integrations cannot silently change the default artifact. The personal flavor is the

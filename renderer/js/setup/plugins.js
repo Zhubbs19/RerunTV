@@ -160,7 +160,8 @@ async function confirmUninstallPlugin(p) {
 // (same four arrays, same truthiness test) so this stays in lockstep with
 // what actually gates activation there.
 function hasAnyCapability(caps) {
-  return !!(caps && (caps.ipc.length || caps.spawn.length || caps.net.length || caps.mediaSource.length));
+  return !!(caps && (caps.ipc.length || caps.spawn.length || caps.net.length || caps.mediaSource.length
+    || (caps.system && caps.system.length)));
 }
 
 // Recomputes approval state fresh from S.config on every render, rather than

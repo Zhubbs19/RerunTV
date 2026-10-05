@@ -89,7 +89,9 @@ async function tick() {
   const deck = getRendererService('tape-deck');
   if (!deck || typeof deck.record !== 'function') return;
   await updateResumePoints(deck);
-  const from = viewNow() - 24 * 3600000; // captures an airing already in progress
+  // Real clock on purpose (background-tick exception to viewNow()): a recording is
+  // an appointment with the actual broadcast, whatever the time machine shows.
+  const from = Date.now() - 24 * 3600000; // captures an airing already in progress
   running = true;
   try {
     const summaries = await personalCall('listProfiles');

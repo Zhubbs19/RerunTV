@@ -113,7 +113,7 @@ function activate(ctx) {
     }
 
     const ffmpegPath = ctx.services.ffmpegPath;
-    if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+    if (ffmpegPath) {
       tracks.push(...(await embeddedTracksFor(filePath, ffmpegPath, spawn)));
     }
 

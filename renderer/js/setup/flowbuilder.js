@@ -9,9 +9,9 @@
 // at all yet (see ensureFlowsConfig's two seeded defaults for the intended
 // shape). labeledField is exported from setup-interstitials.js since both
 // files build small "LABEL + control" form rows the same way.
-import { formatChannelNumber, getChannel, sortedChannels } from '../core/channels.js';
+import { formatChannelNumber, getChannel, parseChannelNumber, sortedChannels } from '../core/channels.js';
 import { flowCountBadgeEl } from '../core/dom.js';
-import { confirmDialog, alertDialog } from './dialogs.js';
+import { confirmDialog } from './dialogs.js';
 import { interstitialTypeDef, labeledField } from './interstitials.js';
 import { attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, emptyState, parsePositiveInt } from './util.js';
 import { cloneJson } from '../core/commands.js';
@@ -19,13 +19,16 @@ import { S, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
 import { MenuButton } from '../ui/menu.js';
 
 export function ensureFlowsConfig() {
-  if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [], flows: [] };
-  if (!S.config.interstitials.flows || !S.config.interstitials.flows.length) {
+  if (!S.config.interstitials) S.config.interstitials = { pool: [], presets: [] };
+  // Seed only when there is no flows list at all — an empty array means the user
+  // deleted every flow, and re-seeding would resurrect them. Seeded flows are OFF:
+  // they match every untagged file and would override channel ads if enabled.
+  if (!Array.isArray(S.config.interstitials.flows)) {
     S.config.interstitials.flows = [
       {
         id: 'flow-cartoon-30m',
         name: '30-Min Dual-Episode Cartoon Flow',
-        enabled: true,
+        enabled: false,
         contentTags: ['cartoon', 'cartoon-30'],
         steps: [
           { id: 's1', type: 'upNext', name: 'Coming Up Next Bumper', tags: ['cartoon', 'network-intro'] },
@@ -38,7 +41,7 @@ export function ensureFlowsConfig() {
       {
         id: 'flow-prime-1h',
         name: '1-Hour Prime Time Show Flow',
-        enabled: true,
+        enabled: false,
         contentTags: ['prime-show', 'drama-1h'],
         steps: [
           { id: 'p1', type: 'upNext', name: 'Show Intro Bumper', tags: ['network-intro'] },
@@ -153,7 +156,7 @@ export function renderFlowsList() {
       if (val === 'all') {
         activeFlow.channels = [];
       } else {
-        const num = parseInt(val, 10);
+        const num = parseChannelNumber(val);
         if (!activeFlow.channels) activeFlow.channels = [];
         if (!activeFlow.channels.includes(num)) {
           activeFlow.channels.push(num);
@@ -244,7 +247,7 @@ function renderFlowPicker(flows) {
       label: `Actions for ${flow.name || 'untitled flow'}`,
       groups: [
         [{ label: 'Duplicate', run: () => duplicateFlow(flow) }],
-        [{ label: 'Delete flow…', run: () => deleteFlow(flow), danger: true, disabled: flows.length <= 1 }],
+        [{ label: 'Delete flow…', run: () => deleteFlow(flow), danger: true }],
       ],
     });
     item.append(text, menu.button);
@@ -270,10 +273,6 @@ function duplicateFlow(flow) {
 async function deleteFlow(flow) {
   ensureFlowsConfig();
   const flows = S.config.interstitials.flows;
-  if (flows.length <= 1) {
-    alertDialog('Cannot delete the last flow template.');
-    return;
-  }
   if (!(await confirmDialog(`Delete flow "${flow.name || 'untitled'}"? You can undo this.`))) return;
   dispatch({ type: 'item.remove', collection: 'flows', id: flow.id });
   if (activeFlowId === flow.id) activeFlowId = flows[0] ? flows[0].id : null;
@@ -432,6 +431,7 @@ function renderFlowCadencePanel(flow) {
     intervalInput.addEventListener('change', () => {
       const prior = cloneJson(flow);
       cadence.intervalMinutes = parsePositiveInt(intervalInput.value, 10);
+      intervalInput.value = cadence.intervalMinutes;
       commitItemEdit('flows', [flow, prior]);
     });
     grid.appendChild(labeledField('EVERY (MIN)', intervalInput));
@@ -447,6 +447,7 @@ function renderFlowCadencePanel(flow) {
   podMinInput.addEventListener('change', () => {
     const prior = cloneJson(flow);
     cadence.podMin = parsePositiveInt(podMinInput.value, 1);
+    podMinInput.value = cadence.podMin;
     if ((cadence.podMax || 1) < cadence.podMin) {
       cadence.podMax = cadence.podMin;
       podMaxInput.value = cadence.podMax;
@@ -832,6 +833,7 @@ function renderFlowTimelineCanvas(flow) {
       minIn.addEventListener('change', () => {
         const prior = cloneJson(flow);
         step.podMin = parsePositiveInt(minIn.value, 1);
+        minIn.value = step.podMin;
         if ((step.podMax || 1) < step.podMin) {
           step.podMax = step.podMin;
           maxIn.value = step.podMax;
@@ -851,6 +853,7 @@ function renderFlowTimelineCanvas(flow) {
       maxIn.addEventListener('change', () => {
         const prior = cloneJson(flow);
         step.podMax = Math.max(parsePositiveInt(maxIn.value, 1), step.podMin || 1);
+        maxIn.value = step.podMax;
         commitItemEdit('flows', [flow, prior]);
       });
       podRow.appendChild(maxIn);
@@ -959,7 +962,14 @@ function renderFlowTimelineCanvas(flow) {
   });
 }
 
+// A re-click used to start a second interleaved timer chain; keep one handle and
+// clear it (and stop any chain from a previous run) before starting again.
+let simTimer = null;
+let simRunToken = 0;
+
 function runFlowSimulator(flow) {
+  if (simTimer) { clearTimeout(simTimer); simTimer = null; }
+  const runToken = ++simRunToken;
   const drawer = document.getElementById('flow-simulator-drawer');
   const progress = document.getElementById('flow-sim-progress');
   const output = document.getElementById('flow-sim-output');
@@ -1077,6 +1087,8 @@ function runFlowSimulator(flow) {
 
   let currentStepIdx = 0;
   function stepTick() {
+    simTimer = null;
+    if (runToken !== simRunToken) return;
     if (currentStepIdx >= flow.steps.length) {
       log(`------------------------------------------------------------`);
       log(`✓ [SIMULATOR COMPLETE] All ${flow.steps.length} sequence steps resolved cleanly! Flow is ready for live broadcast.`);
@@ -1116,7 +1128,7 @@ function runFlowSimulator(flow) {
     }
 
     currentStepIdx++;
-    setTimeout(stepTick, 400);
+    simTimer = setTimeout(stepTick, 400);
   }
 
   stepTick();
@@ -1168,10 +1180,6 @@ export function initFlowBuilder() {
     deleteBtn.addEventListener('click', async () => {
       ensureFlowsConfig();
       const flows = S.config.interstitials.flows;
-      if (flows.length <= 1) {
-        alertDialog('Cannot delete the last flow template.');
-        return;
-      }
       const activeFlow = flows.find((f) => f.id === activeFlowId);
       if (activeFlow) deleteFlow(activeFlow);
     });
@@ -1220,7 +1228,7 @@ export function initFlowBuilder() {
       step.podMax = 4;
       step.bumpInTags = ['network'];
       step.commercialTags = ['retro-ads'];
-      step.bumpOutTags = [activeFlow.contentTags[0] || 'show'];
+      step.bumpOutTags = [(activeFlow.contentTags || [])[0] || 'show'];
     }
     activeFlow.steps.push(step);
     commitItemEdit('flows', [activeFlow, prior], { label: `Add ${defaultName}` });
@@ -1240,6 +1248,8 @@ export function initFlowBuilder() {
   });
 
   simCloseBtn && simCloseBtn.addEventListener('click', () => {
+    if (simTimer) { clearTimeout(simTimer); simTimer = null; }
+    simRunToken++;
     const drawer = document.getElementById('flow-simulator-drawer');
     if (drawer) drawer.classList.add('hidden');
   });

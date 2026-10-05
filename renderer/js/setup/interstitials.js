@@ -8,7 +8,7 @@
 // self-contained subsystem (own timeline canvas, own simulator) with almost
 // no coupling to the pool/preset/standby UI here beyond the shared
 // labeledField() helper (exported below for that file to reuse).
-import { formatChannelNumber, getChannel, newInterstitialPoolEntry, parseMediaRef, sortedChannels, tryGetDisplayName } from '../core/channels.js';
+import { formatChannelNumber, getChannel, newInterstitialPoolEntry, parseChannelNumber, parseMediaRef, sortedChannels, tryGetDisplayName } from '../core/channels.js';
 import { cloneJson } from '../core/commands.js';
 import {
   commercialsIntervalEl, commercialsNoRepeatEl, bumpersNoRepeatEl, interstitialsNoRepeatEl, interstitialsAddEntryBtn, interstitialsAddFolderBtn,
@@ -265,7 +265,7 @@ async function promptBatchImportOptions(count) {
     }
     cancelBtn.addEventListener('click', () => close(null));
     importBtn.addEventListener('click', () => {
-      const channelAffinity = chSelect.value === 'any' ? 'any' : parseInt(chSelect.value, 10);
+      const channelAffinity = chSelect.value === 'any' ? 'any' : parseChannelNumber(chSelect.value);
       const tag = tagInput.value.trim().toLowerCase();
       close({ type: typeSelect.value, channelAffinity, contentTags: tag ? [tag] : [] });
     });
@@ -802,7 +802,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
     channelSelect.value = entry.channelAffinity === 'any' ? 'any' : String(entry.channelAffinity);
     channelSelect.addEventListener('change', () => {
       const prior = cloneJson(entry);
-      entry.channelAffinity = channelSelect.value === 'any' ? 'any' : parseInt(channelSelect.value, 10);
+      entry.channelAffinity = channelSelect.value === 'any' ? 'any' : parseChannelNumber(channelSelect.value);
       // A block affinity only means something within the channel it was
       // picked from — switching channels drops it rather than carrying a
       // now-meaningless block id along silently.
@@ -1124,22 +1124,45 @@ const BULK_PREVIEW_MAX_MS = 8000;
 let bulkPreviewActive = false;
 let bulkPreviewCancelled = false;
 
+// The wait is sliced so STOP, leaving setup, or tuning away ends it within a tick
+// instead of letting the remaining entries keep taking over #player on the TV.
+let bulkPreviewWake = null;
+const setupScreenVisible = () => {
+  const el = document.getElementById('setup-screen');
+  return !!el && !el.classList.contains('hidden');
+};
+
+function abortableWait(ms) {
+  return new Promise((resolve) => {
+    const startedAt = Date.now();
+    let timer = null;
+    const done = () => { clearTimeout(timer); bulkPreviewWake = null; resolve(); };
+    bulkPreviewWake = done;
+    const tick = () => {
+      if (bulkPreviewCancelled || !setupScreenVisible() || Date.now() - startedAt >= ms) { done(); return; }
+      timer = setTimeout(tick, 150);
+    };
+    tick();
+  });
+}
+
 async function startBulkPreview(entries, btn) {
   bulkPreviewActive = true;
   bulkPreviewCancelled = false;
   for (let i = 0; i < entries.length; i++) {
-    if (bulkPreviewCancelled) break;
+    if (bulkPreviewCancelled || !setupScreenVisible()) break;
     const entry = entries[i];
     const f = entry.file || entry.bgFile;
     if (btn) btn.textContent = `■ STOP PREVIEW (${i + 1}/${entries.length})`;
     try {
       const resolved = await window.api.resolvePlayablePath(f.source || 'local', f.path);
       const url = await window.api.toFileUrl(resolved.path);
+      if (bulkPreviewCancelled || !setupScreenVisible()) break;
       player.src = url;
       await player.play().catch(() => {});
       const durationMs = f.duration ? Math.min(BULK_PREVIEW_MAX_MS, f.duration * 1000) : BULK_PREVIEW_MAX_MS;
       // eslint-disable-next-line no-await-in-loop -- intentionally sequential, this is a one-at-a-time preview
-      await new Promise((resolve) => { setTimeout(resolve, durationMs); });
+      await abortableWait(durationMs);
     } catch (e) { /* a file that fails to resolve/play is skipped, not fatal to the rest of the run */ }
   }
   bulkPreviewActive = false;
@@ -1149,6 +1172,13 @@ async function startBulkPreview(entries, btn) {
 
 function stopBulkPreview() {
   bulkPreviewCancelled = true;
+  if (bulkPreviewWake) bulkPreviewWake();
+}
+
+// Ends a running preview immediately. Safe to call anywhere (no-op when idle);
+// the run also notices on its own when #setup-screen is hidden.
+export function cancelBulkPreview() {
+  if (bulkPreviewActive) stopBulkPreview();
 }
 
 export function renderInterstitialsList() {
@@ -1348,7 +1378,7 @@ interstitialsBulkSelectAllBtn.addEventListener('click', () => {
 
 interstitialsBulkChannelApplyBtn.addEventListener('click', () => {
   const val = interstitialsBulkChannelSelectEl.value;
-  const channelAffinity = val === 'any' ? 'any' : parseInt(val, 10);
+  const channelAffinity = val === 'any' ? 'any' : parseChannelNumber(val);
   const targets = selectedInterstitialEntryObjs();
   const priors = targets.map((entry) => [entry, cloneJson(entry)]);
   targets.forEach((entry) => {
@@ -1397,7 +1427,14 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
 
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING INTERSTITIALS FOLDER…';
-  const paths = await window.api.scanFolder('local', folder);
+  let paths;
+  try {
+    paths = await window.api.scanFolder('local', folder);
+  } catch (err) {
+    scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 4000);
+    return;
+  }
   scanProgressEl.classList.add('hidden');
   if (!paths || !paths.length) {
     scanProgressEl.classList.remove('hidden');
@@ -1650,7 +1687,7 @@ function buildPresetRow(preset, idx, presets, { detail = false } = {}) {
     if (val === 'all') {
       preset.channels = [];
     } else {
-      const num = parseInt(val, 10);
+      const num = parseChannelNumber(val);
       if (!preset.channels) preset.channels = [];
       if (!preset.channels.includes(num)) {
         preset.channels.push(num);

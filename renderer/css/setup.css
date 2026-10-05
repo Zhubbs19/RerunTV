@@ -2049,7 +2049,7 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   color: var(--text);
   cursor: pointer;
 }
-.tag-ac-item:hover { background: rgba(var(--accent-rgb), 0.15); color: var(--accent); }
+.tag-ac-item:hover, .tag-ac-item.active { background: rgba(var(--accent-rgb), 0.15); color: var(--accent); }
 
 .btn {
   position: relative;

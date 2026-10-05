@@ -28,6 +28,25 @@ const { isPathContained } = require('../util/path-safety');
 // a LAN link; the client sees the cap and the count it was truncated from.
 const MAX_ENTRIES = 2000;
 
+// rootsFromConfig runs on every browse request and used to stat every path in
+// the config synchronously on the main thread. Whether a path is a directory
+// rarely changes, so remember the answer briefly, keyed by the path string
+// itself (a different config or a renamed path is simply a different key).
+const DIR_CACHE_TTL_MS = 30 * 1000;
+const DIR_CACHE_MAX = 5000;
+const dirCache = new Map(); // normalized path -> { isDir: boolean|null, at }
+
+function isDirectoryCached(candidate) {
+  const now = Date.now();
+  const hit = dirCache.get(candidate);
+  if (hit && now - hit.at < DIR_CACHE_TTL_MS) return hit.isDir;
+  let isDir = null; // null: could not stat (missing, unreadable)
+  try { isDir = fs.statSync(candidate).isDirectory(); } catch (e) { /* leave null */ }
+  if (dirCache.size >= DIR_CACHE_MAX) dirCache.clear();
+  dirCache.set(candidate, { isDir, at: now });
+  return isDir;
+}
+
 // Walks config for every path-shaped string and keeps the directories they
 // live in. A file contributes its parent; a folder entry contributes itself.
 function rootsFromConfig(config) {
@@ -42,11 +61,8 @@ function rootsFromConfig(config) {
       // a directory, so resolve it by asking the filesystem when it is cheap
       // to, and fall back to the parent when it is not.
       let candidate = path.normalize(node);
-      try {
-        if (!fs.statSync(candidate).isDirectory()) candidate = path.dirname(candidate);
-      } catch (e) {
-        candidate = key === 'folders' ? candidate : path.dirname(candidate);
-      }
+      const isDir = isDirectoryCached(candidate);
+      if (isDir === false || (isDir === null && key !== 'folders')) candidate = path.dirname(candidate);
       roots.add(path.resolve(candidate));
       return;
     }

@@ -5,7 +5,7 @@ const crypto = require('crypto');
 // named plain "auth" entirely, even though it's exactly what this regex
 // exists to catch. `auth` as a substring still matches "authorization" too,
 // so this is strictly broader, not a behavior change for the existing case.
-const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth)/i;
+const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth|^pinLock$|^pin$|pin.?code)/i;
 
 function sanitizeViewerConfig(value) {
   if (Array.isArray(value)) return value.map(sanitizeViewerConfig);
@@ -27,6 +27,7 @@ function redactSensitiveUrlValue(value) {
   let url;
   try { url = new URL(value); } catch (e) { return value; }
   let changed = false;
+  if (url.username || url.password) { url.username = ''; url.password = ''; changed = true; }
   Array.from(url.searchParams.keys()).forEach((param) => {
     if (SENSITIVE_CONFIG_KEY.test(param)) { url.searchParams.set(param, '[redacted]'); changed = true; }
   });
@@ -85,4 +86,29 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
   };
 }
 
-module.exports = { sanitizeViewerConfig, createViewerProjection };
+// The commands the host applied (config-host.js's update), as published to
+// control sessions on the viewer event bus. A command payload can carry a
+// credential — plugin.setSettings holds a plugin's whole settings object (API
+// keys included), settings.set a single value under a path — and the client's
+// own config copy never had those keys (/api/control/config strips them), so
+// dropping them here keeps both sides consistent. Sensitive keys are removed at
+// any depth; a command addressed to a sensitive path loses its value too.
+function sanitizeAppliedUpdate(update) {
+  if (!update || typeof update !== 'object' || !Array.isArray(update.commands)) return update;
+  const commands = update.commands.map((cmd) => {
+    if (!cmd || typeof cmd !== 'object') return cmd;
+    const clean = sanitizeViewerConfig(cmd);
+    const addressed = []
+      .concat(Array.isArray(cmd.path) ? cmd.path : [])
+      .concat(typeof cmd.key === 'string' ? [cmd.key] : [])
+      .concat(typeof cmd.field === 'string' ? [cmd.field] : []);
+    if (addressed.some((segment) => typeof segment === 'string' && SENSITIVE_CONFIG_KEY.test(segment))) {
+      delete clean.value;
+      delete clean.settings;
+    }
+    return clean;
+  });
+  return { ...update, commands };
+}
+
+module.exports = { sanitizeViewerConfig, sanitizeAppliedUpdate, createViewerProjection };

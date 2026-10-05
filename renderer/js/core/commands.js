@@ -329,6 +329,9 @@ registerCommand('settings.set', {
     if (!Array.isArray(cmd.path) || !cmd.path.length || !SETTINGS_SECTIONS.has(cmd.path[0])) {
       throw new Error(`settings.set: "${cmd.path && cmd.path[0]}" isn't a settings section`);
     }
+    if (cmd.path.some((k) => typeof k !== 'string' || k === '__proto__' || k === 'constructor' || k === 'prototype')) {
+      throw new Error('settings.set: invalid path segment');
+    }
   },
   apply(config, cmd) {
     const before = readPath(config, cmd.path);

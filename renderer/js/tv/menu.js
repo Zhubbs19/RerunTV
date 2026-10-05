@@ -126,7 +126,7 @@ function profileItems() {
     disabled: profile.id === active?.id,
     run: async () => {
       let pin = null;
-      if (active?.restriction !== 'none' && active.hasPin) {
+      if (active && active.restriction !== 'none' && active.hasPin) {
         pin = await openOnScreenKeyboard({ title: `PIN FOR ${active.name.toUpperCase()}`, maxLength: 4 });
         if (pin == null) return;
       }

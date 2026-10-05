@@ -1073,7 +1073,7 @@ body.is-fullscreen .hint-bar {
 .guide-program-result-copy:hover, .guide-program-result-copy:focus-visible { background: var(--selection); outline: 1px solid var(--accent); }
 .guide-program-result-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .guide-program-result-copy span { color: var(--text-muted); font-family: var(--font-body); font-size: 11px; }
-.program-reminder-toast { position: absolute; z-index: 70; top: 16px; right: 16px; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--accent); background: var(--panel); box-shadow: 0 8px 28px rgba(0,0,0,.65); }
+.program-reminder-toast { position: absolute; z-index: 70; top: 16px; right: 16px; width: min(560px, calc(100% - 32px)); display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid var(--accent); background: var(--panel-2); box-shadow: 0 8px 28px rgba(0,0,0,.65); }
 .program-reminder-toast > div { flex: 1; display: grid; gap: 3px; }
 .program-reminder-toast strong { color: var(--accent); letter-spacing: 1px; }
 .program-reminder-toast span { color: var(--text); font-family: var(--font-body); }

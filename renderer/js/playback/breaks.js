@@ -28,8 +28,9 @@ import {
 } from '../core/schedule.js';
 import { S, saveConfigDebounced, viewNow } from '../core/state.js';
 import { autoHideAfter, formatClock, getDisplayTitle } from '../core/util.js';
+import { getChannel } from '../core/channels.js';
 import { playChannelLive } from './core.js';
-import { flashContentAdvisory, flashLocalAvailCut, updateLogoBug } from './broadcast-fx.js';
+import { flashContentAdvisory, flashLocalAvailCut, resetCreditsSpeedup, updateLogoBug } from './broadcast-fx.js';
 
 // Scoped by channel number — two channels can otherwise resolve identical
 // (type, windowStart) pairs, most reliably right after using a channel's own
@@ -81,7 +82,8 @@ export function scheduleNextBreak(ch) {
   clearTimeout(S.breakTimer);
   const boundary = nextBreakBoundary(ch, viewNow());
   if (!isFinite(boundary)) return;
-  S.breakTimer = setTimeout(() => checkBreakState(ch), Math.max(0, boundary - viewNow()) + 1);
+  // Re-resolve at fire time: S.config can be replaced wholesale after arming.
+  S.breakTimer = setTimeout(() => checkBreakState(getChannel(ch.number) || ch), Math.max(0, boundary - viewNow()) + 1);
 }
 
 // The single decision point for "what should be showing right now, break or
@@ -323,6 +325,9 @@ function startBreak(ch, resolved, key) {
     playConfiguredSound('card', ch.number);
     return;
   }
+  // Any interrupting break ends an in-flight credits speedup (rate/mute/squeeze
+  // panel) so that state can't leak into the break's own media.
+  resetCreditsSpeedup();
   if (type === 'trivia') {
     cancelUpNextBar();
     player.pause();
@@ -407,7 +412,7 @@ function startBreak(ch, resolved, key) {
         const fileSource = (entry.bgFile && entry.bgFile.source) || 'local';
         const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
         const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
-        if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+        if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
         player.loop = true;
         player.src = url;
         dynamicBumperTextEl.textContent = renderDynamicText(entry.text, ch, entry);
@@ -455,7 +460,8 @@ function startBreak(ch, resolved, key) {
       const fileSource = (entry.file && entry.file.source) || 'local';
       const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
       const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
-      if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+      // The break may have ended/changed during the awaits above.
+      if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
       player.src = url;
       S.awaitingBumperEnd = true;
 
@@ -575,6 +581,7 @@ function endBreak(ch) {
     if (logoBugHidesOnBreakFor(ch)) updateLogoBug(ch);
     (async () => {
       await fadeOutPlayer();
+      if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey) return;
       // fadeInOnReady: reveal only once the resumed show has actually
       // decoded a frame, instead of unfading immediately after src is set
       // (which exposed whatever stale/black frame was sitting in the

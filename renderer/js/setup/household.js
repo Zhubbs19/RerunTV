@@ -6,7 +6,7 @@ import {
   currentProfile, joinSharedSession, leaveSharedSession, onPersonalStateChange, personalCommand,
   profiles, startSharedSession, switchProfile,
 } from '../personal/state.js';
-import { alertDialog, promptDialog } from './dialogs.js';
+import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { getRendererService, themePackEntries } from '../plugin/host.js';
 import { applyTheme } from '../display/themes.js';
 
@@ -36,7 +36,7 @@ function button(label, run, className = 'btn') {
 
 async function currentPinFor(profile, title = 'PROFILE PIN') {
   if (!profile.hasPin) return null;
-  return promptDialog({ title, message: `Enter ${profile.name}'s current PIN.`, placeholder: '4 digits' });
+  return promptDialog({ title, message: `Enter ${profile.name}'s current PIN.`, placeholder: '4 digits', inputType: 'password' });
 }
 
 function renderProfiles() {
@@ -51,8 +51,8 @@ function renderProfiles() {
     row.append(swatch, label);
     if (profile.id !== active?.id) row.appendChild(button('SWITCH', async () => {
       let pin = null;
-      if (active?.restriction !== 'none' && active.hasPin) {
-        pin = await promptDialog({ title: 'LEAVE RESTRICTED PROFILE', message: `Enter ${active.name}'s PIN.`, placeholder: '4 digits' });
+      if (active && active.restriction !== 'none' && active.hasPin) {
+        pin = await promptDialog({ title: 'LEAVE RESTRICTED PROFILE', message: `Enter ${active.name}'s PIN.`, placeholder: '4 digits', inputType: 'password' });
         if (pin == null) return;
       }
       try { await switchProfile(profile.id, { pin }); renderHouseholdPanel(); }
@@ -77,7 +77,7 @@ function renderProfiles() {
     row.appendChild(button(profile.hasPin ? 'CHANGE PIN…' : 'SET PIN…', async () => {
       const currentPin = await currentPinFor(profile, 'CHANGE PROFILE PIN');
       if (profile.hasPin && currentPin == null) return;
-      const pin = await promptDialog({ title: profile.hasPin ? 'CHANGE PROFILE PIN' : 'SET PROFILE PIN', message: profile.hasPin ? 'Enter four digits, or leave blank to remove the PIN.' : 'Enter four digits.', placeholder: '4 digits' });
+      const pin = await promptDialog({ title: profile.hasPin ? 'CHANGE PROFILE PIN' : 'SET PROFILE PIN', message: profile.hasPin ? 'Enter four digits, or leave blank to remove the PIN.' : 'Enter four digits.', placeholder: '4 digits', inputType: 'password' });
       if (pin == null || (!profile.hasPin && !pin)) return;
       try { await call('updateProfile', { id: profile.id, currentPin, pin }); await reloadProfiles(active?.id); }
       catch (e) { await alertDialog(e.message, { variant: 'error' }); }
@@ -119,6 +119,11 @@ function renderRecordings() {
       setTimeout(() => deck?.play?.(recording.tapeId, resume?.positionMs || 0), 250);
     }));
     if (recording.status !== 'queued') row.appendChild(button('ERASE', async () => {
+      if (!(await confirmDialog({
+        title: 'ERASE RECORDING?',
+        message: `Erase "${String(recording.title || key)}"? The recording is deleted and can't be brought back.`,
+        confirmText: 'ERASE',
+      }))) return;
       const deck = getRendererService('tape-deck');
       if (recording.tapeId) await deck?.delete?.(recording.tapeId);
       await personalCommand({ type: 'recording.remove', key });
@@ -134,6 +139,12 @@ function renderRecordings() {
       const profile = currentProfile();
       const response = await call('command', { profileId: profile.id, baseRevision: profile.revision, command: { type: 'recording.cancel', id: request.id } });
       if (response.ok) { S.personalProfile = response.profile; renderHouseholdPanel(); }
+      else {
+        // Stale revision or an already-gone request: say so, and show what is current.
+        if (response.profile) S.personalProfile = response.profile;
+        renderHouseholdPanel();
+        await alertDialog(response.error || "That request couldn't be cancelled. Its latest state has been reloaded.", { variant: 'error' });
+      }
     }));
     recordingsEl.appendChild(row);
   });
@@ -159,7 +170,7 @@ function wire() {
   addBtn?.addEventListener('click', async () => {
     const name = await promptDialog({ title: 'ADD PROFILE', message: 'Who is this profile for?', placeholder: 'Name' });
     if (!name) return;
-    const pin = await promptDialog({ title: 'OPTIONAL PROFILE PIN', message: 'Enter four digits to protect this profile, or leave blank for no PIN.', placeholder: '4 digits' });
+    const pin = await promptDialog({ title: 'OPTIONAL PROFILE PIN', message: 'Enter four digits to protect this profile, or leave blank for no PIN.', placeholder: '4 digits', inputType: 'password' });
     if (pin == null) return;
     try { const created = await call('createProfile', { name, pin: pin || null }); await reloadProfiles(created.id); }
     catch (e) { await alertDialog(e.message, { variant: 'error' }); }

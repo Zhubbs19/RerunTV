@@ -17,7 +17,7 @@ Three processes: Electron **main** (`main/`, Node/Electron, single-threaded), th
 ## The one invariant that matters most
 
 Everything that reads "now" for schedule/playback purposes must go through `viewNow()`
-(`renderer/js/state.js`), not `Date.now()` — it's time-machine-aware, so scrubbing
+(`renderer/js/core/state.js`), not `Date.now()` — it's time-machine-aware, so scrubbing
 backward/forward in time and tuning in produce the correct schedule state with no separate
 history to maintain. `Date.now()` is only correct for a short, closed list of deliberately
 real-time exceptions (channel anchor timestamps, UI gesture timing, background scheduler
@@ -27,10 +27,10 @@ one of the exceptions.
 
 Schedule resolution is a pure function of `(channel, timestamp)` — `resolveActiveSource`,
 `computeSourcePosition`, `boundarySlot`, `resolveActiveCommercials`, `resolveBreakAt`
-(`renderer/js/schedule.js`, `renderer/js/interstitials.js`). This is what makes the
+(`renderer/js/core/schedule.js`, `renderer/js/core/interstitials.js`). This is what makes the
 time-machine possible: no separate playback log, just re-evaluating the same functions at a
 different timestamp. A channel file's `path` can now be a plain local path (unchanged) or a
-`mediasource:<providerId>:<opaque-ref>` string routed to a plugin (`main/main-media-dispatch.js`,
+`mediasource:<providerId>:<opaque-ref>` string routed to a plugin (`main/media/dispatch.js`,
 `PLUGIN_DEVELOPMENT.md`'s `mediaSource` capability) — that abstraction lives entirely below
 this layer (parsing/fetching a ref), so schedule.js's scheduling math never had to change to
 support it.
@@ -38,13 +38,13 @@ support it.
 ## Config mutation — read before caching anything
 
 Config objects (channels, interstitial flows, blocks) are mutated **in place** throughout
-the codebase — e.g. `setup-interstitials-flowbuilder.js` does `.steps.splice()` /
+the codebase — e.g. `setup/flowbuilder.js` does `.steps.splice()` /
 `.steps.push()` on the same object reference, and several `main.js` IPC handlers mutate a
 `loadConfig()` result before calling `saveConfig()` with it. **Do not add reference-based
 memoization of anything derived from config** without first keying it on real invalidation
 — a stale cache here means a wrong schedule airing.
 
-`S.configGeneration` (`renderer/js/state.js`) is that invalidation: a counter bumped by
+`S.configGeneration` (`renderer/js/core/state.js`) is that invalidation: a counter bumped by
 `bumpConfigGeneration()` on every known write to `S.config` — in-place mutation via
 `saveConfigDebounced()` (the funnel almost every setup-screen edit already goes through,
 bumped synchronously before its debounce timer, not inside it) and wholesale replacement via
@@ -53,7 +53,7 @@ reassign `S.config` outside that funnel (screen-switch refetch, LAN-viewer confi
 bump it directly. Any new mutation site that doesn't already flow through one of those funnels
 needs its own explicit `bumpConfigGeneration()` call, or a config change through it will go
 unnoticed by every cache keyed on the generation. Two caches now key on it:
-`resolveActiveCommercials`'s memoization (`schedule.js`) and `guide.js`'s render-signature
+`resolveActiveCommercials`'s memoization (`core/schedule.js`) and `guide/guide.js`'s render-signature
 fast path (skips the per-channel `getChannelSchedule()` sweep on the 30s guide tick when
 config/window/filter/selection are all unchanged, just moving the live line and
 `past`-dimming instead).
@@ -138,12 +138,12 @@ config/window/filter/selection are all unchanged, just moving the live line and
   supports `Page.captureScreenshot`/`Runtime.evaluate`/`Input.*`, but NOT the `Browser.*`
   window-management methods — no `Browser.setWindowBounds`; to start maximized, pre-seed
   `<userData>/window-state.json` with `{"isMaximized":true}` before launch instead, since
-  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`tests/ui/`, gitignored,
+  `main.js` reads that file itself). A from-scratch CDP-driven UI test suite (`tests/ui/`, tracked —
   see `tests/ui/README.md`) was built and verified working end-to-end this way — full tab/subtab
   screenshot sweep plus targeted functional checks via `Runtime.evaluate` calling real exported
   functions (`S.config` mutations, dynamic `import()` of renderer modules, computed-style
   assertions), not just DOM presence checks. Two hard-won lessons if you rebuild or extend it:
-  (1) **`main-config.js`'s `portableUserDataDir()` hardcodes config to `<repo>/userData` and
+  (1) **`main/config/config.js`'s `portableUserDataDir()` hardcodes config to `<repo>/userData` and
   ignores Electron's `--user-data-dir` switch entirely** — that's the developer's real live
   channel library, so any automated run MUST back it up (rename it aside) before launching and
   restore it after, in a `finally`/try-finally that also runs on a crash. (2) **`Start-Process`
@@ -161,14 +161,11 @@ config/window/filter/selection are all unchanged, just moving the live line and
   (non-fresh) `userData` copy: the startup update-check gate delays the real window by up to 12s
   when `config.updates.strategy === "startup-auto"` (poll for the page, don't grab it once), and
   setting `S.currentNumber` directly does not tune a channel — use `tuneToChannel()` from
-  `playback.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
+  `playback/core.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
   spawning multiple overlapping agents at it — that happened once, produced three redundant
   partial runs, and was slower overall than just running the script directly.
-  `package.json`'s `"test"` script (`node --experimental-vm-modules --test tests/ui/*.test.js`)
-  still references a `node:test`-based suite that existed during an earlier audit pass and was
-  deliberately deleted (see prior note below) — that's unrelated to the `tests/ui/` folder above and
-  still doesn't work; don't "fix" it by resurrecting old test files from git history without
-  checking with the user first.
+  `package.json`'s `"test"` script is `node scripts/run-tests.js`, which runs the tracked unit tests in
+  `tests/*.test.js` (not the CDP suite above; `npm test` gates commits).
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
   renderer-wide helpers, a plugin's own file for plugin-local ones) rather than introducing a
   new shared module for a single use.
@@ -183,10 +180,10 @@ config/window/filter/selection are all unchanged, just moving the live line and
 
 An extensive audit-and-fix pass (see git log on `master`) covered, in order: security fixes
 (path traversal, missing timeouts, unbounded request bodies), a broken feature, stale docs,
-main.js/main-plugins.js decomposition into focused modules, general polish, a round of
+main.js/main/plugins/plugins.js decomposition into focused modules, general polish, a round of
 performance fixes (async I/O instead of blocking calls, caching, bounded queues/caches,
 debouncing), and a readability pass (naming, dense conditionals, comment trims, small
-dedup). Two items — a `resolveActiveCommercials` memoization and a `guide.js` DOM-diffing
+dedup). Two items — a `resolveActiveCommercials` memoization and a `guide/guide.js` DOM-diffing
 fast path — were deferred twice for the config-mutation reason above before finally landing,
 gated on the `S.configGeneration` counter described there. Any future cache derived from
 config must key on that same counter (or extend it) rather than inventing its own
@@ -194,17 +191,17 @@ invalidation story.
 
 A second, larger pass followed (still on `master`, all after the audit above): auto-update via
 electron-updater (background checks, a settings panel, a guided/silent install flow, and the
-userData-preservation fix in `main-config.js` after a real update wiped a user's channel
-lineup — see `main-updater.js`/`main-updater-state.js`); the media-source abstraction letting a
-plugin supply channel content from somewhere other than local disk (`main-media-dispatch.js`,
-the `mediaSource` plugin capability, `library-sync*.js`, `playback-recovery.js` for
+userData-preservation fix in `main/config/config.js` after a real update wiped a user's channel
+lineup — see `main/updater/updater.js`/`main/updater/state.js`); the media-source abstraction letting a
+plugin supply channel content from somewhere other than local disk (`main/media/dispatch.js`,
+the `mediaSource` plugin capability, `library/sync*.js`, `playback/recovery.js` for
 provider-backed fetch/recovery); a plugin-settings split (every first-party plugin's UI moved
-from `renderer.js` into its own `settings.js`, formalized by `plugin-settings-schema.js` and
-composed by `setup-plugin-settings.js`); LAN hardening (`main-lan-security.js`'s per-service
-pairing-code + session-cookie auth, `main-viewer-projection.js`'s config redaction for the LAN
+from `renderer.js` into its own `settings.js`, formalized by `plugin/settings-schema.js` and
+composed by `setup/plugin-settings.js`); LAN hardening (`main/lan/security.js`'s per-service
+pairing-code + session-cookie auth, `main/lan/viewer-projection.js`'s config redaction for the LAN
 viewer); several new plugins and theme packs; and a UI/UX polish pass across `setup.css`/
-`tokens.css`/`overlays.css`. This pass also produced (and later removed) a `tests/ui/` suite,
-`AGENTS.md`, and an `AUDIT_2026-08-24.md` — see the test-suite note above; check git history on
-`master` rather than the working tree if you need that audit's original findings. As with the
+`tokens.css`/`overlays.css`. This pass also produced a `tests/ui/` suite and an `AGENTS.md` (both tracked now; see
+the test-suite note above) and an `AUDIT_2026-08-24.md` that was later removed — check git history on
+`master` if you need that audit's original findings. As with the
 first pass, no new invalidation scheme was invented for config-derived state — the
 `S.configGeneration` counter above is still the one to extend.

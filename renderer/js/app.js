@@ -63,6 +63,7 @@ import {
 } from './personal/state.js';
 import { initDvrScheduler } from './personal/dvr-scheduler.js';
 import { exitPromptOpen, installTvInput, routeKeydown } from './tv/input.js';
+import { closeBannerHub } from './tv/banner-hub.js';
 
 // Before anything renders: html[data-mode] decides layout and input model for
 // the whole app (docs/design/01, contract C1).
@@ -550,7 +551,8 @@ window.api.onRemoteSetChannelFlag((data) => {
 function deepMergeExistingKeys(target, patch) {
   let changed = false;
   for (const [key, value] of Object.entries(patch)) {
-    if (!(key in target)) continue;
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+    if (!Object.prototype.hasOwnProperty.call(target, key)) continue;
     const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
     if (isPlainObject(value) && isPlainObject(target[key])) {
       if (deepMergeExistingKeys(target[key], value)) changed = true;
@@ -635,7 +637,8 @@ window.api.onCompanionApplySettings?.((patch) => {
       rejected.push({ section, reason: 'edited from the box itself, not the companion' });
       continue;
     }
-    if (!(section in S.config)) {
+    if (section === '__proto__' || section === 'constructor' || section === 'prototype'
+      || !Object.prototype.hasOwnProperty.call(S.config, section)) {
       rejected.push({ section, reason: 'no such setting on this box' });
       continue;
     }
@@ -837,6 +840,9 @@ export async function showSetupScreen() {
   cancelAllInterrupts();
   cancelUpNextBar();
   hideDetailsOverlay();
+  // Stops the guide's 30 s tick and drops a half-browsed banner while setup is up.
+  closeGuideGrid();
+  closeBannerHub();
   exitTimeMachine();
   hideVirtualChannels();
   clearTimeout(S.idleTimer); S.idleTimer = null;
@@ -1280,7 +1286,16 @@ async function askAboutDisplaySizes() {
 }
 
 async function init() {
-  const loaded = await window.api.loadConfig();
+  let loaded;
+  try {
+    loaded = await window.api.loadConfig();
+  } catch (e) {
+    // Without this the window just stays blank; say what happened instead.
+    console.error('[boot] loadConfig failed:', e);
+    document.body.insertAdjacentHTML('beforeend', '<div role="alert" style="position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:32px;background:#000;color:#fff;font:20px monospace;text-align:center">RerunTV could not load its configuration.<br>Restart the app. If this keeps happening, the log has the details.</div>');
+    return;
+  }
+  let configLoadFailedThisSession = false;
   const isFirstRun = !!loaded._isFirstRun;
   delete loaded._isFirstRun;
   if (loaded._configLoadError) {
@@ -1293,8 +1308,10 @@ async function init() {
       'incomplete write or an external edit) and could not be loaded.\n\n' +
       (loaded._configLoadErrorBackupPath
         ? `The original file was preserved at:\n${loaded._configLoadErrorBackupPath}`
-        : 'The original file is still at its usual location, untouched.') +
-      '\n\nStarting from an empty configuration. If you have a config export backup, ' +
+        : 'The original file is still at its usual location.') +
+      '\n\nStarting from an empty configuration. Until the file is repaired, ordinary edits are ' +
+      'not written to it, but IMPORT CONFIG (or any action that saves the whole configuration) ' +
+      'replaces it with what is on screen. If you have a config export backup, ' +
       'use IMPORT CONFIG in settings to restore it.',
       { variant: 'error', title: 'CONFIG LOAD ERROR' },
     );
@@ -1303,6 +1320,7 @@ async function init() {
     // fresh channels.json.
     delete loaded._configLoadError;
     delete loaded._configLoadErrorBackupPath;
+    configLoadFailedThisSession = true;
   }
   // Snapshotted before applyConfigDefaults so a boot-time schema migration
   // (a new config section getting its defaults, a virtual-channel-number
@@ -1316,7 +1334,7 @@ async function init() {
   await initPersonalState();
   if (window.__isViewer) window.api.setUiScale(S.config.display.uiScale);
   resetUndoBaseline();
-  if (!loaded._configLoadError && beforeMigration !== JSON.stringify(S.config)) {
+  if (!configLoadFailedThisSession && beforeMigration !== JSON.stringify(S.config)) {
     showMigrationToast();
   }
   // Drives the drag-strip CSS below (tv.css) so a frameless/borderless
@@ -1456,7 +1474,7 @@ function startViewerConfigPolling() {
       // already in hand, not another network round trip (the URL itself was
       // fetched once, at boot, in initViewerLiveLink below). Generic: app.js
       // has no idea which plugin (if any) this is.
-      viewerLiveLinkEl.classList.toggle('hidden', !viewerLiveLinkEl.dataset.url || !findLiveViewerLinkChannelType());
+      if (viewerLiveLinkEl) viewerLiveLinkEl.classList.toggle('hidden', !viewerLiveLinkEl.dataset.url || !findLiveViewerLinkChannelType());
     } catch (e) {
       console.warn('[LAN viewer] config poll failed:', e);
     } finally {
@@ -1477,6 +1495,7 @@ function startViewerConfigPolling() {
 // dataset so the config-poll visibility check above can tell "never got a
 // URL" apart from "got one, just currently hidden."
 function initViewerLiveLink() {
+  if (!viewerLiveLinkEl) return;
   const live = findLiveViewerLinkChannelType();
   if (!live) return;
   live.viewerLink.fetchUrl().then((url) => {

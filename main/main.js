@@ -81,6 +81,7 @@ const { fetchJsonCached } = require('./updater/api-cache');
 const { readJsonBody, serveStaticFile } = require('./util/http');
 const { setMainWindow, getMainWindow } = require('./config/window-ref');
 const { startViewerServer } = require('./lan/viewer-server');
+const { sanitizeAppliedUpdate } = require('./lan/viewer-projection');
 const { startMediaBridge } = require('./media/bridge');
 const { startDiscoveryServer } = require('./lan/discovery-server');
 const { isLanServiceEnabled, createLanAccess } = require('./lan/security');
@@ -456,7 +457,7 @@ registerDiagnosticsIpc(ipcMain, {
   getPluginServicesRef: () => pluginServicesRef,
 });
 
-app.whenReady().then(async () => {
+async function bootApp() {
   // `services` is a single shared object, mutated in place by whichever
   // plugins publish a capability onto it (ffmpeg-transcode -> ffmpegPath,
   // party-channel -> partyReactionEmoji/viewerLiveLinkUrls) — see
@@ -587,7 +588,7 @@ app.whenReady().then(async () => {
       // so a LAN editor reconciles exactly the way the Electron window does
       // (docs/design/05 §2.2). /api/remote-events drops these for a `view`
       // session, since they carry real config values.
-      onConfigApplied((update) => pluginServices.viewerRemoteBridge?.publish('config:applied', update));
+      onConfigApplied((update) => pluginServices.viewerRemoteBridge?.publish('config:applied', sanitizeAppliedUpdate(update)));
     }
   }
   const disabledPluginIds = (bootConfig.plugins && bootConfig.plugins.disabled) || [];
@@ -680,6 +681,27 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+}
+
+// A throw anywhere in the boot chain (config, updater, bridge, plugins) used to
+// become an unhandled rejection: no window, no message, and the process kept
+// running because interactiveBootInProgress suppressed the quit.
+app.whenReady().then(() => bootApp()).catch((err) => {
+  console.error('[boot] startup failed:', err && err.stack || err);
+  interactiveBootInProgress = false;
+  try {
+    dialog.showErrorBox('RerunTV could not start', String(err && err.message || err));
+  } catch (e) { /* dialog unavailable (headless) — the log line above is the record */ }
+  if (BrowserWindow.getAllWindows().length === 0) app.quit();
+});
+
+// Log (not swallow) anything that escapes every other handler, so it reaches
+// the support-bundle log capture instead of vanishing.
+process.on('uncaughtException', (err) => {
+  console.error('[main] uncaughtException:', err && err.stack || err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[main] unhandledRejection:', reason && reason.stack || reason);
 });
 
 // The viewing log batches its writes, so the last couple of seconds of it

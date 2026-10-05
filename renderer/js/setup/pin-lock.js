@@ -4,6 +4,19 @@ import { pinDotsEl, pinLockModalEl, pinNoticeEl } from '../core/dom.js';
 import { registerTuneGate } from '../plugin/host.js';
 import { computeLivePosition } from '../core/schedule.js';
 import { S } from '../core/state.js';
+import { isTvMode } from '../tv/usage-mode.js';
+import { focusDefault, registerModal } from '../ui/focus.js';
+
+// TV mode: the keypad is a modal, so the D-pad moves between keys, OK presses
+// one and Back cancels. Number buttons still reach pushPinDigit via the
+// keyboard handler (tv/input.js lets digits through while the lock is up).
+if (pinLockModalEl) {
+  registerModal({
+    isOpen: () => S.pinLockActive && !pinLockModalEl.classList.contains('hidden'),
+    element: () => pinLockModalEl,
+    cancel: () => hidePinLockScreen(),
+  });
+}
 
 export function isPinLocked(number) {
   if (!S.config.pinLock || !S.config.pinLock.enabled) return false;
@@ -31,6 +44,7 @@ export function showPinLockScreen(number) {
   updatePinDisplay();
   if (pinNoticeEl) pinNoticeEl.textContent = `PARENTAL LOCK // CH ${formatChannelNumber(number)} RESTRICTED`;
   if (pinLockModalEl) pinLockModalEl.classList.remove('hidden');
+  if (pinLockModalEl && isTvMode()) focusDefault(pinLockModalEl);
 }
 
 export function hidePinLockScreen() {

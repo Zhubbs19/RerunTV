@@ -33,7 +33,7 @@ import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
   resolveActiveSource,
 } from '../core/schedule.js';
-import { S, viewNow, commitInPlace } from '../core/state.js';
+import { S, viewNow, commitInPlace, onSchedulingConfigChange } from '../core/state.js';
 import { isFavorite, isHiddenForProfile, syncSharedTune } from '../personal/state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import { isEnabledByDefault, settingNumber } from '../core/util.js';
@@ -42,7 +42,7 @@ import { waitForMediaSourceReady as waitForProviderMediaSource } from './recover
 import { historyEnabled, recordViewing } from './history.js';
 import {
   cancelUpNextBar, checkBreakState, fadeInPlayer, resetActiveBreakState, scheduleContentAdvisoryCues,
-  scheduleUpNextBar,
+  scheduleNextBreak, scheduleUpNextBar,
 } from './breaks.js';
 import {
   applyLogoBugPlacement, channelNoSignalCopy, finishCreditsSpeedupIfActive, flashCapabilityBadge,
@@ -157,6 +157,17 @@ export function checkScheduleDrift() {
   player.currentTime = expected;
 }
 
+// A host edit or resync can change channels/flows/presets under the running
+// timers; re-derive them against the config as it now stands.
+onSchedulingConfigChange(() => {
+  if (!S.isPoweredOn || S.currentNumber == null) return;
+  if (S.shuttleDir !== 0 || S.scrubPending) return;
+  const ch = getChannel(S.currentNumber);
+  if (!ch || isVirtualChannel(ch.number)) return;
+  scheduleNextBreak(ch);
+  scheduleBlockBoundaryRetune(ch);
+});
+
 export function startScheduleDriftWatchdog() {
   clearInterval(S.driftCheckTimer);
   S.driftCheckTimer = setInterval(() => {
@@ -222,6 +233,10 @@ async function waitForMediaSourceReady(ch, file) {
 
 export async function playChannelLive(ch, opts) {
   opts = opts || {};
+  // Every legitimate caller has already tuned to ch (tuneToChannel sets
+  // S.currentNumber first) and is powered on; a stale caller (a break's fade
+  // await, a retry after tune-away/power-off) must not start content.
+  if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
   window.__tuneT0 = performance.now();
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} start`);
   applyBlockTheme(resolveActiveSource(ch, viewNow()).block);
@@ -578,7 +593,9 @@ export async function playChannelLive(ch, opts) {
   triggerDynamicOverlays(ch, 'contentStart');
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} src set +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
+  let metaTimer = null;
   const onMeta = () => {
+    clearTimeout(metaTimer);
     if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} loadedmetadata +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
     // Recompute the seek position at the exact instant metadata is ready —
@@ -591,6 +608,18 @@ export async function playChannelLive(ch, opts) {
     const seekOffset = (freshPos && freshPos.file && freshPos.file.path === posFile.path)
       ? freshPos.offset
       : pos.offset;
+    // The probed duration can overshoot the real file: seeking at/after its
+    // true end just fires 'ended' on the same file again. Credit the leftover
+    // schedule time (a negative lost-time, as credits speedup does) so the
+    // re-resolve lands on the next file instead of looping here.
+    if (Number.isFinite(player.duration) && player.duration > 0 && seekOffset >= player.duration - 0.25
+      && freshPos && freshPos.file && freshPos.file.path === posFile.path) {
+      player.removeEventListener('loadedmetadata', onMeta);
+      if (S.metaHandler === onMeta) S.metaHandler = null;
+      S.contentLostMs -= Math.max(0, (freshPos.file.duration - seekOffset) * 1000) + 50;
+      checkBreakState(ch, { contentJustEnded: true });
+      return;
+    }
     player.currentTime = seekOffset;
     player.play().catch(() => {});
     player.removeEventListener('loadedmetadata', onMeta);
@@ -616,6 +645,9 @@ export async function playChannelLive(ch, opts) {
     // resume (endBreak -> playChannelLive), so without this cap the bug
     // would flash on every single return from break for the whole runtime.
     const isEarlyInProgram = seekOffset < 900;
+    // The optional on-screen helpers below must never stop the load-critical
+    // tail of onMeta (watchForDecodedFrame, up-next, credits speedup) from running.
+    try {
     if (effectiveRating && isEarlyInProgram && !ch.hideRatingBug) {
       // Movies got a distinct full-screen "rated X for..." card before the
       // film started on broadcast TV, rather than the small TV Parental
@@ -669,6 +701,7 @@ export async function playChannelLive(ch, opts) {
         if (!triggerDynamicOverlays(ch, 'capabilityBadge')) flashCapabilityBadge(ch, capabilityLabels);
       }
     }
+    } catch (err) { console.error('[onMeta] overlay helper failed:', err); }
     // AUTO aspect/resolution's real-video-size signal (display-mode.js) is
     // only trustworthy from here on — player.videoWidth/videoHeight are
     // real now, and confirmed to actually belong to this channel (not a
@@ -693,7 +726,7 @@ export async function playChannelLive(ch, opts) {
     // only trustworthy here, same as the AUTO-resolution comment above,
     // since player.videoWidth/videoHeight are now real and confirmed to
     // belong to this channel.
-    if (isEarlyInProgram && !ch.hideFormatDisclaimer) {
+    if (isEarlyInProgram && !ch.hideFormatDisclaimer) try {
       const contentAspect = resolveContentDisplayMode().aspect;
       const effectiveAspect = resolveEffectiveDisplayMode().aspect;
       if (contentAspect !== effectiveAspect) {
@@ -702,7 +735,7 @@ export async function playChannelLive(ch, opts) {
           : 'THIS PROGRAM IS PRESENTED IN WIDESCREEN';
         if (!triggerDynamicOverlays(ch, 'formatDisclaimer')) flashFormatDisclaimer(ch, disclaimer);
       }
-    }
+    } catch (err) { console.error('[onMeta] format disclaimer failed:', err); }
     // Re-apply now that player.videoWidth is real (it read 0 at the earlier
     // updateLogoBug call, before src was even set) — lets a resolution-
     // specific logoBugProfiles breakpoint take effect within this same tune
@@ -724,11 +757,21 @@ export async function playChannelLive(ch, opts) {
   };
   S.metaHandler = onMeta;
   player.addEventListener('loadedmetadata', onMeta);
+  // Metadata that never arrives (and no 'error' event either) used to leave
+  // the screen on static forever; fall into the normal unplayable treatment.
+  metaTimer = setTimeout(() => {
+    if (S.metaHandler !== onMeta || S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (player.readyState > 0) return;
+    player.removeEventListener('loadedmetadata', onMeta);
+    S.metaHandler = null;
+    handleUnplayable();
+  }, (file.source && file.source !== 'local') ? 30000 : 15000);
 
   S.errorHandler = handleUnplayable;
   player.addEventListener('error', S.errorHandler);
 
-  S.endedHandler = () => handleContentEnded(ch);
+  // Re-resolve: S.config can be replaced wholesale (host resync/undo), leaving ch stale.
+  S.endedHandler = () => handleContentEnded(getChannel(ch.number) || ch);
   player.addEventListener('ended', S.endedHandler);
 }
 
@@ -1001,8 +1044,20 @@ export function scheduleBlockBoundaryRetune(ch) {
   // dayparting-chime comment inside the callback.
   const beforeSource = resolveActiveSource(ch, viewNow());
   const beforeBlockId = beforeSource && beforeSource.block && beforeSource.block.id;
+  // nextSourceBoundary can look ~35 days out; setTimeout treats any delay past
+  // 2^31-1 ms (~24.8 days) as ~0, which retuned the channel in a hot loop.
+  // Wait out a far boundary in capped hops, then re-arm.
+  const delayMs = Math.max(0, boundary - viewNow()) + 500;
+  if (delayMs > 2147483647) {
+    S.blockBoundaryTimer = setTimeout(() => {
+      if (S.currentNumber === ch.number && S.isPoweredOn) scheduleBlockBoundaryRetune(ch);
+    }, 2147483647);
+    return;
+  }
   S.blockBoundaryTimer = setTimeout(() => {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    // S.config may have been replaced wholesale since this was armed.
+    ch = getChannel(ch.number) || ch;
     // Dayparting transition chime — a short sting when the schedule crosses
     // into a genuinely DIFFERENT block (morning cartoons -> primetime),
     // not on a daily/weekly block's own re-airing of itself the next day
@@ -1031,7 +1086,7 @@ export function scheduleBlockBoundaryRetune(ch) {
     // is needed here.
     checkBreakState(ch, { contentJustEnded: true });
     scheduleBlockBoundaryRetune(ch);
-  }, boundary - viewNow() + 500);
+  }, delayMs);
 }
 
 export function changeChannel(direction) {

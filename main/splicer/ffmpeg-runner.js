@@ -16,11 +16,7 @@ const { spawn } = require('child_process');
 
 function resolveFfmpegPath() {
   if (process.env.RERUNTV_FFMPEG_PATH) return process.env.RERUNTV_FFMPEG_PATH;
-  try {
-    return require('ffmpeg-static');
-  } catch (e) {
-    return process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
-  }
+  return process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
 }
 
 const ffmpegPath = resolveFfmpegPath();

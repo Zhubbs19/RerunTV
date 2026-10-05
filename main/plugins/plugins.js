@@ -595,7 +595,8 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
     }
     const signature = capabilitiesSignature(plugin.capabilities);
     const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length
-      || plugin.capabilities.net.length || plugin.capabilities.mediaSource.length;
+      || plugin.capabilities.net.length || plugin.capabilities.mediaSource.length
+      || (plugin.capabilities.system && plugin.capabilities.system.length);
     if (hasAnyCapability && approved[plugin.id] !== signature) {
       needsApproval.push(plugin.id);
       continue; // eslint-disable-line no-continue
@@ -613,7 +614,10 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
         // eslint-disable-next-line import/no-dynamic-require, global-require
         const mod = require(mainPath);
         if (mod && typeof mod.activate === 'function') {
-          mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
+          const activation = mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
+          if (activation && typeof activation.catch === 'function') {
+            activation.catch((err) => { loadErrors[plugin.id] = err && err.message ? err.message : String(err); });
+          }
         }
         activated = true;
       } catch (e) {
@@ -692,7 +696,8 @@ function installPluginFromZip(zipPath, opts) {
   // manifest.id becomes a directory name under the shared plugins folder — a
   // crafted id like "../../../../some/other/folder" must not be allowed to
   // point destDir (and the rmSync/mkdirSync/writeFileSync below) outside it.
-  if (!isPathContained(pluginsDir, destDir)) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(manifest.id) || manifest.id.includes('..')
+    || path.resolve(destDir) === path.resolve(pluginsDir) || !isPathContained(pluginsDir, destDir)) {
     return { success: false, error: 'manifest.json "id" must not contain path separators or ".." segments.' };
   }
   if (fs.existsSync(destDir) && !opts.overwrite) {

@@ -13,6 +13,9 @@ gitignored (see the repo's `.gitignore`), along with any ad-hoc scratch script o
 you create while debugging with this suite. Don't add new files under `tests/ui/` to git
 without checking they belong in the tracked harness, not the scratch pile.
 
+Note: the repo's `.gitignore` ignores every `*.mjs`, so a new harness `.mjs` file needs
+`git add -f <file>` to be tracked (the existing tracked `.mjs` files were added that way).
+
 ## Running it
 
 ```powershell

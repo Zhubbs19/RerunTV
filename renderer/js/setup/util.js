@@ -101,7 +101,7 @@ export function collectAllTags() {
   // A curated-but-not-yet-used canonical tag (PROGRAMMING > TAG TAXONOMY)
   // should still autocomplete — that's the whole point of pre-declaring it.
   const tx = S.config.tagTaxonomy;
-  if (tx) { [...tx.genres, ...tx.eras, ...tx.moods].forEach((t) => tags.add(t)); }
+  if (tx) { [...(tx.genres || []), ...(tx.eras || []), ...(tx.moods || [])].forEach((t) => tags.add(t)); }
   return Array.from(tags).sort();
 }
 
@@ -194,7 +194,21 @@ export function attachTagAutocomplete(inputEl) {
     inputEl.focus();
   }
 
-  function hide() { list.classList.add('hidden'); list.innerHTML = ''; }
+  // Keyboard support: ArrowUp/Down move through the suggestions, Enter picks the
+  // highlighted one (only while one is highlighted, so plain Enter still submits),
+  // Escape closes the list.
+  let activeIdx = -1;
+  function setActive(i) {
+    const items = Array.from(list.children);
+    if (!items.length) return;
+    activeIdx = (i + items.length) % items.length;
+    items.forEach((el, n) => {
+      el.classList.toggle('active', n === activeIdx);
+      el.setAttribute('aria-selected', String(n === activeIdx));
+    });
+  }
+
+  function hide() { list.classList.add('hidden'); list.innerHTML = ''; activeIdx = -1; }
 
   function show() {
     const seg = currentSegment();
@@ -203,9 +217,11 @@ export function attachTagAutocomplete(inputEl) {
     const matches = collectAllTags().filter((t) => t.includes(seg) && !already.includes(t)).slice(0, 8);
     if (!matches.length) { hide(); return; }
     list.innerHTML = '';
+    activeIdx = -1;
     matches.forEach((t) => {
       const item = document.createElement('div');
       item.className = 'tag-ac-item';
+      item.setAttribute('role', 'option');
       item.textContent = t;
       // mousedown (not click) fires before the input's blur, so the
       // dropdown's own hide-on-blur below doesn't swallow the selection.
@@ -215,6 +231,21 @@ export function attachTagAutocomplete(inputEl) {
     list.classList.remove('hidden');
   }
 
+  inputEl.addEventListener('keydown', (e) => {
+    const open = !list.classList.contains('hidden') && list.children.length > 0;
+    if (!open) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIdx + 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIdx < 0 ? -1 : activeIdx - 1); }
+    else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      e.stopPropagation();
+      commitSegment(list.children[activeIdx].textContent);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      hide();
+    }
+  });
   inputEl.addEventListener('input', show);
   inputEl.addEventListener('focus', show);
   inputEl.addEventListener('blur', () => setTimeout(hide, 120));
@@ -256,6 +287,33 @@ export function ownerFieldsCommand(owner, fields) {
 
 export function commitOwnerFields(owner, fields, opts = {}) {
   return commitInPlace(ownerFieldsCommand(owner, fields), opts);
+}
+
+// Renumbering or swapping channels must carry every number-keyed reference with
+// it, or ads/flows/presets/PIN locks silently end up pointing at whichever channel
+// now holds the old number. `map` is a Map (or plain object) of oldNumber ->
+// newNumber; a swap is just both directions in one map. Arrays are rewritten in
+// place so object identity survives. Pool channelAffinity may be 'any' (left alone).
+// Favorites live in the personal-profile store, not config, and are not touched here.
+export function remapChannelRefs(config, map) {
+  if (!config) return;
+  const lookup = map instanceof Map ? map : new Map(Object.entries(map).map(([k, v]) => [Number(k), v]));
+  const get = (n) => (typeof n === 'number' && lookup.has(n) ? lookup.get(n) : n);
+  const mapArray = (arr) => {
+    if (!Array.isArray(arr) || !arr.length) return;
+    const next = arr.map(get);
+    arr.splice(0, arr.length, ...next);
+  };
+  const inter = config.interstitials;
+  if (inter) {
+    (inter.pool || []).forEach((e) => { if (e && typeof e.channelAffinity === 'number') e.channelAffinity = get(e.channelAffinity); });
+    (inter.presets || []).forEach((p) => p && mapArray(p.channels));
+    (inter.flows || []).forEach((f) => f && mapArray(f.channels));
+  }
+  if (config.pinLock) mapArray(config.pinLock.channels);
+  (Array.isArray(config.preemptionWindows) ? config.preemptionWindows : []).forEach((w) => {
+    if (w && typeof w.channelNumber === 'number') w.channelNumber = get(w.channelNumber);
+  });
 }
 
 export function parsePositiveInt(str, fallback) {
@@ -772,7 +830,7 @@ export function buildPreemptionWindowsEditor(getWindows, setWindows) {
         hourInput.className = 'block-priority-input';
         hourInput.value = w.startHour != null ? w.startHour : 13;
         hourInput.addEventListener('change', () => {
-          w.startHour = Math.min(23, Math.max(0, parsePositiveInt(hourInput.value, 13)));
+          { const h = parseInt(hourInput.value, 10); w.startHour = Number.isFinite(h) ? Math.min(23, Math.max(0, h)) : 13; hourInput.value = w.startHour; }
           setWindows(windows);
         });
 
@@ -909,8 +967,8 @@ export function attachSliderReadout(slider, opts) {
 // file still schedules; the media library passes null, because a guessed
 // length stored in the catalogue would be copied into every smart channel.
 export function probeDuration(filePath, { fallback = 180 } = {}) {
-  return new Promise(async (resolve) => {
-    const url = await window.api.toFileUrl(filePath);
+  return new Promise((resolve) => {
+    Promise.resolve(window.api.toFileUrl(filePath)).then((url) => {
     const v = document.createElement('video');
     v.preload = 'metadata';
     v.src = url;
@@ -925,6 +983,7 @@ export function probeDuration(filePath, { fallback = 180 } = {}) {
       clearTimeout(timer);
       resolve(fallback);
     });
+    }).catch(() => resolve(fallback));
   });
 }
 

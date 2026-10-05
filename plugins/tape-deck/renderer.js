@@ -435,6 +435,29 @@ async function startRecording(ctx, opts) {
 
 let scheduleTimer = null;
 
+// An entry is marked done BEFORE its recording starts (so the next 30 s tick
+// can't fire it twice while startRecording is still awaiting), then put back
+// here if the recording turns out not to have started, up to a few tries.
+const SCHEDULE_MAX_ATTEMPTS = 3;
+
+function restoreScheduledEntry(ctx, entry, reason) {
+  const attempts = (entry.attempts || 0) + 1;
+  const same = (other) => other && other.startMs === entry.startMs && other.endMs === entry.endMs
+    && other.channelNumber === entry.channelNumber;
+  const current = settingsFor(ctx).scheduled;
+  if (!current.some(same)) return; // the viewer deleted it meanwhile
+  if (attempts >= SCHEDULE_MAX_ATTEMPTS) {
+    flashToast(`TIMER GAVE UP · CH ${entry.channelNumber}${reason ? ` · ${String(reason).toUpperCase().slice(0, 40)}` : ''}`, 'bad');
+    ctx.settings.updatePluginSettings(PLUGIN_ID, {
+      scheduled: current.map((other) => (same(other) ? { ...other, done: true, attempts } : other)),
+    });
+    return;
+  }
+  ctx.settings.updatePluginSettings(PLUGIN_ID, {
+    scheduled: current.map((other) => (same(other) ? { ...other, done: false, attempts } : other)),
+  });
+}
+
 function scheduleTick(ctx) {
   const cfg = settingsFor(ctx);
   if (!cfg.scheduled.length) return;
@@ -461,6 +484,10 @@ function scheduleTick(ctx) {
       endMs: entry.endMs,
       title: entry.label,
       overwriteId: entry.overwriteId || null,
+    }).then((result) => {
+      if (result && result.error) restoreScheduledEntry(ctx, entry, result.error);
+    }, (err) => {
+      restoreScheduledEntry(ctx, entry, err && err.message);
     });
   });
 }

@@ -875,6 +875,14 @@ async function activate(ctx) {
     return { cancelled: true };
   });
 
+  // Don't leave an orphaned ffmpeg behind when the app quits mid-job.
+  if (ctx.app && typeof ctx.app.on === 'function') {
+    ctx.app.on('before-quit', () => {
+      queue.length = 0;
+      if (activeChild) { try { activeChild.kill(); } catch (e) { /* already exited */ } }
+    });
+  }
+
   ipcMain.handle('tapes:list', async () => {
     let names;
     try { names = fs.readdirSync(tapesRoot); } catch (e) { return { tapes: [], folder: tapesRoot }; }
@@ -916,9 +924,10 @@ async function activate(ctx) {
     ['front', 'back', 'label'].forEach((slot) => {
       if (!art || !Object.prototype.hasOwnProperty.call(art, slot)) return;
       const value = art[slot];
-      // Only a real file on this disk: a path that no longer resolves would
-      // render as a broken image with no way to tell why.
-      if (typeof value === 'string' && value && fs.existsSync(value)) next[slot] = value;
+      // Cover art lives wherever the user picked it, usually outside this plugin's
+      // granted paths, where an isolated existsSync answers false for a file that
+      // is there. So accept any absolute path string rather than gating on it.
+      if (typeof value === 'string' && value && path.isAbsolute(value)) next[slot] = value;
       else delete next[slot];
     });
     meta.art = next;

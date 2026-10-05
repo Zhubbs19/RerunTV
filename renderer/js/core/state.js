@@ -411,6 +411,34 @@ export function onRemoteConfigChange(fn) {
   remoteChangeListener = fn;
 }
 
+// Multi-listener hook for core consumers that must re-derive timers when the
+// config changed under them (playback re-arms the break/block-boundary timers).
+// Separate from onRemoteConfigChange, which is a single-slot setup-screen hook.
+const schedulingConfigListeners = [];
+export function onSchedulingConfigChange(fn) {
+  schedulingConfigListeners.push(fn);
+}
+function notifySchedulingConfigChange(reason) {
+  schedulingConfigListeners.forEach((fn) => {
+    try { fn(reason); } catch (e) { console.warn('[config] scheduling listener failed', e); }
+  });
+}
+
+// Registered by app.js: the boot-time defaults/migration pass (applyConfigDefaults),
+// so a wholesale replacement from the host goes through the same normalization.
+let configNormalizer = null;
+export function setConfigNormalizer(fn) {
+  configNormalizer = typeof fn === 'function' ? fn : null;
+}
+
+// Settings that only describe this box's watching state; writing one doesn't
+// change anything any config-derived cache could depend on.
+const WATCH_STATE_SETTINGS = ['lastChannel', 'volume', 'muted', 'channelVolumes', 'pictureMode', 'aspectMode'];
+function isWatchStateCommand(cmd) {
+  return !!cmd && cmd.type === 'settings.set' && Array.isArray(cmd.path) && cmd.path.length === 1
+    && WATCH_STATE_SETTINGS.includes(cmd.path[0]);
+}
+
 function notifyRemoteChange(reason) {
   if (!remoteChangeListener) return;
   try { remoteChangeListener(reason); } catch (e) { console.warn('[config] remote-change listener failed', e); }
@@ -443,7 +471,11 @@ export function resyncFromHost(reason) {
     outbound = [];
     inFlight = null;
     hostAgreed = false;
-    S.config = fresh;
+    let adopted = fresh;
+    if (configNormalizer) {
+      try { adopted = configNormalizer(fresh) || fresh; } catch (e) { console.warn('[config] normalizing the host copy failed:', e); }
+    }
+    S.config = adopted;
     baseline = cloneJson(S.config);
     undoStack.length = 0;
     redoStack.length = 0;
@@ -455,6 +487,7 @@ export function resyncFromHost(reason) {
     bumpConfigGeneration();
     notifyHistory();
     notifyRemoteChange(reason);
+    notifySchedulingConfigChange(reason);
     return true;
   }).catch((e) => {
     console.error('[config] could not resync from the host:', e);
@@ -614,6 +647,7 @@ export function applyHostUpdate(update) {
   hostRevision = update.revision;
   bumpConfigGeneration();
   notifyRemoteChange('host-update');
+  if (!(update.commands || []).every(isWatchStateCommand)) notifySchedulingConfigChange('host-update');
   return true;
 }
 
@@ -696,7 +730,8 @@ export function dispatch(commandOrList, opts = {}) {
 // History, generation, save and listeners for commands already applied to
 // S.config and the baseline.
 function recordApplied(commands, inverses, opts) {
-  bumpConfigGeneration();
+  // A lastChannel write on every tune shouldn't flush every config-keyed cache.
+  if (!commands.every(isWatchStateCommand)) bumpConfigGeneration();
   enqueueOutbound(commands);
   if (!opts.skipUndo) {
     const now = Date.now();

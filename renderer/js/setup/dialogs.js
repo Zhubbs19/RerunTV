@@ -62,9 +62,9 @@ export function alertDialog(message, opts = {}) {
 
 export function promptDialog(opts = {}) {
   const {
-    message, title = null, placeholder = '', defaultValue = '',
+    message, title = null, placeholder = '', defaultValue = '', inputType = 'text',
   } = typeof opts === 'string' ? { message: opts } : opts;
-  const input = h('input', { type: 'text', className: 'title-row-input', placeholder, value: defaultValue });
+  const input = h('input', { type: inputType, className: 'title-row-input', placeholder, value: defaultValue });
   return Dialog({
     title,
     message,

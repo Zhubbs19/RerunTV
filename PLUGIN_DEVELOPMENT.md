@@ -187,8 +187,8 @@ a plain `http://127.0.0.1:<port>/...` URL to play (rather than routing it
 through `app://media`), every `net` port you declare above is automatically
 allowed in the renderer's media-src Content Security Policy once your plugin
 is approved and activates — no separate CSP configuration needed. That
-wiring lives in `setAllowedMediaSrcPorts` (`main-protocol.js`), fed from
-`loadMainPlugins()`'s `activatedNetPorts` (`main-plugins.js`).
+wiring lives in `setAllowedMediaSrcPorts` (`main/media/protocol.js`), fed from
+`loadMainPlugins()`'s `activatedNetPorts` (`main/plugins/plugins.js`).
 
 Unlike `ipc`/`spawn`/`net`, `mediaSource` isn't checked against a runtime
 wrapper — it's declarative: it's what shows in the approval prompt so a user
@@ -249,7 +249,7 @@ channel, you have three options, tried in this order and each optional:
    breadcrumbs, a clickable folder list, whatever fits your provider's own
    data shape — with no cross-process choreography needed. Reuse the app's
    own `confirm-dialog`/`confirm-dialog-box`/`confirm-dialog-title`/
-   `confirm-dialog-actions`/`folder-row` CSS classes (`css/setup.css`) for
+   `confirm-dialog-actions`/`folder-row` CSS classes (`renderer/css/setup.css`) for
    visual consistency; they're globally available — e.g. a breadcrumb
    folder browser backed by an extra `listFolders` verb on the same
    provider (see "Extra verbs" below).
@@ -277,7 +277,7 @@ verb names.
 but recognized by core rather than provider-invented): if your `readRange`
 can legitimately take a long time on first access (e.g. downloading to a
 local cache before it can serve anything), register this and
-`renderer/js/playback.js` will call
+`renderer/js/playback/core.js` will call
 it before attempting playback, showing a visible progress card
 (`{ready: false, progress: 0-1, label}`) and polling once a second until
 you return `{ready: true}`, instead of the tune just sitting on static with
@@ -288,12 +288,12 @@ playback as before.
 **`getLocalCachePath(ref) => Promise<string | null>`** — pairs with
 `getFetchProgress`: if your provider caches a file to local disk (rather
 than serving `readRange` live), register this too and
-`main/main.js`'s `media:resolvePlayablePath` will redirect playback to that
+`main/media/dispatch.js`'s `media:resolvePlayablePath` will redirect playback to that
 real local path once you return one, instead of continuing to route it
 through your `readRange`. Return `null` while nothing's cached yet. Once
 redirected, the file gets full local-file treatment — including `FIX
 PLAYBACK`'s codec auto-fix, which operates on your cache file directly, not
-the original remote copy. `renderer/js/playback.js` calls this as a
+the original remote copy. `renderer/js/playback/core.js` calls this as a
 fallback only, after a genuine live playback attempt (going straight
 through your `readRange`, same as any file) fails to decode: live streaming
 by default, caching only kicks in if live genuinely doesn't work for a
@@ -406,7 +406,7 @@ permission check — some things work identically, some need a different
   the usual last-route fallback for a plugin's own small browser-facing page:
   put it as the final line of your request handler, after every other route
   has already been checked and didn't match (see `plugins/party-channel/
-  main.js` or `plugins/universal-remote/main.js` for a worked example).
+  main.js` or `plugins/companion-app/main.js` for a worked example).
   There's no `ctx.getPartyUrls`/`ctx.partyPort` —
   those were core-owned helpers for one specific plugin's port and got
   removed; a plugin with its own LAN-facing port declares that port as its
@@ -518,7 +518,7 @@ module.exports = { activate };
   be relied on blindly.
 
 **Loading order**: plugins with a `dependsOn` are loaded after the plugins
-they depend on (topological sort — see `main-plugins.js`'s
+they depend on (topological sort — see `main/plugins/plugins.js`'s
 `orderByDependencies`), so by the time your `activate()` runs, a dependency
 listed in `dependsOn` has already had the chance to publish to
 `ctx.services`. This is ordering only, not a hard guarantee the dependency
@@ -1234,7 +1234,7 @@ for a worked example of one interrupt plugin calling into another.
 ### `registerTuneGate(id, definition)`
 
 A gate that can block tuning into a channel until some condition is met —
-core's own PIN-lock parental control (`plugins/../renderer/js/pin-lock.js`)
+core's own PIN-lock parental control (`renderer/js/setup/pin-lock.js`)
 is built on exactly this, alongside anything a third-party plugin might add
 (a bedtime lock, a "spend a credit to watch this" gate).
 

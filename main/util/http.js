@@ -20,7 +20,7 @@ const MAX_JSON_BODY_BYTES = 1024 * 1024;
 
 function readJsonBody(req) {
   return new Promise((resolve, reject) => {
-    let data = '';
+    const chunks = []; // decoded once at the end so multi-byte characters survive chunk splits
     let bytes = 0;
     let done = false;
     const fail = (err) => {
@@ -37,11 +37,12 @@ function readJsonBody(req) {
         fail(new Error('Request body too large'));
         return;
       }
-      data += chunk;
+      chunks.push(chunk);
     });
     req.on('end', () => {
       if (done) return;
       done = true;
+      const data = Buffer.concat(chunks).toString('utf8');
       try { resolve(data ? JSON.parse(data) : {}); } catch (e) { reject(e); }
     });
     req.on('error', fail);

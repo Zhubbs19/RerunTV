@@ -127,7 +127,15 @@ function textFieldFocused() {
 // 'none' means TV routing stands aside and the keyboard handler decides (setup
 // screen, standby wake, PIN entry, a plugin's own modal).
 export function currentContext() {
-  if (exitPromptOpen() || openModal()) return 'dialog';
+  if (exitPromptOpen() || openModal()) {
+    // A text field inside a dialog keeps digits, ".", Backspace and arrows (Back
+    // still leaves the field first, then cancels the dialog).
+    const modal = openModal();
+    const el = document.activeElement;
+    const root = modal && (typeof modal.element === 'function' ? modal.element() : modal.element);
+    if (!exitPromptOpen() && modal && textFieldFocused() && (!root || root.contains(el))) return 'text';
+    return 'dialog';
+  }
   if (!tvScreen || tvScreen.classList.contains('hidden')) return 'none';
   if (!S.isPoweredOn || S.pinLockActive) return 'none';
   if (pluginChannelContainerEl && pluginChannelContainerEl.querySelector('.preview-modal:not(.hidden)')) return 'none';
@@ -307,7 +315,13 @@ export function routeKeydown(event) {
   const context = currentContext();
   if (context === 'none') return false;
   // The exit prompt is modal: keys it doesn't use must not reach live TV behind it.
-  if (context === 'dialog' && !route(context, remoteKey, false)) { event.preventDefault(); return true; }
+  if (context === 'dialog' && !route(context, remoteKey, false)) {
+    // The parental-lock keypad is a modal, but its digits and Backspace belong
+    // to the keyboard handler's PIN entry.
+    if (S.pinLockActive && !exitPromptOpen()) return false;
+    event.preventDefault();
+    return true;
+  }
 
   if (longPressable(context, remoteKey)) {
     // A synthetic event (the legacy Android bridge, touch controls) never

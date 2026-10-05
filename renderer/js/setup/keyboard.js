@@ -117,6 +117,7 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if (ctrlOrCmd && e.key.toLowerCase() === 'z') {
+    if (listDetail.isTypingTarget(e.target)) return; // keep native text undo inside inputs
     e.preventDefault();
     if (e.shiftKey) doRedo(); else doUndo();
     return;

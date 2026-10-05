@@ -55,7 +55,20 @@ function showToast() {
   no.textContent = 'NOT NOW';
   no.addEventListener('click', () => { rememberDismissed(); hideToast(); });
   toastEl.append(yes, no);
+  // Remote-like keys land here while a button has focus: Enter activates it
+  // (native click), Esc declines, arrows hop between the two, and none of them
+  // also reaches the app's own key handler behind the toast.
+  toastEl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') { event.stopPropagation(); return; }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); rememberDismissed(); hideToast(); return; }
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      (document.activeElement === yes ? no : yes).focus();
+    }
+  });
   document.body.appendChild(toastEl);
+  yes.focus({ preventScroll: true });
 }
 
 // Watches this session and offers once. Installed from app.js.

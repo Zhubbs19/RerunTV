@@ -144,6 +144,7 @@
 
   --shadow-hard: 2px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-hard-sm: 1px 1px 0 rgba(0, 0, 0, 0.55);
+  --shadow-hard-lg: 4px 4px 0 rgba(0, 0, 0, 0.5);
   --shadow-hard-md: var(--shadow-hard);
   --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.35);
   --bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.35);

@@ -49,7 +49,7 @@ function activate(ctx) {
   const server = createServer((req, res) => {
     const route = req.url.split('?')[0];
     const remoteAddress = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
-    if ((route === '/mirror' || route === '/now') && deviceHost && remoteAddress !== deviceHost) {
+    if ((route === '/mirror' || route === '/now') && (!deviceHost || remoteAddress !== deviceHost)) {
       res.writeHead(403);
       res.end();
       return;
@@ -90,12 +90,19 @@ function activate(ctx) {
         'Content-Length': end - start + 1,
         'Content-Type': contentType,
       });
-      fs.createReadStream(filePath, { start, end }).pipe(res);
+      const rs = fs.createReadStream(filePath, { start, end });
+      res.on('close', () => rs.destroy());
+      rs.on('error', () => res.destroy());
+      rs.pipe(res);
     } else {
       res.writeHead(200, { 'Content-Length': stat.size, 'Content-Type': contentType, 'Accept-Ranges': 'bytes' });
-      fs.createReadStream(filePath).pipe(res);
+      const rs = fs.createReadStream(filePath);
+      res.on('close', () => rs.destroy());
+      rs.on('error', () => res.destroy());
+      rs.pipe(res);
     }
   });
+  server.on('error', (e) => { console.error(`[cast-to-tv] media server failed: ${e.message}`); });
   server.listen(PORT, '0.0.0.0');
 
   function mediaUrl() {

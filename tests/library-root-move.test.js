@@ -50,6 +50,17 @@ test('a prefix matches only at a folder boundary', () => {
   assert.equal(rm.rewritePrefix('J:\\Media\\x\\a.mkv', 'J:\\Media', 'K:\\Archive'), 'K:\\Archive\\x\\a.mkv');
 });
 
+test('rewritePrefix keeps exactly one separator and matches Windows paths case-insensitively', () => {
+  assert.equal(rm.rewritePrefix('J:\\Media\\a.mp4', 'J:\\Media\\', 'K:\\Moved'), 'K:\\Moved\\a.mp4');
+  assert.equal(rm.rewritePrefix('J:\\Media\\a.mp4', 'J:\\Media\\', 'K:\\Moved\\'), 'K:\\Moved\\a.mp4');
+  assert.equal(rm.rewritePrefix('J:\\Media\\a.mp4', 'J:\\Media', 'K:\\Moved\\'), 'K:\\Moved\\a.mp4');
+  assert.equal(rm.rewritePrefix('J:\\Media', 'J:\\Media', 'K:\\Moved'), 'K:\\Moved');
+  assert.equal(rm.rewritePrefix('/mnt/a/b.mp4', '/mnt/a/', '/mnt/z'), '/mnt/z/b.mp4');
+  assert.equal(rm.underPrefix('j:\\media\\a.mp4', 'J:\\Media'), true);
+  assert.equal(rm.underPrefix('/mnt/A/b.mp4', '/mnt/a'), false);
+  assert.equal(rm.rewritePrefix('j:\\MEDIA\\x\\a.mp4', 'J:\\Media', 'K:\\Archive'), 'K:\\Archive\\x\\a.mp4');
+});
+
 test('planning copies, rewrites config and library together, and counts', () => {
   const config = lineup();
   const lib = index();

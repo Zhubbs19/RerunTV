@@ -52,7 +52,15 @@ const WINDOW_MS = 60 * 1000;
 // code's whole process lifetime, well above what a real mistyped code would
 // ever hit, but tiny next to the 10^8 code space — brute-forcing this code
 // via guessing is infeasible before the lockout trips.
+// Both caps decay: a permanent lockout would let any one device on the LAN
+// deny pairing to everyone until the app restarted. Failures are counted per
+// source address (a mistyped code on one phone never locks the others out),
+// and a global ceiling still bounds guesses spread across many addresses.
 const MAX_FAILED_PAIR_ATTEMPTS = 200;
+const GLOBAL_PAIR_FAIL_WINDOW_MS = 15 * 60 * 1000;
+const MAX_FAILED_PAIR_ATTEMPTS_PER_IP = 10;
+const PER_IP_PAIR_FAIL_WINDOW_MS = 5 * 60 * 1000;
+const MAX_PAIR_FAIL_TRACKED_IPS = 2000;
 // sessions is capped (MAX_SESSIONS, pruneSessions below) but rateWindows had
 // no equivalent — every distinct `${kind}:${ip}` key that ever made a
 // request stayed in the map forever, even long after its window expired.
@@ -87,17 +95,38 @@ function loadPersistedSessions(sessionsFile) {
   }
 }
 
+// file -> { writing, pending }. Writes to one file are serialized (a newer
+// snapshot replaces a queued one) so two overlapping writes can never
+// interleave, and each write goes to a temp file renamed into place so a
+// crash mid-write can't leave a truncated sessions file.
+const sessionWrites = new Map();
+
 function savePersistedSessions(sessionsFile, sessions) {
   // Fire-and-forget async write: this runs on nearly every authenticated
   // request (renewSessionIfNeeded), and main is single-threaded — a
   // synchronous write here would briefly block every other request/IPC call.
-  const data = JSON.stringify(Object.fromEntries(sessions));
-  fs.promises.mkdir(path.dirname(sessionsFile), { recursive: true })
-    .then(() => fs.promises.writeFile(sessionsFile, data))
-    .catch(() => {
-      // Best-effort — a failed write just means this session won't survive
-      // the next restart, not a broken pairing right now.
-    });
+  let state = sessionWrites.get(sessionsFile);
+  if (!state) { state = { writing: false, pending: null }; sessionWrites.set(sessionsFile, state); }
+  state.pending = JSON.stringify(Object.fromEntries(sessions));
+  if (state.writing) return;
+  state.writing = true;
+  (async () => {
+    while (state.pending !== null) {
+      const data = state.pending;
+      state.pending = null;
+      const tempPath = `${sessionsFile}.tmp`;
+      try {
+        await fs.promises.mkdir(path.dirname(sessionsFile), { recursive: true });
+        await fs.promises.writeFile(tempPath, data, { mode: 0o600 });
+        await fs.promises.rename(tempPath, sessionsFile);
+      } catch (e) {
+        // Best-effort — a failed write just means this session won't survive
+        // the next restart, not a broken pairing right now.
+        fs.promises.unlink(tempPath).catch(() => {});
+      }
+    }
+    state.writing = false;
+  })();
 }
 
 function isLanServiceEnabled(config, service) {
@@ -114,7 +143,11 @@ function parseCookies(header) {
   String(header || '').split(';').forEach((part) => {
     const idx = part.indexOf('=');
     if (idx < 0) return;
-    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    const rawValue = part.slice(idx + 1).trim();
+    let value;
+    // A malformed escape (%zz) must not throw out of request handling.
+    try { value = decodeURIComponent(rawValue); } catch (e) { value = rawValue; }
+    out[part.slice(0, idx).trim()] = value;
   });
   return out;
 }
@@ -139,14 +172,16 @@ function pairingPage(service, message) {
 
 function readFormBody(req, maxBytes = 1024) {
   return new Promise((resolve, reject) => {
-    let raw = '';
+    // Collect Buffers and decode once: a multi-byte character split across
+    // two chunks would otherwise decode to replacement characters.
+    const chunks = [];
     let bytes = 0;
     req.on('data', (chunk) => {
       bytes += chunk.length;
       if (bytes > maxBytes) { reject(new Error('Body too large')); req.destroy(); return; }
-      raw += chunk;
+      chunks.push(chunk);
     });
-    req.on('end', () => resolve(new URLSearchParams(raw)));
+    req.on('end', () => resolve(new URLSearchParams(Buffer.concat(chunks).toString('utf8'))));
     req.on('error', reject);
   });
 }
@@ -168,19 +203,55 @@ function createLanAccess(service, opts = {}) {
   const rateWindows = new Map(); // `${kind}:${ip}` -> {start, count}
   const readLimit = opts.readLimit || 600;
   const writeLimit = opts.writeLimit || 90;
-  let failedPairAttempts = 0;
-  let pairingLockedOut = false;
+  const failedPairByIp = new Map(); // ip -> { count, start }
+  let globalPairFailures = { count: 0, start: 0 };
+
+  function pairingLockedFor(ip) {
+    const now = Date.now();
+    if (globalPairFailures.count >= MAX_FAILED_PAIR_ATTEMPTS) {
+      if (now - globalPairFailures.start < GLOBAL_PAIR_FAIL_WINDOW_MS) return true;
+      globalPairFailures = { count: 0, start: 0 };
+    }
+    const entry = failedPairByIp.get(ip);
+    if (!entry) return false;
+    if (now - entry.start >= PER_IP_PAIR_FAIL_WINDOW_MS) { failedPairByIp.delete(ip); return false; }
+    return entry.count >= MAX_FAILED_PAIR_ATTEMPTS_PER_IP;
+  }
+
+  function recordPairFailure(ip) {
+    const now = Date.now();
+    if (!globalPairFailures.count || now - globalPairFailures.start >= GLOBAL_PAIR_FAIL_WINDOW_MS) {
+      globalPairFailures = { count: 0, start: now };
+    }
+    globalPairFailures.count += 1;
+    let entry = failedPairByIp.get(ip);
+    if (!entry || now - entry.start >= PER_IP_PAIR_FAIL_WINDOW_MS) entry = { count: 0, start: now };
+    entry.count += 1;
+    failedPairByIp.set(ip, entry);
+    while (failedPairByIp.size > MAX_PAIR_FAIL_TRACKED_IPS) failedPairByIp.delete(failedPairByIp.keys().next().value);
+  }
 
   function pruneSessions() {
     const now = Date.now();
     let removed = false;
     sessions.forEach((session, token) => { if (session.expiresAt <= now) { sessions.delete(token); removed = true; } });
+    // Hard cap as a backstop; issueSession() makes room scope-aware first.
     while (sessions.size > MAX_SESSIONS) { sessions.delete(sessions.keys().next().value); removed = true; }
     if (removed && sessionsFile) savePersistedSessions(sessionsFile, sessions);
   }
 
   function issueSession(scope = 'view') {
     pruneSessions();
+    // Make room by evicting the oldest session of the SAME scope, so a flood
+    // of view pairings can't push out the control session an editor holds (and
+    // vice versa). Map order is insertion order, oldest first.
+    if (sessions.size >= MAX_SESSIONS) {
+      let victim = null;
+      for (const [existingToken, existing] of sessions) {
+        if (existing.scope === scope) { victim = existingToken; break; }
+      }
+      sessions.delete(victim !== null ? victim : sessions.keys().next().value);
+    }
     const token = crypto.randomBytes(32).toString('base64url');
     sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope, profileId: null });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
@@ -314,8 +385,8 @@ function createLanAccess(service, opts = {}) {
       res.writeHead(403).end('Cross-site pairing requests are not allowed.');
       return true;
     }
-    if (pairingLockedOut) {
-      res.writeHead(423, { 'Content-Type': 'text/plain' }).end('Too many failed pairing attempts. Restart RerunTV to get a new pairing code.');
+    if (pairingLockedFor(requestIp(req))) {
+      res.writeHead(423, { 'Content-Type': 'text/plain', 'Retry-After': '300' }).end('Too many failed pairing attempts. Try again in a few minutes.');
       return true;
     }
     if (!checkRateLimit(req, res, 'write')) return true;
@@ -329,7 +400,7 @@ function createLanAccess(service, opts = {}) {
     supplied = normalizePairingCode(supplied);
     const scope = supplied ? scopeForCode(supplied) : '';
     if (scope) {
-      failedPairAttempts = 0;
+      failedPairByIp.delete(requestIp(req));
       const token = issueSession(scope);
       setSession(res, token);
       if (req.headers.accept && req.headers.accept.includes('application/json')) {
@@ -339,10 +410,7 @@ function createLanAccess(service, opts = {}) {
       }
       return true;
     }
-    if (supplied) {
-      failedPairAttempts += 1;
-      if (failedPairAttempts >= MAX_FAILED_PAIR_ATTEMPTS) pairingLockedOut = true;
-    }
+    if (supplied) recordPairFailure(requestIp(req));
     if (req.method === 'GET' || (req.method === 'POST' && url.pathname === '/_pair')) {
       const message = supplied ? 'That pairing code was not accepted.' : '';
       res.writeHead(supplied ? 401 : 200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).end(pairingPage(service, message));

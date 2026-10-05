@@ -86,11 +86,27 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   }
   const type = mimeFor(filePath);
 
-  const match = rangeHeader && /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+  // First range of "bytes=START-END", "bytes=START-" or the suffix form
+  // "bytes=-N" (the last N bytes — players use it to find an MP4 moov atom at
+  // the end of a file). Anything unsatisfiable or malformed is a 416.
+  const match = rangeHeader && /^\s*bytes\s*=\s*(\d*)\s*-\s*(\d*)/i.exec(rangeHeader);
+  if (rangeHeader && /^\s*bytes\s*=/i.test(rangeHeader) && !match) {
+    return new Response(null, { status: 416, headers: { ...corsHeaders, 'Content-Range': `bytes */${stat.size}` } });
+  }
   if (match) {
-    const start = match[1] ? parseInt(match[1], 10) : 0;
-    let end = match[2] ? parseInt(match[2], 10) : stat.size - 1;
-    if (Number.isNaN(start) || start >= stat.size) {
+    let start;
+    let end;
+    if (!match[1] && !match[2]) {
+      start = NaN;
+    } else if (!match[1]) {
+      const suffixLength = parseInt(match[2], 10);
+      start = suffixLength > 0 ? Math.max(0, stat.size - suffixLength) : NaN;
+      end = stat.size - 1;
+    } else {
+      start = parseInt(match[1], 10);
+      end = match[2] ? parseInt(match[2], 10) : stat.size - 1;
+    }
+    if (Number.isNaN(start) || start >= stat.size || end < start) {
       return new Response(null, { status: 416, headers: { ...corsHeaders, 'Content-Range': `bytes */${stat.size}` } });
     }
     end = Math.min(end, stat.size - 1);
@@ -342,7 +358,12 @@ async function pipeWebResponse(response, res) {
   response.headers.forEach((v, k) => { headers[k] = v; });
   res.writeHead(response.status, headers);
   if (!response.body) { res.end(); return; }
-  Readable.fromWeb(response.body).pipe(res);
+  const src = Readable.fromWeb(response.body);
+  // A client that aborts (video seeking does this constantly) must release the
+  // file handle, and a mid-stream read error must not become an uncaught throw.
+  res.on('close', () => src.destroy());
+  src.on('error', () => { res.destroy(); });
+  src.pipe(res);
 }
 
 module.exports = {

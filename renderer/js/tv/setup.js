@@ -186,7 +186,7 @@ function pinItems() {
   const lock = () => S.config.pinLock || { enabled: false, code: '1234' };
   let entry = '';
   const pad = () => {
-    const digit = (d) => ({ label: d, keepOpen: true, run: () => { if (entry.length < 8) entry += d; } });
+    const digit = (d) => ({ label: d, keepOpen: true, run: () => { if (entry.length < 4) entry += d; } });
     return {
       title: `NEW PIN: ${entry ? '•'.repeat(entry.length) : '—'}`,
       columns: 3,
@@ -194,7 +194,7 @@ function pinItems() {
         ...['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit),
         { label: '⌫', keepOpen: true, run: () => { entry = entry.slice(0, -1); } },
         digit('0'),
-        { label: 'SAVE', run: () => { if (entry.length >= 4) setSetting(['pinLock', 'code'], entry); entry = ''; } },
+        { label: 'SAVE', run: () => { if (entry.length === 4) setSetting(['pinLock', 'code'], entry); entry = ''; } },
       ],
     };
   };

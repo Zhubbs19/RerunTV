@@ -9,7 +9,7 @@ const {
 } = require('./state');
 
 // Auto-update via electron-updater, fed by this repo's GitHub Releases (see
-// package.json's build.publish). Releases are published by
+// electron-builder.config.js's publish). Releases are published by
 // .github/workflows/build-installer.yml on every push to the deploy branch
 // — that workflow's own "Create GitHub Release" step is what actually
 // uploads the installer + latest.yml + .blockmap this depends on (running
@@ -23,7 +23,7 @@ const {
 // This repo (Zhubbs19/RerunTV) is private — GitHub 404s an unauthenticated
 // request to its API the same way it would for a repo that doesn't exist,
 // for both the release-notes fetch below and electron-updater's own check.
-// build.publish.private: true (package.json) tells electron-updater to use
+// build.publish.private: true (electron-builder.config.js) tells electron-updater to use
 // its PrivateGitHubProvider, which needs a token read from the GH_TOKEN or
 // GITHUB_TOKEN environment variable at runtime — set one of those
 // (system/user env var, not a one-off shell session, so a desktop-launched
@@ -358,7 +358,7 @@ async function fetchReleaseNotes() {
 
 function registerReleaseNotesHandler() {
   ipcMain.handle('updates:getReleaseNotes', async () => {
-    // This repo is private (see package.json's build.publish.private,
+    // This repo is private (see electron-builder.config.js's publish.private,
     // which is the same reason autoUpdater itself needs a token). GitHub
     // returns 404 to an unauthenticated private-repo request.
     return fetchReleaseNotes();

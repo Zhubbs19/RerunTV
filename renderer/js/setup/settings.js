@@ -2931,7 +2931,12 @@ triviaIntervalEl.addEventListener('change', () => {
 });
 
 if (pinLockEnabledEl) pinLockEnabledEl.addEventListener('change', () => { dispatch({ type: 'settings.set', path: ['pinLock', 'enabled'], value: pinLockEnabledEl.checked }); });
-if (pinCodeInputEl) pinCodeInputEl.addEventListener('input', () => { dispatch({ type: 'settings.set', path: ['pinLock', 'code'], value: pinCodeInputEl.value.trim() || '1234' }, { coalesce: 'settings:pinLock.code', label: 'Change PIN' }); });
+if (pinCodeInputEl) pinCodeInputEl.addEventListener('input', () => {
+  // The keypad only accepts exactly four digits, so anything else would lock channels for good.
+  pinCodeInputEl.value = pinCodeInputEl.value.replace(/\D/g, '').slice(0, 4);
+  if (!/^\d{4}$/.test(pinCodeInputEl.value)) return;
+  dispatch({ type: 'settings.set', path: ['pinLock', 'code'], value: pinCodeInputEl.value }, { coalesce: 'settings:pinLock.code', label: 'Change PIN' });
+});
 // The PIN is masked by default — it sits on a settings page that is itself
 // reachable without the lock, so a plain text input meant anyone glancing at
 // the screen could read the code the lock exists to keep. SHOW is for the

@@ -10,6 +10,7 @@ import { applyTheme } from '../display/themes.js';
 import { compileTemplate, describeChannel, listTemplates, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
+import { applyPlaylistPreservingAir } from '../library/reanchor.js';
 import { isFavorite, previewOnClient, refreshPersonalClients, setFavorite } from '../personal/state.js';
 import {
   buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
@@ -32,10 +33,10 @@ import {
   buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildCreditsSpeedupPanel, buildDynamicOverlaysPanel, buildFoldersPanel,
   buildLogoBugPanel, buildTickerLayoutPanel, buildTitlesPanel,
 } from './panels.js';
-import { renderCommercialsPanel, renderStandbyPanel } from './interstitials.js';
+import { cancelBulkPreview, renderCommercialsPanel, renderStandbyPanel } from './interstitials.js';
 import { renderSettingsPanels } from './settings.js';
 import { buildUnifiedSchedulePanel, blockPickerLabel } from './schedule.js';
-import { attachSliderReadout, commitOwnerFields, emptyState, ownerFieldsCommand, probeDurationForEntry } from './util.js';
+import { attachSliderReadout, commitOwnerFields, emptyState, ownerFieldsCommand, probeDurationForEntry, remapChannelRefs } from './util.js';
 import { MenuButton } from '../ui/menu.js';
 import {
   getMediaSourcePicker, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds, updatePluginChannelOverride,
@@ -99,29 +100,35 @@ export async function fixChannelPlayback(ch, btn) {
     .concat(...(ch.blocks || []).map((b) => (b.commercials && b.commercials.files) || []));
 
   let fixedCount = 0;
-  for (let i = 0; i < allFiles.length; i++) {
-    if (S.batchFixCancel) break;
-    const file = allFiles[i];
-    scanProgressEl.textContent = `CH ${ch.number}: CHECKING ${i + 1} / ${allFiles.length} (${fixedCount} FIXED SO FAR)…`;
+  try {
+    for (let i = 0; i < allFiles.length; i++) {
+      if (S.batchFixCancel) break;
+      const file = allFiles[i];
+      scanProgressEl.textContent = `CH ${ch.number}: CHECKING ${i + 1} / ${allFiles.length} (${fixedCount} FIXED SO FAR)…`;
 
-    const url = await window.api.toFileUrl(file.path);
-    const ok = await probePlayback(url, 2500);
-    if (S.batchFixCancel) break;
+      const url = await window.api.toFileUrl(file.path);
+      const ok = await probePlayback(url, 2500);
+      if (S.batchFixCancel) break;
 
-    if (!ok) {
-      scanProgressEl.textContent = `CH ${ch.number}: FIXING ${i + 1} / ${allFiles.length}…`;
-      const result = await window.api.transcode(file.source || 'local', file.path);
-      if (!result.error) fixedCount++;
+      if (!ok) {
+        scanProgressEl.textContent = `CH ${ch.number}: FIXING ${i + 1} / ${allFiles.length}…`;
+        const result = await window.api.transcode(file.source || 'local', file.path);
+        if (!result.error) fixedCount++;
+      }
     }
+
+    scanProgressEl.textContent = S.batchFixCancel
+      ? `STOPPED — ${fixedCount} FIXED THIS RUN. RE-RUN TO PICK UP WHERE IT LEFT OFF.`
+      : `DONE — CHECKED ${allFiles.length}, FIXED ${fixedCount}.`;
+  } catch (err) {
+    scanProgressEl.textContent = `FIX PLAYBACK FAILED — ${String((err && err.message) || err).slice(0, 120).toUpperCase()} (${fixedCount} FIXED BEFORE THE ERROR).`;
+  } finally {
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 5000);
+    // Without this a thrown transcode/IPC error left the button stuck on STOP FIXING
+    // and S.batchFixRunning set, so no channel could ever be fixed again.
+    S.batchFixRunning = null;
+    btn.textContent = 'FIX PLAYBACK';
   }
-
-  scanProgressEl.textContent = S.batchFixCancel
-    ? `STOPPED — ${fixedCount} FIXED THIS RUN. RE-RUN TO PICK UP WHERE IT LEFT OFF.`
-    : `DONE — CHECKED ${allFiles.length}, FIXED ${fixedCount}.`;
-  setTimeout(() => scanProgressEl.classList.add('hidden'), 5000);
-
-  S.batchFixRunning = null;
-  btn.textContent = 'FIX PLAYBACK';
 }
 
 const openChannelEditTabs = new Map();
@@ -179,6 +186,17 @@ function enableDynamicBarKeyboard(bar, buttonSelector) {
   });
 }
 
+// Two channels trade numbers. Every number-keyed reference (ad affinity, flow/preset
+// channel lists, PIN locks) is swapped with them, and the whole thing is one undo
+// step — a bare number swap left those references pointing at the wrong channel.
+function swapChannelNumbers(a, b) {
+  const aNum = a.number;
+  const bNum = b.number;
+  [a.number, b.number] = [bNum, aNum];
+  remapChannelRefs(S.config, new Map([[aNum, bNum], [bNum, aNum]]));
+  commitConfigPatch(`Swap CH ${formatChannelNumber(aNum)} and CH ${formatChannelNumber(bNum)}`);
+}
+
 function sortedForSetup() {
   return [...((S.config && S.config.channels) || [])].sort((a, b) => (Number(a.number) || 0) - (Number(b.number) || 0));
 }
@@ -205,6 +223,13 @@ export function renderChannelList() {
 
   if (!S.config || !Array.isArray(S.config.channels)) {
     if (S.config) S.config.channels = [];
+  }
+
+  // A channel removed or renumbered elsewhere must not linger in the multi-select
+  // (bulk actions would then act on, or count, a channel that no longer exists).
+  if (S.bulkSelectedChannels && S.bulkSelectedChannels.size) {
+    const live = new Set(S.config.channels.map((c) => c.number));
+    [...S.bulkSelectedChannels].forEach((n) => { if (!live.has(n)) S.bulkSelectedChannels.delete(n); });
   }
 
   const fullList = sortedForSetup();
@@ -291,7 +316,9 @@ export function renderChannelList() {
           openChannelEditTabs.set(v, openChannelEditTabs.get(oldNum));
           openChannelEditTabs.delete(oldNum);
         }
-        commitInPlace({ type: 'channel.renumber', from: oldNum, to: v });
+        // Ads, flows, presets and PIN locks that named the old number follow it.
+        remapChannelRefs(S.config, new Map([[oldNum, v]]));
+        commitConfigPatch(`Renumber CH ${formatChannelNumber(oldNum)} to ${formatChannelNumber(v)}`);
         S.setupSelectedChannel = v;
         renderChannelList();
       });
@@ -476,8 +503,8 @@ export function renderChannelList() {
       copyFromBtn.textContent = 'COPY';
       copyFromBtn.title = 'Copies SCHEDULE (blocks + broadcast hours), ADS, and LOGO settings from the selected channel onto this one — never touches folders/files/name/number';
       copyFromBtn.addEventListener('click', async () => {
-        const srcNumber = parseInt(copyFromSelect.value, 10);
-        if (!srcNumber) return;
+        const srcNumber = parseChannelNumber(copyFromSelect.value);
+        if (!Number.isFinite(srcNumber)) return; // blank placeholder is NaN; CH 0 is a real channel
         const src = S.config.channels.find((c) => c.number === srcNumber);
         if (!src) return;
         if (!(await confirmDialog(`Copy SCHEDULE, ADS, and LOGO settings from CH ${src.number} (${src.name || 'UNNAMED'}) onto CH ${ch.number} (${ch.name || 'UNNAMED'})? This overwrites this channel's current blocks, broadcast hours, ad/logo settings — its folders/files are untouched.`))) return;
@@ -1021,13 +1048,11 @@ export function renderChannelList() {
       row.addEventListener('drop', (e) => {
         e.preventDefault();
         row.classList.remove('drag-over');
-        const draggedNumber = parseInt(e.dataTransfer.getData('text/plain'), 10);
-        if (!draggedNumber || draggedNumber === ch.number) return;
+        const draggedNumber = parseChannelNumber(e.dataTransfer.getData('text/plain'));
+        if (!Number.isFinite(draggedNumber) || draggedNumber === ch.number) return;
         const dragged = S.config.channels.find((c) => c.number === draggedNumber);
         if (!dragged) return;
-        const swap = { type: 'channel.swapNumbers', a: dragged.number, b: ch.number };
-        [dragged.number, ch.number] = [ch.number, dragged.number];
-        commitInPlace(swap);
+        swapChannelNumbers(dragged, ch);
         renderChannelList();
       });
 
@@ -1056,9 +1081,7 @@ function moveSetupChannel(ch, direction) {
   const list = sortedForSetup();
   const neighbor = list[list.indexOf(ch) + direction];
   if (!neighbor) return;
-  const swap = { type: 'channel.swapNumbers', a: ch.number, b: neighbor.number };
-  [ch.number, neighbor.number] = [neighbor.number, ch.number];
-  commitInPlace(swap);
+  swapChannelNumbers(ch, neighbor);
   S.bulkSelectedChannels.clear();
   S.setupSelectedChannel = ch.number;
   renderChannelList();
@@ -1216,9 +1239,7 @@ function renderChannelListPane(list, pluginEntries) {
       if (!Number.isFinite(draggedNumber) || draggedNumber === ch.number) return;
       const dragged = S.config.channels.find((c) => c.number === draggedNumber);
       if (!dragged) return;
-      const swap = { type: 'channel.swapNumbers', a: dragged.number, b: ch.number };
-      [dragged.number, ch.number] = [ch.number, dragged.number];
-      commitInPlace(swap);
+      swapChannelNumbers(dragged, ch);
       S.setupSelectedChannel = dragged.number;
       renderChannelList();
     });
@@ -1901,8 +1922,15 @@ export async function addFolderToChannel(ch, folderPath = null) {
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING FOLDER…';
 
-  const paths = await window.api.scanFolder('local', folder);
-  if (paths.length === 0) {
+  let paths;
+  try {
+    paths = await window.api.scanFolder('local', folder);
+  } catch (err) {
+    scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 4000);
+    return;
+  }
+  if (!Array.isArray(paths) || paths.length === 0) {
     scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
     setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
     return;
@@ -1942,8 +1970,15 @@ export async function addFolderToChannel(ch, folderPath = null) {
 export async function createChannelFromFolder(folderPath) {
   scanProgressEl.classList.remove('hidden');
   scanProgressEl.textContent = 'SCANNING DROPPED FOLDER…';
-  const paths = await window.api.scanFolder('local', folderPath);
-  if (!paths.length) {
+  let paths;
+  try {
+    paths = await window.api.scanFolder('local', folderPath);
+  } catch (err) {
+    scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 4000);
+    return null;
+  }
+  if (!Array.isArray(paths) || !paths.length) {
     scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
     setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
     return null;
@@ -1979,6 +2014,7 @@ export async function rescanAllFolders() {
   let added = 0;
   let unreachable = 0;
   for (const ch of targets) {
+    const fresh = [];
     for (const entry of ch.folders) {
       const label = ch.name && ch.name.trim() ? ch.name.trim() : `CH ${ch.number}`;
       scanProgressEl.textContent = `RESCANNING ${label}: ${entry.label || entry.ref}…`;
@@ -1989,7 +2025,7 @@ export async function rescanAllFolders() {
         unreachable++;
         continue; // eslint-disable-line no-continue
       }
-      const known = new Set(ch.files.filter((f) => f.folder === entry.id).map((f) => f.path));
+      const known = new Set(ch.files.filter((f) => f.folder === entry.id).concat(fresh).map((f) => f.path));
       const newPaths = paths.filter((p) => !known.has(p));
       for (let i = 0; i < newPaths.length; i++) {
         scanProgressEl.textContent = `${label}: PROBING NEW VIDEO ${i + 1} / ${newPaths.length}…`;
@@ -2005,14 +2041,19 @@ export async function rescanAllFolders() {
           entry.source === 'local' ? Promise.resolve(null) : tryGetDisplayName(entry.source, rawRef),
           entry.source === 'local' ? Promise.resolve(null) : tryGetMetadata(entry.source, rawRef),
         ]);
-        ch.files.push({
+        fresh.push({
           path: newPaths[i], duration, folder: entry.id, source: entry.source, ...(title ? { title } : {}),
           ...(metadata && metadata.description ? { description: metadata.description } : {}),
           ...(metadata && metadata.facets ? { facets: { ...freshFileFacets(), ...metadata.facets } } : {}),
         });
         added++;
       }
-      if (ch.shuffle && newPaths.length > 0) shuffleArray(ch.files);
+    }
+    if (fresh.length) {
+      // Appended (not reshuffled) and re-anchored, so what is airing now keeps airing,
+      // and committed so it saves, undoes and invalidates schedule caches.
+      applyPlaylistPreservingAir(ch, [...ch.files, ...fresh], viewNow());
+      commitOwnerFields(ch, ['files', 'anchor'], { label: `Rescan ${ch.name || `CH ${ch.number}`}` });
     }
   }
   const addedText = added > 0 ? `${added} NEW VIDEO${added === 1 ? '' : 'S'} ADDED` : 'NO NEW VIDEOS FOUND';
@@ -2071,9 +2112,11 @@ async function openPreviewOnDialog(ch) {
 // dropdown and quick-jump buttons below, which all need ch.blocks/
 // ch.broadcastHours, not just the number already stashed on the dataset.
 let previewChannel = null;
+let previewReturnFocus = null;
 
 export function openPreviewModal(ch) {
   previewChannel = ch;
+  previewReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   previewPreciseMs = null;
   previewModalChannelLabelEl.textContent = `CH ${ch.number}${ch.name ? ' — ' + ch.name : ''}`;
   previewModalDatetimeEl.value = toDatetimeLocalValue(new Date());
@@ -2096,7 +2139,29 @@ export function openPreviewModal(ch) {
 function closePreviewModal() {
   previewModalEl.classList.add('hidden');
   previewChannel = null;
+  const back = previewReturnFocus;
+  previewReturnFocus = null;
+  if (back && back.isConnected) back.focus();
 }
+
+// Esc closes; Tab stays inside the dialog while it is open.
+previewModalEl.addEventListener('keydown', (e) => {
+  if (previewModalEl.classList.contains('hidden')) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    e.stopPropagation();
+    closePreviewModal();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const focusable = Array.from(previewModalEl.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !previewModalEl.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 
 // datetime-local only stores minute precision, but a quick-jump chain (e.g.
 // SHOW START then SHOW END) needs the exact millisecond that was actually
@@ -2193,7 +2258,7 @@ previewModalQuickEl.addEventListener('click', (e) => {
 });
 
 previewModalGoBtn.addEventListener('click', () => {
-  const chNumber = parseInt(previewModalEl.dataset.channelNumber, 10);
+  const chNumber = parseChannelNumber(previewModalEl.dataset.channelNumber);
   // getPreviewFieldMs(), not a raw re-parse of the field — a quick-jump
   // button (NEXT BREAK especially, whose windows are often a handful of
   // seconds long) computes sub-minute precision that the visible field can
@@ -2345,7 +2410,10 @@ channelImportBtn.addEventListener('click', async () => {
     return;
   }
 
-  let targetNumber = Number(pkg.channel.number);
+  // Same range the channel-number field accepts (parseChannelNumber: up to three
+  // digits). A package carrying anything else gets the next free number instead.
+  let targetNumber = parseChannelNumber(pkg.channel.number);
+  if (!Number.isInteger(targetNumber) || targetNumber < 1) targetNumber = nextChannelNumber();
   let replace = false;
   const conflict = S.config.channels.some((channel) => channel.number === targetNumber);
   if (conflict) {
@@ -2357,8 +2425,8 @@ channelImportBtn.addEventListener('click', async () => {
     });
     if (entered == null) return;
     targetNumber = Number(entered);
-    if (!Number.isInteger(targetNumber) || targetNumber < 1 || targetNumber > 9999) {
-      await alertDialog('Enter a whole-number channel from 1 to 9999.', { variant: 'error' });
+    if (!Number.isInteger(targetNumber) || targetNumber < 1 || targetNumber > 999) {
+      await alertDialog('Enter a whole-number channel from 1 to 999.', { variant: 'error' });
       return;
     }
     if (S.config.channels.some((channel) => channel.number === targetNumber)) {
@@ -2454,7 +2522,25 @@ configImportBtn.addEventListener('click', async () => {
     return;
   }
   if (!imported) return; // user canceled the open dialog
-  if (!(await confirmDialog('Import this config? It replaces every channel and setting currently loaded — anything not saved yet will be lost.'))) return;
+  // A channel package or settings-only export is valid JSON too, and importing one
+  // here would wipe the whole lineup. Name what the file actually is instead.
+  if (typeof imported !== 'object' || Array.isArray(imported)) {
+    await alertDialog("That file isn't a RerunTV configuration.", { title: 'NOT A CONFIG FILE', variant: 'error' });
+    return;
+  }
+  if (imported.templateVersion != null || imported.kind === 'reruntv-channel-package') {
+    await alertDialog('That file is a single-channel package or template, not a full configuration. Use IMPORT CHANNEL to add it.', { title: 'NOT A FULL CONFIG', variant: 'error' });
+    return;
+  }
+  if (readSettingsBundle(imported)) {
+    await alertDialog('That file is a settings-only export, not a full configuration. Use IMPORT SETTINGS to apply it.', { title: 'NOT A FULL CONFIG', variant: 'error' });
+    return;
+  }
+  if (!Array.isArray(imported.channels)) {
+    await alertDialog('That file has no channel list, so it is not a full RerunTV configuration. Nothing was changed.', { title: 'NOT A CONFIG FILE', variant: 'error' });
+    return;
+  }
+  if (!(await confirmDialog('Import this config? It replaces every channel and setting currently loaded. You can undo it with Ctrl+Z until you leave setup.'))) return;
 
   S.config = applyConfigDefaults(imported);
   resetUndoBaseline();
@@ -2468,6 +2554,7 @@ configImportBtn.addEventListener('click', async () => {
 });
 
 doneBtn.addEventListener('click', async () => {
+  cancelBulkPreview();
   if (!S.config.channels || S.config.channels.length === 0) {
     try {
       const fresh = await window.api.loadConfig();
@@ -2476,7 +2563,8 @@ doneBtn.addEventListener('click', async () => {
       }
     } catch (e) {}
   }
-  S.config.channels = (S.config.channels || []).filter((c) => (c.files && c.files.length > 0) || (c.name && c.name.trim()) || (c.folders && c.folders.length > 0));
+  S.config.channels = (S.config.channels || []).filter((c) => (c.files && c.files.length > 0) || (c.name && c.name.trim()) || (c.folders && c.folders.length > 0)
+    || (c.blocks || []).some((b) => b && ((b.files && b.files.length > 0) || (b.folders && b.folders.length > 0))));
   await saveConfigNow();
   resetUndoBaseline();
   showTvScreen();
@@ -2485,12 +2573,19 @@ doneBtn.addEventListener('click', async () => {
 const configRestoreAutoBtn = document.getElementById('config-restore-auto-btn');
 if (configRestoreAutoBtn) {
   configRestoreAutoBtn.addEventListener('click', async () => {
+    if (!(await confirmDialog({
+      title: 'RESTORE CHANNELS FROM DISK?',
+      message: 'This loads your newest saved channel backup and replaces the lineup that is loaded now, then returns to the TV. The current state is itself backed up first.',
+      confirmText: 'RESTORE',
+    }))) return;
     try {
       let restored = await window.api.loadConfig();
       if (!restored || !Array.isArray(restored.channels) || restored.channels.length === 0) {
         const list = await window.api.listBackups();
         if (Array.isArray(list)) {
-          const sortedBackups = [...list].sort((a, b) => (b.size || 0) - (a.size || 0));
+          // Newest first. (Largest-first used to restore an old bloated backup over a
+          // recent good one.) The first non-empty one wins.
+          const sortedBackups = [...list].sort((a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0));
           for (const b of sortedBackups) {
             try {
               const candidate = await window.api.restoreBackup(b.file);

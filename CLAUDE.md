@@ -17,7 +17,7 @@ Three processes: Electron **main** (`main/`, Node/Electron, single-threaded), th
 ## The one invariant that matters most
 
 Everything that reads "now" for schedule/playback purposes must go through `viewNow()`
-(`renderer/js/state.js`), not `Date.now()` — it's time-machine-aware, so scrubbing
+(`renderer/js/core/state.js`), not `Date.now()` — it's time-machine-aware, so scrubbing
 backward/forward in time and tuning in produce the correct schedule state with no separate
 history to maintain. `Date.now()` is only correct for a short, closed list of deliberately
 real-time exceptions (channel anchor timestamps, UI gesture timing, background scheduler
@@ -27,10 +27,10 @@ one of the exceptions.
 
 Schedule resolution is a pure function of `(channel, timestamp)` — `resolveActiveSource`,
 `computeSourcePosition`, `boundarySlot`, `resolveActiveCommercials`, `resolveBreakAt`
-(`renderer/js/schedule.js`, `renderer/js/interstitials.js`). This is what makes the
+(`renderer/js/core/schedule.js`, `renderer/js/core/interstitials.js`). This is what makes the
 time-machine possible: no separate playback log, just re-evaluating the same functions at a
 different timestamp. A channel file's `path` can now be a plain local path (unchanged) or a
-`mediasource:<providerId>:<opaque-ref>` string routed to a plugin (`main/main-media-dispatch.js`,
+`mediasource:<providerId>:<opaque-ref>` string routed to a plugin (`main/media/dispatch.js`,
 `PLUGIN_DEVELOPMENT.md`'s `mediaSource` capability) — that abstraction lives entirely below
 this layer (parsing/fetching a ref), so schedule.js's scheduling math never had to change to
 support it.
@@ -38,13 +38,13 @@ support it.
 ## Config mutation — read before caching anything
 
 Config objects (channels, interstitial flows, blocks) are mutated **in place** throughout
-the codebase — e.g. `setup-interstitials-flowbuilder.js` does `.steps.splice()` /
+the codebase — e.g. `setup/flowbuilder.js` does `.steps.splice()` /
 `.steps.push()` on the same object reference, and several `main.js` IPC handlers mutate a
 `loadConfig()` result before calling `saveConfig()` with it. **Do not add reference-based
 memoization of anything derived from config** without first keying it on real invalidation
 — a stale cache here means a wrong schedule airing.
 
-`S.configGeneration` (`renderer/js/state.js`) is that invalidation: a counter bumped by
+`S.configGeneration` (`renderer/js/core/state.js`) is that invalidation: a counter bumped by
 `bumpConfigGeneration()` on every known write to `S.config` — in-place mutation via
 `saveConfigDebounced()` (the funnel almost every setup-screen edit already goes through,
 bumped synchronously before its debounce timer, not inside it) and wholesale replacement via
@@ -53,16 +53,16 @@ reassign `S.config` outside that funnel (screen-switch refetch, LAN-viewer confi
 bump it directly. Any new mutation site that doesn't already flow through one of those funnels
 needs its own explicit `bumpConfigGeneration()` call, or a config change through it will go
 unnoticed by every cache keyed on the generation. Two caches now key on it:
-`resolveActiveCommercials`'s memoization (`schedule.js`) and `guide.js`'s render-signature
+`resolveActiveCommercials`'s memoization (`core/schedule.js`) and `guide/guide.js`'s render-signature
 fast path (skips the per-channel `getChannelSchedule()` sweep on the 30s guide tick when
 config/window/filter/selection are all unchanged, just moving the live line and
-`past`-dimming instead). A third, `schedule-query.js`'s per-day cache, keys on the channel
+`past`-dimming instead). A third, `core/schedule-query.js`'s per-day cache, keys on the channel
 object plus the generation.
 
-**Commands (`renderer/js/commands.js`, docs/design/05).** Every config edit in `renderer/js` is a
+**Commands (`renderer/js/core/commands.js`, docs/design/05).** Every config edit in `renderer/js` is a
 named command. There are no bare `saveConfigDebounced()` calls left, and
 `tests/config-writes.test.js` fails if one is added. `node scripts/audit-config-writes.js`
-reports them. Pick the right funnel from `state.js`:
+reports them. Pick the right funnel from `core/state.js`:
 
 - **`dispatch(command, { coalesce, label, skipUndo })`**: the command makes the change itself.
   Examples: `settings.set`, `channel.set`, `channel.insert`, `item.insert`, `item.remove`,
@@ -72,7 +72,7 @@ reports them. Pick the right funnel from `state.js`:
   - The command states the value as it now stands, and is applied only to the undo baseline to
     get its inverse. S.config keeps its objects.
   - `commitItemEdit(collection, [item, cloneJson(item)-before])` is the list-item form.
-  - `setup-util.js`'s `commitOwnerFields(channelOrBlock, fields)` is the channel-or-block form.
+  - `setup/util.js`'s `commitOwnerFields(channelOrBlock, fields)` is the channel-or-block form.
 - **`commitConfigPatch(label, opts)`**: only for transforms that rewrite many parts of config
   at once (curation, tag rename everywhere, resync, import, relink). It records one labelled
   structural patch.
@@ -85,27 +85,27 @@ prevents was real. That copying is also why an editor holding live objects must 
 `commitInPlace`: `dispatch` would leave the editor holding a detached copy.
 `saveConfigDebounced` itself is still exported because plugin contexts use it.
 
-**Main-process config edits go through `configHost.applyCommands()`** (`main/config-host.js`,
-exported from `main-config.js`), never a `loadConfig()`-modify-`saveConfig()` round trip. The
+**Main-process config edits go through `configHost.applyCommands()`** (`main/config/host.js`,
+exported from `main/config/config.js`), never a `loadConfig()`-modify-`saveConfig()` round trip. The
 host broadcasts the applied commands, the renderer applies them via `applyHostUpdate()`, and a
 renderer save that predates them gets them replayed on the host, so neither side reverts the
 other. A host command must only *set* values (never append or splice), because replay can apply
-it twice. Renderer code that needs an immediate save uses `saveConfigNow()` from `state.js`, not
+it twice. Renderer code that needs an immediate save uses `saveConfigNow()` from `core/state.js`, not
 `window.api.saveConfig()` directly: it carries the host revision.
 
 Paired LAN viewers learn about config writes from a `config:changed` notice on the viewer event
-bus (`main-config.js`'s `onViewerRelevantConfigChange`) and refetch `/api/config`. Their poll is
+bus (`main/config/config.js`'s `onViewerRelevantConfigChange`) and refetch `/api/config`. Their poll is
 only a 60 s fallback now. If you add a new frequently rewritten piece of host-local watching
-state (like `lastChannel` or `volume`), add it to `HOST_LOCAL_FIELDS` in `main/config-host.js`.
+state (like `lastChannel` or `volume`), add it to `HOST_LOCAL_FIELDS` in `main/config/host.js`.
 Otherwise every paired TV will refetch the whole lineup each time it changes.
 
 ## Usage modes (desktop / TV)
 
-`html[data-mode]` is `desktop` or `tv`, resolved per device by `renderer/js/usage-mode.js`
+`html[data-mode]` is `desktop` or `tv`, resolved per device by `renderer/js/tv/usage-mode.js`
 (docs/design/01, contract C1). It is never stored in `channels.json`.
 
-- **In TV mode**, remote buttons are normalized (`remote-input.js`, pure) and routed by on-screen
-  context in `tv-input.js`, which runs before `handleKey` in `app.js`'s keydown listener.
+- **In TV mode**, remote buttons are normalized (`remote/input.js`, pure) and routed by on-screen
+  context in `tv/input.js`, which runs before `handleKey` in `app.js`'s keydown listener.
 - **Reuse the keyboard path.** Route a TV behaviour as `key:<Key>` whenever the keyboard handler
   already does the job, instead of writing a second implementation.
 - **Desktop keys stay the same.** In desktop mode `routeKeydown` returns false, and keyboard
@@ -114,16 +114,16 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `data-hint-mode="tv"` replace the letter hints in TV mode.
 - **Android client.** At `RerunTVInput.version` ≥ 2 it posts RAW Android key events —
   `native({ source: 'android', keyCode, scanCode, repeat, longPress, holdMs, action })` — and
-  `remote-input.js` decides what each button means (`ANDROID_KEYCODES`, then this device's
-  learn-mode overrides in `remote-profile.js`). There is no keycode table in Kotlin any more, so a
+  `remote/input.js` decides what each button means (`ANDROID_KEYCODES`, then this device's
+  learn-mode overrides in `remote/profile.js`). There is no keycode table in Kotlin any more, so a
   new remote is a JS change; a host older than 2 can't drive the client at all. `native({ key })`
   (a RemoteKey name) still works for the phone remote and touch controls. Bump the version only
   for an incompatible change to that call.
 - **TV overlays.** A new full-screen TV overlay calls `registerTvModal({ isOpen, element, cancel })`
-  (`tv-input.js`) to get D-pad dialog handling (spatial focus, OK presses, Back cancels). Don't add
+  (`tv/input.js`) to get D-pad dialog handling (spatial focus, OK presses, Back cancels). Don't add
   another hardcoded check to `currentContext()`.
-- **TV menu.** In TV mode `tv-menu.js` is a one-column hierarchy (`tvRootItems`); desktop keeps the
-  flat grid (`actions()`). A setting a remote should reach goes in `tv-setup.js` as a `valueItem`
+- **TV menu.** In TV mode `tv/menu.js` is a one-column hierarchy (`tvRootItems`); desktop keeps the
+  flat grid (`actions()`). A setting a remote should reach goes in `tv/setup.js` as a `valueItem`
   (◀▶ steps it).
 - **Plugin channels in TV mode** get `onAction(action, ctx)` (ctx v5) before core. Unhandled actions
   fall back to core, so ▲▼ still change channel.
@@ -142,13 +142,13 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 - **Live layout editor** (the O key, LIVE EDITOR buttons): `setup/overlay-layout-editor.js`,
   re-exported by `setup/util.js`. The panel docks to the edge away from the selection, so a new control
   must not assume a fixed position. Keep the `.logobug-live-*` class names: the UI harness and the custom
-  overlay editor (`overlay-editor.js`) share them.
+  overlay editor (`setup/overlay-editor.js`) share them.
 - **Search:** rows become search results automatically, and new setup actions go in
-  `setup-command-palette.js`'s `searchActions()`.
+  `setup/command-palette.js`'s `searchActions()`.
 - **A channel's SCHEDULE page** is ON AIR · BLOCKS · CALENDAR (docs/design/02 §4.5).
-  - ON AIR (`setup-onair.js`) is the editable timeline. Gestures become commands in DOM-free
-    `timeline-edits.js`.
-  - Each edit is previewed with `proposeEdit` + `diffSchedules` (`schedule-query.js`) before
+  - ON AIR (`setup/onair.js`) is the editable timeline. Gestures become commands in DOM-free
+    `timeline/edits.js`.
+  - Each edit is previewed with `proposeEdit` + `diffSchedules` (`core/schedule-query.js`) before
     it's dispatched.
   - A new schedule edit should follow that path. Anything derived from a proposed channel copy
     must key on the channel object, never `ch.number`, or it will read the live channel's
@@ -159,43 +159,49 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 - `main/main.js` — app lifecycle, window creation, `ipcMain` registrations (grouped by
   `// ---------- Section ----------` divider comments — keep that convention when adding
   handlers).
-- `main/main-*.js` — focused modules split out of `main.js`: config/backups (`main-config.js`,
-  also where `backupUserDataForUpdate()`/`restoreUserDataIfWiped()` protect the portable
-  userData folder across an auto-update install), plugin discovery/loading (`main-plugins.js`),
-  plugin capability-checking (`main-plugin-capabilities.js`), isolated-plugin process
-  management (`main-plugin-isolation.js`), LAN servers (`main-viewer-server.js`,
-  `main-discovery-server.js`) plus their shared pairing/session auth (`main-lan-security.js`)
-  and viewer-config redaction (`main-viewer-projection.js`), media/transcode (`main-media.js`),
-  the local-vs-plugin media-ref dispatch layer (`main-media-dispatch.js`), auto-update via
-  electron-updater (`main-updater.js`, plus pure history/version-transition helpers in
-  `main-updater-state.js`), bounded/redacted logging for the support-bundle export
-  (`main-diagnostics.js`), and pure config-summary/diffing for diagnostics (`config-diff.js`).
-  Each has a header comment explaining its scope.
+- `main/<area>/` — focused modules split out of `main.js`, one folder per concern, each file with a
+  header comment explaining its scope: `config/` (`config.js` config/backups, also where
+  `backupUserDataForUpdate()`/`restoreUserDataIfWiped()` protect the portable userData folder across
+  an auto-update install; `host.js` the config host; `diff.js` pure config-summary diffing;
+  `window-state.js`, `window-ref.js`), `plugins/` (`plugins.js` discovery/loading,
+  `capabilities.js` capability-checking, `isolation.js`/`isolation-runtime.js`/`rpc-channel.js`
+  isolated-plugin processes), `lan/` (`viewer-server.js`, `discovery-server.js`, `startup-server.js`,
+  `connections.js`, `control-browse.js`, `asset-upload.js`, `tv-client.js`, plus shared pairing/session
+  auth in `security.js` and viewer-config redaction in `viewer-projection.js`), `media/` (`media.js`
+  scan/transcode, `dispatch.js` the local-vs-plugin media-ref dispatch layer, `bridge.js`,
+  `protocol.js` the `app://` scheme, `loudness.js`, `cropdetect.js`, `ffmpeg-install.js`, `mime.js`),
+  `updater/` (`updater.js` via electron-updater, `state.js` pure history/version-transition helpers,
+  `api-cache.js`), `diagnostics/` (`diagnostics.js` bounded/redacted logging for the support-bundle
+  export, `history.js` viewing log), `library/` (store/scan/identity/migrate/service), `personal/`,
+  `ui/` (dialogs, scale, screen placement, CEC), and `util/` (`http.js`, `path-safety.js`).
 - `main/splicer/` — the Video Splicer (setup › LIBRARY › SPLICER): command-line scripts
   (`splice.js`, `combine.js`) run in an Electron utility process by `service.js`, which
   queues runs and streams their output to `renderer/js/setup/splicer.js`. The cut editor's
   data model is `renderer/js/library/splice-plan.js`. It was a plugin until 2026-09-26;
   an installed copy is skipped (`FOLDED_INTO_CORE`, `main/plugins/plugins.js`).
-- `renderer/js/` — one file per concern (`playback.js`, `schedule.js`, `interstitials.js`,
-  `guide.js`, `timemachine.js`, `power.js`, the `setup-*.js` files for the Channel Setup
-  screen). `state.js` holds the single shared `S` object; `util.js` holds small pure helpers
-  used across files (`formatClock`, `autoHideAfter`, `isEnabledByDefault`, etc.) — check there
+- `renderer/js/` — one folder per concern: `core/` (`state.js`, `schedule.js`, `interstitials.js`,
+  `commands.js`, `schedule-query.js`, `keymap.js`/`key-remap.js`, `util.js`, ...), `playback/` (`core.js`,
+  `breaks.js`, `timemachine.js`, `power.js`, `recovery.js`, ...), `guide/`, `timeline/`, `setup/` (the
+  Channel Setup screen, entry `setup/index.js`), `tv/` (TV mode, `usage-mode.js`), `remote/`, `display/`
+  (themes, eras), `library/`, `personal/`, `plugin/`, `update/`, and `ui/` (the component kit). `app.js` is
+  the renderer entry point. `core/state.js` holds the single shared `S` object; `core/util.js` holds small
+  pure helpers used across files (`formatClock`, `autoHideAfter`, `isEnabledByDefault`, etc.) — check there
   before writing a new one-off helper. Recent additions worth knowing about:
-  `plugin-settings-schema.js`/`setup-plugin-settings.js` (the declarative plugin-settings
+  `plugin/settings-schema.js`/`setup/plugin-settings.js` (the declarative plugin-settings
   contract and the PLUGINS-tab renderer that composes core + plugin sections, isolating one
-  broken section from the rest of the tab), `update-notice.js`/`update-progress.js` (the
-  update-ready toast and the separate `update-progress.html` window), `library-sync.js`/
-  `library-sync-core.js`/`library-relink.js` (opt-in folder resync and the channel-health
-  relink workflow), `channel-package.js` (portable single-channel export/import), and
-  `api-contract.js` (the canonical `window.api` surface list that `tests/ui/contracts.test.js`
-  used to check the sandboxed preload against — see the test-suite note below).
+  broken section from the rest of the tab), `update/notice.js`/`update/progress.js` (the
+  update-ready toast and the separate `update-progress.html` window), `library/sync.js`/
+  `library/sync-core.js`/`library/relink.js` (opt-in folder resync and the channel-health
+  relink workflow), `library/channel-package.js` (portable single-channel export/import), and
+  `api-contract.js` (the canonical `window.api` surface list, checked against the sandboxed
+  preload by `tests/api-surface.test.js`).
 - `plugins/<id>/` — each plugin is self-contained: `manifest.json`, optional `style.css`,
   `renderer.js` (ES module, dynamic-imported from `app://plugins/`), optional `main.js`
   (main-process code), optional `settings.js` (manifest's `"settings"` field) for a plugin's
   PLUGINS-tab settings UI — kept separate from `renderer.js` so channel-render logic and
   settings-panel logic don't have to share a file; every first-party plugin now uses this
   split. Plugins cannot `import` core JS or each other's files directly (different origins) —
-  shared core helpers are exposed via `window.RCBPlugins.ctx` (`renderer/js/plugins.js`'s
+  shared core helpers are exposed via `window.RCBPlugins.ctx` (`renderer/js/plugin/host.js`'s
   `installGlobalApi()`). If two plugins need the same logic, expose it through `ctx` rather
   than duplicating it or having one plugin depend on another.
 - `PLUGIN_DEVELOPMENT.md` — the plugin author's guide; keep it in sync with `ctx`'s actual
@@ -216,7 +222,7 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   screenshot sweep plus targeted functional checks via `Runtime.evaluate` calling real exported
   functions (`S.config` mutations, dynamic `import()` of renderer modules, computed-style
   assertions), not just DOM presence checks. Two hard-won lessons if you rebuild or extend it:
-  (1) **`main-config.js`'s `portableUserDataDir()` hardcodes config to `<repo>/userData` and
+  (1) **`main/config/config.js`'s `portableUserDataDir()` hardcodes config to `<repo>/userData` and
   ignores Electron's `--user-data-dir` switch entirely** — that's the developer's real live
   channel library, so any automated run MUST back it up (rename it aside) before launching and
   restore it after, in a `finally`/try-finally that also runs on a crash. (2) **`Start-Process`
@@ -234,14 +240,11 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   (non-fresh) `userData` copy: the startup update-check gate delays the real window by up to 12s
   when `config.updates.strategy === "startup-auto"` (poll for the page, don't grab it once), and
   setting `S.currentNumber` directly does not tune a channel — use `tuneToChannel()` from
-  `playback.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
+  `playback/core.js`. Keep this whole sweep scoped and bounded (one pass, one script) rather than
   spawning multiple overlapping agents at it — that happened once, produced three redundant
   partial runs, and was slower overall than just running the script directly.
-  `package.json`'s `"test"` script (`node --experimental-vm-modules --test tests/ui/*.test.js`)
-  still references a `node:test`-based suite that existed during an earlier audit pass and was
-  deliberately deleted (see prior note below) — that's unrelated to the `tests/ui/` folder above and
-  still doesn't work; don't "fix" it by resurrecting old test files from git history without
-  checking with the user first.
+  `package.json`'s `"test"` script is `node scripts/run-tests.js`, which runs the tracked unit tests in
+  `tests/*.test.js` (not the CDP suite above; `npm test` gates commits).
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
   renderer-wide helpers, a plugin's own file for plugin-local ones) rather than introducing a
   new shared module for a single use.
@@ -256,10 +259,10 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 
 An extensive audit-and-fix pass (see git log on `master`) covered, in order: security fixes
 (path traversal, missing timeouts, unbounded request bodies), a broken feature, stale docs,
-main.js/main-plugins.js decomposition into focused modules, general polish, a round of
+main.js/main/plugins/plugins.js decomposition into focused modules, general polish, a round of
 performance fixes (async I/O instead of blocking calls, caching, bounded queues/caches,
 debouncing), and a readability pass (naming, dense conditionals, comment trims, small
-dedup). Two items — a `resolveActiveCommercials` memoization and a `guide.js` DOM-diffing
+dedup). Two items — a `resolveActiveCommercials` memoization and a `guide/guide.js` DOM-diffing
 fast path — were deferred twice for the config-mutation reason above before finally landing,
 gated on the `S.configGeneration` counter described there. Any future cache derived from
 config must key on that same counter (or extend it) rather than inventing its own
@@ -267,17 +270,17 @@ invalidation story.
 
 A second, larger pass followed (still on `master`, all after the audit above): auto-update via
 electron-updater (background checks, a settings panel, a guided/silent install flow, and the
-userData-preservation fix in `main-config.js` after a real update wiped a user's channel
-lineup — see `main-updater.js`/`main-updater-state.js`); the media-source abstraction letting a
-plugin supply channel content from somewhere other than local disk (`main-media-dispatch.js`,
-the `mediaSource` plugin capability, `library-sync*.js`, `playback-recovery.js` for
+userData-preservation fix in `main/config/config.js` after a real update wiped a user's channel
+lineup — see `main/updater/updater.js`/`main/updater/state.js`); the media-source abstraction letting a
+plugin supply channel content from somewhere other than local disk (`main/media/dispatch.js`,
+the `mediaSource` plugin capability, `library/sync*.js`, `playback/recovery.js` for
 provider-backed fetch/recovery); a plugin-settings split (every first-party plugin's UI moved
-from `renderer.js` into its own `settings.js`, formalized by `plugin-settings-schema.js` and
-composed by `setup-plugin-settings.js`); LAN hardening (`main-lan-security.js`'s per-service
-pairing-code + session-cookie auth, `main-viewer-projection.js`'s config redaction for the LAN
+from `renderer.js` into its own `settings.js`, formalized by `plugin/settings-schema.js` and
+composed by `setup/plugin-settings.js`); LAN hardening (`main/lan/security.js`'s per-service
+pairing-code + session-cookie auth, `main/lan/viewer-projection.js`'s config redaction for the LAN
 viewer); several new plugins and theme packs; and a UI/UX polish pass across `setup.css`/
-`tokens.css`/`overlays.css`. This pass also produced (and later removed) a `tests/ui/` suite,
-`AGENTS.md`, and an `AUDIT_2026-08-24.md` — see the test-suite note above; check git history on
-`master` rather than the working tree if you need that audit's original findings. As with the
+`tokens.css`/`overlays.css`. This pass also produced a `tests/ui/` suite and an `AGENTS.md` (both tracked now; see
+the test-suite note above) and an `AUDIT_2026-08-24.md` that was later removed — check git history on
+`master` if you need that audit's original findings. As with the
 first pass, no new invalidation scheme was invented for config-derived state — the
 `S.configGeneration` counter above is still the one to extend.

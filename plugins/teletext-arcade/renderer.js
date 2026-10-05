@@ -130,7 +130,9 @@ window.RCBPlugins.registerChannelType('teletext-arcade', {
     return key ? this.onKey(key, ctx) : false;
   },
   onKey(key) {
-    if (teletextPage !== 999) return false;
+    // Only claim arrows while a game is actually running (the loop is active);
+    // otherwise Up/Down must still change channel.
+    if (teletextPage !== 999 || !snakeTimer || !currentContainer) return false;
     if (key === 'ArrowUp' && snakeDir.y !== 1) { snakeDir = { x: 0, y: -1 }; return true; }
     if (key === 'ArrowDown' && snakeDir.y !== -1) { snakeDir = { x: 0, y: 1 }; return true; }
     if (key === 'ArrowLeft' && snakeDir.x !== 1) { snakeDir = { x: -1, y: 0 }; return true; }

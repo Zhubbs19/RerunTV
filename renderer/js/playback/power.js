@@ -858,6 +858,10 @@ export function powerOff() {
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
+  // A fade armed for the sleep timer just cleared would silence the next power-on.
+  clearTimeout(S.sleepFadeTimer); S.sleepFadeTimer = null;
+  if (S.sleepFadeRAF) { cancelAnimationFrame(S.sleepFadeRAF); S.sleepFadeRAF = null; }
+  S.sleepFadeGain = 1;
   runCoreHooks('power-off');
   triviaCardEl.classList.add('hidden');
   stationIdBarEl.classList.remove('show');

@@ -153,12 +153,14 @@ export function learnModeOpen() {
 }
 
 export function closeLearnMode() {
+  clearInterval(captureTicker);
+  captureTicker = null;
   if (cancelCapture) { cancelCapture(); cancelCapture = null; }
   if (learnSurface) { learnSurface.close(); learnSurface = null; }
   learnOverlay = null;
 }
 
-function renderLearn() {
+function renderLearn(focusKey) {
   if (!learnOverlay) return;
   const profile = remoteProfile();
   const list = learnOverlay.querySelector('.remote-learn-list');
@@ -176,19 +178,41 @@ function renderLearn() {
     item.addEventListener('focus', () => { learnOverlay.querySelector('.remote-learn-status').textContent = `OK to reassign ${remoteKey.toUpperCase()}`; });
     list.appendChild(item);
   });
+  // Rebuilding the list drops focus; put it back on the row just edited.
+  const target = focusKey ? Array.from(list.children).find((b) => b.firstChild && b.firstChild.textContent === focusKey.toUpperCase()) : null;
+  if (target) target.focus({ preventScroll: true });
 }
+
+// Capture swallows every button, Back included, so it can't be cancelled with
+// one: it gives up on its own after this long (the status line counts down).
+const CAPTURE_TIMEOUT_S = 8;
+let captureTicker = null;
 
 function startCapture(remoteKey) {
   if (!learnOverlay) return;
   const status = learnOverlay.querySelector('.remote-learn-status');
-  status.textContent = `Press the button you want for ${remoteKey.toUpperCase()}…`;
   if (cancelCapture) cancelCapture();
+  clearInterval(captureTicker);
+  let left = CAPTURE_TIMEOUT_S;
+  const prompt = () => { status.textContent = `Press the button you want for ${remoteKey.toUpperCase()}… (cancels in ${left}s)`; };
+  prompt();
+  captureTicker = setInterval(() => {
+    left -= 1;
+    if (left > 0) { prompt(); return; }
+    clearInterval(captureTicker);
+    captureTicker = null;
+    if (cancelCapture) { cancelCapture(); cancelCapture = null; }
+    renderLearn(remoteKey);
+    status.textContent = 'Nothing pressed — cancelled.';
+  }, 1000);
   cancelCapture = captureNextButton((info) => {
     cancelCapture = null;
-    if (!info.rawId) { status.textContent = 'That button could not be identified — try another.'; return; }
+    clearInterval(captureTicker);
+    captureTicker = null;
+    if (!info.rawId) { renderLearn(remoteKey); status.textContent = 'That button could not be identified — try another.'; return; }
     remoteProfile().setOverride(info.rawId, remoteKey);
+    renderLearn(remoteKey);
     status.textContent = `${info.rawId} now means ${remoteKey.toUpperCase()}.`;
-    renderLearn();
   });
 }
 

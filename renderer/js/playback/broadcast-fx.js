@@ -345,6 +345,7 @@ export function scheduleCreditsSpeedup(ch, pos) {
   const rate = (cfg && cfg.rate) || 3;
   S.creditsSpeedupTimer = setTimeout(() => {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (S.activeBreakKey || S.scrubPending || S.shuttleDir) return; // a break/scrub owns the player now
     startCreditsSpeedup(ch, file, rate, leadS);
   }, remainingMs - leadS * 1000);
 }

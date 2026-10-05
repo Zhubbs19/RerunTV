@@ -10,6 +10,7 @@ import {
 import { showDetailsOverlay } from '../tv/details.js';
 import { tuneToChannel } from '../playback/core.js';
 import { breakEntriesInWindow } from '../core/interstitials.js';
+import { isHiddenForProfile } from '../personal/state.js';
 import { computeLivePosition, getChannelSchedule } from '../core/schedule.js';
 import { guideSlotMs, MONTHS, S, WEEKDAYS, viewNow, commitInPlace } from '../core/state.js';
 import { searchUpcomingPrograms } from './program-search.js';
@@ -28,6 +29,7 @@ import { getThemePack, runCoreHooks } from '../plugin/host.js';
 import { openTvMenu } from '../tv/menu.js';
 import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
+import { focusDefault, registerModal } from '../ui/focus.js';
 import { currentProfile, personalCommand } from '../personal/state.js';
 
 function reminderList() {
@@ -118,6 +120,16 @@ const notifiedReminders = new Set();
 let activeReminder = null;
 let programSearchTimer = null;
 
+// TV mode: the open results list is a modal, so ▲▼◀▶ move through it, OK
+// jumps to / sets a reminder, and Back closes it.
+if (programResultsEl) {
+  registerModal({
+    isOpen: () => isTvMode() && !programResultsEl.classList.contains('hidden') && !guideGrid.classList.contains('hidden'),
+    element: () => programResultsEl,
+    cancel: () => hideProgramResults(),
+  });
+}
+
 function hideProgramResults() {
   programResultsEl?.classList.add('hidden');
   if (programResultsEl) programResultsEl.innerHTML = '';
@@ -152,7 +164,7 @@ function renderProgramResults(query) {
   // would also apply S.guideFilterQuery, an unrelated filter, to this
   // separate program-title search) — a hidden channel shouldn't be
   // discoverable/tunable-to from search results either.
-  const results = searchUpcomingPrograms(sortedChannels().filter((c) => !c.hidden), query, viewNow());
+  const results = searchUpcomingPrograms(sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number)), query, viewNow());
   programResultsEl.innerHTML = '';
   programResultsEl.classList.remove('hidden');
   const heading = document.createElement('div');
@@ -190,20 +202,38 @@ function removeReminder(id) {
   replaceReminders(next, { label: 'Remove reminder' });
 }
 
+// In TV mode the toast is a modal the remote can answer, and it times out so an
+// unanswered one can't hold the remote (or later reminders) forever.
+const TV_REMINDER_TOAST_MS = 15000;
+let reminderToastTimer = null;
+if (reminderToastEl) {
+  registerModal({
+    isOpen: () => isTvMode() && !reminderToastEl.classList.contains('hidden'),
+    element: () => reminderToastEl,
+    cancel: () => dismissActiveReminder(),
+  });
+}
+
 function dismissActiveReminder() {
+  clearTimeout(reminderToastTimer);
+  reminderToastTimer = null;
   if (activeReminder) removeReminder(activeReminder.id);
   activeReminder = null;
   reminderToastEl?.classList.add('hidden');
 }
 
 function checkProgramReminders() {
-  const now = viewNow();
+  // A reminder is a real-clock appointment: scrubbing the time machine forward
+  // must not prune it (background-tick exception to viewNow()).
+  const now = Date.now();
   let changed = false;
   const next = reminderList().filter((reminder) => {
     if (now > reminder.end + 5 * 60000) { changed = true; return false; }
     return true;
   });
   if (changed) replaceReminders(next, { skipUndo: true });
+  // A toast nobody answered (e.g. the screen was off) must not block every later reminder.
+  if (activeReminder && now > activeReminder.end + 60000) dismissActiveReminder();
   if (activeReminder) return;
   const leadMs = (S.config.reminderLeadMinutes || 1) * 60000;
   const due = reminderList().find((reminder) => !notifiedReminders.has(reminder.id) && now >= reminder.start - leadMs && now <= reminder.end);
@@ -217,6 +247,11 @@ function checkProgramReminders() {
   const autoTune = !!S.config.reminderAutoTune;
   if (reminderTuneBtn) reminderTuneBtn.classList.toggle('hidden', autoTune);
   reminderToastEl.classList.remove('hidden');
+  if (isTvMode()) {
+    focusDefault(reminderToastEl);
+    clearTimeout(reminderToastTimer);
+    reminderToastTimer = setTimeout(dismissActiveReminder, TV_REMINDER_TOAST_MS);
+  }
   if (autoTune) tuneToChannel(due.channelNumber);
   // The toast is the primary delivery; this is the fallback for the case the
   // app is explicitly designed for — still broadcasting behind whatever the
@@ -391,6 +426,11 @@ export async function focusGuideSearch() {
     if (text == null) return;
     guideSearchEl.value = text;
     guideSearchEl.dispatchEvent(new Event('input', { bubbles: true }));
+    // The remote can't Tab to the results: once the debounced search has drawn
+    // them, put focus on the first (the results are a TV modal, see below).
+    setTimeout(() => {
+      if (programResultsEl && !programResultsEl.classList.contains('hidden')) focusDefault(programResultsEl);
+    }, 260);
     return;
   }
   guideSearchEl.focus();
@@ -873,7 +913,7 @@ function guideRenderSignature(rows, windowEnd, minMs) {
   return [
     S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
     S.guideDocked, S.guideShowBreaks, guideSlots(), rows.map((r) => r.number).join(','), S.guideSelNumber, S.guideSelTime,
-    minMs,
+    minMs, document.documentElement.dataset.theme,
   ].join('|');
 }
 
@@ -1207,13 +1247,28 @@ function showDetailsForGuideSelection() {
 }
 
 export function handleGuideGridKey(e) {
+  // Focus inside the program-search results: Enter/Space activate the focused
+  // button natively, Tab walks the buttons; only Escape is ours (close them).
+  if (programResultsEl && e.target && e.target !== document && programResultsEl.contains(e.target)) {
+    if (e.key === 'Escape') {
+      hideProgramResults();
+      guideSearchEl.focus();
+      e.preventDefault();
+    }
+    return;
+  }
   // While the filter box has focus, only intercept Escape — everything
   // else (letters, digits, arrows for cursor movement) is normal typing.
   if (document.activeElement === guideSearchEl) {
     if (e.key === 'Tab') {
-      e.preventDefault();
-      guideSearchEl.focus();
+      // Tab moves on to the program-search results when there are any.
+      if (!programResultsEl || programResultsEl.classList.contains('hidden') || !programResultsEl.querySelector('button:not([disabled])')) {
+        e.preventDefault();
+        guideSearchEl.focus();
+      }
     } else if (e.key === 'Escape') {
+      clearTimeout(programSearchTimer);
+      hideProgramResults();
       if (guideSearchEl.value) {
         guideSearchEl.value = '';
         S.guideFilterQuery = '';

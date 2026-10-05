@@ -10,7 +10,7 @@
     "test": "node scripts/run-tests.js",
     "test:contracts": "node scripts/validate-plugin-contracts.js",
     "pack": "electron-builder --dir --config electron-builder.config.js",
-    "pack:personal": "set RERUNTV_INCLUDE_LOCAL_PLUGINS=1&& electron-builder --dir --config electron-builder.config.js",
+    "pack:personal": "node scripts/pack-personal.js",
     "dist": "electron-builder --config electron-builder.config.js"
   },
   "devDependencies": {

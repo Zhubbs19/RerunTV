@@ -72,7 +72,7 @@ jobs:
           done
           tag="v${{ steps.version.outputs.version }}"
           product=$(node -p "require('./electron-builder.config.js').productName")
-          # Matches build.artifactName (package.json) exactly, no spaces —
+          # Matches artifactName (electron-builder.config.js) exactly, no spaces —
           # electron-builder's own latest.yml records this same hyphenated
           # name as the expected download, so this has to stay byte-for-byte
           # in sync with that template or electron-updater 404s resolving a
@@ -87,7 +87,7 @@ jobs:
           notes+="Verify that it came from this repository; in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
           # just build byproducts — without them attached here, in-app "CHECK
-          # FOR UPDATES" (main-updater.js) 404s on every check. electron-
+          # FOR UPDATES" (main/updater/updater.js) 404s on every check. electron-
           # builder writes latest.yml pointing at the installer's exact
           # filename, so it has to ship from the very same release.
           gh release create "$tag" \

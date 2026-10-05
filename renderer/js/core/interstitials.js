@@ -48,7 +48,8 @@ function matchesWeeklyPreemptionWindow(atMs, w) {
   if (d.getDay() !== w.weekday) return null;
   const dayStart = new Date(d);
   dayStart.setHours(0, 0, 0, 0);
-  const windowStart = dayStart.getTime() + (w.startHour * 60 + w.startMinute) * 60000;
+  dayStart.setHours(w.startHour, w.startMinute, 0, 0); // wall-clock, so DST Sundays don't shift it
+  const windowStart = dayStart.getTime();
   const windowEnd = windowStart + Math.max(1, w.durationMin || 15) * 60000;
   if (atMs < windowStart || atMs >= windowEnd) return null;
   return { windowStart, windowEnd };
@@ -196,7 +197,7 @@ function eligiblePremiereJingleEntries(pool, ch, block) {
 export function pickDeterministic(pool, seedKey, slotIndex) {
   if (!pool.length) return null;
   const expanded = [];
-  pool.forEach((e) => { for (let i = 0; i < Math.max(1, e.weight || 1); i++) expanded.push(e); });
+  pool.forEach((e) => { for (let i = 0; i < Math.min(100, Math.max(1, e.weight || 1)); i++) expanded.push(e); });
   const cycleLen = expanded.length;
   const cycleIndex = Math.floor(slotIndex / cycleLen);
   const shuffled = seededShuffle(expanded, hashString(`${seedKey}:${cycleIndex}`));

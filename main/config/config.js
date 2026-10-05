@@ -225,8 +225,24 @@ function readConfigFileCached() {
 function writeConfigFile(raw) {
   const configPath = getConfigPath();
   const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
-  fs.writeFileSync(tempPath, raw, 'utf-8');
-  fs.renameSync(tempPath, configPath);
+  try {
+    fs.writeFileSync(tempPath, raw, 'utf-8');
+    // Windows refuses to rename over a file another process (AV, indexer,
+    // backup tool) briefly has open — EPERM/EBUSY. Short synchronous retries
+    // absorb that instead of failing the save.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        fs.renameSync(tempPath, configPath);
+        break;
+      } catch (e) {
+        if ((e.code !== 'EPERM' && e.code !== 'EBUSY') || attempt >= 6) throw e;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40 * attempt);
+      }
+    }
+  } catch (e) {
+    try { fs.unlinkSync(tempPath); } catch (e2) { /* temp never created or already gone */ }
+    throw e;
+  }
   cachedConfigRaw = null;
   cachedConfigMtimeMs = null;
 }
@@ -445,8 +461,23 @@ function loadConfig() {
   }
   let raw;
   try {
-    raw = readConfigFileCached();
+    try {
+      raw = readConfigFileCached();
+    } catch (e) {
+      if (e.code === 'ENOENT') throw e;
+      // A transient lock (AV scan, mid-rename) is not "no config" — retry once.
+      cachedConfigRaw = null;
+      cachedConfigMtimeMs = null;
+      raw = readConfigFileCached();
+    }
   } catch (e) {
+    if (e.code !== 'ENOENT') {
+      // The file exists but can't be read. Treating that as a first run would
+      // let the config host save an empty lineup over real data, so report it
+      // the same way as an unparseable file (callers refuse to save over it).
+      console.error('channels.json could not be read:', e.message);
+      return { channels: [], _configLoadError: true, _configLoadErrorBackupPath: null };
+    }
     // No config file yet — a genuinely fresh install, not data loss.
     // _isFirstRun is a one-time signal for the renderer's onboarding screen
     // (app.js init(), onboarding.js) — distinct from just "channels.length

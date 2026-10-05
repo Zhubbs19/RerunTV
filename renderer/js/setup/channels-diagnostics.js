@@ -78,15 +78,23 @@ nowNextToggleBtn.addEventListener('click', () => {
 // channel via channelAffinity, but ALSO tagged with a contentTag nothing on
 // that channel carried — silently dead, not just narrowed.) Also flags pool
 // entries still targeting a channel/block that no longer exists.
-function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel }) {
+function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel, fileCheckFailed = false }) {
   healthCheckResultsEl.innerHTML = '';
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
   const metadataTotal = Array.from(metadataByChannel.values()).reduce((total, files) => total + files.length, 0);
   const totalIssues = missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length + metadataTotal;
 
   const summary = document.createElement('div');
-  summary.className = 'health-check-summary' + (totalIssues === 0 ? ' is-clean' : '');
-  summary.textContent = totalIssues === 0 ? 'NO ISSUES FOUND.' : `${totalIssues} ISSUE(S) FOUND:`;
+  // A failed file-existence call leaves nothing flagged, which must not read as
+  // "all good" — say the files weren't checked.
+  summary.className = 'health-check-summary' + (totalIssues === 0 && !fileCheckFailed ? ' is-clean' : '');
+  if (fileCheckFailed) {
+    summary.textContent = totalIssues === 0
+      ? 'COULD NOT CHECK FILES. NO OTHER ISSUES FOUND — TRY AGAIN.'
+      : `COULD NOT CHECK FILES. ${totalIssues} OTHER ISSUE(S) FOUND:`;
+  } else {
+    summary.textContent = totalIssues === 0 ? 'NO ISSUES FOUND.' : `${totalIssues} ISSUE(S) FOUND:`;
+  }
   healthCheckResultsEl.appendChild(summary);
 
   if (missingByChannel.size) {
@@ -244,6 +252,14 @@ export async function checkChannelHealth() {
 
 async function runChannelHealthCheck() {
   healthCheckBtn.disabled = true;
+  try {
+    return await runChannelHealthCheckInner();
+  } finally {
+    healthCheckBtn.disabled = false;
+  }
+}
+
+async function runChannelHealthCheckInner() {
   healthCheckResultsEl.classList.remove('hidden');
   healthCheckResultsEl.innerHTML = '<div class="health-check-summary">SCANNING…</div>';
 
@@ -267,6 +283,7 @@ async function runChannelHealthCheck() {
 
   const uniquePaths = Array.from(new Set(pathEntries.map((e) => e.path).concat(poolFileEntries.map((e) => e.path))));
   const existsMap = {};
+  let fileCheckFailed = false;
   try {
     // checkPathsExist wants [{source, ref}] with `ref` being each provider's
     // own raw, unprefixed ref (same convention every other media-source
@@ -280,8 +297,14 @@ async function runChannelHealthCheck() {
     const results = await window.api.checkPathsExist(entries);
     if (Array.isArray(results)) {
       uniquePaths.forEach((p, i) => { existsMap[p] = results[i]; });
+    } else if (uniquePaths.length) {
+      fileCheckFailed = true;
     }
-  } catch (e) { /* leave existsMap empty — nothing gets flagged rather than risk false positives */ }
+  } catch (e) {
+    // existsMap stays empty — nothing gets flagged rather than risk false positives —
+    // but the result says the files weren't checked.
+    fileCheckFailed = true;
+  }
 
   const missingByChannel = new Map();
   const missingFolderGroups = new Map();
@@ -343,8 +366,7 @@ async function runChannelHealthCheck() {
     if (files.length) metadataByChannel.set(ch.number, files);
   });
 
-  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel });
-  healthCheckBtn.disabled = false;
+  renderHealthCheckResults({ missingByChannel, missingFolderGroups, orphanedPresets, orphanedPoolEntries, danglingPoolEntries, missingPoolEntries, duplicateFiles, metadataByChannel, fileCheckFailed });
   const missingTotal = Array.from(missingByChannel.values()).reduce((n, s) => n + s.size, 0);
   const metadataTotal = Array.from(metadataByChannel.values()).reduce((total, files) => total + files.length, 0);
   return missingTotal + orphanedPresets.length + orphanedPoolEntries.length + danglingPoolEntries.length + missingPoolEntries.length + duplicateFiles.length + metadataTotal;
@@ -382,10 +404,16 @@ if (boxStatusCheckBtn) {
   boxStatusCheckBtn.addEventListener('click', async () => {
     boxStatusCheckBtn.disabled = true;
     boxStatusIssuesEl.textContent = '…';
-    const total = await checkChannelHealth();
-    boxStatusIssuesEl.textContent = String(total);
-    boxStatusIssuesEl.closest('.box-status-item').classList.toggle('is-warn', total > 0);
-    boxStatusCheckBtn.disabled = false;
+    let total = 0;
+    try {
+      total = await checkChannelHealth();
+      boxStatusIssuesEl.textContent = String(total);
+      boxStatusIssuesEl.closest('.box-status-item').classList.toggle('is-warn', total > 0);
+    } catch (e) {
+      boxStatusIssuesEl.textContent = '?';
+    } finally {
+      boxStatusCheckBtn.disabled = false;
+    }
     // Full breakdown lives in the existing CHANNELS-tab health-check panel
     // (checkChannelHealth already rendered it there) — jump there so the
     // click doesn't just update a number with no way to see what's wrong.

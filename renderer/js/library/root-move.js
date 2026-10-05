@@ -16,19 +16,45 @@ function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Windows paths (a drive letter or UNC share) compare case-insensitively, the
+// way the filesystem does; anything else stays exact.
+function isWindowsPath(text) {
+  return /^[a-z]:[\\/]/i.test(text) || text.startsWith('\\\\');
+}
+
+function foldFor(prefix) {
+  return isWindowsPath(prefix) ? (t) => t.toLowerCase() : (t) => t;
+}
+
+const endsWithSep = (text) => /[\\/]$/.test(text);
+
 // A prefix match only at a path boundary: moving `J:\Media` must not also
 // rewrite `J:\Media Center`.
 export function underPrefix(ref, prefix) {
   const text = String(ref || '');
   if (!prefix || !text) return false;
-  if (text === prefix) return true;
-  const withSep = /[\\/]$/.test(prefix) ? prefix : null;
-  if (withSep) return text.startsWith(withSep);
-  return text.startsWith(`${prefix}\\`) || text.startsWith(`${prefix}/`);
+  const fold = foldFor(prefix);
+  const t = fold(text);
+  const p = fold(prefix);
+  if (t === p) return true;
+  if (endsWithSep(prefix)) return t.startsWith(p);
+  return t.startsWith(`${p}\\`) || t.startsWith(`${p}/`);
 }
 
+// Swaps the `from` prefix for `to`, keeping exactly one separator between the
+// new prefix and the rest, whichever of the two was written with a trailing one.
 export function rewritePrefix(ref, from, to) {
-  return underPrefix(ref, from) ? `${to}${String(ref).slice(from.length)}` : ref;
+  if (!underPrefix(ref, from)) return ref;
+  const rest = String(ref).slice(from.length);
+  if (!rest) return to;
+  if (endsWithSep(from)) {
+    // `rest` starts at the first path segment: `to` must supply the separator.
+    if (endsWithSep(to)) return `${to}${rest}`;
+    const sep = to.includes('\\') && !to.includes('/') ? '\\' : '/';
+    return `${to}${sep}${rest}`;
+  }
+  // `rest` starts with its own separator: don't double up on `to`'s.
+  return endsWithSep(to) ? `${to}${rest.slice(1)}` : `${to}${rest}`;
 }
 
 function checkMove(from, to) {

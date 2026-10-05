@@ -12,7 +12,11 @@ const path = require('path');
 // check, not a directory walk — caller must pass already path.resolve()'d/
 // normalize()'d paths, since this does no normalization of its own.
 function isPathContained(base, resolved) {
-  return resolved === base || resolved.startsWith(base + path.sep);
+  if (resolved === base) return true;
+  // A base that already ends in a separator (a drive or filesystem root such as
+  // D:\ or /) must not get a second one appended, or nothing is ever inside it.
+  const prefix = base.endsWith(path.sep) ? base : base + path.sep;
+  return resolved.startsWith(prefix);
 }
 
 // Windows executables carry a .exe suffix a manifest author shouldn't have

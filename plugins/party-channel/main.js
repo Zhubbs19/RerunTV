@@ -212,7 +212,11 @@ async function activate(ctx) {
         .filter((f) => /\.(mp3|wav|m4a|ogg|flac)$/i.test(f))
         .sort((a, b) => a.localeCompare(b));
     } catch (e) {
-      return []; // folder moved/unmounted since it was configured
+      // Folder moved/unmounted since it was configured. NOTE: under isolation a
+      // folder outside this plugin's granted paths also lands here (reads answer
+      // empty) — soundboardFolder lives in config.party, not pluginSettings, so
+      // manifest userPaths cannot grant it (needs a core change).
+      return [];
     }
   }
 
@@ -232,7 +236,10 @@ async function activate(ctx) {
   // the whole issue.
   function captureVideoFrame(filePath, timeSeconds) {
     const ffmpegPath = ctx.services.ffmpegPath;
-    if (!filePath || !pluginFs.existsSync(filePath) || !ffmpegPath) return Promise.resolve(null);
+    // No existsSync(filePath): under isolation a read outside granted paths answers
+    // false even for a file that is there. ffmpeg failing on a missing file already
+    // resolves null below.
+    if (!filePath || !ffmpegPath) return Promise.resolve(null);
     const destName = `caption-${Date.now()}.jpg`;
     const destPath = path.join(partyUploadsDir(), destName);
     const ss = Math.max(0, timeSeconds || 0);
@@ -285,7 +292,7 @@ async function activate(ctx) {
   }
 
   let server = null;
-  if (lanEnabled) server = createServer(async (req, res) => {
+  const handleRequest = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const kind = req.method === 'GET' ? 'read' : 'write';
     if (!(await access.authorize(req, res, url, kind))) return;
@@ -525,7 +532,18 @@ async function activate(ctx) {
     }
 
     serveStatic(PARTY_DIR, url.pathname, req, res);
-  });
+  };
+  if (lanEnabled) {
+    server = createServer((req, res) => {
+      Promise.resolve().then(() => handleRequest(req, res)).catch((err) => {
+        console.error('[party-channel] request handler failed:', err && err.message);
+        try {
+          if (!res.headersSent) res.writeHead(err && err.code === 'ERR_INVALID_URL' ? 400 : 500);
+          res.end();
+        } catch (e) { /* socket already gone */ }
+      });
+    });
+  }
 
   if (server) {
     server.on('error', (err) => {

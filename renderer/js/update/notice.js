@@ -13,10 +13,19 @@ import {
   updateChangelogViewAllBtn, updateChangelogDoneBtn,
 } from '../core/dom.js';
 
+import { isTvMode } from '../tv/usage-mode.js';
+import { focusDefault, registerModal } from '../ui/focus.js';
+
+// In TV mode the toast is a modal (D-pad focus, OK presses, Back = LATER) and
+// goes away on its own so it can't hold the remote hostage over live TV.
+const TV_TOAST_AUTO_HIDE_MS = 20000;
+let toastTimer = null;
 let pendingPostUpdate = null;
 let postUpdatePreviouslyFocused = null;
 
 function hideToast() {
+  clearTimeout(toastTimer);
+  toastTimer = null;
   if (updateToastEl) updateToastEl.classList.add('hidden');
 }
 
@@ -29,6 +38,11 @@ function showToast(version) {
   updateToastTextEl.textContent = `RerunTV v${version} is downloaded. Install now to restart and reopen automatically, or choose Later to keep watching.`;
   updateToastEl.classList.remove('hidden');
   playConfiguredSound('notification');
+  if (isTvMode()) {
+    focusDefault(updateToastEl);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, TV_TOAST_AUTO_HIDE_MS);
+  }
 }
 
 async function jumpToReleaseNotes() {
@@ -91,6 +105,7 @@ function trapPostUpdateFocus(event) {
   if (!updateChangelogEl || updateChangelogEl.classList.contains('hidden')) return;
   if (event.key === 'Escape') {
     event.preventDefault();
+    event.stopPropagation(); // else the same Back also reaches the TV exit prompt
     closePostUpdate();
     return;
   }
@@ -129,6 +144,16 @@ export function initUpdateNotice() {
     updateChangelogViewAllBtn.addEventListener('click', () => closePostUpdate({ openReleaseNotes: true }));
   }
   if (updateChangelogEl) updateChangelogEl.addEventListener('keydown', trapPostUpdateFocus);
+  if (updateChangelogEl) {
+    registerModal({ isOpen: () => !updateChangelogEl.classList.contains('hidden'), element: () => updateChangelogEl, cancel: () => closePostUpdate() });
+  }
+  if (updateToastEl) {
+    registerModal({
+      isOpen: () => isTvMode() && !updateToastEl.classList.contains('hidden'),
+      element: () => updateToastEl,
+      cancel: hideToast,
+    });
+  }
 
   window.api.onUpdateStatus((status) => {
     if (status.state === 'downloaded' && status.showPopup) showToast(status.version);

@@ -25,6 +25,8 @@ test_stderr.log
 # are the only ones that belong in the repo.
 run-app.bat
 run-server.bat
+# run-server.bat ships (electron-builder extraFiles) and is tracked.
+!run-server.bat
 
 # ---------- tests/ui harness ----------
 # The shared harness lives in tests/ui/:
@@ -125,13 +127,16 @@ plugins/makemkv/
 !plugins/sponsor-billboard/
 !plugins/tape-deck/
 !plugins/teletext-arcade/
+!plugins/theme-addressable-converter-89/
 !plugins/theme-analog-90s/
 !plugins/theme-cable-box-osd/
 !plugins/theme-cloud-guide-16/
 !plugins/theme-cyberpunk-synth/
 !plugins/theme-digital-satellite-2000s/
+!plugins/theme-dual-tuner-dvr-05/
 !plugins/theme-emerald-matrix/
 !plugins/theme-frutiger-aero/
+!plugins/theme-hotel-headend-92/
 !plugins/theme-master-control/
 !plugins/theme-midnight-oled/
 !plugins/theme-neo-brutalist/

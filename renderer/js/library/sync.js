@@ -155,7 +155,7 @@ function schedulePeriodicSync() {
   const prefs = settings();
   if (!prefs.enabled || window.__isViewer) return;
   const minutes = Math.max(5, Math.min(1440, Number(prefs.intervalMinutes) || 30));
-  periodicTimer = setInterval(() => runLibrarySync({ reason: 'periodic' }), minutes * 60 * 1000);
+  periodicTimer = setInterval(() => { runLibrarySync({ reason: 'periodic' }).catch((e) => console.warn('[library-sync] periodic run failed:', e)); }, minutes * 60 * 1000);
 }
 
 export function initLibrarySync() {
@@ -165,7 +165,7 @@ export function initLibrarySync() {
   if (prefs.enabled && prefs.runAtStartup !== false) {
     // Do not hold the first usable window behind a potentially slow network
     // provider. Startup sync begins once initial rendering has settled.
-    setTimeout(() => runLibrarySync({ reason: 'startup' }), 1500);
+    setTimeout(() => { runLibrarySync({ reason: 'startup' }).catch((e) => console.warn('[library-sync] startup run failed:', e)); }, 1500);
   }
 }
 

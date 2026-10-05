@@ -5,6 +5,7 @@
 // same 'guide-program-actions' hook the guide uses.
 //
 // Desktop is unchanged: Enter still just flashes the banner.
+import { isHiddenForProfile } from '../personal/state.js';
 import { getChannel, sortedChannels } from '../core/channels.js';
 import { guideOverlay, tvScreen } from '../core/dom.js';
 import { showGuideOverlay } from '../guide/guide.js';
@@ -20,10 +21,18 @@ import { Menu } from '../ui/menu.js';
 const IDLE_CLOSE_MS = 12000;
 
 let browsing = null; // the channel number shown while browsing
+let openedOn = null; // S.currentNumber when the hub opened; a different one means something else tuned
 let idleTimer = null;
 let actionsMenu = null; // a kit Menu this module drives (docs/design/04 §3)
 
+// Something outside the hub (a typed number, a reminder, the guide) tuned while
+// it was open: its browse position is stale, so close it.
+function dropIfStale() {
+  if (browsing != null && S.currentNumber !== openedOn) closeBannerHub();
+}
+
 export function bannerHubOpen() {
+  dropIfStale();
   return browsing != null;
 }
 
@@ -34,7 +43,7 @@ export function bannerActionsOpen() {
 // Every tunable number in order, specials included (doc 11 put them in the
 // guide's list too).
 function browseNumbers() {
-  const real = sortedChannels().filter((ch) => !ch.hidden).map((ch) => ch.number);
+  const real = sortedChannels().filter((ch) => !ch.hidden && !isHiddenForProfile(ch.number)).map((ch) => ch.number);
   return [...new Set([...real, ...virtualChannelNumbers()])].sort((a, b) => a - b);
 }
 
@@ -44,6 +53,7 @@ function armIdleClose() {
 }
 
 function showFor(number) {
+  if (browsing == null) openedOn = S.currentNumber;
   browsing = number;
   const ch = getChannel(number);
   showGuideOverlay(number, ch);
@@ -64,10 +74,12 @@ export function closeBannerHub() {
   clearTimeout(idleTimer);
   idleTimer = null;
   browsing = null;
+  openedOn = null;
   guideOverlay.classList.add('hidden');
 }
 
 export function browseChannel(direction) {
+  dropIfStale();
   const numbers = browseNumbers();
   if (!numbers.length) return;
   if (browsing == null) { openBannerHub(); return; }
@@ -77,6 +89,7 @@ export function browseChannel(direction) {
 }
 
 export function tuneBrowsed() {
+  dropIfStale();
   const number = browsing;
   closeBannerHub();
   if (number != null && number !== S.currentNumber) tuneToChannel(number);
@@ -105,6 +118,7 @@ export function closeBannerActions() {
 }
 
 export function openBannerActions() {
+  dropIfStale();
   if (browsing == null || actionsMenu) return;
   const number = browsing;
   const { now, next, specialText, ch } = nowAndNext(number);

@@ -218,7 +218,7 @@ async function activate(ctx) {
     name: entry.name, url: access.pairingUrl(`http://${entry.address}:${PORT}`),
   }));
 
-  const server = createServer(async (req, res) => {
+  const handleRequest = async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     const kind = req.method === 'GET' ? 'read' : 'write';
     if (!(await access.authorize(req, res, url, kind))) return;
@@ -510,6 +510,15 @@ async function activate(ctx) {
     }
 
     serveStatic(REMOTE_DIR, url.pathname, req, res);
+  };
+  const server = createServer((req, res) => {
+    Promise.resolve().then(() => handleRequest(req, res)).catch((err) => {
+      console.error('[companion-app] request handler failed:', err && err.message);
+      try {
+        if (!res.headersSent) res.writeHead(err && err.code === 'ERR_INVALID_URL' ? 400 : 500);
+        res.end();
+      } catch (e) { /* socket already gone */ }
+    });
   });
 
   server.on('error', (err) => {

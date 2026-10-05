@@ -60,15 +60,32 @@ function signature(ch, atMs) {
   ].join('|');
 }
 
-// Second precision matches playback timers while remaining bounded. The
-// console is intentionally interactive QA, not a background hot path.
+// Scans in coarse steps, then refines to the second inside the step where the
+// signature first changed — the old second-by-second walk was up to 129,600
+// synchronous resolutions. A time budget bails out (returns null) instead of
+// freezing the setup screen on a channel that never changes. A change that
+// appears and disappears again inside one coarse step can be stepped over; the
+// console is interactive QA, not a hot path.
+const BOUNDARY_COARSE_MS = 30 * 1000;
+const BOUNDARY_SCAN_LIMIT_MS = 36 * 3600 * 1000;
+const BOUNDARY_BUDGET_MS = 1500;
 function adjacentBoundary(ch, fromMs, direction) {
   const initial = signature(ch, fromMs);
-  const step = direction < 0 ? -1000 : 1000;
-  const limit = 36 * 3600;
-  for (let i = 1; i <= limit; i++) {
-    const at = fromMs + step * i;
-    if (signature(ch, at) !== initial) return at;
+  const dir = direction < 0 ? -1 : 1;
+  const startedAt = Date.now();
+  let prev = fromMs;
+  for (let offset = BOUNDARY_COARSE_MS; offset <= BOUNDARY_SCAN_LIMIT_MS; offset += BOUNDARY_COARSE_MS) {
+    if (Date.now() - startedAt > BOUNDARY_BUDGET_MS) return null;
+    const at = fromMs + dir * offset;
+    if (signature(ch, at) !== initial) {
+      // Refine: first whole second after `prev` (in the scan direction) that differs.
+      for (let s = 1000; s <= BOUNDARY_COARSE_MS; s += 1000) {
+        const probe = prev + dir * s;
+        if (signature(ch, probe) !== initial) return probe;
+      }
+      return at;
+    }
+    prev = at;
   }
   return null;
 }

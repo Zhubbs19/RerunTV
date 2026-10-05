@@ -8,6 +8,7 @@ import { nextBreakStart, prevBreakStart, resolveBreakAt } from '../core/intersti
 import { playChannelLive, scheduleBlockBoundaryRetune } from './core.js';
 import { cancelUpNextBar, checkBreakState, renderDynamicText, resetActiveBreakState } from './breaks.js';
 import { applyTvBezel, flashMessage, pushRemoteState } from './power.js';
+import { resetCreditsSpeedup } from './broadcast-fx.js';
 import { computeLivePosition } from '../core/schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, WEEKDAYS, viewNow } from '../core/state.js';
 import { querySchedule } from '../core/schedule-query.js';
@@ -486,6 +487,8 @@ export function startShuttle(dir) {
 // whether it's shuttling (startShuttle) or stepping/dragging (beginScrub).
 function pauseForScrubbing() {
   cancelUpNextBar();
+  // Restores rate/mute/squeeze panel if a credits speedup was mid-flight.
+  resetCreditsSpeedup();
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
   // The shuttle preview (updateShuttlePreview) tracks break overlays itself
@@ -624,7 +627,7 @@ export async function shuttlePlay() {
       await playChannelLive(ch, { fadeInOnReady: true });
     }
     checkBreakState(ch);
-    scheduleBlockBoundaryRetune(ch);
+    if (S.currentNumber === ch.number) scheduleBlockBoundaryRetune(ch); // tuned away during the awaits
   }
   updateVcrOsd();
   sfxGuideToggle(true);
@@ -654,7 +657,7 @@ export async function returnToLive() {
   if (ch) {
     await playChannelLive(ch, { fadeInOnReady: true });
     checkBreakState(ch);
-    scheduleBlockBoundaryRetune(ch);
+    if (S.currentNumber === ch.number) scheduleBlockBoundaryRetune(ch); // tuned away during the awaits
   }
   if (S.timeMachineOn) updateVcrOsd();
   Toast('LIVE', { element: crtToggleFlash, key: 'returnToLive', duration: 1200 });
@@ -712,6 +715,6 @@ export async function exitTimeMachine(opts) {
   if (ch) {
     await playChannelLive(ch, { fadeInOnReady: true });
     checkBreakState(ch);
-    scheduleBlockBoundaryRetune(ch);
+    if (S.currentNumber === ch.number) scheduleBlockBoundaryRetune(ch); // tuned away during the awaits
   }
 }
