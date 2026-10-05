@@ -322,7 +322,7 @@ export function resolveOverlayLayoutContext() {
 // the logo bug (DISPLAY › Logo bug › Keep the bug on the picture). Their CSS
 // offsets add --picture-inset-* (overlays.css); a saved custom position gets
 // the same gap added here. The cards and bars stay on the screen.
-const PICTURE_FOLLOWING_OVERLAYS = new Set(['rating-bug', 'episode-status-bug', 'capability-badge', 'timeshift-badge']);
+export const PICTURE_FOLLOWING_OVERLAYS = new Set(['rating-bug', 'episode-status-bug', 'capability-badge', 'timeshift-badge']);
 let pictureInsets = { left: 0, top: 0, right: 0, bottom: 0 };
 
 // How far the picture is in from each edge of the overlay layer, in the

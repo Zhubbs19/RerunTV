@@ -485,7 +485,7 @@ function logoBugHidesNumber(ch) {
 // edge is kept as the gap to the picture's edge, so a bug tuned for a full
 // 16:9 picture isn't pushed against (or over) the edge of a narrower one. A
 // picture that doesn't fill the screen on this axis also gets a minimum gap.
-function logoBugPosition(percent, size, start, span, whole, rect) {
+export function logoBugPosition(percent, size, start, span, whole, rect) {
   if (!(whole > 0)) return start + Math.min(Math.max(0, (percent / 100) * span), Math.max(0, span - size));
   const at = (percent / 100) * whole;
   const inset = span < whole - 2 ? 0.03 * Math.min(rect.width, rect.height) : 0;

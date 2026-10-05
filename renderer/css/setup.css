@@ -2946,7 +2946,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   box-shadow: var(--shadow-hard-lg), 0 0 22px rgba(var(--accent-rgb), 0.3);
   transform: translateX(-50%);
 }
-.logobug-live-toolbar[data-dock] { width: min(1320px, calc(100vw - 28px)); }
+.logobug-live-toolbar[data-dock] { width: min(1500px, calc(100vw - 28px)); }
 .logobug-live-toolbar[data-dock="top"] { top: 18px; bottom: auto; }
 .logobug-live-title { color: var(--accent); font-family: var(--font-display); font-weight: 700; letter-spacing: 1px; }
 .logobug-live-status { min-width: 190px; color: var(--accent-2); font-family: var(--font-ui); font-size: 12px; }
@@ -2957,7 +2957,16 @@ html[data-theme] .btn[aria-disabled="true"] {
   align-items: center;
   gap: 6px 14px;
 }
-.logobug-live-head .logobug-live-status { flex: 1 1 200px; color: var(--text); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* The readout is in the tag on the box and the fields below; the line stays
+   for screen readers (it is the live region). */
+.logobug-live-head .logobug-live-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .logobug-live-head-buttons { display: flex; gap: 6px; margin-left: auto; }
 .logobug-live-context {
   padding: 3px 11px;
@@ -2981,7 +2990,8 @@ html[data-theme] .btn[aria-disabled="true"] {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
-.logobug-live-group-wide { flex-basis: 100%; }
+.logobug-live-tools .logobug-live-group-fields { display: grid; grid-template-columns: repeat(2, auto); gap: 6px 10px; align-items: center; }
+.logobug-live-tools { flex: 0 0 auto; }
 .logobug-live-group legend { padding: 0 6px; color: var(--accent-2); font: 700 10px var(--font-ui); letter-spacing: 1.5px; }
 .logobug-live-group-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 10px; }
 .logobug-live-help { flex: 1 1 100%; margin: 0; color: var(--text-muted); font: 11px/1.4 var(--font-ui); }
@@ -3024,6 +3034,110 @@ html[data-theme] .btn[aria-disabled="true"] {
 .logobug-live-auto { align-self: center; color: var(--text); font-family: var(--font-ui); font-size: 12px; white-space: nowrap; }
 .logobug-live-actions { display: flex; flex: 0 0 auto; align-self: end; gap: 8px; margin-left: auto; }
 .logobug-live-actions .btn { min-height: 40px; }
+
+/* Picture preview: the box the picture fills (the real one or a stand-in
+   shape), dimming what lies outside it, and the ghost where the selected
+   element lands on that picture. */
+.logobug-live-picture {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+}
+.logobug-live-picture span,
+.logobug-live-ghost span,
+.logobug-live-other span {
+  position: absolute;
+  left: 4px;
+  top: 3px;
+  padding: 0 4px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.7);
+  font: 600 10px var(--font-ui);
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.logobug-live-ghost {
+  position: absolute;
+  pointer-events: none;
+  border: 2px dashed var(--accent-2);
+  background: rgba(var(--accent-2-rgb), 0.12);
+}
+.logobug-live-ghost span { top: auto; bottom: -18px; left: 0; color: var(--accent-2); }
+.logobug-live-others { position: absolute; inset: 0; pointer-events: none; }
+.logobug-live-other {
+  position: absolute;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(255, 255, 255, 0.7);
+}
+.logobug-live-other:hover { background: rgba(var(--accent-rgb), 0.2); border-color: var(--accent); }
+.logobug-live-selection.is-overlapping { border-color: var(--danger, #ff5a4d); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8), 0 0 18px rgba(255, 90, 77, 0.85); }
+.logobug-live-selection.is-original { border-style: dashed; opacity: 0.9; }
+.logobug-live-compare.is-held { background: var(--accent); color: var(--surface-0); }
+
+/* While moving: alignment guides, the gaps to the screen edges, a readout. */
+.logobug-live-guide { position: absolute; pointer-events: none; background: #ff3df2; box-shadow: 0 0 6px #ff3df2; }
+.logobug-live-guide-v { top: 0; bottom: 0; width: 1px; }
+.logobug-live-guide-h { left: 0; right: 0; height: 1px; }
+.logobug-live-gap { position: absolute; pointer-events: none; border: 0 dashed rgba(255, 255, 255, 0.85); }
+.logobug-live-gap-left, .logobug-live-gap-right { border-top-width: 1px; }
+.logobug-live-gap-top, .logobug-live-gap-bottom { border-left-width: 1px; }
+.logobug-live-gap span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  padding: 1px 5px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 3px;
+  font: 600 11px var(--font-ui);
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+.logobug-live-tag {
+  position: absolute;
+  padding: 2px 7px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.82);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  font: 600 11px var(--font-ui);
+  letter-spacing: 0.5px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* The 3x3 "put it here" pad. */
+.logobug-live-nine { display: grid; grid-template-columns: repeat(3, 20px); grid-template-rows: repeat(3, 14px); gap: 3px; }
+.logobug-live-spot {
+  padding: 0;
+  background: var(--surface-0);
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  cursor: pointer;
+}
+.logobug-live-spot:hover, .logobug-live-spot:focus-visible { background: var(--accent); }
+.logobug-live-place .logobug-live-label { margin-bottom: 1px; }
+.logobug-live-scope { color: var(--text); border-color: var(--border); }
+.logobug-live-small:disabled { opacity: 0.4; cursor: default; }
+
+/* A touch screen or remote needs bigger things to hit. */
+@media (pointer: coarse) {
+  .logobug-live-anchor { width: 26px; height: 26px; }
+  .logobug-live-anchor-nw { left: -14px; top: -14px; }
+  .logobug-live-anchor-n  { left: calc(50% - 13px); top: -14px; }
+  .logobug-live-anchor-ne { right: -14px; top: -14px; }
+  .logobug-live-anchor-e  { right: -14px; top: calc(50% - 13px); }
+  .logobug-live-anchor-se { right: -14px; bottom: -14px; }
+  .logobug-live-anchor-s  { left: calc(50% - 13px); bottom: -14px; }
+  .logobug-live-anchor-sw { left: -14px; bottom: -14px; }
+  .logobug-live-anchor-w  { left: -14px; top: calc(50% - 13px); }
+  .logobug-live-small { min-height: 42px; }
+  .logobug-live-nine { grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 26px); }
+}
 
 /* buildDynamicOverlaysEditor's rule-row list (setup-util.js) — box-wide
    (DISPLAY tab) and per-channel (CHANNELS > edit > OVERLAYS tab) both reuse
