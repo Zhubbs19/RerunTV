@@ -25,6 +25,16 @@ export function bakedBarsEnabled() {
   return !!(S.config && S.config.display && S.config.display.removeBakedBars);
 }
 
+// The logo bug sits on the picture, so it needs the bars found even when they
+// aren't being removed.
+function logoFollowsPicture() {
+  return !!(S.config && S.config.display && S.config.display.logoBugFollowPicture !== false);
+}
+
+function detectionWanted() {
+  return bakedBarsEnabled() || logoFollowsPicture();
+}
+
 function loadedPath() {
   return mediaPathFromUrl(player.currentSrc || player.src);
 }
@@ -38,8 +48,16 @@ export function currentBakedCrop() {
   return (filePath && known.get(filePath)) || null;
 }
 
+// Same box, but whether or not the bars are being removed: for placing the
+// logo bug on the picture when the frame still shows its bars.
+export function currentPictureCrop() {
+  if (!detectionWanted()) return null;
+  const filePath = loadedPath();
+  return (filePath && known.get(filePath)) || null;
+}
+
 function onLoadedMetadata() {
-  if (!bakedBarsEnabled()) return;
+  if (!detectionWanted()) return;
   const filePath = loadedPath();
   if (!filePath || known.has(filePath)) return;
   const duration = Number.isFinite(player.duration) ? player.duration : 0;
@@ -61,6 +79,7 @@ export function applyBakedBars() {
   if (!bakedBarsEnabled()) {
     if (sweepStarted) api.cancelCropPrefetch().catch(() => {});
     sweepStarted = false;
+    if (player.currentSrc) onLoadedMetadata();
   } else {
     if (!sweepStarted) {
       sweepStarted = true;

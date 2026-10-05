@@ -2679,7 +2679,7 @@ aspectAutofillMaxEl.addEventListener('change', () => {
   setDisplay('autoFillMaxCropPct', pct);
   reframePicture();
 });
-logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); reframePicture(); });
+logoBugFollowPictureEl.addEventListener('change', () => { setDisplay('logoBugFollowPicture', logoBugFollowPictureEl.checked); applyBakedBars(); });
 logoBugRefHeightEl.addEventListener('change', () => { setDisplay('logoBugReferenceHeight', logoBugRefHeightEl.value === 'auto' ? undefined : Number(logoBugRefHeightEl.value)); reframePicture(); });
 logoBugDefaultSizeEl.addEventListener('input', () => {
   const size = parseInt(logoBugDefaultSizeEl.value, 10);

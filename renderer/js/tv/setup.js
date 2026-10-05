@@ -110,7 +110,7 @@ function pictureItems() {
     valueItem('COMMERCIAL VOLUME', () => pct((S.config.adVolume ?? 1) * 100), (d) => { setSetting(['adVolume'], stepNumber((S.config.adVolume ?? 1) * 100, d) / 100, 'settings:adVolume'); applyVolume(); }),
     valueItem('FILL WIDESCREEN', () => onOff(display().autoFillWidescreen), () => { setSetting(['display', 'autoFillWidescreen'], !display().autoFillWidescreen); refreshPictureArea(); }),
     valueItem('REMOVE BLACK BARS', () => onOff(display().removeBakedBars), () => { setSetting(['display', 'removeBakedBars'], !display().removeBakedBars); applyBakedBars(); }),
-    valueItem('LOGO ON THE PICTURE', () => onOff(display().logoBugFollowPicture !== false), () => { setSetting(['display', 'logoBugFollowPicture'], display().logoBugFollowPicture === false); refreshPictureArea(); }),
+    valueItem('LOGO ON THE PICTURE', () => onOff(display().logoBugFollowPicture !== false), () => { setSetting(['display', 'logoBugFollowPicture'], display().logoBugFollowPicture === false); applyBakedBars(); }),
     valueItem('HIDE LOGO IN BREAKS', () => onOff(display().logoBugHideOnBreaks), () => setSetting(['display', 'logoBugHideOnBreaks'], !display().logoBugHideOnBreaks)),
   ];
 }

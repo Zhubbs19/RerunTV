@@ -16,7 +16,7 @@ import { autoHideAfter, settingNumber } from '../core/util.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
 import { levelerGain } from './leveler.js';
-import { currentBakedCrop } from './bars.js';
+import { currentBakedCrop, currentPictureCrop } from './bars.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -636,13 +636,23 @@ function applyTvBezelInner(videoWidth, videoHeight, ch) {
   // The part of the picture actually on screen (a cropped picture overhangs
   // the box it fills), for anything that should sit on the picture itself.
   const shown = ratio ? targetBox : finalRect;
-  const pLeft = Math.max(0, shown.left);
-  const pTop = Math.max(0, shown.top);
+  // With the bars left in, the picture is still the box inside the frame.
+  let onScreen = shown;
+  const bars = baked ? null : currentPictureCrop();
+  if (bars) {
+    const left = Math.max(shown.left, finalRect.left + bars.x * finalRect.width);
+    const top = Math.max(shown.top, finalRect.top + bars.y * finalRect.height);
+    const right = Math.min(shown.left + shown.width, finalRect.left + (bars.x + bars.w) * finalRect.width);
+    const bottom = Math.min(shown.top + shown.height, finalRect.top + (bars.y + bars.h) * finalRect.height);
+    if (right > left && bottom > top) onScreen = { left, top, width: right - left, height: bottom - top };
+  }
+  const pLeft = Math.max(0, onScreen.left);
+  const pTop = Math.max(0, onScreen.top);
   S.pictureRect = {
     left: pLeft,
     top: pTop,
-    width: Math.max(1, Math.min(containerW, shown.left + shown.width) - pLeft),
-    height: Math.max(1, Math.min(containerH, shown.top + shown.height) - pTop),
+    width: Math.max(1, Math.min(containerW, onScreen.left + onScreen.width) - pLeft),
+    height: Math.max(1, Math.min(containerH, onScreen.top + onScreen.height) - pTop),
     containerH,
   };
   player.style.left = `${elRect.left}px`;
