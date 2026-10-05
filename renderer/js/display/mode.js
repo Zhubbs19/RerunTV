@@ -3,7 +3,7 @@
 // the video-only ASPECT RATIO setting (aspectMode, power.js) which only
 // affects object-fit on #player.
 import { getChannel } from '../core/channels.js';
-import { displayFrameEl, player, setupScreen } from '../core/dom.js';
+import { crtContainer, displayFrameEl, player, setupScreen } from '../core/dom.js';
 import { getPluginChannelDisplaySettings, getPluginChannelEntryForNumber } from '../plugin/host.js';
 import { computeLivePosition } from '../core/schedule.js';
 import { S } from '../core/state.js';
@@ -318,6 +318,48 @@ export function resolveOverlayLayoutContext() {
 // repositions those by explicit top-left corner instead (transform-
 // origin:'top left', no base transform), same as it always has; this is
 // purely for preserving each target's own DEFAULT appearance.
+// The corner badges that sit on the picture rather than on the screen, like
+// the logo bug (DISPLAY › Logo bug › Keep the bug on the picture). Their CSS
+// offsets add --picture-inset-* (overlays.css); a saved custom position gets
+// the same gap added here. The cards and bars stay on the screen.
+const PICTURE_FOLLOWING_OVERLAYS = new Set(['rating-bug', 'episode-status-bug', 'capability-badge', 'timeshift-badge']);
+let pictureInsets = { left: 0, top: 0, right: 0, bottom: 0 };
+
+// How far the picture is in from each edge of the overlay layer, in the
+// layer's own pixels (black bars, or the docked guide). Zero when the picture
+// fills the layer, or the bug is set to ignore the picture.
+export function applyPictureInsets() {
+  const layer = document.getElementById('overlay-extend-layer');
+  const picture = S.pictureRect;
+  const follow = !(S.config && S.config.display && S.config.display.logoBugFollowPicture === false);
+  let next = { left: 0, top: 0, right: 0, bottom: 0 };
+  if (layer && crtContainer && picture && follow && crtContainer.clientWidth && crtContainer.clientHeight && layer.clientWidth && layer.clientHeight) {
+    const crt = crtContainer.getBoundingClientRect();
+    const box = layer.getBoundingClientRect();
+    const crtX = crt.width / crtContainer.clientWidth;
+    const crtY = crt.height / crtContainer.clientHeight;
+    const layerX = box.width / layer.clientWidth;
+    const layerY = box.height / layer.clientHeight;
+    const left = crt.left + picture.left * crtX;
+    const top = crt.top + picture.top * crtY;
+    const right = left + picture.width * crtX;
+    const bottom = top + picture.height * crtY;
+    const gap = (value) => (value < 1 ? 0 : Math.round(value));
+    next = {
+      left: gap((left - box.left) / layerX),
+      top: gap((top - box.top) / layerY),
+      right: gap((box.right - right) / layerX),
+      bottom: gap((box.bottom - bottom) / layerY),
+    };
+  }
+  if (Object.keys(next).every((side) => next[side] === pictureInsets[side])) return;
+  pictureInsets = next;
+  Object.keys(next).forEach((side) => layer && layer.style.setProperty(`--picture-inset-${side}`, `${next[side]}px`));
+  applyOverlayLayouts();
+}
+window.addEventListener('reruntv:picture-framed', applyPictureInsets);
+window.addEventListener('resize', applyPictureInsets);
+
 const OVERLAY_BASE_TRANSFORMS = {
   'upnext-bar': 'translateX(-50%)',
   'format-disclaimer-card': 'translateX(-50%)',
@@ -377,8 +419,12 @@ export function applyOverlayLayouts() {
     }
     const base = (!profile && OVERLAY_BASE_TRANSFORMS[id]) ? `${OVERLAY_BASE_TRANSFORMS[id]} ` : '';
     if (profile) {
-      element.style.left = `${profile.x}%`;
-      element.style.top = `${profile.y}%`;
+      // A badge on the picture keeps its gap to the nearer picture edge.
+      const follows = PICTURE_FOLLOWING_OVERLAYS.has(id);
+      const dx = follows ? (profile.x < 50 ? pictureInsets.left : -pictureInsets.right) : 0;
+      const dy = follows ? (profile.y < 50 ? pictureInsets.top : -pictureInsets.bottom) : 0;
+      element.style.left = dx ? `calc(${profile.x}% + ${dx}px)` : `${profile.x}%`;
+      element.style.top = dy ? `calc(${profile.y}% + ${dy}px)` : `${profile.y}%`;
       element.style.right = 'auto';
       element.style.bottom = 'auto';
     }
@@ -428,6 +474,8 @@ function applyExtendLayerBounds({
     root.setProperty('--guide-grid-width', `${targetW}px`);
     root.setProperty('--guide-grid-height', `${targetH}px`);
   }
+  // The layer's box just changed, so how far the picture sits inside it did too.
+  applyPictureInsets();
 }
 
 export function applyDisplayMode() {

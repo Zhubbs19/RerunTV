@@ -768,8 +768,8 @@ html[data-mode="tv"] .tm-scrub-banner { font-size: 18px; }
 /* Persistent reminder that what's on screen isn't live. */
 .timeshift-badge {
   position: absolute;
-  top: 30px;
-  right: 40px;
+  top: calc(30px + var(--picture-inset-top, 0px));
+  right: calc(40px + var(--picture-inset-right, 0px));
   z-index: 12;
   padding: 7px 12px;
   background: rgba(179, 18, 23, 0.85);
@@ -1007,8 +1007,8 @@ body:has(.crt.power-off) .upnext-bar { display: none; }
    this shared default. */
 .rating-bug {
   position: absolute;
-  left: 28px;
-  top: 24px;
+  left: calc(28px + var(--picture-inset-left, 0px));
+  top: calc(24px + var(--picture-inset-top, 0px));
   z-index: 2;
   padding: 5px 10px;
   background: rgba(0, 0, 0, 0.92);
@@ -1075,8 +1075,8 @@ body:has(.crt.power-off) .rating-bug { display: none; }
    overlap when both apply to the same airing. */
 .episode-status-bug {
   position: absolute;
-  right: 28px;
-  top: 24px;
+  right: calc(28px + var(--picture-inset-right, 0px));
+  top: calc(24px + var(--picture-inset-top, 0px));
   z-index: 2;
   padding: 5px 10px;
   background: rgba(0, 0, 0, 0.92);
@@ -1133,8 +1133,8 @@ body:has(.crt.power-off) .format-disclaimer-card { display: none; }
    episode-status bug (top-right), or the lower-third cards above. */
 .capability-badge {
   position: absolute;
-  left: 28px;
-  bottom: 24px;
+  left: calc(28px + var(--picture-inset-left, 0px));
+  bottom: calc(24px + var(--picture-inset-bottom, 0px));
   z-index: 2;
   padding: 5px 10px;
   background: rgba(0, 0, 0, 0.92);
