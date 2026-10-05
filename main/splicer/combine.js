@@ -28,7 +28,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { runFfmpeg } = require('./ffmpeg-runner');
+const { runFfmpeg, runFfmpegWithProgress } = require('./ffmpeg-runner');
 const { DEFAULT_VIDEO_EXTS, parseArgs } = require('./cuts');
 
 function collectInputs(argv) {
@@ -79,15 +79,10 @@ async function probeStream(input) {
   };
 }
 
-function checkCompatible(probes) {
+// What differs between the clips, by name, or [] when stream-copy is safe.
+function mismatches(probes) {
   const first = probes[0];
-  return probes.every((p) =>
-    p.videoCodec === first.videoCodec &&
-    p.width === first.width &&
-    p.height === first.height &&
-    p.hasAudio === first.hasAudio &&
-    p.audioCodec === first.audioCodec
-  );
+  return ['videoCodec', 'width', 'height', 'hasAudio', 'audioCodec'].filter((key) => probes.some((p) => p[key] !== first[key]));
 }
 
 async function combineStreamCopy(inputs, outFile) {
@@ -107,7 +102,7 @@ async function combineStreamCopy(inputs, outFile) {
 // The concat filter needs every input to match, so each clip is first scaled
 // (letterboxed, never stretched) to the first clip's size and frame rate, and
 // its audio brought to one sample rate and layout.
-async function combineReencode(inputs, outFile, hasAudio, target = {}) {
+async function combineReencode(inputs, outFile, hasAudio, target = {}, totalDuration = null) {
   const width = (target.width || 1280) & ~1;
   const height = (target.height || 720) & ~1;
   const fps = target.fps && target.fps > 1 && target.fps < 121 ? target.fps : 30;
@@ -125,7 +120,9 @@ async function combineReencode(inputs, outFile, hasAudio, target = {}) {
   args.push('-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p');
   if (hasAudio) args.push('-c:a', 'aac');
   args.push('-y', outFile);
-  const { code, stderr } = await runFfmpeg(args);
+  // The page reads "[n/100]" as progress; a long encode otherwise looks hung.
+  console.log('Re-encoding — this takes a while for long clips.');
+  const { code, stderr } = await runFfmpegWithProgress(args, totalDuration, (pct) => console.log(`Re-encoding [${pct}/100]`));
   if (code !== 0) throw new Error(`concat filter re-encode failed:
 ${stderr.slice(-800)}`);
 }
@@ -168,7 +165,9 @@ async function main() {
 
   console.log('\nProbing inputs for codec/format compatibility...');
   const probes = await Promise.all(inputs.map(probeStream));
-  const compatible = checkCompatible(probes);
+  const differences = mismatches(probes);
+  const compatible = differences.length === 0;
+  const totalDuration = probes.every((p) => p.duration) ? probes.reduce((sum, p) => sum + p.duration, 0) : null;
   const forceReencode = !!argv.reencode;
 
   fs.mkdirSync(path.dirname(outFile), { recursive: true });
@@ -179,18 +178,18 @@ async function main() {
       await combineStreamCopy(inputs, outFile);
     } catch (err) {
       console.log(`Stream-copy concat failed (${err.message.split('\n')[0]}), falling back to re-encode...`);
-      await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0]);
+      await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0], totalDuration);
     }
   } else {
     if (!forceReencode) {
       console.log(
-        'Inputs have mismatched codec/resolution/audio — stream-copy concat would likely produce a broken ' +
+        `Inputs differ in ${differences.join(', ')} — stream-copy concat would likely produce a broken ` +
         'file, so re-encoding instead (slower, but safe). Pass --reencode next time to skip this check.'
       );
     } else {
       console.log('Re-encoding (--reencode) via the concat filter...');
     }
-    await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0]);
+    await combineReencode(inputs, outFile, probes.every((p) => p.hasAudio), probes[0], totalDuration);
   }
 
   const outDuration = await probeStream(outFile);
