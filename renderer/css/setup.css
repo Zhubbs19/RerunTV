@@ -3011,6 +3011,36 @@ html[data-theme] .btn[aria-disabled="true"] {
 .logobug-live-confirm.hidden { display: none; }
 .logobug-live-toolbar.is-collapsed .logobug-live-body,
 .logobug-live-toolbar.is-collapsed .logobug-live-hint { display: none; }
+.logobug-live-chip-apply { display: none; }
+
+/* Hidden: the panel becomes a small chip in the corner (APPLY and SHOW
+   CONTROLS stay reachable), and the stage drops everything but the placement. */
+.logobug-live-toolbar.is-collapsed[data-dock] {
+  left: auto;
+  right: 18px;
+  width: auto;
+  padding: 6px;
+  transform: none;
+}
+.logobug-live-toolbar.is-collapsed .logobug-live-head { flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; }
+.logobug-live-toolbar.is-collapsed .logobug-live-head > :not(.logobug-live-head-buttons) { display: none; }
+.logobug-live-toolbar.is-collapsed .logobug-live-head-buttons > :not(.logobug-live-hide):not(.logobug-live-chip-apply) { display: none; }
+.logobug-live-toolbar.is-collapsed .logobug-live-chip-apply { display: inline-flex; }
+.logobug-live-overlay.is-clean {
+  background-image: none !important;
+  background-color: transparent;
+  box-shadow: none !important;
+}
+.logobug-live-overlay.is-clean .logobug-live-safe,
+.logobug-live-overlay.is-clean .logobug-live-tag,
+.logobug-live-overlay.is-clean .logobug-live-gap,
+.logobug-live-overlay.is-clean .logobug-live-others,
+.logobug-live-overlay.is-clean .logobug-live-anchor { display: none; }
+.logobug-live-overlay.is-clean .logobug-live-selection {
+  background: transparent;
+  box-shadow: none;
+  border-width: 1px;
+}
 .logobug-live-coordinates { display: flex; gap: 6px; }
 .logobug-live-coordinate input {
   width: 78px;

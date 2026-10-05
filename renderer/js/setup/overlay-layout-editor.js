@@ -144,7 +144,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const undoButton = el('button', { type: 'button', className: 'btn logobug-live-small', text: '↶ UNDO', title: 'Undo the last move (Ctrl+Z)' });
   const redoButton = el('button', { type: 'button', className: 'btn logobug-live-small', text: '↷ REDO', title: 'Redo (Ctrl+Y)' });
   const dockButton = el('button', { type: 'button', className: 'btn logobug-live-small', text: 'MOVE PANEL', title: 'Put the controls on the other edge of the screen' });
-  const hideButton = el('button', { type: 'button', className: 'btn logobug-live-small', text: 'HIDE', title: 'Hide the controls to see the whole picture (click again to bring them back)', attrs: { 'aria-pressed': 'false' } });
+  const hideButton = el('button', { type: 'button', className: 'btn logobug-live-small logobug-live-hide', text: 'HIDE', title: 'Hide the controls and the guides to see the placement on its own (H)', attrs: { 'aria-pressed': 'false' } });
+  const chipApply = el('button', { type: 'button', className: 'btn btn-primary logobug-live-small logobug-live-chip-apply', text: 'APPLY', title: 'Save this placement' });
   function field(labelText, control, extraClass = '') {
     return el('label', { className: `logobug-live-field ${extraClass}`.trim() }, el('span', { className: 'logobug-live-label', text: labelText }), control);
   }
@@ -165,7 +166,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const targetField = field('EDITING', targetSelect, 'logobug-live-target');
   const head = el('div', { className: 'logobug-live-head' },
     el('div', { className: 'logobug-live-title', text: 'LIVE OVERLAY LAYOUT' }), context, scopePill, status, targetField,
-    el('div', { className: 'logobug-live-head-buttons' }, undoButton, redoButton, dockButton, hideButton));
+    el('div', { className: 'logobug-live-head-buttons' }, undoButton, redoButton, dockButton, chipApply, hideButton));
 
   const aspectSelect = select([['16:9', '16:9'], ['4:3', '4:3'], ['auto', 'AUTO']]);
   const windowSelect = select([['letterbox', 'LETTERBOX'], ['lockWindow', 'LOCK WINDOW']]);
@@ -248,7 +249,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       fieldA, fieldB, lockLabel, opacityField, field('PLACE', nine, 'logobug-live-place')),
     toolsGroup);
   const hint = el('p', { className: 'logobug-live-hint',
-    text: 'Drag to move (it snaps to edges, centres and other elements; hold Alt to turn that off) · handles resize, Shift keeps proportions · arrow keys nudge · + / − resize · [ ] switch element · hold B for the original · Ctrl+Z undo · Esc cancels' });
+    text: 'Drag to move (it snaps to edges, centres and other elements; hold Alt to turn that off) · handles resize, Shift keeps proportions · arrow keys nudge · + / − resize · [ ] switch element · H hides the controls · hold B for the original · Ctrl+Z undo · Esc cancels' });
   const toolbar = el('div', { className: 'logobug-live-toolbar' }, head, body, hint, confirmBox);
   toolbar.dataset.dock = saved.dock === 'top' ? 'top' : 'bottom';
   body.children[0].appendChild(previewHelp);
@@ -1127,11 +1128,18 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     toolbar.dataset.dock = toolbar.dataset.dock === 'top' ? 'bottom' : 'top';
     saveUi({ dock: toolbar.dataset.dock });
   });
-  hideButton.addEventListener('click', () => {
-    const hidden = toolbar.classList.toggle('is-collapsed');
-    hideButton.textContent = hidden ? 'SHOW CONTROLS' : 'HIDE';
+  // HIDE shrinks the panel to a small chip and clears the grid, guides, handles
+  // and readouts, so the placement can be judged on its own. H does the same.
+  function setControlsHidden(hidden) {
+    toolbar.classList.toggle('is-collapsed', hidden);
+    overlay.classList.toggle('is-clean', hidden);
+    hideButton.textContent = hidden ? 'SHOW CONTROLS · H' : 'HIDE';
     hideButton.setAttribute('aria-pressed', String(hidden));
-  });
+    if (hidden) selection.focus({ preventScroll: true });
+    renderProfile();
+  }
+  hideButton.addEventListener('click', () => setControlsHidden(!toolbar.classList.contains('is-collapsed')));
+  chipApply.addEventListener('click', () => closeEditor(true));
   undoButton.addEventListener('click', undo);
   redoButton.addEventListener('click', redo);
   resetButton.addEventListener('click', () => {
@@ -1249,6 +1257,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
       if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); return; }
     }
     if (typingTarget(event) || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === 'h' || event.key === 'H') { event.preventDefault(); if (!event.repeat) setControlsHidden(!toolbar.classList.contains('is-collapsed')); return; }
     if (event.key === 'b' || event.key === 'B') { if (!event.repeat) setComparing(true); event.preventDefault(); return; }
     if (event.key === '[' || event.key === ']') {
       const ids = [...targetLabels.keys()];
