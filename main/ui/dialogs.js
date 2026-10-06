@@ -34,13 +34,16 @@ function registerDialogIpc(ipcMain) {
     return result.filePaths[0];
   });
 
-  ipcMain.handle('dialog:selectVideo', async () => {
+  // `{ multiple: true }` returns an array of paths ([] on cancel) — used by a
+  // channel's ADD FILES. Without it, the original single path (null on cancel).
+  ipcMain.handle('dialog:selectVideo', async (_event, opts) => {
+    const multiple = !!(opts && opts.multiple);
     const result = await dialog.showOpenDialog(getMainWindow(), {
-      properties: ['openFile'],
-      filters: [{ name: 'Videos', extensions: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v'] }],
+      properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'],
+      filters: [{ name: 'Videos', extensions: ['mp4', 'mkv', 'avi', 'mov', 'webm', 'm4v', 'mpg', 'mpeg'] }],
     });
-    if (result.canceled || result.filePaths.length === 0) return null;
-    return result.filePaths[0];
+    if (result.canceled || result.filePaths.length === 0) return multiple ? [] : null;
+    return multiple ? result.filePaths : result.filePaths[0];
   });
 
   ipcMain.handle('dialog:selectExecutable', async () => {

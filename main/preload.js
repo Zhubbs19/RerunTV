@@ -61,7 +61,7 @@ contextBridge.exposeInMainWorld('api', {
   selectFolder: () => ipcRenderer.invoke('dialog:selectFolder'),
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
   selectAudio: () => ipcRenderer.invoke('dialog:selectAudio'),
-  selectVideo: () => ipcRenderer.invoke('dialog:selectVideo'),
+  selectVideo: (opts) => ipcRenderer.invoke('dialog:selectVideo', opts),
   selectExecutable: () => ipcRenderer.invoke('dialog:selectExecutable'),
   selectCss: () => ipcRenderer.invoke('dialog:selectCss'),
   // (source, ref) ordering matches resolvePlayablePath/transcode/

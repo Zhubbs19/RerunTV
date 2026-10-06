@@ -5,11 +5,11 @@
 //   lineup) becomes a new channel (docs/design/03 §5.4). Folders are scanned
 //   by the same main-process scan + ADD FOLDER uses.
 // - Videos dropped on the bumper & ad pool list become pool entries.
-import { S, commitConfigPatch, commitInPlace } from '../core/state.js';
+import { S, commitConfigPatch } from '../core/state.js';
 import { channelListEl, channelListPaneEl, interstitialsListEl, scanProgressEl } from '../core/dom.js';
 import { probeDuration } from './util.js';
-import { addFilesToChannel, addInterstitialPoolEntry } from '../core/channels.js';
-import { addFolderToChannel, createChannelFromFolder, renderChannelList } from './channels.js';
+import { addInterstitialPoolEntry } from '../core/channels.js';
+import { addFolderToChannel, addVideoFilesToChannel, createChannelFromFolder } from './channels.js';
 import { renderInterstitialsList } from './interstitials.js';
 
 // Mirrors main-media.js's VIDEO_EXTENSIONS — duplicated rather than piped
@@ -96,20 +96,8 @@ container.addEventListener('drop', async (e) => {
   const paths = videos;
   if (!paths.length) return;
 
-  const existing = new Set(ch.files.map((f) => f.path));
-  const newPaths = paths.filter((p) => !existing.has(p));
-  if (!newPaths.length) { flashStatus('ALREADY ON THIS CHANNEL'); return; }
-
-  const entries = [];
-  for (let i = 0; i < newPaths.length; i++) {
-    flashStatus(`ADDING DROPPED VIDEO ${i + 1} / ${newPaths.length}…`, 60000);
-    const duration = await probeDuration(newPaths[i]);
-    entries.push({ path: newPaths[i], duration });
-  }
-  addFilesToChannel(ch, entries);
-  flashStatus(`ADDED ${newPaths.length} VIDEO${newPaths.length === 1 ? '' : 'S'} TO CH ${ch.number}`);
-  commitInPlace({ type: 'channel.setFields', channel: ch.number, fields: { files: ch.files, anchor: ch.anchor } }, { label: `Add ${newPaths.length} video${newPaths.length === 1 ? '' : 's'} to CH ${ch.number}` });
-  renderChannelList();
+  // Same path ADD FILES… uses: probe, append without disturbing what is airing, one undo step.
+  await addVideoFilesToChannel(ch, paths);
 });
 });
 

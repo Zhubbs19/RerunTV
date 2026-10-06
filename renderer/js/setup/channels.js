@@ -349,6 +349,11 @@ export function renderChannelList() {
       });
 
       const folderBtn = buildChooseSourceControl(ch);
+      const filesBtn = document.createElement('button');
+      filesBtn.className = 'btn folder-btn';
+      filesBtn.textContent = '+ ADD FILES';
+      filesBtn.title = 'Pick individual videos to add to this channel, instead of a whole folder';
+      filesBtn.addEventListener('click', () => pickFilesForChannel(ch));
 
       let fixBtn = null;
       if (ch.files.length > 0) {
@@ -572,8 +577,11 @@ export function renderChannelList() {
       const status = document.createElement('div');
       status.className = 'folder-status';
       const blockCount = (ch.blocks || []).filter((b) => b.files && b.files.length).length;
-      status.textContent = ch.folders.length
-        ? `${ch.files.length} video${ch.files.length === 1 ? '' : 's'} from ${ch.folders.length} folder${ch.folders.length === 1 ? '' : 's'}` +
+      const looseCount = ch.files.filter((f) => !f.folder).length;
+      status.textContent = ch.folders.length || ch.files.length
+        ? `${ch.files.length} video${ch.files.length === 1 ? '' : 's'}` +
+          (ch.folders.length ? ` from ${ch.folders.length} folder${ch.folders.length === 1 ? '' : 's'}` : '') +
+          (looseCount && ch.folders.length ? ` + ${looseCount} individual file${looseCount === 1 ? '' : 's'}` : '') +
           (blockCount ? `  ·  ${blockCount} schedule block${blockCount === 1 ? '' : 's'}` : '')
         : 'No folder assigned yet';
 
@@ -901,6 +909,7 @@ export function renderChannelList() {
       // Reorder is drag in the list or Move up/down in the ⋯ menu (docs/design/03 §4);
       // Remove sits in the menu's last group.
       actions.appendChild(folderBtn);
+      actions.appendChild(filesBtn);
       actions.appendChild(previewBtn);
       if (fixBtn) actions.appendChild(fixBtn);
       const cardMenu = channelRowMenu(ch);
@@ -1127,6 +1136,7 @@ function channelRowMenu(ch) {
       ],
       [
         { label: 'Add folder…', run: () => addFolderToChannel(ch) },
+        { label: 'Add files…', run: () => pickFilesForChannel(ch) },
         { label: 'Preview…', run: () => openPreviewModal(ch), disabled: !ch.files.length },
         { label: 'Duplicate', run: () => duplicateSetupChannel(ch) },
       ],
@@ -1952,6 +1962,54 @@ export async function addFolderToChannel(ch, folderPath = null) {
   if (!ch.anchor) ch.anchor = Date.now();
   scanProgressEl.classList.add('hidden');
   commitOwnerFields(ch, ['folders', 'files', 'anchor'], { label: `Add folder to CH ${ch.number}` });
+  renderChannelList();
+}
+
+// Adds individual video files (not a whole folder) to a channel — the way to
+// pull a few films out of a big shared folder. They are kept with `folder: null`
+// (see addFilesToChannel), so a folder rescan never touches them. Appended and
+// re-anchored so what is airing now keeps airing. Returns how many were new.
+export async function addVideoFilesToChannel(ch, paths) {
+  const known = new Set(ch.files.map((f) => f.path));
+  const fresh = Array.from(new Set(paths.filter(Boolean))).filter((p) => !known.has(p));
+  if (!fresh.length) {
+    scanProgressEl.classList.remove('hidden');
+    scanProgressEl.textContent = 'ALREADY ON THIS CHANNEL';
+    setTimeout(() => scanProgressEl.classList.add('hidden'), 2000);
+    return 0;
+  }
+  scanProgressEl.classList.remove('hidden');
+  const entries = [];
+  for (let i = 0; i < fresh.length; i++) {
+    scanProgressEl.textContent = `PROBING VIDEO ${i + 1} / ${fresh.length}…`;
+    // eslint-disable-next-line no-await-in-loop
+    const duration = await probeDurationForEntry('local', fresh[i]);
+    entries.push({ path: fresh[i], duration, folder: null, source: 'local' });
+  }
+  applyPlaylistPreservingAir(ch, [...ch.files, ...entries], viewNow());
+  if (!ch.anchor) ch.anchor = Date.now();
+  const label = `Add ${entries.length} file${entries.length === 1 ? '' : 's'} to CH ${ch.number}`;
+  commitOwnerFields(ch, ['files', 'anchor'], { label });
+  scanProgressEl.textContent = `ADDED ${entries.length} VIDEO${entries.length === 1 ? '' : 'S'} TO CH ${ch.number}`;
+  setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+  renderChannelList();
+  return entries.length;
+}
+
+// ADD FILES…: a multi-select picker, then addVideoFilesToChannel. A LAN
+// control session's picker returns one path (or null); both shapes work.
+export async function pickFilesForChannel(ch) {
+  const picked = await window.api.selectVideo({ multiple: true });
+  const paths = Array.isArray(picked) ? picked : (picked ? [picked] : []);
+  if (!paths.length) return 0;
+  return addVideoFilesToChannel(ch, paths);
+}
+
+// Removes one individually-added file. Appended-order and air position are
+// preserved the same way as an add.
+export function removeFileFromChannel(ch, file) {
+  applyPlaylistPreservingAir(ch, ch.files.filter((f) => f !== file), viewNow());
+  commitOwnerFields(ch, ['files', 'anchor'], { label: `Remove file from CH ${ch.number}` });
   renderChannelList();
 }
 

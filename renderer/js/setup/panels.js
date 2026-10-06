@@ -6,9 +6,9 @@
 import { foldLogoBugCorner, freshCommercialsConfig, freshFileFacets, mirrorFacetsIntoTags, parseMediaRef } from '../core/channels.js';
 import { applyLogoBugPlacement, updateLogoBug } from '../playback/broadcast-fx.js';
 import { themePackEntries, titleRowActionEntries } from '../plugin/host.js';
-import { removeFolderFromChannel } from './channels.js';
+import { pickFilesForChannel, removeFileFromChannel, removeFolderFromChannel } from './channels.js';
 import { S, commitInPlace, dispatch, viewNow } from '../core/state.js';
-import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from '../core/util.js';
+import { basenameNoExt, formatDuration, getDisplayTitle, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from '../core/util.js';
 import {
   attachTagAutocomplete, buildBreakpointTrack, commitOwnerFields, buildDynamicOverlaysEditor, buildIconOverridesEditor, buildLogoBugProfileEditor,
   buildMediaThumbnail, openLiveLogoBugEditor, parsePositiveInt,
@@ -929,14 +929,51 @@ export function buildFoldersPanel(ch, panelEl) {
     list.appendChild(row);
   });
 
-  if (!ch.folders || ch.folders.length === 0) {
+  // Videos added one at a time (ADD FILES, or dropped onto the channel) are not
+  // part of any folder, so they get their own rows, each removable by itself.
+  const looseFiles = ch.files.filter((f) => !f.folder);
+  looseFiles.forEach((file) => {
+    const row = document.createElement('div');
+    row.className = 'folder-row';
+
+    const name = document.createElement('span');
+    name.className = 'folder-row-path';
+    name.textContent = getDisplayTitle(file);
+    name.title = file.path;
+    row.appendChild(name);
+
+    const countEl = document.createElement('span');
+    countEl.className = 'folder-row-count';
+    countEl.textContent = 'FILE';
+    row.appendChild(countEl);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'btn remove-btn';
+    removeBtn.textContent = 'REMOVE';
+    removeBtn.addEventListener('click', async () => {
+      if (!(await confirmDialog(`Remove "${getDisplayTitle(file)}" from the channel? The file itself is not deleted.`))) return;
+      removeFileFromChannel(ch, file);
+    });
+    row.appendChild(removeBtn);
+
+    list.appendChild(row);
+  });
+
+  if ((!ch.folders || ch.folders.length === 0) && looseFiles.length === 0) {
     const empty = document.createElement('div');
     empty.className = 'titles-empty';
-    empty.textContent = 'NO FOLDERS';
+    empty.textContent = 'NO FOLDERS OR FILES';
     list.appendChild(empty);
   }
 
+  const addFilesBtn = document.createElement('button');
+  addFilesBtn.className = 'btn folder-btn';
+  addFilesBtn.textContent = '+ ADD FILES';
+  addFilesBtn.title = 'Pick individual videos to add to this channel, instead of a whole folder';
+  addFilesBtn.addEventListener('click', () => pickFilesForChannel(ch));
+
   panelEl.appendChild(list);
+  panelEl.appendChild(addFilesBtn);
 }
 
 // Per-channel ADS tab: a simple on/off toggle for ch.adsEnabled.

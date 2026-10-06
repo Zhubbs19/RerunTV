@@ -1143,6 +1143,7 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-06', items: [
+    'A channel can take individual videos as well as whole folders: ADD FILES in the channel\'s actions (or its ⋯ menu, or CONTENT › Folders) picks several at once, and files you add this way are listed there with their own REMOVE buttons.',
     'Audit fixes: the REPEAT / NEW EPISODE badge and other start-of-show corner cards no longer linger after a channel change or sit on top of a break; the sponsor message card no longer sticks on screen; the O-key layout editor now returns to the picture instead of Setup; the footer no longer sticks on SAVING…; release notes in HELP read as plain text.',
     'Setup polish: sentence-case helper text on a channel\'s LOOK page, tidier Sound rows, the No signal card lines up under Dynamic overlays, and the header search clears when you change tabs.',
     'The flow editor shows older bump-in/bump-out steps in its Bumper type list, the flow list updates its target channels as you edit, and the guide explains an empty channel search when upcoming programs still match.',
