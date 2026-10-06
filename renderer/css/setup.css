@@ -3772,6 +3772,16 @@ html[data-theme] .btn[aria-disabled="true"] {
   flex-direction: column;
   gap: 4px;
 }
+.help-release-body {
+  /* Same face and size as the hand-written entries above it; the GitHub body is plain text. */
+  font-family: var(--font-ui);
+  font-weight: 500;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
 .help-changelog-entry li {
   font-family: var(--font-ui);
   font-weight: 500;

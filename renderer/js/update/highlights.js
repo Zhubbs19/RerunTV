@@ -5,6 +5,10 @@
 // worth pointing at; `setting` is a .setting-row data-setting value (optional).
 
 export const HIGHLIGHTS = [
+  { id: 'layout-editor', title: 'A rebuilt on-screen layout editor', text: 'Press O while watching to drag the logo and every card over the real picture, with snapping, undo and a clean view (H).', tab: 'guide', subtab: 'guideonscreen' },
+  { id: 'simple-advanced', title: 'Simple and Advanced settings', text: 'Simple shows the everyday controls; switch to Advanced in the sidebar for everything. Search finds both.', tab: 'channels' },
+  { id: 'splicer', title: 'Cut and combine recordings', text: 'The Video Splicer is built in: split a recording into episodes, ads and bumpers, then join clips.', tab: 'library', subtab: 'librarysplicer' },
+  { id: 'second-screen', title: 'TV on a second screen', text: 'Pick the screen and speakers RerunTV uses, with TV mode, screen edges and volume levelling per file.', tab: 'display', subtab: 'picture' },
   { id: 'keys', title: 'Choose your own keys', text: 'Reassign the shortcuts for live TV, with the hint bar following.', tab: 'audio', subtab: 'keys' },
   { id: 'reset', title: 'Reset a settings panel', text: 'Every busy panel ends with a button that puts it back to its defaults, and Undo brings your choices back.', tab: 'audio', subtab: 'system', setting: 'startup-channel' },
   { id: 'settings-bundle', title: 'Carry your settings to another machine', text: 'Export just your look and options, with no channels, and import them elsewhere.', tab: 'audio', subtab: 'backups' },

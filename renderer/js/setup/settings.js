@@ -1142,6 +1142,39 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-06', items: [
+    'Audit fixes: the REPEAT / NEW EPISODE badge and other start-of-show corner cards no longer linger after a channel change or sit on top of a break; the sponsor message card no longer sticks on screen; the O-key layout editor now returns to the picture instead of Setup; the footer no longer sticks on SAVING…; release notes in HELP read as plain text.',
+    'Setup polish: sentence-case helper text on a channel\'s LOOK page, tidier Sound rows, the No signal card lines up under Dynamic overlays, and the header search clears when you change tabs.',
+    'The flow editor shows older bump-in/bump-out steps in its Bumper type list, the flow list updates its target channels as you edit, and the guide explains an empty channel search when upcoming programs still match.',
+  ] },
+  { date: '2026-10-05', items: [
+    'The live overlay layout editor (O key) was rebuilt: a preview of the real picture, smart snapping to edges and other elements, undo/redo, and H to tuck the controls away into a clean view.',
+    'The logo and corner badges keep their margin on letterboxed or pillarboxed pictures and stay on the picture instead of on black bars.',
+    'Two audit rounds hardened the LAN viewer, plugin approvals, media limits and the personal PIN, and finished setup-screen validation and accessibility.',
+  ] },
+  { date: '2026-10-04', items: [
+    'Remove baked-in black bars: finds letterbox bars inside the video itself and frames just the picture. New default logo size that scales to 1080p or 4K, reset-this-panel buttons, and a settings-only export/import.',
+    'Remappable keys for live TV (SYSTEM › Keys), per-channel number chip, and a Guide & Theme page split into Guide, Theme and On-screen.',
+    'Music channel: cover art, a CD-rack / record-crate cabinet and search by artist, song, album or year.',
+    'Combiner now converts only the clips that differ, reports progress, and uses the GPU when re-encoding.',
+  ] },
+  { date: '2026-09-29', items: [
+    'Simple and Advanced settings views: Simple shows everyday controls and search still finds everything; Advanced shows the lot.',
+  ] },
+  { date: '2026-09-26', items: [
+    'The Video Splicer is built in (LIBRARY › SPLICER): cut recordings into episodes, ads and bumpers, then combine clips.',
+    'Updates now keep your library, profiles and assets when the installer replaces the app folder.',
+    'Music Choice: pause and seek on demand, and search the library by song, artist, album or year.',
+  ] },
+  { date: '2026-09-23', items: [
+    'TV on a second screen: per-screen placement and fullscreen, TV mode per screen, a sound output picker, screen edges, follow the TV\'s power state, and volume levelling per file.',
+  ] },
+  { date: '2026-09-13', items: [
+    'TV mode for a couch and remote: a TV menu, banner hub, remote test and learn mode, on-screen keyboard, game controllers, Tizen/webOS remotes and HDMI-CEC.',
+    'Time machine scrubber strip with a Go to menu, guide program actions, shorts grouped in the guide, breaks drawn as a band, and call letters.',
+    'SCHEDULE › ON AIR is an editable programming timeline with edit previews and an explanation of every layer.',
+    'A media library with catalogue, review and smart channels; households, DVR and watching together; theme eras; a LAN control panel; and full undo/redo for every setting.',
+  ] },
   { date: '2026-08-24', items: [
     'Unified the app typography around the original cable-guide face, with a separate readable face reserved for longer descriptions; fixed the downloaded-update notice so its copy and actions fit as a responsive card.',
     'Added five explicit update policies, including the new recommended pre-launch update flow, plus a two-step first-time setup that explains local-media privacy, autosave/backups, optional integrations, and the update choice.',
@@ -1266,7 +1299,7 @@ async function renderReleaseNotes() {
     // markdown renderer — bullet lines still read fine as plain text
     // (GitHub's own convention, "- " per line), and escaping the rest
     // avoids trusting arbitrary release-note HTML/script content.
-    body.style.whiteSpace = 'pre-wrap';
+    body.className = 'help-release-body';
     body.textContent = r.body ? readableReleaseNotes(r.body) : 'No description.';
     entry.appendChild(body);
     helpReleaseNotesListEl.appendChild(entry);
