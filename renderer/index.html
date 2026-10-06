@@ -38,7 +38,7 @@
      per-plugin registration. It's still scoped to loopback only, and a LAN
      viewer client's own 127.0.0.1 refers to itself, not this host, so this
      doesn't widen what a LAN browser can reach either. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data:; media-src 'self' app: http://127.0.0.1:*; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data: https://image.tmdb.org; media-src 'self' app: http://127.0.0.1:*; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales
@@ -1695,7 +1695,7 @@
                   <strong id="perf-total-files">1,624 FILES LOADED</strong>
                 </div>
                 <div class="perf-telemetry-item">
-                  <span>SYSTEM JOKE CHANNELS:</span>
+                  <span>BUILT-IN CHANNELS:</span>
                   <strong id="perf-virtual-count">11 ACTIVE SYSTEM CHANNELS</strong>
                 </div>
                 <div class="perf-telemetry-item">

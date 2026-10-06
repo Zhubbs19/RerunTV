@@ -507,7 +507,12 @@ function handleRefusal(result) {
 function flushCommands() {
   if (inFlight || resyncing) return Promise.resolve(false);
   settlePlainEdits();
-  if (!outbound.length) return Promise.resolve(true);
+  if (!outbound.length) {
+    // An edit that nets out to no change (a toggle flipped back, a view switch) has nothing to send; without
+    // this the footer would sit on SAVING… until the next real edit.
+    setSaveIndicator('saved');
+    return Promise.resolve(true);
+  }
 
   // First write of the session (or the first after a resync): send the whole
   // config, which carries these commands' effects along with any defaults the

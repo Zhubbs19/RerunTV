@@ -24,7 +24,7 @@ import { viewNow } from '../core/state.js';
 import { formatChannelNumber, sortedChannels } from '../core/channels.js';
 import { getChannel } from '../core/channels.js';
 import { exitTimeMachine, updateTimeShiftBadge } from '../playback/timemachine.js';
-import { pad2, toDatetimeLocalValue, escapeHtml } from '../core/util.js';
+import { pad2, toDatetimeLocalValue, escapeHtml, readableReleaseNotes } from '../core/util.js';
 import { buildDynamicOverlaysEditor, buildLogoBugProfileEditor, parsePositiveInt } from './util.js';
 import { getPluginSearchEntries, runCoreHooks, themePackEntries, getThemePack } from '../plugin/host.js';
 import { themeCheckBadge, themeCheckResult } from '../display/theme-check.js';
@@ -1264,7 +1264,8 @@ async function renderReleaseNotes() {
     // markdown renderer — bullet lines still read fine as plain text
     // (GitHub's own convention, "- " per line), and escaping the rest
     // avoids trusting arbitrary release-note HTML/script content.
-    body.innerHTML = (r.body || 'No description.').split('\n').map((line) => escapeHtml(line)).join('<br>');
+    body.style.whiteSpace = 'pre-wrap';
+    body.textContent = r.body ? readableReleaseNotes(r.body) : 'No description.';
     entry.appendChild(body);
     helpReleaseNotesListEl.appendChild(entry);
   });

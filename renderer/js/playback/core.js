@@ -20,8 +20,8 @@ import {
 } from '../core/channels.js';
 import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
-  crtToggleFlash, dynamicBumperTextEl, guideOverlay, player,
-  ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
+  capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
+  guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
@@ -841,9 +841,14 @@ export async function tuneToChannel(number, opts) {
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
   triviaCardEl.classList.add('hidden');
+  // The local-avail / sponsor card is a break card too; a tune or time-machine exit mid-break must not leave it on screen.
+  if (localAvailCardEl) localAvailCardEl.classList.add('hidden');
   stationIdBarEl.classList.remove('show');
   crtToggleFlash.classList.remove('show');
-  ratingBugEl.classList.remove('show');
+  // Every start-of-program corner card flashes for 16 s on a timer; tuning away must drop them too, or the
+  // old channel's NEW EPISODE/REPEAT bug (etc.) sits on top of whatever is tuned next.
+  [ratingBugEl, episodeStatusBugEl, capabilityBadgeEl, formatDisclaimerCardEl, contentAdvisoryCardEl, movieRatingCardEl]
+    .forEach((el) => el && el.classList.remove('show'));
   dynamicBumperTextEl.classList.add('hidden');
   hideDynamicOverlay();
   testPatternCanvasEl.classList.add('hidden');

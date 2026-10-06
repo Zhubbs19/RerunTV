@@ -17,7 +17,8 @@ import { playConfiguredSound } from '../core/audio.js';
 import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { clearDynamicOverlaysForBreak, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
-  crtToggleFlash, dynamicBumperTextEl, guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, player,
+  capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
+  guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, ratingBugEl,
   stationIdBarEl, stationIdNameEl, testPatternCanvasEl, triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize } from '../display/mode.js';
@@ -190,6 +191,7 @@ const BREAK_LABELS = {
   signOff: 'SIGNING OFF', signOn: 'SIGNING ON', promo: 'COMING SOON', premiereJingle: 'PREMIERING NOW',
   preemption: 'SPECIAL REPORT',
   sweepsPromo: 'A SPECIAL EVENT',
+  localAvail: 'STATION MESSAGE',
 };
 
 // Fade-to-black around a break bumper cut (entering or leaving) — resolves
@@ -311,6 +313,12 @@ function startBreak(ch, resolved, key) {
   // the screen — not the text-only "you're watching" station-ID bar, which
   // doesn't interrupt content and coexists with the bug in real practice.
   if (logoBugHidesOnBreakFor(ch) && !isTextOnlyChannelId) logoBugEl.classList.add('hidden');
+  // The start-of-program corner cards (rating, NEW EPISODE/REPEAT, CC badge, advisories) belong to the show; a break
+  // that takes over the screen shouldn't wear them (a time-machine jump into a break re-flashes them).
+  if (!isTextOnlyChannelId) {
+    [ratingBugEl, episodeStatusBugEl, capabilityBadgeEl, formatDisclaimerCardEl, contentAdvisoryCardEl, movieRatingCardEl]
+      .forEach((el) => el && el.classList.remove('show'));
+  }
   // Marks when content stopped airing so endBreak can credit exactly this
   // much back (see S.contentLostMs) — a text-only station ID never stops
   // content, so it has nothing to credit.

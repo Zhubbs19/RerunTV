@@ -7,6 +7,7 @@
 import { showSetupScreen } from '../app.js';
 import { renderHighlights } from './highlights.js';
 import { playConfiguredSound } from '../core/audio.js';
+import { readableReleaseNotes } from '../core/util.js';
 import {
   updateToastEl, updateToastTextEl, updateToastViewNotesBtn, updateToastInstallBtn, updateToastDismissBtn,
   updateChangelogEl, updateChangelogVersionEl, updateChangelogTitleEl, updateChangelogBodyEl,
@@ -51,20 +52,6 @@ async function jumpToReleaseNotes() {
   const helpTabBtn = document.querySelector('.setup-tab-btn[data-tab="help"]');
   if (helpTabBtn) helpTabBtn.click();
   document.getElementById('help-release-notes-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-function readableReleaseNotes(markdown) {
-  const text = String(markdown || '').trim();
-  if (!text) {
-    return 'RerunTV was updated successfully. Your channels and settings are ready exactly where you left them.';
-  }
-  return text
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/^[-*]\s+/gm, '• ')
-    .replace(/\n{3,}/g, '\n\n')
-    .slice(0, 6000);
 }
 
 async function acknowledgePostUpdate() {

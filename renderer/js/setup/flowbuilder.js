@@ -143,6 +143,7 @@ export function renderFlowsList() {
             renderChannelPills();
             updateFlowStatusBanner(activeFlow);
             commitItemEdit('flows', [activeFlow, prior]);
+            renderFlowPicker(S.config.interstitials.flows);
           });
           pill.appendChild(removeBtn);
           pillsWrap.appendChild(pill);
@@ -166,6 +167,8 @@ export function renderFlowsList() {
       renderChannelPills();
       updateFlowStatusBanner(activeFlow);
       commitItemEdit('flows', [activeFlow, prior]);
+      // The picker row on the left shows the target channels too.
+      renderFlowPicker(S.config.interstitials.flows);
     });
 
     renderChannelPills();
@@ -910,6 +913,10 @@ function renderFlowTimelineCanvas(flow) {
         ['stationId', 'STATION ID'],
         ['promo', 'PROMO'],
         ['localAvail', 'LOCAL AVAIL / SPONSOR CARD'],
+        // Older flows saved plain bump-in/out steps; the engine still plays them (normalizeFlowStepType), so the
+        // picker has to show them instead of rendering blank.
+        ...(step.type === 'bumpIn' ? [['bumpIn', 'BUMP-IN (OLDER FLOW STEP)']] : []),
+        ...(step.type === 'bumpOut' ? [['bumpOut', 'BUMP-OUT (OLDER FLOW STEP)']] : []),
       ].forEach(([v, l]) => {
         const opt = document.createElement('option');
         opt.value = v;

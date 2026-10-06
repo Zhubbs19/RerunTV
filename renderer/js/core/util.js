@@ -292,3 +292,19 @@ export function mulberry32(seed) {
 // A curated title always wins; otherwise fall back to the cleaned-up
 // filename, same as before per-file titles existed — except the fallback
 // is now a cleaned-up guess (strip season/episode codes and trailing
+
+// GitHub release notes are markdown; the panels showing them are plain text, so strip the markup
+// (headings, links, bold, bullets) rather than show it raw.
+export function readableReleaseNotes(markdown) {
+  const text = String(markdown || '').trim();
+  if (!text) {
+    return 'RerunTV was updated successfully. Your channels and settings are ready exactly where you left them.';
+  }
+  return text
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^[-*]\s+/gm, '• ')
+    .replace(/\n{3,}/g, '\n\n')
+    .slice(0, 6000);
+}

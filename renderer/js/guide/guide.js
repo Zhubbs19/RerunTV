@@ -1041,8 +1041,9 @@ export function renderGuideGrid() {
     guideRowsEl.appendChild(guideNowLineEl);
     guideNowLineEl.classList.add('hidden');
     giNumberEl.textContent = '--';
-    giChannelEl.textContent = 'NO MATCHES';
-    giTitleEl.textContent = '—';
+    giChannelEl.textContent = 'NO CHANNEL MATCHES';
+    giTitleEl.textContent = programResultsEl && !programResultsEl.classList.contains('hidden')
+      ? 'Matching upcoming programs are listed beside the search box.' : '—';
     giTimeEl.textContent = '';
     lastGuideRenderSig = null;
     return;

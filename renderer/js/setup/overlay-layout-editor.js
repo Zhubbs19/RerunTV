@@ -73,6 +73,8 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
   const autoAdjustSnapshot = Boolean(S.config.display && S.config.display.logoBugAutoAdjust);
   const snapIncrementSnapshot = Number(S.config.display && S.config.display.overlaySnapIncrement) || 0;
   const overlayLayoutsSnapshot = deepClone((S.config.display && S.config.display.overlayLayouts) || {});
+  // Opened from live TV (the O key) there is no Setup screen to go back to; closing should leave the picture up.
+  const openedFromSetup = Boolean(S.isSetupOpen);
   const [{ showSetupScreen, showTvScreen }, displayMode, channels, fx] = await Promise.all([
     import('../app.js'), import('../display/mode.js'), import('../core/channels.js'), import('../playback/broadcast-fx.js'),
   ]);
@@ -1319,7 +1321,7 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
     previewElements.forEach((_, id) => restorePreviewElement(id));
     displayMode.applyOverlayLayouts();
     if (onLiveChange) onLiveChange();
-    await showSetupScreen();
+    if (openedFromSetup) await showSetupScreen();
   }
 
   function askToDiscard() {

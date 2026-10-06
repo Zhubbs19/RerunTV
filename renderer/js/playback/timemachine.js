@@ -24,6 +24,7 @@ const BREAK_OSD_LABELS = {
   commercial: 'COMMERCIAL BREAK', trivia: 'TRIVIA', channelId: 'STATION ID',
   upNext: 'UP NEXT', adBreakIn: 'COMMERCIAL BREAK', adBreakOut: 'BACK TO THE SHOW',
   promo: 'COMING SOON', signOff: 'SIGNING OFF', signOn: 'SIGNING ON',
+  localAvail: 'STATION MESSAGE', preemption: 'SPECIAL REPORT', premiereJingle: 'PREMIERING NOW', sweepsPromo: 'A SPECIAL EVENT',
 };
 
 export function timeMachineAvailable() {
