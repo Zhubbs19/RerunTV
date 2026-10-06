@@ -971,7 +971,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
   // or pool entry just wants to target "this channel's content."
   const tagsLabel = document.createElement('div');
   tagsLabel.className = 'flow-label';
-  tagsLabel.textContent = 'CHANNEL CONTENT TAGS (APPLY TO EVERY FILE ON THIS CHANNEL)';
+  tagsLabel.textContent = 'Channel content tags (apply to every file on this channel)';
   panelEl.appendChild(tagsLabel);
 
   const tagsInput = document.createElement('input');
@@ -1327,7 +1327,7 @@ export function buildLogoBugPanel(ch, panelEl) {
     if (ch.logoBugProfiles == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE LOGO SETTINGS (GUIDE & THEME)';
+      hint.textContent = 'Uses the box-wide logo settings (Guide & theme)';
       panelEl.appendChild(hint);
       return;
     }
@@ -1504,13 +1504,13 @@ export function buildDynamicOverlaysPanel(ch, panelEl) {
       commitOwnerFields(ch, ['dynamicOverlays']);
     });
     inheritLabel.appendChild(inheritCheckbox);
-    inheritLabel.appendChild(document.createTextNode('OVERRIDE DYNAMIC OVERLAYS FOR THIS CHANNEL'));
+    inheritLabel.appendChild(document.createTextNode('Override dynamic overlays for this channel'));
     panelEl.appendChild(inheritLabel);
 
     if (ch.dynamicOverlays == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE DYNAMIC OVERLAYS (GUIDE & THEME)';
+      hint.textContent = 'Uses the box-wide dynamic overlays (Guide & theme)';
       panelEl.appendChild(hint);
       return;
     }
@@ -1564,13 +1564,13 @@ export function buildTickerLayoutPanel(ch, panelEl) {
       commitOwnerFields(ch, ['tickerLayout']);
     });
     placementInheritLabel.appendChild(placementInheritCheckbox);
-    placementInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER PLACEMENT FOR THIS CHANNEL'));
+    placementInheritLabel.appendChild(document.createTextNode('Override ticker placement for this channel'));
     panelEl.appendChild(placementInheritLabel);
 
     if (ch.tickerLayout == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE TICKER PLACEMENT (GUIDE & THEME)';
+      hint.textContent = 'Uses the box-wide ticker placement (Guide & theme)';
       panelEl.appendChild(hint);
     } else {
       const explanation = document.createElement('p');
@@ -1621,13 +1621,13 @@ export function buildTickerLayoutPanel(ch, panelEl) {
       commitOwnerFields(ch, ['tickerContent']);
     });
     contentInheritLabel.appendChild(contentInheritCheckbox);
-    contentInheritLabel.appendChild(document.createTextNode('OVERRIDE TICKER TEXT/SPEED FOR THIS CHANNEL'));
+    contentInheritLabel.appendChild(document.createTextNode('Override ticker text/speed for this channel'));
     panelEl.appendChild(contentInheritLabel);
 
     if (ch.tickerContent == null) {
       const hint = document.createElement('div');
       hint.className = 'titles-empty';
-      hint.textContent = 'USES THE BOX-WIDE TICKER TEXT/SPEED (PLUGINS TAB)';
+      hint.textContent = 'Uses the box-wide ticker text/speed (Plug-ins tab)';
       panelEl.appendChild(hint);
       return;
     }
@@ -1686,7 +1686,7 @@ export function buildChannelIdentityPanel(ch, panelEl) {
   };
   const intro = document.createElement('div');
   intro.className = 'titles-empty';
-  intro.textContent = 'OPTIONAL CHANNEL IDENTITY OVERRIDES. LEAVE A FIELD ON INHERIT TO FOLLOW THE BOX THEME AND BOX-WIDE SIGNAL COPY.';
+  intro.textContent = 'Optional channel identity overrides. Leave a field on Inherit to follow the box theme and box-wide signal copy.';
 
   function selectField(label, key, options) {
     const wrap = document.createElement('label');

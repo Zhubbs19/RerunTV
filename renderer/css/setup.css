@@ -2483,7 +2483,7 @@ html[data-theme] .btn[aria-disabled="true"] {
 .custom-sound-grid { display: grid; gap: 7px; }
 .custom-sound-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) minmax(130px, 1fr) auto auto auto;
+  grid-template-columns: minmax(170px, 230px) minmax(80px, 130px) auto auto auto 1fr;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -5076,7 +5076,8 @@ html[data-theme] .btn[aria-disabled="true"] {
 }
 #setup-screen[data-settings-view="advanced"] #guide-settings-panel .setting-row-wide { grid-column: 1 / -1; }
 #setup-screen[data-settings-view="advanced"] #clock-hint-settings-panel { grid-column: 1; }
-#setup-screen[data-settings-view="advanced"] #no-signal-settings-panel { grid-column: 2; grid-row: 3; }
+/* Sits under the full-width Dynamic overlays card at the left edge, not floating alone in the second column. */
+#setup-screen[data-settings-view="advanced"] #no-signal-settings-panel { grid-column: 1; grid-row: auto; }
 #setup-screen[data-settings-view="advanced"] #era-settings-panel .panel-body {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

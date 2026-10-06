@@ -609,6 +609,8 @@ function updateBreadcrumb() {
 setupTabBtns.forEach((btn) => {
   btn.addEventListener('click', () => {
     if (settingsView === 'simple' && !btn.hasAttribute('data-simple-settings')) setSettingsView('advanced');
+    // Leaving the page you searched from also ends the search, so the box doesn't keep a stale query.
+    if (setupSearchEl) setupSearchEl.value = '';
     closeSettingsSearch();
     const tab = btn.dataset.tab;
     lastSetupTab = tab;
