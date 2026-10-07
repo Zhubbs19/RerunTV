@@ -10,6 +10,13 @@ const { app, BrowserWindow, ipcMain, dialog, shell, screen, powerSaveBlocker, No
 // --allow-multiple-instances skips the lock for development and the UI test
 // harness, which run against a throwaway copy of userData and so can run
 // beside a real, open RerunTV. Never used by the installed app's shortcuts.
+// This is a TV: it keeps playing behind other windows, on a second screen, or while another app is
+// in front. Chromium decides a covered window is hidden and then pauses its video (a bare <video>
+// in plain Electron on this setup paused by itself for 14 s and never restarted), so tell it not
+// to track occlusion or background a covered window. Must be set before the app is ready.
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
 const gotSingleInstanceLock = process.argv.includes('--allow-multiple-instances') || app.requestSingleInstanceLock();
 if (!gotSingleInstanceLock) {
   // Nothing expensive has run yet (no window, no config load, no server
