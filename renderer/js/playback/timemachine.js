@@ -318,7 +318,9 @@ export function scrubProgramBoundary(direction) {
 
 // TV menu › Time Machine › Go to… (§3.2). A jump inside the strip's window
 // plays straight away; a far one lands paused on a banner and plays on OK.
-export async function timeMachineGoTo(targetMs, label) {
+// play: true is for a date the viewer picked on purpose (the calendar): it always plays
+// straight away, with a toast saying where it landed, instead of parking on the banner.
+export async function timeMachineGoTo(targetMs, label, { play = false } = {}) {
   if (!Number.isFinite(targetMs)) return;
   if (!S.timeMachineOn) enterTimeMachine();
   if (!S.timeMachineOn) return;
@@ -326,8 +328,9 @@ export async function timeMachineGoTo(targetMs, label) {
   if (!beginScrub()) return;
   S.timeOffsetMs = targetMs - Date.now();
   holdAt(targetMs);
-  if (!far) {
+  if (!far || play) {
     await shuttlePlay();
+    if (play && label) flashMessage(`${label} · ${dayClock(targetMs)}`, 'timeJumpFlashTimer');
     return;
   }
   scrubWin = null;

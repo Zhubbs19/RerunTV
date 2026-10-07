@@ -60,7 +60,7 @@ export function openTimeCalendar(options = {}) {
   const needsTimeMachine = options.needsTimeMachine !== false;
   const usable = !!ch && (!needsTimeMachine || S.timeMachineOn || timeMachineAvailable());
   const startMs = Number.isFinite(options.startMs) ? options.startMs : viewNow();
-  const onGo = options.onGo || ((ms, label) => timeMachineGoTo(ms, label));
+  const onGo = options.onGo || ((ms, label) => timeMachineGoTo(ms, label, { play: true }));
 
   let cursor = dateFromMs(startMs);
   let hour = new Date(startMs).getHours();
