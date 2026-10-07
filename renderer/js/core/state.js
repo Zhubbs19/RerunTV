@@ -81,6 +81,11 @@ export const S = {
   // pointer on the strip, a Go to… jump) and it hasn't been committed with
   // OK/Enter/T yet. Cleared by stopShuttle (timemachine.js).
   scrubPending: false,
+  // While a scrub is parked (paused, not shuttling) the viewed time stands still at this moment,
+  // so the preview, the OSD and a commit all agree on one instant. Only honoured while
+  // timeOffsetMs is still the value it was frozen at; any other writer to the offset wins.
+  frozenViewMs: null,
+  frozenOffsetMs: 0,
   guideWindowStart: 0,
   // The guide's selected row, as a channel number (special channels included)
   // rather than a row index, so filtering or the specials moving never shifts
@@ -919,5 +924,6 @@ export function performRedo() {
 // dayparting and the on-screen clocks together. Channel anchors deliberately
 // keep using real Date.now() — they record when a folder was scanned.
 export function viewNow() {
+  if (S.frozenViewMs != null && S.timeOffsetMs === S.frozenOffsetMs) return S.frozenViewMs;
   return Date.now() + S.timeOffsetMs;
 }

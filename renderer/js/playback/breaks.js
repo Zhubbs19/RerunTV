@@ -18,7 +18,7 @@ import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from '../core/intersti
 import { clearDynamicOverlaysForBreak, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
-  guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, ratingBugEl,
+  adoptStandby, guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, prepareStandby, ratingBugEl, standbyReady,
   stationIdBarEl, stationIdNameEl, testPatternCanvasEl, triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize } from '../display/mode.js';
@@ -80,12 +80,18 @@ function breakVideoFile(resolved) {
   return entry ? (entry.dynamic ? entry.bgFile : entry.file) : null;
 }
 
-function prefetchBreakFile(resolved, warmAtS = null) {
-  const file = breakVideoFile(resolved);
-  if (file) prefetchPlayableUrl(file, warmAtS);
+// Look the file up and, when startAtS is given, load it into the standby video seeked to that
+// point, so the cut to it is a swap rather than a load.
+function prefetchFile(file, startAtS = null) {
+  prefetchPlayableUrl(file, startAtS == null ? null : (url) => prepareStandby(url, startAtS));
 }
 
-// While a video segment plays, look up whatever comes after it: the next ad or bumper, or
+function prefetchBreakFile(resolved, startAtS = null) {
+  const file = breakVideoFile(resolved);
+  if (file) prefetchFile(file, startAtS);
+}
+
+// While a video segment plays, get whatever comes after it ready: the next ad or bumper, or
 // the show it will hand back to.
 function prefetchAfterSegment(ch, resolved) {
   try {
@@ -96,7 +102,7 @@ function prefetchAfterSegment(ch, resolved) {
     // break that endBreak has not yet credited back.
     const pos = computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow());
     const unCreditedS = S.breakEnteredAtMs ? Math.max(0, (viewNow() - S.breakEnteredAtMs) / 1000) : 0;
-    if (pos && pos.file) prefetchPlayableUrl(pos.file, Math.max(0, pos.offset - unCreditedS));
+    if (pos && pos.file) prefetchFile(pos.file, Math.max(0, pos.offset - unCreditedS));
   } catch (e) { /* a prefetch is only ever a hint */ }
 }
 
@@ -114,7 +120,7 @@ export function scheduleNextBreak(ch) {
   const boundary = nextBreakBoundary(ch, viewNow());
   if (!isFinite(boundary)) return;
   // Look up the first video of the coming break now, so the cut doesn't wait on it.
-  prefetchBreakFile(resolveBreakAt(ch, boundary + 1));
+  prefetchBreakFile(resolveBreakAt(ch, boundary + 1), 0);
   // Re-resolve at fire time: S.config can be replaced wholesale after arming.
   S.breakTimer = setTimeout(() => checkBreakState(getChannel(ch.number) || ch), Math.max(0, boundary - viewNow()) + 1);
 }
@@ -471,15 +477,17 @@ function startBreak(ch, resolved, key) {
         const [, { url }] = await Promise.all([hardCut ? null : fadeOutPlayer(entryFadeOutMs), resolvePlayableUrl(fileSource, filePath)]);
         if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
         prefetchAfterSegment(ch, resolved);
+        // The standby already holds this file with a frame ready: swap it in rather than load.
+        const adopted = adoptStandby(url);
         player.loop = true;
-        player.src = url;
+        if (!adopted) player.src = url;
         dynamicBumperTextEl.textContent = renderDynamicText(entry.text, ch, entry);
         dynamicBumperTextEl.classList.remove('hidden');
 
         if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
         const onMeta = () => {
           if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
-          player.currentTime = windowElapsedS;
+          if (!(adopted && Math.abs(player.currentTime - windowElapsedS) < 0.25)) player.currentTime = windowElapsedS;
           player.play().catch(() => {});
           player.removeEventListener('loadedmetadata', onMeta);
           if (S.metaHandler === onMeta) S.metaHandler = null;
@@ -501,6 +509,7 @@ function startBreak(ch, resolved, key) {
         };
         S.metaHandler = onMeta;
         player.addEventListener('loadedmetadata', onMeta);
+        if (adopted) onMeta(); // no load, so no loadedmetadata event
 
         const resume = () => checkBreakState(ch);
         S.errorHandler = resume;
@@ -521,14 +530,15 @@ function startBreak(ch, resolved, key) {
       // The break may have ended/changed during the awaits above.
       if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
       prefetchAfterSegment(ch, resolved);
+      const adopted = adoptStandby(url);
       player.loop = false; // a looping bumper before this one (time machine preview) must not make an ad replay instead of ending
-      player.src = url;
+      if (!adopted) player.src = url;
       S.awaitingBumperEnd = true;
 
       if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
       const onMeta = () => {
         if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
-        player.currentTime = windowElapsedS;
+        if (!(adopted && Math.abs(player.currentTime - windowElapsedS) < 0.25)) player.currentTime = windowElapsedS;
         player.play().catch(() => {});
         player.removeEventListener('loadedmetadata', onMeta);
         if (S.metaHandler === onMeta) S.metaHandler = null;
@@ -546,6 +556,7 @@ function startBreak(ch, resolved, key) {
       };
       S.metaHandler = onMeta;
       player.addEventListener('loadedmetadata', onMeta);
+      if (adopted) onMeta(); // no load, so no loadedmetadata event
 
       // The video itself ends the instant its own content runs out — a
       // configured WAIT AFTER (entryWaitAfterMs) holds on the now-ended
@@ -650,7 +661,19 @@ function endBreak(ch) {
       stillLoaded = !!(pos && pos.file && pos.file.path === S.liveContentPath);
     }
     (async () => {
-      if (!stillLoaded) await fadeOutPlayer();
+      // The show may already be waiting in the standby video (loaded and seeked while the last ad
+      // played): then the cut back is a plain swap, with nothing to fade away from.
+      let standbyHasShow = false;
+      if (!stillLoaded) {
+        try {
+          const pos = computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow());
+          if (pos && pos.file) {
+            const { url } = await resolvePlayableUrl(pos.file.source || 'local', pos.file.path);
+            standbyHasShow = standbyReady(url);
+          }
+        } catch (e) { /* fall back to the fade */ }
+      }
+      if (!stillLoaded && !standbyHasShow) await fadeOutPlayer();
       if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey) return;
       // fadeInOnReady: reveal only once the resumed show has actually
       // decoded a frame, instead of unfading immediately after src is set

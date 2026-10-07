@@ -21,7 +21,7 @@ import {
 import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
-  guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
+  adoptStandby, guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, releaseStandby, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
@@ -575,11 +575,14 @@ export async function playChannelLive(ch, opts) {
     }
   }
 
+  // The standby video may already hold this file with a frame ready (breaks load it ahead of
+  // the cut back to the show): swap it on screen instead of loading anything.
+  const adopted = adoptStandby(url);
   player.loop = false; // clears any loop left set by a virtual channel's background audio
   // The time machine's scrub preview has already loaded this exact file; committing to it
   // only needs a seek and play. Setting src again would reload it and hitch the picture.
-  const reuseLoaded = !!opts.reuseLoaded && !player.error && player.readyState >= 1
-    && (player.currentSrc === url || player.src === url);
+  const reuseLoaded = adopted || (!!opts.reuseLoaded && !player.error && player.readyState >= 1
+    && (player.currentSrc === url || player.src === url));
   if (!reuseLoaded) player.src = url;
   // Claim the player for this channel's real content, for the drift
   // watchdog's benefit (checkScheduleDrift below). Set here rather than in
@@ -626,7 +629,9 @@ export async function playChannelLive(ch, opts) {
       checkBreakState(ch, { contentJustEnded: true });
       return;
     }
-    player.currentTime = seekOffset;
+    // A file that is already in place at (nearly) the right spot needs no seek, which would only
+    // flush what is decoded and hitch.
+    if (!(reuseLoaded && Math.abs(player.currentTime - seekOffset) < 0.25)) player.currentTime = seekOffset;
     player.play().catch(() => {});
     player.removeEventListener('loadedmetadata', onMeta);
     if (S.metaHandler === onMeta) S.metaHandler = null;
@@ -815,6 +820,7 @@ export async function tuneToChannel(number, opts) {
     }
   }
   playChannelClickSound();
+  releaseStandby(); // whatever was loaded ahead belongs to the channel being left
   // A hidden channel (setup-channels.js's HIDE FROM TUNING toggle) is
   // treated as if `number` were never configured at all — same NO SIGNAL
   // fallback every branch below already takes for an unknown number, not a

@@ -9,6 +9,8 @@
 // looking at them — a call site's own `if (el) ...` null-check is what
 // actually signals "this one's optional," and is load-bearing wherever it
 // appears, not defensive-programming boilerplate to trim.
+import { createPlayerPair } from './player-pair.js';
+
 export const setupScreen = document.getElementById('setup-screen');
 export const tvScreen = document.getElementById('tv-screen');
 export const displayFrameEl = document.getElementById('display-frame');
@@ -256,7 +258,10 @@ export const themeBrowserGroups = document.getElementById('theme-browser-groups'
 export const themeBrowserEmpty = document.getElementById('theme-browser-empty');
 export const triviaEnabledEl = document.getElementById('trivia-enabled');
 export const triviaIntervalEl = document.getElementById('trivia-interval');
-export const player = document.getElementById('player');
+// `player` is whichever of two <video> elements is on screen (core/player-pair.js).
+const playerPair = createPlayerPair(document.getElementById('player'));
+export const player = playerPair.player;
+export const { prepareStandby, standbyReady, adoptStandby, releaseStandby, isPlayerElement } = playerPair;
 export const tvBezelEl = document.getElementById('tv-bezel');
 export const staticCanvas = document.getElementById('static-canvas');
 export const testPatternCanvasEl = document.getElementById('test-pattern-canvas');

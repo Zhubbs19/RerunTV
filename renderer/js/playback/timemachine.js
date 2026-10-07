@@ -265,10 +265,26 @@ function holdAt(ms) {
   S.previewOffsetMs = S.timeOffsetMs;
 }
 
+// A parked scrub is a paused tape: the viewed time stays where it was put. Without this the
+// schedule clock ran on under the preview, so the frame on screen, the OSD, ◀▶ steps and the
+// moment Enter committed to were all slightly different instants, and each press landed
+// somewhere new.
+function freezeView(ms) {
+  S.frozenViewMs = ms;
+  S.frozenOffsetMs = S.timeOffsetMs;
+}
+
+// Let the clock run again from the frozen moment (play, shuttle or leaving).
+function thawView() {
+  if (S.frozenViewMs != null && S.timeOffsetMs === S.frozenOffsetMs) S.timeOffsetMs = S.frozenViewMs - Date.now();
+  S.frozenViewMs = null;
+}
+
 export function scrubToTime(targetMs) {
   if (!Number.isFinite(targetMs) || !beginScrub()) return;
   hideScrubBanner();
   S.timeOffsetMs = targetMs - Date.now();
+  freezeView(targetMs);
   holdAt(targetMs);
   updateVcrOsd();
   queueScrubPreview();
@@ -328,6 +344,7 @@ export async function timeMachineGoTo(targetMs, label, { play = false } = {}) {
   if (!beginScrub()) return;
   S.timeOffsetMs = targetMs - Date.now();
   holdAt(targetMs);
+  if (far && !play) freezeView(targetMs);
   if (!far || play) {
     await shuttlePlay();
     if (play && label) flashMessage(`${label} · ${dayClock(targetMs)}`, 'timeJumpFlashTimer');
@@ -482,6 +499,7 @@ export function shuttleTick(ts) {
 
 export function startShuttle(dir) {
   if (!S.timeMachineOn) return;
+  thawView();
   if (S.shuttleDir === dir) {
     // Same direction again steps up the speed, like tapping FF on a VCR.
     S.shuttleSpeedIdx = Math.min(S.shuttleSpeedIdx + 1, SHUTTLE_SPEEDS.length - 1);
@@ -527,6 +545,7 @@ function pauseForScrubbing() {
 }
 
 export function stopShuttle() {
+  thawView();
   S.shuttleDir = 0;
   S.shuttleSpeedIdx = 0;
   S.scrubPending = false;
@@ -664,6 +683,7 @@ export async function shuttlePlay() {
 }
 
 export async function returnToLive() {
+  S.frozenViewMs = null;
   S.timeOffsetMs = 0;
   stopShuttle();
   S.shuttlePreviewPath = null;

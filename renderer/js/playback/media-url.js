@@ -37,49 +37,13 @@ export async function resolvePlayableUrl(source, path) {
   }
 }
 
-// Fire and forget: warm the cache for a file a moment before it is needed. With
-// warmAtS, also have a hidden second video load that file, seeked to the point it will
-// start from, so the player's own load of the same URL finds its data already read.
-export function prefetchPlayableUrl(file, warmAtS = null) {
+// Fire and forget: look a file up a moment before it is needed. onUrl, if given, is handed
+// the URL once known (the break code uses it to load the file into the standby video).
+export function prefetchPlayableUrl(file, onUrl) {
   if (!file || !file.path) return;
   resolvePlayableUrl(file.source || 'local', file.path)
-    .then(({ url }) => { if (warmAtS != null) warmMedia(url, warmAtS); })
+    .then(({ url }) => { if (onUrl) onUrl(url); })
     .catch(() => {});
-}
-
-// One hidden, muted, never-played video. Blink shares fetched media data between elements
-// that load the same URL, so reading ahead here is what the real player gets for free.
-const WARM_RELEASE_MS = 20000;
-let warm = null;
-let warmTimer = null;
-
-export function warmMedia(url, offsetS = 0) {
-  try {
-    if (typeof document === 'undefined') return;
-    if (!warm) {
-      warm = document.createElement('video');
-      warm.muted = true;
-      warm.preload = 'auto';
-    }
-    if (warm.dataset.url === url) return;
-    warm.dataset.url = url;
-    warm.src = url;
-    warm.addEventListener('loadedmetadata', () => {
-      try { if (offsetS > 0 && offsetS < warm.duration) warm.currentTime = offsetS; } catch (e) { /* only a hint */ }
-    }, { once: true });
-    clearTimeout(warmTimer);
-    warmTimer = setTimeout(releaseWarm, WARM_RELEASE_MS);
-  } catch (e) { /* only a hint */ }
-}
-
-export function releaseWarm() {
-  clearTimeout(warmTimer);
-  if (!warm) return;
-  try {
-    warm.removeAttribute('src');
-    warm.dataset.url = '';
-    warm.load();
-  } catch (e) { /* only a hint */ }
 }
 
 export function invalidatePlayableUrl(source, path) {

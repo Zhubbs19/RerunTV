@@ -64,10 +64,11 @@ test('a prefetch that fails is silent, and a later real lookup still works', asy
   assert.equal((await resolvePlayableUrl('local', 'e.mp4')).url, 'app://R:e.mp4');
 });
 
-test('warming without a DOM, or releasing nothing, is harmless', async () => {
+test('a prefetch hands the url to its callback', async () => {
   fakeApi();
-  const { warmMedia, releaseWarm, prefetchPlayableUrl } = await load();
-  assert.doesNotThrow(() => { warmMedia('app://x', 5); releaseWarm(); });
-  prefetchPlayableUrl({ path: 'w.mp4' }, 12);
+  const { prefetchPlayableUrl } = await load();
+  let got = null;
+  prefetchPlayableUrl({ path: 'w.mp4' }, (url) => { got = url; });
   await new Promise((r) => setTimeout(r, 10));
+  assert.equal(got, 'app://R:w.mp4');
 });
