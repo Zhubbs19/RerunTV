@@ -28,6 +28,7 @@ import { showGuideOverlay } from '../guide/guide.js';
 import { tuneTimingEnabled } from '../core/perf.js';
 import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTuneVolume, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
 import { noteRecentChannel } from './recent-channels.js';
+import { invalidatePlayableUrl, resolvePlayableUrl } from './media-url.js';
 import { cancelAllInterrupts, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from '../plugin/host.js';
 import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
@@ -266,11 +267,11 @@ export async function playChannelLive(ch, opts) {
   applyDisplayMode();
 
   let resolved, url;
+  // A retry after a failed attempt must see fresh answers (a transcode may have changed them).
+  if (opts.cacheRetried || opts.playRetried) invalidatePlayableUrl(file.source || 'local', file.path);
   try {
-    resolved = await window.api.resolvePlayablePath(file.source || 'local', file.path);
-    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} resolvePlayablePath +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
-    url = await window.api.toFileUrl(resolved.path);
-    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} toFileUrl +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+    ({ resolved, url } = await resolvePlayableUrl(file.source || 'local', file.path));
+    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} resolved +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   } catch (err) {
     markStaticReady();
     showNoSignal('FILE ERROR', `CH ${ch.number} — FAILED TO RESOLVE MEDIA FILE`, 'error');
@@ -293,6 +294,7 @@ export async function playChannelLive(ch, opts) {
   async function handleUnplayable() {
     if (handled || S.currentNumber !== ch.number || !S.isPoweredOn) return;
     handled = true;
+    invalidatePlayableUrl(file.source || 'local', file.path);
 
     // Live playback (the default, first attempt for every file — local or
     // plugin-sourced alike) failed for a plugin-sourced file that hasn't
