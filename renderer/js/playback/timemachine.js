@@ -653,7 +653,7 @@ export async function shuttlePlay() {
     const dueBreak = resolveBreakAt(ch, viewNow());
     const dueVideoBreak = dueBreak && dueBreak.entry && (dueBreak.entry.file || dueBreak.entry.dynamic);
     if (!dueVideoBreak) {
-      await playChannelLive(ch, { fadeInOnReady: true });
+      await playChannelLive(ch, { fadeInOnReady: true, reuseLoaded: true });
     }
     checkBreakState(ch);
     if (S.currentNumber === ch.number) scheduleBlockBoundaryRetune(ch); // tuned away during the awaits
@@ -722,6 +722,10 @@ export function enterTimeMachine() {
 
 export async function exitTimeMachine(opts) {
   opts = opts || {};
+  // Nothing was being scrubbed or previewed: the player is already on the right content at
+  // the right moment, and reloading it would only make the picture hitch.
+  const alreadyPlaying = !opts.toLive && S.shuttleDir === 0 && !S.scrubPending
+    && S.shuttlePreviewPath == null && !player.paused && !S.activeBreakKey;
   S.timeMachineOn = false;
   stopShuttle();
   S.shuttlePreviewPath = null;
@@ -742,7 +746,7 @@ export async function exitTimeMachine(opts) {
   S.completedBreakKeys = null;
   const ch = getChannel(S.currentNumber);
   if (ch) {
-    await playChannelLive(ch, { fadeInOnReady: true });
+    if (!alreadyPlaying) await playChannelLive(ch, { fadeInOnReady: true });
     checkBreakState(ch);
     if (S.currentNumber === ch.number) scheduleBlockBoundaryRetune(ch); // tuned away during the awaits
   }

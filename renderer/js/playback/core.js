@@ -574,7 +574,11 @@ export async function playChannelLive(ch, opts) {
   }
 
   player.loop = false; // clears any loop left set by a virtual channel's background audio
-  player.src = url;
+  // The time machine's scrub preview has already loaded this exact file; committing to it
+  // only needs a seek and play. Setting src again would reload it and hitch the picture.
+  const reuseLoaded = !!opts.reuseLoaded && !player.error && player.readyState >= 1
+    && (player.currentSrc === url || player.src === url);
+  if (!reuseLoaded) player.src = url;
   // Claim the player for this channel's real content, for the drift
   // watchdog's benefit (checkScheduleDrift below). Set here rather than in
   // onMeta so a file that never finishes loading can't leave a previous
@@ -757,6 +761,8 @@ export async function playChannelLive(ch, opts) {
   };
   S.metaHandler = onMeta;
   player.addEventListener('loadedmetadata', onMeta);
+  // No new load means no loadedmetadata event, so run the same handler now.
+  if (reuseLoaded) onMeta();
   // Metadata that never arrives (and no 'error' event either) used to leave
   // the screen on static forever; fall into the normal unplayable treatment.
   metaTimer = setTimeout(() => {
