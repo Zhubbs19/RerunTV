@@ -58,7 +58,7 @@ export function blockPickerLabel(block) {
   if (block.name && block.name.trim()) return block.name.trim();
   const t = block.trigger;
   if (t.type === 'dateRange') {
-    let label = `DATE RANGE ${t.startMonth}/${t.startDay}–${t.endMonth}/${t.endDay}`;
+    let label = `DATE RANGE ${t.startRule === 'thanksgiving' ? 'THANKSGIVING' : `${t.startMonth}/${t.startDay}`}–${t.endMonth}/${t.endDay}`;
     // Optional hour/day narrowing on top of the date range (see
     // matchesDateRangeNarrowing in schedule.js) — surface it in the label so
     // "6-10pm only" or "Fridays only" isn't invisible once named blank.
@@ -889,8 +889,9 @@ export function buildSchedulePanel(ch, panelEl) {
 
       let narrowRow = null;
       let narrowFieldsRow = null;
+      let yearlyRow = null;
       if (isDateRange) {
-        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; commitBlockFields(block, ['trigger']); }, 'Start'));
+        scheduleRow.appendChild(monthDaySelect(block.trigger.startMonth, block.trigger.startDay, (m, d) => { block.trigger.startMonth = m; block.trigger.startDay = d; delete block.trigger.startRule; commitBlockFields(block, ['trigger']); renderBlocks(); }, 'Start'));
         scheduleRow.appendChild(dash());
         scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; commitBlockFields(block, ['trigger']); }, 'End'));
 
@@ -927,6 +928,36 @@ export function buildSchedulePanel(ch, panelEl) {
         narrowLabel.appendChild(document.createTextNode('ALSO LIMIT TO SPECIFIC HOURS/DAYS'));
         narrowRow.appendChild(narrowLabel);
 
+        // Yearly behaviour (see anchorToRange / startRule, core/schedule.js): the date range already
+        // repeats every year; these two make the block's own timeline repeat too.
+        yearlyRow = document.createElement('div');
+        yearlyRow.className = 'block-card-row';
+        const yearlyOption = (text, title, checked, apply) => {
+          const label = document.createElement('label');
+          label.className = 'shuffle-toggle';
+          label.title = title;
+          const box = document.createElement('input');
+          box.type = 'checkbox';
+          box.checked = checked;
+          box.addEventListener('change', () => {
+            const prior = cloneJson(block);
+            apply(box.checked);
+            renderBlocks();
+            commitBlockEdit(block, prior);
+          });
+          label.appendChild(box);
+          label.appendChild(document.createTextNode(text));
+          return label;
+        };
+        yearlyRow.appendChild(yearlyOption('RESTART FROM ITS FIRST FILE EACH YEAR',
+          'Begin the playlist again at the start of the date range every year, instead of continuing from one fixed starting moment',
+          !!block.anchorToRange, (on) => { if (on) block.anchorToRange = true; else delete block.anchorToRange; }));
+        yearlyRow.appendChild(yearlyOption('STARTS ON THANKSGIVING',
+          'Begin on the 4th Thursday of November each year instead of the date above',
+          block.trigger.startRule === 'thanksgiving', (on) => {
+            if (on) { block.trigger.startRule = 'thanksgiving'; block.trigger.startMonth = 11; } else delete block.trigger.startRule;
+          }));
+
         if (narrowed) {
           narrowFieldsRow = document.createElement('div');
           narrowFieldsRow.className = 'block-card-row';
@@ -959,6 +990,7 @@ export function buildSchedulePanel(ch, panelEl) {
 
       card.appendChild(scheduleRow);
       if (narrowRow) card.appendChild(narrowRow);
+      if (yearlyRow) card.appendChild(yearlyRow);
       if (narrowFieldsRow) card.appendChild(narrowFieldsRow);
 
       // ---- Mode: dateRange always gets one; dayOfWeek only when exactly

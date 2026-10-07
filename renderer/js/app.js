@@ -52,6 +52,7 @@ import { installTvScreen } from './display/tv-screen.js';
 import { applyLeveler } from './playback/leveler.js';
 import { applyBakedBars } from './playback/bars.js';
 import { handleRecentKey, toggleRecentChannels } from './playback/recent-channels.js';
+import { openTimeCalendar } from './playback/time-calendar.js';
 import { applyKeyHints, remapKeyboardEvent } from './core/key-remap.js';
 import { fillNewSettingDefaults } from './core/setting-defaults.js';
 import { installTvSuggestion } from './tv/suggest.js';
@@ -342,6 +343,10 @@ export function handleKey(e) {
       if (!S.timeMachineOn) enterTimeMachine();
       else if (S.shuttleDir !== 0 || S.scrubPending) shuttlePlay();
       else exitTimeMachine();
+      break;
+    case 'd':
+    case 'D':
+      openTimeCalendar();
       break;
     case 'l':
     case 'L':

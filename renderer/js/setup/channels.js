@@ -28,6 +28,7 @@ import {
 } from '../core/dom.js';
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from '../display/mode.js';
 import { tuneToChannel } from '../playback/core.js';
+import { openTimeCalendar } from '../playback/time-calendar.js';
 import { CHANNEL_ASPECT_OPTIONS } from '../playback/power.js';
 import {
   buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildCreditsSpeedupPanel, buildDynamicOverlaysPanel, buildFoldersPanel,
@@ -2257,6 +2258,17 @@ function setPreviewFieldMs(ms) {
 // already-in-progress break so NEXT BREAK always lands you at a break's
 // start, never its tail end.
 previewModalCancelBtn.addEventListener('click', closePreviewModal);
+// CALENDAR…: the time machine's calendar picks the date and time for the preview.
+const previewCalendarBtn = document.getElementById('preview-modal-calendar-btn');
+if (previewCalendarBtn) {
+  previewCalendarBtn.addEventListener('click', () => {
+    if (!previewChannel) return;
+    openTimeCalendar({
+      channel: previewChannel, startMs: getPreviewFieldMs(), title: 'PREVIEW · PICK A DATE', goText: 'USE THIS TIME',
+      needsTimeMachine: false, onGo: (ms) => setPreviewFieldMs(ms),
+    });
+  });
+}
 previewModalNowBtn.addEventListener('click', () => {
   previewPreciseMs = null;
   previewModalDatetimeEl.value = toDatetimeLocalValue(new Date());

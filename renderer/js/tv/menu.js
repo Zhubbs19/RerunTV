@@ -18,6 +18,7 @@ import {
   currentProgramStart, enterTimeMachine, exitTimeMachine, returnToLive, timeMachineAvailable, timeMachineGoTo,
 } from '../playback/timemachine.js';
 import { formatClock } from '../core/util.js';
+import { openTimeCalendar } from '../playback/time-calendar.js';
 import { goToTargets, pickerTime, clampPicker, PICKER_DAY_RANGE } from '../timeline/scrubber.js';
 import {
   toggleMute, adjustVolume, toggleCrt, cyclePictureMode, cycleAspectMode,
@@ -73,6 +74,7 @@ function timeMachineSubmenu() {
       run: () => timeMachineGoTo(target.at, target.label),
     }))
     : [];
+  if (available) items.push({ label: 'PICK A DATE (CALENDAR)…', run: () => openTimeCalendar() });
   if (available) items.push({ label: 'PICK DAY & HOUR…', submenu: dayHourPicker });
   items.push({ label: S.timeMachineOn ? 'CLOSE TIME MACHINE' : 'OPEN TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) });
   items.push({ label: 'RETURN TO LIVE', run: () => returnToLive() });

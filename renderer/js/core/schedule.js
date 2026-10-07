@@ -35,6 +35,21 @@ function matchesDayOfWeek(atMs, t) {
 function dateKey(month, day) {
   return new Date(2000, month - 1, day).getTime();
 }
+// The 4th Thursday of November — a start date that moves from year to year.
+export function thanksgivingDay(year) {
+  const firstThursday = 1 + ((4 - new Date(year, 10, 1).getDay() + 7) % 7);
+  return firstThursday + 21;
+}
+
+// A dateRange trigger with `startRule: 'thanksgiving'` starts on Thanksgiving of
+// atMs's year instead of on its own startMonth/startDay (which only hold the date
+// to show when no year is in play). Everything that reads a trigger's start date
+// goes through this so the rule is honoured the same way everywhere.
+export function effectiveTrigger(t, atMs) {
+  if (!t || t.startRule !== 'thanksgiving') return t;
+  return { ...t, startMonth: 11, startDay: thanksgivingDay(new Date(atMs).getFullYear()) };
+}
+
 function inDateRange(atMs, t) {
   const d = new Date(atMs);
   const cur = dateKey(d.getMonth() + 1, d.getDate());
@@ -58,6 +73,13 @@ function matchesDateRangeNarrowing(atMs, t) {
   return true;
 }
 
+// The channel's dateRange blocks (with content) that cover the calendar day atMs
+// falls on, whatever hours they are narrowed to — for marking days in a calendar.
+export function dateBlocksOn(ch, atMs) {
+  return (ch.blocks || []).filter((b) => b.files && b.files.length && b.trigger && b.trigger.type === 'dateRange'
+    && inDateRange(atMs, effectiveTrigger(b.trigger, atMs)));
+}
+
 // Exported so the setup screen can flag a block that matches its trigger
 // right now but has no content (see blockHasContent/matchingBlocksIncludingEmpty
 // in setup-schedule.js) — matchingBlocks below filters those out entirely,
@@ -66,7 +88,7 @@ function matchesDateRangeNarrowing(atMs, t) {
 export function matchesTrigger(atMs, block) {
   const t = block.trigger;
   if (!t) return false;
-  if (t.type === 'dateRange') return inDateRange(atMs, t) && matchesDateRangeNarrowing(atMs, t);
+  if (t.type === 'dateRange') return inDateRange(atMs, effectiveTrigger(t, atMs)) && matchesDateRangeNarrowing(atMs, t);
   return matchesDayOfWeek(atMs, t);
 }
 
@@ -129,13 +151,27 @@ function cycleStartMs(dayStartMs, t) {
 // it's promoting has already started airing (resolveActiveSource would
 // already be showing the block itself by then).
 export function nextBlockStartMs(block, fromMs) {
-  const t = block.trigger;
-  if (t.type !== 'dateRange') return Infinity;
-  const d = new Date(fromMs);
-  const year = d.getFullYear();
-  const startThisYear = new Date(year, t.startMonth - 1, t.startDay, 0, 0, 0, 0).getTime();
+  if (block.trigger.type !== 'dateRange') return Infinity;
+  const year = new Date(fromMs).getFullYear();
+  const startIn = (y) => {
+    const t = effectiveTrigger(block.trigger, new Date(y, 5, 15).getTime()); // a Thanksgiving start depends on the year
+    return new Date(y, t.startMonth - 1, t.startDay, 0, 0, 0, 0).getTime();
+  };
+  const startThisYear = startIn(year);
   if (fromMs <= startThisYear) return startThisYear;
-  return new Date(year + 1, t.startMonth - 1, t.startDay, 0, 0, 0, 0).getTime();
+  return startIn(year + 1);
+}
+
+// For a block marked `anchorToRange`: the anchor is its date range's own start in
+// the year being viewed (plus the block's start hour), not one fixed timestamp, so
+// a daily block begins with its first title every year and a Thanksgiving weekend
+// begins at midnight on Thanksgiving whatever the date is. Without the flag the
+// block's stored anchor is used as before.
+function rangeAnchorMs(block, atMs) {
+  const t = effectiveTrigger(block.trigger, atMs);
+  const start = new Date(cycleStartMs(startOfLocalDay(atMs), t));
+  start.setHours(Number.isInteger(t.startHour) ? t.startHour : 0, 0, 0, 0);
+  return start.getTime();
 }
 
 // Whole local calendar days since a fixed epoch, so a difference between two of
@@ -160,7 +196,7 @@ export function dayCounter(kind, ch, atMs, month, day) {
     if (kind === 'dayNumber') startMs = target; else endMs = target;
   } else {
     const block = resolveActiveSource(ch, atMs).block;
-    const t = block && block.trigger;
+    const t = block && effectiveTrigger(block.trigger, atMs);
     if (!t || t.type !== 'dateRange') return null;
     startMs = cycleStartMs(startOfLocalDay(atMs), t);
     if (kind === 'daysLeft') {
@@ -213,7 +249,7 @@ function unlockMsFor(block, dayStartMs) {
 // the block's own start (caller falls through to the next candidate/default).
 function resolveDayContent(block, dayStartMs, safety) {
   if (safety <= 0) return null;
-  const t = block.trigger;
+  const t = effectiveTrigger(block.trigger, dayStartMs);
   if (dayStartMs < cycleStartMs(dayStartMs, t)) return null;
   const ov = block.dayOverrides && block.dayOverrides[mdKey(dayStartMs)];
   if (ov && ov.skip) return resolveDayContent(block, addLocalDays(dayStartMs, -1), safety - 1);
@@ -333,7 +369,8 @@ export function sourceFromBlock(b, atMs) {
   if (b.trigger.type === 'dayOfWeek' && b.mode === 'weekly' && b.trigger.days && b.trigger.days.length === 1) {
     return resolveWeeklyOccurrenceSource(b, atMs);
   }
-  return { files: b.files, anchor: b.anchor, key: b.id, block: b };
+  const anchor = b.anchorToRange && b.trigger.type === 'dateRange' ? rangeAnchorMs(b, atMs) : b.anchor;
+  return { files: b.files, anchor, key: b.id, block: b };
 }
 
 // Next wall-clock instant where the channel's active source changes, or

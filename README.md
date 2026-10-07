@@ -94,6 +94,7 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 | `N` | Channel SCAN — hold on each channel a few seconds, any key stops |
 | `X` | Mark an air check — save this moment to come back to |
 | `T` | Time machine — VCR shuttle mode |
+| `D` | Time machine calendar — pick any date and time and jump there |
 | `L` | Return to live |
 | `J` | Start the current show over from the beginning |
 | `O` | Open the logo / layout editor for the tuned channel |
@@ -108,7 +109,7 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 | `CTRL` + `1`–`4` | Save the current channel to a quick-jump slot |
 | `ALT` + `1`–`4` | Recall a quick-jump slot |
 
-The single-letter keys above (G, S, M, C, V, A, Z, F, P, O, T, J, L, N, I, X, H) can be remapped under
+The single-letter keys above (G, S, M, C, V, A, Z, F, P, O, T, D, J, L, N, I, X, H) can be remapped under
 **SETTINGS › System › Keys**.
 
 ### Time machine
@@ -117,6 +118,12 @@ Enable it in **Box Settings** first. Press `T`, then `←`/`→` to rewind/fast-
 the same direction again to step up through ×60, ×300, ×1800, ×7200 (broadcast seconds per
 real second). The picture scrubs like a tape under head-switching noise, and the readout
 names the program you'd be landing on. `Enter` plays from there, `L` returns to live.
+
+To jump to a date, press `D` for the calendar: arrows move by day or week, PageUp/PageDown by month
+(with Shift, by year), `Home` goes to today, `1`–`7` or `[` `]` set the time of day, `Enter` goes. Days with a
+date-range block on that channel (25 Days of Christmas, a Thanksgiving weekend) carry a dot, and the footer shows
+what would be airing at the chosen moment. It is also in the TV menu under TIME MACHINE, and a channel's PREVIEW in setup
+has a CALENDAR… button.
 
 Easier for picking something specific: open the guide (`G`), select any program, press
 `Enter` — it shifts time so that show starts from its beginning. With the time machine on,

@@ -18,6 +18,7 @@ export const KEY_ACTIONS = [
   { id: 'power', key: 'p', hint: 'power', label: 'Power off' },
   { id: 'logo', key: 'o', hint: 'overlay-editor', label: 'Logo placement editor' },
   { id: 'timemachine', key: 't', hint: 'time-machine', label: 'Time machine / play' },
+  { id: 'calendar', key: 'd', hint: null, label: 'Time machine calendar' },
   { id: 'startover', key: 'j', hint: 'restart', label: 'Start the show over' },
   { id: 'live', key: 'l', hint: null, label: 'Back to live' },
   { id: 'scan', key: 'n', hint: 'scan', label: 'Scan channels' },

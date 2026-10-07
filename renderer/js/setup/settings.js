@@ -1142,6 +1142,10 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-07', items: [
+    'Time machine calendar: press D (or TIME MACHINE › PICK A DATE… in the TV menu, or CALENDAR… in a channel\'s PREVIEW) to pick any date and time on a month grid. Days with a date-range block carry a dot, and the footer shows what would be airing there.',
+    'Date-range blocks can repeat every year on their own: RESTART FROM ITS FIRST FILE EACH YEAR begins the playlist again at the start of each year\'s range, and STARTS ON THANKSGIVING follows the 4th Thursday of November.',
+  ] },
   { date: '2026-10-06', items: [
     'Bumper text can count calendar days: DAY {dayNumber:12/1} OF 25 shows the day of a run that started Dec 1, and {daysLeft:12/25} counts down to Dec 25. Both stay blank outside the range.',
     'A channel can take individual videos as well as whole folders: ADD FILES in the channel\'s actions (or its ⋯ menu, or CONTENT › Folders) picks several at once, and files you add this way are listed there with their own REMOVE buttons.',

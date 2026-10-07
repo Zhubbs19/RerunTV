@@ -1874,3 +1874,83 @@ html[data-mode="tv"].cursor-idle * { cursor: none !important; }
 .recent-channels-row.active, .recent-channels-row:hover { border-color: var(--accent, #ffd02e); background: rgba(255, 255, 255, 0.08); }
 body:has(.crt.power-off) .recent-channels,
 body:has(.crt.guide-active) .recent-channels { display: none; }
+
+/* ---------- Time machine calendar (playback/time-calendar.js) ---------- */
+.time-calendar {
+  position: fixed;
+  inset: 0;
+  z-index: 420;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(2, 4, 14, 0.7);
+  font-family: var(--font-ui);
+  color: var(--text, #fff);
+}
+.time-calendar-box {
+  width: min(480px, 94vw);
+  padding: 16px 18px 14px;
+  background: var(--surface-panel, rgba(6, 10, 32, 0.96));
+  border: 2px solid var(--accent, #ffd02e);
+  border-radius: 6px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+}
+.time-calendar-title { font-weight: 800; letter-spacing: 2px; font-size: 13px; color: var(--accent, #ffd02e); margin-bottom: 10px; }
+.time-calendar-note { font-size: 13px; letter-spacing: 1px; line-height: 1.5; margin: 6px 0 14px; }
+.time-calendar-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+.time-calendar-month { flex: 1; text-align: center; font-weight: 800; letter-spacing: 2px; font-size: 15px; }
+.time-calendar-nav { min-width: 34px; padding: 4px 8px; font-weight: 800; }
+.time-calendar-today { margin-left: 4px; font-size: 11px; letter-spacing: 1px; }
+.time-calendar-weekdays, .time-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.time-calendar-weekdays div { text-align: center; font-size: 11px; letter-spacing: 1px; opacity: 0.6; padding: 2px 0; }
+.time-calendar-day {
+  position: relative;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.time-calendar-day:hover { background: rgba(255, 255, 255, 0.12); }
+.time-calendar-day.is-outside { opacity: 0.35; }
+.time-calendar-day.is-today { border-color: rgba(255, 255, 255, 0.55); }
+.time-calendar-day.is-viewed { box-shadow: inset 0 0 0 2px rgba(120, 200, 255, 0.8); }
+.time-calendar-day.is-selected { background: var(--accent, #ffd02e); color: #111; }
+.time-calendar-day.has-block::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 3px;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: #5fd68a;
+}
+.time-calendar-day.is-selected.has-block::after { background: #0b5d2a; }
+.time-calendar-day:focus-visible, .time-calendar-nav:focus-visible, .time-calendar-time:focus-visible, .time-calendar-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+.time-calendar-times { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+.time-calendar-time { padding: 4px 9px; font-size: 12px; letter-spacing: 1px; }
+.time-calendar-time.is-selected { background: var(--accent, #ffd02e); color: #111; }
+.time-calendar-hour { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 8px; }
+.time-calendar-hour-label { min-width: 90px; text-align: center; font-weight: 800; letter-spacing: 1px; }
+.time-calendar-info { margin-top: 12px; padding: 8px 10px; background: rgba(255, 255, 255, 0.06); border-radius: 3px; font-size: 12px; letter-spacing: 1px; line-height: 1.5; }
+.time-calendar-when { font-weight: 800; }
+.time-calendar-blocks { color: #5fd68a; }
+.time-calendar-actions { display: flex; gap: 8px; margin-top: 12px; }
+.time-calendar-btn { flex: 1; padding: 8px 10px; font-weight: 800; letter-spacing: 2px; }
+.time-calendar-go { background: var(--accent, #ffd02e); color: #111; }
+.time-calendar-hint { margin-top: 8px; font-size: 10px; letter-spacing: 1px; opacity: 0.55; text-align: center; }
+html[data-mode="tv"] .time-calendar-box { width: min(760px, 94vw); padding: 24px 28px; }
+html[data-mode="tv"] .time-calendar-day { padding: 16px 0; font-size: 22px; }
+html[data-mode="tv"] .time-calendar-month { font-size: 22px; }
+html[data-mode="tv"] .time-calendar-time, html[data-mode="tv"] .time-calendar-nav, html[data-mode="tv"] .time-calendar-btn { font-size: 18px; padding: 10px 14px; }
+html[data-mode="tv"] .time-calendar-info { font-size: 16px; }
+html[data-mode="tv"] .time-calendar-hint { display: none; }
