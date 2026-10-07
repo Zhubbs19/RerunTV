@@ -342,6 +342,14 @@ function startBreak(ch, resolved, key) {
   // Any interrupting break ends an in-flight credits speedup (rate/mute/squeeze
   // panel) so that state can't leak into the break's own media.
   resetCreditsSpeedup();
+  // The text laid over a dynamic bumper belongs to that bumper alone. A pod goes
+  // bump-in -> ads -> bump-out without passing through endBreak, so unless the
+  // next segment clears it, "DAY 7 OF 25" stays on top of every ad that follows.
+  if (!entry || !entry.dynamic) dynamicBumperTextEl.classList.add('hidden');
+  // Same for the trivia and local-avail cards: a flow can follow one with an ad or a bumper
+  // without the break ever ending, and the card would otherwise stay over the next segment.
+  if (type !== 'trivia') triviaCardEl.classList.add('hidden');
+  if (type !== 'localAvail') localAvailCardEl.classList.add('hidden');
   if (type === 'trivia') {
     cancelUpNextBar();
     player.pause();

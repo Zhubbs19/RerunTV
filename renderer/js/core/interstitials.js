@@ -1024,7 +1024,23 @@ function nextCandidateBoundary(ch, fromMs) {
 // boundary is cheap to derive exactly for every type here.
 export function nextBreakBoundary(ch, fromMs) {
   const current = resolveBreakAt(ch, fromMs);
-  if (current) return current.windowEnd;
+  if (current) {
+    // Another break can start inside this one's window — a pod longer than its
+    // interval, a station ID or trivia slot that falls inside an ad run — and
+    // resolveBreakAt switches to it at once, so the timer has to fire then too,
+    // not only when the one on screen ends (the time machine, the guide and live
+    // playback would otherwise disagree about what is airing). Candidates that
+    // leave the same break on screen (a station-ID slot under an ad) are skipped.
+    let cursor = fromMs;
+    for (let i = 0; i < 24; i += 1) {
+      const candidate = nextCandidateBoundary(ch, cursor);
+      if (candidate == null || !(candidate > cursor) || candidate >= current.windowEnd) break;
+      const there = resolveBreakAt(ch, candidate);
+      if (there && (there.windowStart !== current.windowStart || there.entry !== current.entry || there.type !== current.type)) return candidate;
+      cursor = candidate;
+    }
+    return current.windowEnd;
+  }
   let t = fromMs, safety = 0;
   while (safety < BOUNDARY_SAFETY_CAP) {
     const candidate = nextCandidateBoundary(ch, t);
