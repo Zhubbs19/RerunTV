@@ -1143,6 +1143,7 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-06', items: [
+    'Bumper text can count calendar days: DAY {dayNumber:12/1} OF 25 shows the day of a run that started Dec 1, and {daysLeft:12/25} counts down to Dec 25. Both stay blank outside the range.',
     'A channel can take individual videos as well as whole folders: ADD FILES in the channel\'s actions (or its ⋯ menu, or CONTENT › Folders) picks several at once, and files you add this way are listed there with their own REMOVE buttons.',
     'Audit fixes: the REPEAT / NEW EPISODE badge and other start-of-show corner cards no longer linger after a channel change or sit on top of a break; the sponsor message card no longer sticks on screen; the O-key layout editor now returns to the picture instead of Setup; the footer no longer sticks on SAVING…; release notes in HELP read as plain text.',
     'Setup polish: sentence-case helper text on a channel\'s LOOK page, tidier Sound rows, the No signal card lines up under Dynamic overlays, and the header search clears when you change tabs.',

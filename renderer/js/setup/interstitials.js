@@ -1044,7 +1044,8 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
 
         const templateInput = document.createElement('input');
         templateInput.type = 'text';
-        templateInput.placeholder = '{channel} {time} {nextTitle} {daysUntil} {episodesUntil}';
+        templateInput.placeholder = '{channel} {time} {nextTitle} {daysUntil} {episodesUntil} {dayNumber:12/1} {daysLeft:12/25}';
+        templateInput.title = 'DAY {dayNumber:12/1} OF 25 counts calendar days from that month/day; {daysLeft:12/25} counts down to it. Both stay blank outside the range.';
         templateInput.value = entry.text || '';
         templateInput.addEventListener('input', () => {
           const prior = cloneJson(entry);

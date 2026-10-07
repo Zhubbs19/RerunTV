@@ -138,6 +138,58 @@ export function nextBlockStartMs(block, fromMs) {
   return new Date(year + 1, t.startMonth - 1, t.startDay, 0, 0, 0, 0).getTime();
 }
 
+// Whole local calendar days since a fixed epoch, so a difference between two of
+// these is a day count that a 23- or 25-hour DST day cannot throw off.
+function localDayNumber(ms) {
+  const d = new Date(ms);
+  return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / DAY_MS;
+}
+
+// Counters for dynamic bumper text ({dayNumber}, {daysLeft} — playback/breaks.js),
+// e.g. "DAY 7 OF 25". `month`/`day` name a calendar date in atMs's own year:
+//   dayNumber  1 on that date, 2 the next day, …; null before it
+//   daysLeft   days remaining until that date (0 on it); null after it
+// With no date they use the active dateRange block's own range instead (a daily
+// block run, or any multi-day block) — which is useless for a run of one-day
+// blocks, hence the explicit date. Pure: depends only on (ch, atMs).
+export function dayCounter(kind, ch, atMs, month, day) {
+  let startMs = null;
+  let endMs = null;
+  if (month && day) {
+    const target = new Date(new Date(atMs).getFullYear(), month - 1, day).getTime();
+    if (kind === 'dayNumber') startMs = target; else endMs = target;
+  } else {
+    const block = resolveActiveSource(ch, atMs).block;
+    const t = block && block.trigger;
+    if (!t || t.type !== 'dateRange') return null;
+    startMs = cycleStartMs(startOfLocalDay(atMs), t);
+    if (kind === 'daysLeft') {
+      const year = new Date(startMs).getFullYear();
+      endMs = new Date(year, t.endMonth - 1, t.endDay).getTime();
+      if (endMs < startMs) endMs = new Date(year + 1, t.endMonth - 1, t.endDay).getTime();
+    }
+  }
+  const today = localDayNumber(atMs);
+  if (kind === 'dayNumber') {
+    const n = today - localDayNumber(startMs) + 1;
+    return n >= 1 ? n : null;
+  }
+  const left = localDayNumber(endMs) - today;
+  return left >= 0 ? left : null;
+}
+
+// Fills {dayNumber[:M/D]} and {daysLeft[:M/D]} in a bumper template; a counter
+// that does not apply right now becomes empty text rather than a wrong number.
+export function fillDayCounters(template, ch, atMs) {
+  const fill = (kind) => (_m, month, day) => {
+    const n = dayCounter(kind, ch, atMs, month ? Number(month) : null, day ? Number(day) : null);
+    return n == null ? '' : String(n);
+  };
+  return template
+    .replace(/\{dayNumber(?::(\d{1,2})\/(\d{1,2}))?\}/g, fill('dayNumber'))
+    .replace(/\{daysLeft(?::(\d{1,2})\/(\d{1,2}))?\}/g, fill('daysLeft'));
+}
+
 function isLastDayOfRange(dayStartMs, t) {
   const d = new Date(dayStartMs);
   return dateKey(d.getMonth() + 1, d.getDate()) === dateKey(t.endMonth, t.endDay);

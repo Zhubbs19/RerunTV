@@ -25,7 +25,7 @@ import { applyDisplayMode, cacheVideoSize } from '../display/mode.js';
 import { applyTvBezel, applyVolume } from './power.js';
 import { runCoreHooks } from '../plugin/host.js';
 import {
-  computeSourcePosition, nextBlockStartMs, nextSourceBoundary, resolveActiveSource,
+  computeSourcePosition, fillDayCounters, nextBlockStartMs, nextSourceBoundary, resolveActiveSource,
 } from '../core/schedule.js';
 import { S, saveConfigDebounced, viewNow } from '../core/state.js';
 import { autoHideAfter, formatClock, getDisplayTitle } from '../core/util.js';
@@ -276,14 +276,20 @@ function computeEpisodesUntilWrap(ch) {
 // SpongeBob-"Truth or Square"-style escalating countdown campaign work: the
 // same promo entry's on-screen number counts down day by day as the
 // premiere approaches, rather than being a static copy authored once.
+//
+// {dayNumber} / {daysLeft} count calendar days while a date range is airing
+// ("DAY {dayNumber:12/1} OF 25", "{daysLeft:12/25} DAYS TO CHRISTMAS"). Give the
+// date as month/day; with none they use the active dateRange block's own range.
+// Blank outside the range, so a stray bumper never shows a wrong number.
 export function renderDynamicText(template, ch, entry) {
   if (!template) return '';
-  return template
+  const filled = template
     .replace(/\{channel\}/g, (ch.name || `CHANNEL ${ch.number}`).toUpperCase())
     .replace(/\{time\}/g, formatClock(new Date(viewNow())))
     .replace(/\{nextTitle\}/g, computeNextTitle(ch))
     .replace(/\{daysUntil\}/g, computeDaysUntil(ch, entry))
     .replace(/\{episodesUntil\}/g, computeEpisodesUntilWrap(ch));
+  return fillDayCounters(filled, ch, viewNow());
 }
 
 function startBreak(ch, resolved, key) {
