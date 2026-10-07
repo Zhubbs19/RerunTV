@@ -254,10 +254,22 @@ function beginScrub() {
   return true;
 }
 
+// The moment the picture on screen belongs to. A paused scrub keeps the schedule clock
+// running (viewNow() is real time plus a fixed offset), so by the time play is pressed
+// the clock is ahead of the frame being watched — a few seconds on a 30 s ad is enough
+// to land on the next ad, or back in the show. Committing to this moment instead puts
+// play exactly where the screen is. previewOffsetMs says which offset it was taken at, so
+// a different writer moving the offset (the guide, an air check) is not overridden.
+function holdAt(ms) {
+  S.previewMs = ms;
+  S.previewOffsetMs = S.timeOffsetMs;
+}
+
 export function scrubToTime(targetMs) {
   if (!Number.isFinite(targetMs) || !beginScrub()) return;
   hideScrubBanner();
   S.timeOffsetMs = targetMs - Date.now();
+  holdAt(targetMs);
   updateVcrOsd();
   queueScrubPreview();
 }
@@ -313,6 +325,7 @@ export async function timeMachineGoTo(targetMs, label) {
   const far = isFarJump(viewNow(), targetMs);
   if (!beginScrub()) return;
   S.timeOffsetMs = targetMs - Date.now();
+  holdAt(targetMs);
   if (!far) {
     await shuttlePlay();
     return;
@@ -350,6 +363,7 @@ function hideShuttleBreakOverlays() {
 export async function updateShuttlePreview() {
   const ch = getChannel(S.currentNumber);
   if (!ch) return;
+  holdAt(viewNow());
 
   const brk = resolveBreakAt(ch, viewNow());
   // A dynamic entry (looping background clip + templated text — see the
@@ -428,6 +442,7 @@ export async function updateShuttlePreview() {
       return; // file moved/missing while shuttling — nothing to preview
     }
     if (!S.timeMachineOn || S.shuttlePreviewPath !== pos.file.path) return;
+    player.loop = false; // a countdown/dynamic bumper previewed just before leaves the loop flag on
     player.src = url;
     if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
     const onMeta = () => {
@@ -540,6 +555,7 @@ export async function jumpToNextBreak() {
   const target = nextBreakStart(ch, viewNow());
   if (!isFinite(target)) return;
   S.timeOffsetMs = target - Date.now();
+  holdAt(target);
   await shuttlePlay();
 }
 
@@ -550,6 +566,7 @@ export async function jumpToPrevBreak() {
   const target = prevBreakStart(ch, viewNow());
   if (!isFinite(target)) return;
   S.timeOffsetMs = target - Date.now();
+  holdAt(target);
   await shuttlePlay();
 }
 
@@ -557,7 +574,15 @@ export async function jumpToPrevBreak() {
 // shifted time. Everything downstream reads viewNow(), so the channel
 // simply behaves as if that were the current moment.
 export async function shuttlePlay() {
+  // Play where the picture is, not where the clock has run on to (see holdAt). While
+  // shuttling the preview lags the clock by up to a tick; while parked it lags by however
+  // long the tape has sat there.
+  const scrubbing = S.shuttleDir !== 0 || S.scrubPending;
+  const held = scrubbing && Number.isFinite(S.previewMs)
+    && (S.shuttleDir !== 0 || Math.abs(S.timeOffsetMs - S.previewOffsetMs) < 2000) ? S.previewMs : null;
   stopShuttle();
+  if (held != null) S.timeOffsetMs = held - Date.now();
+  S.previewMs = null;
   S.shuttlePreviewPath = null;
   const ch = getChannel(S.currentNumber);
   if (ch) {

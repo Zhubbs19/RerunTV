@@ -476,6 +476,7 @@ function startBreak(ch, resolved, key) {
       const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
       // The break may have ended/changed during the awaits above.
       if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
+      player.loop = false; // a looping bumper before this one (time machine preview) must not make an ad replay instead of ending
       player.src = url;
       S.awaitingBumperEnd = true;
 
