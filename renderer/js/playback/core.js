@@ -21,14 +21,13 @@ import {
 import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
-  adoptStandby, guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, releaseStandby, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
+  guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
 import { tuneTimingEnabled } from '../core/perf.js';
 import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTuneVolume, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
 import { noteRecentChannel } from './recent-channels.js';
-import { invalidatePlayableUrl, resolvePlayableUrl } from './media-url.js';
 import { cancelAllInterrupts, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from '../plugin/host.js';
 import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
@@ -267,11 +266,11 @@ export async function playChannelLive(ch, opts) {
   applyDisplayMode();
 
   let resolved, url;
-  // A retry after a failed attempt must see fresh answers (a transcode may have changed them).
-  if (opts.cacheRetried || opts.playRetried) invalidatePlayableUrl(file.source || 'local', file.path);
   try {
-    ({ resolved, url } = await resolvePlayableUrl(file.source || 'local', file.path));
-    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} resolved +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+    resolved = await window.api.resolvePlayablePath(file.source || 'local', file.path);
+    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} resolvePlayablePath +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
+    url = await window.api.toFileUrl(resolved.path);
+    if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} toFileUrl +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   } catch (err) {
     markStaticReady();
     showNoSignal('FILE ERROR', `CH ${ch.number} — FAILED TO RESOLVE MEDIA FILE`, 'error');
@@ -294,7 +293,6 @@ export async function playChannelLive(ch, opts) {
   async function handleUnplayable() {
     if (handled || S.currentNumber !== ch.number || !S.isPoweredOn) return;
     handled = true;
-    invalidatePlayableUrl(file.source || 'local', file.path);
 
     // Live playback (the default, first attempt for every file — local or
     // plugin-sourced alike) failed for a plugin-sourced file that hasn't
@@ -575,14 +573,11 @@ export async function playChannelLive(ch, opts) {
     }
   }
 
-  // The standby video may already hold this file with a frame ready (breaks load it ahead of
-  // the cut back to the show): swap it on screen instead of loading anything.
-  const adopted = adoptStandby(url);
   player.loop = false; // clears any loop left set by a virtual channel's background audio
   // The time machine's scrub preview has already loaded this exact file; committing to it
   // only needs a seek and play. Setting src again would reload it and hitch the picture.
-  const reuseLoaded = adopted || (!!opts.reuseLoaded && !player.error && player.readyState >= 1
-    && (player.currentSrc === url || player.src === url));
+  const reuseLoaded = !!opts.reuseLoaded && !player.error && player.readyState >= 1
+    && (player.currentSrc === url || player.src === url);
   if (!reuseLoaded) player.src = url;
   // Claim the player for this channel's real content, for the drift
   // watchdog's benefit (checkScheduleDrift below). Set here rather than in
@@ -629,9 +624,7 @@ export async function playChannelLive(ch, opts) {
       checkBreakState(ch, { contentJustEnded: true });
       return;
     }
-    // A file that is already in place at (nearly) the right spot needs no seek, which would only
-    // flush what is decoded and hitch.
-    if (!(reuseLoaded && Math.abs(player.currentTime - seekOffset) < 0.25)) player.currentTime = seekOffset;
+    player.currentTime = seekOffset;
     player.play().catch(() => {});
     player.removeEventListener('loadedmetadata', onMeta);
     if (S.metaHandler === onMeta) S.metaHandler = null;
@@ -820,7 +813,6 @@ export async function tuneToChannel(number, opts) {
     }
   }
   playChannelClickSound();
-  releaseStandby(); // whatever was loaded ahead belongs to the channel being left
   // A hidden channel (setup-channels.js's HIDE FROM TUNING toggle) is
   // treated as if `number` were never configured at all — same NO SIGNAL
   // fallback every branch below already takes for an unknown number, not a

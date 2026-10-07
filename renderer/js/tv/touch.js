@@ -8,7 +8,7 @@
 // KeyboardEvent(...))` rather than a second, parallel command surface —
 // dispatched, not imported directly, to avoid a circular import with app.js
 // (which imports initTouchControls from here).
-import { crtContainer, guideMuteEl, isPlayerElement, player, tvScreen } from '../core/dom.js';
+import { crtContainer, guideMuteEl, player, tvScreen } from '../core/dom.js';
 import { autoHideAfter } from '../core/util.js';
 
 function sendKey(key) {
@@ -20,7 +20,7 @@ function sendKey(key) {
 // which already have their own real click handlers and shouldn't also be
 // reinterpreted as a swipe/tap gesture underneath.
 function isBackgroundTarget(el) {
-  return isPlayerElement(el) || el === crtContainer || el === tvScreen;
+  return el === player || el === crtContainer || el === tvScreen;
 }
 
 const SWIPE_MIN_PX = 40;

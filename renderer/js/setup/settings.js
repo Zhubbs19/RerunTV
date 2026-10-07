@@ -1143,7 +1143,6 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-08', items: [
-    'Smoother breaks: the next ad or bumper (and the show you return to) loads out of sight while the current one plays, so cuts between spots are straight cuts with no dip to black, and the cut back to the show no longer reloads it. Trivia and local-avail cards resume the show without a reload too.',
     'Time machine: a scrub you have parked now holds still, so pressing Enter or T lands exactly where the picture was however long you waited. Picking a date on the calendar plays straight away with a note of where it landed, and T after a scrub no longer reloads the video.',
   ] },
   { date: '2026-10-07', items: [
