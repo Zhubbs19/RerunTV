@@ -19,7 +19,7 @@ module.exports = {
   extraFiles: ['run-server.bat', 'run-headless.bat'],
   asarUnpack: ['plugins/**'],
   publish: {
-    provider: 'github', owner: 'Zhubbs19', repo: 'RerunTV', private: true,
+    provider: 'github', owner: 'Zhubbs19', repo: 'RerunTV',
   },
   win: { target: 'nsis', icon: 'build/icon.png' },
   nsis: {

@@ -5,8 +5,8 @@
     <string name="setup_title">RERUNTV</string>
     <string name="setup_hint">Enter the LAN viewer address shown in RerunTV\'s
         settings screen, under "WATCH ON OTHER DEVICES" — e.g.
-        http://192.168.1.70:8724</string>
-    <string name="setup_input_hint">http://192.168.1.70:8724</string>
+        http://192.168.1.50:8724</string>
+    <string name="setup_input_hint">http://192.168.1.50:8724</string>
     <string name="connect">CONNECT</string>
     <string name="menu_hint">Press the remote\'s PLAY/PAUSE button any time to reopen this menu.</string>
     <string name="action_guide">GUIDE</string>

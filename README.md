@@ -13,10 +13,12 @@ still "correct" when you come back.
 
 ## About RerunTV
 
-- **No bundled/auto-downloaded binaries.** The main project's ffmpeg comes from the
-  `ffmpeg-static` npm package, which downloads a prebuilt GPL-3.0-licensed binary at
-  install time. This build drops that dependency entirely — the `FFmpeg Transcode`
-  plugin instead resolves a system-installed `ffmpeg` from PATH (or a custom path you
+- **You bring the media.** RerunTV ships no video, music, logos or schedules. Channels
+  are folders from your own library, and the app is not affiliated with or endorsed by
+  any broadcaster, network or studio. Any resemblance to a real channel's on-screen
+  look is a period-style homage built from original code and free fonts.
+- **No bundled/auto-downloaded binaries.** The `FFmpeg Transcode`
+  plugin resolves a system-installed `ffmpeg` from PATH (or a custom path you
   set under DISPLAY & SYSTEM → FFMPEG). Install ffmpeg yourself
   ([ffmpeg.org](https://ffmpeg.org/download.html)) for codec-compatibility transcoding
 
@@ -121,7 +123,7 @@ names the program you'd be landing on. `Enter` plays from there, `L` returns to 
 
 To jump to a date, press `D` for the calendar: arrows move by day or week, PageUp/PageDown by month
 (with Shift, by year), `Home` goes to today, `1`–`7` or `[` `]` set the time of day, `Enter` goes. Days with a
-date-range block on that channel (25 Days of Christmas, a Thanksgiving weekend) carry a dot, and the footer shows
+date-range block on that channel (a December countdown, a Thanksgiving weekend) carry a dot, and the footer shows
 what would be airing at the chosen moment. It is also in the TV menu under TIME MACHINE, and a channel's PREVIEW in setup
 has a CALENDAR… button.
 
@@ -207,8 +209,8 @@ the guide also scrolls backward into the past.
 - **Background auto-update** — checks, a settings panel to choose the policy (silent /
   prompt-first / off), and a guided install flow that preserves your channel library
 - **Plugin channels are listed and editable too** — the Channel Setup screen's channel
-  list has a PLUGIN CHANNELS section for every plugin-provided channel (Music Choice,
-  Party Channel, Prevue, Public Access, etc.), where you can rename it, give it a
+  list has a PLUGIN CHANNELS section for every plugin-provided channel (Digital Music,
+  Party Channel, Guide Channel, Public Access, etc.), where you can rename it, give it a
   different channel number (where the plugin allows it), and set its display overrides,
   right alongside your own channels
 - **Plugin developer diagnostics** — registration/capability inventory, bounded main and
@@ -365,8 +367,8 @@ This project is built with [Claude Code](https://claude.com/claude-code), direct
 single project owner — Claude writes the code, the project owner sets direction, makes the
 product/architecture calls, and reviews and approves everything that ships.
 
-Development happens primarily in the main app; features and fixes get ported to this FOSS
-build as a deliberate sync pass, not automatically.
+Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Third-party licenses
+are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Packaging
 
@@ -383,8 +385,7 @@ if no tests are discovered. The larger real-Electron/CDP suite lives under the t
 ignores `*.mjs`, so new harness files there need `git add -f`; see `tests/ui/README.md`.)
 
 Release plugin contents are explicit in `build/bundled-plugins.json`; machine-local
-integrations cannot silently change the default artifact. The personal flavor is the
-deliberate opt-in for a private cable-box installation.
+integrations cannot silently change the default artifact.
 
 No ffmpeg binary is bundled or downloaded — see "About RerunTV" above.
 

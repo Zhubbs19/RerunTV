@@ -132,7 +132,7 @@ config/window/filter/selection are all unchanged, just moving the live line and
 
 - **No sandboxed test suite, but this specific dev machine can actually run the real app.**
   Most sandboxes have no display and no `node_modules`, so the old default here was "verify
-  syntax with `node --check <file>` and say UI changes are unverified." On Zhubbs19's own
+  syntax with `node --check <file>` and say UI changes are unverified." On the maintainer's own
   Windows dev machine, though, `node_modules` is installed and there's a real display — `electron
   . --remote-debugging-port=9222` launches an actual window with a working CDP endpoint (Electron
   supports `Page.captureScreenshot`/`Runtime.evaluate`/`Input.*`, but NOT the `Browser.*`

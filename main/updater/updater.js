@@ -20,16 +20,11 @@ const {
 // needs a "zip" target alongside dmg for Squirrel.Mac; AppImage is
 // supported but untested here) — skip silently rather than error on those.
 //
-// This repo (Zhubbs19/RerunTV) is private — GitHub 404s an unauthenticated
-// request to its API the same way it would for a repo that doesn't exist,
-// for both the release-notes fetch below and electron-updater's own check.
-// build.publish.private: true (electron-builder.config.js) tells electron-updater to use
-// its PrivateGitHubProvider, which needs a token read from the GH_TOKEN or
-// GITHUB_TOKEN environment variable at runtime — set one of those
-// (system/user env var, not a one-off shell session, so a desktop-launched
-// shortcut inherits it too) with at least read access to this repo before
-// expecting either feature to work. No token is baked into the build itself
-// — it's read fresh from this machine's environment every time.
+// This repo (Zhubbs19/RerunTV) is public, so both the release-notes fetch
+// below and electron-updater's own check work unauthenticated. A GH_TOKEN or
+// GITHUB_TOKEN environment variable is optional: if present it is sent with
+// the release-notes request to raise GitHub's anonymous rate limit. No token
+// is ever baked into the build.
 //
 // Never active outside a packaged install: `electron .` in dev has no
 // app-update.yml (nothing was ever published for it to compare against) and
@@ -358,9 +353,6 @@ async function fetchReleaseNotes() {
 
 function registerReleaseNotesHandler() {
   ipcMain.handle('updates:getReleaseNotes', async () => {
-    // This repo is private (see electron-builder.config.js's publish.private,
-    // which is the same reason autoUpdater itself needs a token). GitHub
-    // returns 404 to an unauthenticated private-repo request.
     return fetchReleaseNotes();
   });
 
