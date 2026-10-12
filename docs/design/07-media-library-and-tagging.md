@@ -15,7 +15,7 @@ Owns contract **C6**. Consumed by: 08, 09.
   (`renderer/js/library/relink.js`).
 - Tags drive presets, flows, the pool, auto-curate and genre colours, but most real files have
   none. The installed lineup mostly has only channel-level tags, and the Tag Taxonomy page shows
-  tags like `spongebob` on 272 files.
+  tags like `cartoon-show` on 272 files.
 - Provider-backed media (`mediasource:` refs: Google Drive, Jellyfin, WebDAV, archive.org)
   already work per channel but have no shared catalogue.
 - "Smart channels" (all 90s sitcom episodes, every Christmas special) are impossible without
@@ -45,12 +45,12 @@ Stored in `userData/library/` (its own `schemaVersion`), not in `channels.json`:
             { "id": "root-jf", "ref": "mediasource:jellyfin:…", "kind": "provider" }],
   "items": {
     "itm_9f2c…": {
-      "ref": "J:\\Media Center\\TV Shows\\The Office (2005)\\S02E01.mkv",
+      "ref": "J:\\Media Center\\TV Shows\\Workplace Comedy (2005)\\S02E01.mkv",
       "root": "root-media",
       "fingerprint": { "size": 734003200, "mtime": 1715000000, "head": "sha1:…" },
       "duration": 1260.4,
       "kind": "episode",                     // episode | movie | short | bumper | commercial | music | other
-      "series": { "id": "ser_office", "season": 2, "episode": 1 },
+      "series": { "id": "ser_workplace", "season": 2, "episode": 1 },
       "title": "The Dundies",
       "facets": { "genre": ["sitcom"], "era": ["2000s"], "mood": [] },
       "rating": "TV-14",
@@ -58,7 +58,7 @@ Stored in `userData/library/` (its own `schemaVersion`), not in `channels.json`:
       "provenance": { "title": "filename", "genre": "user", "rating": "tmdb" }
     }
   },
-  "series": { "ser_office": { "name": "The Office", "facets": { "genre": ["sitcom"] } } },
+  "series": { "ser_workplace": { "name": "Workplace Comedy", "facets": { "genre": ["sitcom"] } } },
   "queries": { "q_90s_sitcoms": { "name": "90s sitcoms", "where": { "facets.genre": "sitcom", "facets.era": "1990s", "kind": "episode" } } }
 }
 ```
@@ -68,7 +68,7 @@ Channel side (in `channels.json`, via a config schema migration — see 00 §5):
 ```jsonc
 {
   "number": 6,
-  "sources": [{ "type": "folder", "root": "root-media", "path": "TV Shows\\The Office (2005)" },
+  "sources": [{ "type": "folder", "root": "root-media", "path": "TV Shows\\Workplace Comedy (2005)" },
               { "type": "query", "query": "q_90s_sitcoms" }],
   "files": [ /* MATERIALIZED ordered playlist: { item: "itm_9f2c…", path, duration } */ ],
   "materializedAt": 1757700000000
@@ -175,7 +175,7 @@ Local-first (offline invariant), each step producing **suggestions with provenan
    from `(1946)`; release-tag stripping (reuse `renderer/js/core/util.js` `stripReleaseTags`, `guessCleanTitle`,
    `suggestFacetsFromPath`).
 2. **Embedded metadata** — container tags (title, genre, year, show) via ffprobe; audio tags
-   (music-choice's ID3/FLAC/MP4 parser).
+   (digital-music's ID3/FLAC/MP4 parser).
 3. **Structure heuristics** — duration bands (≤ 60 s → commercial/bumper candidates; 20–24 min
    → half-hour episode; 80–150 min → movie), sibling consistency (a folder whose siblings are
    all `sitcom` suggests `sitcom`).
@@ -184,7 +184,7 @@ Local-first (offline invariant), each step producing **suggestions with provenan
    posters, genres. Clearly a network exception, per-plugin, off by default.
 
 Review UX (Library › Tags, desktop + web panel): a queue grouped by series/folder — "Apply
-*sitcom, 2000s, TV-14* to 137 items in The Office?" — one action per group, individual
+*sitcom, 2000s, TV-14* to 137 items in Workplace Comedy?" — one action per group, individual
 exceptions editable. Accepted suggestions become `provenance: 'user-accepted'`; user edits
 always win over later automatic passes.
 
@@ -195,7 +195,7 @@ prefix before an episode code; season/episode codes (`S02E01`, `2x01`, and the l
 at least 30 minutes, so "Baseball Bugs" is not a game). Genre folders (Cartoons, Commercials,
 Sports…) are collections, not series. The episode-code patterns are bounded by "not a letter or
 digit" rather than `\b`: an underscore is a word character, so with `\b`,
-`Looney_Tunes_-_S1953E05` and every other underscore-named file lost its episode number.
+`Classic_Cartoons_-_S1953E05` and every other underscore-named file lost its episode number.
 
 `suggestGroups` makes one group per series (or folder), with only the fields that every item still
 needing them agrees on, and the reason for each. REVIEW shows each group as one card: APPLY, or
@@ -269,7 +269,7 @@ steps that can each be checked before anything is written:
 
 **Dry run against the installed lineup** (`scripts/library-migration-dryrun.js`, reads a
 channels.json and writes only a report elsewhere): **14/14 channels identical over 60 days**,
-0 conflicts, 2,173 items in 26 roots, 0.6–4.6 s per channel (Boomerang's 1,329 files is the
+0 conflicts, 2,173 items in 26 roots, 0.6–4.6 s per channel (Rewind's 1,329 files is the
 slow one). The source file's SHA-1 was identical before and after.
 
 **In the app** (CATALOGUE › CHECK MY CHANNELS):
@@ -301,7 +301,7 @@ restored byte-for-byte.
   and library together (`root-move.js`). It previews every touched channel over 14 days, keyed by
   library item rather than path, and refuses if anything would air differently. **Verified live** with YT Archive moved to a synthetic `Z:` path and back: CH 420 and a smart channel repointed, every other channel byte-identical, library root and items updated, the unreachable-path warning shown, nothing on disk touched, and all paths as at the start afterwards. A whole-drive move has not been done for real.
 - Tagging 1,000 new episodes by series takes < 10 review actions. **Met in tests:** 1,000 episodes
-  across five series make 5 groups, and accepting each once covers all 1,000. **Live:** the real library produces 29 groups (Looney Tunes 1,002, SpongeBob 267, Tom and Jerry 161, Blue's Clues 144, The Office 137, …); accepting one with an item unticked tagged only the ticked item and left config unchanged.
+  across five series make 5 groups, and accepting each once covers all 1,000. **Live:** the real library produces 29 groups (Classic Cartoons 1,002, Cartoon Show 267, Cat and Mouse 161, Puppy Pals 144, Workplace Comedy 137, …); accepting one with an item unticked tagged only the ticked item and left config unchanged.
 - A query channel "all Christmas specials" builds in < 5 s for a 5,000-item library. **Met in
   tests**, well under a second in Node.
 - Migration of the real installed lineup produces an empty 60-day schedule diff. **Met** in the

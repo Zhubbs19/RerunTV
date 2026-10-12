@@ -15,7 +15,7 @@
 //
 // Run it through the wrapper, never directly:
 //   powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
-//     -UserDataSource "C:\Users\zhubb\Apps\RerunTV\userData" -Script verify-splicer.mjs
+//     -UserDataSource "<installed-app-dir>\userData" -Script verify-splicer.mjs
 import { chromium } from 'playwright-core';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';

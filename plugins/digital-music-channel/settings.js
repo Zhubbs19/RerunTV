@@ -24,13 +24,13 @@ function newStation() {
 const TAG_BATCH = 25;
 
 async function readTagsInto(tracks, onProgress) {
-  if (!window.api.musicChoiceReadTags) return;
+  if (!window.api.digitalMusicReadTags) return;
   const pending = tracks.filter((t) => !t.tagsRead);
   for (let i = 0; i < pending.length; i += TAG_BATCH) {
     onProgress(`READING SONG TAGS… ${i}/${pending.length}`);
     const batch = pending.slice(i, i + TAG_BATCH);
     // eslint-disable-next-line no-await-in-loop
-    const result = await window.api.musicChoiceReadTags({ filePaths: batch.map((t) => t.path) }).catch(() => null);
+    const result = await window.api.digitalMusicReadTags({ filePaths: batch.map((t) => t.path) }).catch(() => null);
     // A failed batch (the plugin's capability not yet approved, say) leaves
     // these unread so the next rescan tries them again.
     if (!result || !Array.isArray(result.tags)) return;
@@ -46,8 +46,8 @@ async function scanStationTracks(station, onProgress) {
   onProgress('SCANNING FOLDER…');
   // Host-only: it reads the host's own filesystem, so it is absent on a LAN
   // viewer or control panel (renderer/js/api-contract.js).
-  if (!window.api.musicChoiceScanFolder) throw new Error('SCANNING ONLY WORKS ON THE HOST DEVICE.');
-  const { files, modified, error } = await window.api.musicChoiceScanFolder({ folderPath: station.folderPath, kind: 'audio' });
+  if (!window.api.digitalMusicScanFolder) throw new Error('SCANNING ONLY WORKS ON THE HOST DEVICE.');
+  const { files, modified, error } = await window.api.digitalMusicScanFolder({ folderPath: station.folderPath, kind: 'audio' });
   if (error) throw new Error(`SCAN FAILED — ${error}`);
   const existingByPath = new Map((station.tracks || []).map((t) => [t.path, t]));
   const tracks = (files || []).map((p) => existingByPath.get(p) || { path: p, artist: null, title: null, durationSec: 0 });
@@ -66,7 +66,7 @@ function totalDuration(station) {
   return h ? `${h}H ${m}M` : `${m}M`;
 }
 
-window.RCBPlugins.registerPluginSettings('music-choice-channel', {
+window.RCBPlugins.registerPluginSettings('digital-music-channel', {
   schemaVersion: 2,
   defaults: { stations: [], selectedStationId: null, era: DEFAULT_ERA, factoids: [], seekStepSec: 10, arrowKeys: 'seek', repeatMode: 'off', shuffleOnDemand: false, cabinetStyle: 'cd', cabinetView: 'all', selectionEnd: 'repeat' },
   validate(settings) {
@@ -78,7 +78,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
     id: 'presentation',
     label: 'ON-SCREEN STYLE',
     render(container) {
-      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
       container.innerHTML = `
         <div class="panel-status">
           Real cable audio services ran a "freeze frame" format — still slides over the music showing
@@ -106,21 +106,21 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
         eraSelect.appendChild(opt);
       });
       eraSelect.addEventListener('change', () => {
-        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { era: eraSelect.value });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', { era: eraSelect.value });
       });
 
       const factoidsEl = container.querySelector('[data-el="factoids"]');
       factoidsEl.value = (settings.factoids || []).join('\n');
       factoidsEl.addEventListener('change', () => {
         const lines = factoidsEl.value.split('\n').map((l) => l.trim()).filter(Boolean);
-        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { factoids: lines });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', { factoids: lines });
       });
     },
   }, {
     id: 'playback',
     label: 'PLAYBACK CONTROLS',
     render(container) {
-      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+      const settings = window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
       container.innerHTML = `
         <div class="panel-status">
           The live channel is a broadcast, so pausing or seeking steps onto an on-demand session of the
@@ -178,7 +178,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
         <label class="field"><input type="checkbox" data-el="shuffle"> SHUFFLE SEARCH RESULTS WHEN PLAYED ON DEMAND</label>
       `;
       const q = (el) => container.querySelector(`[data-el="${el}"]`);
-      const save = (patch) => window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', patch);
+      const save = (patch) => window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', patch);
       q('arrows').value = settings.arrowKeys === 'station' ? 'station' : 'seek';
       q('step').value = Number.isFinite(settings.seekStepSec) ? settings.seekStepSec : 10;
       q('repeat').value = settings.repeatMode || 'off';
@@ -200,7 +200,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
     },
   }, {
     id: 'stations',
-    label: 'MUSIC CHOICE CHANNEL (CH 910)',
+    label: 'DIGITAL MUSIC CHANNEL (CH 910)',
     layout: 'wide',
     render(container, ctx) {
       container.innerHTML = `
@@ -226,10 +226,10 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
       // PLUGIN_DEVELOPMENT.md, same one renderer.js uses) always reads the
       // live store instead.
       function stations() {
-        return window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel').stations || [];
+        return window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel').stations || [];
       }
       function commit(nextStations, extra) {
-        window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', { stations: nextStations, ...(extra || {}) });
+        window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', { stations: nextStations, ...(extra || {}) });
       }
       function updateStationAt(idx, patch) {
         const next = stations().map((s, i) => (i === idx ? { ...s, ...patch } : s));
@@ -269,7 +269,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
 
       addBtn.addEventListener('click', () => {
         const st = newStation();
-        const current = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+        const current = window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
         commit([...(current.stations || []), st], { selectedStationId: current.selectedStationId || st.id });
         renderList();
       });
@@ -338,7 +338,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
           q('name').addEventListener('change', (e) => updateStationAt(idx, { name: e.target.value.trim() || 'UNTITLED STATION' }));
           themeSelect.addEventListener('change', (e) => { updateStationAt(idx, { themeId: e.target.value }); renderList(); });
           q('remove').addEventListener('click', () => {
-            const current = window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+            const current = window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
             const next = current.stations.filter((_, i) => i !== idx);
             const patch = { stations: next };
             if (current.selectedStationId === station.id) patch.selectedStationId = next[0] ? next[0].id : null;
@@ -382,7 +382,7 @@ window.RCBPlugins.registerPluginSettings('music-choice-channel', {
           q('bg-image-browse').addEventListener('click', async () => {
             const folder = await window.api.selectFolder();
             if (!folder) return;
-            const { files, error } = await window.api.musicChoiceScanFolder({ folderPath: folder, kind: 'image' });
+            const { files, error } = await window.api.digitalMusicScanFolder({ folderPath: folder, kind: 'image' });
             if (error) return;
             updateStationAt(idx, { background: { ...station.background, mode: 'slideshow', imageFolderPath: folder, images: files || [] } });
             renderList();

@@ -36,7 +36,7 @@ function request(port, pathname, options = {}) {
 
 function baseConfig() {
   return {
-    channels: [{ number: 5, name: 'Boomerang', path: 'C:\\Media\\Boomerang', files: [] }],
+    channels: [{ number: 5, name: 'Rewind', path: 'C:\\Media\\Rewind', files: [] }],
     plugins: { disabled: [] },
     pluginSettings: { weather: { apiKey: 'super-secret', units: 'F' } },
   };
@@ -109,7 +109,7 @@ test('a view session cannot write, read control config, or read control state', 
     });
     assert.equal(write.status, 403);
     assert.equal(ctx.host.getRevision(), 0, 'nothing was applied');
-    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Boomerang');
+    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Rewind');
 
     for (const route of ['/api/control/config', '/api/control/state']) {
       const response = await request(ctx.port, route, { headers: { Authorization: `Bearer ${token}` } });
@@ -198,16 +198,16 @@ test('a control session writes through the same protocol as the Electron rendere
     const { token } = await pair(ctx.port, ctx.access.pairingCodes.control);
 
     const applied = await postCommands(ctx.port, token, {
-      commands: [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }],
+      commands: [{ type: 'channel.rename', channel: 5, name: 'Toon Town' }],
       id: 'lan-1', baseRevision: 0, client: 'ipad',
     });
     assert.equal(applied.status, 200);
     assert.equal(applied.json().ok, true);
-    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Cartoon Network');
+    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Toon Town');
 
     // Redelivery: answered, not applied again.
     const again = await postCommands(ctx.port, token, {
-      commands: [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }],
+      commands: [{ type: 'channel.rename', channel: 5, name: 'Toon Town' }],
       id: 'lan-1', baseRevision: 0, client: 'ipad',
     });
     assert.equal(again.json().duplicate, true);
@@ -256,7 +256,7 @@ test('control config carries real paths but never credentials', async () => {
     const controlConfig = (await request(ctx.port, '/api/control/config', {
       headers: { Authorization: `Bearer ${control.token}` },
     })).json();
-    assert.equal(controlConfig.config.channels[0].path, 'C:\\Media\\Boomerang',
+    assert.equal(controlConfig.config.channels[0].path, 'C:\\Media\\Rewind',
       'an editor has to be able to show and change a real path');
     assert.equal(controlConfig.config.pluginSettings.weather.apiKey, undefined,
       'credentials stay on the host');
@@ -430,7 +430,7 @@ test('a forbidden command in a batch refuses the whole batch', async () => {
     });
     assert.equal(response.status, 409);
     assert.equal(response.json().reason, 'forbidden');
-    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Boomerang', 'the harmless half did not slip through');
+    assert.equal(JSON.parse(ctx.disk.raw).channels[0].name, 'Rewind', 'the harmless half did not slip through');
   } finally {
     await new Promise((resolve) => ctx.runtime.server.close(resolve));
   }

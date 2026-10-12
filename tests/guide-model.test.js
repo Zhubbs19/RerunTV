@@ -9,7 +9,7 @@ const load = () => import(pathToFileURL(path.join(__dirname, '..', 'renderer', '
 
 const channels = [2, 5, 7.1, 12, 40].map((number) => ({ number, name: `Chan ${number}` }));
 const specials = [
-  { number: 910, name: 'Music Choice', nowText: '12 stations' },
+  { number: 910, name: 'Digital Music', nowText: '12 stations' },
   { number: 0, name: 'Search & Play', nowText: '' },
   { number: 6, name: 'Party', nowText: '' },
 ];
@@ -151,17 +151,17 @@ test('a gap between shorts splits the run, and minMs 0 merges nothing', async ()
 test('call letters abbreviate channel names like a period guide', async () => {
   const { abbreviateChannelName: ab, channelCallLetters } = await load();
   assert.equal(ab('The Movie Channel'), 'TMC');
-  assert.equal(ab('Star Wars Channel'), 'SWC');
+  assert.equal(ab('Space Opera Channel'), 'SOC');
   assert.equal(ab('WV Sports Channel'), 'WVSC');
-  assert.equal(ab('The Harry Potter Network'), 'HPN');
-  assert.equal(ab('Google Network'), 'GN');
-  assert.equal(ab('Noggin'), 'NOGGIN');
-  assert.equal(ab('Nickelodeon'), 'NCKLDN');
-  assert.equal(ab('Boomerang'), 'BMRNG');
-  assert.equal(ab('The Office Channel'), 'TOC');
+  assert.equal(ab('The Wizard School Network'), 'WSN');
+  assert.equal(ab('Gadget Network'), 'GN');
+  assert.equal(ab('Giggle'), 'GIGGLE');
+  assert.equal(ab('Retrovision'), 'RTRVSN');
+  assert.equal(ab('Rewind'), 'REWIND');
+  assert.equal(ab('The Workplace Channel'), 'TWC');
   assert.equal(ab(''), '');
   assert.ok(ab('Christmas Movies Channel').length <= 6);
-  assert.equal(channelCallLetters({ name: 'Nickelodeon', callLetters: ' nick ' }), 'NICK');
-  assert.equal(channelCallLetters({ name: 'Nickelodeon', callLetters: '' }), 'NCKLDN');
+  assert.equal(channelCallLetters({ name: 'Retrovision', callLetters: ' kidz ' }), 'KIDZ');
+  assert.equal(channelCallLetters({ name: 'Retrovision', callLetters: '' }), 'RTRVSN');
   assert.equal(channelCallLetters({ name: 'x', callLetters: 'TOOLONGNAME' }), 'TOOLON');
 });

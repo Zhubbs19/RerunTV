@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
 const { compareConfigs, configSummary } = require('./diff');
+const { migrateRenamedPlugins } = require('./renamed-plugins');
 const crypto = require('crypto');
 const { createChangeAnnouncer, createConfigHost } = require('./host');
 const { getMainWindow } = require('./window-ref');
@@ -488,6 +489,7 @@ function loadConfig() {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed.channels) parsed.channels = [];
+    migrateRenamedPlugins(parsed); // plugins renamed in a later release: carry their config over
     return parsed;
   } catch (e) {
     // The file exists but isn't valid JSON (partial write, external edit,

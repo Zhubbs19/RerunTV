@@ -895,8 +895,8 @@ export function buildSchedulePanel(ch, panelEl) {
         scheduleRow.appendChild(dash());
         scheduleRow.appendChild(monthDaySelect(block.trigger.endMonth, block.trigger.endDay, (m, d) => { block.trigger.endMonth = m; block.trigger.endDay = d; commitBlockFields(block, ['trigger']); }, 'End'));
 
-        // Optional narrowing layered on top of the date match — "25 Days of
-        // Christmas, but only 6-10pm" or "every Friday in October" — same
+        // Optional narrowing layered on top of the date match — "a December
+        // countdown, but only 6-10pm" or "every Friday in October" — same
         // trigger.startHour/endHour/days fields a dayOfWeek trigger uses,
         // just optional here (see matchesDateRangeNarrowing, schedule.js).
         // Built here but appended after scheduleRow below (not inline) so
@@ -1190,13 +1190,13 @@ export function buildSchedulePanel(ch, panelEl) {
 
   // "+ ADD BLOCK" is a small menu: two blank starting points (the original
   // behavior) plus presets modeled directly on real programming blocks
-  // (25 Days of Christmas, a Disney-Channel-style weekly movie premiere,
-  // Saturday morning cartoons, an AMC-style marathon) — picking one is
+  // (a December countdown, a weekly movie premiere,
+  // Saturday morning cartoons, a marathon) — picking one is
   // "point it at a folder," not hand-configuring trigger/mode/dates first.
   const BLOCK_PRESETS = [
-    { label: '25 DAYS OF CHRISTMAS', build: () => {
+    { label: 'DECEMBER COUNTDOWN', build: () => {
       const b = freshBlock('dateRange');
-      b.name = '25 Days of Christmas';
+      b.name = 'December Countdown';
       b.trigger.startMonth = 12; b.trigger.startDay = 1; b.trigger.endMonth = 12; b.trigger.endDay = 25;
       b.mode = 'daily';
       return b;

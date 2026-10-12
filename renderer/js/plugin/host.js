@@ -829,7 +829,7 @@ function installGlobalApi() {
     // pool-entry-default logic core's own setup-dragdrop.js/
     // setup-interstitials.js use for the identical job.
     // formatClock/WEEKDAYS/MONTHS are here so a listing-style channel (e.g.
-    // prevue, public-access) doesn't need its own copy of this exact
+    // guide-channel, public-access) doesn't need its own copy of this exact
     // clock-formatting/day-name/month-name logic — same can't-import-core-
     // directly reason as everything else on this object.
     ctx: {

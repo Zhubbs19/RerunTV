@@ -31,8 +31,8 @@ body:has(.crt.power-off) #guide-overlay {
   display: none;
 }
 
-/* ---------- Virtual CH 1 (Prevue) / CH 2 (Public Access) ----------
-   Moved to plugins/prevue/style.css and plugins/public-access/style.css. */
+/* ---------- Virtual CH 1 (Guide) / CH 2 (Public Access) ----------
+   Moved to plugins/guide-channel/style.css and plugins/public-access/style.css. */
 
 /* Party Channel host UI moved to plugins/party-channel/style.css. */
 
@@ -930,7 +930,7 @@ body:has(.crt.power-off) .upnext-bar { display: none; }
 /* Small always-on channel-number chip, pinned over a custom icon wherever a
    compact square channel badge would otherwise show only the icon (this
    .logo-bug corner overlay, and .channel-badge — setup.css — used by the
-   setup CHANNELS list, the guide grid rows, and the PREVUE channel's own
+   setup CHANNELS list, the guide grid rows, and the GUIDE channel's own
    listing rows). A fixed size (not a percentage — `font-size: N%` resolves
    against the *inherited* font-size, not the badge's own box dimensions,
    which made an earlier version of this chip render at ~7px and nearly
@@ -1031,7 +1031,7 @@ body:has(.crt.guide-active) .rating-bug,
 body:has(.crt.power-off) .rating-bug { display: none; }
 /* wood-console-70s's "no rating bug before 1997" override moved to
    plugins/theme-wood-console-70s/style.css (theme-pack-plugins migration);
-   uhf-public-access-80s/analog-90s/cable-box-osd/prevue-guide-94 use the
+   uhf-public-access-80s/analog-90s/cable-box-osd/scrolling-guide-94 use the
    same override for the same historical reason (see each pack's style.css). */
 
 /* Movie-style full-screen rating card (MPAA analogue to the TV Parental

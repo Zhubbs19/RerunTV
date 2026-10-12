@@ -28,8 +28,8 @@
   font-display: swap;
   src: url('../fonts/barlow-condensed-semibold-600.woff2') format('woff2');
 }
-/* Era-correct grid face: the real guides used Univers (Prevue/TV Guide
-   Channel) and Trade Gothic Bold Condensed (DirecTV). Archivo Narrow is the
+/* Era-correct grid face: the real guides used grotesque condensed faces
+   (Univers, Trade Gothic). Archivo Narrow is the
    same grotesque tradition, free — variable file covers 500-700. */
 @font-face {
   font-family: 'Archivo Narrow';
@@ -105,7 +105,7 @@
 
 :root {
   /* The palette lives on the semantic tokens below (docs/design/04 §4.2).
-     Palette retuned to the actual i-Guide/TV Guide Interactive look:
+     Palette retuned to a classic interactive-guide look:
      bright royal-blue grid cells, pure white bold text, school-bus-yellow
      selection — brighter and more saturated than a modern take would pick. */
   --danger: #ff6b5b;
@@ -197,7 +197,7 @@
 
   /* Guide-specific surfaces. Theme packs can now change the interaction
      hierarchy of the EPG without overriding broad core selectors: early
-     i-Guide used a pale channel rail and cyan time bar, while Contour used
+     interactive guides used a pale channel rail and cyan time bar, while later ones used
      a dark rail, blue cells, and a flat yellow focus bar. */
   --guide-grid-bg: var(--gradient-page);
   --guide-timebar-bg: transparent;

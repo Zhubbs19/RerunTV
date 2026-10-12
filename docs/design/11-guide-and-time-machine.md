@@ -58,7 +58,7 @@ C2 (02), C1 + actions (01), C4 (04, kit built; theme migration in progress). Con
   `channelCallLetters(ch)` — a channel's own `callLetters` (new `channel.set` field, a 6-character box beside
   the name in the channel editor, placeholder = the automatic value) or `abbreviateChannelName`: initials for
   several words (The Movie Channel → TMC; a capitalised short word like WV keeps its letters), a word of 6
-  letters or fewer as itself, longer words first letter + consonants (Nickelodeon → NCKLDN). Special rows use
+  letters or fewer as itself, longer words first letter + consonants (Retrovision → RTRVSN). Special rows use
   the automatic value. The full name stays in the cell's tooltip.
 ### Built (§4 phase 3: remote actions and hints)
 
@@ -157,7 +157,7 @@ Time machine
 - **One ordered list** (numeric order, favorites filter optional), special channels
   included in their numeric position, each a normal focusable row. Special channels render
   their row content from `registerChannelType`'s info (`virtualChannelInfo`) as a single
-  full-width cell: "Search & Play", "Music Choice — 12 stations".
+  full-width cell: "Search & Play", "Digital Music — 12 stations".
 - Option "Specials at the top" keeps today's layout for users who like it, still focusable.
 
 ### 2.2 Layout

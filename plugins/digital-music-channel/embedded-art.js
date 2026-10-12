@@ -1,4 +1,4 @@
-// Cover art stored inside a track's own tags, for the Music Choice channel's
+// Cover art stored inside a track's own tags, for the Digital Music channel's
 // on-screen slide. Pure Buffer parsing, no dependencies — this app ships no
 // tag reader and pulling one in for three container formats is not worth a
 // dependency.

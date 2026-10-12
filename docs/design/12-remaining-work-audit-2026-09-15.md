@@ -27,7 +27,7 @@ Existing plugins and partial features should be reused.
 | 07 Library/tagging | **Built** (2026-09-16), plus a single-item editor and root/item removal (2026-09-17) | Embedded-tag, taxonomy and metadata-plugin tagging steps (§5 steps 2/4/5); queries in blocks (02) and templates (08); provider etags; ending dual-read of per-file metadata. See 07 §8. |
 | 08 Builder/templates | **Built** (2026-09-16), plus a plugin template registry (2026-09-17) | Pure plan/slot engine, six built-ins + `registerTemplate`, local grammar, library resolution, guarded preview, path-free import/export and one-step apply/undo are in Channels and the shared web bundle. Inline chip editing remains an optional presentation follow-up. |
 | 09 Households/DVR | **Built** (2026-09-16) | Personal store/profiles, migration, DVR request scheduler + My Shows, retention, handoff and shared sessions are in `main/personal/service.js`, `renderer/js/personal/*`, `renderer/js/setup/household.js`, the TV menu and guide. Drift correction and PIN-gated profile switching are both implemented (2026-09-17 re-check) — only real second-device acceptance is open, same class of gap as 01's Hisense item. |
-| 10 Eras | **Built, v1 scope** (2026-09-16) | Five built-in eras, apply/clear with exact restore, box-override tracking + source display, TV-mode picker are in `display/eras.js` + `setup/eras.js` + `tv/setup.js`. Channel-level follow/pin-era already existed (`setup/panels.js`'s THEME/ERA identity field, pre-dates this doc — 2026-09-17 correction). Remaining: plugin era hints (Music Choice, ticker/EAS), template/pool suggestions (phase 5), the low-resolution TV-mode accessibility override, and a full per-era theme-contrast sweep. |
+| 10 Eras | **Built, v1 scope** (2026-09-16) | Five built-in eras, apply/clear with exact restore, box-override tracking + source display, TV-mode picker are in `display/eras.js` + `setup/eras.js` + `tv/setup.js`. Channel-level follow/pin-era already existed (`setup/panels.js`'s THEME/ERA identity field, pre-dates this doc — 2026-09-17 correction). Remaining: plugin era hints (Digital Music, ticker/EAS), template/pool suggestions (phase 5), the low-resolution TV-mode accessibility override, and a full per-era theme-contrast sweep. |
 | 11 Guide/time machine | **Built** — the TV docked picture shrink closed the last omission | Real Hisense acceptance, which is 01's to close. |
 
 ## Priority 1 — Complete (2026-09-15)
@@ -216,11 +216,11 @@ and the page was dead. Every automated run until now drove the Electron window,
 where preload supplies `window.api` and the shim is a no-op, so nothing caught it:
 
 - `quitApp` was declared a viewer method while the shim defined it as `null`;
-- `musicChoiceScanFolder` and `musicChoiceEmbeddedArt` were declared viewer
+- `digitalMusicScanFolder` and `digitalMusicEmbeddedArt` were declared viewer
   methods the shim never defined at all.
 
 All three genuinely cannot work in a browser (a tab cannot close the app; both
-music-choice calls read the host filesystem), so they moved to `hostOnlyMethods`.
+digital-music calls read the host filesystem), so they moved to `hostOnlyMethods`.
 A third, quieter bug came out of the same audit: `onCompanionTriggerNews` and
 `onCompanionSetTicker` were listed host-only while the shim implemented them, so
 `createApiSurface` silently dropped the implementations and the Companion ALERTS
@@ -232,7 +232,7 @@ method implemented, none defined as `null`/`undefined`, nothing outside the
 contract, no dead host-only stubs, and a real `createApiSurface` build.
 
 **Note for the release:** the LAN viewer and the Android TV client have been
-broken in a browser since the music-choice IPC methods were added to the
+broken in a browser since the digital-music IPC methods were added to the
 contract. This fix restores them.
 
 ### Administration stays on the host — enforced at the command layer

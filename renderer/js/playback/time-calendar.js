@@ -1,7 +1,7 @@
 // The time machine's calendar: pick any date and time and jump there. Opened with
 // D on live TV, from the TV menu (TIME MACHINE › PICK A DATE…), and from a
 // channel's PREVIEW in setup. Days that have a dateRange block on this channel
-// carry a dot (25 Days of Christmas, a Thanksgiving weekend…), and the footer
+// carry a dot (a December countdown, a Thanksgiving weekend…), and the footer
 // says what would be airing at the chosen moment, so you can see where you are
 // jumping before you go.
 //

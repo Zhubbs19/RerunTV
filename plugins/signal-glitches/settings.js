@@ -4,7 +4,7 @@ import { rearmSignalGlitches } from './renderer.js';
 // panel was expanded — see setup-plugin-settings.js's makeContext), not a
 // live reference, so this reads/writes through
 // window.RCBPlugins.ctx.settings.getPluginSettings/updatePluginSettings
-// instead, same as sponsor-billboard/music-choice-channel/film-reel-marks.
+// instead, same as sponsor-billboard/digital-music-channel/film-reel-marks.
 window.RCBPlugins.registerPluginSettings('signal-glitches', {
   sections: [{
     id: 'general',

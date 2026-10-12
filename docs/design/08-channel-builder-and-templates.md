@@ -98,7 +98,7 @@ plan's hours ÷ available duration.
 - **Parser, local-first**: a deterministic grammar for scheduling language covers the common
   cases offline — days ("weeknights", "Saturday mornings"), times ("7–11", "prime time" =
   20–23), date ranges ("December 1st to 25th"), content phrases matched to taxonomy terms and
-  series names from the library ("cartoons", "90s sitcoms", "The Office"), break language
+  series names from the library ("cartoons", "90s sitcoms", "Workplace Comedy"), break language
   ("ads every 10 minutes", "no commercials during movies").
 - Output is a plan with slots. V1 previews the parsed rows and returns to the description field
   for adjustment; inline editable chips are presentation follow-up, not a plan-format change.

@@ -45,7 +45,7 @@ await wait(1500);
 const opened = await page.evaluate(() => ({ tab: document.querySelector('.setup-tab-btn.active')?.dataset.tab, selected: document.querySelector('#plugins-list .plugin-entry.selected')?.dataset.pluginId }));
 record('choosing it opens Plug-ins with that plugin selected', opened.tab === 'plugins' && opened.selected === 'makemkv', JSON.stringify(opened));
 
-// A registered setting (prevue), with a filter that would hide it.
+// A registered setting (guide-channel), with a filter that would hide it.
 await page.locator('#plugins-filter-input').fill('zzz-nothing');
 await page.locator('.setup-tab-btn[data-tab="guide"]').click();
 g = await groupsFor('crawl speed');
@@ -61,10 +61,10 @@ const landed = await page.evaluate(() => ({
   section: !!document.querySelector('#plugins-detail .plugin-settings-section[data-section-id="presentation"]'),
   sectionTop: Math.round(document.querySelector('#plugins-detail .plugin-settings-section[data-section-id="presentation"]')?.getBoundingClientRect().top ?? -1),
 }));
-record('choosing it clears the filter, selects the plugin and brings its section on screen', landed.tab === 'plugins' && landed.selected === 'prevue' && landed.filter === '' && landed.section && landed.sectionTop >= 0 && landed.sectionTop < 900, JSON.stringify(landed));
+record('choosing it clears the filter, selects the plugin and brings its section on screen', landed.tab === 'plugins' && landed.selected === 'guide-channel' && landed.filter === '' && landed.section && landed.sectionTop >= 0 && landed.sectionTop < 900, JSON.stringify(landed));
 
 // Validation.
-const bad = await page.evaluate(() => { try { window.RCBPlugins.ctx.search.registerEntries('prevue', [{ keywords: 'x' }]); return 'no throw'; } catch (e) { return e.message; } });
+const bad = await page.evaluate(() => { try { window.RCBPlugins.ctx.search.registerEntries('guide-channel', [{ keywords: 'x' }]); return 'no throw'; } catch (e) { return e.message; } });
 record('an entry without a label is rejected clearly', /needs a label/.test(bad), bad);
 
 record('no renderer page errors', errors.length === 0, errors.slice(0, 4).join(' || '));

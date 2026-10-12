@@ -59,9 +59,9 @@ tests/ui/audit-*.*
 # Personal/one-off verify scripts not part of the main harness
 # (.mjs ones are already caught by the global *.mjs rule above; these are
 # the .ps1 and .js variants that aren't)
-tests/ui/verify-music-choice.ps1
-tests/ui/run-disney-cadence-test.ps1
+tests/ui/verify-music-*.ps1
 tests/ui/run-repeated-jump-test.ps1
+tests/ui/run-*-cadence-test.ps1
 
 # Profile captures and temporary harness directories
 tests/ui/failed-profile-*/
@@ -97,11 +97,6 @@ android-companion-client/local.properties
 # with the app, add its own `!plugins/<id>/` line here.
 
 plugins/*
-plugins/hbo/
-plugins/party-jukebox/
-plugins/youtube-music/
-plugins/spotify-connect/
-plugins/makemkv/
 
 !plugins/breaking-news/
 !plugins/cast-to-tv/
@@ -113,11 +108,11 @@ plugins/makemkv/
 !plugins/film-reel-marks/
 !plugins/local-weather/
 !plugins/mosaic/
-!plugins/music-choice-channel/
+!plugins/digital-music-channel/
 !plugins/noaa-weather/
 !plugins/party-channel/
 !plugins/pay-per-view/
-!plugins/prevue/
+!plugins/guide-channel/
 !plugins/public-access/
 !plugins/sap-audio/
 !plugins/screensaver/
@@ -148,7 +143,7 @@ plugins/makemkv/
 !plugins/theme-widescreen-grid-13/
 !plugins/theme-dark-grid-12/
 !plugins/theme-slate-grid-10/
-!plugins/theme-prevue-guide-94/
+!plugins/theme-scrolling-guide-94/
 !plugins/theme-uhf-public-access-80s/
 !plugins/theme-vhs-retro-80s/
 !plugins/theme-wood-console-70s/

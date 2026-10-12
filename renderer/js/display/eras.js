@@ -47,7 +47,7 @@ export const BUILT_IN_ERAS = [
   {
     id: '1994', label: '1994 — Analog cable', range: [1992, 1996],
     presentation: {
-      theme: 'prevue-guide-94', crtEnabled: true, crtScanlines: 70, crtCurvature: 45, crtGrain: 55,
+      theme: 'scrolling-guide-94', crtEnabled: true, crtScanlines: 70, crtCurvature: 45, crtGrain: 55,
       resolution: 'sd480', aspect: '4:3', uiExtent: 'confined', clock24: false,
     },
     notes: ['The TV Parental Guidelines content-rating system did not exist yet — it began in January 1997, so no rating bug is period-accurate here even though this box does not yet suppress it automatically.'],

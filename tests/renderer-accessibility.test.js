@@ -97,7 +97,7 @@ test('flagship era themes own guide motion while every theme keeps a core fallba
   const guide = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'guide.css'), 'utf8');
   assert.match(guide, /--theme-guide-enter-x, 0px/);
   assert.match(guide, /--theme-guide-enter-ease, ease-in-out/);
-  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'prevue-guide-94', 'cable-box-osd', 'addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
+  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'scrolling-guide-94', 'cable-box-osd', 'addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
     const css = fs.readFileSync(path.join(ROOT, 'plugins', `theme-${id}`, 'style.css'), 'utf8');
     assert.match(css, /--theme-guide-enter-x:/, `${id} needs an era-specific guide entrance`);
     assert.match(css, /--theme-guide-enter-ease:/, `${id} needs an era-specific guide easing`);

@@ -5,8 +5,8 @@
 // builds window.api by calling it at the top of an IIFE. So a mismatch is not
 // a degraded feature — it leaves a LAN browser with no window.api at all and
 // the whole page dead. That happened: `quitApp` was declared a viewer method
-// while the shim defined it as `null`, and `musicChoiceScanFolder` /
-// `musicChoiceEmbeddedArt` were declared viewer methods the shim never defined
+// while the shim defined it as `null`, and `digitalMusicScanFolder` /
+// `digitalMusicEmbeddedArt` were declared viewer methods the shim never defined
 // at all. Nothing caught it, because every automated run drove the Electron
 // window, where preload provides window.api and the shim is a no-op.
 //

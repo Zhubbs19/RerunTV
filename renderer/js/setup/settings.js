@@ -1173,7 +1173,7 @@ const CHANGELOG = [
   { date: '2026-09-26', items: [
     'The Video Splicer is built in (LIBRARY › SPLICER): cut recordings into episodes, ads and bumpers, then combine clips.',
     'Updates now keep your library, profiles and assets when the installer replaces the app folder.',
-    'Music Choice: pause and seek on demand, and search the library by song, artist, album or year.',
+    'Digital Music: pause and seek on demand, and search the library by song, artist, album or year.',
   ] },
   { date: '2026-09-23', items: [
     'TV on a second screen: per-screen placement and fullscreen, TV mode per screen, a sound output picker, screen edges, follow the TV\'s power state, and volume levelling per file.',

@@ -20,26 +20,26 @@ test.before(async () => {
 const item = (id, ref, duration, extra = {}) => ({ id, ref, duration, provenance: {}, ...extra });
 
 test('series, season and episode come from the folder and the episode code', () => {
-  const a = analyzeRef('J:\\Media Center\\TV Shows\\The Office (2005)\\Season 02\\The.Office.S02E01.The.Dundies.720p.mkv', 1300);
-  assert.equal(a.series, 'The Office');
+  const a = analyzeRef('J:\\Media Center\\TV Shows\\Workplace Comedy (2005)\\Season 02\\Workplace.Comedy.S02E01.The.Awards.720p.mkv', 1300);
+  assert.equal(a.series, 'Workplace Comedy');
   assert.equal(a.season, 2);
   assert.equal(a.episode, 1);
   assert.equal(a.kind, 'episode');
   assert.equal(a.era, '2000s');
-  assert.equal(a.title, 'The Dundies');
+  assert.equal(a.title, 'The Awards');
   assert.match(a.reasons.series, /folder/);
 });
 
 test('an episode code after an underscore is still an episode code', () => {
   // "_" is a word character, so a \b-bounded pattern never matched these.
-  const a = analyzeRef('J:\\TV Shows\\Looney Tunes\\Looney_Tunes_-_S1953E05_-_Duck_Amuck.mp4', 420);
+  const a = analyzeRef('J:\\TV Shows\\Classic Cartoons\\Classic_Cartoons_-_S1953E05_-_Rabbit_Rumble.mp4', 420);
   assert.equal(a.episode, 5);
   assert.equal(a.year, 1953, 'a four-digit season is a year');
   assert.equal(a.season, undefined);
   assert.equal(a.era, '1950s');
   assert.equal(a.kind, 'short');
-  const b = analyzeRef('mediasource:archive:blues-clues-s3/Blues_Clues_S03E52.mp4', 1400);
-  assert.equal(b.series, 'Blues Clues', 'a provider ref names its series by filename prefix');
+  const b = analyzeRef('mediasource:archive:puppy-pals-s3/Puppy_Pals_S03E52.mp4', 1400);
+  assert.equal(b.series, 'Puppy Pals', 'a provider ref names its series by filename prefix');
   assert.equal(b.episode, 52);
   assert.equal(b.title, undefined, 'the series name alone is not a title');
 });
@@ -115,8 +115,8 @@ test('accepting writes user-accepted provenance and skips excluded items', () =>
 
 test('§8: 1,000 new episodes across series take fewer than 10 review actions', () => {
   const shows = [
-    ['The Office (2005)', 22, 201], ['Seinfeld (1989)', 23, 180], ['Friends (1994)', 22, 236],
-    ['Cheers (1982)', 24, 275], ['Frasier (1993)', 22, 108],
+    ['Show A (2005)', 22, 201], ['Show B (1989)', 23, 180], ['Show C (1994)', 22, 236],
+    ['Show D (1982)', 24, 275], ['Show E (1993)', 22, 108],
   ];
   const items = [];
   shows.forEach(([show, minutes, count]) => {

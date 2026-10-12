@@ -272,8 +272,8 @@ function computeEpisodesUntilWrap(ch) {
 
 // A dynamic entry's live text template (see the DYNAMIC checkbox,
 // setup-interstitials.js) — {channel}/{time}/{nextTitle}/{daysUntil}/
-// {episodesUntil}. {daysUntil} is what makes a High-School-Musical/
-// SpongeBob-"Truth or Square"-style escalating countdown campaign work: the
+// {episodesUntil}. {daysUntil} is what makes an escalating "premiering in N days"
+// countdown campaign work: the
 // same promo entry's on-screen number counts down day by day as the
 // premiere approaches, rather than being a static copy authored once.
 //

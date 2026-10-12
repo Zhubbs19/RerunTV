@@ -2,7 +2,7 @@
 // off line animation (also style.css). See plugins.js's registerThemePack
 // doc comment for the full field contract.
 const { playNoiseBurst, playTone } = window.RCBPlugins.ctx;
-window.RCBPlugins.registerThemePack('prevue-guide-94', {
+window.RCBPlugins.registerThemePack('scrolling-guide-94', {
   label: "SCROLLING GUIDE '94",
   group: 'REAL CABLE-BOX UI',
   preview: { background: '#060a1c', accent: '#ffd23f', secondary: '#8fa4ff' },

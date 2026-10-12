@@ -1,11 +1,11 @@
-// Music Choice channel (plugins/music-choice-channel): the tag reader behind
+// Digital Music channel (plugins/digital-music-channel): the tag reader behind
 // search-by-year/album, and the pure search/on-demand helpers in renderer.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
-const pluginDir = path.join(__dirname, '..', 'plugins', 'music-choice-channel');
+const pluginDir = path.join(__dirname, '..', 'plugins', 'digital-music-channel');
 const { readTrackTags, bufferIo, yearOf } = require(path.join(pluginDir, 'tags.js'));
 
 // ---------- Tag fixtures ----------

@@ -62,7 +62,7 @@ await wait(400);
 await shot('era-1994-applied');
 const after1994 = await snapshotFields();
 record('clicking a built-in era in the setup panel changes theme, CRT, display mode and clock together', applied
-  && after1994.theme === 'prevue-guide-94' && after1994.crtEnabled === true
+  && after1994.theme === 'scrolling-guide-94' && after1994.crtEnabled === true
   && after1994.displayMode.resolution === 'sd480' && after1994.clock24 === false, JSON.stringify(after1994));
 
 const domReflects = await js(() => ({
@@ -71,7 +71,7 @@ const domReflects = await js(() => ({
   resolution: document.getElementById('display-mode-resolution-select')?.value,
   clock24: document.getElementById('clock24-enabled')?.checked,
 }));
-record('setup-screen controls (theme label, CRT checkbox, resolution select, clock) resync after an era apply', /prevue|scroll|94/i.test(domReflects.themeLabel || '') && domReflects.crtChecked === true && domReflects.resolution === 'sd480' && domReflects.clock24 === false, JSON.stringify(domReflects));
+record('setup-screen controls (theme label, CRT checkbox, resolution select, clock) resync after an era apply', /guide|scroll|94/i.test(domReflects.themeLabel || '') && domReflects.crtChecked === true && domReflects.resolution === 'sd480' && domReflects.clock24 === false, JSON.stringify(domReflects));
 
 const notesShown = await js(() => document.getElementById('era-notes')?.textContent || '');
 record('the era notes panel explains the era\'s choices', /1994/.test(notesShown) && notesShown.length > 20, notesShown.slice(0, 80));

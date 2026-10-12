@@ -26,9 +26,9 @@ function sampleConfig() {
     crtIntensity: { scanlines: 60, vignette: 30 },
     lastChannel: 5,
     channels: [
-      { number: 5, name: 'Boomerang', rating: 'TV-G', favorite: false, files: [{ path: 'a.mp4', duration: 30 }, { path: 'b.mp4', duration: 40 }] },
-      { number: 6, name: 'The Office', rating: 'TV-14', files: [{ path: 'c.mp4', duration: 50 }] },
-      { number: 7, name: 'Nick', files: [] },
+      { number: 5, name: 'Rewind', rating: 'TV-G', favorite: false, files: [{ path: 'a.mp4', duration: 30 }, { path: 'b.mp4', duration: 40 }] },
+      { number: 6, name: 'Workplace Comedy', rating: 'TV-14', files: [{ path: 'c.mp4', duration: 50 }] },
+      { number: 7, name: 'Kidz', files: [] },
     ],
   };
 }
@@ -44,7 +44,7 @@ test('diffJson ops turn before into after and undo turns it back', async () => {
   after.crtIntensity.grain = 65;
   after.channels.splice(1, 1);
   after.channels[0].files.push({ path: 'z.mp4', duration: 9 });
-  after.channels[1].name = 'Nickelodeon';
+  after.channels[1].name = 'Retrovision';
 
   const { ops, undo } = diffJson(before, after);
   const forward = cloneJson(before);
@@ -185,7 +185,7 @@ test('an in-place edit through saveConfigDebounced is one undoable step, restore
   const { S } = state;
   const channel = S.config.channels[0];
   channel.rating = 'TV-PG';
-  channel.name = 'Boomerang HD';
+  channel.name = 'Rewind HD';
   state.saveConfigDebounced();
   assert.equal(state.canUndo(), true, 'undo is available before the save fires');
   assert.equal(state.undoLabel(), 'Recent edit', 'a pending burst is not settled just to label it');
@@ -198,12 +198,12 @@ test('an in-place edit through saveConfigDebounced is one undoable step, restore
   assert.equal(S.configGeneration > gen, true);
   assert.equal(S.config.channels[0], channel, 'undo keeps object identity');
   assert.equal(channel.rating, 'TV-G');
-  assert.equal(channel.name, 'Boomerang');
+  assert.equal(channel.name, 'Rewind');
   assert.equal(state.canUndo(), false);
 
   assert.equal(state.performRedo(), true);
   assert.equal(channel.rating, 'TV-PG');
-  assert.equal(channel.name, 'Boomerang HD');
+  assert.equal(channel.name, 'Rewind HD');
 });
 
 test('skipUndo-only writes make no step and survive undoing a later edit', async () => {
@@ -227,11 +227,11 @@ test('skipUndo-only writes make no step and survive undoing a later edit', async
 test('removing an item while editing another in the same burst splices only the removed one', async () => {
   const { diffJson, applyPatch, cloneJson } = await load('core/commands.js');
   const before = sampleConfig();
-  before.channels.push({ number: 8, name: 'Noggin', files: [] });
+  before.channels.push({ number: 8, name: 'Playtime', files: [] });
   const after = cloneJson(before);
   after.channels.splice(1, 1);                    // remove CH 6
   after.channels[0].files.push({ path: 'z.mp4' }); // edit CH 5 (prefix side)
-  after.channels[2].name = 'Noggin HD';            // edit CH 8 (suffix side)
+  after.channels[2].name = 'Playtime HD';            // edit CH 8 (suffix side)
   const { ops, undo } = diffJson(before, after);
   const splice = ops.find((op) => op.s && op.p.join('.') === 'channels');
   assert.deepEqual([splice.s[0], splice.s[1], splice.s[2].length], [1, 1, 0]);
@@ -264,7 +264,7 @@ test('dispatch records named steps, coalesces typing, and settles plain edits fi
   assert.equal(state.undoLabel(), 'Rename CH 7');
 
   state.performUndo();
-  assert.equal(S.config.channels[2].name, 'Nick', 'the whole typing burst is one step');
+  assert.equal(S.config.channels[2].name, 'Kidz', 'the whole typing burst is one step');
   assert.equal(S.config.crtEnabled, true, 'the earlier plain edit is its own step');
   assert.equal(state.undoLabel(), 'Change CRT effect');
   state.performUndo();
@@ -291,7 +291,7 @@ test('removing a channel by command is undoable and restores its position', asyn
   assert.deepEqual(S.config.channels.map((c) => c.number), [5, 7]);
   state.performUndo();
   assert.deepEqual(S.config.channels.map((c) => c.number), [5, 6, 7]);
-  assert.equal(S.config.channels[1].name, 'The Office');
+  assert.equal(S.config.channels[1].name, 'Workplace Comedy');
 });
 
 test('pushUndoSnapshot makes a wholesale restore one undoable step', async () => {
@@ -530,9 +530,9 @@ async function agreedState() {
 
 test('a dispatched edit is posted to the host as the command that made it', async () => {
   const state = await agreedState();
-  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }, { delay: 0 });
+  state.dispatch({ type: 'channel.rename', channel: 5, name: 'Toon Town' }, { delay: 0 });
   await settle();
-  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }]);
+  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Toon Town' }]);
 });
 
 test('a burst of edits is posted as one batch, in the order it was applied', async () => {
@@ -564,7 +564,7 @@ test('undo posts the inverses it applied, so another editor sees the step come b
   sentCommands.length = 0;
   state.performUndo();
   await settle();
-  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Boomerang' }]);
+  assert.deepEqual(sentCommands, [{ type: 'channel.rename', channel: 5, name: 'Rewind' }]);
 });
 
 test("a host update from another client is applied here and is not echoed back", async () => {
@@ -572,11 +572,11 @@ test("a host update from another client is applied here and is not echoed back",
   const applied = state.applyHostUpdate({
     revision: state.getHostRevision() + 1,
     client: 'some-other-client',
-    commands: [{ type: 'channel.rename', channel: 7, name: 'Nickelodeon' }],
+    commands: [{ type: 'channel.rename', channel: 7, name: 'Retrovision' }],
   });
   await settle();
   assert.equal(applied, true);
-  assert.equal(state.S.config.channels[2].name, 'Nickelodeon');
+  assert.equal(state.S.config.channels[2].name, 'Retrovision');
   assert.deepEqual(sentCommands, [], 'applying a remote edit is not itself an edit to send back');
   assert.equal(state.canUndo(), false, "and it is not this client's undo step");
 });

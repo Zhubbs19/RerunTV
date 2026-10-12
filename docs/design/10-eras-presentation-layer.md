@@ -28,7 +28,7 @@ has a per-channel "THEME / ERA" select with an explicit "INHERIT BOX THEME" opti
 button — exactly the §4 "Follow era" toggle this doc asked for, for the one identity field that
 exists. Nothing to build there.
 
-**v1 scope decisions** (see doc §7's phase list): plugin era hints (Music Choice's ERA dial,
+**v1 scope decisions** (see doc §7's phase list): plugin era hints (Digital Music's ERA dial,
 ticker/EAS style) and template/pool suggestions (phase 5) are not wired. Rating-bug era rules are
 not a controlled field — the existing gate is per-channel (`ch.hideRatingBug`), not box-wide, and
 doc 10's own accuracy-rules risk (§5, low-resolution TV-mode accessibility override) is not
@@ -62,7 +62,7 @@ remaining risk is narrow, but it hasn't been exercised directly.
 - rating-bug era rules;
 - ticker, EAS and news-bulletin styles;
 - screensaver variant;
-- the Music Choice ERA dial;
+- the Digital Music ERA dial;
 - guide era fonts;
 - sound profile.
 
@@ -84,17 +84,17 @@ An era is data, not code:
   "label": "1994 — Analog cable",
   "range": [1992, 1996],
   "presentation": {
-    "theme": "prevue-guide-94",
+    "theme": "scrolling-guide-94",
     "crt": { "enabled": true, "scanlines": 70, "curvature": 45, "grain": 55 },
     "display": { "resolution": "sd-480", "aspect": "4:3", "uiExtent": "confined" },
     "static": "analog-snow",
     "ratingBug": "none",                 // TV parental guidelines arrived 1997
     "clock": "12h",
-    "guide": { "slots": 3, "preview": "prevue-scroll" },
+    "guide": { "slots": 3, "preview": "guide-scroll" },
     "sounds": "analog-cable-box",
     "overlays": { "ticker": "crawl-cg", "eas": "eas-1994", "logoBug": "none" }
   },
-  "plugins": { "music-choice-channel": { "era": "90s" } },
+  "plugins": { "digital-music-channel": { "era": "90s" } },
   "suggestions": { "templates": ["kids-network-1998"], "pool": { "facets.era": ["1990s"] } }
 }
 ```
@@ -149,7 +149,7 @@ Eras are allowed to be opinionated, but visibly so:
    consumers migrate to it.
 2. Era data format + five built-in eras mapping existing theme packs; setup page.
 3. Channel "follow/pin era"; era notes; override indicators in setup.
-4. Plugin hints (Music Choice era, EAS style, ticker style); TV-mode era picker.
+4. Plugin hints (Digital Music era, EAS style, ticker style); TV-mode era picker.
 5. Template/pool suggestions (after 08).
 
 ## 8. Acceptance criteria

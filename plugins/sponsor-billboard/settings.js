@@ -4,7 +4,7 @@
 // (taken when the panel was expanded — see setup-plugin-settings.js's
 // makeContext), not a live reference, so this reads/writes through
 // window.RCBPlugins.ctx.settings.getPluginSettings/updatePluginSettings
-// instead, same as music-choice-channel/settings.js.
+// instead, same as digital-music-channel/settings.js.
 window.RCBPlugins.registerPluginSettings('sponsor-billboard', {
   sections: [{
     id: 'general',

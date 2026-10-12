@@ -6,7 +6,7 @@
 // CH 2 available to turn on, but doesn't show it on its own; see this
 // plugin's own SETTINGS panel. Uses ctx.formatClock (window.RCBPlugins.ctx,
 // see plugins.js's installGlobalApi) rather than its own copy, same
-// can't-import-core-directly reason as prevue's identical clock display.
+// can't-import-core-directly reason as guide-channel's identical clock display.
 // This plugin's own config namespace, seeded here (not by core) — see
 // [[retro_cable_box_plugin_system]].
 if (!window.RCBPlugins.ctx.S.config.publicAccess) window.RCBPlugins.ctx.S.config.publicAccess = { enabled: false, slides: [] };

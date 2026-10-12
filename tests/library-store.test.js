@@ -139,11 +139,11 @@ test('items can be found by ref and listed per root', () => {
 
 test('series and saved queries upsert', () => {
   const { store } = tempStore();
-  const series = store.upsertSeries('ser_office', { name: 'The Office' });
-  store.upsertSeries('ser_office', { facets: { genre: ['sitcom'] } });
-  assert.equal(store.load().series.ser_office.name, 'The Office', 'an upsert merges, it does not replace');
-  assert.deepEqual(store.load().series.ser_office.facets.genre, ['sitcom']);
-  assert.equal(series.id, 'ser_office');
+  const series = store.upsertSeries('ser_workplace', { name: 'Workplace Comedy' });
+  store.upsertSeries('ser_workplace', { facets: { genre: ['sitcom'] } });
+  assert.equal(store.load().series.ser_workplace.name, 'Workplace Comedy', 'an upsert merges, it does not replace');
+  assert.deepEqual(store.load().series.ser_workplace.facets.genre, ['sitcom']);
+  assert.equal(series.id, 'ser_workplace');
 
   store.upsertQuery('q_90s', { name: '90s sitcoms', where: { 'facets.era': '1990s' } });
   assert.equal(store.load().queries.q_90s.name, '90s sitcoms');

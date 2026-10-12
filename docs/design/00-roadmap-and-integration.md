@@ -42,7 +42,7 @@ explicitly and get a decision, not quietly work around it.
 2. **Config mutations are in place, invalidated by `S.configGeneration`.** Any cache
    derived from config keys on the generation. New write paths must bump it.
 3. **Offline-first.** Local media, synthesized audio, user-authored text. Network features
-   are opt-in named exceptions (Spotify Connect, LAN services, metadata plugins).
+   are opt-in named exceptions (music-streaming, LAN services, metadata plugins).
 4. **Core is plugin-agnostic.** No core file assumes a plugin exists. Extension goes through
    `window.RCBPlugins` registries and the versioned `ctx` (currently `CTX_VERSION = 6`).
 5. **One video element per client.** Every playback path goes through `#player`. Two

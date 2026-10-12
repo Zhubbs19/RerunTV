@@ -34,12 +34,12 @@
     // Host-only because a browser tab genuinely cannot do them, not merely
     // because they are inconvenient there. A tab cannot close the application
     // (TV mode's exit prompt drops EXIT for a viewer — tv/input.js's
-    // exitCapability), and both music-choice calls read the HOST filesystem.
+    // exitCapability), and both digital-music calls read the HOST filesystem.
     // These three were listed as viewer methods while the shim defined
-    // quitApp as null and the music-choice pair not at all, so
+    // quitApp as null and the digital-music pair not at all, so
     // createApiSurface threw and a LAN browser ended up with no window.api at
     // all. tests/api-surface.test.js keeps the two lists honest now.
-    'quitApp', 'musicChoiceScanFolder', 'musicChoiceEmbeddedArt', 'musicChoiceReadTags',
+    'quitApp', 'digitalMusicScanFolder', 'digitalMusicEmbeddedArt', 'digitalMusicReadTags',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled', 'getStartupWindowStatus', 'setStartupWindowEnabled',
     // The control pairing code must never reach a `view`-scope viewer — that

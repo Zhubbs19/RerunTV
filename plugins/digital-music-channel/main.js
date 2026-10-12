@@ -1,4 +1,4 @@
-// Main-process half of the Music Choice Channel plugin — a single IPC
+// Main-process half of the Digital Music Channel plugin — a single IPC
 // handler that recursively lists a folder's audio files (for a station's
 // playlist) or image files (for a slideshow background). Duration probing
 // happens renderer-side (an off-screen <audio> element's loadedmetadata),
@@ -26,7 +26,7 @@ function activate(ctx) {
   // Reads the cover image out of a track's own tags. Returns a data URL the
   // renderer can drop straight into an <img>, or null for "this file has no
   // embedded art", which is an ordinary answer and not an error.
-  ipcMain.handle('music-choice:embeddedArt', async (event, opts) => {
+  ipcMain.handle('digital-music:embeddedArt', async (event, opts) => {
     const filePath = opts && opts.filePath;
     if (!filePath || typeof filePath !== 'string') return { art: null };
     if (!AUDIO_EXTENSIONS.has(path.extname(filePath).toLowerCase())) return { art: null };
@@ -67,7 +67,7 @@ function activate(ctx) {
     return readTrackTags(bufferIo(buf));
   }
 
-  ipcMain.handle('music-choice:readTags', async (event, opts) => {
+  ipcMain.handle('digital-music:readTags', async (event, opts) => {
     const filePaths = Array.isArray(opts && opts.filePaths) ? opts.filePaths.slice(0, MAX_TAG_BATCH) : [];
     const tags = [];
     for (const filePath of filePaths) {
@@ -82,7 +82,7 @@ function activate(ctx) {
     return { tags };
   });
 
-  ipcMain.handle('music-choice:scanFolder', async (event, opts) => {
+  ipcMain.handle('digital-music:scanFolder', async (event, opts) => {
     const folderPath = opts && opts.folderPath;
     const kind = (opts && opts.kind) === 'image' ? 'image' : 'audio';
     if (!folderPath || !pluginFs.existsSync(folderPath)) return { files: [], error: 'Folder not found.' };

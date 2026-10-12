@@ -634,7 +634,7 @@ just works with no changes on your end.
 
 If your plugin DOES keep its own channel number in a constant and compares
 `S.currentNumber` against it directly (e.g. to decide "am I the currently
-tuned channel" inside a timer or event handler) — like `music-choice-channel`
+tuned channel" inside a timer or event handler) — like `digital-music-channel`
 and `party-channel` both do today — a renumber would desync that comparison
 from the real number the channel got moved to, silently breaking your
 plugin while it still appears in the guide under its new number. Until you
@@ -779,7 +779,7 @@ undoes exactly, and is recorded the same way core's own edits are.
 
 ```js
 // In your renderer.js or settings.js, once, at load.
-ctx.commands.register('music-choice-channel', 'setEra', {
+ctx.commands.register('digital-music-channel', 'setEra', {
   // All three receive YOUR settings object — never the app's config.
   validate(settings, cmd) {
     if (typeof cmd.era !== 'string') throw new Error('An era is required');
@@ -794,7 +794,7 @@ ctx.commands.register('music-choice-channel', 'setEra', {
 });
 
 // Later, wherever the user actually changes it:
-ctx.commands.dispatch('music-choice-channel', 'setEra', { era: '1999' });
+ctx.commands.dispatch('digital-music-channel', 'setEra', { era: '1999' });
 ```
 
 The undo button now reads "Undo: Switch to the 1999 era".
@@ -1146,7 +1146,7 @@ window.RCBPlugins.ctx.search?.registerEntries('my-plugin', [
 `label` is what the result shows (sentence case), `keywords` are extra words to match, and
 `section` is a `registerPluginSettings` section id to scroll to. Choosing a result opens your
 plugin in Plug-ins. Calling it again replaces your earlier entries. Available from ctx v4:
-use the `?.` above, or set `"minCtxVersion": 4`. `plugins/prevue/settings.js` has a real example.
+use the `?.` above, or set `"minCtxVersion": 4`. `plugins/guide-channel/settings.js` has a real example.
 
 ### `registerSettingsPanel(id, definition)` (legacy)
 

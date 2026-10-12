@@ -191,7 +191,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   });
 
   // Bulk-tag toolbar — lets tagging a whole channel's worth of files (e.g.
-  // 500+ Spongebob episodes, all needing the same "spongebob" tag to feed
+  // 500+ episodes of one cartoon, all needing the same series tag to feed
   // an ad preset, PROGRAMMING tab) happen in one action instead of typing
   // the same tag into hundreds of individual rows. `selected` is per-file-
   // object identity, not persisted — it resets whenever this panel is

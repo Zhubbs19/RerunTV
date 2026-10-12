@@ -68,7 +68,7 @@ const movieChannel = await js(() => {
 });
 const shortsChannel = await js(() => {
   const chans = window.S.config.channels.filter((c) => !c.hidden).sort((a, b) => a.number - b.number);
-  const byName = chans.find((c) => /boomerang|cartoon|toon/i.test(c.name || ''));
+  const byName = chans.find((c) => /cartoon|toon|kids/i.test(c.name || ''));
   return (byName || chans[0]).number;
 });
 await tune(movieChannel);

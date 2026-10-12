@@ -103,7 +103,7 @@ with real accuracy numbers:
 
 - **DVD/broadcast masters with editor-inserted breaks** (e.g. a ripped
   episode disc): black-frame detection alone was highly accurate — 18
-  clean, correctly-placed segments on a 2h46m SpongeBob disc. Leaving
+  clean, correctly-placed segments on a 2h46m cartoon disc. Leaving
   scene-change detection on made this *worse* (1073 segments!) because
   ordinary shot cuts within an episode — which happen constantly in any
   normal TV content — look identical to a scene-change cut. For this kind

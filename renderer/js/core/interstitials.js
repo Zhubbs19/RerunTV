@@ -672,7 +672,7 @@ export function resolveBreakAt(ch, atMs) {
       // Explicit % positions through the currently-playing file (cc.breakpoints,
       // e.g. [20, 50, 80]) instead of a fixed N-minute cadence — this is what
       // lets an ad preset line breaks up with a show's actual structure (two
-      // 11-minute SpongeBob episodes back to back might want a break only at
+      // 11-minute cartoon episodes back to back might want a break only at
       // the midpoint, a 2-hour movie might want four evenly-spread breaks)
       // rather than wall-clock timing that ignores it. Each breakpoint gets
       // its own pod, keyed by its index so a pod's contents stay stable
@@ -1249,7 +1249,7 @@ const GUIDE_BREAK_SCAN_CAP = 200;
 // entries (getChannelSchedule, schedule.js) and silently absorbs any ad
 // break into whichever program it interrupts. Deliberately NOT folded into
 // getChannelSchedule itself, since that function has other callers
-// (program-search.js, the prevue plugin, setup-channels-diagnostics.js)
+// (program-search.js, the guide-channel plugin, setup-channels-diagnostics.js)
 // that want content-only entries — this is guide.js's own concern. Reuses
 // nextBreakStart/resolveBreakAt (both already boundary-driven/analytic —
 // see their own comments — not a per-second scan), so this costs one call

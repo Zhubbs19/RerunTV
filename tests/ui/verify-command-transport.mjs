@@ -6,7 +6,7 @@
 //
 // Run it through the wrapper, never directly:
 //   powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
-//     -UserDataSource "C:\Users\zhubb\Apps\RerunTV\userData" `
+//     -UserDataSource "<installed-app-dir>\userData" `
 //     -Script verify-command-transport.mjs
 import { chromium } from 'playwright-core';
 

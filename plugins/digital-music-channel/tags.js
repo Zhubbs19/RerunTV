@@ -1,4 +1,4 @@
-// Artist / title / album / year from a track's own tags, so the Music Choice
+// Artist / title / album / year from a track's own tags, so the Digital Music
 // channel can search a library by year and album even when the filenames say
 // nothing about either. Pure Buffer parsing, no dependencies, same reasoning as
 // embedded-art.js (which this shares its ID3 and MP4 helpers with).

@@ -1,5 +1,5 @@
-// Music Choice Channel — a retro '90s/2000s digital-cable-style audio
-// channel. Real Music Choice/DMX cable audio services worked as a *block* of
+// Digital Music Channel — a retro '90s/2000s digital-cable-style audio
+// channel. Real digital-cable audio services worked as a *block* of
 // dozens of single-genre channels you'd flip between, each just looping a
 // hand-picked playlist with a static/slowly-changing background and a
 // now-playing text readout (artist/title, no video, no DJ). This plugin
@@ -34,13 +34,13 @@ export function themeFor(station) {
 
 // ---------- Presentation era ----------
 // What the real services actually put on screen, which is the thing this
-// plugin had wrong. Music Choice ran a "freeze frame television" format:
+// plugin had wrong. Those services ran a "freeze frame television" format:
 // still slides over the audio showing artist, song, album and year, with a
 // small strip at the top or bottom carrying artist info / "Did You Know?"
 // factoids / banner advertising, cycling roughly every 30 seconds. Nothing
 // in that format ever showed an elapsed-time readout, a progress bar, or an
 // "up next" line — those are streaming-app affordances, and having them was
-// the most anachronistic thing here. DMX went further still and put track
+// the most anachronistic thing here. Some went further still and put track
 // info only on the tuner box's LCD, not on the TV at all.
 //
 // Rather than deleting the modern readouts outright, they move behind this
@@ -48,7 +48,7 @@ export function themeFor(station) {
 // plugin did before for anyone who preferred it.
 export const ERAS = [
   { id: 'nineties', label: "'90s DIGITAL CABLE", transport: false, albumLine: false, vu: false, slideMs: 30000 },
-  { id: 'twothousands', label: "'2000s MUSIC CHOICE", transport: false, albumLine: true, vu: false, slideMs: 30000 },
+  { id: 'twothousands', label: "'2000s DIGITAL MUSIC", transport: false, albumLine: true, vu: false, slideMs: 30000 },
   { id: 'modern', label: 'MODERN (PROGRESS BAR + UP NEXT)', transport: true, albumLine: true, vu: true, slideMs: 12000 },
 ];
 export const DEFAULT_ERA = 'twothousands';
@@ -58,7 +58,7 @@ export function eraFor(settings) {
   return ERAS.find((e) => e.id === id) || ERAS.find((e) => e.id === DEFAULT_ERA);
 }
 
-// Music Choice colour-coded its on-screen theme by daypart (its own
+// Those services colour-coded their on-screen theme by daypart (its own
 // description of the pre-2021 graphics package), so the same station reads
 // warmer in the morning and cooler late at night. Pure function of the
 // timestamp, like everything else here, so a time-machine scrub to 3am gets
@@ -509,8 +509,8 @@ export function rankAlbumArtFiles(files) {
 // names above can't guess a GUID). The plug-in's folder scan walks subfolders
 // too; only files directly beside the track count.
 async function listFolderArt(dir) {
-  if (!window.api || !window.api.musicChoiceScanFolder) return null;
-  const result = await window.api.musicChoiceScanFolder({ folderPath: dir, kind: 'image' }).catch(() => null);
+  if (!window.api || !window.api.digitalMusicScanFolder) return null;
+  const result = await window.api.digitalMusicScanFolder({ folderPath: dir, kind: 'image' }).catch(() => null);
   const norm = (p) => String(p).replace(/\\/g, '/');
   const beside = ((result && result.files) || []).filter((f) => norm(f).slice(0, norm(f).lastIndexOf('/')) === norm(dir));
   const best = rankAlbumArtFiles(beside);
@@ -550,8 +550,8 @@ export async function resolveAlbumArt(trackPath, opts) {
   // and hands back the image as base64, so it is worth doing last and worth
   // caching per track. Unlike a folder cover, embedded art is genuinely
   // per-track, so there is nothing to share across the album here.
-  if (!found && window.api && window.api.musicChoiceEmbeddedArt) {
-    const result = await window.api.musicChoiceEmbeddedArt({ filePath: trackPath }).catch(() => null);
+  if (!found && window.api && window.api.digitalMusicEmbeddedArt) {
+    const result = await window.api.digitalMusicEmbeddedArt({ filePath: trackPath }).catch(() => null);
     if (result && result.art) found = result.art;
   }
   trackArtCache.set(trackPath, found || null);
@@ -559,7 +559,7 @@ export async function resolveAlbumArt(trackPath, opts) {
 }
 
 // ---------- The rotating info strip ----------
-// The piece of Music Choice's on-screen grammar this plugin was missing: a
+// The piece of that on-screen grammar this plugin was missing: a
 // strip that cycles every ~30s rather than one static readout. Built fresh
 // each tick from whatever is actually available and indexed off the
 // timestamp, so it is a pure function of (inputs, now) like the playback
@@ -656,10 +656,10 @@ function formatClock(sec) {
 }
 
 function getSettings() {
-  return window.RCBPlugins.ctx.settings.getPluginSettings('music-choice-channel');
+  return window.RCBPlugins.ctx.settings.getPluginSettings('digital-music-channel');
 }
 function updateSettings(patch) {
-  return window.RCBPlugins.ctx.settings.updatePluginSettings('music-choice-channel', patch);
+  return window.RCBPlugins.ctx.settings.updatePluginSettings('digital-music-channel', patch);
 }
 
 function selectedStation(settings) {
@@ -692,7 +692,7 @@ let libraryIndex = null;
 // The live rotation is a pure function of (station, now) and cannot pause or
 // seek — it is a broadcast. Pausing, seeking, skipping, or picking something
 // from search steps OFF the broadcast into an on-demand session instead, the
-// way digital cable's Music Choice On Demand sat beside its linear channels.
+// way digital cable's on-demand music sat beside its linear channels.
 // While it lasts the player's own clock is the truth, not viewNow(): that is
 // the whole point of it. Leaving it (Back/L, the end of the list, a station
 // pick, the time machine) drops straight back onto the live rotation, which
@@ -814,7 +814,7 @@ function updateMediaSessionTrack(track, meta) {
   if (!ms || typeof window.MediaMetadata !== 'function' || mediaSessionTrackPath === track.path) return;
   mediaSessionTrackPath = track.path;
   try {
-    ms.metadata = new window.MediaMetadata({ title: meta.title, artist: meta.artist, album: meta.album || `MUSIC CHOICE · CH ${CHANNEL_NUMBER}` });
+    ms.metadata = new window.MediaMetadata({ title: meta.title, artist: meta.artist, album: meta.album || `DIGITAL MUSIC · CH ${CHANNEL_NUMBER}` });
   } catch (e) { /* decoration only */ }
 }
 
@@ -1081,7 +1081,7 @@ function togglePause(ctx) {
   return setPaused(ctx, !(od && od.paused));
 }
 
-// SETTINGS › Music Choice › Playback controls: the length of one ◀▶ step.
+// SETTINGS › Digital Music › Playback controls: the length of one ◀▶ step.
 function seekStepSec() {
   const n = Number(getSettings().seekStepSec);
   return Number.isFinite(n) ? Math.min(60, Math.max(2, n)) : 10;
@@ -1820,9 +1820,9 @@ function cycleStation(ctx, dir) {
 }
 
 
-window.RCBPlugins.registerChannelType('music-choice-channel', {
+window.RCBPlugins.registerChannelType('digital-music-channel', {
   number: CHANNEL_NUMBER,
-  label: 'MUSIC CHOICE',
+  label: 'DIGITAL MUSIC',
   // Internally compares window.S.currentNumber against the CHANNEL_NUMBER
   // constant above rather than reading a live effective number, so a
   // user-set number override (Channel Setup's PLUGIN CHANNELS section)
@@ -1865,7 +1865,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
         </div>
         <div class="mc-chrome">
           <div class="mc-bug">
-            <div class="mc-bug-brand">MUSIC CHOICE</div>
+            <div class="mc-bug-brand">DIGITAL MUSIC</div>
             <div class="mc-bug-station" data-el="station-name">&nbsp;</div>
             <div class="mc-bug-meta">
               <span class="mc-chnum">CH ${CHANNEL_NUMBER}</span>
@@ -1874,7 +1874,7 @@ window.RCBPlugins.registerChannelType('music-choice-channel', {
           </div>
           <div class="mc-empty hidden" data-el="empty">
             <div class="mc-empty-title">NO STATIONS CONFIGURED</div>
-            <div class="mc-empty-body">Add a station and point it at a music folder in PLUGINS &rarr; MUSIC CHOICE CHANNEL settings.</div>
+            <div class="mc-empty-body">Add a station and point it at a music folder in PLUGINS &rarr; DIGITAL MUSIC CHANNEL settings.</div>
           </div>
           <div class="mc-probe-hint hidden" data-el="probe-hint">DURATIONS NOT YET PROBED — RESCAN THIS STATION IN SETTINGS</div>
           <div class="mc-now-playing hidden" data-el="now-playing">

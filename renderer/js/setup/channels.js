@@ -1331,7 +1331,7 @@ channelListPaneEl?.addEventListener('keydown', (e) => {
 // plugin channel today, so this only needs to remember open/closed.
 const openPluginChannelPanels = new Set();
 
-// A registerChannelType channel (Music Choice, Party, Prevue, Public Access,
+// A registerChannelType channel (Digital Music, Party, Guide, Public Access,
 // etc. — plugins.js) has no entry in S.config.channels at all (see that
 // file's registerChannelType doc comment and virtual.js) — its content comes
 // entirely from the plugin's own render(), not from folders/files/a
@@ -1398,7 +1398,7 @@ function renderPluginChannelSection(list) {
     numInput.value = override.number;
     numInput.setAttribute('aria-label', 'Channel number');
     if (def.numberLocked) {
-      // Some plugins (music-choice-channel, party-channel) internally
+      // Some plugins (digital-music-channel, party-channel) internally
       // compare S.currentNumber against their OWN hardcoded channel-number
       // constant rather than reading a live effective number — renumbering
       // them here would desync those internal checks from the number the

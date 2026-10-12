@@ -162,8 +162,8 @@ export function cellIndexAt(cells, atMs) {
 // Abbreviated). A channel's own `callLetters` wins; otherwise one is derived:
 //   several words → initials ("The Movie Channel" → TMC, "WV Sports Channel"
 //     → WVSC: a word already in capitals, like WV, keeps all its letters);
-//   one word → itself when 6 letters or fewer ("NOGGIN"), else its first
-//     letter plus consonants up to 6 ("Nickelodeon" → NCKLDN).
+//   one word → itself when 6 letters or fewer ("GIGGLE"), else its first
+//     letter plus consonants up to 6 ("Retrovision" → RTRVSN).
 // "The" only counts when initials would otherwise be under 3 letters.
 export const CALL_LETTERS_MAX = 6;
 

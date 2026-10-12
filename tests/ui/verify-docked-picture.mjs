@@ -9,7 +9,7 @@
 //
 // Run it through the wrapper, never directly:
 //   powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
-//     -UserDataSource "C:\Users\zhubb\Apps\RerunTV\userData" `
+//     -UserDataSource "<installed-app-dir>\userData" `
 //     -Script verify-docked-picture.mjs
 import { chromium } from 'playwright-core';
 

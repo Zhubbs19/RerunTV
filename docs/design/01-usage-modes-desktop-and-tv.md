@@ -76,7 +76,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   - remote test shows unmapped presses, routes none, and saves to `userData/remote-profiles`;
   - learn mode maps a new keycode to GUIDE; handoff shows a QR for the Companion pairing URL;
   - SETUP › THEME steps and applies with ◀▶, and RENAME… works through the keyboard;
-  - the wizard runs end to end, Music Choice takes `move.right` via onAction while CH ▲ still tunes away,
+  - the wizard runs end to end, Digital Music takes `move.right` via onAction while CH ▲ still tunes away,
     gamepad Start/B open and close the menu, and Preview TV mode is session-only;
   - the TV menu and keyboard fit the screen with 64 px targets in all 26 themes.
 - Regression: full UI suite 36/36; doc 11's `verify-doc11.mjs` 34/34 (its TV press counts still 3 and 5).
@@ -84,7 +84,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   label, the keyboard opening under the docked guide, and the banner actions sitting over the rating
   badge.
 - Found and fixed along the way (pre-existing since the first commit): core called a plugin channel's
-  `stop()` with only `{ container }` although `render()` and the docs give it the full ctx, so Music Choice
+  `stop()` with only `{ container }` although `render()` and the docs give it the full ctx, so Digital Music
   threw on every tune-away and left its listeners on the shared player.
 - **Not verified:** the Hisense 50QD6030G (APK install, real long-press timing, step B0 capture), game
   controllers on real hardware, CEC, Tizen and webOS.
@@ -162,7 +162,7 @@ TV-mode behaviour with just D-pad, OK, Back, CH± and Play:
   remembered per device. A browser can't measure a 40" display, so that condition is dropped.
 - **Plugin actions** (§6.6, ctx v5): a channel type's `onAction(action, ctx)` receives `move.up/down/
   left/right`, `select`, `back`, `info` in TV mode; unhandled ones fall back to core (▲▼ change channel,
-  Back asks to leave). `ctx.input` has `usageMode`, `keyForAction`, `actions`. Music Choice, Tape
+  Back asks to leave). `ctx.input` has `usageMode`, `keyForAction`, `actions`. Digital Music, Tape
   Deck and Teletext Arcade adopt it by forwarding to their `onKey` — so the snake game now steers with
   the D-pad on a remote while CH± still changes channel. `PLUGIN_DEVELOPMENT.md` documents it.
 - **Preview TV mode** (§8): Settings › This device › PREVIEW puts this session in TV mode without
@@ -360,7 +360,7 @@ OS. Every TV-mode milestone is signed off on this set first; the other profiles 
 supported by the same pipeline but verified second.
 
 What is already known about this remote, from building the Android client against it
-(`android-tv-client/.../MainActivity.kt`, `docs/integrations/retro_cable_box_lan_viewer.md`):
+(`android-tv-client/.../MainActivity.kt`):
 
 | Button | Delivered to the app? | Current use | TV-mode design use |
 |---|---|---|---|

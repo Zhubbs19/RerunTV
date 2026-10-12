@@ -3,7 +3,7 @@
 // a one-time snapshot (taken when the panel was expanded — see
 // setup-plugin-settings.js's makeContext), not a live reference, so this
 // reads/writes through window.RCBPlugins.ctx.settings.getPluginSettings/
-// updatePluginSettings instead, same as sponsor-billboard/music-choice-channel.
+// updatePluginSettings instead, same as sponsor-billboard/digital-music-channel.
 window.RCBPlugins.registerPluginSettings('film-reel-marks', {
   sections: [{
     id: 'general',

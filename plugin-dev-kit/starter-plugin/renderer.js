@@ -13,7 +13,7 @@ function updateClock(ctx) {
 // --- A channel ---
 // number 900 is a placeholder — pick a real, free channel number for your
 // own plugin. Numbers already used by core/other plugins: 0 (AUX), 1
-// (PREVUE), 2 (PUBLIC ACCESS), 3 (WEATHER), 51, 88, 94-99. A real user
+// (GUIDE), 2 (PUBLIC ACCESS), 3 (WEATHER), 51, 88, 94-99. A real user
 // channel at the same number always wins over a plugin channel, so a
 // collision just means your channel silently doesn't show up for anyone
 // who happens to have a real channel there — pick something unlikely to be

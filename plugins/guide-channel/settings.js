@@ -1,6 +1,6 @@
 // Settings unique to CH 1. Core prepends the standard channel display-mode
 // controls registered for every plugin-owned channel.
-window.RCBPlugins.registerPluginSettings('prevue', {
+window.RCBPlugins.registerPluginSettings('guide-channel', {
   sections: [{
     id: 'presentation',
     label: 'PREVIEW GUIDE PRESENTATION',
@@ -98,9 +98,9 @@ window.RCBPlugins.registerPluginSettings('prevue', {
 });
 
 // Lets the setup search find these settings without opening this plugin first.
-window.RCBPlugins.ctx.search?.registerEntries('prevue', [
-  { label: 'Guide station label', keywords: 'prevue name identity', section: 'presentation' },
-  { label: 'Listing crawl speed', keywords: 'prevue scroll pace', section: 'presentation' },
-  { label: 'Rotate the now-playing spotlight', keywords: 'prevue spotlight card', section: 'presentation' },
-  { label: 'Spotlight duration', keywords: 'prevue spotlight seconds', section: 'presentation' },
+window.RCBPlugins.ctx.search?.registerEntries('guide-channel', [
+  { label: 'Guide station label', keywords: 'guide name identity', section: 'presentation' },
+  { label: 'Listing crawl speed', keywords: 'guide scroll pace', section: 'presentation' },
+  { label: 'Rotate the now-playing spotlight', keywords: 'guide spotlight card', section: 'presentation' },
+  { label: 'Spotlight duration', keywords: 'guide spotlight seconds', section: 'presentation' },
 ]);

@@ -113,7 +113,7 @@ LOOK sections (36/36).
   (`renderer/js/plugin/host.js` `getPluginSearchEntries`), found without opening Plug-ins.
 - `ctx.search.registerEntries(id, [{ label, keywords, section }])` (ctx v4, also
   `RCBPlugins.registerSettingsSearchEntries`) names settings a plugin draws itself; they appear
-  under SETTINGS as `PLUG-INS › <plugin> › <label>`. Prevue registers its four.
+  under SETTINGS as `PLUG-INS › <plugin> › <label>`. The guide plugin registers its four.
 - Choosing either opens Plug-ins with the plugin selected (clearing any filter or category that
   hides it) and scrolls to the section (`data-section-id`).
 
@@ -400,12 +400,12 @@ Mapping from today:
 ┌──────────────┬───────────────────────────────────────────────────────────┐
 │  RERUNTV     │  Channels                                  ⌕ Search  (Ctrl+K)│  ← 56px header
 │              ├─────────────────────────┬─────────────────────────────────┤
-│  ▶ Watch     │  ⌕ filter   + Add       │  CH 7  Nickelodeon       ▶ Preview │
+│  ▶ Watch     │  ⌕ filter   + Add       │  CH 7  Retrovision       ▶ Preview │
 │  Channels  ● │  ─────────────────────  │  Overview  Content  Schedule  Look │
-│  Programming │  5  Boomerang   Baseb…  │  ───────────────────────────────── │
-│  Library     │  6  The Office  Whistl… │  (detail page scrolls here)        │
-│  Picture…    │ ▸7  Nickelodeon SpongeB │                                    │
-│  Guide…      │  8  Noggin      Blue's… │                                    │
+│  Programming │  5  Rewind      Baseb…  │  ───────────────────────────────── │
+│  Library     │  6  Workplace   Whistl… │  (detail page scrolls here)        │
+│  Picture…    │ ▸7  Retrovision Cart… │                                    │
+│  Guide…      │  8  Playtime    Puppy… │                                    │
 │  Household   │  …                      │                                    │
 │  System      │                         │                                    │
 │  Plug-ins    │                         │                                    │

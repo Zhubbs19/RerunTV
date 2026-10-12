@@ -167,7 +167,7 @@ function stopTimers() {
   spotlightTimer = null;
 }
 
-window.RCBPlugins.registerChannelType('prevue', {
+window.RCBPlugins.registerChannelType('guide-channel', {
   number: 1,
   label: 'PREVIEW GUIDE',
   nowText: 'Program Listings',

@@ -1,9 +1,9 @@
-// Scratch unit check for plugins/music-choice-channel/embedded-art.js.
+// Scratch unit check for plugins/digital-music-channel/embedded-art.js.
 // Plain Node, no Electron — the parser is pure Buffer work, so it is worth
 // testing against hand-built tags rather than hoping a real library happens
 // to contain every shape. Run: node tests/ui/verify-embedded-art.js
 const assert = require('node:assert');
-const { extractEmbeddedArt } = require('../plugins/music-choice-channel/embedded-art.js');
+const { extractEmbeddedArt } = require('../plugins/digital-music-channel/embedded-art.js');
 
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex'); // PNG magic + IHDR start
 const JPEG = Buffer.from('ffd8ffe000104a464946', 'hex');

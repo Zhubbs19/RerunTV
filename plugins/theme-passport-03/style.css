@@ -2,7 +2,7 @@
    guide software running on PowerTV OS, deployed on Scientific Atlanta and
    Motorola boxes through the early-2000s. A modest soft gradient/bevel is
    in-period here (PowerTV's flat-color-fill graphics layer had a little more
-   headroom than Prevue's Amiga did) but still restrained. See renderer.js
+   headroom than the early Amiga-era guides did) but still restrained. See renderer.js
    for the registration call. */
 html[data-theme="passport-03"] {
   --motion-control-duration: 80ms; --motion-control-ease: steps(2, end); --motion-control-hover: translateY(-1px); --motion-control-active: translate(1px, 1px);
@@ -95,7 +95,7 @@ html[data-theme="passport-03"] {
 html[data-theme="passport-03"] :is(input, select, textarea) { border-radius: 0; }
 html[data-theme="passport-03"] :is(input, select, textarea):focus { border-color: #fff14b; outline: 2px solid #55bdb1; outline-offset: 1px; }
 
-/* A newer, better-maintained tube than Prevue's era — one gentle overshoot
+/* A newer, better-maintained tube than the early guide era — one gentle overshoot
    partway through instead of several stutters. */
 html[data-theme="passport-03"] { --power-off-animation: crt-fx-off-line-passport-03; }
 html[data-theme="passport-03"] { --power-on-animation: crt-fx-on-line-passport-03; }

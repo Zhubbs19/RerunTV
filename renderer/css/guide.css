@@ -684,7 +684,7 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
      wash on top of it. Invisible on themes whose --guide-channel-bg is
      already close to the grid's own dark background, but a real bug on
      any theme that deliberately uses a LIGHT channel-cell color (e.g.
-     theme-prevue-guide-94's near-white channel ID cards) — the light
+     theme-scrolling-guide-94's near-white channel ID cards) — the light
      background disappeared on selection, leaving that theme's dark
      --guide-channel-subtle text (tuned for the light background) sitting
      on the dark grid background behind it instead, unreadable.

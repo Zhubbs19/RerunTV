@@ -8,7 +8,7 @@
 //
 // Run it through the wrapper, never directly:
 //   powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
-//     -UserDataSource "C:\Users\zhubb\Apps\RerunTV\userData" -Script verify-library-ui.mjs
+//     -UserDataSource "<installed-app-dir>\userData" -Script verify-library-ui.mjs
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';

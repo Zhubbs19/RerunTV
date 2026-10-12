@@ -206,7 +206,7 @@ assume it hung if it's still running after a few minutes.
   other side at runtime, by dropping a title's chapters when its IFO runtime
   disagrees with what ffmpeg actually decoded.
 - `verify-embedded-art.js` — plain `node tests/ui/verify-embedded-art.js`, no
-  Electron. Unit checks for the music-choice plugin's tag parser (ID3v2.2/
+  Electron. Unit checks for the digital-music plugin's tag parser (ID3v2.2/
   2.3/2.4, FLAC, MP4) against hand-built tags, including malformed input
   that must return null rather than throw. Byte parsing is easy to regress
   and cheap to cover, so this is tracked rather than left as scratch.

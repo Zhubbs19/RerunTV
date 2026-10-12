@@ -1,4 +1,4 @@
-/* Music Choice Channel (CH 910) — a retro '90s/2000s digital-cable audio
+/* Digital Music Channel (CH 910) — a retro '90s/2000s digital-cable audio
    channel look: a genre-colored still/slideshow/video background behind a
    plain, high-contrast NOW PLAYING readout, no video-of-the-song, just the
    channel "bug" + artist/title text real cable audio services used. Same
@@ -61,7 +61,7 @@
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.2) 40%, rgba(0, 0, 0, 0.85) 100%);
 }
 
-/* Music Choice tinted its whole on-screen package by daypart, so the same
+/* Those services tinted their whole on-screen package by daypart, so the same
    station reads warmer in the morning and colder overnight. The colour comes
    from --mc-daypart-tint (daypartFor, renderer.js), recomputed off viewNow()
    rather than the wall clock so the time machine changes it too. */
@@ -267,7 +267,7 @@
   letter-spacing: 0.5px;
 }
 
-/* The rotating strip. Music Choice carried a small rectangle holding artist
+/* The rotating strip. Those services carried a small rectangle holding artist
    information, "Did You Know?" factoids and banner copy, swapping every ~30s
    while the now-playing readout stayed put — reproduced by resolveInfoSlide
    (renderer.js), which indexes off the timestamp so a time-machine scrub

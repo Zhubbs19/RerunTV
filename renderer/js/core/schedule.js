@@ -59,8 +59,8 @@ function inDateRange(atMs, t) {
 }
 
 // A dateRange trigger can optionally *also* narrow to specific hours and/or
-// days of week — layered on top of the date match as an AND, e.g. "25 Days
-// of Christmas, but only 6-10pm" or "every Friday in October" (a Halloween
+// days of week — layered on top of the date match as an AND, e.g. "a December
+// countdown, but only 6-10pm" or "every Friday in October" (a Halloween
 // movie night). Reuses the exact same `days`/`startHour`/`endHour` fields
 // and hourInRange/day-filter logic dayOfWeek triggers already use — this
 // isn't a new trigger shape, just those fields being optionally present on
@@ -312,7 +312,7 @@ function alignToWeekday(dateMs, weekday) {
 
 // Weekly-rotation mode for a standing dayOfWeek block (e.g. every Friday
 // 8-10pm) — a different file from the block's folder each week instead of
-// looping the whole folder, the "Disney Channel Movie" pattern. Mirrors
+// looping the whole folder, the weekly "movie premiere night" pattern. Mirrors
 // resolveDailySource's shape (one file, anchored to when this occurrence's
 // window opened) but keyed by weekly occurrence count instead of calendar
 // date, since a dayOfWeek trigger has no calendar "day 1" of its own — the

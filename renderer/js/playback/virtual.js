@@ -164,7 +164,7 @@ export function hideVirtualChannels() {
     if (def && typeof def.stop === 'function') {
       // The same ctx render() gets (PLUGIN_DEVELOPMENT.md documents stop(ctx)),
       // plus the container older plugins read. Passing only { container } left
-      // Music Choice's stop() throwing on ctx.player and its ended/error
+      // the music channel's stop() throwing on ctx.player and its ended/error
       // listeners attached to the shared player after tuning away.
       try { def.stop({ ...window.RCBPlugins.ctx, container: pluginChannelContainerEl }); } catch (e) { console.error(`[plugin ${activePluginChannelId}] stop() threw`, e); }
     }

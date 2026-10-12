@@ -9,7 +9,7 @@ window.RCBPlugins.registerThemePack('passport-03', {
   label: "COBALT GRID '03",
   group: 'REAL CABLE-BOX UI',
   preview: { background: '#05132e', accent: '#ffd23f', secondary: '#4da3ff' },
-  // A newer set than Prevue's era but still a real tube — moderate bias.
+  // A newer set than the early guide era but still a real tube — moderate bias.
   crtBias: { scanlines: 1.1, vignette: 1.15, grain: 1.2, flicker: 1.1, curvatureFloor: 12 },
   staticStyle: 'quiet',
   channelChangeSfx() {

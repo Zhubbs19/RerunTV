@@ -23,7 +23,7 @@ function makeDisk(initial) {
 }
 
 function baseConfig() {
-  return { theme: 'digital-2000s', display: { clock24: false }, plugins: { disabled: ['weather'] }, channels: [{ number: 5, name: 'Boomerang', files: [] }] };
+  return { theme: 'digital-2000s', display: { clock24: false }, plugins: { disabled: ['weather'] }, channels: [{ number: 5, name: 'Rewind', files: [] }] };
 }
 
 function makeHost(store, broadcasts = []) {
@@ -192,7 +192,7 @@ test('only writes a viewer would see are announced', () => {
   assert.equal(notices, 0);
 
   // A real edit is announced once, and an identical rewrite is not.
-  const edited = { ...watched, channels: [{ number: 5, name: 'Boomerang HD', files: [] }] };
+  const edited = { ...watched, channels: [{ number: 5, name: 'Rewind HD', files: [] }] };
   assert.equal(announcer.written(edited), true);
   assert.equal(announcer.written({ ...edited, lastChannel: 9 }), false);
   assert.equal(notices, 1);
@@ -237,32 +237,32 @@ test('the host loads the real commands module from main/config/', async () => {
 const asClient = (client, id, baseRevision) => ({ origin: 'client', client, id, baseRevision, source: client });
 
 test('two clients editing different channels both apply', async () => {
-  const store = makeDisk({ ...baseConfig(), channels: [{ number: 5, name: 'Boomerang', files: [] }, { number: 9, name: 'Nick', files: [] }] });
+  const store = makeDisk({ ...baseConfig(), channels: [{ number: 5, name: 'Rewind', files: [] }, { number: 9, name: 'Kidz', files: [] }] });
   const host = makeHost(store);
 
-  const laptop = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
-  const phone = await host.applyCommands([{ type: 'channel.rename', channel: 9, name: 'Nickelodeon' }], asClient('phone', 'b2', 0));
+  const laptop = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Toon Town' }], asClient('laptop', 'b1', 0));
+  const phone = await host.applyCommands([{ type: 'channel.rename', channel: 9, name: 'Retrovision' }], asClient('phone', 'b2', 0));
 
   assert.equal(laptop.ok, true);
   assert.equal(phone.ok, true, 'a batch built against revision 0 still applies when it touches something else');
   assert.equal(phone.revision, 2);
   const saved = store.read();
-  assert.equal(saved.channels.find((c) => c.number === 5).name, 'Cartoon Network');
-  assert.equal(saved.channels.find((c) => c.number === 9).name, 'Nickelodeon');
+  assert.equal(saved.channels.find((c) => c.number === 5).name, 'Toon Town');
+  assert.equal(saved.channels.find((c) => c.number === 9).name, 'Retrovision');
 });
 
 test('a stale client editing what another client just changed is refused', async () => {
   const store = makeDisk(baseConfig());
   const host = makeHost(store);
 
-  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Toon Town' }], asClient('laptop', 'b1', 0));
   const phone = await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Toonami' }], asClient('phone', 'b2', 0));
 
   assert.equal(phone.ok, false);
   assert.equal(phone.reason, 'conflict');
   assert.equal(phone.revision, 1, 'the refusal tells the client where the host actually is');
-  assert.deepEqual(phone.conflictsWith, [{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }]);
-  assert.equal(store.read().channels[0].name, 'Cartoon Network', 'nothing was applied');
+  assert.deepEqual(phone.conflictsWith, [{ type: 'channel.rename', channel: 5, name: 'Toon Town' }]);
+  assert.equal(store.read().channels[0].name, 'Toon Town', 'nothing was applied');
 });
 
 test("a client's own earlier edits never conflict with its later ones", async () => {
@@ -332,7 +332,7 @@ test('a host command still applies over a client batch and is replayed onto a wh
   const store = makeDisk(baseConfig());
   const host = makeHost(store);
 
-  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Cartoon Network' }], asClient('laptop', 'b1', 0));
+  await host.applyCommands([{ type: 'channel.rename', channel: 5, name: 'Toon Town' }], asClient('laptop', 'b1', 0));
   await host.applyCommands({ type: 'plugin.setEnabled', id: 'weather', enabled: true }, { source: 'plugins' });
 
   // The laptop's own save, built before it saw the host's plugin command.

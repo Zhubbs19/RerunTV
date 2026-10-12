@@ -1,5 +1,5 @@
 // Drives the REAL time-machine UI (not just the pure functions) against the
-// real Disney config: tune to ch 71, enter time machine, scrub to a known
+// real lineup config: tune to ch 71, enter time machine, scrub to a known
 // ad-break timestamp, and check whether the shuttle preview actually shows
 // something break-like - plus test the jump-to-break keys end to end.
 import { chromium } from 'playwright-core';

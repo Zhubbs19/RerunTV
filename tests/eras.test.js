@@ -23,7 +23,7 @@ test('applying then clearing an era restores every touched value exactly (doc 10
   const before = JSON.stringify(config);
   applyEra(config, '1994');
   assert.notEqual(JSON.stringify(config), before, 'applying an era should change something');
-  assert.equal(config.theme, 'prevue-guide-94');
+  assert.equal(config.theme, 'scrolling-guide-94');
   assert.equal(config.crtEnabled, true);
   clearEra(config);
   assert.equal(JSON.stringify(config), before);
@@ -74,7 +74,7 @@ test('resetEraField restores one field and clears its override without touching 
   assert.equal(eraFieldSource(config, 'theme'), 'override');
   assert.equal(eraFieldSource(config, 'crtScanlines'), 'override');
   resetEraField(config, 'theme');
-  assert.equal(config.theme, 'prevue-guide-94');
+  assert.equal(config.theme, 'scrolling-guide-94');
   assert.equal(eraFieldSource(config, 'theme'), 'era');
   assert.equal(eraFieldSource(config, 'crtScanlines'), 'override', 'the other override is untouched');
   assert.equal(config.crtIntensity.scanlines, 5, 'and its value is untouched too');
@@ -100,7 +100,7 @@ test('switching eras re-snapshots from the currently active era, not the origina
   // clearing after switching restores to what was there right before the
   // *second* apply (i.e. 1994's values), since that's what applyEra snapshot
   // as "previous" the second time around - not all the way back to box settings.
-  assert.equal(config.theme, 'prevue-guide-94');
+  assert.equal(config.theme, 'scrolling-guide-94');
   assert.notEqual(JSON.stringify(config), before);
 });
 

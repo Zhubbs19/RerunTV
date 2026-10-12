@@ -30,7 +30,7 @@ const SPORTS = /\b(football|basketball|baseball|hockey|soccer|ncaa[fb]?|nfl|nba|
 // Episode codes, most specific first. The library uses a season-as-year
 // convention for old cartoons (S1940E05), so a four-digit "season" is a year.
 // Bounded by "not a letter or digit" rather than \b: an underscore is a word
-// character, so \b never matches in "Looney_Tunes_-_S1953E05".
+// character, so \b never matches in "Classic_Cartoons_-_S1953E05".
 const EPISODE_PATTERNS = [
   /(?<![a-z0-9])s(\d{1,4})[ ._-]?e(\d{1,3})(?![0-9])/i,
   /(?<![a-z0-9])(\d{1,2})x(\d{2,3})(?![0-9])/i,
@@ -142,8 +142,8 @@ export function analyzeRef(ref, duration) {
     reasons.kind = 'a sports recording';
   }
 
-  // The filename prefix before an episode code ("Looney_Tunes_-_S1953E05",
-  // "Blue's Clues S03E52") names the series too. It is the only source for a
+  // The filename prefix before an episode code ("Classic_Cartoons_-_S1953E05",
+  // "Puppy Pals S03E52") names the series too. It is the only source for a
   // provider ref, whose folder is an opaque id such as an archive.org item.
   let prefix = null;
   for (const pattern of EPISODE_PATTERNS) {

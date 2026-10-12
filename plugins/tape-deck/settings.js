@@ -17,7 +17,7 @@ const PLUGIN_ID = 'tape-deck';
 //
 // Both problems go away by reading and writing through the renderer-wide ctx,
 // which is always current — the same thing film-reel-marks and
-// music-choice-channel do for the same reason.
+// digital-music-channel do for the same reason.
 function core() {
   return window.RCBPlugins.ctx;
 }

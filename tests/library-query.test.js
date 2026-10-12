@@ -20,15 +20,15 @@ const ep = (id, series, season, episode, extra = {}) => ({
 });
 
 test('where: equality, arrays, operators, text, any and not', () => {
-  const item = ep('a', 'Seinfeld', 4, 11, { title: 'The Contest', tags: ['classic'], facets: { genre: ['sitcom', 'comedy'], era: '1990s' } });
+  const item = ep('a', 'City Sitcom', 4, 11, { title: 'The Wager', tags: ['classic'], facets: { genre: ['sitcom', 'comedy'], era: '1990s' } });
   assert.equal(q.matchesWhere(item, { kind: 'EPISODE' }), true, 'case-insensitive');
   assert.equal(q.matchesWhere(item, { 'facets.genre': 'comedy' }), true, 'an array field contains');
   assert.equal(q.matchesWhere(item, { 'facets.genre': ['drama', 'sitcom'] }), true, 'any of');
   assert.equal(q.matchesWhere(item, { 'series.season': { gte: 4, lt: 5 } }), true);
   assert.equal(q.matchesWhere(item, { 'facets.era': { lte: '1980s' } }), false, 'decades compare as text');
-  assert.equal(q.matchesWhere(item, { text: 'contest' }), true);
+  assert.equal(q.matchesWhere(item, { text: 'wager' }), true);
   assert.equal(q.matchesWhere(item, { any: [{ kind: 'movie' }, { tags: 'classic' }] }), true);
-  assert.equal(q.matchesWhere(item, { not: { 'series.name': 'seinfeld' } }), false);
+  assert.equal(q.matchesWhere(item, { not: { 'series.name': 'city sitcom' } }), false);
   assert.equal(q.matchesWhere(item, { rating: { exists: false } }), true);
   assert.throws(() => q.validateWhere({ kind: { like: 'x' } }), /Unknown query operator/);
   assert.throws(() => q.validateWhere([]), /at least one condition/);

@@ -266,13 +266,13 @@ record('first-run wizard walks welcome → channels → updates → remote check
   /WELCOME/.test(step1) && /ADD YOUR CHANNELS/.test(step2) && /UPDATE/.test(step3) && /Press OK/.test(step4) && /ALL SET/.test(step5) && wizard && wizard.updateStrategy === 'manual',
   `${step1} → ${step2} → ${step3} → ${step4} → ${step5} → ${JSON.stringify(wizard)}`);
 
-// plugin actions: Music Choice ◀▶ cycles its station through onAction
+// plugin actions: Digital Music ◀▶ cycles its station through onAction
 const mc = await js(() => { const n = 910; return window.S.config && (async () => { const v = await import('app://bundle/renderer/js/playback/virtual.js'); return v.virtualChannelNumbers().includes(n) ? n : null; })(); });
 if (mc) {
   await js(async (n) => { const { tuneToChannel } = await import('app://bundle/renderer/js/playback/core.js'); await tuneToChannel(n); }, mc);
   await wait(2500);
   const handles = await js(async (n) => (await import('app://bundle/renderer/js/playback/virtual.js')).virtualChannelHandlesActions(n), mc);
-  const stationCount = await js(() => ((window.S.config.pluginSettings || {})['music-choice-channel'] || {}).stations?.length || 0);
+  const stationCount = await js(() => ((window.S.config.pluginSettings || {})['digital-music-channel'] || {}).stations?.length || 0);
   const stationBefore = await js(() => document.querySelector('[data-el="station-name"]')?.textContent);
   const handled = await js(async (n) => (await import('app://bundle/renderer/js/playback/virtual.js')).triggerVirtualChannelAction(n, 'move.right'), mc);
   await wait(900);
@@ -281,9 +281,9 @@ if (mc) {
   await android('chUp'); await wait(1500);
   const leftMc = await js(() => window.S.currentNumber);
   const changed = stationCount < 2 ? true : stationBefore !== stationAfter;
-  record('plugin onAction: ▶ reaches Music Choice (station changes when it has 2+), CH ▲ still tunes away', handles && handled && changed && onMc === mc && leftMc !== mc, `handles ${handles}, handled ${handled}, ${stationCount} stations, "${stationBefore}" → "${stationAfter}", on ${onMc}, then ${leftMc}`);
+  record('plugin onAction: ▶ reaches Digital Music (station changes when it has 2+), CH ▲ still tunes away', handles && handled && changed && onMc === mc && leftMc !== mc, `handles ${handles}, handled ${handled}, ${stationCount} stations, "${stationBefore}" → "${stationAfter}", on ${onMc}, then ${leftMc}`);
 } else {
-  record('plugin onAction: Music Choice not installed in this copy', true, 'skipped');
+  record('plugin onAction: Digital Music not installed in this copy', true, 'skipped');
 }
 await js(async (n) => { const { tuneToChannel } = await import('app://bundle/renderer/js/playback/core.js'); await tuneToChannel(n); }, firstChannel);
 await wait(1200);

@@ -261,7 +261,7 @@ export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', '
 // the same direction still step up through the whole ladder same as before.
 export const SHUTTLE_SPEEDS = [5, 15, 60, 300, 1800, 7200];
 // No channel-number constants live here at all anymore — every one of them
-// (AUX/WEATHER/PARTY/HBO/HSN/AREA51/GAME/PPV/SYNTH/TELETEXT) was either dead
+// (AUX/WEATHER/PARTY/MOVIES/SHOPPING/AREA51/GAME/PPV/SYNTH/TELETEXT) was either dead
 // weight or a duplicate of data a plugin already registers for itself via
 // registerChannelType(). Core code that needs to know "what's registered at
 // this number" asks generically instead of hardcoding a constant per plugin

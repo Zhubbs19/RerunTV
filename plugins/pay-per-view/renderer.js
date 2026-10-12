@@ -2,7 +2,7 @@
 // panel, no main-process backend — a rotating fake event card, an order
 // flow (confirm modal -> 30s unscrambled window -> success modal), and the
 // remote OK-button shortcut (onOk) to jump straight to the confirm modal.
-// Migrated as-is from the old core ppv-hbo.js/virtual.js.
+// Migrated as-is from the old core pay-per-view module/virtual.js.
 const PPV_PARODY_EVENTS = [
   { title: 'EVENT #401: WORLD CHAMPIONSHIP THUMB WRESTLING IX', price: '$49.95' },
   { title: 'EVENT #402: MONSTER TRUCK DESTRUCTION: GRAVE DIGGER VS DUMPSTER', price: '$29.95' },
