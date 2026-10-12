@@ -3,7 +3,7 @@
 // utilityProcess.fork(), a genuine forked Node process — not a same-process
 // require() with a JS-level capability check, which is all Phase 1 offered)
 // instead of loadMainPlugins()'s normal require()+buildCheckedCtx() path in
-// main-plugins.js. See [[retro_cable_box_plugin_sandboxing_phase2]] for why:
+// main-plugins.js. Why:
 // Node has no supported way to sandbox arbitrary require()d code within the
 // same process, so genuine isolation needs a real process boundary.
 //

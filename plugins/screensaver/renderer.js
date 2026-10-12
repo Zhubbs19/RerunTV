@@ -6,7 +6,7 @@
 // style.css — a test pattern, a stand-by slate, a promo scroll, or a
 // signal-diagnostics readout.
 // This plugin's own config namespace, seeded here (not by core) — see
-// [[retro_cable_box_plugin_system]].
+// PLUGIN_DEVELOPMENT.md.
 if (!S.config.screensaver) S.config.screensaver = { enabled: false, intervalMinutes: 5, variant: 'auto' };
 if (!S.config.screensaver.variant) S.config.screensaver.variant = 'auto';
 
@@ -28,13 +28,13 @@ const screensaverEl = document.createElement('div');
 screensaverEl.id = 'screensaver';
 screensaverEl.className = 'screensaver hidden';
 screensaverEl.innerHTML = `
-  <div class="screensaver-bounce" id="screensaver-bounce">RETRO CABLE BOX</div>
+  <div class="screensaver-bounce" id="screensaver-bounce">RERUNTV</div>
 
   <div class="screensaver-variant screensaver-testcard">
     <div class="testcard-bars">
       <span></span><span></span><span></span><span></span><span></span><span></span><span></span>
     </div>
-    <div class="testcard-label">RETRO CABLE BOX &middot; 1 kHz REFERENCE TONE</div>
+    <div class="testcard-label">RERUNTV &middot; 1 kHz REFERENCE TONE</div>
   </div>
 
   <div class="screensaver-variant screensaver-standby">
@@ -46,7 +46,7 @@ screensaverEl.innerHTML = `
     <div class="lineup-list">
       <span>STAY TUNED FOR MORE GREAT PROGRAMMING</span>
       <span>PRIMETIME CONTINUES AFTER THIS BREAK</span>
-      <span>THANKS FOR WATCHING THE RETRO CABLE BOX</span>
+      <span>THANKS FOR WATCHING RERUNTV</span>
       <span>WE'LL BE RIGHT BACK</span>
     </div>
   </div>
@@ -67,7 +67,7 @@ function hide() {
 }
 
 // Interrupt guards read straight off window.S (the live app-state object
-// core already exposes — see [[retro_cable_box_plugin_system]]) and query
+// core already exposes — see PLUGIN_DEVELOPMENT.md) and query
 // the core-owned #guide-grid element directly, same as any other DOM on
 // this page — no dedicated core-state-accessor API needed since both are
 // already reachable this way.
@@ -102,7 +102,7 @@ export function applyScreensaverText() {
   const text = String((S.config.screensaver && S.config.screensaver.text) || '').trim().toUpperCase();
   const bounce = screensaverEl.querySelector('.screensaver-bounce');
   const slate = screensaverEl.querySelector('.standby-slate');
-  if (bounce) bounce.textContent = text || 'RETRO CABLE BOX';
+  if (bounce) bounce.textContent = text || 'RERUNTV';
   if (slate) slate.textContent = text || 'PLEASE STAND BY';
 }
 

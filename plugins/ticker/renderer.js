@@ -73,5 +73,5 @@ window.addEventListener('resize', applyTickerStyle);
 // "functions core exposes" table — core (app.js, party.js) and any other
 // plugin calls window.applyTickerState() to re-render the bar without
 // needing to import this plugin's module directly (different app://
-// origin — see [[retro_cable_box_plugin_system]]).
+// origin — see PLUGIN_DEVELOPMENT.md).
 window.applyTickerState = applyTickerState;

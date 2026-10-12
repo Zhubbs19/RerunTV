@@ -222,7 +222,7 @@ export const S = {
   // from its own renderer.js top level instead, the same pattern
   // config.<pluginId> already uses. A plain JS object doesn't care whether a
   // field was in this literal or added later, so there's nothing else to
-  // change for this to work — see [[retro_cable_box_plugin_system]].
+  // change for this to work — see PLUGIN_DEVELOPMENT.md.
   // ---------- Parental PIN lock & VCR Tracking ----------
   pinLockActive: false,
   pinBuffer: '',

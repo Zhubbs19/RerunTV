@@ -1,6 +1,6 @@
 // Entry point for the setup/settings screen. The actual implementation
 // lives across several sibling modules (split out of a single 2200+ line
-// file — see [[retro-cable-box-code-ux-audit]]):
+// file):
 //   setup-util.js          shared helpers (toggleLazyPanel, parsePositiveInt, probeDuration)
 //   setup-overlay-position-editor.js accessible live dynamic-overlay placement screen
 //   setup-panels.js        per-channel EDIT-tab panels: TITLES, FOLDERS, ADS, LOGO, THEME

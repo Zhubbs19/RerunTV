@@ -95,7 +95,7 @@ window.cancelUpNextBar = cancelUpNextBar;
 window.playChannelLive = playChannelLive;
 // A few core functions plugin settings panels/renderer.js modules need to
 // call but can't import directly (different app:// origin, no CORS from
-// bundle to plugins — see [[retro_cable_box_plugin_system]] memory). Same
+// bundle to plugins — see PLUGIN_DEVELOPMENT.md). Same
 // "expose on window" pattern as tuneToChannel/checkBreakState above.
 window.alertDialog = alertDialog;
 window.confirmDialog = confirmDialog;
@@ -212,7 +212,7 @@ export function handleKey(e) {
   // success confirmation, etc.) — any modal built inside
   // pluginChannelContainerEl following the
   // data-modal-dismiss/data-modal-confirm convention (see
-  // [[retro_cable_box_plugin_system]]) gets Escape-to-dismiss and
+  // PLUGIN_DEVELOPMENT.md) gets Escape-to-dismiss and
   // Enter/Space-to-confirm for free, without app.js needing to know about
   // each plugin's specific modal by name.
   const openPluginModal = pluginChannelContainerEl && pluginChannelContainerEl.querySelector('.preview-modal:not(.hidden)');
@@ -1121,7 +1121,7 @@ export function applyConfigDefaults(config) {
   // A plugin's own config namespace (config.<pluginId>) is seeded by that
   // plugin's own renderer.js at load time, not here — core doesn't need to
   // know any given plugin exists to apply its defaults. See
-  // [[retro_cable_box_plugin_system]].
+  // PLUGIN_DEVELOPMENT.md.
   if (!config.crtIntensity) config.crtIntensity = { scanlines: 100, vignette: 100, grain: 100, flicker: 50, curvature: 0 };
   if (config.crtIntensity.flicker == null) config.crtIntensity.flicker = 50;
   if (config.crtIntensity.curvature == null) config.crtIntensity.curvature = 0;

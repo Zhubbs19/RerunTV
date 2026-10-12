@@ -14,7 +14,7 @@ window.RCBPlugins.registerPluginSettings('screensaver', {
           AFTER <input type="number" min="1" data-el="interval"> MIN IDLE
         </div>
         <div class="panel-interval">
-          TEXT <input type="text" class="title-row-input" maxlength="30" placeholder="RETRO CABLE BOX / PLEASE STAND BY" data-el="text">
+          TEXT <input type="text" class="title-row-input" maxlength="30" placeholder="RERUNTV / PLEASE STAND BY" data-el="text">
         </div>
         <div class="panel-interval">
           <label><input type="checkbox" data-el="skip-plugin"> DON'T START ON PLUG-IN CHANNELS (MUSIC, WEATHER…)</label>

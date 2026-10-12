@@ -9,6 +9,8 @@ const pluginFiles = includeLocalPlugins
   : bundledPluginIds.map((id) => `plugins/${id}/**/*`);
 
 module.exports = {
+  // Legacy identifier from before the RerunTV name. It is the installer's
+  // identity, so changing it would break in-place updates for existing installs.
   appId: 'com.retrocablebox.foss',
   productName: 'RerunTV',
   directories: { output: 'dist' },

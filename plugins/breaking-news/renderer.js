@@ -14,7 +14,7 @@ const DEFAULT_HEADLINES = [
 ];
 
 // This plugin's own config namespace, seeded here (not by core) — see
-// [[retro_cable_box_plugin_system]].
+// PLUGIN_DEVELOPMENT.md.
 if (!S.config.breakingNews) {
   S.config.breakingNews = {
     enabled: false,
@@ -260,7 +260,7 @@ export function cancelNewsAlert() {
 // a one-off `window.RCBPlugins.breakingNews` escape hatch — core's keyboard
 // handler, TV menu, and tune-cleanup now iterate every registered interrupt
 // instead of hardcoding this plugin's id (see
-// [[retro_cable_box_plugin_system]]). app.js's party-triggered alerts
+// PLUGIN_DEVELOPMENT.md). app.js's party-triggered alerts
 // (bingo/caption-contest headlines) still reach this plugin specifically
 // via getInterrupt('breaking-news').run(...) since they pass alert-specific
 // payloads, not a generic trigger.

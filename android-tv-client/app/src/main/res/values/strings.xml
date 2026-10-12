@@ -17,10 +17,10 @@
     <string name="connection_lost_message">Can\'t reach the host — retrying automatically…</string>
     <string name="change_address">CHANGE ADDRESS</string>
     <string name="scan">SCAN</string>
-    <string name="scan_searching">Searching your network for Retro Cable Box…</string>
+    <string name="scan_searching">Searching your network for RerunTV…</string>
     <string name="scan_found">Found it — %1$s. Press CONNECT.</string>
     <string name="host_too_old">This RerunTV is too old for this TV app — update RerunTV on the computer, then try again.</string>
-    <string name="scan_not_found">Nothing found — make sure Retro Cable Box is running, then type the address manually.</string>
+    <string name="scan_not_found">Nothing found — make sure RerunTV is running, then type the address manually.</string>
     <string name="action_vol_down">VOL −</string>
     <string name="action_vol_up">VOL +</string>
     <string name="action_crt">CRT FX</string>

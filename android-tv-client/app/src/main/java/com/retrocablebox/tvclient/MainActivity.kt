@@ -35,7 +35,7 @@ import java.net.InetAddress
 import java.net.NetworkInterface
 
 /**
- * A thin fullscreen WebView wrapper around Retro Cable Box's LAN viewer
+ * A thin fullscreen WebView wrapper around RerunTV's LAN viewer
  * (see the Electron app's main.js: startViewerServer). This activity owns
  * three things a plain browser tab wouldn't give you on a TV: remembering
  * the host address across launches, a Settings-button-triggered form to
@@ -60,7 +60,7 @@ import java.net.NetworkInterface
  * numeric-entry toggle, a Settings gear icon, and fixed streaming-app
  * shortcut buttons that the OS reserves for launching those apps directly
  * (not deliverable to this app as ordinary key events). That means most of
- * Retro Cable Box's own shortcuts (Guide/Settings/Info/Mute/Time Machine —
+ * RerunTV's own shortcuts (Guide/Settings/Info/Mute/Time Machine —
  * all letter-key-bound in handleKey, app.js) have no 1:1 physical button to
  * land on. Rather than guess at undocumented vendor keycodes for the
  * remaining icons, the overlay screen doubles as a small D-pad-navigable
@@ -211,7 +211,7 @@ class MainActivity : AppCompatActivity() {
         if (savedHost.isNullOrBlank()) {
             showSetupOverlay()
             // A genuinely fresh install has nothing to lose by trying —
-            // saves the most common case (exactly one Retro Cable Box on
+            // saves the most common case (exactly one RerunTV on
             // the LAN) a manual IP lookup entirely. Only auto-runs once,
             // here; reopening the menu later never re-triggers it, only
             // pressing SCAN again does.

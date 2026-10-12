@@ -385,7 +385,7 @@ function discoverPlugins() {
         // rather than erroring the whole manifest — a plugin with no
         // capabilities block just can't do anything requiring one.
         capabilities: normalizeCapabilities(manifest.capabilities),
-        // Phase 2 sandboxing (see [[retro_cable_box_plugin_sandboxing_phase2]]):
+        // Phase 2 sandboxing :
         // a plugin whose manifest sets "isolated": true runs its main.js in
         // its own forked OS process (main-plugin-isolation.js) instead of
         // require()d straight into this one — see loadMainPlugins() below.

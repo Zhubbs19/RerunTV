@@ -651,7 +651,7 @@ function registerConfigIpc(ipcMain) {
   ipcMain.handle('config:export', async (event, config, suggestedName) => {
     const safeName = typeof suggestedName === 'string' && suggestedName.trim()
       ? suggestedName.replace(/[\\/:*?"<>|]/g, '_').trim()
-      : `retro-cable-box-config-${new Date().toISOString().slice(0, 10)}`;
+      : `reruntv-config-${new Date().toISOString().slice(0, 10)}`;
     const result = await dialog.showSaveDialog(getMainWindow(), {
       defaultPath: `${safeName}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],

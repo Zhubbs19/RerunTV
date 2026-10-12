@@ -14,7 +14,7 @@
 // row-editor implementations for the same data drifting apart). They're
 // now unified behind one exported entry point, buildUnifiedSchedulePanel,
 // which renders a single SCHEDULE tab with a BLOCKS/CALENDAR view toggle
-// instead of two separate tabs — see [[retro-cable-box-code-ux-audit]].
+// instead of two separate tabs.
 import { freshBlock, freshBroadcastHours } from '../core/channels.js';
 import { scanProgressEl } from '../core/dom.js';
 import { buildCommercialsPanel, buildTitlesPanel } from './panels.js';

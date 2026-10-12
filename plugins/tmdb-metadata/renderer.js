@@ -1,5 +1,5 @@
 // This plugin's own config namespace, seeded here (not by core) — see
-// [[retro_cable_box_plugin_system]]. window.RCBPlugins.ctx is set before any
+// PLUGIN_DEVELOPMENT.md. window.RCBPlugins.ctx is set before any
 // plugin renderer.js is imported (plugins.js's loadPlugins()), so this is
 // safe to read at module top level, before this plugin's own render() has
 // ever been called.

@@ -4,7 +4,7 @@
 // it). A genuine Severe/Extreme alert triggers the breaking-news plugin's
 // interrupt slate via getInterrupt('breaking-news').run({real}) — plugin-to-
 // plugin, not through core, since it's a real-alert override specific to
-// this pairing (see [[retro_cable_box_plugin_system]]); anything milder
+// this pairing (see PLUGIN_DEVELOPMENT.md); anything milder
 // just updates this panel's own status line.
 //
 // Shares config.eas with core (renderer/js/eas.js is gone now, but the
@@ -18,7 +18,7 @@ if (S.noaaSeenAlertIds === undefined) S.noaaSeenAlertIds = null;
 if (S.noaaLastAlerts === undefined) S.noaaLastAlerts = [];
 
 // Signal degradation's own config, seeded here — see
-// [[retro_cable_box_plugin_system]] for the "plugin config inside a
+// PLUGIN_DEVELOPMENT.md for the "plugin config inside a
 // core-shared namespace" pattern this and noaaEnabled/lat/lon above both
 // follow (config.eas, not a dedicated namespace, since it rides the same
 // alert poll this plugin already runs).

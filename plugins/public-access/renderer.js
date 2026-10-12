@@ -8,7 +8,7 @@
 // see plugins.js's installGlobalApi) rather than its own copy, same
 // can't-import-core-directly reason as guide-channel's identical clock display.
 // This plugin's own config namespace, seeded here (not by core) — see
-// [[retro_cable_box_plugin_system]].
+// PLUGIN_DEVELOPMENT.md.
 if (!window.RCBPlugins.ctx.S.config.publicAccess) window.RCBPlugins.ctx.S.config.publicAccess = { enabled: false, slides: [] };
 
 let currentContainer = null;

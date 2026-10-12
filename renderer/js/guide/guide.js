@@ -881,8 +881,7 @@ function selectedRow(rows = currentGuideRows()) {
 // passes instead of all at once — each channel's getChannelSchedule() call
 // is real work (recomputes that channel's schedule for the visible window),
 // and with 70+ channels doing it all synchronously on open is what caused
-// the guide-open freeze (see [[retro-cable-box-code-ux-audit]] /
-// [[retro-cable-box-architecture-constraints]]). renderGen guards against a
+// the guide-open freeze. renderGen guards against a
 // stale chunked pass (from a render that's since been superseded by a newer
 // renderGuideGrid() call — filter change, tick refresh, dock toggle)
 // continuing to append rows into a grid that's moved on.

@@ -17,7 +17,7 @@ const PARTY_CH = 94;
 
 // This plugin's own config namespace, seeded here (not by core) the same
 // way every other plugin with real config seeds its own — see
-// [[retro_cable_box_plugin_system]]. soundboardFolder is scanned
+// PLUGIN_DEVELOPMENT.md. soundboardFolder is scanned
 // server-side (main.js has no renderer-driven folder scan for it, unlike
 // channel folders) since the LAN party page's GET /soundboard needs the
 // list without a renderer round-trip.

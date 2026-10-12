@@ -60,9 +60,7 @@ if (customCssRemoveBtn) {
 // convention the Virtual Channels sub-tab already uses — see
 // setup-settings.js) makes "find the one I'm looking for" a type-ahead
 // instead of a scroll; (3) each row now shows its own dependsOn status
-// inline (previously nothing surfaced this at all — see
-// [[retro_cable_box_plugin_settings_relocation_and_eas_news_split]]'s "still
-// open" note) and dims when disabled, so enabled/disabled/broken/dependent
+// inline (previously nothing surfaced this at all) and dims when disabled, so enabled/disabled/broken/dependent
 // are all visible at a glance without expanding anything.
 function sortPluginsForDisplay(plugins) {
   return [...plugins].sort((a, b) => {

@@ -933,7 +933,7 @@ ipcMain.handle('notify:show', async (event, { title, body } = {}) => {
 ipcMain.handle('manual:openPrintable', async (event, html) => {
   // Unique filename (pid+timestamp) so two rapid clicks don't race a
   // still-open browser window's read against a second click's write.
-  const filePath = path.join(app.getPath('temp'), `retro-cable-box-manual-${process.pid}-${Date.now()}.html`);
+  const filePath = path.join(app.getPath('temp'), `reruntv-manual-${process.pid}-${Date.now()}.html`);
   fs.writeFileSync(filePath, html, 'utf-8');
   await shell.openPath(filePath);
   return filePath;

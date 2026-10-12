@@ -3,7 +3,7 @@
 // identifying User-Agent per their usage policy. Polled from the renderer
 // (eas.js) on its own timer — this handler just does the fetch+cache;
 // nothing here decides whether/when to interrupt playback.
-const HEADERS = { 'User-Agent': 'retro-cable-box (personal hobby project)', Accept: 'application/geo+json' };
+const HEADERS = { 'User-Agent': 'RerunTV (https://github.com/Zhubbs19/RerunTV)', Accept: 'application/geo+json' };
 
 function activate(ctx) {
   const { ipcMain, fetchJsonCached } = ctx;

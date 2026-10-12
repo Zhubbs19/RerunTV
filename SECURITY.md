@@ -84,6 +84,28 @@ security impact:
   local application files; and
 - dependency advisories without a reproducible impact on RerunTV.
 
+## Security model
+
+Knowing the design helps you judge what counts as a vulnerability:
+
+- **LAN services use plain HTTP.** The watch-on-other-devices viewer, the phone
+  remote and other plugin servers bind to the local network and are protected by
+  a per-boot pairing code, HttpOnly session cookies, rate limits and separate
+  view and control scopes. They are not encrypted, so run them only on a network
+  you trust. The Android clients allow cleartext traffic for the same reason.
+  Administration (installing plugins, approving capabilities, updates) is never
+  available remotely.
+- **Plugins are trusted code.** A plugin you install can run in the Electron
+  main process with full Node access. Declared capabilities (IPC channels,
+  spawned binaries, network ports, filesystem paths) are an approval step shown
+  to the user, not a sandbox. Only plugins whose manifest sets `"isolated": true`
+  run in a separate process. Install plugins only from sources you trust. See
+  the "Trust model" section of `PLUGIN_DEVELOPMENT.md`.
+- **Releases are unsigned.** Alpha installers are not code-signed, so Windows
+  SmartScreen warns on first run.
+- **No telemetry.** RerunTV makes no network requests of its own except the ones
+  you enable (update checks, weather, optional metadata plugins, and the optional ffmpeg download).
+
 ## Research guidelines
 
 Use only systems and data you own or have explicit permission to test. Avoid
