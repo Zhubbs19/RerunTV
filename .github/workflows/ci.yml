@@ -1,0 +1,28 @@
+name: CI
+
+# Runs the unit and contract tests on every push and pull request to master.
+# (The Build installer workflow only runs when the deploy branch moves.)
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Unit and contract tests
+        run: npm test

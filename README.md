@@ -1,5 +1,8 @@
 # RerunTV
 
+[![CI](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A desktop simulator of an old broadcast cable box. Point channels at folders in your own
 media library, then surf channels like it's live TV — complete with CRT scanlines, screen
 flicker, a channel-change static burst, and an early-2000s digital program guide.
@@ -10,6 +13,33 @@ playing right now if that folder had been looping continuously since then — ju
 flipping to a real channel mid-show. Nothing runs in the background; it's arithmetic
 against the wall clock, so closing the app for a week costs nothing and the schedule is
 still "correct" when you come back.
+
+## Screenshots
+
+Everything below is the bundled synthetic demo library (generated test video, see
+[Try it without your own media](#try-it-without-your-own-media)). No real shows are shown.
+
+| Live TV with the on-screen banner and CRT look | The program guide |
+| --- | --- |
+| ![Live channel](docs/screenshots/live.jpg) | ![Program guide](docs/screenshots/guide.jpg) |
+
+| Channel setup | Time machine |
+| --- | --- |
+| ![Channel setup](docs/screenshots/setup.png) | ![Time machine](docs/screenshots/time-machine.jpg) |
+
+## Try it without your own media
+
+RerunTV ships no video, so here is a generated demo lineup (five channels of synthetic test
+video and tones, nothing copyrighted). You need [ffmpeg](https://ffmpeg.org/download.html) on your PATH.
+
+```bash
+npm install
+node scripts/make-demo-library.js demo-library
+```
+
+Then in the app open Channel Setup, add a channel per folder under `demo-library/`, and press
+Start Watching. Pass `--seconds 60` for shorter clips that generate faster, and
+`--config <userDataFolder>` to also write a ready-made channel lineup.
 
 ## About RerunTV
 
@@ -361,11 +391,39 @@ Every "what's airing" calculation reads the clock through `viewNow()` rather tha
 playback, the guide, dayparting, and the on-screen clocks together. Channel anchors
 deliberately keep using real time, since they record when a folder was scanned.
 
+## Design decisions
+
+The choices that shaped the codebase (the full reasoning is in [`docs/design/`](docs/design/)):
+
+- **One clock.** Everything about "what is on now" reads time through a single `viewNow()`, never
+  `Date.now()`. Schedule resolution is a pure function of `(channel, timestamp)`, so the time machine
+  (scrub backward or forward, tune in, get the right schedule) needs no playback log: it re-evaluates
+  the same functions at another time.
+- **Arithmetic, not state.** A channel never "restarts." What is playing is computed from an anchor
+  time, so the app does no background work and closing it for a week costs nothing.
+- **Every config edit is a command.** Edits are named commands with computed inverses, which gives
+  undo/redo without storing snapshots, and the main process applies edits through one config host with
+  revisions so two windows or a paired phone can't silently overwrite each other.
+- **Plugins are explicit about power.** A plugin declares the IPC channels, binaries, ports and paths
+  it needs, the user approves them, and plugins that ask for real capabilities run in a separate OS
+  process. LAN pages need a per-boot pairing code and get view-only or control scope; administration
+  is never remote.
+- **Local first.** Playback and scheduling work offline. Anything that talks to the network (updates,
+  weather, metadata lookups) is opt-in or clearly scoped. See [SECURITY.md](SECURITY.md).
+- **Specs before big changes.** The larger reworks (usage modes, the programming timeline, the command
+  layer, the library, households, eras) each started as a numbered design document.
+- **Tested against the real app.** About 450 unit and contract tests run in CI, and a separate suite
+  drives the real Electron window over the Chrome DevTools Protocol (`tests/ui/`).
+
 ## Development
 
 This project is built with [Claude Code](https://claude.com/claude-code), directed by a
 single project owner — Claude writes the code, the project owner sets direction, makes the
 product/architecture calls, and reviews and approves everything that ships.
+
+The git history was filtered before this repository was made public, to remove personal data and
+third-party material that had been used for private testing. Commits, order and dates are otherwise
+unchanged.
 
 Contributions are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Third-party licenses
 are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
