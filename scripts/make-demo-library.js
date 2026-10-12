@@ -22,17 +22,29 @@ const { spawnSync } = require('child_process');
 const BASE_SECONDS = 30;
 let CLIP_SECONDS = 480; // long enough that the guide shows real titles, not "shorts & bumpers" runs
 
+// Photosensitivity: the demo is deliberately gentle. Every picture is a slow, soft-colored
+// gradient (no flashing, no strobing, no high-contrast stripes or flickering cells, no
+// saturated red, nothing that changes faster than a slow drift), and the tones are quiet.
+// The generated channels.json also turns off the app's channel-change static burst and
+// CRT flicker. See "Photosensitivity" in the README.
+//
 // Each channel: a generator, and clip titles. Tone frequency varies per clip.
+// gradients types: 0 linear, 1 radial, 2 circular, 3 square, 4 spiral.
+const SIZE = 'size=480x270:rate=12';
+const gradient = (type, speed, colors) =>
+  `gradients=${SIZE}:type=${type}:speed=${speed}:nb_colors=${colors.length}:` +
+  colors.map((c, i) => `c${i}=${c}`).join(':');
+
 const LINEUP = [
-  { number: 3, name: 'Cartoon Corner', gen: 'testsrc2=size=480x270:rate=12',
+  { number: 3, name: 'Cartoon Corner', gen: gradient(0, 0.004, ['#8fb8de', '#f2c1b6', '#b9e3c6', '#f7e1a0']),
     clips: ['S01E01 - The Big Idea', 'S01E02 - Rainy Day Rescue', 'S01E03 - Robot Birthday'] },
-  { number: 5, name: 'Retro Movies', gen: 'mandelbrot=size=480x270:rate=12',
-    clips: ['The Long Zoom (1987)', 'Fractal Heights (1992)', 'Midnight Mandelbrot (1979)'] },
-  { number: 7, name: 'Nature Loop', gen: 'gradients=size=480x270:rate=12:speed=0.03',
+  { number: 5, name: 'Retro Movies', gen: gradient(1, 0.005, ['#c9a27e', '#8c6a5d', '#d9b99b', '#6f4e4a']),
+    clips: ['Quiet Harbor (1987)', 'Paper Lanterns (1992)', 'Slow Train West (1979)'] },
+  { number: 7, name: 'Nature Loop', gen: gradient(0, 0.006, ['#7fb7a4', '#4f8f9e', '#a8d5c2', '#3e6f7a']),
     clips: ['Aurora Study', 'Slow Sunset', 'Tide Colors'] },
-  { number: 9, name: 'Sci-Fi Theater', gen: 'life=size=480x270:rate=12:mold=12:ratio=0.08:life_color=#59f2a0:death_color=#103020',
+  { number: 9, name: 'Sci-Fi Theater', gen: gradient(2, 0.004, ['#6a5d9b', '#3b6f8f', '#8fa6d4', '#4a4f7a']),
     clips: ['Colony Collapse', 'Signal From Nowhere', 'The Automaton Garden'] },
-  { number: 11, name: 'Music Hour', gen: 'cellauto=size=480x270:rate=12:random_fill_ratio=0.4:scroll=1',
+  { number: 11, name: 'Music Hour', gen: gradient(4, 0.005, ['#e4a6b8', '#b79ad1', '#f0c7a0', '#8fb0d9']),
     clips: ['Synth Sunrise', 'Neon Highway', 'Cassette Dreams'] },
 ];
 
@@ -63,12 +75,23 @@ function makeClip(ffmpeg, gen, hz, file) {
     '-f', 'lavfi', '-i', `sine=frequency=${hz}:sample_rate=44100`,
     '-t', String(baseSeconds),
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '34', '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac', '-b:a', '48k', '-shortest', base,
+    '-filter:a', 'volume=0.2', '-c:a', 'aac', '-b:a', '48k', '-shortest', base,
   ], path.basename(file));
   if (base !== file) {
     run(ffmpeg, ['-stream_loop', '-1', '-i', base, '-t', String(CLIP_SECONDS), '-c', 'copy', file], path.basename(file));
     fs.unlinkSync(base);
   }
+}
+
+// Box settings for a calm demo: no channel-change static burst, no CRT flicker, light scanlines.
+function GENTLE_SETTINGS(channels) {
+  return {
+    channels,
+    lastChannel: 3,
+    timeMachine: { enabled: true },
+    staticEffect: { enabled: false, intensity: 0, durationMs: 150 },
+    crtIntensity: { scanlines: 40, vignette: 40, grain: 10, flicker: 0, curvature: 0, burnIn: 0, overlayScope: 'video' },
+  };
 }
 
 function main() {
@@ -115,7 +138,7 @@ function main() {
       process.exit(1);
     }
     fs.mkdirSync(userData, { recursive: true });
-    fs.writeFileSync(target, JSON.stringify({ channels, lastChannel: 3, timeMachine: { enabled: true } }, null, 2));
+    fs.writeFileSync(target, JSON.stringify(GENTLE_SETTINGS(channels), null, 2));
     console.log(`\nWrote ${target}`);
   }
   console.log(`\nDemo library ready in ${root}`);

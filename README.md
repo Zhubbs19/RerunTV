@@ -14,9 +14,19 @@ flipping to a real channel mid-show. Nothing runs in the background; it's arithm
 against the wall clock, so closing the app for a week costs nothing and the schedule is
 still "correct" when you come back.
 
+> **Photosensitivity notice.** RerunTV imitates old television, and some of those effects flicker or
+> flash: CRT scanline flicker, the static burst when you change channel, power-on/off animations,
+> and the optional signal-glitch, breaking-news and emergency-alert overlays. It also plays whatever
+> video you give it, which the app cannot control. If you are sensitive to flashing lights or
+> patterns, turn the effects down or off before watching: **Setup → Picture & Sound** has the
+> **CRT effect** switch (also the `C` key), the CRT **flicker** slider, and the **Channel static**
+> switch, and the glitch and alert overlays can be disabled from the **Plug-ins** page. The built-in
+> demo library below is deliberately gentle (slow, soft-colored pictures, quiet tones, and a config
+> with static and flicker already off). This notice is general guidance, not medical advice.
+
 ## Screenshots
 
-Everything below is the bundled synthetic demo library (generated test video, see
+Everything below is the bundled synthetic demo library (slow, soft generated video, see
 [Try it without your own media](#try-it-without-your-own-media)). No real shows are shown.
 
 | Live TV with the on-screen banner and CRT look | The program guide |
@@ -39,7 +49,8 @@ node scripts/make-demo-library.js demo-library
 
 Then in the app open Channel Setup, add a channel per folder under `demo-library/`, and press
 Start Watching. Pass `--seconds 60` for shorter clips that generate faster, and
-`--config <userDataFolder>` to also write a ready-made channel lineup.
+`--config <userDataFolder>` to also write a ready-made channel lineup. That lineup also turns off
+the channel-change static and CRT flicker.
 
 ## About RerunTV
 
