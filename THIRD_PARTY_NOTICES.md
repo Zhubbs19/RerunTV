@@ -34,9 +34,12 @@ Apache License 2.0, and ship the Gradle wrapper (Apache 2.0).
 
 ## Artwork
 
-The app icon, the Android launcher and banner images, and the companion-app icon show a
-rewind-symbol TV design created for this project and covered by the MIT license. Everything else visual (theme borders, overlays,
-test patterns) is original SVG, CSS or code in this repository.
+The app icon, the Android launcher and banner images, and the companion-app icon (a rewind-symbol
+TV) were generated with OpenAI's Codex at the maintainer's direction. Under OpenAI's terms the
+user owns the output. Because purely AI-generated images may not qualify for copyright protection,
+they are provided as-is, and the MIT license applies to the extent any rights exist. Everything
+else visual (theme borders, overlays, test patterns) is original SVG, CSS or code in this
+repository.
 
 ## ffmpeg
 
