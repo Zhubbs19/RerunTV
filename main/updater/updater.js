@@ -288,7 +288,7 @@ function getAutoUpdater() {
     // no separate "stable" channel right now. electron-updater's GitHub
     // provider ignores prereleases by default, which would make every check
     // report "up to date" forever regardless of what's actually been
-    // shipped. Revisit this the day a real numbered (non-alpha) release
+    // shipped. Revisit this the day a real numbered (non-beta) release
     // process exists.
     autoUpdater.allowPrerelease = true;
   }

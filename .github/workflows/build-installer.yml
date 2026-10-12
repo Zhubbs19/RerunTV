@@ -1,10 +1,11 @@
 name: Build installer
 
 # Fires whenever the deploy branch moves — a direct push, or master merging
-# into it. Always produces an alpha-tagged build: the version embedded in
+# into it. Always produces a beta-tagged build: the version embedded in
 # the installer and the GitHub Release it's attached to both carry
-# "-alpha.<run number>" appended to package.json's version, so an alpha
-# build is never mistakable for a real numbered release.
+# "-beta.<run number>" appended to package.json's version, so a beta
+# build is never mistakable for a real numbered release. Bump package.json's
+# version by hand for a new minor/major; the beta counter is the run number.
 on:
   push:
     branches:
@@ -29,13 +30,13 @@ jobs:
       - name: Contract and smoke tests
         run: npm test
 
-      - name: Compute alpha version
+      - name: Compute beta version
         id: version
         shell: bash
         run: |
           base=$(node -p "require('./package.json').version")
-          alpha="${base}-alpha.${{ github.run_number }}"
-          echo "version=$alpha" >> "$GITHUB_OUTPUT"
+          beta="${base}-beta.${{ github.run_number }}"
+          echo "version=$beta" >> "$GITHUB_OUTPUT"
 
       - name: Build installer
         env:
@@ -63,7 +64,7 @@ jobs:
           # unreliable for this repo (a release created hours later can
           # still come back behind older ones), which made the app "stop
           # auto-updating" while a valid newer release existed. Deleting
-          # every previous alpha prerelease before publishing the new one
+          # every previous beta prerelease before publishing the new one
           # keeps exactly one prerelease in existence at all times, so
           # whichever one the list endpoint returns first is unambiguously
           # the current one — no dependency on GitHub's ordering at all.
@@ -83,7 +84,7 @@ jobs:
           # requests shipped since the previous release. The short custom
           # note is prepended to that generated changelog, so the installer
           # warning remains visible without replacing the actual app changes.
-          notes="**Unsigned alpha:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
+          notes="**Unsigned beta:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
           notes+="Verify that it came from this repository; in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
           # just build byproducts — without them attached here, in-app "CHECK
@@ -92,7 +93,7 @@ jobs:
           # filename, so it has to ship from the very same release.
           gh release create "$tag" \
             --repo "${{ github.repository }}" \
-            --title "$product $tag (alpha)" \
+            --title "$product $tag (beta)" \
             --prerelease \
             --target "${{ github.sha }}" \
             --generate-notes \

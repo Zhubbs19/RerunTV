@@ -3,13 +3,13 @@
 ## Supported versions
 
 RerunTV is currently prerelease software. Security fixes are developed on
-`master` and included in the next alpha release.
+`master` and included in the next beta release.
 
 | Version | Supported |
 | --- | --- |
-| Latest GitHub alpha release | Yes |
+| Latest GitHub beta release | Yes |
 | Current `master` branch | Yes, for reports and source fixes |
-| Older alpha releases | No |
+| Older beta releases | No |
 | Modified builds and third-party plugins | Only when a RerunTV security boundary is involved |
 
 Users should update to the newest release before reporting a vulnerability
@@ -77,7 +77,7 @@ The following are normally out of scope unless they demonstrate a separate
 security impact:
 
 - ordinary playback, layout, performance, or compatibility bugs;
-- the expected SmartScreen warning for an unsigned alpha installer;
+- the expected SmartScreen warning for an unsigned beta installer;
 - vulnerabilities confined to a third-party plugin that do not bypass a
   RerunTV security boundary;
 - issues requiring an already-compromised host or deliberate modification of
@@ -101,7 +101,7 @@ Knowing the design helps you judge what counts as a vulnerability:
   to the user, not a sandbox. Only plugins whose manifest sets `"isolated": true`
   run in a separate process. Install plugins only from sources you trust. See
   the "Trust model" section of `PLUGIN_DEVELOPMENT.md`.
-- **Releases are unsigned.** Alpha installers are not code-signed, so Windows
+- **Releases are unsigned.** Beta installers are not code-signed, so Windows
   SmartScreen warns on first run.
 - **No telemetry.** RerunTV makes no network requests of its own except the ones
   you enable (update checks, weather, optional metadata plugins, and the optional ffmpeg download).

@@ -458,7 +458,12 @@ integrations cannot silently change the default artifact.
 
 No ffmpeg binary is bundled or downloaded — see "About RerunTV" above.
 
-Pre-built alpha installers (Windows) are published automatically as GitHub Releases from
+**Versioning.** Releases are `MAJOR.MINOR.PATCH-beta.N`: the base comes from `package.json` and `N` is
+the CI build number, so every release is a pre-release and each is newer than the last
+(`0.2.0-beta.7` > `0.2.0-beta.6`). Bump the base by hand for a new minor or major. The in-app update
+check follows the beta series.
+
+Pre-built beta installers (Windows) are published automatically as GitHub Releases from
 the `deploy` branch — see the [Releases page](../../releases). **They're unsigned**, so
 Windows SmartScreen and your browser will likely warn you before running one; that's
 expected for a low-download-count unsigned executable, not a sign anything's wrong.
