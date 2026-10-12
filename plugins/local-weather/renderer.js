@@ -216,7 +216,7 @@ window.RCBPlugins.registerChannelType('local-weather', {
     container.innerHTML = `
       <div class="weather-channel">
         <div class="weather-header">
-          <div class="weather-brand">WEATHER CHANNEL</div>
+          <div class="weather-brand">LOCAL WEATHER</div>
           <div class="weather-clockbox">
             <div class="weather-clock" data-el="clock">--:--</div>
             <div class="weather-date" data-el="date"></div>

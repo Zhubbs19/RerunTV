@@ -235,7 +235,7 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
 - **CH 51 — Classified Intercept**: a fictional radar-and-satellite log channel
 - **CH 96 — Shopping Network**, and
   **CH 98 — Pay-Per-View**: interactive fictional cable-channel experiences
-- **CH 99 — Teletext Arcade**: a parody Ceefax-style teletext service, plus a playable
+- **CH 99 — Teletext Arcade**: a parody teletext-style teletext service, plus a playable
   Snake game
 - **Closed captions** — sidecar `.srt`/`.vtt` or embedded subtitle streams, via the
   native `<track>` API, styled per-theme

@@ -63,7 +63,7 @@ html[data-theme="uhf-public-access-80s"] {
 
 /* The guide grid is the most visible surface in the app after the picture
    itself — so this era gets a full structural re-skin instead of just
-   recoloring the shared gradient-cell look: a flat black Ceefax/teletext-
+   recoloring the shared gradient-cell look: a flat black teletext-
    style terminal grid (monospace, hard edges, phosphor text-glow,
    inverted-video selection). */
 html[data-theme="uhf-public-access-80s"] [data-slot="guide-rail"],

@@ -5,7 +5,7 @@
 // Migrated as-is from the old core pay-per-view module/virtual.js.
 const PPV_PARODY_EVENTS = [
   { title: 'EVENT #401: WORLD CHAMPIONSHIP THUMB WRESTLING IX', price: '$49.95' },
-  { title: 'EVENT #402: MONSTER TRUCK DESTRUCTION: GRAVE DIGGER VS DUMPSTER', price: '$29.95' },
+  { title: 'EVENT #402: MONSTER TRUCK DESTRUCTION: GRAVE ROBBER VS DUMPSTER', price: '$29.95' },
   { title: 'EVENT #403: EXCLUSIVE LIVE SHOW: WATCHING PAINT DRY IN 4K', price: '$19.95' },
   { title: 'EVENT #404: 1995 PROFESSIONAL HIDE AND SEEK WORLD FINALS', price: '$39.95' },
   { title: 'EVENT #405: EXTREME MICROWAVE POPCORN CHAMPIONSHIP', price: '$14.95' },

@@ -39,7 +39,7 @@ if (S.breakingNewsActive === undefined) S.breakingNewsActive = false;
 // style value.
 const STYLE_COPY = {
   'alien-report': { badge: '⚠️ UNEXPLAINED TRANSMISSION', title: 'DECODED FREQUENCY SIGNAL' },
-  'full-slate': { badge: '● LIVE SPECIAL REPORT', title: 'RETRO CABLE NEWS NETWORK' },
+  'full-slate': { badge: '● LIVE SPECIAL REPORT', title: 'RERUN NEWS NETWORK' },
   'ticker-flash': { badge: 'NEWS FLASH', title: 'LIVE BULLETIN' },
   'retro-lower-third': { badge: '● LIVE', title: 'BREAKING NEWS' },
 };

@@ -1,4 +1,4 @@
-// Virtual CH 99 — a parody 90s Ceefax-style teletext service with a
+// Virtual CH 99 — a parody 90s teletext-style teletext service with a
 // playable Snake game on page 999. No config, no settings panel, no
 // main-process backend, migrated as-is from the old core
 // teletext.js/virtual.js. Arrow-key routing to the Snake game goes through
@@ -107,7 +107,7 @@ function updatePage(pageNum) {
   } else {
     bodyEl.innerHTML = `
       <div class="teletext-news-box">
-        <div class="teletext-heading yellow">PAGE 100 — RETRO CABLE NEWS HEADLINES</div>
+        <div class="teletext-heading yellow">PAGE 100 — RERUN NEWS HEADLINES</div>
         <div class="teletext-item">📰 WORLD NEWS: DIAL-UP INTERNET REACHES RECORD 10 MILLION USERS</div>
         <div class="teletext-item">📺 CABLE DIGEST: VCR REWINDER DEMAND SOARS BEFORE MIDNIGHT</div>
         <div class="teletext-item">🛸 ROSWELL DAILY: UNIDENTIFIED FLOWERING CRAFT INTERCEPTED</div>
@@ -144,7 +144,7 @@ window.RCBPlugins.registerChannelType('teletext-arcade', {
     container.innerHTML = `
       <div class="teletext-channel">
         <div class="teletext-header">
-          <span>CEEFAX // RETRO CABLE TELETEXT</span>
+          <span>TELETEXT // RERUN TELETEXT</span>
           <span>P<span id="teletext-page-num">100</span></span>
         </div>
         <div class="teletext-nav">
