@@ -3,6 +3,8 @@
 [![CI](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+> **Beta software with unsigned Windows installers.** Windows will warn you the first time you run one; see [Download and install](#download-and-install) for why and how to check the download.
+
 A desktop simulator of an old broadcast cable box. Point channels at folders in your own
 media library, then surf channels like it's live TV — complete with CRT scanlines, screen
 flicker, a channel-change static burst, and an early-2000s digital program guide.
@@ -23,6 +25,27 @@ still "correct" when you come back.
 > switch, and the glitch and alert overlays can be disabled from the **Plug-ins** page. The built-in
 > demo library below is deliberately gentle (slow, soft-colored pictures, quiet tones, and a config
 > with static and flicker already off). This notice is general guidance, not medical advice.
+
+## Download and install
+
+Windows installers are on the [Releases page](../../releases).
+
+**The installers are not code-signed yet.** Windows SmartScreen will probably show "Windows protected
+your PC" the first time you run one, and your browser may ask you to confirm the download. That is
+expected for a new, unsigned open-source app and does not by itself mean anything is wrong. To go ahead,
+click **More info**, then **Run anyway**.
+
+Because the installer is unsigned, check that it really came from this project:
+
+- Download it only from this repository's [Releases page](../../releases).
+- Compare its SHA-256 with `SHA256SUMS.txt`, which is attached to each release:
+  `Get-FileHash .\RerunTV-Setup-<version>.exe -Algorithm SHA256`
+- Or verify the build provenance with the [GitHub CLI](https://cli.github.com/):
+  `gh attestation verify .\RerunTV-Setup-<version>.exe --repo Zhubbs19/RerunTV`
+
+If you would rather not run an unsigned installer, [build it from source](#setup). Signing the installers
+is planned, and this section will be updated when it happens. Report anything suspicious through
+[SECURITY.md](SECURITY.md).
 
 ## Screenshots
 
@@ -464,9 +487,8 @@ the CI build number, so every release is a pre-release and each is newer than th
 check follows the beta series.
 
 Pre-built beta installers (Windows) are published automatically as GitHub Releases from
-the `deploy` branch — see the [Releases page](../../releases). **They're unsigned**, so
-Windows SmartScreen and your browser will likely warn you before running one; that's
-expected for a low-download-count unsigned executable, not a sign anything's wrong.
+the `deploy` branch — see the [Releases page](../../releases). **They're unsigned** (see [Download and install](#download-and-install) for how to
+verify one), so Windows SmartScreen and your browser will likely warn you before running one.
 SmartScreen: "More info" → "Run anyway". Chrome's download bar: the dropdown arrow →
 "Keep".
 
