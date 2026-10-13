@@ -1,0 +1,22 @@
+# Keeps dependencies and the GitHub Actions in the workflows up to date.
+# Updates arrive as pull requests; CI runs on each one. Security advisories are
+# handled separately by Dependabot alerts.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    # Electron and electron-builder majors can break packaging and the preload
+    # surface, so those arrive as their own pull requests to be reviewed by hand.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']

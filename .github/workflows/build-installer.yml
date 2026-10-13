@@ -12,15 +12,17 @@ on:
       - deploy
 
 permissions:
-  contents: write
+  contents: write      # create the release
+  id-token: write      # sign the build attestation
+  attestations: write  # store the build attestation
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: 22
 
@@ -50,6 +52,18 @@ jobs:
         # own "Create GitHub Release" step runs (and without GH_TOKEN set
         # here, that implicit publish just fails the build outright).
         run: npx electron-builder --win --publish=never --config electron-builder.config.js --config.extraMetadata.version=${{ steps.version.outputs.version }}
+
+      - name: Write checksums
+        shell: bash
+        run: |
+          cd dist
+          sha256sum "RerunTV-Setup-${{ steps.version.outputs.version }}.exe" > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/RerunTV-Setup-${{ steps.version.outputs.version }}.exe
 
       - name: Create GitHub Release
         env:
@@ -85,7 +99,7 @@ jobs:
           # note is prepended to that generated changelog, so the installer
           # warning remains visible without replacing the actual app changes.
           notes="**Unsigned beta:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
-          notes+="Verify that it came from this repository; in SmartScreen choose \"More info\" → \"Run anyway\"."
+          notes+="Verify that it came from this repository (SHA256SUMS.txt is attached, and 'gh attestation verify <installer> --repo ${{ github.repository }}' checks the build provenance); in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
           # just build byproducts — without them attached here, in-app "CHECK
           # FOR UPDATES" (main/updater/updater.js) 404s on every check. electron-
@@ -100,4 +114,5 @@ jobs:
             --notes "$notes" \
             "$installer" \
             "$installer.blockmap" \
-            dist/latest.yml
+            dist/latest.yml \
+            dist/SHA256SUMS.txt
