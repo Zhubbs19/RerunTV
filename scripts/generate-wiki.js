@@ -126,6 +126,7 @@ ${intro}
 ## Get help
 
 - [Troubleshooting](Troubleshooting), the [FAQ](FAQ) and the [Roadmap and Known Issues](Roadmap-and-Known-Issues)
+- [Ask a question or share an idea](https://github.com/${REPO}/discussions) (Discussions)
 - [Report a bug or ask for a feature](https://github.com/${REPO}/issues/new/choose)
 - Security issues: [Security](Security) (please report privately)
 
@@ -451,7 +452,7 @@ Releases are pre-releases (beta), and the in-app check follows that series. Use 
 
 ## Reporting a bug
 
-Open an [issue](https://github.com/${REPO}/issues/new/choose) with your RerunTV version (shown in HELP), what you did and what you expected. A **redacted support bundle** (**Setup > PLUG-INS**, diagnostics) helps; it removes credentials and user-specific paths first, and does not include your channel configuration or media inventory. Please do **not** attach copyrighted media, pairing links or codes, or your «channels.json«. For security problems, see [Security](Security).
+For a question rather than a bug, use [Discussions](https://github.com/${REPO}/discussions). To report a bug, open an [issue](https://github.com/${REPO}/issues/new/choose) with your RerunTV version (shown in HELP), what you did and what you expected. A **redacted support bundle** (**Setup > PLUG-INS**, diagnostics) helps; it removes credentials and user-specific paths first, and does not include your channel configuration or media inventory. Please do **not** attach copyrighted media, pairing links or codes, or your «channels.json«. For security problems, see [Security](Security).
 `));
 
 // ---------- FAQ ----------
@@ -486,7 +487,7 @@ In the «userData« folder next to the app. See [Installation](Installation).
 Yes: there is a TV mode with remote-driven setup, a LAN viewer, and an Android TV client in the repository. See [Headless, LAN and Remotes](Headless-LAN-and-Remotes).
 
 **Can I contribute?**
-Yes: bug reports and ideas are welcome as [issues](https://github.com/${REPO}/issues/new/choose). Pull requests are currently limited to collaborators, so open an issue first. See [Development](Development).
+Yes: questions and ideas are welcome in [Discussions](https://github.com/${REPO}/discussions), and bugs as [issues](https://github.com/${REPO}/issues/new/choose). Pull requests are currently limited to collaborators, so open an issue first. See [Development](Development).
 
 **Can I write my own plugin or theme?**
 Yes. See [Plugin Development](Plugin-Development).
@@ -566,7 +567,7 @@ ${clean(shiftHeadings(section(README, 'Design decisions'), 0))}
 
 ## Contributing
 
-Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}CODE_OF_CONDUCT.md). **Bug reports, ideas and questions are welcome as issues. Pull requests are currently limited to collaborators**, so open an issue first to propose a change. In short, for a change:
+Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}CODE_OF_CONDUCT.md). **Questions and ideas are welcome in Discussions and bugs as issues. Pull requests are currently limited to collaborators**, so open an issue first to propose a change. In short, for a change:
 
 - Keep changes focused and add or update a test when behavior changes.
 - Match the surrounding code.
@@ -622,8 +623,12 @@ RerunTV is in **beta**. This page is upfront about what is planned and what is l
 
 - **Code signing** for the Windows installers, so SmartScreen stops warning. This needs a certificate and a validated publisher; the plan is to apply to an open-source signing program.
 - **An Electron upgrade** to the next major version, with a full test pass first. The runtime affects the sandboxed preload, the «app://» protocol and the plugin processes, so it will not be merged on a version bump alone.
-- **A ready-made demo pack** attached to each release, so people who install RerunTV can try it without Node or ffmpeg.
-- **CI that builds and launches the installer** on every push, not only when a release is published.
+
+## Recently added
+
+- **A demo pack on every release**: \`RerunTV-demo-library.zip\` holds generated, copyright-free test video, so you can try RerunTV without Node, ffmpeg or any media of your own.
+- **An installer smoke test in CI**: every push builds the real installer, installs it silently and launches it, so a broken package is caught before a release.
+- **Discussions** for questions, ideas and show-and-tell.
 
 ## Known limitations
 
@@ -638,7 +643,7 @@ RerunTV is in **beta**. This page is upfront about what is planned and what is l
 ## Following along
 
 - [Releases](${REL}) and the in-app **HELP > WHAT'S NEW** list what changed.
-- [Issues](https://github.com/${REPO}/issues) are where bugs and ideas are tracked.
+- [Discussions](https://github.com/${REPO}/discussions) are for questions and ideas, and [Issues](https://github.com/${REPO}/issues) are where bugs are tracked.
 `));
 
 // ---------- Sidebar and footer ----------

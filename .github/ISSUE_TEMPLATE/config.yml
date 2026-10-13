@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Ask a question or share an idea
+    url: https://github.com/Zhubbs19/RerunTV/discussions
+    about: Questions, ideas and show-and-tell belong in Discussions. Bugs go in an issue.
   - name: Report a security vulnerability (private)
     url: https://github.com/Zhubbs19/RerunTV/security/advisories/new
     about: Please do not open a public issue for a vulnerability. See SECURITY.md.

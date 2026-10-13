@@ -1,0 +1,95 @@
+name: Demo pack
+
+# Attaches RerunTV-demo-library.zip to the latest release: generated, gentle, copyright-free test video
+# (see scripts/make-demo-library.js) so people who install RerunTV can try it without any media of their own.
+# It runs after the Build installer workflow succeeds, and can also be run by hand against any release.
+on:
+  workflow_run:
+    workflows: ['Build installer']
+    types: [completed]
+    branches: [deploy]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach the demo pack to (leave blank for the latest release)
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  demo-pack:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write      # upload the asset to the release
+      id-token: write      # sign the build attestation
+      attestations: write  # store the build attestation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Install ffmpeg and zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg zip
+
+      - name: Pick the release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          tag="$INPUT_TAG"
+          if [ -z "$tag" ]; then
+            tag=$(gh release list --repo "${{ github.repository }}" --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          if [ -z "$tag" ]; then echo "No release found to attach the demo pack to."; exit 1; fi
+          echo "Attaching the demo pack to $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Generate the demo library
+        run: node scripts/make-demo-library.js build/RerunTV-demo-library
+
+      - name: Add instructions and zip it
+        run: |
+          cat > build/RerunTV-demo-library/README.txt <<'EOF'
+          RerunTV demo library
+          ====================
+
+          Generated test video: slow, soft-colored gradients with quiet tones. There are no real shows and
+          nothing copyrighted in it. It was made by scripts/make-demo-library.js in the RerunTV repository
+          so you can try RerunTV without any media of your own.
+
+          To use it
+          1. Unzip this folder somewhere permanent (RerunTV remembers where the files are).
+          2. In RerunTV open Channel Setup (press S while watching).
+          3. In the LINEUP tab click "+ ADD CHANNEL", then "ADD FOLDER" and choose one of the folders here.
+             Repeat for each folder.
+          4. Click START WATCHING.
+
+          Suggested channel numbers: Cartoon Corner 3, Retro Movies 5, Nature Loop 7, Sci-Fi Theater 9,
+          Music Hour 11.
+
+          MIT licensed, like the rest of the project: https://github.com/Zhubbs19/RerunTV
+          EOF
+          cd build
+          zip -r -q ../RerunTV-demo-library.zip RerunTV-demo-library
+          cd ..
+          ls -l RerunTV-demo-library.zip
+          sha256sum RerunTV-demo-library.zip
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: RerunTV-demo-library.zip
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.release.outputs.tag }}" RerunTV-demo-library.zip --clobber --repo "${{ github.repository }}"

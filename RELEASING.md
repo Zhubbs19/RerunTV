@@ -42,9 +42,18 @@ release build. The workflow then:
 4. writes `SHA256SUMS.txt` and a signed build-provenance attestation for the installer,
 5. creates the GitHub pre-release with the installer, its blockmap, `latest.yml` and `SHA256SUMS.txt`.
 
+When that workflow succeeds, the **Demo pack** workflow runs automatically and attaches
+`RerunTV-demo-library.zip` (generated, copyright-free test video, with a build attestation) to the
+same release. You can also run it by hand from the Actions tab against any release tag.
+
+Every push and pull request to `master` also runs the **Installer smoke test**: it builds the real
+installer, installs it silently on a throwaway runner, launches the installed app and checks that it
+boots (right version, all bundled plugins load, no uncaught errors). Fix a red run before releasing.
+
 ## Verify the release
 
-- The release exists, is marked **pre-release**, and has all four assets.
+- The release exists, is marked **pre-release**, and has all four build assets, plus
+  `RerunTV-demo-library.zip` once the Demo pack workflow has finished.
 - `latest.yml` names the new version and the installer's size matches the asset.
 - The attestation exists: `gh attestation verify <installer> --repo Zhubbs19/RerunTV`, or look the
   installer's SHA-256 (from `SHA256SUMS.txt`) up under the repository's attestations.

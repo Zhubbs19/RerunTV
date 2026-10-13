@@ -4,7 +4,7 @@ Thanks for your interest! RerunTV is an Electron app that simulates a broadcast 
 
 ## How to contribute
 
-- **Bug reports, feature ideas and questions are welcome** as [GitHub issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose).
+- **Questions and ideas are welcome in [Discussions](https://github.com/Zhubbs19/RerunTV/discussions)**, and **bug reports as [issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose)**.
 - **Pull requests are limited to collaborators.** This is a repository setting, so the pull request
   button is not available to everyone. To propose a change, open an issue first and describe it. If it
   fits the project, the maintainer may apply it or invite you as a collaborator so you can open a pull

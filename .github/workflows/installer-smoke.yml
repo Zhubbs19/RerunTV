@@ -1,0 +1,55 @@
+name: Installer smoke test
+
+# On every push and pull request: build the real Windows installer, install it silently on the
+# runner (an empty, throwaway VM), launch the installed app and check that it boots. This exercises
+# the same packaging path as a release, so a broken package is caught before anyone publishes one.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: installer-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the installer
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          version="0.0.0-ci.${{ github.run_number }}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          npx electron-builder --win --publish=never --config electron-builder.config.js --config.extraMetadata.version="$version"
+
+      - name: Install it silently
+        shell: pwsh
+        run: |
+          $installer = "dist\RerunTV-Setup-$env:VERSION.exe"
+          if (-not (Test-Path $installer)) { throw "installer not found: $installer"; }
+          # NSIS: /S is silent, and /D (which must come last, unquoted) sets the install folder.
+          $p = Start-Process -FilePath $installer -ArgumentList '/S', '/D=C:\RerunTV-ci' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "the installer exited with code $($p.ExitCode)"; }
+          if (-not (Test-Path 'C:\RerunTV-ci\RerunTV.exe')) { throw 'RerunTV.exe was not installed'; }
+          Get-ChildItem 'C:\RerunTV-ci' | Select-Object -First 12 Name, Length | Format-Table
+
+      - name: Launch the installed app and check it boots
+        shell: pwsh
+        run: node scripts/smoke-test-installer.js 'C:\RerunTV-ci\RerunTV.exe' $env:VERSION

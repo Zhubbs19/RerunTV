@@ -1,0 +1,23 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share an idea for RerunTV. Pull requests are limited to collaborators, so a discussion here (or an
+        issue) is the way to propose a change. Please do not suggest adding copyrighted media, logos or
+        real network schedules; RerunTV ships none.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem or wish is this about?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

@@ -1,0 +1,23 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask here when you want help using RerunTV. If something is **broken**, please open an
+        [issue](https://github.com/Zhubbs19/RerunTV/issues/new/choose) instead. The
+        [wiki](https://github.com/Zhubbs19/RerunTV/wiki) (Troubleshooting and FAQ) may already answer it.
+        Please do not post pairing links or codes, or your channels.json.
+  - type: textarea
+    id: question
+    attributes:
+      label: What would you like to know?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: RerunTV version
+      description: Shown under HELP, for example 0.2.0-beta.3.
+  - type: textarea
+    id: tried
+    attributes:
+      label: What have you already tried?

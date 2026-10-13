@@ -63,8 +63,13 @@ Everything below is the bundled synthetic demo library (slow, soft generated vid
 
 ## Try it without your own media
 
-RerunTV ships no video, so here is a generated demo lineup (five channels of synthetic test
-video and tones, nothing copyrighted). You need [ffmpeg](https://ffmpeg.org/download.html) on your PATH.
+RerunTV ships no video, so there is a generated demo lineup (five channels of synthetic test video and
+tones, nothing copyrighted).
+
+**Easiest:** download `RerunTV-demo-library.zip` from the [latest release](../../releases), unzip it
+somewhere permanent, and add each folder as a channel (the zip has a README.txt with the steps).
+
+**Or generate it yourself** from a source checkout. You need [ffmpeg](https://ffmpeg.org/download.html) on your PATH.
 
 ```bash
 npm install
@@ -460,9 +465,9 @@ The git history was filtered before this repository was made public, to remove p
 third-party material that had been used for private testing. Commits, order and dates are otherwise
 unchanged.
 
-Bug reports and ideas are welcome as [issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose).
-Pull requests are currently limited to collaborators (open an issue first); see
-[CONTRIBUTING.md](CONTRIBUTING.md). Third-party licenses are listed in
+Questions and ideas are welcome in [Discussions](https://github.com/Zhubbs19/RerunTV/discussions), and bugs as
+[issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose). Pull requests are currently limited to
+collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). Third-party licenses are listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Packaging

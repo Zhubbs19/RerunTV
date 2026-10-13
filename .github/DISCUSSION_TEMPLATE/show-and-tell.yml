@@ -1,0 +1,18 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Show what you have built: a lineup, a theme, a plugin, a setup around a TV. Screenshots are welcome.
+        Please do not post copyrighted media; screenshots of your own library are fine as long as they do not
+        reproduce someone else's work you do not have the right to share.
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you make?
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How did you set it up?
+      description: Themes, plugins, hardware, anything others might copy.

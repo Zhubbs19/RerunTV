@@ -735,10 +735,10 @@ const HELP_GUIDE = [
     'STEP 4: When you\'re ready, click "START WATCHING" in the bottom-right corner to leave this screen and start watching. That\'s it!',
   ] },
   { group: 'SECTION 2 — GETTING STARTED', title: '2.2 Trying RerunTV Without Your Own Media', body: [
-    'No library handy? The source code on GitHub includes a small generator, scripts/make-demo-library.js, that makes a gentle demo lineup of generated test video: slow soft colors, quiet tones, nothing copyrighted. It is not part of the installer, and it needs ffmpeg installed.',
-    'STEP 1: In a terminal in the project folder, run: node scripts/make-demo-library.js demo-library. Add --seconds 60 for shorter clips that generate faster.',
+    'No library handy? Each release on GitHub has RerunTV-demo-library.zip, a gentle demo lineup of generated test video: slow soft colors, quiet tones, nothing copyrighted.',
+    'STEP 1: Download the zip from the Releases page on GitHub and unzip it somewhere permanent. (Developers can generate the same thing with scripts/make-demo-library.js, which needs Node and ffmpeg.)',
     'STEP 2: In the LINEUP tab, click "+ ADD CHANNEL" for each folder it created, use "ADD FOLDER" to point the channel at it, then click "START WATCHING".',
-    'TIP: Adding --config followed by an empty folder also writes a ready-made channel lineup there, with the channel-change static and CRT flicker already turned off.',
+    'TIP: The zip has a README.txt with these steps and suggested channel numbers.',
   ] },
   { group: 'SECTION 3 — CHANNELS', title: '3.1 Editing a Channel: Folders, Schedule, Titles, Ads, and Logo', body: [
     'Click "EDIT" on any channel to open its full settings. Its tabs are grouped under CONTENT (FOLDERS, TITLES, SCHEDULE), LOOK (LOGO, OVERLAYS, TICKER, IDENTITY) and PLAYBACK (ADS, CREDITS). The main ones:',
