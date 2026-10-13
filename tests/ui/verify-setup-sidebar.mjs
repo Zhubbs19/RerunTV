@@ -33,7 +33,7 @@ const expected = await page.evaluate(async () => {
   return { empty: window.S.config.channels.filter((c) => !(c.files || []).length).length, plugins: plugins.length };
 });
 record('plug-ins shows a badge when plugins need attention', /^\d+$/.test(b.plugins) && Number(b.plugins) > 0, JSON.stringify(b));
-record('channels badge counts channels with nothing to play', (b.channels || '0') === String(expected.empty || 0).replace(/^0$/, '0') || (!b.channels && expected.empty === 0), `${b.channels} vs ${expected.empty}`);
+record('channels badge counts channels with nothing to play', (b.channels || '0') === String(expected.empty || 0) || (!b.channels && expected.empty === 0), `${b.channels} vs ${expected.empty}`);
 const texts = await page.evaluate(() => Array.from(document.querySelectorAll('#setup-tabs .setup-tab-btn')).map((x) => x.textContent.trim()));
 const crumb = await page.evaluate(() => { document.querySelector('.setup-tab-btn[data-tab="plugins"]').click(); return document.getElementById('setup-page-title').textContent; });
 record('badges never change the section names (text, title, search)', texts.includes('PLUG-INS') && texts.includes('CHANNELS') && crumb === 'PLUGINS', texts.join('|'));

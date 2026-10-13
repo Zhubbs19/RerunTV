@@ -8,6 +8,23 @@
 'use strict';
 
 const tls = require('tls');
+const net = require('net');
+
+// Cast receivers present self-signed certificates, so certificate validation has to be off for
+// them. To keep that from ever applying to an arbitrary host, only LAN addresses (private,
+// loopback and link-local ranges, or a .local name) are accepted.
+function isLanAddress(host) {
+  const h = String(host || '').trim().replace(/^\[|\]$/g, '');
+  if (net.isIPv4(h)) {
+    const [a, b] = h.split('.').map(Number);
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  if (net.isIPv6(h)) {
+    const l = h.toLowerCase();
+    return l === '::1' || /^f[cd][0-9a-f]{2}:/.test(l) || /^fe[89ab][0-9a-f]:/.test(l);
+  }
+  return /^[a-z0-9-]+\.local$/i.test(h);
+}
 
 const NS_CONNECTION = 'urn:x-cast:com.google.cast.tp.connection';
 const NS_HEARTBEAT = 'urn:x-cast:com.google.cast.tp.heartbeat';
@@ -146,6 +163,12 @@ class CastSession {
 
   connect() {
     return new Promise((resolve, reject) => {
+      if (!isLanAddress(this.host)) {
+        reject(new Error('Cast receivers must be on the local network; refusing to connect to ' + this.host));
+        return;
+      }
+      // rejectUnauthorized is false only because Cast receivers use self-signed certificates
+      // (see isLanAddress above, which limits this to LAN hosts).
       const socket = tls.connect({ host: this.host, port: this.port, rejectUnauthorized: false }, () => {
         this.connected = true;
         this._send(NS_CONNECTION, PLATFORM_DESTINATION, { type: 'CONNECT' });
@@ -261,4 +284,4 @@ class CastSession {
   }
 }
 
-module.exports = { CastSession };
+module.exports = { CastSession, isLanAddress };

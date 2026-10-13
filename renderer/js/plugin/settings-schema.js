@@ -176,8 +176,12 @@ export function readSettingPath(settings, path) {
 
 // The top-level patch updatePluginSettings(id, patch) needs to set one dotted
 // path, leaving everything else in that branch as it was.
+const UNSAFE_PATH_PARTS = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function settingPathPatch(settings, path, value) {
   const parts = path.split('.');
+  // A plugin-supplied path must never walk or assign through prototype-chain keys.
+  if (parts.some((part) => UNSAFE_PATH_PARTS.has(part))) return {};
   const top = parts[0];
   if (parts.length === 1) return { [top]: value };
   const branch = isPlainObject(settings && settings[top]) ? clone(settings[top]) : {};

@@ -57,6 +57,20 @@ function registerAppSchemePrivileges() {
 // isn't CORS-gated so plugin CSS loaded fine without this, but a plugin's
 // renderer entry (imported as an ES module) silently failed with "Failed to
 // fetch" until this was added. Local-only content, so an open '*' is fine.
+// A Range header is short. Bounded whitespace and digit runs keep these matches linear, so a
+// hostile header full of spaces cannot make the regex slow.
+const RANGE_RE = /^[ \t]{0,8}bytes[ \t]{0,8}=[ \t]{0,8}(\d{0,20})[ \t]{0,8}-[ \t]{0,8}(\d{0,20})/i;
+const RANGE_PREFIX_RE = /^[ \t]{0,8}bytes[ \t]{0,8}=/i;
+const MAX_RANGE_HEADER = 200;
+
+// Returns { match, malformed }: the first "bytes=START-END" range, or malformed true when a
+// bytes range was asked for but cannot be satisfied (the caller answers 416).
+function parseRangeHeader(rangeHeader) {
+  if (!rangeHeader || typeof rangeHeader !== 'string') return { match: null, malformed: false };
+  const match = rangeHeader.length <= MAX_RANGE_HEADER ? RANGE_RE.exec(rangeHeader) : null;
+  return { match, malformed: !match && RANGE_PREFIX_RE.test(rangeHeader) };
+}
+
 async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   // Every app://bundle and app://plugins response (the app's own JS/CSS/
   // HTML/SVG source, not a user's media file) had NO cache header at all
@@ -89,8 +103,8 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   // First range of "bytes=START-END", "bytes=START-" or the suffix form
   // "bytes=-N" (the last N bytes — players use it to find an MP4 moov atom at
   // the end of a file). Anything unsatisfiable or malformed is a 416.
-  const match = rangeHeader && /^\s*bytes\s*=\s*(\d*)\s*-\s*(\d*)/i.exec(rangeHeader);
-  if (rangeHeader && /^\s*bytes\s*=/i.test(rangeHeader) && !match) {
+  const { match, malformed } = parseRangeHeader(rangeHeader);
+  if (malformed) {
     return new Response(null, { status: 416, headers: { ...corsHeaders, 'Content-Range': `bytes */${stat.size}` } });
   }
   if (match) {
@@ -368,5 +382,5 @@ async function pipeWebResponse(response, res) {
 
 module.exports = {
   registerAppSchemePrivileges, registerAppProtocol, serveFile, serveMediaRef, setMediaDispatchServices,
-  setAllowedMediaSrcPorts, pipeWebResponse, mimeFor, MIME_TYPES,
+  setAllowedMediaSrcPorts, pipeWebResponse, mimeFor, MIME_TYPES, parseRangeHeader,
 };

@@ -601,9 +601,23 @@ function updateBreadcrumb() {
   if (subBtn) parts.push(subBtn.textContent.trim());
   // A section with no sub-tabs is already named by the page title.
   if (parts.length === 1) { setupBreadcrumbEl.textContent = ''; return; }
-  setupBreadcrumbEl.innerHTML = parts
-    .map((p, i) => (i === parts.length - 1 ? `<span class="crumb-current">${p}</span>` : p))
-    .join('<span class="crumb-sep">›</span>');
+  setupBreadcrumbEl.textContent = '';
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'crumb-sep';
+      sep.textContent = '›';
+      setupBreadcrumbEl.appendChild(sep);
+    }
+    if (i === parts.length - 1) {
+      const current = document.createElement('span');
+      current.className = 'crumb-current';
+      current.textContent = p;
+      setupBreadcrumbEl.appendChild(current);
+    } else {
+      setupBreadcrumbEl.appendChild(document.createTextNode(p));
+    }
+  });
 }
 
 setupTabBtns.forEach((btn) => {
