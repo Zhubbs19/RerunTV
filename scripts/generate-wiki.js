@@ -125,7 +125,7 @@ ${intro}
 
 ## Get help
 
-- [Troubleshooting](Troubleshooting) and the [FAQ](FAQ)
+- [Troubleshooting](Troubleshooting), the [FAQ](FAQ) and the [Roadmap and Known Issues](Roadmap-and-Known-Issues)
 - [Report a bug or ask for a feature](https://github.com/${REPO}/issues/new/choose)
 - Security issues: [Security](Security) (please report privately)
 
@@ -576,6 +576,8 @@ Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}
 
 The repository has a pull request template, issue forms, Dependabot updates, CodeQL scanning, and a CI workflow.
 
+Maintainers: the release checklist is [RELEASING.md](${BLOB}RELEASING.md).
+
 More: [Architecture](Architecture) · [Plugin Development](Plugin-Development) · [Building from Source](Building-from-Source)
 `));
 
@@ -610,6 +612,35 @@ This page mirrors the repository's [SECURITY.md](${BLOB}SECURITY.md), which is t
 ${clean(shiftHeadings(SECURITY.replace(/^# .+\n/, ''), 0).trim())}
 `));
 
+// ---------- Roadmap and known issues ----------
+add('Roadmap-and-Known-Issues', bt(`
+# Roadmap and Known Issues
+
+RerunTV is in **beta**. This page is upfront about what is planned and what is limited. It is a plan, not a promise.
+
+## Planned
+
+- **Code signing** for the Windows installers, so SmartScreen stops warning. This needs a certificate and a validated publisher; the plan is to apply to an open-source signing program.
+- **An Electron upgrade** to the next major version, with a full test pass first. The runtime affects the sandboxed preload, the «app://» protocol and the plugin processes, so it will not be merged on a version bump alone.
+- **A ready-made demo pack** attached to each release, so people who install RerunTV can try it without Node or ffmpeg.
+- **CI that builds and launches the installer** on every push, not only when a release is published.
+
+## Known limitations
+
+- The installers are **unsigned**, so Windows shows a SmartScreen warning. Check downloads as described in [Installation](Installation).
+- **Windows is the only platform with packaged installers.** macOS and Linux builds are configured but untested.
+- The **LAN features are plain HTTP**, protected by a pairing code, and meant for a network you trust. See [Security](Security).
+- **Third-party plugins are trusted code.** Only install plugins you trust. See [Plugins](Plugins).
+- **Playback uses the browser engine's codecs**: .mp4 (H.264) and .webm work best, and other formats are converted with ffmpeg on demand. See [Troubleshooting](Troubleshooting).
+- The **Android clients** («android-tv-client» and «android-companion-client») are in the repository but are not part of the installer and are not built by CI. Build them with Gradle.
+- Some effects flicker or flash. See [Comfort and Photosensitivity](Comfort-and-Photosensitivity).
+
+## Following along
+
+- [Releases](${REL}) and the in-app **HELP > WHAT'S NEW** list what changed.
+- [Issues](https://github.com/${REPO}/issues) are where bugs and ideas are tracked.
+`));
+
 // ---------- Sidebar and footer ----------
 add('_Sidebar', bt(`
 **[Home](Home)**
@@ -640,6 +671,7 @@ add('_Sidebar', bt(`
 **Help**
 - [Troubleshooting](Troubleshooting)
 - [FAQ](FAQ)
+- [Roadmap and Known Issues](Roadmap-and-Known-Issues)
 
 **Develop**
 - [Building from Source](Building-from-Source)

@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml/badge.svg)](https://github.com/Zhubbs19/RerunTV/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Zhubbs19/RerunTV/badge)](https://scorecard.dev/viewer/?uri=github.com/Zhubbs19/RerunTV)
 
 > **Beta software with unsigned Windows installers.** Windows will warn you the first time you run one; see [Download and install](#download-and-install) for why and how to check the download.
 

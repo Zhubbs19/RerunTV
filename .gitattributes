@@ -1,0 +1,19 @@
+# Text files are stored with LF and checked out with LF, whatever the contributor's OS or
+# core.autocrlf setting. Without this, Windows checkouts mix CRLF and LF and produce noisy diffs.
+* text=auto eol=lf
+
+# Windows batch files need CRLF line endings to run reliably.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files: never touched by line-ending conversion.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.jar binary
+*.exe binary
+*.zip binary
