@@ -56,7 +56,9 @@ boots (right version, all bundled plugins load, no uncaught errors). Fix a red r
   `RerunTV-demo-library.zip` once the Demo pack workflow has finished.
 - `latest.yml` names the new version and the installer's size matches the asset.
 - The attestation exists: `gh attestation verify <installer> --repo Zhubbs19/RerunTV`, or look the
-  installer's SHA-256 (from `SHA256SUMS.txt`) up under the repository's attestations.
+  installer's SHA-256 (from `SHA256SUMS.txt`) up under the repository's attestations. The attestation
+  bundle is also attached to the release as `<installer>.intoto.jsonl`, so it can be verified offline with
+  `gh attestation verify <installer> --bundle <installer>.intoto.jsonl --repo Zhubbs19/RerunTV`.
 - Install it on a clean machine, and upgrade a machine that has the previous version to confirm the
   in-app update works. Expect the Windows SmartScreen warning while installers are unsigned.
 

@@ -84,6 +84,7 @@ jobs:
           sha256sum RerunTV-demo-library.zip
 
       - name: Attest build provenance
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: RerunTV-demo-library.zip
@@ -91,5 +92,14 @@ jobs:
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
-          gh release upload "${{ steps.release.outputs.tag }}" RerunTV-demo-library.zip --clobber --repo "${{ github.repository }}"
+          assets=(RerunTV-demo-library.zip)
+          # The attestation bundle lets anyone verify the zip offline (gh attestation verify --bundle ...).
+          if [ -n "$BUNDLE" ] && [ -f "$BUNDLE" ]; then
+            cp "$BUNDLE" RerunTV-demo-library.zip.intoto.jsonl
+            assets+=(RerunTV-demo-library.zip.intoto.jsonl)
+          else
+            echo "No attestation bundle was produced; uploading the zip alone."
+          fi
+          gh release upload "${{ steps.release.outputs.tag }}" "${assets[@]}" --clobber --repo "${{ github.repository }}"
