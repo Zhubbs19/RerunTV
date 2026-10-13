@@ -1144,7 +1144,7 @@ if (helpPrintManualBtn) {
 const CHANGELOG = [
   { date: '2026-10-12', items: [
     'RerunTV is now in beta: releases are numbered 0.2.0-beta.N, and the update check follows them.',
-    'Three plugins have new names (your settings, approvals and theme carry over on first launch): Music Choice Channel is now Digital Music Channel (CH 910 asks you to approve it once), the guide plugin is now Guide Channel, and the 1994 guide theme is now Scrolling Guide 94.',
+    'Three plugins have new names (your settings, approvals and theme carry over on first launch): the music channel plugin (CH 910) is now Digital Music Channel and asks you to approve it once, the guide plugin is now Guide Channel, and the 1994 guide theme is now Scrolling Guide 94.',
     'A generated demo library (scripts/make-demo-library.js) lets anyone try the app with slow, soft test video and static and flicker already off, and the README has a photosensitivity notice listing the CRT effect, flicker and channel static switches.',
   ] },
   { date: '2026-10-08', items: [
