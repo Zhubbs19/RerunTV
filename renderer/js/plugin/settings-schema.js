@@ -187,10 +187,14 @@ export function settingPathPatch(settings, path, value) {
   const branch = isPlainObject(settings && settings[top]) ? clone(settings[top]) : {};
   let node = branch;
   for (let i = 1; i < parts.length - 1; i += 1) {
-    if (!isPlainObject(node[parts[i]])) node[parts[i]] = {};
-    node = node[parts[i]];
+    const key = parts[i];
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return {};
+    if (!isPlainObject(node[key])) node[key] = {};
+    node = node[key];
   }
-  node[parts[parts.length - 1]] = value;
+  const last = parts[parts.length - 1];
+  if (last === '__proto__' || last === 'constructor' || last === 'prototype') return {};
+  node[last] = value;
   return { [top]: branch };
 }
 
