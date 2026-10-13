@@ -252,6 +252,8 @@ await android('ok'); await wait(300);
 const step2 = await js(() => document.querySelector('.tv-wizard-title')?.textContent);
 await js(() => { const b = Array.from(document.querySelectorAll('.tv-wizard-btn')).find((x) => x.textContent === 'CONTINUE'); b && b.focus(); });
 await android('ok'); await wait(300);
+const stepLook = await js(() => document.querySelector('.tv-wizard-title')?.textContent);
+await android('ok'); await wait(300); // keeps the focused (current) comfort level, FULL RETRO LOOK
 const step3 = await js(() => document.querySelector('.tv-wizard-title')?.textContent);
 await android('ok'); await wait(400); // keeps the focused (current) strategy
 const step4 = await js(() => document.querySelector('.tv-wizard-prompt')?.textContent);
@@ -262,9 +264,9 @@ const step5 = await js(() => document.querySelector('.tv-wizard-title')?.textCon
 await shot('tv-wizard-done');
 await android('ok');
 const wizard = await wizardDone;
-record('first-run wizard walks welcome → channels → updates → remote check → done with D-pad + OK',
-  /WELCOME/.test(step1) && /ADD YOUR CHANNELS/.test(step2) && /UPDATE/.test(step3) && /Press OK/.test(step4) && /ALL SET/.test(step5) && wizard && wizard.updateStrategy === 'manual',
-  `${step1} → ${step2} → ${step3} → ${step4} → ${step5} → ${JSON.stringify(wizard)}`);
+record('first-run wizard walks welcome → channels → look → updates → remote check → done with D-pad + OK',
+  /WELCOME/.test(step1) && /ADD YOUR CHANNELS/.test(step2) && /LOOK/.test(stepLook) && /UPDATE/.test(step3) && /Press OK/.test(step4) && /ALL SET/.test(step5) && wizard && wizard.updateStrategy === 'manual' && wizard.comfort === 'full',
+  `${step1} → ${step2} → ${stepLook} → ${step3} → ${step4} → ${step5} → ${JSON.stringify(wizard)}`);
 
 // plugin actions: Digital Music ◀▶ cycles its station through onAction
 const mc = await js(() => { const n = 910; return window.S.config && (async () => { const v = await import('app://bundle/renderer/js/playback/virtual.js'); return v.virtualChannelNumbers().includes(n) ? n : null; })(); });

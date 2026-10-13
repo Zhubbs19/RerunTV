@@ -1,6 +1,6 @@
 // First run on a TV (docs/design/01 §6.5): Welcome → add channels (on a phone
-// or computer, or from a folder on this device) → update policy → remote
-// check → live TV. Everything is reachable with D-pad + OK; the remote check
+// or computer, or from a folder on this device) → picture comfort (how much
+// flicker and static to show) → update policy → remote check → live TV. Everything is reachable with D-pad + OK; the remote check
 // ("Press OK… Press BACK… Hold OK") is what seeds this device's remote profile.
 import { tvScreen } from '../core/dom.js';
 import { REMOTE_CHECK, WIZARD_STEPS, advanceRemoteCheck, nextWizardStep } from './setup-model.js';
@@ -12,6 +12,14 @@ const UPDATE_CHOICES = [
   { value: 'startup-auto', label: 'INSTALL AUTOMATICALLY', help: 'Check before RerunTV opens and install straight away.' },
   { value: 'background-notify', label: 'ASK WHEN READY', help: 'Check in the background and ask before installing.' },
   { value: 'manual', label: 'ONLY WHEN I ASK', help: 'Never check on its own.' },
+];
+
+// Mirrors the desktop first-run page (setup/onboarding.js); the answer is applied by
+// applyComfortLevel in app.js.
+const COMFORT_CHOICES = [
+  { value: 'full', label: 'FULL RETRO LOOK', help: 'Scanlines, screen flicker and a static burst when you change channel.' },
+  { value: 'gentle', label: 'GENTLE', help: 'No screen flicker and no channel-change static.' },
+  { value: 'minimal', label: 'MINIMAL', help: 'The CRT effect off entirely, for a clean picture.' },
 ];
 
 const REMOTE_CHECK_TIMEOUT_MS = 30000;
@@ -32,12 +40,13 @@ function button(label, onPress, { isDefault = false } = {}) {
   return Button({ label, onPress, isDefault, bare: true, className: 'tv-wizard-btn' });
 }
 
-// options: { updateStrategy, addFolderChannel(): Promise<number|null> | null }
-// Resolves { updateStrategy, channelsAdded }.
-export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel = null } = {}) {
+// options: { updateStrategy, comfort, addFolderChannel(): Promise<number|null> | null }
+// Resolves { updateStrategy, comfort, channelsAdded }.
+export function showTvWizard({ updateStrategy = 'startup-auto', comfort: initialComfort = 'full', addFolderChannel = null } = {}) {
   return new Promise((resolve) => {
     let step = WIZARD_STEPS[0];
     let strategy = updateStrategy;
+    let comfort = initialComfort;
     let channelsAdded = 0;
     let checkTimer = null;
 
@@ -53,7 +62,7 @@ export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel
       surface = null;
       overlay = null;
       goBack = null;
-      resolve({ updateStrategy: strategy, channelsAdded });
+      resolve({ updateStrategy: strategy, comfort, channelsAdded });
     };
 
     const go = (next) => {
@@ -111,6 +120,13 @@ export function showTvWizard({ updateStrategy = 'startup-auto', addFolderChannel
         }
         actions.appendChild(button('CONTINUE', () => go(nextWizardStep(step))));
         panel.appendChild(qrArea);
+      } else if (step === 'comfort') {
+        const actions = frame('LOOK', 'HOW SHOULD IT LOOK?', 'RerunTV imitates old TV, and some of those effects flicker or flash. If you are sensitive to flashing, choose GENTLE or MINIMAL. You can change this later in Setup.');
+        COMFORT_CHOICES.forEach((choice) => {
+          const b = button(`${choice.value === comfort ? '● ' : ''}${choice.label}`, () => { comfort = choice.value; go(nextWizardStep(step)); }, { isDefault: choice.value === comfort });
+          b.title = choice.help;
+          actions.appendChild(b);
+        });
       } else if (step === 'updates') {
         const actions = frame('UPDATES', 'HOW SHOULD RERUNTV UPDATE?', 'You can change this later in Setup.');
         UPDATE_CHOICES.forEach((choice) => {

@@ -1423,6 +1423,7 @@ async function init() {
       } : null,
     });
     S.config.updates.strategy = wizard.updateStrategy;
+    applyComfortLevel(S.config, wizard.comfort);
     await saveConfigNow();
     resetUndoBaseline();
     const first = S.config.channels.slice().sort((x, y) => x.number - y.number)[0];

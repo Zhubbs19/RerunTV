@@ -1174,7 +1174,7 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-12', items: [
-    'First-run setup now has a CHOOSE HOW IT LOOKS page (page 2 of 3): FULL RETRO LOOK, GENTLE (no screen flicker or channel-change static) or MINIMAL (no CRT effect at all), with a note for people who are sensitive to flashing. You can change it later under Picture & Sound.',
+    'First-run setup now has a CHOOSE HOW IT LOOKS page (page 2 of 3): FULL RETRO LOOK, GENTLE (no screen flicker or channel-change static) or MINIMAL (no CRT effect at all), with a note for people who are sensitive to flashing. You can change it later under Picture & Sound. The TV-mode setup wizard has the same choice (page 3 of 5).',
     'RerunTV is now in beta: releases are numbered 0.2.0-beta.N, and the update check follows them.',
     'Three plugins have new names (your settings, approvals and theme carry over on first launch): the music channel plugin (CH 910) is now Digital Music Channel and asks you to approve it once, the guide plugin is now Guide Channel, and the 1994 guide theme is now Scrolling Guide 94.',
     'A generated demo library (scripts/make-demo-library.js) lets anyone try the app with slow, soft test video and static and flicker already off, and the README has a photosensitivity notice listing the CRT effect, flicker and channel static switches.',

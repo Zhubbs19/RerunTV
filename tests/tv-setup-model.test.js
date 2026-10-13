@@ -36,6 +36,9 @@ test('the on-screen keyboard edits text and finishes on DONE', async () => {
 test('the wizard walks its steps and the remote check waits for each button', async () => {
   const { nextWizardStep, advanceRemoteCheck, REMOTE_CHECK } = await load();
   assert.equal(nextWizardStep('welcome'), 'channels');
+  assert.equal(nextWizardStep('channels'), 'comfort');
+  assert.equal(nextWizardStep('comfort'), 'updates');
+  assert.equal(nextWizardStep('updates'), 'remote');
   assert.equal(nextWizardStep('remote'), 'done');
   assert.equal(nextWizardStep('done'), 'done');
   let i = 0;

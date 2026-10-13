@@ -39,7 +39,7 @@ export function applyOskKey(value, key, { maxLength = 60 } = {}) {
 }
 
 // ---------- First-run wizard (§6.5) ----------
-export const WIZARD_STEPS = ['welcome', 'channels', 'updates', 'remote', 'done'];
+export const WIZARD_STEPS = ['welcome', 'channels', 'comfort', 'updates', 'remote', 'done'];
 
 export function nextWizardStep(step) {
   const i = WIZARD_STEPS.indexOf(step);
