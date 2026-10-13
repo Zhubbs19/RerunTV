@@ -11,14 +11,17 @@ on:
     branches:
       - deploy
 
+# Least privilege: read-only by default; only the build job gets the write scopes it needs.
 permissions:
-  contents: write      # create the release
-  id-token: write      # sign the build attestation
-  attestations: write  # store the build attestation
+  contents: read
 
 jobs:
   build:
     runs-on: windows-latest
+    permissions:
+      contents: write      # create the release
+      id-token: write      # sign the build attestation
+      attestations: write  # store the build attestation
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

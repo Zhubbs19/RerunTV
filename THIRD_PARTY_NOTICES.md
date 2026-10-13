@@ -34,8 +34,10 @@ Apache License 2.0, and ship the Gradle wrapper (Apache 2.0).
 
 ## Artwork
 
-The app icon, the Android launcher and banner images, and the companion-app icon (a rewind-symbol
-TV) were generated with OpenAI's Codex at the maintainer's direction. Under OpenAI's terms the
+The app icon (`build/icon.png`), the Android logo and TV banner images (`reruntv_logo.png`,
+`reruntv_tv_banner.png` in the two Android clients) and the phone-remote icon
+(`plugins/companion-app/remote/icon.png`), all a rewind-symbol TV, were generated with OpenAI's Codex
+at the maintainer's direction. The Android launcher icons are hand-written vector drawables. Under OpenAI's terms the
 user owns the output. Because purely AI-generated images may not qualify for copyright protection,
 they are provided as-is, and the MIT license applies to the extent any rights exist. Everything
 else visual (theme borders, overlays, test patterns) is original SVG, CSS or code in this
