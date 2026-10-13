@@ -75,7 +75,7 @@ const firstSentence = (t, max = 230) => {
   const m = s.split(/(?<=[.!?])\s+(?=[A-Z"'(])/)[0];
   return (m.length > max ? m.slice(0, max - 1).replace(/\s+\S*$/, '') + '…' : m);
 };
-const esc = (t) => String(t).replace(/\|/g, '\\|');
+const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 
 // ---------- sources ----------
 const README = read('README.md');

@@ -29,7 +29,7 @@ let CLIP_SECONDS = 480; // long enough that the guide shows real titles, not "sh
 // CRT flicker. See "Photosensitivity" in the README.
 //
 // Each channel: a generator, and clip titles. Tone frequency varies per clip.
-// gradients types: 0 linear, 1 radial, 2 circular, 3 square, 4 spiral.
+// gradients types used here (0-3 only): older ffmpeg builds, such as the one on Ubuntu runners, reject higher values.
 const SIZE = 'size=480x270:rate=12';
 const gradient = (type, speed, colors) =>
   `gradients=${SIZE}:type=${type}:speed=${speed}:nb_colors=${colors.length}:` +
@@ -44,7 +44,7 @@ const LINEUP = [
     clips: ['Aurora Study', 'Slow Sunset', 'Tide Colors'] },
   { number: 9, name: 'Sci-Fi Theater', gen: gradient(2, 0.004, ['#6a5d9b', '#3b6f8f', '#8fa6d4', '#4a4f7a']),
     clips: ['Colony Collapse', 'Signal From Nowhere', 'The Automaton Garden'] },
-  { number: 11, name: 'Music Hour', gen: gradient(4, 0.005, ['#e4a6b8', '#b79ad1', '#f0c7a0', '#8fb0d9']),
+  { number: 11, name: 'Music Hour', gen: gradient(3, 0.005, ['#e4a6b8', '#b79ad1', '#f0c7a0', '#8fb0d9']),
     clips: ['Synth Sunrise', 'Neon Highway', 'Cassette Dreams'] },
 ];
 
