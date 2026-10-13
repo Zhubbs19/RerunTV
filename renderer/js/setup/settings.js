@@ -710,6 +710,7 @@ const HELP_GUIDE = [
     'Welcome! This guide explains what everything in the setup screen does, organized by tab so it\'s easy to find what you need.',
     'TIP: Use the SEARCH THE GUIDE box above if you already know roughly what you\'re looking for — it searches both the topic titles and the text inside them.',
     'Don\'t feel like you need to read this all at once. Most people just build their first channel (see SECTION 2 below) and come back here later when they want to try something new.',
+    'NOTE: RerunTV is in beta. If something looks wrong, check HELP › WHAT\'S NEW for recent changes, and report problems on the project\'s GitHub page.',
   ] },
   { group: 'SECTION 2 — GETTING STARTED', title: '2.1 Setting Up Your First Channel', body: [
     'STEP 1: Go to the LINEUP tab and click "+ ADD CHANNEL". A new, empty channel will show up.',
@@ -718,6 +719,12 @@ const HELP_GUIDE = [
     'NOTE: You can rename a channel or change its number any time by clicking directly on its NAME or NUMBER in the list.',
     'TIP: Checking "SHUFFLE ORDER" mixes up the playback order once. It won\'t keep re-shuffling every time the channel loops — uncheck and recheck it whenever you want a new shuffle.',
     'STEP 4: When you\'re ready, click "START WATCHING" in the bottom-right corner to leave this screen and start watching. That\'s it!',
+  ] },
+  { group: 'SECTION 2 — GETTING STARTED', title: '2.2 Trying RerunTV Without Your Own Media', body: [
+    'No library handy? The source code on GitHub includes a small generator, scripts/make-demo-library.js, that makes a gentle demo lineup of generated test video: slow soft colors, quiet tones, nothing copyrighted. It is not part of the installer, and it needs ffmpeg installed.',
+    'STEP 1: In a terminal in the project folder, run: node scripts/make-demo-library.js demo-library. Add --seconds 60 for shorter clips that generate faster.',
+    'STEP 2: In the LINEUP tab, click "+ ADD CHANNEL" for each folder it created, use "ADD FOLDER" to point the channel at it, then click "START WATCHING".',
+    'TIP: Adding --config followed by an empty folder also writes a ready-made channel lineup there, with the channel-change static and CRT flicker already turned off.',
   ] },
   { group: 'SECTION 3 — CHANNELS', title: '3.1 Editing a Channel: Folders, Schedule, Titles, Ads, and Logo', body: [
     'Click "EDIT" on any channel to open its full settings. Its tabs are grouped under CONTENT (FOLDERS, TITLES, SCHEDULE), LOOK (LOGO, OVERLAYS, TICKER, IDENTITY) and PLAYBACK (ADS, CREDITS). The main ones:',
@@ -771,6 +778,8 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
+    'COMFORT AND PHOTOSENSITIVITY: some of these effects flicker or flash: the FLICKER slider, the CHANNEL STATIC burst when you change channel, the power on and off animations, and the optional signal-glitch, breaking-news and emergency-alert overlays. If you are sensitive to flashing lights or patterns, set FLICKER to 0, turn CHANNEL STATIC off, press C to switch the CRT effect off entirely, and turn the glitch and alert plugins off in the PLUG-INS tab. The pictures themselves come from your own media, which RerunTV can\'t change.',
+    'This is general guidance, not medical advice. If you ever feel unwell while watching, stop and take a break.',
     'Press V any time to cycle through picture-color presets (P is POWER), or press A to cycle how the picture fits the screen: STANDARD (safe letterboxing, with a border for non-widescreen content if your theme has one), STRETCH (deliberately distorted, like squeezing a widescreen picture onto an old TV), and FILL (zooms in to fill the whole screen, cropping the edges).',
   ] },
   { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.2 Themes and the Channel Logo', body: [
@@ -816,12 +825,19 @@ const HELP_GUIDE = [
     'KEEP PLAYBACK IN SYNC re-checks every 20 seconds that the picture is still at the point the schedule says it should be, and eases it back if it has fallen behind. This matters most after the computer sleeps and wakes, when the wall clock has moved on but the video has not. It also covers a file that stalls long enough to lose its place.',
     'NOTE: Turn the sync option off if your media lives somewhere slow enough that you would rather sit through an occasional stall than be moved past it. Everything else about the schedule is unaffected either way.',
   ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.9 Updates and Beta Releases', body: [
+    'RerunTV is in beta, and releases are numbered like 0.2.0-beta.7: the first part is the version, and the number after beta only goes up, so a higher one is always newer.',
+    'In SYSTEM, the UPDATE POLICY setting decides when updates happen: BEFORE APP OPENS — INSTALL AUTOMATICALLY, AFTER APP OPENS — INSTALL WHEN I QUIT, AFTER APP OPENS — ASK WHEN READY, ONLY WHEN I ASK, or NEVER. CHECK NOW looks for a newer build right away, and HELP › WHAT\'S NEW lists what changed.',
+    'Your channels and settings live in the userData folder next to the app, and a backup is taken before an update installs, so an update keeps your lineup.',
+    'NOTE: Beta installers are not code-signed, so Windows SmartScreen may warn the first time you run one. Choose "More info" and then "Run anyway" if you downloaded it from the project\'s own GitHub releases page.',
+  ] },
   { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.1 The Built-In Channels', body: [
     'Alongside your own channels, the box comes with a few special built-in ones — a program guide, a community bulletin board, a weather channel, a party channel, and more. Each one is its own plugin, and you can turn any of them on or off from the PLUG-INS tab, even the ones that come on by default.',
     'CH1 PREVIEW GUIDE is a scrolling program guide, like an old cable listings channel. CH2 PUBLIC ACCESS shows rotating community bulletin slides.',
     'CH0 AUX/VIDEO IN acts like a "line in" — it can even capture a window or app running on this same computer (like a karaoke app). CH3 WEATHER shows current conditions for your area.',
     'CH94 PARTY (see SECTION 6.4) is the interactive guest channel with photos, trivia, voting, and more.',
     'A few higher channel numbers (51, 88, and 94–99) are used for fun extras — a fake late-night channel, a game channel, shopping-channel parodies, a music visualizer, a pay-per-view screen, and a teletext channel. Each is its own plugin too, and any of them will automatically step aside if you already have a real channel using that number.',
+    'CH910 DIGITAL MUSIC CHANNEL plays genre "stations" from your own music folders, styled like a digital-cable music service, with on-demand pause and seek and a search by song, artist, album or year. Set up its stations in the PLUG-INS tab. It asks for permission to read your music folders the first time.',
   ] },
   { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.2 CH 100 — The Channel Mosaic', body: [
     'CH 100 is a preview mosaic: a grid showing what is airing on every one of your other channels right now, paging through the lineup a screenful at a time.',
@@ -861,6 +877,7 @@ const HELP_GUIDE = [
   { group: 'SECTION 9 — THE PLUG-INS TAB', title: '9.2 What a Plugin Is Allowed to Do', body: [
     'Some plugins need extra permissions — to talk to the internet, open another program, or run their own little web page. Each plugin lists exactly which of these it needs and why, right in the PLUG-INS tab. The first time you use a plugin like this (or after an update adds a new permission), you\'ll see a prompt to approve it before it can run.',
     'CAUTION: Only install plugins from sources you trust. Approving a permission limits what a plugin is allowed to do — it doesn\'t guarantee the plugin only does good things with the access you give it.',
+    'If a plugin asks for approval again after an update, its permissions changed or it was renamed. Review the list and approve it again to keep using it.',
     'Many plugins also run in their own separate, walled-off space instead of sharing the app\'s own — similar to how each tab in a web browser runs separately. That way, if one plugin crashes or misbehaves, it can\'t take the rest of the box down with it, and it\'s genuinely limited by your computer to only what it asked permission for.',
   ] },
   { group: 'SECTION 9 — THE PLUG-INS TAB', title: '9.3 Developer Diagnostics and Support Bundles', body: [
