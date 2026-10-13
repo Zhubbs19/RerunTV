@@ -805,8 +805,8 @@ const HELP_GUIDE = [
     'NOTE: Any individual channel or block can set its own volume, which always overrides the two sliders above.',
     'VINTAGE CRT AUDIO FILTER & SFX softens the sound a bit and can add a faint hum and mechanical click sounds, for that old-TV-speaker feel.',
   ] },
-  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.2 The Universal Remote (Phone Browser Page)', body: [
-    'Enable PHONE REMOTE LAN ACCESS in the Universal Remote plugin, save, and restart. Its pairing link opens a full remote in any browser on the same WiFi; the short code is exchanged for a private session before controls or channel data are available.',
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.2 The Companion App (Phone Browser Page)', body: [
+    'Enable COMPANION APP LAN ACCESS (REMOTE + SETTINGS + FILES) in the Companion App plugin, save, and restart. Its pairing link opens a full remote in any browser on the same WiFi; the short code is exchanged for a private session before controls or channel data are available.',
     'NOTE: This only works on your home WiFi, not over cellular data or from outside the house.',
     'TIP: If the remote page won\'t load, double check your phone is on the exact same WiFi network as the box (not a guest network) — that\'s the most common issue.',
   ] },

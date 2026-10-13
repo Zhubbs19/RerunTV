@@ -132,7 +132,7 @@ according to the selected update policy, then the local server control site open
 default browser. Opening RerunTV from the Start menu while that server is running switches
 cleanly back to the full desktop interface.
 
-The ignored `android-tv-client/` project provides the matching large-screen client. It
+The `android-tv-client/` project provides the matching large-screen client. It
 auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on 1080p and
 4K panels, supports D-pad controls, and includes a phone remote served directly by the TV.
 
