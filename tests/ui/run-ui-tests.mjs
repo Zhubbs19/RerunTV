@@ -141,7 +141,7 @@ async function main() {
 
   // ---------- Dismiss first-run onboarding ----------
   // A genuinely fresh userData (see run-ui-tests.ps1's throwaway-profile
-  // safety wrapper) always boots into the two-step "FIRST-TIME SETUP"
+  // safety wrapper) always boots into the three-step "FIRST-TIME SETUP"
   // overlay (onboarding.js) before anything else — it's a real role="dialog"
   // that sits on top of the whole app until dismissed, so every later step
   // in this suite depends on clearing it first.
@@ -149,7 +149,9 @@ async function main() {
   if (hasOnboarding) {
     await clickSelector(session, '.onboarding-screen .btn-primary'); // step 1 -> 2 (CONTINUE)
     await sleep(150);
-    await clickSelector(session, '.onboarding-screen .btn-primary'); // step 2 -> done (SAVE & OPEN CHANNEL SETUP)
+    await clickSelector(session, '.onboarding-screen .btn-primary'); // step 2 -> 3 (CONTINUE)
+    await sleep(150);
+    await clickSelector(session, '.onboarding-screen .btn-primary'); // step 3 -> done (SAVE & OPEN CHANNEL SETUP)
     await sleep(200);
   }
   record('onboarding dismissed', !(await elementExists(session, '.onboarding-screen')));

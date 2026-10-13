@@ -778,7 +778,7 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
-    'COMFORT AND PHOTOSENSITIVITY: some of these effects flicker or flash: the FLICKER slider, the CHANNEL STATIC burst when you change channel, the power on and off animations, and the optional signal-glitch, breaking-news and emergency-alert overlays. If you are sensitive to flashing lights or patterns, set FLICKER to 0, turn CHANNEL STATIC off, press C to switch the CRT effect off entirely, and turn the glitch and alert plugins off in the PLUG-INS tab. The pictures themselves come from your own media, which RerunTV can\'t change.',
+    'COMFORT AND PHOTOSENSITIVITY: some of these effects flicker or flash: the FLICKER slider, the CHANNEL STATIC burst when you change channel, the power on and off animations, and the optional signal-glitch, breaking-news and emergency-alert overlays. If you are sensitive to flashing lights or patterns, set FLICKER to 0, turn CHANNEL STATIC off, press C to switch the CRT effect off entirely, and turn the glitch and alert plugins off in the PLUG-INS tab. The first-run setup also offers this as a choice between FULL RETRO LOOK, GENTLE and MINIMAL. The pictures themselves come from your own media, which RerunTV can\'t change.',
     'This is general guidance, not medical advice. If you ever feel unwell while watching, stop and take a break.',
     'Press V any time to cycle through picture-color presets (P is POWER), or press A to cycle how the picture fits the screen: STANDARD (safe letterboxing, with a border for non-widescreen content if your theme has one), STRETCH (deliberately distorted, like squeezing a widescreen picture onto an old TV), and FILL (zooms in to fill the whole screen, cropping the edges).',
   ] },
@@ -1160,6 +1160,7 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-12', items: [
+    'First-run setup now has a CHOOSE HOW IT LOOKS page (page 2 of 3): FULL RETRO LOOK, GENTLE (no screen flicker or channel-change static) or MINIMAL (no CRT effect at all), with a note for people who are sensitive to flashing. You can change it later under Picture & Sound.',
     'RerunTV is now in beta: releases are numbered 0.2.0-beta.N, and the update check follows them.',
     'Three plugins have new names (your settings, approvals and theme carry over on first launch): the music channel plugin (CH 910) is now Digital Music Channel and asks you to approve it once, the guide plugin is now Guide Channel, and the 1994 guide theme is now Scrolling Guide 94.',
     'A generated demo library (scripts/make-demo-library.js) lets anyone try the app with slow, soft test video and static and flicker already off, and the README has a photosensitivity notice listing the CRT effect, flicker and channel static switches.',

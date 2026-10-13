@@ -2269,7 +2269,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   gap: 8px;
 }
 
-/* Two-page first-run setup (onboarding.js). */
+/* Three-page first-run setup (onboarding.js). */
 .onboarding-screen { overflow-y: auto; padding: 24px; }
 .onboarding-box {
   width: min(760px, 96vw);

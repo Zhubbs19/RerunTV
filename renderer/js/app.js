@@ -9,7 +9,7 @@ import {
 } from './core/dom.js';
 import { showDetailsForCurrentChannel, hideDetailsOverlay } from './tv/details.js';
 import { alertDialog, confirmDialog } from './setup/dialogs.js';
-import { showOnboarding } from './setup/onboarding.js';
+import { showOnboarding, applyComfortLevel } from './setup/onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugin/host.js';
 import {
   foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
@@ -1431,7 +1431,8 @@ async function init() {
     if (isFirstRun) {
       const onboarding = await showOnboarding({ updateStrategy: S.config.updates.strategy });
       S.config.updates.strategy = onboarding.updateStrategy;
-      // Persist the choice before the first setup interaction so the next
+      applyComfortLevel(S.config, onboarding.comfort);
+      // Persist the choices before the first setup interaction so the next
       // launch's main-process preflight can enforce it even if the user
       // closes the app without adding a channel.
       await saveConfigNow();
