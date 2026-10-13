@@ -2,6 +2,16 @@
 
 Thanks for your interest! RerunTV is an Electron app that simulates a broadcast cable box.
 
+## How to contribute
+
+- **Bug reports, feature ideas and questions are welcome** as [GitHub issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose).
+- **Pull requests are limited to collaborators.** This is a repository setting, so the pull request
+  button is not available to everyone. To propose a change, open an issue first and describe it. If it
+  fits the project, the maintainer may apply it or invite you as a collaborator so you can open a pull
+  request.
+- Forking is fine, for your own experiments and plugins. Plugins can also live in their own repository;
+  see `PLUGIN_DEVELOPMENT.md`.
+
 ## Getting started
 
 ```bash
@@ -14,7 +24,7 @@ Read `CLAUDE.md` first: it explains the one invariant that matters most (schedul
 playback code must read time through `viewNow()`, not `Date.now()`) and how config edits
 and caches work. `PLUGIN_DEVELOPMENT.md` covers the plugin API.
 
-## Pull requests
+## Pull requests (collaborators)
 
 - Keep changes focused, and add or update a test in `tests/` when behavior changes.
 - Match the surrounding code style and comment density.

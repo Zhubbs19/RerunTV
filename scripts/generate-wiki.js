@@ -485,6 +485,9 @@ In the «userData« folder next to the app. See [Installation](Installation).
 **Can I use it on a TV?**
 Yes: there is a TV mode with remote-driven setup, a LAN viewer, and an Android TV client in the repository. See [Headless, LAN and Remotes](Headless-LAN-and-Remotes).
 
+**Can I contribute?**
+Yes: bug reports and ideas are welcome as [issues](https://github.com/${REPO}/issues/new/choose). Pull requests are currently limited to collaborators, so open an issue first. See [Development](Development).
+
 **Can I write my own plugin or theme?**
 Yes. See [Plugin Development](Plugin-Development).
 
@@ -563,7 +566,7 @@ ${clean(shiftHeadings(section(README, 'Design decisions'), 0))}
 
 ## Contributing
 
-Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}CODE_OF_CONDUCT.md). In short:
+Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}CODE_OF_CONDUCT.md). **Bug reports, ideas and questions are welcome as issues. Pull requests are currently limited to collaborators**, so open an issue first to propose a change. In short, for a change:
 
 - Keep changes focused and add or update a test when behavior changes.
 - Match the surrounding code.
