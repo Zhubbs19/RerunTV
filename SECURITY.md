@@ -101,6 +101,9 @@ Knowing the design helps you judge what counts as a vulnerability:
   to the user, not a sandbox. Only plugins whose manifest sets `"isolated": true`
   run in a separate process. Install plugins only from sources you trust. See
   the "Trust model" section of `PLUGIN_DEVELOPMENT.md`.
+- **The code is AI-written and has not been independently audited.** RerunTV is vibe-coded with an AI
+  coding agent. It is covered by tests, CI and static analysis, but it has not had an outside code review
+  or a third-party security audit, so please report anything you find privately.
 - **Releases are unsigned.** Beta installers are not code-signed, so Windows
   SmartScreen warns on first run.
 - **No telemetry.** RerunTV makes no network requests of its own except the ones

@@ -57,6 +57,7 @@ function shiftHeadings(md, by) {
 const ANCHORS = {
   '#download-and-install': 'Installation', '#setup': 'Building-from-Source',
   '#try-it-without-your-own-media': 'Quick-Start', '#screenshots': 'Home',
+  '#how-this-project-is-built': 'How-This-Project-Is-Built',
 };
 function fixLinks(md) {
   return md.replace(/\]\(([^)\s]+)\)/g, (m, u) => {
@@ -106,6 +107,8 @@ ${intro}
 
 *(Screenshots show the bundled synthetic demo library, not real shows.)*
 
+> **Vibe-coded.** RerunTV was written almost entirely by an AI coding agent (Claude Code) under the project owner's direction, and it has not had an independent code review or security audit. See [How This Project Is Built](How-This-Project-Is-Built).
+
 > **Beta software.** Releases are numbered «0.2.0-beta.N«. The Windows installers are **not code-signed yet**, so Windows will warn you the first time you run one. See [Installation](Installation) for why and how to check a download.
 
 ## Start here
@@ -132,6 +135,7 @@ ${intro}
 
 ## Build on it
 
+- [How This Project Is Built](How-This-Project-Is-Built) (it is vibe-coded, with an AI coding agent)
 - [Building from Source](Building-from-Source), [Development](Development), [Architecture](Architecture)
 - [Plugin Development](Plugin-Development)
 
@@ -492,8 +496,8 @@ Yes: questions and ideas are welcome in [Discussions](https://github.com/${REPO}
 **Can I write my own plugin or theme?**
 Yes. See [Plugin Development](Plugin-Development).
 
-**Who built it?**
-RerunTV is built with Claude Code, directed by a single project owner: Claude writes the code, and the project owner sets direction, makes the product and architecture calls, and reviews and approves everything that ships.
+**Who built it? Is it vibe-coded?**
+Yes. An AI coding agent (Claude Code) wrote almost all of the code under the project owner's direction, and the project owner makes the product and architecture decisions and approves what ships. It is covered by automated tests, CI and static analysis, but it has not had an independent code review or a security audit. See [How This Project Is Built](How-This-Project-Is-Built).
 
 **What license is it under?**
 MIT. Third-party notices are in the repository's [THIRD_PARTY_NOTICES.md](${BLOB}THIRD_PARTY_NOTICES.md).
@@ -613,6 +617,15 @@ This page mirrors the repository's [SECURITY.md](${BLOB}SECURITY.md), which is t
 ${clean(shiftHeadings(SECURITY.replace(/^# .+\n/, ''), 0).trim())}
 `));
 
+// ---------- How this project is built ----------
+add('How-This-Project-Is-Built', bt(`
+# How This Project Is Built
+
+${clean(section(README, 'How this project is built'))}
+
+For how to work on it, see [Development](Development), and for the security picture see [Security](Security).
+`));
+
 // ---------- Roadmap and known issues ----------
 add('Roadmap-and-Known-Issues', bt(`
 # Roadmap and Known Issues
@@ -635,6 +648,7 @@ RerunTV is in **beta**. This page is upfront about what is planned and what is l
 - The installers are **unsigned**, so Windows shows a SmartScreen warning. Check downloads as described in [Installation](Installation).
 - **Windows is the only platform with packaged installers.** macOS and Linux builds are configured but untested.
 - The **LAN features are plain HTTP**, protected by a pairing code, and meant for a network you trust. See [Security](Security).
+- **It is vibe-coded and has not been independently audited.** See [How This Project Is Built](How-This-Project-Is-Built).
 - **Third-party plugins are trusted code.** Only install plugins you trust. See [Plugins](Plugins).
 - **Playback uses the browser engine's codecs**: .mp4 (H.264) and .webm work best, and other formats are converted with ffmpeg on demand. See [Troubleshooting](Troubleshooting).
 - The **Android clients** («android-tv-client» and «android-companion-client») are in the repository but are not part of the installer and are not built by CI. Build them with Gradle.
@@ -680,6 +694,7 @@ add('_Sidebar', bt(`
 
 **Develop**
 - [Building from Source](Building-from-Source)
+- [How This Project Is Built](How-This-Project-Is-Built)
 - [Development](Development)
 - [Architecture](Architecture)
 - [Plugin Development](Plugin-Development)

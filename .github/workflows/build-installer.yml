@@ -116,6 +116,7 @@ jobs:
           # FOR UPDATES" (main/updater/updater.js) 404s on every check. electron-
           # builder writes latest.yml pointing at the installer's exact
           # filename, so it has to ship from the very same release.
+          notes+=" This project is vibe-coded with an AI coding agent and has not been independently audited; see the README."
           gh release create "$tag" \
             --repo "${{ github.repository }}" \
             --title "$product $tag (beta)" \

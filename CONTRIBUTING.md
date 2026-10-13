@@ -12,6 +12,12 @@ Thanks for your interest! RerunTV is an Electron app that simulates a broadcast 
 - Forking is fine, for your own experiments and plugins. Plugins can also live in their own repository;
   see `PLUGIN_DEVELOPMENT.md`.
 
+## How the project is built
+
+RerunTV is vibe-coded: an AI coding agent wrote almost all of it under the project owner's direction (see
+the README). If you propose a change and an AI helped write it, say so. Either way, it needs tests and has
+to pass CI.
+
 ## Getting started
 
 ```bash

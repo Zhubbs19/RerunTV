@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Zhubbs19/RerunTV/badge)](https://scorecard.dev/viewer/?uri=github.com/Zhubbs19/RerunTV)
 
+> **Vibe-coded.** RerunTV was written almost entirely by an AI coding agent ([Claude Code](https://claude.com/claude-code)) under the project owner's direction, and it has not had an independent code review or security audit. See [How this project is built](#how-this-project-is-built).
+
 > **Beta software with unsigned Windows installers.** Windows will warn you the first time you run one; see [Download and install](#download-and-install) for why and how to check the download.
 
 A desktop simulator of an old broadcast cable box. Point channels at folders in your own
@@ -455,11 +457,23 @@ The choices that shaped the codebase (the full reasoning is in [`docs/design/`](
 - **Tested against the real app.** About 450 unit and contract tests run in CI, and a separate suite
   drives the real Electron window over the Chrome DevTools Protocol (`tests/ui/`).
 
-## Development
+## How this project is built
 
-This project is built with [Claude Code](https://claude.com/claude-code), directed by a
-single project owner — Claude writes the code, the project owner sets direction, makes the
-product/architecture calls, and reviews and approves everything that ships.
+RerunTV is **vibe-coded**: an AI coding agent, [Claude Code](https://claude.com/claude-code), wrote almost
+all of the code, working from the project owner's direction rather than the code being written by hand.
+
+- **Who decides what.** The project owner sets the goals, makes the product and architecture calls (the
+  numbered design documents in [docs/design/](docs/design/) are where they are written down), runs the
+  app, and approves what ships.
+- **How it is checked.** About 470 automated tests (including property-based tests), CI that builds and
+  launches the real installer on every push, CodeQL and OpenSSF Scorecard analysis, and dependency
+  scanning. Many commits are authored or co-authored by Claude, and say so.
+- **What it has not had.** An independent human code review or a third-party security audit. Expect rough
+  edges, treat it as a beta, and read [SECURITY.md](SECURITY.md) before using the optional network features.
+- **The agent's instructions are in the repository** ([CLAUDE.md](CLAUDE.md), [AGENTS.md](AGENTS.md)), so
+  the way it works is visible too.
+
+## Development
 
 The git history was filtered before this repository was made public, to remove personal data and
 third-party material that had been used for private testing. Commits, order and dates are otherwise

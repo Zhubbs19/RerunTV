@@ -725,6 +725,7 @@ const HELP_GUIDE = [
     'TIP: Use the SEARCH THE GUIDE box above if you already know roughly what you\'re looking for — it searches both the topic titles and the text inside them.',
     'Don\'t feel like you need to read this all at once. Most people just build their first channel (see SECTION 2 below) and come back here later when they want to try something new.',
     'NOTE: RerunTV is in beta. If something looks wrong, check HELP › WHAT\'S NEW for recent changes, and report problems on the project\'s GitHub page.',
+    'NOTE: RerunTV is vibe-coded: an AI coding agent wrote almost all of it under the direction of the project owner, and it has not had an independent code review or security audit. See the README on GitHub for details.',
   ] },
   { group: 'SECTION 2 — GETTING STARTED', title: '2.1 Setting Up Your First Channel', body: [
     'STEP 1: Go to the LINEUP tab and click "+ ADD CHANNEL". A new, empty channel will show up.',
