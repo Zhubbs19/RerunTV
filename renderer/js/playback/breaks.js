@@ -16,6 +16,7 @@
 import { playConfiguredSound } from '../core/audio.js';
 import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { clearDynamicOverlaysForBreak, triggerDynamicOverlays } from './dynamic-overlays.js';
+import { hideTrackCard } from './track-card.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
   guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, ratingBugEl,
@@ -301,6 +302,8 @@ function startBreak(ch, resolved, key) {
   // signOn — see interstitials.js) simply match no configured rule, a safe
   // no-op — see DYNAMIC_OVERLAY_TRIGGERS, channels.js.
   triggerDynamicOverlays(ch, type);
+  // A music channel's artist / song card belongs to the video, not the ad.
+  if (!isTextOnlyChannelId) hideTrackCard();
   // How far into the break window the current moment already is. During
   // normal live playback this is ~0 (the timer fired right at windowStart).
   // In time machine mode, shuttlePlay can commit to a time mid-window, so

@@ -194,7 +194,12 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `library/sync-core.js`/`library/relink.js` (opt-in folder resync and the channel-health
   relink workflow), `library/channel-package.js` (portable single-channel export/import), and
   `api-contract.js` (the canonical `window.api` surface list, checked against the sandboxed
-  preload by `tests/api-surface.test.js`).
+  preload by `tests/api-surface.test.js`). Channel presets (docs/design/08): the pure engine is
+  `library/channel-builder.js` (`compilePreset` returns a channel plus ad-pool entries; a preset's
+  `channel` may set only an allow-listed set of fields), the LIBRARY › PRESETS screen and the one
+  preview-and-apply flow (`applyPreset`, also used by CHANNELS › + ADD CHANNEL) are
+  `setup/presets.js`, saved presets live in the library index (`presets`), and the artist / song
+  lower third a music channel shows is `playback/track-card.js` (`ch.trackCard`).
 - `plugins/<id>/` — each plugin is self-contained: `manifest.json`, optional `style.css`,
   `renderer.js` (ES module, dynamic-imported from `app://plugins/`), optional `main.js`
   (main-process code), optional `settings.js` (manifest's `"settings"` field) for a plugin's

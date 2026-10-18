@@ -531,6 +531,7 @@
           <button class="setup-subtab-btn active" data-subtab="librarycatalogue">CATALOGUE</button>
           <button class="setup-subtab-btn" data-subtab="libraryreview">REVIEW</button>
           <button class="setup-subtab-btn" data-subtab="librarysmart">SMART CHANNELS</button>
+          <button class="setup-subtab-btn" data-subtab="librarypresets">PRESETS</button>
           <button class="setup-subtab-btn" data-subtab="librarysync">SYNC</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAGS</button>
           <button class="setup-subtab-btn" data-subtab="librarysplicer">SPLICER</button>
@@ -571,6 +572,16 @@
             </div>
           </div>
           <div id="library-smart-root" class="library-root"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="librarypresets">
+        <div class="settings-grid">
+        <div class="panel span-full">
+          <div class="panel-toggle">CHANNEL PRESETS</div>
+          <span class="panel-status">A preset is a whole channel described by intent — which kinds of programs, when they air, what plays in the breaks, what shows on screen — with no file paths. Build a channel from one, or make your own.</span>
+          <div id="library-presets-root" class="library-root"></div>
         </div>
         </div>
         </div>
@@ -2315,6 +2326,11 @@
     <!-- "NEW EPISODE"/"REPEAT" bug, flashed briefly at program start —
          see flashEpisodeStatusBug, playback.js. -->
     <div id="episode-status-bug" class="episode-status-bug"></div>
+
+    <!-- Artist / song lower third on a music-video channel (ch.trackCard),
+         shown as each video starts and again as it ends — see
+         playback/track-card.js. -->
+    <div id="track-card" class="track-card" data-slot="track-card" aria-live="polite"></div>
 
     <!-- "Formatted to fit your screen"/widescreen disclaimer card,
          flashed once when a file's native aspect doesn't match the

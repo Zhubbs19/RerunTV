@@ -173,7 +173,7 @@ export const ORDER_POLICIES = {
 
 // Metadata copied onto each playlist entry so every existing reader of
 // `ch.files[i].title` / `.tags` keeps working (the doc's one-release dual-read).
-const DUAL_READ_FIELDS = ['title', 'tags', 'facets', 'description', 'tmdb', 'rating', 'advisory', 'advisoryCues', 'hasCC', 'hasSAP', 'hasStereo', 'creditsLeadS'];
+const DUAL_READ_FIELDS = ['title', 'tags', 'facets', 'description', 'tmdb', 'rating', 'advisory', 'advisoryCues', 'hasCC', 'hasSAP', 'hasStereo', 'creditsLeadS', 'kind', 'artist', 'album'];
 
 function sourceOf(ref) {
   const match = /^mediasource:([^:]+):/.exec(String(ref || ''));

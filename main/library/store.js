@@ -32,7 +32,7 @@ function idMap(source) {
 }
 
 function emptyIndex() {
-  return { schemaVersion: SCHEMA_VERSION, roots: [], items: idMap(), series: idMap(), queries: idMap() };
+  return { schemaVersion: SCHEMA_VERSION, roots: [], items: idMap(), series: idMap(), queries: idMap(), presets: idMap() };
 }
 
 function has(map, key) {
@@ -58,6 +58,9 @@ function normalize(raw) {
     items: idMap(raw.items && typeof raw.items === 'object' && !Array.isArray(raw.items) ? raw.items : null),
     series: idMap(raw.series && typeof raw.series === 'object' && !Array.isArray(raw.series) ? raw.series : null),
     queries: idMap(raw.queries && typeof raw.queries === 'object' && !Array.isArray(raw.queries) ? raw.queries : null),
+    // Channel presets a person saved (docs/design/08): path-free templates,
+    // keyed by their own id. Built-in and plugin presets never land here.
+    presets: idMap(raw.presets && typeof raw.presets === 'object' && !Array.isArray(raw.presets) ? raw.presets : null),
   };
 }
 
@@ -249,6 +252,27 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
     return true;
   }
 
+  // ---------- Channel presets ----------
+  // A preset is stored whole, under its own id, and replaced whole: the
+  // renderer validates the shape (channel-builder.js) before it gets here.
+  function upsertPreset(preset) {
+    const current = load();
+    const id = String(preset.id);
+    Object.defineProperty(current.presets, id, {
+      value: { ...preset, id }, enumerable: true, configurable: true, writable: true,
+    });
+    touch();
+    return current.presets[id];
+  }
+
+  function removePreset(presetId) {
+    const current = load();
+    if (!has(current.presets, presetId)) return false;
+    delete current.presets[presetId];
+    touch();
+    return true;
+  }
+
   return {
     SCHEMA_VERSION,
     indexPath,
@@ -266,11 +290,12 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
         items: Object.keys(current.items).length,
         series: Object.keys(current.series).length,
         queries: Object.keys(current.queries).length,
+        presets: Object.keys(current.presets).length,
       };
     },
     addRoot, removeRoot, getRoot, orphanedItems,
     getItem, findByRef, itemsInRoot, allItems, addItem, updateItem, removeItem,
-    upsertSeries, upsertQuery, removeQuery,
+    upsertSeries, upsertQuery, removeQuery, upsertPreset, removePreset,
   };
 }
 

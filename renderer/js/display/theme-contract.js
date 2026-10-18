@@ -38,6 +38,7 @@ export const THEME_SLOTS = Object.freeze({
   'channel-entry': 'digits typed on the remote',
   'hint-bar': 'the live-TV key hint bar',
   'rating-bug': 'the content rating card',
+  'track-card': 'the artist / song card on a music channel',
   'volume-indicator': 'the volume card',
   'volume-bar': 'the volume track',
   'volume-bar-fill': 'the volume fill',

@@ -1827,6 +1827,36 @@ export function buildChannelIdentityPanel(ch, panelEl) {
     enabled.addEventListener('change', commit); input.addEventListener('input', () => { enabled.checked = true; commit(); });
     label.appendChild(row); grid.appendChild(label);
   });
+  // The artist / song card a music-video channel shows as each video starts
+  // and ends (playback/track-card.js). Per channel, off by default; the Music
+  // Television preset turns it on when it builds a channel.
+  const trackWrap = document.createElement('label');
+  trackWrap.className = 'channel-identity-field channel-identity-field-wide';
+  trackWrap.append(document.createTextNode('ARTIST / SONG CARD'));
+  const trackRow = document.createElement('span');
+  trackRow.className = 'channel-identity-color';
+  const trackEnabled = document.createElement('input');
+  trackEnabled.type = 'checkbox';
+  trackEnabled.checked = !!(ch.trackCard && ch.trackCard.enabled);
+  trackEnabled.title = 'Show the artist and song as each video starts and ends';
+  const trackSeconds = document.createElement('select');
+  trackSeconds.className = 'block-hour-select';
+  [4, 6, 8, 10, 12, 15].forEach((seconds) => {
+    const option = document.createElement('option'); option.value = String(seconds); option.textContent = `${seconds} S ON SCREEN`; trackSeconds.appendChild(option);
+  });
+  trackSeconds.value = String((ch.trackCard && ch.trackCard.seconds) || 8);
+  trackSeconds.disabled = !trackEnabled.checked;
+  const commitTrack = () => {
+    ch.trackCard = trackEnabled.checked ? { enabled: true, atStart: true, atEnd: true, seconds: Number(trackSeconds.value) || 8 } : null;
+    trackSeconds.disabled = !trackEnabled.checked;
+    commitOwnerFields(ch, ['trackCard'], { coalesce: `ch:${ch.number}:trackCard` });
+  };
+  trackEnabled.addEventListener('change', commitTrack);
+  trackSeconds.addEventListener('change', commitTrack);
+  trackRow.append(trackEnabled, trackSeconds);
+  trackWrap.appendChild(trackRow);
+  grid.appendChild(trackWrap);
+
   const clear = document.createElement('button');
   clear.className = 'btn'; clear.textContent = 'CLEAR ALL IDENTITY OVERRIDES';
   clear.addEventListener('click', async () => { if (!(await confirmDialog({ title: 'CLEAR IDENTITY OVERRIDES?', message: `Remove every identity override on CH ${ch.number} and go back to the box defaults? You can undo this.`, confirmText: 'CLEAR', danger: true }))) return; delete ch.broadcastIdentity; buildChannelIdentityPanel(ch, panelEl); commitOwnerFields(ch, ['broadcastIdentity'], { label: `Clear CH ${ch.number} identity` }); });

@@ -89,8 +89,12 @@ const GENRE_KEYWORDS = {
   cartoon: 'cartoon', animated: 'cartoon', animation: 'cartoon', anime: 'anime',
   sitcom: 'sitcom', comedy: 'comedy', drama: 'drama', horror: 'horror', thriller: 'thriller',
   action: 'action', documentary: 'documentary', doc: 'documentary', kids: 'kids', children: 'kids',
-  christmas: 'holiday', xmas: 'holiday', holiday: 'holiday', halloween: 'holiday',
-  musical: 'musical', music: 'music', sports: 'sports', news: 'news', talk: 'talk',
+  christmas: 'holiday', xmas: 'holiday', holiday: 'holiday', halloween: 'holiday', thanksgiving: 'holiday',
+  musical: 'musical', music: 'music', mtv: 'music', vevo: 'music', concert: 'music', sports: 'sports', news: 'news', talk: 'talk',
+  'sci-fi': 'sci-fi', scifi: 'sci-fi', 'science fiction': 'sci-fi', western: 'western', westerns: 'western',
+  fantasy: 'fantasy', romance: 'romance', crime: 'crime', mystery: 'mystery', adventure: 'adventure',
+  family: 'family', 'game show': 'game-show', 'game shows': 'game-show', reality: 'reality', soap: 'soap',
+  soaps: 'soap', variety: 'variety', wrestling: 'sports', noir: 'noir',
 };
 
 // Guesses genre/era/content-type facets purely from a file's own path

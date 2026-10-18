@@ -1954,3 +1954,36 @@ html[data-mode="tv"] .time-calendar-month { font-size: 22px; }
 html[data-mode="tv"] .time-calendar-time, html[data-mode="tv"] .time-calendar-nav, html[data-mode="tv"] .time-calendar-btn { font-size: 18px; padding: 10px 14px; }
 html[data-mode="tv"] .time-calendar-info { font-size: 16px; }
 html[data-mode="tv"] .time-calendar-hint { display: none; }
+
+/* Artist / song lower third on a music-video channel (ch.trackCard; see
+   playback/track-card.js). Bottom-left like the real thing, kept clear of
+   the ticker by the picture insets, and hidden with the other bugs while the
+   guide is up or the box is off. Themes decorate it through
+   [data-slot="track-card"] (display/theme-contract.js). */
+.track-card {
+  position: absolute;
+  left: calc(36px + var(--picture-inset-left, 0px));
+  bottom: calc(14% + var(--picture-inset-bottom, 0px));
+  z-index: 2;
+  max-width: min(46%, 520px);
+  padding: 10px 16px 10px 14px;
+  background: rgba(0, 0, 0, 0.78);
+  border-left: 5px solid var(--accent, #fff);
+  font-family: var(--font-ui);
+  color: var(--text, #fff);
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.7);
+  line-height: 1.25;
+  opacity: 0;
+  transform: translateX(-12px);
+  pointer-events: none;
+  transition: opacity 320ms ease, transform 320ms ease;
+}
+.track-card.show { opacity: 1; transform: none; }
+.track-card .track-card-artist { font-weight: 700; font-size: clamp(15px, 1.5cqw, 24px); letter-spacing: 0.5px; text-transform: uppercase; }
+.track-card .track-card-title { font-size: clamp(14px, 1.3cqw, 21px); font-style: italic; margin-top: 2px; }
+.track-card .track-card-meta { font-size: clamp(11px, 1cqw, 15px); color: var(--text-muted, #ccc); margin-top: 4px; letter-spacing: 0.5px; }
+body:has(.crt.guide-active) .track-card,
+body:has(.crt.power-off) .track-card { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .track-card { transition: opacity 200ms linear; transform: none; }
+}

@@ -57,7 +57,7 @@ test('orders: series order, a shuffle that is stable for its seed, newest first'
 test('materializing skips items with no duration instead of guessing one', () => {
   const { files, skipped } = q.materializeItems([ep('a', 'A', 1, 1, { title: 'Pilot' }), ep('b', 'A', 1, 2, { duration: null })]);
   assert.equal(files.length, 1);
-  assert.deepEqual(Object.keys(files[0]).sort(), ['duration', 'facets', 'item', 'path', 'source', 'tags', 'title'].sort());
+  assert.deepEqual(Object.keys(files[0]).sort(), ['duration', 'facets', 'item', 'kind', 'path', 'source', 'tags', 'title'].sort());
   assert.equal(files[0].item, 'a');
   assert.equal(skipped[0].item, 'b');
 });

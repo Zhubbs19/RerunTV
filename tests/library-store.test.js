@@ -14,7 +14,7 @@ function tempStore() {
 
 test('a missing index starts empty rather than failing', () => {
   const { store } = tempStore();
-  assert.deepEqual(store.stats(), { roots: 0, items: 0, series: 0, queries: 0 });
+  assert.deepEqual(store.stats(), { roots: 0, items: 0, series: 0, queries: 0, presets: 0 });
   assert.equal(store.lastLoadError(), null);
   assert.equal(store.load().schemaVersion, SCHEMA_VERSION);
 });
@@ -152,4 +152,19 @@ test('series and saved queries upsert', () => {
 
   const generated = store.upsertSeries(null, { name: 'Unnamed' });
   assert.match(generated.id, /^ser_[0-9a-f]{16}$/);
+});
+
+test('channel presets are stored whole, replaced whole, and survive a reload', () => {
+  const { dir, store } = tempStore();
+  const preset = { templateVersion: 1, id: 'christmas-mine', name: 'My Christmas', slots: { s: { label: 'S', match: { tags: 'christmas' } } }, channel: { name: 'Xmas' } };
+  store.upsertPreset(preset);
+  assert.equal(store.stats().presets, 1);
+  store.upsertPreset({ ...preset, name: 'Renamed' });
+  assert.equal(store.stats().presets, 1, 'same id replaces');
+  store.save();
+  const reopened = createLibraryStore({ dir });
+  assert.equal(reopened.load().presets['christmas-mine'].name, 'Renamed');
+  assert.equal(reopened.removePreset('christmas-mine'), true);
+  assert.equal(reopened.removePreset('christmas-mine'), false);
+  assert.equal(normalize({ presets: 'nope' }).presets.constructor, undefined, 'a bad presets section normalizes to an empty null-prototype map');
 });

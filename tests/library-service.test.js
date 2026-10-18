@@ -221,3 +221,19 @@ test('IPC answers { ok, result } or { ok: false, error }', async () => {
   const bad = await handlers['library:call']({}, 'nope', {});
   assert.deepEqual(bad, { ok: false, error: 'Unknown library method "nope".' });
 });
+
+test('savePreset and removePreset keep the index honest, and are allowed from a paired panel', async () => {
+  const { service } = await builtService();
+  assert.ok(REMOTE_METHODS.has('savePreset') && REMOTE_METHODS.has('removePreset'));
+  const preset = { templateVersion: 1, id: 'mine', name: ' Mine ', slots: { s: { label: 'S', match: { kind: 'movie' } } }, channel: { name: 'Mine' } };
+  const saved = await service.call('savePreset', { preset });
+  assert.equal(saved.name, 'Mine');
+  assert.ok(saved.updatedAt);
+  const index = await service.call('getIndex');
+  assert.equal(index.presets.mine.name, 'Mine');
+  await assert.rejects(service.call('savePreset', { preset: { ...preset, templateVersion: 2 } }), /version/);
+  await assert.rejects(service.call('savePreset', { preset: { ...preset, slots: {} } }), /slot/);
+  await assert.rejects(service.call('savePreset', { preset: { ...preset, name: '' } }), /name/);
+  assert.deepEqual(await service.call('removePreset', { id: 'mine' }), { removed: true });
+  assert.equal((await service.call('getIndex')).presets.mine, undefined);
+});

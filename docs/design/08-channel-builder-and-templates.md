@@ -140,3 +140,45 @@ imported `.rerun-template.json` is. Channels' `+ ADD CHANNEL` › FROM TEMPLATE 
 `listTemplates()` (built-ins + anything a plugin registered) instead of the hardcoded six.
 Documented in `PLUGIN_DEVELOPMENT.md`. Inline chip editing (§4's "presentation follow-up") is
 still not built.
+
+**2026-10-17: channel presets and the preset creator.** The word in the UI is now *preset*;
+the file format and `templateVersion: 1` are unchanged, and every existing template is a valid
+preset.
+
+- **Engine** (`channel-builder.js`): `compilePreset(resolved, { number, atMs, existingPool,
+  newId })` returns `{ channel, poolEntries, contentTag }`. A preset with no `programming` loops
+  its content slots 24/7 (the §3.1 `breaks` key is now compiled: the slot's files become ad-pool
+  entries carrying `contentTag`, the channel carries the same tag via `contentTags`, so a
+  Christmas channel airs only Christmas ads; re-applying skips files already in the pool under
+  that tag). `channel` may set only name, rating, shuffle, adsEnabled, identity, icon,
+  vhsQuality and `trackCard`; everything else in a preset file is dropped, so a file cannot carry
+  a lineup or paths in. `compileTemplate` still returns the channel alone. `templateFromChannel`
+  now handles a blockless channel (one 24/7 slot matched by the files' common tags or kind) and
+  turns the channel's first content tag into a `breaks` slot.
+- **Two new built-ins**: MUSIC TELEVISION (`kind: 'music'`, shuffled, 24/7, music ads, the track
+  card on) and CHRISTMAS TV (Christmas movies/shows/shorts by the `christmas` tag or the word,
+  24/7, Christmas ads). The old CHRISTMAS COUNTDOWN (a December date-range block) stays.
+- **Track card** (`renderer/js/playback/track-card.js`, `ch.trackCard`): the artist / song lower
+  third a music channel shows as each video starts and again as it ends, timed from the schedule
+  position the file was loaded at so tuning in mid-song does not replay the opening card. Reads
+  `artist`/`title`/`album` from the library item (now dual-read onto playlist entries with
+  `kind`) or parses an "Artist - Title" filename. Per channel in the IDENTITY tab too.
+- **Saved presets** live in the library index (`presets`, `main/library/store.js`;
+  `savePreset`/`removePreset` in the service, remote-allowed like saved queries).
+- **LIBRARY › PRESETS** (`renderer/js/setup/presets.js`): every preset with its source and how
+  much of the library fills each slot; BUILD CHANNEL (the one preview-and-apply flow, which
+  CHANNELS › + ADD CHANNEL › FROM TEMPLATE now shares, saved presets included); NEW PRESET /
+  FROM A CHANNEL… / IMPORT FILE…; CUSTOMIZE copies a built-in or plugin preset into a saved one.
+  The creator edits slots (kind, genre, era, series, tags, text, minimum, optional, order) with
+  live match counts, blocks (weekly days and hours, or a yearly date range), the breaks slot and
+  its content tag, shuffle and the track card, and can BUILD WITHOUT SAVING.
+- **Tagging** (`library/tagging.js`): music videos (a music folder, or an "Artist - Title" name
+  at song length inside one) become `kind: 'music'` with `artist` and `title`; Bumpers / Station
+  IDs / Promos folders decide `bumper` and Commercials / Ads folders decide `commercial` ahead of
+  the duration bands; holiday words anywhere in the path suggest a specific `tags` entry
+  (`christmas`, `halloween`, …) beside the `holiday` genre. The genre keyword map gained sci-fi,
+  western, fantasy, romance, crime, mystery, adventure, family, game show, reality, soap, variety
+  and noir. §5 steps 2 (embedded tags), 4 and 5 are still open.
+
+Not yet: a slot that names a folder instead of a query (§3.3's "pick folder" alternative), inline
+chip editing, break cadence in a preset.

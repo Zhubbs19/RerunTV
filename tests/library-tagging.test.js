@@ -135,3 +135,58 @@ test('§8: 1,000 new episodes across series take fewer than 10 review actions', 
   assert.equal(updates.length, 1000, 'every episode is covered by accepting its group once');
   assert.ok(updates.every((u) => u.fields.kind === 'episode' && u.fields.series && u.fields.series.name));
 });
+
+test('music videos: a music folder or an "Artist - Title" name at song length', () => {
+  const a = analyzeRef('J:/Media/Music Videos/Talking Heads - Once in a Lifetime (Official Video) [HD].mp4', 262);
+  assert.equal(a.kind, 'music');
+  assert.equal(a.artist, 'Talking Heads');
+  assert.equal(a.title, 'Once in a Lifetime');
+  assert.match(a.reasons.kind, /folder/);
+  const b = analyzeRef('J:/Media/Music/80s/Prince - 1999.mp4', 380);
+  assert.equal(b.kind, 'music', 'an Artist - Title name inside a music folder');
+  assert.equal(b.artist, 'Prince');
+  const c = analyzeRef('J:/Media/Music Videos/Long Concert Film.mp4', 95 * 60);
+  assert.notEqual(c.kind, 'music', 'a feature-length file is not a music video');
+  const d = analyzeRef('J:/Media/TV Shows/Some Show/Some Show - S01E02 - Title.mkv', 1300);
+  assert.equal(d.kind, 'episode', 'a dash in an episode name is not an artist');
+});
+
+test('bumper and commercial folders decide the kind ahead of the duration bands', () => {
+  assert.equal(analyzeRef('J:/Media/Bumpers/Nick/Up Next.mp4', 12).kind, 'bumper');
+  assert.equal(analyzeRef('J:/Media/Station IDs/WXYZ 1987.mp4', 45).kind, 'bumper');
+  assert.equal(analyzeRef('J:/Media/Commercials/1995/Toy Spot.mp4', 90).kind, 'commercial', 'a 90-second spot in Commercials is still an ad');
+  assert.equal(analyzeRef('J:/Media/Commercials/Long Infomercial.mp4', 28 * 60).kind, 'episode', 'half an hour in Commercials is not a spot');
+});
+
+test('holiday tags name the specific holiday, so a Christmas channel finds only Christmas', () => {
+  const a = analyzeRef('J:/Media/Christmas Specials/A Charlie Brown Christmas (1965).mkv', 1500);
+  assert.deepEqual(a.tags, ['christmas']);
+  assert.deepEqual(a.genre, ['holiday']);
+  const b = analyzeRef('J:/Media/TV Shows/Some Show/Some Show - S02E06 - Halloween Party.mkv', 1300);
+  assert.deepEqual(b.tags, ['halloween']);
+  assert.equal(analyzeRef('J:/Media/Movies/Heat (1995).mkv', 170 * 60).tags, undefined);
+});
+
+test('accepting a group writes tags and the artist, with user-accepted provenance', () => {
+  const items = [
+    item('m1', 'J:/Media/Music Videos/Band - One.mp4', 200),
+    item('m2', 'J:/Media/Music Videos/Band - Two.mp4', 210, { artist: 'Set By Hand', provenance: { artist: 'user' } }),
+    item('x1', 'J:/Media/Christmas Specials/Special One.mkv', 1500),
+    item('x2', 'J:/Media/Christmas Specials/Special Two.mkv', 1500),
+  ];
+  const groups = suggestGroups(items);
+  const music = groups.find((group) => group.itemIds.includes('m1'));
+  assert.equal(music.fields.kind, 'music');
+  assert.equal(music.perItem.m1.artist, 'Band');
+  assert.equal(music.perItem.m2 && music.perItem.m2.artist, undefined, 'a hand-set artist is never suggested over');
+  const byId = Object.fromEntries(items.map((entry) => [entry.id, entry]));
+  const musicUpdates = acceptGroup(music, byId);
+  const m1 = musicUpdates.find((update) => update.id === 'm1');
+  assert.equal(m1.fields.artist, 'Band');
+  assert.equal(m1.fields.provenance.artist, 'user-accepted');
+  const xmas = groups.find((group) => group.itemIds.includes('x1'));
+  assert.deepEqual(xmas.fields.tags, ['christmas']);
+  const xmasUpdates = acceptGroup(xmas, byId);
+  assert.deepEqual(xmasUpdates[0].fields.tags, ['christmas']);
+  assert.equal(xmasUpdates[0].fields.provenance.tags, 'user-accepted');
+});

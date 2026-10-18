@@ -5,6 +5,7 @@ import {
   hashString, randomId, randomInterstitialId, shuffleArray,
 } from './util.js';
 import { virtualChannelNumbers } from '../playback/virtual.js';
+import { normalizeTrackCard } from '../library/channel-builder.js';
 import { isHiddenForProfile } from '../personal/state.js';
 
 // Block-level ad override — only present when a daypart block explicitly
@@ -147,7 +148,7 @@ export function freshChannel() {
     number: nextChannelNumber(), name: '', folders: [], files: [], anchor: null, shuffle: false, icon: null,
     adsEnabled: true, contentTags: [], favorite: false, rating: null, vhsQuality: false,
     logoBugProfiles: null, volume: null, broadcastHours: freshBroadcastHours(),
-    quickAccess: false, dynamicOverlays: null, tickerLayout: null, tickerContent: null,
+    quickAccess: false, dynamicOverlays: null, tickerLayout: null, tickerContent: null, trackCard: null,
   };
 }
 
@@ -598,6 +599,10 @@ export function normalizeChannel(ch) {
   // null = inherit the box-wide ticker content (S.config.ticker); a present
   // object overrides enabled/text/speed for this channel.
   if (ch.tickerContent === undefined) ch.tickerContent = null;
+  // null = no artist / song card. A music-video channel (the Music Television
+  // preset, or the switch in its IDENTITY tab) sets { enabled, atStart, atEnd,
+  // seconds }; see playback/track-card.js.
+  ch.trackCard = ch.trackCard === undefined ? null : normalizeTrackCard(ch.trackCard);
   if (ch.tickerContent) ch.tickerContent = normalizeTickerContent(ch.tickerContent);
   // null = inherit the box-wide master volume; a number 0-1 overrides it for
   // this channel (e.g. a channel of old/quiet recordings that always needs

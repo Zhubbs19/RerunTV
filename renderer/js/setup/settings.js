@@ -1174,6 +1174,12 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-17', items: [
+    'Channel presets: LIBRARY › PRESETS lists every preset (built in, from a plugin, or yours) with how much of your library fills it, and builds a channel from one in one undo step. A preset creator lets you make your own: slots of programs (kind, genre, era, series, tags), weekly or date-range blocks or a 24/7 loop, a slot of ads that play only on that channel, shuffle, and the artist / song card. Start from scratch, from an existing channel, from an imported file, or by customizing a built-in.',
+    'Two new built-in presets: MUSIC TELEVISION (music videos around the clock, shuffled, with music ads and the artist and song shown on screen as each video starts and ends) and CHRISTMAS TV (only Christmas movies, specials and episodes, with Christmas ads in the breaks).',
+    'A channel can show an artist / song card as each video starts and ends (the IDENTITY tab). It reads the artist and title the library tagged, or an “Artist - Title” filename.',
+    'Auto-tagging now recognises music videos (artist and title from an “Artist - Title” name in a music folder), bumpers and commercials by their folder, and the specific holiday in a path (christmas, halloween, …) as a tag, plus more genres (sci-fi, western, fantasy, crime, game show, …). The library item editor gained Artist and Album.',
+  ] },
   { date: '2026-10-12', items: [
     'First-run setup now has a CHOOSE HOW IT LOOKS page (page 2 of 3): FULL RETRO LOOK, GENTLE (no screen flicker or channel-change static) or MINIMAL (no CRT effect at all), with a note for people who are sensitive to flashing. You can change it later under Picture & Sound. The TV-mode setup wizard has the same choice (page 3 of 5).',
     'RerunTV is now in beta: releases are numbered 0.2.0-beta.N, and the update check follows them.',

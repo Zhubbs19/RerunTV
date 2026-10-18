@@ -25,7 +25,7 @@ const DEFAULT_MAX_SCAN_FILES = 5000;
 // Methods a LAN control panel may call. Everything that rewrites the whole
 // library, or all of config at once, stays on the host window.
 const REMOTE_METHODS = new Set([
-  'status', 'getIndex', 'scanRoot', 'applyItemUpdates', 'saveQuery', 'removeQuery', 'resolveReview', 'lastScan',
+  'status', 'getIndex', 'scanRoot', 'applyItemUpdates', 'saveQuery', 'removeQuery', 'savePreset', 'removePreset', 'resolveReview', 'lastScan',
 ]);
 
 function walkLocal(root, extensions, maxFiles) {
@@ -220,6 +220,29 @@ function createLibraryService({
 
     removeQuery({ id }) {
       const removed = store.removeQuery(id);
+      if (removed) store.save();
+      return { removed };
+    },
+
+    // A channel preset (docs/design/08), saved whole. The structural checks
+    // here are the ones the host can make without the renderer's validator:
+    // enough to keep a malformed save from poisoning the index for every
+    // later reader.
+    savePreset({ preset }) {
+      if (!preset || typeof preset !== 'object' || Array.isArray(preset)) throw new Error('A preset is required.');
+      if (preset.templateVersion !== 1) throw new Error('This preset version is not supported.');
+      if (!preset.id || !String(preset.id).trim()) throw new Error('A preset needs an id.');
+      if (!preset.name || !String(preset.name).trim()) throw new Error('A preset needs a name.');
+      if (!preset.slots || typeof preset.slots !== 'object' || !Object.keys(preset.slots).length) throw new Error('A preset needs at least one slot.');
+      if (!preset.channel || typeof preset.channel !== 'object') throw new Error('A preset needs channel settings.');
+      if (JSON.stringify(preset).length > 256 * 1024) throw new Error('That preset is too large to save.');
+      const saved = store.upsertPreset({ ...preset, name: String(preset.name).trim(), updatedAt: now() });
+      store.save();
+      return saved;
+    },
+
+    removePreset({ id }) {
+      const removed = store.removePreset(id);
       if (removed) store.save();
       return { removed };
     },

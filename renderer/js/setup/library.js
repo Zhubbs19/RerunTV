@@ -27,6 +27,7 @@ import { acceptGroup, suggestGroups } from '../library/tagging.js';
 import { ORDER_POLICIES, buildWhere, describeWhere, formFromWhere, planChannelFiles, runQuery, validateWhere } from '../library/query.js';
 import { airingDiffIgnoringPaths, applyRootMoveInPlace, planRootMove } from '../library/root-move.js';
 import { scheduleClockFor } from '../library/sync.js';
+import { renderPresetsPanel } from './presets.js';
 
 const DAY_MS = 24 * 3600 * 1000;
 const PREVIEW_DAYS = 7;
@@ -411,10 +412,14 @@ function itemEditorBody(item) {
   const eraInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue((item.facets && item.facets.era) || []) });
   const ratingInput = h('input', { type: 'text', className: 'title-row-input', value: item.rating || '' });
   const tagsInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue(item.tags || []) });
+  // Music videos: what the artist / song card shows (playback/track-card.js).
+  const artistInput = h('input', { type: 'text', className: 'title-row-input', value: item.artist || '' });
+  const albumInput = h('input', { type: 'text', className: 'title-row-input', value: item.album || '' });
   const row = (label, input) => h('label', { className: 'library-editor-row' }, h('span', { className: 'library-editor-row-label', text: label }), input);
   const body = h('div', { className: 'library-editor-form' },
     row('Title', titleInput), row('Kind', kindSelect),
     row('Series name', seriesNameInput), row('Season', seasonInput), row('Episode', episodeInput),
+    row('Artist (music videos)', artistInput), row('Album', albumInput),
     row('Genre (comma-separated)', genreInput), row('Era (comma-separated)', eraInput),
     row('Rating', ratingInput), row('Tags (comma-separated)', tagsInput));
   return {
@@ -426,8 +431,10 @@ function itemEditorBody(item) {
         kind: kindSelect.value,
         rating: ratingInput.value.trim(),
         tags: list(tagsInput.value),
+        artist: artistInput.value.trim(),
+        album: albumInput.value.trim(),
         facets: { ...(item.facets || {}), genre: list(genreInput.value), era: list(eraInput.value) },
-        provenance: { ...(item.provenance || {}), title: 'user', kind: 'user', genre: 'user', era: 'user', rating: 'user', tags: 'user' },
+        provenance: { ...(item.provenance || {}), title: 'user', kind: 'user', genre: 'user', era: 'user', rating: 'user', tags: 'user', artist: 'user', album: 'user' },
       };
       const seriesName = seriesNameInput.value.trim();
       if (seriesName) {
@@ -963,6 +970,7 @@ function renderAll() {
 export function renderLibraryPanels() {
   renderAll();
   refresh();
+  renderPresetsPanel();
 }
 
 const rebuildSettingEl = document.getElementById('library-smart-rebuild');

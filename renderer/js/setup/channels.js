@@ -7,7 +7,8 @@ import { buildChannelPackage, mergeChannelPackage, normalizeChannelPackage } fro
 import { applySettingsBundle, buildSettingsBundle, readSettingsBundle } from '../library/settings-bundle.js';
 import { applyAspectMode, applyCrtState, applyHintBarState, applyPictureMode, applyVolume } from '../playback/power.js';
 import { applyTheme } from '../display/themes.js';
-import { compileTemplate, describeChannel, listTemplates, resolveTemplate, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
+import { describeChannel, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
+import { applyPreset, listAllPresets } from './presets.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
 import { applyPlaylistPreservingAir } from '../library/reanchor.js';
@@ -469,7 +470,7 @@ export function renderChannelList() {
       saveTemplateBtn.className = 'btn setup-advanced-channel-action';
       saveTemplateBtn.textContent = 'SAVE AS TEMPLATE…';
       saveTemplateBtn.title = 'Export this channel structure without media paths';
-      saveTemplateBtn.disabled = !(ch.blocks || []).length;
+      saveTemplateBtn.disabled = !(ch.blocks || []).length && !(ch.files || []).length;
       saveTemplateBtn.addEventListener('click', async () => {
         try {
           const templateName = await promptDialog({ title: 'SAVE AS TEMPLATE', message: 'Name this reusable channel structure.', defaultValue: ch.name || `Channel ${ch.number}` });
@@ -2371,56 +2372,30 @@ async function chooseAddChannelSource() {
   }).result;
 }
 
-async function chooseBuiltinTemplate() {
+// Built-in, plugin and saved presets (LIBRARY › PRESETS), one button each.
+async function choosePreset() {
+  const presets = await listAllPresets();
   return Dialog({
-    title: 'CHANNEL TEMPLATES',
-    message: 'Templates contain scheduling intent only. Your library supplies the programs.',
+    title: 'CHANNEL PRESETS',
+    message: 'Presets contain scheduling intent only. Your library supplies the programs. Make your own under LIBRARY › PRESETS.',
     dismissValue: null,
     actions: [
       { label: 'CANCEL', value: null },
-      ...listTemplates().map((template, index) => ({
+      ...presets.map((template, index) => ({
         label: template.name.toUpperCase(), value: template, variant: index === 0 ? 'primary' : 'default', isDefault: index === 0,
       })),
     ],
   }).result;
 }
 
-async function buildChannelFromPlan(template) {
-  let library;
-  try {
-    const response = await window.api.libraryCall('getIndex');
-    if (!response || !response.ok) throw new Error((response && response.error) || 'The library did not answer.');
-    library = response.result;
-  } catch (e) {
-    await alertDialog('Build the media catalogue in LIBRARY first, then try this again.', { title: 'LIBRARY NEEDED' });
-    return;
-  }
-  const resolved = resolveTemplate(template, library);
-  const rows = Object.entries(resolved.slots).map(([id, slot]) =>
-    `${resolved.missing.includes(id) ? 'NEEDS CONTENT' : 'READY'} · ${slot.spec.label}: ${slot.files.length} playable · ${slot.hours.toFixed(1)} hr${slot.skipped.length ? ` · ${slot.skipped.length} missing duration` : ''}`);
-  if (!resolved.ready) {
-    await alertDialog(`${rows.join('\n')}\n\nTag or scan more content in LIBRARY, then try again.`, { title: 'TEMPLATE NEEDS CONTENT' });
-    return;
-  }
-  const channel = compileTemplate(resolved, { number: nextChannelNumber(), atMs: viewNow() });
-  const apply = await confirmDialog({
-    title: `PREVIEW CH ${channel.number} — ${channel.name || template.name}`,
-    message: `${rows.join('\n')}\n\n${channel.blocks.length} scheduled block${channel.blocks.length === 1 ? '' : 's'} · ${channel.files.length} unique programs. Apply is one undo step.`,
-    danger: false, confirmText: 'APPLY CHANNEL', cancelText: 'ADJUST',
-  });
-  if (!apply) return;
-  dispatch({ type: 'channel.insert', channel });
-  S.setupSelectedChannel = channel.number;
-  S.setupFilterQuery = '';
-  channelFilterEl.value = '';
-  renderChannelList();
-}
+// Resolve, preview and apply a preset — LIBRARY › PRESETS owns the flow.
+const buildChannelFromPlan = (template) => applyPreset(template);
 
 addChannelBtn.addEventListener('click', async () => {
   const source = await chooseAddChannelSource();
   if (!source) return;
   if (source === 'template') {
-    const template = await chooseBuiltinTemplate();
+    const template = await choosePreset();
     if (template) await buildChannelFromPlan(template);
     return;
   }

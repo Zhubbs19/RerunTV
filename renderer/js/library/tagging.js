@@ -26,6 +26,27 @@ const SEASON_DIR = /^(s(eason)?[ ._-]?\d{1,4}|specials?|extras?|disc ?\d+)$/i;
 const COLLECTION_DIR = /\b(movies?|films?|collection|specials|compilations?|misc(ellaneous)?|cartoons|commercials|bumpers|shorts|sports|music videos)\b/i;
 // Sports recordings are neither episodes nor movies, whatever their length.
 const SPORTS = /\b(football|basketball|baseball|hockey|soccer|ncaa[fb]?|nfl|nba|mlb|nhl|super bowl|bowl game)\b|\bvs\.?(?=\s)/i;
+// Folders whose name says what kind of thing is inside. A folder beats the
+// duration bands: a 90-second spot in "Commercials" is an ad, not a short.
+const MUSIC_VIDEO_DIR = /\b(music videos?|mtv|vh1|vevo|videos? ?clips?|concerts?)\b/i;
+const BUMPER_DIR = /\b(bumpers?|idents?|station ids?|interstitials?|promos?|network ids?|logos?)\b/i;
+const COMMERCIAL_DIR = /\b(commercials?|ads?|adverts?|spots?|psas?)\b/i;
+// "Artist - Title", the near-universal music video filename, with the junk
+// people leave on the end ("(Official Video)", "[HD]", "Remastered").
+const ARTIST_TITLE = /^(.{1,80}?)\s+[-–—]\s+(.+)$/;
+const VIDEO_JUNK = /\s*[([{](?:official|hd|hq|4k|1080p|720p|remaster(?:ed)?|lyric|lyrics|audio|video|music video|live|explicit|clean|uncensored|visuali[sz]er|version|edit|from [^)\]}]*|feat\.?[^)\]}]*|ft\.?[^)\]}]*)[^)\]}]*[)\]}]\s*/gi;
+// The holidays a channel is built around. The genre keyword map folds them all
+// into "holiday"; a tag keeps the specific one, so a Christmas preset finds
+// Christmas and not Halloween.
+const HOLIDAY_TAGS = [
+  [/\b(christmas|xmas|x-mas|yule|yuletide|santa|noel)\b/i, 'christmas'],
+  [/\bhalloween\b/i, 'halloween'],
+  [/\bthanksgiving\b/i, 'thanksgiving'],
+  [/\b(easter)\b/i, 'easter'],
+  [/\b(valentine'?s?)\b/i, 'valentines'],
+  [/\b(new year'?s?)\b/i, 'new-year'],
+  [/\b(4th of july|fourth of july|independence day)\b/i, 'independence-day'],
+];
 
 // Episode codes, most specific first. The library uses a season-as-year
 // convention for old cartoons (S1940E05), so a four-digit "season" is a year.
@@ -116,7 +137,34 @@ export function analyzeRef(ref, duration) {
 
   const durationKind = kindFromDuration(duration);
   const pathFacets = suggestFacetsFromPath(String(ref));
-  if (durationKind === 'commercial') {
+  const dirText = dirs.join(' / ').replace(/[._]+/g, ' ');
+  const inMusicDir = MUSIC_VIDEO_DIR.test(dirText);
+  const inBumperDir = BUMPER_DIR.test(dirText);
+  const inCommercialDir = COMMERCIAL_DIR.test(dirText);
+  const base = file.replace(/\.[^.]+$/, '');
+  // A music video: a music folder, or an "Artist - Title" name at song length.
+  const artistTitle = base.replace(VIDEO_JUNK, ' ').replace(/\s+/g, ' ').trim().match(ARTIST_TITLE);
+  const songLength = Number.isFinite(duration) && duration >= 60 && duration <= 15 * 60;
+  const isMusicVideo = !inBumperDir && !inCommercialDir && songLength
+    && (inMusicDir || (artistTitle && /\bmusic\b/i.test(dirText)))
+    && out.episode == null;
+
+  if (isMusicVideo) {
+    out.kind = 'music';
+    reasons.kind = inMusicDir ? `folder "${dirs.find((d) => MUSIC_VIDEO_DIR.test(d.replace(/[._]+/g, ' ')))}"` : 'an "Artist - Title" name in a music folder';
+    if (artistTitle) {
+      out.artist = artistTitle[1].trim();
+      out.title = artistTitle[2].trim();
+      reasons.artist = 'the name before the dash';
+      reasons.title = 'the name after the dash';
+    }
+  } else if (inBumperDir && Number.isFinite(duration) && duration > 0 && duration <= 2 * 60) {
+    out.kind = 'bumper';
+    reasons.kind = `folder "${dirs.find((d) => BUMPER_DIR.test(d.replace(/[._]+/g, ' ')))}"`;
+  } else if (inCommercialDir && Number.isFinite(duration) && duration > 0 && duration <= 3 * 60) {
+    out.kind = 'commercial';
+    reasons.kind = `folder "${dirs.find((d) => COMMERCIAL_DIR.test(d.replace(/[._]+/g, ' ')))}"`;
+  } else if (durationKind === 'commercial') {
     out.kind = 'commercial';
     reasons.kind = 'a minute or shorter';
   } else if (out.episode != null && durationKind !== 'movie') {
@@ -137,7 +185,7 @@ export function analyzeRef(ref, duration) {
   // Sports: a genre and a kind of their own. Gated on length — a game is long,
   // and a seven-minute cartoon called "Baseball Bugs" is not a sports recording.
   const sports = Number(duration) >= 30 * 60 && SPORTS.test(segments.join(' ').replace(/[._]+/g, ' '));
-  if (sports && out.kind !== 'commercial') {
+  if (sports && out.kind !== 'commercial' && out.kind !== 'music') {
     out.kind = 'other';
     reasons.kind = 'a sports recording';
   }
@@ -176,12 +224,22 @@ export function analyzeRef(ref, duration) {
     reasons.era = reasons.year || 'a year in the path';
   }
 
-  const base = file.replace(/\.[^.]+$/, '');
-  const title = stripReleaseTags(guessCleanTitle(base));
-  // "Blues_Clues_S03E52" cleans to the series name, which is not a title.
-  if (title && !(out.series && title.toLowerCase() === out.series.toLowerCase())) {
-    out.title = title;
-    reasons.title = 'cleaned filename';
+  if (out.title == null) {
+    const title = stripReleaseTags(guessCleanTitle(base));
+    // "Blues_Clues_S03E52" cleans to the series name, which is not a title.
+    if (title && !(out.series && title.toLowerCase() === out.series.toLowerCase())) {
+      out.title = title;
+      reasons.title = 'cleaned filename';
+    }
+  }
+
+  // Seasonal tags from anywhere in the path ("Christmas Specials\…", "…
+  // Halloween Special.mkv"), so a holiday channel can ask for exactly its own.
+  const pathText = segments.join(' ').replace(/[._]+/g, ' ');
+  const tags = HOLIDAY_TAGS.filter(([pattern]) => pattern.test(pathText)).map(([, tag]) => tag);
+  if (tags.length) {
+    out.tags = tags;
+    reasons.tags = `"${tags.join(', ')}" in the path`;
   }
 
   return { ...out, reasons };
@@ -205,6 +263,7 @@ const FIELDS = {
   series: { read: (item) => item.series && item.series.name },
   genre: { read: (item) => item.facets && item.facets.genre },
   era: { read: (item) => item.facets && item.facets.era },
+  tags: { read: (item) => item.tags },
 };
 
 /**
@@ -266,6 +325,7 @@ export function suggestGroups(items) {
       if (analysis.season != null) extra.season = analysis.season;
       if (analysis.episode != null) extra.episode = analysis.episode;
       if (analysis.title && !hasValue(item.title) && !isLocked(item, 'title')) extra.title = analysis.title;
+      if (analysis.artist && !hasValue(item.artist) && !isLocked(item, 'artist')) extra.artist = analysis.artist;
       if (Object.keys(extra).length) perItem[item.id] = extra;
     });
 
@@ -318,10 +378,18 @@ export function acceptGroup(group, itemsById, { exclude = [] } = {}) {
       }
     });
     if (facetsChanged) fields.facets = facets;
+    if (group.fields.tags && !isLocked(item, 'tags') && !hasValue(item.tags)) {
+      fields.tags = [...group.fields.tags];
+      provenance.tags = 'user-accepted';
+    }
     const extra = group.perItem[id];
     if (extra && extra.title && !isLocked(item, 'title') && !hasValue(item.title)) {
       fields.title = extra.title;
       provenance.title = 'user-accepted';
+    }
+    if (extra && extra.artist && !isLocked(item, 'artist') && !hasValue(item.artist)) {
+      fields.artist = extra.artist;
+      provenance.artist = 'user-accepted';
     }
     if (!Object.keys(fields).length) return;
     fields.provenance = provenance;

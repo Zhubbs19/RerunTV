@@ -947,32 +947,53 @@ core does, if you need to know which one is active.
 
 ### `registerTemplate(template)`
 
-Adds a channel template (docs/design/08) to CHANNELS › `+ ADD CHANNEL` ›
-FROM TEMPLATE, alongside the six built-ins. A template names no paths or
-media — only slots the library resolver matches against whatever the
-person's own tagged library has, and the block/breaks structure to compile
-around them once every required slot is filled.
+Adds a channel preset (a "template", docs/design/08) to CHANNELS › `+ ADD
+CHANNEL` › FROM TEMPLATE and to LIBRARY › PRESETS, alongside the built-ins
+and whatever the person has saved there. A preset names no paths or media —
+only slots the library resolver matches against whatever the person's own
+tagged library has, and the structure to compile around them once every
+required slot is filled: schedule blocks (or none, for a 24/7 loop), a slot
+of ads for the breaks, and the channel's on-screen look.
 
 ```js
 window.RCBPlugins.registerTemplate({
   templateVersion: 1, // required, currently always 1
   id: 'my-plugin-saturday-anime', // required, unique
   name: 'Saturday Anime Block', // required
+  description: 'Anime every Saturday morning, with the network bumpers in the breaks.', // optional, shown in PRESETS
   slots: { // required — at least one
-    anime: { label: 'Anime', match: { 'facets.genre': ['anime'] }, min: 4 },
+    anime: { label: 'Anime', match: { 'facets.genre': ['anime'] }, min: 4, order: 'series' },
     bumpers: { label: 'Network bumpers', match: { kind: ['bumper'] }, optional: true },
   },
-  channel: { name: 'Anime Block', rating: 'TV-14' }, // required
-  programming: [ // optional — omit for a channel with no pre-set schedule
+  // required. Only name, rating, shuffle, adsEnabled, identity, icon,
+  // vhsQuality and trackCard are read; anything else is dropped at compile.
+  channel: { name: 'Anime Block', rating: 'TV-14' },
+  programming: [ // optional — [] or absent means the slots loop 24/7, no blocks
     { block: { days: [6], hours: [9, 12], play: { slot: 'anime' } } },
+    { block: { dateRange: [12, 1, 12, 25], play: { slot: 'anime' } } }, // or a yearly date range
   ],
-  breaks: { cadence: { everyMinutes: 11 }, pool: { slot: 'bumpers' } }, // optional
+  // optional — the slot's files are added to the box-wide ad pool as entries
+  // carrying `contentTag`, and the channel carries the same tag, so they play
+  // in this channel's breaks and nowhere else. Re-applying never duplicates.
+  breaks: { pool: { slot: 'bumpers' }, contentTag: 'anime-block' },
 });
 ```
 
+`match` is a library query (`renderer/js/library/query.js`): equality,
+any-of arrays, `text`, `tags`, `any`/`not`. `order` is one of `series`,
+`natural`, `shuffle` (stable per seed) or `recent`.
+
+`channel.trackCard` — `{ enabled: true, atStart: true, atEnd: true, seconds: 8 }`
+— turns on the artist / song lower third a music-video channel shows as each
+video starts and ends (`renderer/js/playback/track-card.js`). The card reads
+`artist` / `title` / `album` from the library item, or parses an
+"Artist - Title" filename when the item has none. The built-in MUSIC
+TELEVISION preset is the reference: `kind: 'music'` videos, shuffled, 24/7,
+with music ads in the breaks under the `music-television` tag.
+
 Thrown validation errors (missing fields, a programming block naming an
-unknown slot) surface immediately at registration, the same as a malformed
-`.rerun-template.json` import would.
+unknown slot, a breaks pool naming an unknown slot) surface immediately at
+registration, the same as a malformed `.rerun-template.json` import would.
 
 `id` here is the *theme* id (`S.config.theme`'s value, e.g.
 `"wood-console-70s"`) — mirroring how the pack's own CSS keys off

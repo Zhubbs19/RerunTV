@@ -19,6 +19,7 @@ import {
   getChannel, parseMediaRef, sortedChannels,
 } from '../core/channels.js';
 import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
+import { hideTrackCard, scheduleTrackCard } from './track-card.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
   guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
@@ -595,6 +596,7 @@ export async function playChannelLive(ch, opts) {
   // core knowing captions exist at all (registerCoreHook, plugins.js).
   runCoreHooks('content-playing', { file, ch });
   triggerDynamicOverlays(ch, 'contentStart');
+  scheduleTrackCard(ch, file, pos.offset);
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} src set +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
   let metaTimer = null;
@@ -857,6 +859,7 @@ export async function tuneToChannel(number, opts) {
     .forEach((el) => el && el.classList.remove('show'));
   dynamicBumperTextEl.classList.add('hidden');
   hideDynamicOverlay();
+  hideTrackCard();
   testPatternCanvasEl.classList.add('hidden');
   hideNoSignal();
   guideOverlay.classList.add('hidden');
