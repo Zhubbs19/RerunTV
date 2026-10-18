@@ -10,7 +10,9 @@
 // scenes, only file-to-file matching.
 //
 // A quiet file can only be raised as far as the volume has headroom: at 100%
-// master there's nothing above to raise into, so it stays as it was.
+// master there's nothing above to raise into, so it stays as it was. The
+// 'consistent' mode sidesteps that by aiming lower, so files are brought
+// down to the level rather than up to it (see leveler-model.js).
 //
 // Host window only (the viewer shim has no getLoudness). The math is in
 // leveler-model.js.
@@ -18,11 +20,12 @@
 import { player } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { applyVolume } from './power.js';
-import { LEVELER_MODES, gainForLoudness, lineupMediaItems, mediaPathFromUrl } from './leveler-model.js';
+import { LEVELER_MODES, levelerGainFor, lineupMediaItems, mediaPathFromUrl } from './leveler-model.js';
 
 export { LEVELER_MODES };
 
 const known = new Map();
+const pending = new Set();
 let currentPath = null;
 let installed = false;
 let sweepStarted = false;
@@ -35,22 +38,28 @@ export function currentLevelerMode() {
 
 // Multiplier applyVolume applies to #player for the file it has loaded.
 export function levelerGain() {
-  if (currentLevelerMode() === 'off' || !currentPath) return 1;
-  return known.has(currentPath) ? gainForLoudness(known.get(currentPath)) : 1;
+  const mode = currentLevelerMode();
+  if (mode === 'off' || !currentPath) return 1;
+  return levelerGainFor(mode, known.has(currentPath), known.get(currentPath));
 }
 
+// Runs at loadstart, as soon as the source is known, and again at
+// loadedmetadata (when the duration is): the lookup starts before the first
+// sound, and the second pass only adds the duration for a first measurement.
 function onLoadedMetadata() {
   const filePath = mediaPathFromUrl(player.currentSrc || player.src);
   currentPath = filePath;
   applyVolume();
-  if (!filePath || currentLevelerMode() === 'off' || known.has(filePath)) return;
+  if (!filePath || currentLevelerMode() === 'off' || known.has(filePath) || pending.has(filePath)) return;
+  pending.add(filePath);
   const duration = Number.isFinite(player.duration) ? player.duration : 0;
   Promise.resolve(window.api.getLoudness(filePath, duration)).then((lufs) => {
+    pending.delete(filePath);
     known.set(filePath, lufs);
     // Still the same file: bring it to level now (a first-time measurement
     // lands a second or two after it starts).
     if (currentPath === filePath) applyVolume();
-  }).catch(() => {});
+  }).catch(() => { pending.delete(filePath); });
 }
 
 // Applies config.audioLeveler. Safe to call any time, as often as needed.
@@ -59,6 +68,7 @@ export function applyLeveler() {
   if (!api || typeof api.getLoudness !== 'function') return;
   if (!installed) {
     installed = true;
+    player.addEventListener('loadstart', onLoadedMetadata);
     player.addEventListener('loadedmetadata', onLoadedMetadata);
   }
   if (currentLevelerMode() === 'off') {

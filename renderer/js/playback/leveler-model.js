@@ -1,18 +1,39 @@
 // Pure helpers for the volume leveler (leveler.js), kept DOM-free so
 // tests/leveler.test.js can load them.
 
-export const LEVELER_MODES = ['off', 'on'];
+export const LEVELER_MODES = ['off', 'on', 'consistent'];
 // Roughly where broadcast TV sits (EBU R128 is -23, ATSC A/85 -24).
 export const TARGET_LUFS = -24;
 const MIN_GAIN = 0.25;
 const MAX_GAIN = 2.5;
 
+// 'consistent' aims lower so nearly every file is brought down to it rather
+// than some being raised: player.volume tops out at 1, so a quiet file can't
+// be lifted at a high master volume, and that is where 'on' stops matching.
+// Louder-than-normal ads get a deeper cut, and a file still being measured
+// plays at PENDING_GAIN instead of full so a loud ad can't blast for the
+// second or so before its loudness arrives.
+const MODE_SETTINGS = {
+  on: { target: TARGET_LUFS, minGain: MIN_GAIN, pendingGain: 1 },
+  consistent: { target: -30, minGain: 0.08, pendingGain: 0.5 },
+};
+
 // Gain that moves a file measured at `lufs` to the target, clamped so one bad
 // measurement can't blast or bury a file.
-export function gainForLoudness(lufs, target = TARGET_LUFS) {
+export function gainForLoudness(lufs, target = TARGET_LUFS, minGain = MIN_GAIN) {
   if (typeof lufs !== 'number' || !Number.isFinite(lufs)) return 1;
   const gain = 10 ** ((target - lufs) / 20);
-  return Math.min(MAX_GAIN, Math.max(MIN_GAIN, gain));
+  return Math.min(MAX_GAIN, Math.max(minGain, gain));
+}
+
+// The multiplier for `mode` given what is known about the loaded file:
+// `measured` is false while the lookup is still pending, and `lufs` is null
+// for a file that has no measurable audio.
+export function levelerGainFor(mode, measured, lufs) {
+  const settings = MODE_SETTINGS[mode];
+  if (!settings) return 1;
+  if (!measured) return settings.pendingGain;
+  return gainForLoudness(lufs, settings.target, settings.minGain);
 }
 
 // The local path inside an app://media?p=… URL; null for anything else

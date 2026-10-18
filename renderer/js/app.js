@@ -1249,7 +1249,7 @@ export function applyConfigDefaults(config) {
   if (config.muted == null) config.muted = false;
   if (config.adVolume == null) config.adVolume = 1;
   if (config.contentVolume == null) config.contentVolume = 1;
-  if (!['off', 'on'].includes(config.audioLeveler)) config.audioLeveler = 'off';
+  if (!['off', 'on', 'consistent'].includes(config.audioLeveler)) config.audioLeveler = 'off';
   if (!config.ticker) config.ticker = { enabled: false, text: '' };
   if (config.ticker.speed == null) config.ticker.speed = 30;
   if (!config.staticEffect) config.staticEffect = { enabled: true, intensity: 100, durationMs: 150 };

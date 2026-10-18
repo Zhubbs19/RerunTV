@@ -1174,6 +1174,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-18', items: [
+    'Volume leveler has a new CONSISTENT setting (PICTURE & SOUND › VOLUME). It levels every show and commercial to a slightly lower common volume, so quiet files are no longer stuck below loud ones when the master volume is high, loud ads are cut deeper, and a file is held back for the moment before its loudness is measured instead of blasting.',
+  ] },
   { date: '2026-10-17', items: [
     'Channel presets: LIBRARY › PRESETS lists every preset (built in, from a plugin, or yours) with how much of your library fills it, and builds a channel from one in one undo step. A preset creator lets you make your own: slots of programs (kind, genre, era, series, tags), weekly or date-range blocks or a 24/7 loop, a slot of ads that play only on that channel, shuffle, and the artist / song card. Start from scratch, from an existing channel, from an imported file, or by customizing a built-in.',
     'Two new built-in presets: MUSIC VIDEOS (music videos around the clock, shuffled, with music ads and the artist and song shown on screen as each video starts and ends) and CHRISTMAS TV (only Christmas movies, specials and episodes, with Christmas ads in the breaks).',
@@ -2487,7 +2490,7 @@ audioLevelerSelect?.addEventListener('change', () => {
   setTimeout(renderAudioLeveler, 500);
 });
 
-const LEVELER_HELP = 'Evens out loud and quiet shows and commercials. Each file is measured once in the background.';
+const LEVELER_HELP = 'Evens out loud and quiet shows and commercials. Each file is measured once in the background. CONSISTENT plays everything a little quieter so quiet shows never fall short at high volume.';
 
 async function renderAudioLeveler() {
   if (!audioLevelerSelect) return;
@@ -2499,7 +2502,7 @@ async function renderAudioLeveler() {
     help.textContent = window.__isViewer ? 'Levels the sound on the box itself, not on this device.' : LEVELER_HELP;
   } else if (!status.available) {
     help.textContent = 'Needs ffmpeg to measure files. Install it from Plug-ins › FFmpeg Transcode.';
-  } else if (S.config.audioLeveler === 'on' && status.queued) {
+  } else if (S.config.audioLeveler && S.config.audioLeveler !== 'off' && status.queued) {
     help.textContent = `${LEVELER_HELP} ${status.measured} measured, ${status.queued} to go.`;
   } else {
     help.textContent = LEVELER_HELP;

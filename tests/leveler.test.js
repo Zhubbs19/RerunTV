@@ -19,6 +19,19 @@ test('a loud file is turned down and a quiet one up, within limits', async () =>
   assert.equal(gainForLoudness(null), 1, 'unmeasured files play as they are');
 });
 
+test('consistent mode aims lower, cuts loud ads deeper and holds back while measuring', async () => {
+  const { levelerGainFor, LEVELER_MODES } = await load();
+  assert.deepEqual(LEVELER_MODES, ['off', 'on', 'consistent']);
+  assert.equal(levelerGainFor('off', true, -10), 1);
+  assert.equal(levelerGainFor('on', false, undefined), 1, 'on mode leaves an unmeasured file alone');
+  assert.equal(levelerGainFor('consistent', false, undefined), 0.5, 'consistent mode holds back until measured');
+  assert.equal(levelerGainFor('consistent', true, null), 1, 'a file with no audio is not touched');
+  const quiet = levelerGainFor('consistent', true, -26);
+  assert.ok(quiet < 1, 'a file at -26 is still brought down, so it needs no headroom');
+  assert.ok(Math.abs(levelerGainFor('consistent', true, -12) - 10 ** (-18 / 20)) < 1e-9, 'a loud ad is cut by the full 18 dB');
+  assert.ok(levelerGainFor('on', true, -6) === 0.25, 'on mode stops at 12 dB');
+});
+
 test('only local app://media files are measured', async () => {
   const { mediaPathFromUrl } = await load();
   const url = `app://media/?p=${encodeURIComponent('J:\TV\Show S01E01.mp4')}`;
