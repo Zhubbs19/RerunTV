@@ -8,7 +8,8 @@ import { applySettingsBundle, buildSettingsBundle, readSettingsBundle } from '..
 import { applyAspectMode, applyCrtState, applyHintBarState, applyPictureMode, applyVolume } from '../playback/power.js';
 import { applyTheme } from '../display/themes.js';
 import { describeChannel, templateFromChannel, validateTemplate } from '../library/channel-builder.js';
-import { applyPreset, listAllPresets } from './presets.js';
+import { applyPreset, listAllPresets, presetShape } from './presets.js';
+import { h } from '../ui/kit-core.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
 import { applyPlaylistPreservingAir } from '../library/reanchor.js';
@@ -2372,20 +2373,37 @@ async function chooseAddChannelSource() {
   }).result;
 }
 
-// Built-in, plugin and saved presets (LIBRARY › PRESETS), one button each.
+// Built-in, plugin and saved presets (LIBRARY › PRESETS) in one labelled
+// select, grouped by where they came from, with a line about the chosen one —
+// the same shape as PRESET FROM A CHANNEL, not a button per preset.
 async function choosePreset() {
   const presets = await listAllPresets();
-  return Dialog({
+  const groupLabels = { builtin: 'Built in', plugin: 'Plugins', saved: 'Yours' };
+  const select = h('select', { className: 'block-hour-select', id: 'add-channel-preset', attrs: { 'aria-label': 'Preset' } });
+  ['saved', 'builtin', 'plugin'].forEach((source) => {
+    const entries = presets.filter((entry) => entry.source === source);
+    if (!entries.length) return;
+    const group = h('optgroup', { label: groupLabels[source] });
+    entries.forEach(({ template }) => group.appendChild(h('option', { value: template.id, text: template.name })));
+    select.appendChild(group);
+  });
+  const about = h('p', { className: 'panel-status', attrs: { role: 'status', 'aria-live': 'polite' } });
+  const describe = () => {
+    const entry = presets.find((candidate) => candidate.template.id === select.value);
+    about.textContent = entry ? [entry.template.description, presetShape(entry.template)].filter(Boolean).join(' — ') : '';
+  };
+  select.addEventListener('change', describe);
+  describe();
+  const picked = await Dialog({
     title: 'CHANNEL PRESETS',
     message: 'Presets contain scheduling intent only. Your library supplies the programs. Make your own under LIBRARY › PRESETS.',
+    body: h('div', { className: 'library-form-field' }, h('label', { text: 'Preset', attrs: { for: 'add-channel-preset' } }), select, about),
     dismissValue: null,
-    actions: [
-      { label: 'CANCEL', value: null },
-      ...presets.map((template, index) => ({
-        label: template.name.toUpperCase(), value: template, variant: index === 0 ? 'primary' : 'default', isDefault: index === 0,
-      })),
-    ],
+    actions: [{ label: 'CANCEL', value: null }, { label: 'CONTINUE', variant: 'primary', value: true, isDefault: true }],
   }).result;
+  if (!picked) return null;
+  const entry = presets.find((candidate) => candidate.template.id === select.value);
+  return entry ? entry.template : null;
 }
 
 // Resolve, preview and apply a preset — LIBRARY › PRESETS owns the flow.

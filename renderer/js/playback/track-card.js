@@ -86,10 +86,38 @@ function render(info) {
   line('track-card-meta', [info.album, info.year].filter(Boolean).join(' · '));
 }
 
+// The now-playing banner (guide.css .guide-overlay) sits bottom-left too and
+// is up for a few seconds after a tune, exactly when the opening card shows.
+// While it is visible the card sits just above it; otherwise the stylesheet's
+// own bottom applies. Measured in the overlay layer's pixels so a scaled or
+// inset layer (display/mode.js) still lands the card where it looks right.
+const BANNER_GAP_PX = 12;
+function clearBanner(card) {
+  card.style.bottom = '';
+  const banner = document.getElementById('guide-overlay');
+  const layer = card.offsetParent;
+  if (!banner || banner.classList.contains('hidden') || !layer) return;
+  // The banner slides in (guide.css guide-overlay-in), so its live rect is
+  // mid-animation right now; its resting top comes from its CSS bottom and
+  // height inside its own container instead.
+  const bannerParent = banner.offsetParent;
+  const layerRect = layer.getBoundingClientRect();
+  if (!bannerParent || !banner.offsetHeight || !layerRect.height) return;
+  const parentRect = bannerParent.getBoundingClientRect();
+  const parentScale = parentRect.height / bannerParent.clientHeight || 1;
+  const bannerBottom = parseFloat(getComputedStyle(banner).bottom) || 0;
+  const bannerTop = parentRect.bottom - (bannerBottom + banner.offsetHeight) * parentScale;
+  const scale = layer.clientHeight / layerRect.height || 1;
+  const lift = (layerRect.bottom - bannerTop) * scale + BANNER_GAP_PX;
+  const base = parseFloat(getComputedStyle(card).bottom) || 0;
+  if (lift > base) card.style.bottom = `${Math.round(lift)}px`;
+}
+
 function show(info, seconds) {
   const card = trackCardEl();
   if (!card) return;
   render(info);
+  clearBanner(card);
   card.classList.add('show');
   S.trackCardTimer = autoHideAfter(S.trackCardTimer, seconds * 1000, () => card.classList.remove('show'));
 }

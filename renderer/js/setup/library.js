@@ -404,10 +404,10 @@ async function removeRootEntry(entry) {
 // automatic tagging pass ever overwrites a hand edit (§5's own rule).
 function itemEditorBody(item) {
   const titleInput = h('input', { type: 'text', className: 'title-row-input', value: item.title || '' });
-  const kindSelect = h('select', {}, ...(item.kind && !KINDS.includes(item.kind) ? [item.kind] : []).concat(KINDS).map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
+  const kindSelect = h('select', { className: 'block-hour-select' }, ...(item.kind && !KINDS.includes(item.kind) ? [item.kind] : []).concat(KINDS).map((k) => h('option', { value: k, text: k, selected: item.kind === k })));
   const seriesNameInput = h('input', { type: 'text', className: 'title-row-input', value: (item.series && item.series.name) || '' });
-  const seasonInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.season != null) ? String(item.series.season) : '' });
-  const episodeInput = h('input', { type: 'number', min: '0', value: (item.series && item.series.episode != null) ? String(item.series.episode) : '' });
+  const seasonInput = h('input', { type: 'number', min: '0', className: 'block-priority-input', value: (item.series && item.series.season != null) ? String(item.series.season) : '' });
+  const episodeInput = h('input', { type: 'number', min: '0', className: 'block-priority-input', value: (item.series && item.series.episode != null) ? String(item.series.episode) : '' });
   const genreInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue((item.facets && item.facets.genre) || []) });
   const eraInput = h('input', { type: 'text', className: 'title-row-input', value: fieldValue((item.facets && item.facets.era) || []) });
   const ratingInput = h('input', { type: 'text', className: 'title-row-input', value: item.rating || '' });
@@ -735,13 +735,13 @@ function renderQueryForm(root) {
   };
   const input = (key, label, { list = null, placeholder = '' } = {}) => {
     const id = `library-query-${key}`;
-    const el = h('input', { type: 'text', id, value: form[key] || '', placeholder, disabled: form.advanced && key !== 'name', attrs: { list } });
+    const el = h('input', { type: 'text', id, className: 'block-text-input', value: form[key] || '', placeholder, disabled: form.advanced && key !== 'name', attrs: { list } });
     el.addEventListener('input', () => { form[key] = el.value; updateCount(); });
     return h('div', { className: 'library-form-field' }, h('label', { text: label, attrs: { for: id } }), el);
   };
   const select = (key, label, options) => {
     const id = `library-query-${key}`;
-    const el = h('select', { id, disabled: form.advanced && key !== 'order' }, options.map(([value, text]) => h('option', { value, text, selected: form[key] === value })));
+    const el = h('select', { id, className: 'block-hour-select', disabled: form.advanced && key !== 'order' }, options.map(([value, text]) => h('option', { value, text, selected: form[key] === value })));
     el.addEventListener('change', () => { form[key] = el.value; updateCount(); });
     return h('div', { className: 'library-form-field' }, h('label', { text: label, attrs: { for: id } }), el);
   };

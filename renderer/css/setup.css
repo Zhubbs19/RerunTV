@@ -6087,14 +6087,13 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 .highlight-text span { font-size: 12px; opacity: 0.8; }
 .update-changelog-highlights { margin-top: 12px; max-height: 32vh; overflow-y: auto; }
 
-/* LIBRARY › PRESETS (setup/presets.js): the preset creator's slot and block
-   cards reuse .library-card; these only arrange the extra controls. */
-.preset-editor .preset-section { margin: var(--space-3) 0 var(--space-1); font-size: var(--font-size-label); letter-spacing: 1px; color: var(--text-muted); }
-.preset-slot-card, .preset-block-card { margin-top: var(--space-2); }
+/* LIBRARY › PRESETS (setup/presets.js): built from the kit (section cards,
+   library form fields, Toggle, NumberStepper, Select, the block editor's day
+   buttons, row ⋯ menus). These rules only arrange those controls. */
+.preset-slot-card, .preset-block-card { background: var(--surface-1, var(--surface-0)); }
 .preset-grow { flex: 1 1 auto; }
 .preset-field-wide { grid-column: 1 / -1; }
-.preset-check { display: flex; gap: var(--space-2); align-items: center; align-self: end; color: var(--text); font-size: var(--font-size-label); cursor: pointer; min-height: 2.2em; }
-.preset-when, .preset-dates { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: end; margin-top: var(--space-2); }
-.preset-days { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); }
-.preset-days .preset-check { min-height: 0; }
+.preset-editor .library-form-field > .ui-toggle-label { min-height: 2.2em; font-size: var(--font-size-label); }
+.preset-when, .preset-dates { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: end; }
+.preset-when .block-days-row { min-height: 2.2em; align-items: center; }
 .preset-dates .library-form-field { width: 7em; }

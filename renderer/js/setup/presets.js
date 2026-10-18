@@ -13,8 +13,10 @@ import { nextChannelNumber } from '../core/channels.js';
 import { channelFilterEl } from '../core/dom.js';
 import { randomInterstitialId } from '../core/util.js';
 import { Badge, Button, EmptyState } from '../ui/button.js';
+import { NumberStepper, Select, Toggle } from '../ui/controls.js';
 import { Dialog } from '../ui/dialog.js';
 import { h } from '../ui/kit-core.js';
+import { MenuButton } from '../ui/menu.js';
 import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { renderChannelList } from './channels.js';
 import {
@@ -24,7 +26,7 @@ import { ORDER_POLICIES, describeWhere, runQuery, validateWhere } from '../libra
 
 const KINDS = ['episode', 'movie', 'short', 'commercial', 'bumper', 'music', 'other'];
 const ORDER_LABELS = { series: 'Series order', natural: 'By title', shuffle: 'Shuffled (stable)', recent: 'Newest first' };
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_LABELS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const SOURCE_LABELS = { builtin: 'Built in', plugin: 'Plugin', saved: 'Yours' };
 
 // What this screen knows about the host's library. Refetched, never patched
@@ -118,6 +120,25 @@ function slotRows(resolved) {
         + (slot.spec.optional && !slot.files.length ? ' (optional)' : ''),
     };
   });
+}
+
+// The list's one-line reading of a preset against the library: what is short,
+// else how much it would air. The per-slot lines go in the cell's tooltip.
+function readinessSummary(resolved) {
+  const rows = slotRows(resolved);
+  const short = rows.filter((row) => row.short);
+  if (short.length) {
+    const slot = resolved.slots[short[0].id];
+    const need = (slot.spec.min || 1) - slot.files.length;
+    const others = short.length - 1;
+    return `Needs ${plural(need, 'more program')} for ${slot.spec.label.toLowerCase()}${others ? ` and ${plural(others, 'other slot')}` : ''}`;
+  }
+  const poolSlot = resolved.template.breaks && resolved.template.breaks.pool && resolved.template.breaks.pool.slot;
+  const content = Object.entries(resolved.slots).filter(([id, slot]) => id !== poolSlot && (!slot.spec.optional || slot.files.length));
+  const programs = content.reduce((n, [, slot]) => n + slot.files.length, 0);
+  const hours = content.reduce((n, [, slot]) => n + slot.hours, 0);
+  const ads = poolSlot && resolved.slots[poolSlot] ? resolved.slots[poolSlot].files.length : 0;
+  return `${plural(programs, 'program')} · ${hours.toFixed(1)} hr${ads ? ` · ${plural(ads, 'ad')}` : ''}`;
 }
 
 // ---------- Building a channel from a preset ----------
@@ -309,7 +330,7 @@ function uniqueId(base) {
 async function fromChannel() {
   const channels = (S.config.channels || []).filter((ch) => (ch.files || []).length);
   if (!channels.length) { await alertDialog('No channel has any programs yet.', { title: 'NOTHING TO COPY' }); return; }
-  const select = h('select', { className: 'block-hour-select', id: 'preset-from-channel' },
+  const select = h('select', { className: 'block-hour-select', id: 'preset-from-channel', attrs: { 'aria-label': 'Channel' } },
     channels.map((ch) => h('option', { value: String(ch.number), text: `CH ${ch.number} ${ch.name || ''}`.trim() })));
   const picked = await Dialog({
     title: 'PRESET FROM A CHANNEL',
@@ -382,27 +403,58 @@ async function saveEditing() {
 // ---------- Rendering ----------
 
 function field(label, control, { wide = false, help = '' } = {}) {
+  // A stepper's or a labelled toggle's input is what the label points at.
+  const target = control.input || (control.tagName === 'LABEL' ? control.querySelector('input') : control);
   return h('div', { className: `library-form-field${wide ? ' preset-field-wide' : ''}` },
-    h('label', { text: label, attrs: { for: control.id || null } }), control,
+    h('label', { text: label, attrs: { for: (target && target.id) || null } }), control,
     help ? h('span', { className: 'library-reason', text: help }) : null);
 }
 
+// Inputs carry the same classes as every other setup form (.block-text-input,
+// .block-hour-select, .block-priority-input): an unclassed control falls back
+// to the browser's white default and stands out against the theme.
 function textInput(id, value, onInput, { placeholder = '', list = null, type = 'text', min = null } = {}) {
-  const el = h('input', { type, id, value: value == null ? '' : String(value), placeholder, attrs: { list, min } });
+  const el = h('input', { type, id, className: 'block-text-input', value: value == null ? '' : String(value), placeholder, attrs: { list, min } });
   el.addEventListener('input', () => onInput(el.value));
   return el;
 }
 
 function selectInput(id, value, options, onChange) {
-  const el = h('select', { id }, options.map(([v, text]) => h('option', { value: v, text, selected: String(value) === String(v) })));
-  el.addEventListener('change', () => onChange(el.value));
-  return el;
+  return Select({ id, value, className: 'block-hour-select', options: options.map(([v, label]) => ({ value: v, label })), onChange });
 }
 
-function checkbox(id, checked, onChange, label) {
-  const input = h('input', { type: 'checkbox', id, checked: !!checked });
-  input.addEventListener('change', () => onChange(input.checked));
-  return h('label', { className: 'preset-check' }, input, h('span', { text: label }));
+function numberInput(id, value, { min = 1, max = 999, label = '' } = {}, onChange) {
+  const stepper = NumberStepper({ id, value, min, max, step: 1, label, onChange });
+  stepper.input.classList.add('block-priority-input');
+  return stepper;
+}
+
+// A labelled switch; the same control the setup kit uses everywhere else.
+function toggle(id, checked, onChange, label) {
+  return Toggle({ id, checked, onChange, label });
+}
+
+// The block editor's day-of-week buttons (.block-day-btn), so a preset's
+// weekly block reads like a channel's own BLOCKS tab.
+function daysRow(prefix, days, onChange) {
+  return h('div', { className: 'block-days-row', attrs: { role: 'group', 'aria-label': 'Days of the week' } }, DAY_LABELS.map((label, day) => {
+    const on = days.includes(day);
+    const btn = h('button', { type: 'button', id: `${prefix}-day-${day}`, className: `block-day-btn${on ? ' active' : ''}`, text: label, attrs: { 'aria-pressed': String(on) } });
+    btn.addEventListener('click', () => {
+      const next = !btn.classList.contains('active');
+      btn.classList.toggle('active', next);
+      btn.setAttribute('aria-pressed', String(next));
+      onChange(day, next);
+    });
+    return btn;
+  }));
+}
+
+function sectionCard(title, help, ...children) {
+  return h('div', { className: 'library-card' },
+    h('div', { className: 'library-card-title', text: title }),
+    help ? h('p', { className: 'panel-status', text: help }) : null,
+    ...children);
 }
 
 function knownValues(read) {
@@ -445,9 +497,9 @@ function renderSlotCard(slot, index) {
       Button({ label: 'REMOVE SLOT', variant: 'quiet', disabled: form.slots.length <= 1, onPress: () => { form.slots.splice(index, 1); form.programming = form.programming.filter((row) => row.slot !== slot.key); if (form.breaks === slot.key) form.breaks = ''; render(); } })),
     h('div', { className: 'library-form-grid' },
       field('Label', textInput(`${prefix}-label`, slot.label, (v) => { slot.label = v; })),
-      field('Needs at least', textInput(`${prefix}-min`, slot.min, (v) => { slot.min = Number(v) || 1; updateCount(); }, { type: 'number', min: 1 }), { help: 'Programs that must match before the preset can build.' }),
+      field('Needs at least', numberInput(`${prefix}-min`, slot.min, { min: 1, label: 'programs needed' }, (v) => { slot.min = Number(v) || 1; updateCount(); }), { help: 'Programs that must match before the preset can build.' }),
       field('Order', selectInput(`${prefix}-order`, slot.order, Object.keys(ORDER_POLICIES).map((key) => [key, ORDER_LABELS[key] || key]), (v) => { slot.order = v; })),
-      checkbox(`${prefix}-optional`, slot.optional, (v) => { slot.optional = v; render(); }, 'Optional — build even with nothing matched')),
+      field('Optional', toggle(`${prefix}-optional`, slot.optional, (v) => { slot.optional = v; render(); }, 'Build even with nothing matched'))),
     conditions,
     countEl);
   updateCount();
@@ -465,9 +517,9 @@ function renderProgrammingRow(row, index) {
       ...[['From month', 0, 1, 12], ['day', 1, 1, 31], ['to month', 2, 1, 12], ['day', 3, 1, 31]].map(([label, slotIndex, min, max]) => field(label,
         textInput(`${prefix}-date-${slotIndex}`, row.dateRange[slotIndex], (v) => { row.dateRange[slotIndex] = Math.min(max, Math.max(min, Number(v) || min)); }, { type: 'number', min }))))
     : h('div', { className: 'preset-when' },
-      h('div', { className: 'preset-days' }, DAY_LABELS.map((label, day) => checkbox(`${prefix}-day-${day}`, row.days.includes(day), (on) => {
+      field('Days', daysRow(prefix, row.days, (day, on) => {
         row.days = on ? [...new Set([...row.days, day])] : row.days.filter((d) => d !== day);
-      }, label))),
+      })),
       field('From', selectInput(`${prefix}-start`, row.hours[0], hours, (v) => { row.hours[0] = Number(v); })),
       field('To', selectInput(`${prefix}-end`, row.hours[1], ends, (v) => { row.hours[1] = Number(v); })));
   return h('div', { className: 'library-card preset-block-card' },
@@ -498,37 +550,36 @@ function renderEditor(container) {
   P.updateSummary = updateSummary;
 
   const slotOptions = [['', 'The box-wide ad pool (inherit)'], ['none', 'No ads on this channel'], ...form.slots.map((slot) => [slot.key, `Only ads from “${slot.label || slot.key}”`])];
-  const card = h('div', { className: 'library-card library-form preset-editor' },
-    h('div', { className: 'library-card-title', text: form.source === 'new' ? 'NEW PRESET' : 'EDIT PRESET' }),
-    h('div', { className: 'library-form-grid' },
-      field('Preset name', textInput('preset-name', form.name, (v) => { form.name = v; }), { wide: true }),
-      field('Channel name', textInput('preset-channel-name', form.channelName, (v) => { form.channelName = v; }, { placeholder: 'Defaults to the preset name' })),
-      field('Rating', textInput('preset-rating', form.rating, (v) => { form.rating = v; }, { placeholder: 'e.g. TV-PG' })),
-      field('Description', textInput('preset-description', form.description, (v) => { form.description = v; }, { placeholder: 'One line about what this channel is' }), { wide: true })),
+  // One section card per topic, the same column of cards as the rest of
+  // LIBRARY, with the save row and status at the bottom.
+  const editor = h('div', { className: 'library-root preset-editor' },
+    sectionCard(form.source === 'new' ? 'NEW PRESET' : 'EDIT PRESET', '',
+      h('div', { className: 'library-form-grid' },
+        field('Preset name', textInput('preset-name', form.name, (v) => { form.name = v; }), { wide: true }),
+        field('Channel name', textInput('preset-channel-name', form.channelName, (v) => { form.channelName = v; }, { placeholder: 'Defaults to the preset name' })),
+        field('Rating', textInput('preset-rating', form.rating, (v) => { form.rating = v; }, { placeholder: 'e.g. TV-PG' })),
+        field('Description', textInput('preset-description', form.description, (v) => { form.description = v; }, { placeholder: 'One line about what this channel is' }), { wide: true }))),
 
-    h('h4', { className: 'preset-section', text: 'WHAT IT PLAYS' }),
-    h('p', { className: 'panel-status', text: 'Each slot is a search of your library. A preset with no blocks loops every slot around the clock; a block picks one slot for a time of week or a date range.' }),
-    ...form.slots.map((slot, index) => renderSlotCard(slot, index)),
-    h('div', { className: 'library-actions' },
-      Button({ label: 'ADD SLOT', onPress: () => { form.slots.push({ key: uniqueSlotKey(form, 'slot'), label: `Slot ${form.slots.length + 1}`, min: 1, optional: false, order: 'series', ...slotFormFromWhere({}) }); render(); } })),
+    sectionCard('WHAT IT PLAYS', 'Each slot is a search of your library. A preset with no blocks loops every slot around the clock; a block picks one slot for a time of week or a date range.',
+      ...form.slots.map((slot, index) => renderSlotCard(slot, index)),
+      h('div', { className: 'library-actions' },
+        Button({ label: 'ADD SLOT', onPress: () => { form.slots.push({ key: uniqueSlotKey(form, 'slot'), label: `Slot ${form.slots.length + 1}`, min: 1, optional: false, order: 'series', ...slotFormFromWhere({}) }); render(); } }))),
 
-    h('h4', { className: 'preset-section', text: 'WHEN' }),
-    ...(form.programming.length
-      ? form.programming.map((row, index) => renderProgrammingRow(row, index))
-      : [h('p', { className: 'panel-status', text: 'No blocks: the channel loops 24/7.' })]),
-    h('div', { className: 'library-actions' },
-      Button({ label: 'ADD BLOCK', onPress: () => { form.programming.push({ slot: form.slots[0].key, mode: 'weekly', days: [1, 2, 3, 4, 5], hours: [20, 22], dateRange: [12, 1, 12, 25] }); render(); } })),
+    sectionCard('WHEN', form.programming.length ? '' : 'No blocks: the channel loops 24/7.',
+      ...form.programming.map((row, index) => renderProgrammingRow(row, index)),
+      h('div', { className: 'library-actions' },
+        Button({ label: 'ADD BLOCK', onPress: () => { form.programming.push({ slot: form.slots[0].key, mode: 'weekly', days: [1, 2, 3, 4, 5], hours: [20, 22], dateRange: [12, 1, 12, 25] }); render(); } }))),
 
-    h('h4', { className: 'preset-section', text: 'BREAKS AND LOOK' }),
-    h('div', { className: 'library-form-grid' },
-      field('Ads in the breaks', selectInput('preset-breaks', form.breaks, slotOptions, (v) => { form.breaks = v; render(); }),
-        { help: 'A slot of ads is added to the pool tagged for this channel only, so a Christmas channel airs only Christmas ads.' }),
-      form.breaks && form.breaks !== 'none'
-        ? field('Content tag', textInput('preset-content-tag', form.contentTag || slugify(form.name, 'preset'), (v) => { form.contentTag = v; }), { help: 'Ads carrying this tag play here and nowhere else.' })
-        : null,
-      checkbox('preset-shuffle', form.shuffle, (v) => { form.shuffle = v; }, 'Shuffle the loop order'),
-      checkbox('preset-track-card', form.trackCard, (v) => { form.trackCard = v; render(); }, 'Show the artist and song as each video starts and ends'),
-      form.trackCard ? field('Card stays for (seconds)', textInput('preset-track-seconds', form.trackSeconds, (v) => { form.trackSeconds = Number(v) || 8; }, { type: 'number', min: 2 })) : null),
+    sectionCard('BREAKS AND LOOK', '',
+      h('div', { className: 'library-form-grid' },
+        field('Ads in the breaks', selectInput('preset-breaks', form.breaks, slotOptions, (v) => { form.breaks = v; render(); }),
+          { help: 'A slot of ads is added to the pool tagged for this channel only, so a Christmas channel airs only Christmas ads.' }),
+        form.breaks && form.breaks !== 'none'
+          ? field('Content tag', textInput('preset-content-tag', form.contentTag || slugify(form.name, 'preset'), (v) => { form.contentTag = v; }), { help: 'Ads carrying this tag play here and nowhere else.' })
+          : null,
+        field('Loop order', toggle('preset-shuffle', form.shuffle, (v) => { form.shuffle = v; }, 'Shuffle the loop')),
+        field('Artist and song card', toggle('preset-track-card', form.trackCard, (v) => { form.trackCard = v; render(); }, 'Show as each video starts and ends')),
+        form.trackCard ? field('Card stays for', numberInput('preset-track-seconds', form.trackSeconds, { min: 2, max: 60, label: 'seconds' }, (v) => { form.trackSeconds = Number(v) || 8; }), { help: 'Seconds.' }) : null)),
 
     datalist('preset-known-kinds', KINDS),
     datalist('preset-known-genres', knownValues((item) => item.facets && item.facets.genre)),
@@ -543,7 +594,7 @@ function renderEditor(container) {
       } }),
       Button({ label: 'CANCEL', variant: 'quiet', onPress: () => { P.editing = null; render(); } })));
   updateSummary();
-  container.appendChild(card);
+  container.appendChild(editor);
 }
 
 function uniqueSlotKey(form, base) {
@@ -564,24 +615,32 @@ function renderList(container) {
   const items = liveItems();
   const rows = allPresets().map(({ template, source }) => {
     let readiness = h('span', { className: 'library-reason', text: 'Library not built' });
+    let ready = false;
     if (P.built) {
       try {
         const resolved = resolveTemplate(template, { items: Object.fromEntries(items.map((item) => [item.id, item])) });
-        const lines = slotRows(resolved);
-        readiness = h('div', {},
+        ready = resolved.ready;
+        // One line in the row; every slot's own line in the tooltip and the
+        // BUILD preview, like SMART CHANNELS' single "Matches" figure.
+        readiness = h('div', { attrs: { title: slotRows(resolved).map((line) => line.text).join('\n') } },
           Badge({ text: resolved.ready ? 'READY' : 'NEEDS CONTENT', tone: resolved.ready ? 'success' : 'warning' }),
-          ...lines.map((line) => h('div', { className: 'library-reason', text: line.text })));
+          h('div', { className: 'library-reason', text: readinessSummary(resolved) }));
       } catch (e) {
         readiness = h('span', { className: 'library-reason', text: e.message });
       }
     }
-    const programming = template.programming || [];
-    const shape = [
-      programming.length ? plural(programming.length, 'block') : '24/7 loop',
-      template.breaks && template.breaks.pool ? 'own ads' : null,
-      template.channel && template.channel.trackCard ? 'artist / song card' : null,
-    ].filter(Boolean).join(' · ');
-    return h('tr', {},
+    const shape = presetShape(template);
+    // Row actions: the one thing a row is for as a button, the rest in a ⋯
+    // menu with REMOVE in its own bottom group (docs/design/03 §5.3).
+    const groups = [[
+      source === 'saved'
+        ? { label: 'Edit…', run: () => openEditor(template, 'saved') }
+        : { label: 'Customize…', run: () => customize(template) },
+      { label: 'Export…', run: () => exportPreset(template) },
+    ]];
+    if (source === 'saved') groups.push([{ label: 'Remove…', run: () => removePreset(template), danger: true }]);
+    const menu = MenuButton({ label: `Actions for ${template.name}`, groups });
+    const row = h('tr', { dataset: { rowMenu: '' } },
       cell(h('div', {},
         h('strong', { text: template.name }),
         h('div', { className: 'library-reason', text: template.description || shape }),
@@ -589,14 +648,10 @@ function renderList(container) {
       cell(SOURCE_LABELS[source] || source),
       cell(readiness),
       cell(h('div', { className: 'library-row-actions' },
-        Button({ label: 'BUILD CHANNEL…', disabled: !!P.busy || !P.built, onPress: () => run(`build:${template.id}`, () => applyPreset(template)), attrs: { 'aria-label': `Build a channel from ${template.name}` } }),
-        source === 'saved'
-          ? Button({ label: 'EDIT', variant: 'quiet', disabled: !!P.busy, onPress: () => openEditor(template, 'saved'), attrs: { 'aria-label': `Edit ${template.name}` } })
-          : Button({ label: 'CUSTOMIZE', variant: 'quiet', disabled: !!P.busy, onPress: () => customize(template), attrs: { 'aria-label': `Customize ${template.name}` } }),
-        Button({ label: 'EXPORT…', variant: 'quiet', disabled: !!P.busy, onPress: () => exportPreset(template), attrs: { 'aria-label': `Export ${template.name}` } }),
-        source === 'saved'
-          ? Button({ label: 'REMOVE', variant: 'quiet', disabled: !!P.busy, onPress: () => removePreset(template), attrs: { 'aria-label': `Remove ${template.name}` } })
-          : null)));
+        Button({ label: 'BUILD CHANNEL…', disabled: !!P.busy || !P.built || !ready, onPress: () => run(`build:${template.id}`, () => applyPreset(template)), attrs: { 'aria-label': `Build a channel from ${template.name}` } }),
+        menu.button)));
+    row.addEventListener('contextmenu', (event) => menu.openAt(event));
+    return row;
   });
   container.appendChild(table(['Preset', 'Source', 'Your library', ''], rows));
 }
@@ -619,7 +674,10 @@ export function renderPresetsPanel() {
   refresh();
 }
 
-/** Built-in, plugin and saved presets, for CHANNELS › + ADD CHANNEL. */
+/**
+ * Built-in, plugin and saved presets as `{ template, source }` (source:
+ * builtin | plugin | saved), for CHANNELS › + ADD CHANNEL's chooser.
+ */
 export async function listAllPresets() {
   try {
     const status = await call('status');
@@ -629,7 +687,17 @@ export async function listAllPresets() {
       P.built = true;
     }
   } catch (e) { /* no library: built-ins only */ }
-  return allPresets().map(({ template }) => template);
+  return allPresets();
+}
+
+/** One line on what a preset builds, for lists and the chooser. */
+export function presetShape(template) {
+  const programming = template.programming || [];
+  return [
+    programming.length ? plural(programming.length, 'block') : '24/7 loop',
+    template.breaks && template.breaks.pool ? 'own ads' : null,
+    template.channel && template.channel.trackCard ? 'artist / song card' : null,
+  ].filter(Boolean).join(' · ');
 }
 
 document.querySelector('[data-subtab="librarypresets"]')?.addEventListener('click', () => refresh());
