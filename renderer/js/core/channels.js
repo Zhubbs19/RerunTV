@@ -599,7 +599,7 @@ export function normalizeChannel(ch) {
   // null = inherit the box-wide ticker content (S.config.ticker); a present
   // object overrides enabled/text/speed for this channel.
   if (ch.tickerContent === undefined) ch.tickerContent = null;
-  // null = no artist / song card. A music-video channel (the Music Television
+  // null = no artist / song card. A music-video channel (the Music Videos
   // preset, or the switch in its IDENTITY tab) sets { enabled, atStart, atEnd,
   // seconds }; see playback/track-card.js.
   ch.trackCard = ch.trackCard === undefined ? null : normalizeTrackCard(ch.trackCard);

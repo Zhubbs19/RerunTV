@@ -80,7 +80,7 @@ function media(id, kind, extra = {}) {
 }
 
 test('a preset with no programming loops its content slots 24/7 and leaves the breaks slot out of the loop', () => {
-  const template = builder.BUILTIN_TEMPLATES.find((entry) => entry.id === 'music-television');
+  const template = builder.BUILTIN_TEMPLATES.find((entry) => entry.id === 'music-videos');
   const items = {};
   for (let i = 0; i < 12; i += 1) items[`v${i}`] = media(`v${i}`, 'music', { artist: 'Band', ref: `C:/Media/Music Videos/Band - Song ${i}.mp4` });
   items.ad1 = media('ad1', 'commercial', { tags: ['music'] });
@@ -94,12 +94,12 @@ test('a preset with no programming loops its content slots 24/7 and leaves the b
   assert.equal(channel.files[0].artist, 'Band', 'library metadata rides onto the playlist for the track card');
   assert.deepEqual(channel.trackCard, { enabled: true, atStart: true, atEnd: true, seconds: 8 });
   assert.equal(channel.shuffle, true);
-  assert.equal(contentTag, 'music-television');
-  assert.deepEqual(channel.contentTags, ['music-television']);
+  assert.equal(contentTag, 'music-videos');
+  assert.deepEqual(channel.contentTags, ['music-videos']);
   assert.equal(channel.adsEnabled, true);
   assert.equal(poolEntries.length, 2);
   assert.deepEqual(poolEntries.map((entry) => entry.type).sort(), ['bumper', 'commercial']);
-  assert.ok(poolEntries.every((entry) => entry.contentTags[0] === 'music-television' && entry.channelAffinity === 'any'));
+  assert.ok(poolEntries.every((entry) => entry.contentTags[0] === 'music-videos' && entry.channelAffinity === 'any'));
   assert.equal(poolEntries[0].file.path, 'C:/Media/ad1.mp4');
 });
 

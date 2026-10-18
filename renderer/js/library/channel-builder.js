@@ -46,15 +46,15 @@ const CHANNEL_FIELDS = ['name', 'rating', 'shuffle', 'adsEnabled', 'identity', '
 
 export const BUILTIN_TEMPLATES = Object.freeze([
   {
-    templateVersion: 1, id: 'music-television', name: 'Music Television',
+    templateVersion: 1, id: 'music-videos', name: 'Music Videos',
     description: 'Music videos around the clock, with the artist and song on screen as each one starts and ends.',
     slots: {
       videos: { label: 'Music videos', match: { kind: 'music' }, min: 10, order: 'shuffle' },
       ads: { label: 'Ads and bumpers for the breaks', match: { kind: ['commercial', 'bumper'], any: [{ 'facets.genre': 'music' }, { tags: 'music' }, { text: 'music' }] }, optional: true },
     },
-    channel: { name: 'Music Television', shuffle: true, trackCard: { enabled: true, atStart: true, atEnd: true, seconds: 8 } },
+    channel: { name: 'Music Videos', shuffle: true, trackCard: { enabled: true, atStart: true, atEnd: true, seconds: 8 } },
     programming: [],
-    breaks: { pool: { slot: 'ads' }, contentTag: 'music-television' },
+    breaks: { pool: { slot: 'ads' }, contentTag: 'music-videos' },
   },
   {
     templateVersion: 1, id: 'christmas-tv', name: 'Christmas TV',

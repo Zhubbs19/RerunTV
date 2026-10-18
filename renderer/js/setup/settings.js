@@ -1176,7 +1176,7 @@ if (helpPrintManualBtn) {
 const CHANGELOG = [
   { date: '2026-10-17', items: [
     'Channel presets: LIBRARY › PRESETS lists every preset (built in, from a plugin, or yours) with how much of your library fills it, and builds a channel from one in one undo step. A preset creator lets you make your own: slots of programs (kind, genre, era, series, tags), weekly or date-range blocks or a 24/7 loop, a slot of ads that play only on that channel, shuffle, and the artist / song card. Start from scratch, from an existing channel, from an imported file, or by customizing a built-in.',
-    'Two new built-in presets: MUSIC TELEVISION (music videos around the clock, shuffled, with music ads and the artist and song shown on screen as each video starts and ends) and CHRISTMAS TV (only Christmas movies, specials and episodes, with Christmas ads in the breaks).',
+    'Two new built-in presets: MUSIC VIDEOS (music videos around the clock, shuffled, with music ads and the artist and song shown on screen as each video starts and ends) and CHRISTMAS TV (only Christmas movies, specials and episodes, with Christmas ads in the breaks).',
     'A channel can show an artist / song card as each video starts and ends (the IDENTITY tab). It reads the artist and title the library tagged, or an “Artist - Title” filename.',
     'Auto-tagging now recognises music videos (artist and title from an “Artist - Title” name in a music folder), bumpers and commercials by their folder, and the specific holiday in a path (christmas, halloween, …) as a tag, plus more genres (sci-fi, western, fantasy, crime, game show, …). The library item editor gained Artist and Album.',
   ] },

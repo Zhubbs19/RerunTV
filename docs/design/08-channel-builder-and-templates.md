@@ -155,7 +155,7 @@ preset.
   a lineup or paths in. `compileTemplate` still returns the channel alone. `templateFromChannel`
   now handles a blockless channel (one 24/7 slot matched by the files' common tags or kind) and
   turns the channel's first content tag into a `breaks` slot.
-- **Two new built-ins**: MUSIC TELEVISION (`kind: 'music'`, shuffled, 24/7, music ads, the track
+- **Two new built-ins**: MUSIC VIDEOS (`kind: 'music'`, shuffled, 24/7, music ads, the track
   card on) and CHRISTMAS TV (Christmas movies/shows/shorts by the `christmas` tag or the word,
   24/7, Christmas ads). The old CHRISTMAS COUNTDOWN (a December date-range block) stays.
 - **Track card** (`renderer/js/playback/track-card.js`, `ch.trackCard`): the artist / song lower

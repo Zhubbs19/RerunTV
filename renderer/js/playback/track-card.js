@@ -1,7 +1,7 @@
 // The artist / song lower third on a music-video channel (ch.trackCard —
-// set by the Music Television preset or the channel's IDENTITY tab).
+// set by the Music Videos preset or the channel's IDENTITY tab).
 //
-// Like MTV's, the card appears as a video starts and again as it ends. The
+// Like a music network's, the card appears as a video starts and again as it ends. The
 // start showing is driven by the schedule position the file was loaded at
 // (already viewNow()-derived in playback/core.js), so tuning in forty seconds
 // into a video does not replay the opening card; the end showing is a timer

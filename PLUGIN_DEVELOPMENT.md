@@ -989,7 +989,7 @@ video starts and ends (`renderer/js/playback/track-card.js`). The card reads
 `artist` / `title` / `album` from the library item, or parses an
 "Artist - Title" filename when the item has none. The built-in MUSIC
 TELEVISION preset is the reference: `kind: 'music'` videos, shuffled, 24/7,
-with music ads in the breaks under the `music-television` tag.
+with music ads in the breaks under the `music-videos` tag.
 
 Thrown validation errors (missing fields, a programming block naming an
 unknown slot, a breaks pool naming an unknown slot) surface immediately at

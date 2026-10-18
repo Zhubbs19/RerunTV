@@ -28,7 +28,7 @@ const COLLECTION_DIR = /\b(movies?|films?|collection|specials|compilations?|misc
 const SPORTS = /\b(football|basketball|baseball|hockey|soccer|ncaa[fb]?|nfl|nba|mlb|nhl|super bowl|bowl game)\b|\bvs\.?(?=\s)/i;
 // Folders whose name says what kind of thing is inside. A folder beats the
 // duration bands: a 90-second spot in "Commercials" is an ad, not a short.
-const MUSIC_VIDEO_DIR = /\b(music videos?|mtv|vh1|vevo|videos? ?clips?|concerts?)\b/i;
+const MUSIC_VIDEO_DIR = /\b(music videos?|videos? ?clips?|concerts?)\b/i;
 const BUMPER_DIR = /\b(bumpers?|idents?|station ids?|interstitials?|promos?|network ids?|logos?)\b/i;
 const COMMERCIAL_DIR = /\b(commercials?|ads?|adverts?|spots?|psas?)\b/i;
 // "Artist - Title", the near-universal music video filename, with the junk
