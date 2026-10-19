@@ -29,6 +29,17 @@ empty app and passes checks that real data would fail. The folder is copied
 into the throwaway working copy and is never written to. Omit the flag only
 when you specifically want to exercise genuine first-run behaviour.
 
+The copy leaves out Chromium's own runtime folders, `Local Storage` among
+them, because that store also holds per-device choices (usage mode, TV
+screen, profile, remote profile) that would change what every driver is
+testing. One entry is carried across on its own: the sound-output choice
+(PICTURE & SOUND › Sound output, `reruntv.audioOutput`), read out of the
+source store by `lib/carry-audio-output.mjs` and applied to the running app
+over CDP before the driver starts. Without it the test window plays through
+the Windows default device, which on a PC driving a TV over HDMI is usually
+not where you are listening. The wrapper prints what it carried, or that the
+source had no choice saved.
+
 Starting from a real config also means the post-update "WHAT'S NEW" modal
 appears (the config carries an update history); the suite waits for that IPC
 and dismisses it before the sweep, so don't be surprised to see that check.

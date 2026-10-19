@@ -66,6 +66,8 @@ function Get-OurElectronProcesses {
 # Network\Cookies. Skipping these also takes the copy from ~534MB to a few,
 # since the caches are almost all of it. Anything RerunTV itself cares about
 # (channels.json, plugins, themes, backups, window-state.json) is kept.
+# Local Storage is also per-device state (usage mode, TV screen, profile), so
+# only its sound-output entry is carried over, by lib\carry-audio-output.mjs.
 $VolatileUserDataEntries = @(
     'Cache', 'Code Cache', 'GPUCache', 'DawnCache', 'DawnGraphiteCache', 'DawnWebGPUCache',
     'Network', 'Local Storage', 'Session Storage', 'Shared Dictionary', 'blob_storage',
@@ -209,6 +211,15 @@ if ($UserDataSource) {
         throw "Electron is still running but never opened its CDP port within 60s. Its output, if any, is above."
     }
     Write-Host "App is up. Running the test suite..." -ForegroundColor Green
+
+    # The sound-output choice lives in Local Storage, which the copy above
+    # skips on purpose (it also holds per-device state like the usage mode).
+    # Carry just that one entry across so the test window plays through the
+    # same device as the source install; otherwise sound goes to the Windows
+    # default, which is often not where the person is listening.
+    if ($UserDataSource) {
+        & node (Join-Path $PSScriptRoot 'lib\carry-audio-output.mjs') $sourceDir $port
+    }
 
     $driver = Join-Path $PSScriptRoot $Script
     if (-not (Test-Path -LiteralPath $driver)) { throw "Driver script not found: $driver" }
