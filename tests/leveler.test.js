@@ -32,6 +32,14 @@ test('consistent mode aims lower, cuts loud ads deeper and holds back while meas
   assert.ok(levelerGainFor('on', true, -6) === 0.25, 'on mode stops at 12 dB');
 });
 
+test('a loadstart lookup uses the lineup duration or waits for loadedmetadata', async () => {
+  const { measureDurationAt } = await load();
+  assert.equal(measureDurationAt('loadedmetadata', 1320.5, 0), 1320.5, 'the element knows best once metadata is in');
+  assert.equal(measureDurationAt('loadstart', NaN, 1320), 1320, 'at loadstart the lineup figure stands in');
+  assert.equal(measureDurationAt('loadstart', NaN, 0), null, 'no duration at loadstart: wait, so the start alone is not measured and cached');
+  assert.equal(measureDurationAt('loadedmetadata', NaN, 0), 0, 'a stream with no duration at all is measured from the start');
+});
+
 test('only local app://media files are measured', async () => {
   const { mediaPathFromUrl } = await load();
   const url = `app://media/?p=${encodeURIComponent('J:\TV\Show S01E01.mp4')}`;

@@ -36,6 +36,18 @@ export function levelerGainFor(mode, measured, lufs) {
   return gainForLoudness(lufs, settings.target, settings.minGain);
 }
 
+// The duration (seconds) to measure the loaded file with, or null to wait
+// for the next event. At loadstart the element doesn't know its duration yet
+// (player.duration is NaN), so the lineup's own figure for the file is used;
+// a file the lineup doesn't list waits for loadedmetadata, because a
+// measurement with no duration samples only the file's start and is cached
+// that way.
+export function measureDurationAt(eventType, playerDuration, lineupDuration) {
+  if (Number.isFinite(playerDuration) && playerDuration > 0) return playerDuration;
+  if (lineupDuration > 0) return lineupDuration;
+  return eventType === 'loadstart' ? null : 0;
+}
+
 // The local path inside an app://media?p=… URL; null for anything else
 // (a plugin-served stream on loopback http, a data: URL, nothing loaded).
 export function mediaPathFromUrl(url) {

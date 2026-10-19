@@ -20,7 +20,7 @@
 import { player } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { applyVolume } from './power.js';
-import { LEVELER_MODES, levelerGainFor, lineupMediaItems, mediaPathFromUrl } from './leveler-model.js';
+import { LEVELER_MODES, levelerGainFor, lineupMediaItems, measureDurationAt, mediaPathFromUrl } from './leveler-model.js';
 
 export { LEVELER_MODES };
 
@@ -43,16 +43,31 @@ export function levelerGain() {
   return levelerGainFor(mode, known.has(currentPath), known.get(currentPath));
 }
 
+// The lineup's duration for each local file, so a lookup started at
+// loadstart (before the element knows its duration) still measures the whole
+// file. Rebuilt when config changes (S.configGeneration, CLAUDE.md).
+let lineupDurations = new Map();
+let lineupDurationsGeneration = -1;
+function lineupDuration(filePath) {
+  if (lineupDurationsGeneration !== S.configGeneration) {
+    lineupDurationsGeneration = S.configGeneration;
+    lineupDurations = new Map(lineupMediaItems(S.config).map((item) => [item.path, item.duration]));
+  }
+  return lineupDurations.get(filePath) || 0;
+}
+
 // Runs at loadstart, as soon as the source is known, and again at
 // loadedmetadata (when the duration is): the lookup starts before the first
-// sound, and the second pass only adds the duration for a first measurement.
-function onLoadedMetadata() {
+// sound when the lineup knows the file's duration, and otherwise waits for
+// the second pass (measureDurationAt).
+function onLoadedMetadata(event) {
   const filePath = mediaPathFromUrl(player.currentSrc || player.src);
   currentPath = filePath;
   applyVolume();
   if (!filePath || currentLevelerMode() === 'off' || known.has(filePath) || pending.has(filePath)) return;
+  const duration = measureDurationAt(event && event.type, player.duration, lineupDuration(filePath));
+  if (duration == null) return;
   pending.add(filePath);
-  const duration = Number.isFinite(player.duration) ? player.duration : 0;
   Promise.resolve(window.api.getLoudness(filePath, duration)).then((lufs) => {
     pending.delete(filePath);
     known.set(filePath, lufs);
@@ -85,7 +100,7 @@ export function applyLeveler() {
         if (sweepStarted && currentLevelerMode() !== 'off') api.prefetchLoudness(lineupMediaItems(S.config)).catch(() => {});
       }, SWEEP_START_DELAY_MS);
     }
-    if (player.currentSrc) onLoadedMetadata();
+    if (player.currentSrc) onLoadedMetadata({ type: 'loadedmetadata' });
   }
   applyVolume();
 }
