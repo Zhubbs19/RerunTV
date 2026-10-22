@@ -22,10 +22,4 @@ function activate(ctx) {
   }));
 }
 
-// Called by core (registerFallbackHandlers, main-plugins.js) instead of
-// activate() when this plugin is disabled/missing.
-function registerFallback(ipcMain) {
-  ipcMain.handle('desktop:listSources', async () => []);
-}
-
-module.exports = { activate, registerFallback };
+module.exports = { activate };

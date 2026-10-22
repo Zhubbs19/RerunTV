@@ -8,6 +8,10 @@
   "renderer": "renderer.js",
   "settings": "settings.js",
   "isolated": true,
+  "fallbackIpc": {
+    "tmdb:search": {"results":[],"error":"The TMDB Metadata plugin is disabled or missing (PLUGINS tab)."},
+    "tmdb:getCredits": {"cast":[]}
+  },
   "capabilities": {
     "ipc": [
       { "channel": "tmdb:search", "why": "looks up a title's metadata for the TITLES tab's MATCH TMDB button" },

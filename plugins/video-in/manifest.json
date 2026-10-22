@@ -8,6 +8,9 @@
   "renderer": "renderer.js",
   "style": "style.css",
   "isolated": true,
+  "fallbackIpc": {
+    "desktop:listSources": []
+  },
   "capabilities": {
     "ipc": [
       { "channel": "desktop:listSources", "why": "lists windows/screens for you to pick which one shows up as CH 0" }

@@ -172,6 +172,7 @@ function loadIntegrityManifest() {
   } catch (e) { return {}; }
 }
 function saveIntegrityManifest(plugins) {
+  invalidatePluginDiscovery();
   fs.writeFileSync(integrityManifestPath(), JSON.stringify({ version: 1, plugins }, null, 2));
 }
 function recordPluginIntegrity(id, hash) {
@@ -212,6 +213,7 @@ function replaceBundledCopy(sourceDir, destDir) {
 }
 
 function seedBundledPlugins() {
+  invalidatePluginDiscovery();
   let folders;
   try {
     folders = fs.readdirSync(BUNDLED_PLUGINS_DIR, { withFileTypes: true }).filter((e) => e.isDirectory());
@@ -301,7 +303,28 @@ function isSafeDataDirName(name) {
   return /^[A-Za-z0-9._-]+$/.test(name) && name !== '.' && name !== '..';
 }
 
+// discoverPlugins() is called from about twenty places (every plugins:list,
+// diagnostics, the LAN viewer's plugin list, ...) and each call used to re-read
+// every manifest and walk every plugin folder to hash it. The answer only
+// changes when a plugin is installed, removed or trusted, or a file inside one
+// is edited, so it is kept for a short window and dropped explicitly by the
+// operations that change it. Callers get their own copy, so mutating a result
+// can never corrupt what the next caller sees.
+const DISCOVERY_TTL_MS = 2000;
+let discoveryCache = null; // { at, dir, results }
+
+function invalidatePluginDiscovery() { discoveryCache = null; }
+
 function discoverPlugins() {
+  const dir = ensurePluginsDir();
+  const now = Date.now();
+  if (!discoveryCache || discoveryCache.dir !== dir || now - discoveryCache.at > DISCOVERY_TTL_MS) {
+    discoveryCache = { at: now, dir, results: discoverPluginsUncached() };
+  }
+  return structuredClone(discoveryCache.results);
+}
+
+function discoverPluginsUncached() {
   const dir = ensurePluginsDir();
   const seen = new Set();
   const results = [];
@@ -366,6 +389,10 @@ function discoverPlugins() {
         renderer: manifest.renderer || null,
         settings: manifest.settings || null,
         main: manifest.main || null,
+        // Static answers for IPC channels while the plugin is inactive, declared
+        // as data so core never has to load an inactive plugin's code. Only
+        // JSON-serializable values on string channels are kept.
+        fallbackIpc: normalizeFallbackIpc(manifest.fallbackIpc),
         dependsOn: Array.isArray(manifest.dependsOn) ? manifest.dependsOn : [],
         // A root-level userData/ folder this plugin owns beyond its own
         // plugins/<id>/ folder (a download cache, guest uploads, …) — see
@@ -517,6 +544,11 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     createLanAccess,
     isLanServiceEnabled,
     sendToMainWindow,
+    // Cache entries are per plugin, so one plugin cannot read or poison what
+    // another stored under the same key.
+    ...(typeof baseCtx.fetchJsonCached === 'function' ? {
+      fetchJsonCached: (key, url, opts, ttlMs) => baseCtx.fetchJsonCached(`${manifest.id}:${String(key)}`, url, opts, ttlMs),
+    } : {}),
     services: checkedServices,
     // Symmetric with the isolated runtime's ctx.registerService/callService
     // (plugin-isolation-runtime.js) — same shared baseCtx.services object
@@ -771,26 +803,13 @@ function uninstallPlugin(id) {
   return { success: true, id, name: plugin.name };
 }
 
-// A plugin whose main.js is NOT active (disabled, missing, or its own
-// manifest/require failed) still gets a chance to register safe fallback
-// IPC handlers for whatever channels its renderer side calls unconditionally
-// — e.g. a music-channel plugin inactive still needs its own
-// getStreamUrl-style channel to resolve to '' rather than reject with a raw
-// "no handler registered" error. A plugin opts in by exporting
-// `registerFallback(ipcMain)` alongside `activate(ctx)` — this generalizes
-// what used to be a single hardcoded core function naming each plugin that
-// needed one and its exact channels/fallback values by hand, into something
-// any plugin (first- or third-party) can join without a core code change.
-//
-// Deliberately does NOT call activate() here — an inactive plugin should
-// stay fully inert (no server started, no process spawned); require()ing
-// its main.js only to read registerFallback is safe under the same
-// "side effects live in activate(), not at module scope" convention every
-// plugin's main.js is already expected to follow (see
-// PLUGIN_DEVELOPMENT.md). A plugin with no registerFallback export, or
-// whose main.js fails to even require(), is silently skipped — its
-// renderer-side calls will simply reject with the default "no handler"
-// error, same as before this mechanism existed for it.
+// A plugin that is NOT active (disabled, awaiting a capabilities or integrity
+// approval, or failed to load) still gets safe answers for the IPC channels its
+// renderer calls unconditionally, so those calls resolve with an empty result
+// instead of rejecting with a raw "no handler registered" error. The answers
+// are declared as data in the manifest (`fallbackIpc`: { channel: value }) and
+// registered here by core; an inactive plugin's own code is never loaded, since
+// it has not been approved or integrity-checked.
 // `inactiveIds` covers both disabled plugins and ones pending a capabilities
 // approval prompt (loadMainPlugins()'s `needsApproval`, see main.js) — both
 // need the same safe fallback while they're not actually running.
@@ -800,30 +819,27 @@ function uninstallPlugin(id) {
 // discoverPlugins() call, e.g. if this is ever invoked standalone.
 function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
   const inactive = new Set(inactiveIds || []);
-  // A plugin whose activate() threw may already own some of its channels;
-  // registering a second handler for one of those throws, which would skip every
-  // channel after it. Each registration is tried on its own instead.
-  const tolerantIpc = {
-    handle: (channel, fn) => { try { ipcMain.handle(channel, fn); } catch (e) { /* already registered */ } },
-    handleOnce: (channel, fn) => { try { ipcMain.handleOnce(channel, fn); } catch (e) { /* already registered */ } },
-    on: (...a) => ipcMain.on(...a),
-    once: (...a) => ipcMain.once(...a),
-    removeHandler: (...a) => ipcMain.removeHandler(...a),
-    removeListener: (...a) => ipcMain.removeListener(...a),
-  };
   (plugins || discoverPlugins()).forEach((plugin) => {
-    if (plugin.error || !plugin.main) return;
     if (!inactive.has(plugin.id)) return; // active plugins register their own real handlers via activate()
-    try {
-      const mod = require(path.join(getPluginsDir(), plugin.dir, plugin.main));
-      if (mod && typeof mod.registerFallback === 'function') mod.registerFallback(tolerantIpc);
-    } catch (e) {
-      // Broken plugin main.js — main-plugins.js's own loadMainPlugins() (for
-      // active plugins) already surfaces load errors in the PLUGINS tab;
-      // an inactive/disabled one failing to even require() here just means
-      // no fallback for it, not a crash.
-    }
+    const fallbacks = plugin.fallbackIpc || {};
+    Object.keys(fallbacks).forEach((channel) => {
+      const value = fallbacks[channel];
+      // A plugin whose activate() threw may already own some of its channels;
+      // a second handler for one of those throws, so each is tried on its own.
+      try { ipcMain.handle(channel, async () => JSON.parse(JSON.stringify(value))); } catch (e) { /* already registered */ }
+    });
   });
+}
+
+// manifest.fallbackIpc: { "<channel>": <JSON value> }. Anything else is dropped.
+function normalizeFallbackIpc(raw) {
+  const out = {};
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  Object.keys(raw).forEach((channel) => {
+    if (!channel || typeof channel !== 'string') return;
+    try { out[channel] = JSON.parse(JSON.stringify(raw[channel] === undefined ? null : raw[channel])); } catch (e) { /* not serializable */ }
+  });
+  return out;
 }
 
 // `deps` carries accessors (not raw values) for everything main.js populates
@@ -956,6 +972,7 @@ function registerPluginsIpc(ipcMain, deps) {
   // now-gone id so a stale disabled/approved entry doesn't linger forever.
   ipcMain.handle('plugins:uninstall', async (event, id) => {
     const result = uninstallPlugin(id);
+    invalidatePluginDiscovery();
     if (result.success) {
       result.hostUpdate = await configHost.applyCommands({ type: 'plugin.forget', id }, { source: 'plugins' });
     }
@@ -975,9 +992,16 @@ function registerPluginsIpc(ipcMain, deps) {
   // true } to actually overwrite, without re-prompting the file picker a
   // second time for the same file. Main-process code has no themed-dialog
   // access of its own, so the confirm step has to happen in the renderer.
+  // Zip paths this process's own file picker returned. The renderer may echo
+  // one back for the overwrite retry, but it cannot name an arbitrary file on
+  // disk for the host to unpack into the plugins folder.
+  const pickedZipPaths = new Set();
   ipcMain.handle('plugins:installFromZip', async (event, opts) => {
     opts = opts || {};
     let zipPath = opts.zipPath;
+    if (zipPath && !pickedZipPaths.has(zipPath)) {
+      return { success: false, error: 'Choose the plugin zip again with the file picker.' };
+    }
     if (!zipPath) {
       const result = await dialog.showOpenDialog(getMainWindow(), {
         properties: ['openFile'],
@@ -985,8 +1009,12 @@ function registerPluginsIpc(ipcMain, deps) {
       });
       if (result.canceled || result.filePaths.length === 0) return { cancelled: true };
       [zipPath] = result.filePaths;
+      pickedZipPaths.add(zipPath);
     }
     const installed = installPluginFromZip(zipPath, { overwrite: opts.overwrite });
+    invalidatePluginDiscovery();
+    // Done with this pick unless the renderer is about to ask to overwrite it.
+    if (!installed.alreadyExists) pickedZipPaths.delete(zipPath);
     if (installed.success && installed.shapeChanged) {
       installed.hostUpdate = await configHost.applyCommands({ type: 'plugin.setApproval', id: installed.id, signature: null }, { source: 'plugins' });
     }
@@ -1000,6 +1028,6 @@ function registerPluginsIpc(ipcMain, deps) {
 }
 
 module.exports = {
-  getPluginsDir, ensurePluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip,
+  normalizeFallbackIpc, invalidatePluginDiscovery, getPluginsDir, ensurePluginsDir, discoverPlugins, loadMainPlugins, seedBundledPlugins, installPluginFromZip,
   uninstallPlugin, registerFallbackHandlers, recordPluginIntegrity, registerPluginsIpc,
 };

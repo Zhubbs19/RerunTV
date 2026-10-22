@@ -572,15 +572,4 @@ async function activate(ctx) {
   ipcMain.handle('party:getJoinInfo', async () => getPartyJoinInfo());
 }
 
-// Called by core (registerFallbackHandlers, main-plugins.js) instead of
-// activate() when this plugin is disabled/missing. Matches
-// browser-api-shim.js's own fallback shape exactly (the LAN viewer runs
-// with no party server either) — neither caller (the party-channel
-// renderer.js, setup-settings.js) has a .catch, so these resolve rather
-// than reject.
-function registerFallback(ipcMain) {
-  ipcMain.handle('party:captureVideoFrame', async () => null);
-  ipcMain.handle('party:getJoinInfo', async () => ({ url: '', qrDataUrl: '', pairingCode: '' }));
-}
-
-module.exports = { activate, registerFallback };
+module.exports = { activate };

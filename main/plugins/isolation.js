@@ -20,6 +20,8 @@ const { createRpc, cloneableServiceSnapshot } = require('./rpc-channel');
 const { recordConnection } = require('../lan/connections');
 const { recordDiagnostic } = require('../diagnostics/diagnostics');
 const { allowedSetsFor, capabilityError, resolveUserPaths } = require('./capabilities');
+const { isolatedConfigView } = require('./config-view');
+const { isAllowedExternalUrl } = require('../util/fetch-guards');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'isolation-runtime.js');
 // A hung/broken isolated plugin (forked but never emitting 'runtime-ready',
@@ -100,7 +102,10 @@ function buildExecArgv(manifest, appRootDir, pluginDir, dataDir, helperBinaries 
   // Folders the user chose for this plugin through its own settings — see
   // resolveUserPaths (main-plugin-capabilities.js). Read as well as write:
   // a plugin that puts its output somewhere has to be able to list it again.
-  userDirs.filter(Boolean).forEach((dir) => { readPaths.push(dir); writePaths.push(dir); });
+  // The flag value is comma-separated, so a folder whose name contains a comma
+  // would be read as several grants; only absolute, comma-free folders are used.
+  userDirs.filter((dir) => typeof dir === 'string' && dir && !dir.includes(',') && path.isAbsolute(dir))
+    .forEach((dir) => { readPaths.push(dir); writePaths.push(dir); });
   const args = [
     '--experimental-permission',
     `--allow-fs-read=${readPaths.join(',')}`,
@@ -198,6 +203,12 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
       recordDiagnostic(`plugin:${manifest.id}`, 'error', capabilityError(manifest.id, 'use', 'shell.openExternal', 'system').message);
       throw capabilityError(manifest.id, 'use', 'shell.openExternal', 'system');
     }
+    // The capability approves "may open links", not "may launch anything": a
+    // file:, smb: or custom-protocol URL can run local programs.
+    if (!isAllowedExternalUrl(url)) {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" asked to open a non-web URL; refused.`);
+      throw new Error('Only http, https and mailto links can be opened.');
+    }
     shell.openExternal(url);
     return true;
   });
@@ -208,8 +219,9 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
   });
   childRpc.handle('fetchJsonCached', async ({
     key, url, opts, ttlMs,
-  }) => baseCtx.fetchJsonCached(key, url, opts, ttlMs));
-  childRpc.handle('loadConfig', async () => baseCtx.loadConfig());
+  }) => baseCtx.fetchJsonCached(`${manifest.id}:${String(key)}`, url, opts, ttlMs));
+  // A reduced view, not the whole config: see plugins/config-view.js.
+  childRpc.handle('loadConfig', async () => isolatedConfigView(await baseCtx.loadConfig(), manifest.id));
   childRpc.on('trackConnection', ({ serverName, ip, userAgent }) => recordConnection(serverName, ip, userAgent));
   childRpc.on('services:publish', ({ key, value }) => {
     if (!claimServiceKey(manifest.id, key)) {

@@ -60,11 +60,4 @@ function activate(ctx) {
   });
 }
 
-// Called by core (registerFallbackHandlers, main-plugins.js) instead of
-// activate() when this plugin is disabled/missing.
-function registerFallback(ipcMain) {
-  ipcMain.handle('noaa:getActiveAlerts', async () => ({ alerts: [], error: 'The NOAA Weather & EAS plugin is disabled or missing (PLUGINS tab).' }));
-  ipcMain.handle('noaa:getForecast', async () => ({ periods: [], location: null, error: 'The NOAA Weather & EAS plugin is disabled or missing (PLUGINS tab).' }));
-}
-
-module.exports = { activate, registerFallback };
+module.exports = { activate };

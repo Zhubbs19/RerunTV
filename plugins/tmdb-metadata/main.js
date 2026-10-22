@@ -59,14 +59,4 @@ function activate(ctx) {
   });
 }
 
-// Called by core (registerFallbackHandlers, main-plugins.js) instead of
-// activate() when this plugin is disabled/missing — registers safe stubs
-// for the channels the renderer side calls unconditionally, so those calls
-// resolve with an empty/explanatory result instead of rejecting with a raw
-// "no handler registered" error.
-function registerFallback(ipcMain) {
-  ipcMain.handle('tmdb:search', async () => ({ results: [], error: 'The TMDB Metadata plugin is disabled or missing (PLUGINS tab).' }));
-  ipcMain.handle('tmdb:getCredits', async () => ({ cast: [] }));
-}
-
-module.exports = { activate, registerFallback };
+module.exports = { activate };

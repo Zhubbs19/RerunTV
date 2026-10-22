@@ -65,6 +65,13 @@ function confirmOrder() {
   currentContainer.querySelector('[data-el="success-modal"]').classList.remove('hidden');
 }
 
+// Event titles and prices are free text from settings, so they are escaped
+// before going into the template below.
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 window.RCBPlugins.registerChannelType('pay-per-view', {
   number: 98,
   label: 'PAY-PER-VIEW',
@@ -88,11 +95,11 @@ window.RCBPlugins.registerChannelType('pay-per-view', {
           </div>
           <div class="ppv-event-info">
             <div class="ppv-event-label">CURRENT PAY-PER-VIEW EVENT:</div>
-            <div class="ppv-event-title">${event.title}</div>
-            <div class="ppv-event-price">PRICE: ${event.price} / ONE-TIME PURCHASE</div>
+            <div class="ppv-event-title">${escapeHtml(event.title)}</div>
+            <div class="ppv-event-price">PRICE: ${escapeHtml(event.price)} / ONE-TIME PURCHASE</div>
           </div>
           <div class="ppv-actions">
-            <button type="button" class="btn btn-primary ppv-order-btn" data-el="order-btn">💳 ORDER THIS EVENT NOW (${event.price})</button>
+            <button type="button" class="btn btn-primary ppv-order-btn" data-el="order-btn">💳 ORDER THIS EVENT NOW (${escapeHtml(event.price)})</button>
             <div class="ppv-hint">PRESS ENTER / OK OR CLICK ORDER TO PURCHASE</div>
           </div>
         </div>

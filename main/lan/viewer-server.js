@@ -14,13 +14,14 @@
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
-const { getConfigPath, loadConfig } = require('../config/config');
+const { getConfigPath, loadConfig, getConfigVersion } = require('../config/config');
 const { handoffInfo, saveRemoteProfile, MAX_PROFILE_BYTES } = require('./tv-client');
 const { serveFile, serveMediaRef, pipeWebResponse } = require('../media/protocol');
 const { trackConnection } = require('./connections');
 const { VIEWER_PORT } = require('./lan');
 const { isPathContained } = require('../util/path-safety');
-const { createLanAccess, requestIp } = require('./security');
+const { createLanAccess, requestIp, originMatchesHost, hasJsonContentType, hasMultipartContentType } = require('./security');
+const { resolveViewerPluginFile, projectPluginForViewer } = require('./plugin-files');
 const { listDirectory } = require('./control-browse');
 const { receiveAssetUpload } = require('./asset-upload');
 const { VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, AUDIO_EXTENSIONS, scanFolderForVideos } = require('../media/media');
@@ -146,14 +147,6 @@ function isLoopbackRequest(req) {
   return !localPort || Number(hostUrl.port || 80) === localPort;
 }
 
-// A browser attaches Origin to cross-site writes. A LAN client that is not a
-// browser (the Android app) sends none; one that does must be talking to us.
-function originMatchesHost(req) {
-  const origin = req.headers.origin;
-  if (!origin) return true;
-  try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
-}
-
 function controlPage({ access, state, controlToken, canStop }) {
   const nonce = crypto.randomBytes(16).toString('base64');
   const viewerUrls = Array.isArray(state.viewerUrls) ? state.viewerUrls : [];
@@ -218,6 +211,19 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
   const port = pluginRuntime.port === undefined ? VIEWER_PORT : pluginRuntime.port;
   const host = pluginRuntime.host || '0.0.0.0';
   const controlToken = crypto.randomBytes(32).toString('base64url');
+  // /api/config is polled by every paired TV and rebuilt (parse, redact,
+  // project, stringify) on each hit. The default loader is cached against
+  // channels.json's own version, so it is rebuilt exactly when the file
+  // changes. A caller-supplied loader (tests) is never cached.
+  let projectedCache = { version: null, json: '' };
+  function projectedConfigJson() {
+    if (loadViewerConfig !== loadConfig) return JSON.stringify(projection.project(loadViewerConfig()));
+    const version = getConfigVersion();
+    if (projectedCache.version !== version) {
+      projectedCache = { version, json: JSON.stringify(projection.project(loadViewerConfig())) };
+    }
+    return projectedCache.json;
+  }
   const server = http.createServer(async (req, res) => {
     try {
       await handleRequest(req, res);
@@ -266,6 +272,19 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     }
     const requestKind = req.method === 'GET' ? 'read' : 'write';
     if (!(await access.authorize(req, res, url, requestKind))) return;
+
+    // CSRF gate for EVERY mutating route, not just /api/commands: a JSON body
+    // (a plain HTML form cannot send one) from this host's own origin or a
+    // native client with no Origin at all. authorize() has already refused a
+    // mismatched Origin; the asset upload alone may be multipart.
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      const allowMultipart = url.pathname === '/api/control/assets';
+      const typeOk = hasJsonContentType(req) || (allowMultipart && hasMultipartContentType(req));
+      if (!typeOk || !originMatchesHost(req)) {
+        res.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'Forbidden' }));
+        return;
+      }
+    }
 
     // ---------- Control scope (docs/design/06 §4) ----------
     // Everything under here refuses a `view` session outright. A viewer that
@@ -557,7 +576,9 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
         : [];
       const info = controlUrls.length
         ? await handoffInfo(controlUrls, require('qrcode'), { writable: true })
-        : await handoffInfo(services.companionAccessUrls || [], require('qrcode'));
+        // The Companion URLs carry its pairing code, so a view-only device
+        // gets the empty "turn on sharing" answer instead.
+        : await handoffInfo([], require('qrcode'));
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(info));
       return;
     }
@@ -587,7 +608,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
 
     if (url.pathname === '/api/config') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-        .end(JSON.stringify(projection.project(loadViewerConfig())));
+        .end(projectedConfigJson());
       return;
     }
 
@@ -597,10 +618,12 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     }
 
     if (url.pathname === '/api/plugins') {
+      // Only what a viewer's loader reads; capabilities, integrity hashes,
+      // data directories and raw load errors stay on the host.
       const plugins = typeof pluginRuntime.listPlugins === 'function'
-        ? pluginRuntime.listPlugins()
+        ? pluginRuntime.listPlugins().map(projectPluginForViewer).filter(Boolean)
         : [];
-      res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(plugins));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify(plugins));
       return;
     }
 
@@ -638,9 +661,12 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
     }
 
     if (pluginsDir && url.pathname.startsWith('/plugins/')) {
-      const rel = decodeURIComponent(url.pathname.slice('/plugins/'.length));
-      const resolved = path.normalize(path.join(pluginsDir, rel));
-      if (!isPathContained(pluginsDir, resolved)) {
+      let rel;
+      try { rel = decodeURIComponent(url.pathname.slice('/plugins/'.length)); } catch (e) { res.writeHead(400).end('Bad request'); return; }
+      // Browser-side files only: never a plugin's main-process entry, hidden
+      // files, or anything that is not a static web asset.
+      const resolved = resolveViewerPluginFile(pluginsDir, rel);
+      if (!resolved) {
         res.writeHead(403).end('Forbidden');
         return;
       }

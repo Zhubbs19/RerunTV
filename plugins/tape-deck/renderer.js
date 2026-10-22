@@ -298,7 +298,7 @@ window.RCBPlugins.registerCoreHook('guide-program-actions', ({ channel, entry, a
 function flashToast(message, tone) {
   const el = recOsd();
   clearTimeout(osdHideTimer);
-  el.innerHTML = `<span class="tape-rec-text${tone === 'bad' ? ' tape-rec-bad' : ''}">${message}</span>`;
+  el.innerHTML = `<span class="tape-rec-text${tone === 'bad' ? ' tape-rec-bad' : ''}">${escapeHtml(message)}</span>`;
   el.classList.remove('hidden');
   // A toast is a wall-clock nicety, not a schedule decision.
   osdHideTimer = setTimeout(() => {
@@ -1145,9 +1145,9 @@ function showDiscTitleMenu(ctx) {
       <ol class="tape-disc-chapters" data-el="chapters">
         ${titles.map((title, i) => `
           <li class="tape-chapter" data-index="${i}">
-            <span class="tape-chapter-n">${String(title.title).padStart(2, '0')}</span>
-            <span class="tape-chapter-label">TITLE ${title.title}</span>
-            <span class="tape-chapter-time">${titleLine(title)}</span>
+            <span class="tape-chapter-n">${escapeHtml(String(title.title).padStart(2, '0'))}</span>
+            <span class="tape-chapter-label">TITLE ${escapeHtml(title.title)}</span>
+            <span class="tape-chapter-time">${escapeHtml(titleLine(title))}</span>
           </li>
         `).join('')}
       </ol>

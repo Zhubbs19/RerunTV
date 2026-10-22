@@ -1,5 +1,11 @@
 import { DEFAULT_ERA, ERAS, GENRE_THEMES, probeAllDurations } from './renderer.js';
 
+// Station names and paths are user data going into value="..." attributes.
+function attr(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 function newId() {
   return (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : `mc-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
@@ -285,13 +291,13 @@ window.RCBPlugins.registerPluginSettings('digital-music-channel', {
           card.innerHTML = `
             <div class="mc-settings-card-head">
               <span class="mc-settings-swatch" style="background:${theme.accent}"></span>
-              <input type="text" class="title-row-input" data-el="name" maxlength="40" value="${(station.name || '').replace(/"/g, '&quot;')}">
+              <input type="text" class="title-row-input" data-el="name" maxlength="40" value="${attr(station.name)}">
               <select class="block-hour-select" data-el="theme"></select>
               <button type="button" class="btn remove-btn" data-el="remove">REMOVE</button>
             </div>
             <div class="panel-interval">
               FOLDER
-              <input type="text" class="title-row-input" data-el="folder" value="${station.folderPath || ''}" placeholder="No folder chosen" readonly>
+              <input type="text" class="title-row-input" data-el="folder" value="${attr(station.folderPath)}" placeholder="No folder chosen" readonly>
               <button type="button" class="btn" data-el="browse-folder">BROWSE…</button>
               <button type="button" class="btn" data-el="rescan" ${station.folderPath ? '' : 'disabled'}>RESCAN + PROBE</button>
             </div>
@@ -309,7 +315,7 @@ window.RCBPlugins.registerPluginSettings('digital-music-channel', {
               <div class="field hidden" data-el="bg-slideshow-field">
                 <span class="field-label">IMAGE FOLDER</span>
                 <div class="block-row">
-                  <input type="text" class="title-row-input" data-el="bg-image-folder" value="${(station.background && station.background.imageFolderPath) || ''}" placeholder="No folder chosen" readonly>
+                  <input type="text" class="title-row-input" data-el="bg-image-folder" value="${attr(station.background && station.background.imageFolderPath)}" placeholder="No folder chosen" readonly>
                   <button type="button" class="btn" data-el="bg-image-browse">BROWSE…</button>
                 </div>
                 <span class="panel-status">${((station.background && station.background.images) || []).length} IMAGES</span>
@@ -317,7 +323,7 @@ window.RCBPlugins.registerPluginSettings('digital-music-channel', {
               <div class="field hidden" data-el="bg-video-field">
                 <span class="field-label">VIDEO FILE (MUTED, LOOPED)</span>
                 <div class="block-row">
-                  <input type="text" class="title-row-input" data-el="bg-video-path" value="${(station.background && station.background.videoPath) || ''}" placeholder="No file chosen" readonly>
+                  <input type="text" class="title-row-input" data-el="bg-video-path" value="${attr(station.background && station.background.videoPath)}" placeholder="No file chosen" readonly>
                   <button type="button" class="btn" data-el="bg-video-browse">BROWSE…</button>
                 </div>
               </div>

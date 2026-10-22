@@ -9,6 +9,10 @@
   "settings": "settings.js",
   "style": "style.css",
   "isolated": true,
+  "fallbackIpc": {
+    "noaa:getActiveAlerts": {"alerts":[],"error":"The NOAA Weather & EAS plugin is disabled or missing (PLUGINS tab)."},
+    "noaa:getForecast": {"periods":[],"location":null,"error":"The NOAA Weather & EAS plugin is disabled or missing (PLUGINS tab)."}
+  },
   "capabilities": {
     "ipc": [
       { "channel": "noaa:getActiveAlerts", "why": "polls for a real active weather alert to trigger the EAS interrupt" },

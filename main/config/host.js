@@ -60,6 +60,10 @@ const REMOTE_DENIED_COMMANDS = {
   'plugin.setApproval': 'Plugin permissions can only be changed on the host.',
   'plugin.setEnabled': 'Plugins can only be enabled or disabled on the host.',
   'plugin.forget': 'Plugins can only be removed on the host.',
+  // A plugin's settings name folders it may write to and programs it may run
+  // (userPaths, binary paths) and hold its credentials, so changing them is
+  // as consequential as granting a capability.
+  'plugin.setSettings': 'Plugin settings can only be changed on the host.',
 };
 // Whole settings sections a remote client may not write. `network` would let a
 // remote editor turn off the very service it is connected through, or open new
@@ -69,6 +73,8 @@ const REMOTE_DENIED_SETTINGS = {
   network: 'Network services can only be changed on the host.',
   updates: 'Update settings can only be changed on the host.',
   pinLock: 'The PIN lock can only be changed on the host.',
+  // Switches on shutting down the PC itself.
+  pcPower: 'PC power can only be changed on the host.',
 };
 
 // The reason a remote client may not send this command, or null.
@@ -247,6 +253,15 @@ function createConfigHost({ load, save, broadcast = () => {}, loadCommands }) {
   // would bury one is refused instead, and the caller resyncs. In practice a
   // wholesale save follows a fresh load, so this rarely fires.
   async function reconcileSave(config, baseRevision, meta = {}) {
+    // Never write something that is not a lineup. A renderer that failed to
+    // load channels.json holds a stand-in ({ channels: [], _configLoadError }),
+    // and saving it would bury the real (merely unreadable) file's contents.
+    if (!config || typeof config !== 'object' || Array.isArray(config) || !Array.isArray(config.channels)) {
+      return { ok: false, reason: 'invalid', revision, message: 'That is not a channel lineup, so it was not saved.' };
+    }
+    if (config._configLoadError) {
+      return { ok: false, reason: 'unreadable', revision, message: 'The saved settings could not be read at startup, so this session will not overwrite them. Restore a backup from the Backups screen.' };
+    }
     let replayed = 0;
     if (Number.isInteger(baseRevision) && baseRevision < revision) {
       const { applyCommand } = await commands();
@@ -316,6 +331,12 @@ function createConfigHost({ load, save, broadcast = () => {}, loadCommands }) {
 // time someone surfs on the host.
 const HOST_LOCAL_FIELDS = ['lastChannel', 'lastSeenAt', 'muted', 'volume', 'pictureMode', 'aspectMode', 'channelVolumes'];
 const HOST_LOCAL_DISPLAY_FIELDS = ['hintBar'];
+// Bookkeeping the host rewrites on every library sync / scheduled curation run
+// (renderer/js/library/sync.js, curation-scheduler.js). A viewer never reads
+// them, but they sit inside settings a viewer does, so they are stripped from
+// the comparison key rather than the whole object.
+const HOST_LOCAL_LIBRARY_SYNC_FIELDS = ['lastRunAt', 'lastReason', 'lastSummary'];
+const HOST_LOCAL_CURATION_PROFILE_FIELDS = ['lastRunAt'];
 
 function viewerRelevantKey(config, hash) {
   const rest = { ...config };
@@ -323,6 +344,18 @@ function viewerRelevantKey(config, hash) {
   if (rest.display && typeof rest.display === 'object') {
     rest.display = { ...rest.display };
     HOST_LOCAL_DISPLAY_FIELDS.forEach((key) => { delete rest.display[key]; });
+  }
+  if (rest.librarySync && typeof rest.librarySync === 'object') {
+    rest.librarySync = { ...rest.librarySync };
+    HOST_LOCAL_LIBRARY_SYNC_FIELDS.forEach((key) => { delete rest.librarySync[key]; });
+  }
+  if (Array.isArray(rest.curationProfiles)) {
+    rest.curationProfiles = rest.curationProfiles.map((profile) => {
+      if (!profile || typeof profile !== 'object') return profile;
+      const copy = { ...profile };
+      HOST_LOCAL_CURATION_PROFILE_FIELDS.forEach((key) => { delete copy[key]; });
+      return copy;
+    });
   }
   return hash(JSON.stringify(rest));
 }

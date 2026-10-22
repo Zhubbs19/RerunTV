@@ -12,6 +12,10 @@
   "userPaths": "party.soundboardFolder",
   "dependsOn": ["ffmpeg-transcode"],
   "isolated": true,
+  "fallbackIpc": {
+    "party:captureVideoFrame": null,
+    "party:getJoinInfo": {"url":"","qrDataUrl":"","pairingCode":""}
+  },
   "capabilities": {
     "ipc": [
       { "channel": "party:queueState", "why": "receives the live post/announce queue length from the renderer, to answer guests' GET /queue" },
