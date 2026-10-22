@@ -2186,11 +2186,16 @@ html[data-theme] .btn[aria-disabled="true"] {
   /* min(), not a flat 320px floor — see .preview-modal-box above. */
   min-width: min(320px, 90%);
   max-width: 440px;
+  /* A long message (a plugin's permission list) scrolls inside the box instead of
+     pushing the buttons off screen; the title and the buttons stay put. */
+  max-height: calc(100vh - 48px);
   display: flex;
   flex-direction: column;
   gap: 14px;
   animation: confirm-dialog-box-in 140ms ease-out;
 }
+.confirm-dialog-box > .confirm-dialog-title,
+.confirm-dialog-box > .confirm-dialog-actions { flex-shrink: 0; }
 .confirm-dialog.closing .confirm-dialog-box {
   animation: confirm-dialog-box-out 120ms ease-in forwards;
 }
@@ -2226,7 +2231,9 @@ html[data-theme] .btn[aria-disabled="true"] {
   line-height: 1.5;
   color: var(--text);
   white-space: pre-line;
-  white-space: pre-line;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .confirm-dialog-actions {
   display: flex;
