@@ -1,41 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Pulled directly from the desktop app's own default-theme design
-         tokens (renderer/css/tokens.css's :root block), not a guessed
-         approximation — so the phone app reads as the same product, not a
-         reskin of it. Names mirror the CSS custom property they came from
-         (gradient-page/gradient-panel/gradient-btn/gradient-gold, each
-         collapsed from a CSS linear-gradient into its start/mid/end stops). -->
-    <color name="bg_top">#131c58</color>
-    <color name="bg_mid">#1a2570</color>
-    <color name="bg_bottom">#0d1348</color>
+    <!-- The box's dark Material 3 palette, the same one the web remote
+         (plugins/companion-app/remote/style.css) and the React Native app
+         (companion-rn/src/theme.ts) use: tonal near-black surfaces with the
+         amber and cyan accents. Gradient drawables collapse to near-flat
+         tonal ramps. -->
+    <color name="bg_top">#12161A</color>
+    <color name="bg_mid">#0E1114</color>
+    <color name="bg_bottom">#090B0D</color>
 
-    <color name="panel_top">#3346a0</color>
-    <color name="panel_mid">#222e7c</color>
-    <color name="panel_bottom">#182060</color>
+    <color name="panel_top">#1E252B</color>
+    <color name="panel_mid">#171C21</color>
+    <color name="panel_bottom">#12161A</color>
 
-    <color name="btn_top">#40529f</color>
-    <color name="btn_mid">#2b3884</color>
-    <color name="btn_bottom">#1f2a6c</color>
+    <color name="btn_top">#2E3842</color>
+    <color name="btn_mid">#27303A</color>
+    <color name="btn_bottom">#1E252B</color>
 
-    <color name="gold_top">#fbe969</color>
-    <color name="gold_mid">#f5d327</color>
-    <color name="gold_mid2">#e3bc12</color>
-    <color name="gold_bottom">#cba408</color>
+    <color name="gold_top">#FFD36E</color>
+    <color name="gold_mid">#F5B942</color>
+    <color name="gold_mid2">#D58A19</color>
+    <color name="gold_bottom">#D58A19</color>
 
-    <color name="bg">#131c58</color>
-    <color name="panel">#222e7c</color>
-    <color name="panel_alt">#0a1040</color>   <!-- ink-deep: inputs/nested groups -->
-    <color name="border">#5163b8</color>      <!-- line -->
-    <color name="gold">#f5d327</color>
-    <color name="gold_dim">#a68a1f</color>
-    <color name="gold_ink">#141002</color>    <!-- text on a gold-filled control -->
-    <color name="cyan">#6fe0f2</color>
-    <color name="text">#ffffff</color>        <!-- paper -->
-    <color name="text_dim">#c9d2f2</color>    <!-- paper-dim -->
-    <color name="danger">#e0654d</color>
-    <color name="ok">#4caf6e</color>
+    <color name="bg">#0E1114</color>
+    <color name="surface_bar">#101417</color>
+    <color name="panel">#171C21</color>
+    <color name="panel_alt">#090B0D</color>   <!-- inputs and nested groups -->
+    <color name="border">#39434B</color>      <!-- outline variant -->
+    <color name="gold">#F5B942</color>
+    <color name="gold_dim">#A67A1F</color>
+    <color name="gold_ink">#1F1500</color>    <!-- text on an amber-filled control -->
+    <color name="cyan">#65D7DD</color>
+    <color name="text">#F0EEE6</color>
+    <color name="text_dim">#A7B0B6</color>
+    <color name="danger">#E65B4F</color>
+    <color name="ok">#50CE88</color>
 
-    <color name="launcher_background">#131c58</color>
-    <color name="launcher_foreground">#f5d327</color>
+    <color name="launcher_background">#0E1114</color>
+    <color name="launcher_foreground">#F5B942</color>
 </resources>

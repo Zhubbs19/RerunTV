@@ -1,7 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBox } from '../lib/session';
+import { MAX_CONTENT_WIDTH, MAX_WIDE_CONTENT_WIDTH } from '../lib/layout';
+import { useLayout } from '../lib/useLayout';
 import { formatChannelNumber, formatCountdown, minutesLeft, modeLabel } from '../lib/pure';
 import { color, shape, space, type as t } from '../theme';
 import { Button, Card, Led } from './ui';
@@ -16,8 +19,11 @@ export function useNow(intervalMs = 1000): number {
   return now;
 }
 
-export function Screen({ title, children, onRefresh, scroll = true }: { title: string; children: ReactNode; onRefresh?: () => Promise<void>; scroll?: boolean }) {
+export function Screen({ title, children, onRefresh, scroll = true, wide = false }: { title: string; children: ReactNode; onRefresh?: () => Promise<void>; scroll?: boolean; wide?: boolean }) {
   const insets = useSafeAreaInsets();
+  const layout = useLayout();
+  // Phones use the full width; tablets and landscape get a centered, readable column.
+  const maxWidth = wide && layout.twoColumn ? MAX_WIDE_CONTENT_WIDTH : MAX_CONTENT_WIDTH;
   const { connection } = useBox();
   const [refreshing, setRefreshing] = useState(false);
   const header = (
@@ -32,12 +38,15 @@ export function Screen({ title, children, onRefresh, scroll = true }: { title: s
       </View>
     </View>
   );
-  if (!scroll) return <View style={{ flex: 1, paddingTop: insets.top + space.sm, paddingHorizontal: space.lg }}>{header}{children}</View>;
+  const sides = { paddingLeft: space.lg + insets.left, paddingRight: space.lg + insets.right };
+  if (!scroll) return <View style={[{ flex: 1, paddingTop: insets.top + space.sm }, sides]}><View style={{ width: '100%', maxWidth, alignSelf: 'center', flex: 1 }}>{header}{children}</View></View>;
   return (
     <ScrollView
       style={{ flex: 1 }}
-      contentContainerStyle={{ paddingTop: insets.top + space.sm, paddingHorizontal: space.lg, paddingBottom: space.xxl }}
+      contentContainerStyle={[{ paddingTop: insets.top + space.sm, paddingBottom: space.xxl }, sides]}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      automaticallyAdjustKeyboardInsets
       refreshControl={onRefresh ? (
         <RefreshControl
           refreshing={refreshing}
@@ -51,8 +60,10 @@ export function Screen({ title, children, onRefresh, scroll = true }: { title: s
         />
       ) : undefined}
     >
-      {header}
-      {children}
+      <View style={{ width: '100%', maxWidth, alignSelf: 'center' }}>
+        {header}
+        {children}
+      </View>
     </ScrollView>
   );
 }
@@ -62,6 +73,7 @@ export function Screen({ title, children, onRefresh, scroll = true }: { title: s
 export function NowPlaying() {
   const { state, connection, press } = useBox();
   const now = useNow();
+  const { isCompact } = useLayout();
   if (!state || state.number == null) {
     return (
       <Card tone="high">
@@ -77,8 +89,8 @@ export function NowPlaying() {
   return (
     <Card tone="high" style={{ paddingVertical: space.lg }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
-        <View style={s.numberPlate}>
-          <Text style={t.display} accessibilityLabel={`Channel ${state.number}`}>{formatChannelNumber(state.number)}</Text>
+        <View style={[s.numberPlate, isCompact && { minWidth: 68, paddingHorizontal: space.sm }]}>
+          <Text style={[t.display, isCompact && { fontSize: 34 }]} accessibilityLabel={`Channel ${state.number}`}>{formatChannelNumber(state.number)}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={t.eyebrow}>{state.powered === false ? 'POWERED OFF' : inBreak ? 'COMMERCIAL BREAK' : 'NOW WATCHING'}</Text>

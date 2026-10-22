@@ -2,7 +2,8 @@
 // least 48dp, have a pressed "state layer", and a bevelled bottom edge.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { color, shape, space, TARGET, type as t } from '../theme';
 
 export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
@@ -120,7 +121,7 @@ export function Chip({ label, selected, onPress, icon }: { label: string; select
 }
 
 // M3 segmented button: one choice among a few.
-export function Segmented<T extends string>({ options, value, onChange }: { options: { value: T; label: string; icon?: IconName }[]; value: T; onChange(v: T): void }) {
+export function Segmented<T extends string>({ options, value, onChange, compact }: { options: { value: T; label: string; icon?: IconName }[]; value: T; onChange(v: T): void; compact?: boolean }) {
   return (
     <View style={s.segmented} accessibilityRole="tablist">
       {options.map((option, i) => {
@@ -133,7 +134,7 @@ export function Segmented<T extends string>({ options, value, onChange }: { opti
             onPress={() => onChange(option.value)}
             style={[s.segment, i > 0 && { borderLeftWidth: 1, borderLeftColor: color.outline }, on && { backgroundColor: color.tertiaryContainer }]}
           >
-            {option.icon ? <MaterialCommunityIcons name={option.icon} size={18} color={on ? color.onTertiaryContainer : color.onSurfaceVariant} /> : null}
+            {option.icon && !compact ? <MaterialCommunityIcons name={option.icon} size={18} color={on ? color.onTertiaryContainer : color.onSurfaceVariant} /> : null}
             <Text style={[s.segmentLabel, on && { color: color.onTertiaryContainer }]}>{option.label}</Text>
           </Pressable>
         );

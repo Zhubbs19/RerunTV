@@ -6,6 +6,8 @@
         <item name="colorPrimary">@color/bg</item>
         <item name="colorPrimaryDark">@color/bg</item>
         <item name="colorAccent">@color/gold</item>
-        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:statusBarColor">@color/surface_bar</item>
+        <item name="android:navigationBarColor">@color/surface_bar</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

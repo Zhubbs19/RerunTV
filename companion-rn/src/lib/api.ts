@@ -45,6 +45,8 @@ export interface RemoteState {
   nextTitle?: string;
   sleepEndsAtMs?: number | null;
   pcShutdown?: PcShutdownStatus | null;
+  /** The box's verdict on the last settings patch (it reports back via /state). */
+  settingsResult?: { at: number; applied?: string[]; rejected?: { section: string; reason: string }[] } | null;
 }
 
 const TIMEOUT_MS = 6000;
@@ -85,6 +87,9 @@ export interface Client {
   news(headline: string): Promise<void>;
   trivia(): Promise<void>;
   ticker(text: string, enabled: boolean): Promise<void>;
+  config(): Promise<Record<string, unknown>>;
+  themes(): Promise<{ id: string; label: string }[]>;
+  saveSettings(patch: Record<string, unknown>): Promise<void>;
 }
 
 export function createClient(session: Session, onUnauthorized: () => void): Client {
@@ -120,5 +125,16 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
     news: (headline) => post('/news/trigger', { headline }),
     trivia: () => post('/party/trivia/start', {}),
     ticker: (text, enabled) => post('/ticker/set', { text, enabled }),
+    config: async () => ((await (await call('/api/config')).json()) ?? {}) as Record<string, unknown>,
+    themes: async () => {
+      try {
+        const rows = await (await call('/api/themes')).json();
+        return Array.isArray(rows) ? (rows as { id: string; label: string }[]) : [];
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) throw e;
+        return []; // the theme list is optional; the picker just falls back to the current value
+      }
+    },
+    saveSettings: (patch) => post('/api/settings', { patch }),
   };
 }

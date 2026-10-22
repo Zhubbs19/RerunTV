@@ -11,8 +11,8 @@ android {
         applicationId 'com.retrocablebox.companion'
         minSdk 24
         targetSdk 34
-        versionCode 5
-        versionName '3.1.0'
+        versionCode 6
+        versionName '3.2.0'
     }
 
     // BuildConfig.VERSION_NAME is shown in the status line, so a phone can

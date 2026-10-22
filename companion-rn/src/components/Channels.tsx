@@ -1,5 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from './Text';
 import { formatChannelNumber, minutesLeft, type LineupRow } from '../lib/pure';
 import { color, shape, space, TARGET, type as t } from '../theme';
 

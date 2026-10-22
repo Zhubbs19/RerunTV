@@ -1,8 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { Button, Card, Chip, Empty, RepeatButton, Segmented, SectionHeader } from '../../components/ui';
 import { NowPlaying, Screen, useNow } from '../../components/Screen';
 import { useBox } from '../../lib/session';
+import { useLayout } from '../../lib/useLayout';
 import { formatChannelNumber, formatCountdown, modeLabel } from '../../lib/pure';
 import { color, shape, space, type as t } from '../../theme';
 
@@ -21,6 +23,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 export default function RemoteScreen() {
   const { state, channels, press, tune, client, run, refreshChannels, showToast } = useBox();
   const now = useNow();
+  const layout = useLayout();
   const [panel, setPanel] = useState<Panel>('channels');
   const volume = typeof state?.volume === 'number' ? Math.round(state.volume * 100) : null;
   const ceiling = state?.volumeMax && state.volumeMax > 0 && state.volumeMax < 1 ? state.volumeMax : 1;
@@ -29,8 +32,8 @@ export default function RemoteScreen() {
   const pc = state?.pcShutdown;
   const slots = state?.quickJumpSlots ?? {};
 
-  return (
-    <Screen title="REMOTE" onRefresh={refreshChannels}>
+  const primary = (
+    <>
       {pc?.pending ? (
         <Card style={{ backgroundColor: color.errorContainer, borderColor: color.error }}>
           <Text style={[t.title, { color: color.onErrorContainer }]}>THE PC IS SHUTTING DOWN</Text>
@@ -62,6 +65,7 @@ export default function RemoteScreen() {
 
       <Card>
         <Segmented<Panel>
+          compact={layout.isCompact}
           value={panel}
           onChange={setPanel}
           options={[
@@ -88,12 +92,12 @@ export default function RemoteScreen() {
               </View>
             ) : null}
             <Text style={t.label}>QUICK CHANNELS</Text>
-            {quick.length ? chunk(quick, 3).map((group, i) => (
+            {quick.length ? chunk(quick, layout.quickColumns).map((group, i) => (
               <Row key={i}>
                 {group.map((c) => (
                   <Button key={c.number} style={s.flex} label={formatChannelNumber(c.number)} sub={c.name.toUpperCase()} tone={state?.number === c.number ? 'filled' : 'tonal'} onPress={() => tune(c.number)} />
                 ))}
-                {Array.from({ length: 3 - group.length }).map((_, k) => <View key={`pad${k}`} style={s.flex} />)}
+                {Array.from({ length: layout.quickColumns - group.length }).map((_, k) => <View key={`pad${k}`} style={s.flex} />)}
               </Row>
             )) : <Empty text="NO QUICK CHANNELS YET. MARK SOME IN LINEUP." />}
           </View>
@@ -114,13 +118,13 @@ export default function RemoteScreen() {
 
         {panel === 'dpad' ? (
           <View style={s.dpad}>
-            <View style={s.dpadRow}><RepeatButton style={s.dpadKey} icon="chevron-up" accessibilityLabel="Up" onFire={() => press('ArrowUp')} /></View>
+            <View style={s.dpadRow}><RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-up" accessibilityLabel="Up" onFire={() => press('ArrowUp')} /></View>
             <View style={s.dpadRow}>
-              <RepeatButton style={s.dpadKey} icon="chevron-left" accessibilityLabel="Left" onFire={() => press('ArrowLeft')} />
-              <Button style={s.dpadKey} label="OK" tone="filled" onPress={() => press('Enter')} />
-              <RepeatButton style={s.dpadKey} icon="chevron-right" accessibilityLabel="Right" onFire={() => press('ArrowRight')} />
+              <RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-left" accessibilityLabel="Left" onFire={() => press('ArrowLeft')} />
+              <Button style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} label="OK" tone="filled" onPress={() => press('Enter')} />
+              <RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-right" accessibilityLabel="Right" onFire={() => press('ArrowRight')} />
             </View>
-            <View style={s.dpadRow}><RepeatButton style={s.dpadKey} icon="chevron-down" accessibilityLabel="Down" onFire={() => press('ArrowDown')} /></View>
+            <View style={s.dpadRow}><RepeatButton style={[s.dpadKey, { width: layout.padKey, height: layout.padKey }]} icon="chevron-down" accessibilityLabel="Down" onFire={() => press('ArrowDown')} /></View>
             <Row>
               <Button style={s.flex} icon="arrow-left" label="BACK" onPress={() => press('Escape')} />
               <Button style={s.flex} icon="menu" label="TV MENU" onPress={() => press('?')} />
@@ -129,6 +133,10 @@ export default function RemoteScreen() {
         ) : null}
       </Card>
 
+    </>
+  );
+  const secondary = (
+    <>
       <Card>
         <SectionHeader eyebrow="WHILE WATCHING" title="PICTURE & SOUND" />
         <View style={{ gap: space.sm }}>
@@ -176,6 +184,22 @@ export default function RemoteScreen() {
           </Row>
         </View>
       </Card>
+    </>
+  );
+
+  return (
+    <Screen title="REMOTE" onRefresh={refreshChannels} wide>
+      {layout.twoColumn ? (
+        <View style={s.columns}>
+          <View style={s.column}>{primary}</View>
+          <View style={s.column}>{secondary}</View>
+        </View>
+      ) : (
+        <>
+          {primary}
+          {secondary}
+        </>
+      )}
     </Screen>
   );
 }
@@ -198,6 +222,8 @@ function Rocker({ label, up, down, upLabel, downLabel, readout, meter }: { label
 }
 
 const s = StyleSheet.create({
+  columns: { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' },
+  column: { flex: 1 },
   row: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
   flex: { flex: 1 },
   key: { minHeight: 56 },

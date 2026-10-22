@@ -157,3 +157,22 @@ button.danger{background:var(--m3-error-container);color:#ffdad5;border-bottom-c
   .tab-panel[data-panel=remote].active{display:block;max-width:600px;margin:0 auto}
   .tab-bar{justify-content:center}
 }
+
+/* Small phones (320-360px) and tablets in portrait. */
+.rocker-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.rocker{min-width:0}
+@media(max-width:360px){
+  .app-shell{padding-left:10px;padding-right:10px}
+  .panel{padding:12px}.rockers{padding:8px}.rocker{padding:8px;border-radius:20px;gap:6px}
+  .rocker button{min-height:56px}
+  .now-plate{min-width:64px;font-size:32px}
+  .hero-controls{gap:6px}.control span{font-size:9px}
+  .segmented .seg{font-size:10px;gap:4px;padding:0 4px}.segmented .seg b{display:none}
+  .tab{font-size:9px;letter-spacing:.06em}.tab::before{width:48px}
+}
+@media(min-width:600px) and (max-width:849px){
+  .tab-panel[data-panel=remote].active{max-width:600px;margin:0 auto}
+}
+@media(max-width:849px) and (orientation:landscape) and (max-height:500px){
+  .tab-bar{position:static;grid-template-columns:repeat(5,1fr);padding:4px}.tab{min-height:44px;flex-direction:row;justify-content:center}.tab::before{width:auto;height:auto;padding:0 8px}
+  .app-shell{padding-bottom:28px}.command-feedback{bottom:14px}
+}

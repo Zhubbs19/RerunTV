@@ -27,7 +27,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|density|uiMode"
             android:theme="@style/Theme.RerunTVCompanion">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

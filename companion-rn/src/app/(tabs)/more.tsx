@@ -1,5 +1,7 @@
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Text } from '../../components/Text';
 import { Screen } from '../../components/Screen';
 import { Button, Card, SectionHeader } from '../../components/ui';
 import { useBox } from '../../lib/session';
@@ -10,6 +12,7 @@ function confirm(title: string, message: string, ok: string, run: () => void) {
 }
 
 export default function MoreScreen() {
+  const router = useRouter();
   const { session, state, connection, press, run, showToast, signOut } = useBox();
   const [headline, setHeadline] = useState('');
   const [ticker, setTicker] = useState('');
@@ -17,6 +20,12 @@ export default function MoreScreen() {
 
   return (
     <Screen title="MORE">
+      <Card>
+        <SectionHeader eyebrow="EVERY SETTING" title="BOX SETTINGS" />
+        <Text style={[t.body, { color: color.onSurfaceVariant, marginBottom: space.md }]}>Picture, sound, tuning, ads, display, plugins and updates, the same list as the box.</Text>
+        <Button icon="cog-outline" label="OPEN SETTINGS" tone="filled" onPress={() => router.push('/settings')} />
+      </Card>
+
       <Card>
         <SectionHeader eyebrow="LIVE INSERTS" title="ALERTS & TICKER" />
         <Text style={[t.body, { color: color.onSurfaceVariant, marginBottom: space.md }]}>These interrupt whatever is on the TV right now.</Text>
@@ -61,8 +70,7 @@ export default function MoreScreen() {
         <SectionHeader eyebrow="THIS PHONE" title="CONNECTION" />
         <Text style={t.body}>BOX: {session?.baseUrl ?? '—'}</Text>
         <Text style={[t.body, { marginTop: space.xs }]}>STATUS: {connection === 'online' ? 'ONLINE' : connection === 'offline' ? 'NO SIGNAL' : 'CONNECTING'}</Text>
-        <Text style={[t.label, { marginTop: space.sm }]}>Full box settings are on the web remote for now: open the box address in a browser on this network.</Text>
-        <Button icon="link-off" label="FORGET THIS BOX" tone="outlined" style={{ marginTop: space.md }}
+                <Button icon="link-off" label="FORGET THIS BOX" tone="outlined" style={{ marginTop: space.md }}
           onPress={() => confirm('Forget this box', 'You will need the pairing code to connect again.', 'Forget', () => { void signOut(); })} />
       </Card>
     </Screen>

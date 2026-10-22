@@ -142,6 +142,10 @@ class MainActivity : AppCompatActivity() {
     @Suppress("SetJavaScriptEnabled")
     private fun configureWebView() {
         webView.settings.javaScriptEnabled = true
+        // No white flash before the dark page paints, and no pinch-zoom: the page is already
+        // laid out for every phone and tablet width.
+        webView.setBackgroundColor(0xFF0E1114.toInt())
+        webView.settings.setSupportZoom(false)
         webView.settings.domStorageEnabled = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
         // Was LOAD_NO_CACHE, which re-downloaded the page, its CSS and its JS

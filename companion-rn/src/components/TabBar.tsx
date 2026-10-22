@@ -1,7 +1,8 @@
 // Material 3 navigation bar: icon + label per destination, with the pill
 // "active indicator" behind the selected icon.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { color, shape, space } from '../theme';
 import type { IconName } from './ui';
@@ -22,7 +23,7 @@ interface BarProps {
 export function TabBar({ state, navigateToTab }: BarProps) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, space.sm) }]} accessibilityRole="tablist">
+    <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, space.sm), paddingLeft: insets.left, paddingRight: insets.right }]} accessibilityRole="tablist">
       {state.routes.map((route, index) => {
         const meta = ICONS[route.name];
         if (!meta) return null;
