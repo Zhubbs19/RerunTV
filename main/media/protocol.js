@@ -83,7 +83,9 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
   // keeps no override here — caching genuinely helps there and there's no
   // "am I seeing stale code" risk for a file the user picked themselves.
   const cacheHeaders = noCache ? { 'Cache-Control': 'no-store' } : {};
-  const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
+  // nosniff everywhere: a user-chosen file served under a media type must not
+  // be reinterpreted by the browser as HTML or script.
+  const corsHeaders = { ...(crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {}), 'X-Content-Type-Options': 'nosniff' };
   // Only this one directive — a header CSP that omitted default-src leaves
   // every other resource type unrestricted *by this policy*, so it can only
   // narrow (never widen) index.html's static <meta> CSP, which is what lets
@@ -175,10 +177,48 @@ async function serveFile(filePath, rangeHeader, crossOrigin, noCache) {
 // module proxies straight to instead of calling a service, trading "every
 // provider author reimplements Range handling" for real, uncapped
 // streaming.
+// Turns a parsed Range match into { start, endRequested } against an optional
+// known total size. A suffix range ("bytes=-N", the last N bytes) needs the total;
+// returns { suffixNeedsTotal: true } when it is not known yet, and
+// { invalid: true } for a range that cannot be satisfied.
+function resolveProviderRange(match, totalSize) {
+  if (!match) return { start: 0, endRequested: null };
+  if (!match[1] && !match[2]) return { invalid: true };
+  if (!match[1]) {
+    const suffixLength = parseInt(match[2], 10);
+    if (!(suffixLength > 0)) return { invalid: true };
+    if (!Number.isFinite(totalSize)) return { suffixNeedsTotal: true };
+    return { start: Math.max(0, totalSize - suffixLength), endRequested: totalSize - 1 };
+  }
+  const start = parseInt(match[1], 10);
+  const endRequested = match[2] ? parseInt(match[2], 10) : null;
+  if (endRequested !== null && endRequested < start) return { invalid: true };
+  if (Number.isFinite(totalSize) && start >= totalSize) return { invalid: true };
+  return { start, endRequested };
+}
+
 async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
-  const corsHeaders = crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {};
-  const match = rangeHeader && /bytes=(\d*)-(\d*)/.exec(rangeHeader);
-  const start = match && match[1] ? parseInt(match[1], 10) : 0;
+  const corsHeaders = { ...(crossOrigin ? { 'Access-Control-Allow-Origin': '*' } : {}), 'X-Content-Type-Options': 'nosniff' };
+  const parsedRange = parseRangeHeader(rangeHeader);
+  if (parsedRange.malformed) return new Response(null, { status: 416, headers: corsHeaders });
+  const match = parsedRange.match;
+  let ranged = resolveProviderRange(match, NaN);
+  if (ranged.suffixNeedsTotal) {
+    // The provider only reports its total size alongside a chunk, so a
+    // one-byte probe learns it before the suffix start can be computed.
+    let probe;
+    try {
+      probe = await callMediaService(pluginServicesRef, providerId, 'readRange', [ref, 0, 0], MEDIA_READRANGE_TIMEOUT_MS);
+    } catch (e) {
+      return new Response('Upstream error', { status: 502, headers: corsHeaders });
+    }
+    ranged = resolveProviderRange(match, probe && probe.totalSize != null ? Number(probe.totalSize) : NaN);
+    // No total reported: the suffix cannot be honoured, so serve from the start
+    // as an unranged request rather than guess.
+    if (ranged.suffixNeedsTotal) ranged = { start: 0, endRequested: null };
+  }
+  if (ranged.invalid) return new Response(null, { status: 416, headers: corsHeaders });
+  const start = ranged.start;
   // A client request with an explicit end (a specific seek target) is
   // honored as-is — no reason to balloon a small, precise request. An
   // OPEN-ENDED request (no end given — "give me from here to EOF", what a
@@ -198,8 +238,8 @@ async function serveFileViaPlugin(providerId, ref, rangeHeader, crossOrigin) {
   // trade for startup latency.
   const OPEN_ENDED_CHUNK_CAP = 2 * 1024 * 1024;
   const BOUNDED_CHUNK_CAP = 4 * 1024 * 1024;
-  const end = match && match[2]
-    ? Math.min(parseInt(match[2], 10), start + BOUNDED_CHUNK_CAP - 1)
+  const end = ranged.endRequested !== null
+    ? Math.min(ranged.endRequested, start + BOUNDED_CHUNK_CAP - 1)
     : start + OPEN_ENDED_CHUNK_CAP - 1;
 
   let result;
@@ -382,5 +422,5 @@ async function pipeWebResponse(response, res) {
 
 module.exports = {
   registerAppSchemePrivileges, registerAppProtocol, serveFile, serveMediaRef, setMediaDispatchServices,
-  setAllowedMediaSrcPorts, pipeWebResponse, mimeFor, MIME_TYPES, parseRangeHeader,
+  setAllowedMediaSrcPorts, pipeWebResponse, mimeFor, MIME_TYPES, parseRangeHeader, resolveProviderRange,
 };

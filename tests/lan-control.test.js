@@ -467,8 +467,8 @@ test('browsing is confined to the roots the host shares', async () => {
 
     const top = (await request(ctx.port, '/api/control/browse?kind=folder', { headers: { Authorization: `Bearer ${token}` } })).json();
     assert.ok(top.roots.includes(shared), 'a root the person at the host declared');
-    assert.ok(top.roots.includes(path.dirname(JSON.parse(ctx.disk.raw).channels[0].path)),
-      "and the directory this config's own media already lives in");
+    assert.ok(!top.roots.includes(path.dirname(JSON.parse(ctx.disk.raw).channels[0].path)),
+      "controlBrowseRoots is an allow-list: the config's own media directory is not offered unless it lies inside one");
     assert.equal(top.path, null, 'the top level is the roots, not a filesystem root');
 
     const inside = (await request(ctx.port, `/api/control/browse?kind=image&path=${encodeURIComponent(shared)}`, {

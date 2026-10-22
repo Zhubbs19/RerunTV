@@ -16,6 +16,7 @@
 // index intact rather than a truncated one.
 const crypto = require('crypto');
 const fs = require('fs');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
@@ -115,9 +116,7 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
   function save() {
     const current = load();
     fs.mkdirSync(dir, { recursive: true });
-    const temp = path.join(dir, `index.json.tmp-${process.pid}-${now()}`);
-    fs.writeFileSync(temp, JSON.stringify(current, null, 2), 'utf-8');
-    fs.renameSync(temp, indexPath);
+    atomicWriteFileSync(indexPath, JSON.stringify(current, null, 2), { encoding: 'utf-8' });
     return current;
   }
 

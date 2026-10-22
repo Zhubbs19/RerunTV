@@ -38,8 +38,12 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { atomicWriteFile } = require('../util/atomic-write');
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+// A control session can rewrite the lineup, so it gets a hard ceiling that
+// sliding renewal never extends past (the pairing code is entered again).
+const CONTROL_SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_SESSIONS = 64;
 const WINDOW_MS = 60 * 1000;
 // The per-IP write rate limit (checkRateLimit below) bounds one source
@@ -73,12 +77,16 @@ const MAX_RATE_WINDOWS = 2000;
 // a file written by an older build is read as the view-only sessions it
 // described — never silently promoted to something writable.
 function normalizeSession(value) {
-  if (Number.isFinite(value)) return { expiresAt: value, scope: 'view', profileId: null };
+  if (Number.isFinite(value)) return { expiresAt: value, scope: 'view', profileId: null, createdAt: Date.now() };
   if (value && Number.isFinite(value.expiresAt)) {
     return {
       expiresAt: value.expiresAt,
       scope: value.scope === 'control' ? 'control' : 'view',
       profileId: typeof value.profileId === 'string' ? value.profileId : null,
+      // Files from before createdAt existed: treat the session as created
+      // now, so an old long-lived control session is clamped to the new cap
+      // from this boot rather than surviving its original 90 days.
+      createdAt: Number.isFinite(value.createdAt) ? value.createdAt : Date.now(),
     };
   }
   return null;
@@ -114,15 +122,11 @@ function savePersistedSessions(sessionsFile, sessions) {
     while (state.pending !== null) {
       const data = state.pending;
       state.pending = null;
-      const tempPath = `${sessionsFile}.tmp`;
       try {
-        await fs.promises.mkdir(path.dirname(sessionsFile), { recursive: true });
-        await fs.promises.writeFile(tempPath, data, { mode: 0o600 });
-        await fs.promises.rename(tempPath, sessionsFile);
+        await atomicWriteFile(sessionsFile, data, { mode: 0o600, mkdir: true });
       } catch (e) {
         // Best-effort — a failed write just means this session won't survive
         // the next restart, not a broken pairing right now.
-        fs.promises.unlink(tempPath).catch(() => {});
       }
     }
     state.writing = false;
@@ -150,6 +154,25 @@ function parseCookies(header) {
     out[part.slice(0, idx).trim()] = value;
   });
   return out;
+}
+
+// A browser attaches Origin to cross-site writes. A native LAN client (the
+// companion app) sends none; a client that does send one must be talking to
+// the host it is addressing. Shared by every mutating route via authorize().
+function originMatchesHost(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  try { return new URL(origin).host === req.headers.host; } catch (e) { return false; }
+}
+
+// JSON writes only: an HTML form cannot send application/json, so requiring
+// it closes the simple-request CSRF route. Multipart is allowed only where the
+// caller says so (the asset upload), and still passes the Origin check.
+function hasJsonContentType(req) {
+  return /^application\/json\b/i.test(String(req.headers['content-type'] || ''));
+}
+function hasMultipartContentType(req) {
+  return /^multipart\/form-data\b/i.test(String(req.headers['content-type'] || ''));
 }
 
 function safeEqual(a, b) {
@@ -186,6 +209,7 @@ function readFormBody(req, maxBytes = 1024) {
   });
 }
 
+const sessionId = (token) => crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
 const newCode = () => String(crypto.randomInt(0, 100000000)).padStart(8, '0');
 
 // opts.scopes: which scopes this service hands out, most privileged last.
@@ -199,7 +223,14 @@ function createLanAccess(service, opts = {}) {
   const cookieName = `reruntv_${service.replace(/[^a-z0-9_-]/gi, '_')}`;
   const sessionsFile = opts.sessionsFile || null;
   const sessionTtlMs = opts.sessionTtlMs || SESSION_TTL_MS;
-  const sessions = sessionsFile ? loadPersistedSessions(sessionsFile) : new Map(); // token -> { expiresAt, scope }
+  const controlMaxAgeMs = opts.controlSessionMaxAgeMs || CONTROL_SESSION_MAX_AGE_MS;
+  // How long a session of this scope may live in total from pairing. View
+  // sessions keep the service's TTL and slide; control sessions are capped.
+  const ttlForScope = (scope) => (scope === 'control' ? Math.min(sessionTtlMs, controlMaxAgeMs) : sessionTtlMs);
+  const sessions = sessionsFile ? loadPersistedSessions(sessionsFile) : new Map(); // token -> { expiresAt, scope, createdAt }
+  sessions.forEach((session) => {
+    if (session.scope === 'control') session.expiresAt = Math.min(session.expiresAt, session.createdAt + controlMaxAgeMs);
+  });
   const rateWindows = new Map(); // `${kind}:${ip}` -> {start, count}
   const readLimit = opts.readLimit || 600;
   const writeLimit = opts.writeLimit || 90;
@@ -253,7 +284,8 @@ function createLanAccess(service, opts = {}) {
       sessions.delete(victim !== null ? victim : sessions.keys().next().value);
     }
     const token = crypto.randomBytes(32).toString('base64url');
-    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope, profileId: null });
+    const createdAt = Date.now();
+    sessions.set(token, { expiresAt: createdAt + ttlForScope(scope), scope, profileId: null, createdAt });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
     return token;
   }
@@ -339,14 +371,16 @@ function createLanAccess(service, opts = {}) {
     return false;
   }
 
-  function setSession(res, token) {
+  function setSession(res, token, expiresAtMs) {
     // Must match issueSession()'s own expiry (sessionTtlMs, not the module
     // default) — a service that opts into a longer persisted-session TTL
     // (the LAN viewer, companion-app: 90 days) needs the cookie the browser
     // actually keeps to agree with how long the server-side session record
     // stays valid, or the persisted-pairing feature silently doesn't persist.
-    const expires = new Date(Date.now() + sessionTtlMs).toUTCString();
-    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${Math.floor(sessionTtlMs / 1000)}; Expires=${expires}; Path=/; HttpOnly; SameSite=Strict`);
+    const session = sessions.get(token);
+    const expiresAt = Number.isFinite(expiresAtMs) ? expiresAtMs : (session ? session.expiresAt : Date.now() + sessionTtlMs);
+    const maxAge = Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    res.setHeader('Set-Cookie', `${cookieName}=${encodeURIComponent(token)}; Max-Age=${maxAge}; Expires=${new Date(expiresAt).toUTCString()}; Path=/; HttpOnly; SameSite=Strict`);
     res.setHeader('Cache-Control', 'no-store');
   }
 
@@ -354,15 +388,21 @@ function createLanAccess(service, opts = {}) {
     const session = sessions.get(token);
     if (!session) return;
     const expiresAt = session.expiresAt;
+    const ttl = ttlForScope(session.scope);
+    // Control sessions never slide past createdAt + max age; the device
+    // enters the control code again. View sessions slide as before.
+    const ceiling = session.scope === 'control' ? session.createdAt + controlMaxAgeMs : Infinity;
     // Sliding renewal means a TV that is still used does not unexpectedly
     // return to the pairing screen merely because 90 days elapsed since the
     // original code entry. Refresh only in the final half of the lifetime so
     // normal media/config polling does not rewrite the sessions file.
-    if (expiresAt - Date.now() > sessionTtlMs / 2) return;
+    if (expiresAt - Date.now() > ttl / 2) return;
+    const next = Math.min(Date.now() + ttl, ceiling);
+    if (next <= expiresAt) return; // already at the ceiling
     // Renewal extends the session it already is; it never changes its scope.
-    sessions.set(token, { expiresAt: Date.now() + sessionTtlMs, scope: session.scope, profileId: session.profileId || null });
+    sessions.set(token, { expiresAt: next, scope: session.scope, profileId: session.profileId || null, createdAt: session.createdAt });
     if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
-    setSession(res, token);
+    setSession(res, token, next);
   }
 
   // A legitimate pairing attempt is either a direct top-level navigation (the
@@ -404,7 +444,7 @@ function createLanAccess(service, opts = {}) {
       const token = issueSession(scope);
       setSession(res, token);
       if (req.headers.accept && req.headers.accept.includes('application/json')) {
-        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token, scope, expiresIn: SESSION_TTL_MS / 1000 }));
+        res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token, scope, expiresIn: Math.floor(ttlForScope(scope) / 1000) }));
       } else {
         res.writeHead(303, { Location: '/' }).end();
       }
@@ -420,7 +460,25 @@ function createLanAccess(service, opts = {}) {
     return true;
   }
 
+  // Gate for a mutating route inside the service's router: JSON body (or
+  // multipart where `allowMultipart`), and an Origin that matches this host.
+  // Answers 403 itself, in the same shape requireScope uses.
+  function requireWriteHeaders(req, res, { allowMultipart = false } = {}) {
+    const typeOk = hasJsonContentType(req) || (allowMultipart && hasMultipartContentType(req));
+    if (typeOk && originMatchesHost(req)) return true;
+    res.writeHead(403, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+      .end(JSON.stringify({ error: 'Forbidden' }));
+    return false;
+  }
+
   async function authorize(req, res, url, kind = 'read') {
+    // Any mutating request must come from this host's own pages or a native
+    // client (no Origin header at all). This runs before pairing and session
+    // checks so a cross-origin page cannot spend a pairing guess either.
+    if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS' && !originMatchesHost(req)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' }).end('Cross-origin requests are not allowed.');
+      return false;
+    }
     // Always consume the pairing form endpoint, even when this browser
     // already has a valid session. A phone can submit a cached pairing page
     // after a QR preview/prefetch established its cookie; letting that POST
@@ -451,7 +509,33 @@ function createLanAccess(service, opts = {}) {
 
   return {
     service, pairingCode, pairingCodes, scopes, pairingUrl, authorize, checkRateLimit, isAuthenticated,
-    scopeOf, profileOf, setProfile, requireScope,
+    scopeOf, profileOf, setProfile, requireScope, requireWriteHeaders,
+    // Revocation and visibility for the host (never exposes full tokens).
+    listSessions: () => {
+      pruneSessions();
+      return Array.from(sessions, ([token, s]) => ({
+        id: sessionId(token),
+        scope: s.scope, createdAt: s.createdAt, expiresAt: s.expiresAt, profileId: s.profileId || null,
+      }));
+    },
+    revokeAll: (scope) => {
+      let count = 0;
+      sessions.forEach((s, token) => {
+        if (!scope || s.scope === scope) { sessions.delete(token); count += 1; }
+      });
+      if (count && sessionsFile) savePersistedSessions(sessionsFile, sessions);
+      return count;
+    },
+    revokeSession: (id) => {
+      for (const [token] of sessions) {
+        if (sessionId(token) === id) {
+          sessions.delete(token);
+          if (sessionsFile) savePersistedSessions(sessionsFile, sessions);
+          return true;
+        }
+      }
+      return false;
+    },
     sessionCount: () => { pruneSessions(); return sessions.size; },
     sessionCounts: () => {
       pruneSessions();
@@ -462,4 +546,7 @@ function createLanAccess(service, opts = {}) {
   };
 }
 
-module.exports = { createLanAccess, isLanServiceEnabled, requestIp };
+module.exports = {
+  createLanAccess, isLanServiceEnabled, requestIp, originMatchesHost, hasJsonContentType, hasMultipartContentType,
+  CONTROL_SESSION_MAX_AGE_MS,
+};

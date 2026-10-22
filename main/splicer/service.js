@@ -340,7 +340,11 @@ function createSplicerService({ dataDir, getFfmpegPath, fork, dialogs = {}, show
     job.cancelled = true;
     if (job.state === 'waiting') {
       job.state = 'done';
+      // A run cancelled before it started never reaches the exit handler that
+      // normally tidies up, so its plan file and its map entry go here.
+      fs.rm(job.planFile, { force: true }, () => {});
       send(jobId, 'done', { code: null, result: null, error: 'Cancelled.', cancelled: true });
+      setTimeout(() => jobs.delete(jobId), FINISHED_JOB_TTL_MS).unref?.();
       return { cancelled: true };
     }
     try { job.child.postMessage('cancel'); } catch (e) { /* already exiting */ }

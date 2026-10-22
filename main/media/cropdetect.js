@@ -17,6 +17,7 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
+const { atomicWriteFile } = require('../util/atomic-write');
 const os = require('os');
 const path = require('path');
 
@@ -153,7 +154,7 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
           .slice(0, keys.length - MAX_CACHE_ENTRIES)
           .forEach((k) => { delete cache.entries[k]; });
       }
-      fs.promises.writeFile(cachePath, JSON.stringify(cache), 'utf8').catch(() => {});
+      atomicWriteFile(cachePath, JSON.stringify(cache), { encoding: 'utf8' }).catch(() => {});
     }, 2000);
   };
 
@@ -181,10 +182,12 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
   async function pump() {
     if (running) return;
     running = true;
+    try {
     while (queue.length) {
       const job = queue.shift();
-      const ffmpegPath = getFfmpegPath();
       let crop = null;
+      try {
+      const ffmpegPath = getFfmpegPath();
       if (ffmpegPath) {
         const st = await statLocal(job.filePath);
         const hit = st && cached(job.filePath, st);
@@ -196,11 +199,19 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
           saveSoon();
         }
       }
-      inFlight.delete(job.filePath);
-      job.resolvers.forEach((resolve) => resolve(crop));
+      } catch (e) {
+        // A failed measurement is "unknown", never a stuck queue: the waiters
+        // below still resolve and the next job still runs.
+        crop = null;
+      } finally {
+        inFlight.delete(job.filePath);
+        job.resolvers.forEach((resolve) => resolve(crop));
+      }
       if (job.background && queue.length) await new Promise((r) => setTimeout(r, SWEEP_GAP_MS));
     }
-    running = false;
+    } finally {
+      running = false;
+    }
   }
 
   function enqueue(filePath, duration, { background = false } = {}) {

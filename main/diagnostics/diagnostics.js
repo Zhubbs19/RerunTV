@@ -13,6 +13,9 @@ function printable(value) {
 }
 
 function push(entry) {
+  // Scrub at capture time: the ring feeds the developer console and the
+  // support bundle, and a console line can carry a pairing URL.
+  if (typeof entry.message === 'string') entry = { ...entry, message: redactString(entry.message, []) };
   logs.push(entry);
   if (logs.length > MAX_LOGS) logs.splice(0, logs.length - MAX_LOGS);
 }
@@ -39,6 +42,7 @@ function redactString(value, roots) {
   let result = value;
   (roots || []).filter(Boolean).forEach((root) => { result = result.split(String(root)).join('[USER_PATH]'); });
   return result
+    .replace(/([?&](?:pair|token|access_token|key|api_?key|secret|password|passcode|code|sig|signature|auth)=)[^&\s#"'<>]+/gi, '$1[REDACTED]')
     .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, '$1 [REDACTED]')
     .replace(/(https?:\/\/)[^\s/@:]+:[^\s/@]+@/gi, '$1[REDACTED]@')
     .replace(/\b(gh[pousr]_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b/g, '[REDACTED_TOKEN]');
@@ -135,5 +139,5 @@ function registerDiagnosticsIpc(ipcMain, deps) {
 }
 
 module.exports = {
-  installMainLogCapture, recordDiagnostic, redactDiagnosticValue, getMainLogs, registerDiagnosticsIpc,
+  installMainLogCapture, recordDiagnostic, redactDiagnosticValue, redactString, getMainLogs, registerDiagnosticsIpc,
 };

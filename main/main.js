@@ -598,6 +598,12 @@ async function bootApp() {
       requestStop: HEADLESS ? () => app.quit() : null,
     });
     const viewerStarted = await viewerRuntime.ready;
+    // Host-window visibility and revocation for paired LAN devices. Handlers
+    // only; the preload/api-contract exposure belongs with the setup UI.
+    ipcMain.handle('lan:listSessions', async () => viewerRuntime.access.listSessions());
+    ipcMain.handle('lan:revokeSessions', async (event, scope) => viewerRuntime.access.revokeAll(
+      scope === 'view' || scope === 'control' ? scope : undefined,
+    ));
     if (viewerStarted) {
       viewerAccessUrls = getViewerUrls().map((entry) => ({ ...entry, url: viewerRuntime.access.pairingUrl(entry.url) }));
       // /control is what sets window.__controlClient (browser-api-shim.js
@@ -953,6 +959,18 @@ ipcMain.handle('notify:show', async (event, { title, body } = {}) => {
 // can't write files or window.open() itself, so the OS's own browser is the
 // simplest way to get a real, printable window with working Ctrl+P.
 ipcMain.handle('manual:openPrintable', async (event, html) => {
+  if (typeof html !== 'string' || html.length > 5 * 1024 * 1024) throw new Error('The manual could not be opened.');
+  // Earlier copies are only needed while their browser window loads, so any
+  // older than an hour is swept here instead of piling up in the temp folder.
+  try {
+    const tempDir = app.getPath('temp');
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    for (const name of fs.readdirSync(tempDir)) {
+      if (!/^reruntv-manual-.*[.]html$/.test(name)) continue;
+      const stale = path.join(tempDir, name);
+      try { if (fs.statSync(stale).mtimeMs < cutoff) fs.unlinkSync(stale); } catch (e) { /* in use or gone */ }
+    }
+  } catch (e) { /* temp folder unreadable: skip the sweep */ }
   // Unique filename (pid+timestamp) so two rapid clicks don't race a
   // still-open browser window's read against a second click's write.
   const filePath = path.join(app.getPath('temp'), `reruntv-manual-${process.pid}-${Date.now()}.html`);

@@ -28,48 +28,37 @@ const { isPathContained } = require('../util/path-safety');
 // a LAN link; the client sees the cap and the count it was truncated from.
 const MAX_ENTRIES = 2000;
 
-// rootsFromConfig runs on every browse request and used to stat every path in
-// the config synchronously on the main thread. Whether a path is a directory
-// rarely changes, so remember the answer briefly, keyed by the path string
-// itself (a different config or a renamed path is simply a different key).
-const DIR_CACHE_TTL_MS = 30 * 1000;
-const DIR_CACHE_MAX = 5000;
-const dirCache = new Map(); // normalized path -> { isDir: boolean|null, at }
+// Walks config for the directories it refers to, WITHOUT touching the
+// filesystem: this runs on every browse request on the main thread, and a
+// config can hold thousands of paths. Only string values under keys that name a
+// folder or a file count (a title that happens to look like a path does not),
+// and only absolute paths. A folder key contributes itself; a file key
+// contributes its parent directory (a value with no extension is taken to be a
+// folder, since guessing it is a file would only ever widen the root to its
+// parent).
+const FOLDER_KEY = /^(?:folders?|dirs?|directory|directories|roots?|[A-Za-z]*(?:Folders?|Dirs?|Directory))$/;
+const FILE_KEY = /^(?:path|file|src|[A-Za-z]*(?:Path|File))$/;
 
-function isDirectoryCached(candidate) {
-  const now = Date.now();
-  const hit = dirCache.get(candidate);
-  if (hit && now - hit.at < DIR_CACHE_TTL_MS) return hit.isDir;
-  let isDir = null; // null: could not stat (missing, unreadable)
-  try { isDir = fs.statSync(candidate).isDirectory(); } catch (e) { /* leave null */ }
-  if (dirCache.size >= DIR_CACHE_MAX) dirCache.clear();
-  dirCache.set(candidate, { isDir, at: now });
-  return isDir;
+function absolutePathOrNull(value) {
+  if (typeof value !== 'string' || !value || value.includes('\0') || value.startsWith('mediasource:')) return null;
+  return path.isAbsolute(value) || value.startsWith('\\') ? path.normalize(value) : null;
 }
 
-// Walks config for every path-shaped string and keeps the directories they
-// live in. A file contributes its parent; a folder entry contributes itself.
 function rootsFromConfig(config) {
   const roots = new Set();
-  const looksLikePath = (value) => typeof value === 'string'
-    && (/^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\') || value.startsWith('/'));
-  const visit = (node, key) => {
-    if (typeof node === 'string') {
-      if (!looksLikePath(node)) return;
-      // `folders` entries are directories; everything else is a file whose
-      // directory is what matters. Guessing wrong only ever adds the parent of
-      // a directory, so resolve it by asking the filesystem when it is cheap
-      // to, and fall back to the parent when it is not.
-      let candidate = path.normalize(node);
-      const isDir = isDirectoryCached(candidate);
-      if (isDir === false || (isDir === null && key !== 'folders')) candidate = path.dirname(candidate);
-      roots.add(path.resolve(candidate));
-      return;
-    }
-    if (Array.isArray(node)) { node.forEach((child) => visit(child, key)); return; }
-    if (node && typeof node === 'object') Object.entries(node).forEach(([childKey, child]) => visit(child, childKey));
+  const addString = (key, value) => {
+    const absolute = absolutePathOrNull(value);
+    if (!absolute) return;
+    if (FOLDER_KEY.test(key)) roots.add(path.resolve(absolute));
+    else if (FILE_KEY.test(key)) roots.add(path.resolve(path.extname(absolute) ? path.dirname(absolute) : absolute));
   };
-  visit(config, '');
+  const visit = (node, key, depth) => {
+    if (depth > 12) return;
+    if (typeof node === 'string') { addString(key, node); return; }
+    if (Array.isArray(node)) { node.forEach((child) => visit(child, key, depth + 1)); return; }
+    if (node && typeof node === 'object') Object.entries(node).forEach(([childKey, child]) => visit(child, childKey, depth + 1));
+  };
+  visit(config, '', 0);
   return roots;
 }
 
@@ -87,7 +76,15 @@ function configuredRoots(config) {
 // dropped — keeping both would list the same tree twice and make the top level
 // read as if there were more separate places than there are.
 function browseRoots(config) {
-  const all = [...configuredRoots(config), ...rootsFromConfig(config)];
+  // `network.controlBrowseRoots` is an allow-list when the person at the host
+  // has set one: only those trees are browsable, and a directory the lineup
+  // happens to reference is offered only if it lies inside one of them. With
+  // none set, the lineup's own directories are the roots.
+  const declared = configuredRoots(config);
+  const derived = [...rootsFromConfig(config)];
+  const all = declared.length
+    ? [...declared, ...derived.filter((root) => declared.some((allowed) => isPathContained(allowed, root)))]
+    : derived;
   return all
     .filter((root, index) => all.every((other, otherIndex) => otherIndex === index || !isPathContained(other, root) || other === root))
     .filter((root, index, list) => list.indexOf(root) === index)

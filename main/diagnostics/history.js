@@ -11,6 +11,7 @@
 // last N things I watched" is the question this answers, and a box left off
 // for a month should still be able to answer it.
 const fs = require('fs');
+const { atomicWriteFile, atomicWriteFileSync } = require('../util/atomic-write');
 const path = require('path');
 const { app, ipcMain } = require('electron');
 
@@ -48,7 +49,7 @@ async function flush() {
   if (writing) { writeAgain = true; return; }
   writing = true;
   try {
-    await fs.promises.writeFile(historyPath(), JSON.stringify({ entries: load() }), 'utf8');
+    await atomicWriteFile(historyPath(), JSON.stringify({ entries: load() }), { encoding: 'utf8' });
   } catch (e) {
     console.error('[history] write failed:', e.message);
   } finally {
@@ -116,7 +117,7 @@ function flushHistoryNow() {
   clearTimeout(writeTimer);
   if (!entries) return;
   try {
-    fs.writeFileSync(historyPath(), JSON.stringify({ entries }), 'utf8');
+    atomicWriteFileSync(historyPath(), JSON.stringify({ entries }), { encoding: 'utf8' });
   } catch (e) {
     console.error('[history] final write failed:', e.message);
   }

@@ -212,4 +212,8 @@ main();
 // notice via its own 'exit' listener.
 process.on('uncaughtException', (err) => {
   process.stderr.write(`[plugin-isolation-runtime] uncaught exception: ${err && err.stack}\n`);
+  // State after an uncaught exception is undefined; staying up would leave a
+  // half-working plugin registered with the host. Exit so the host's 'exit'
+  // handler purges its registrations and reports it.
+  process.exit(1);
 });

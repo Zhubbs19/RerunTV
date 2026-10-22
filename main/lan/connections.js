@@ -7,6 +7,7 @@
 // entry, and one that's gone (tab closed, phone locked) ages out on its own
 // without needing an explicit disconnect signal.
 const CONNECTION_STALE_MS = 30 * 1000;
+const MAX_TRACKED_DEVICES = 500;
 const connectedDevices = new Map(); // key: `${server}:${ip}` -> {server, ip, lastSeenMs, userAgent}
 
 // Split out from trackConnection() so an isolated plugin's own process (which
@@ -27,6 +28,15 @@ function recordConnection(serverName, ip, userAgent, scope) {
     server: serverName, ip, lastSeenMs: Date.now(), userAgent: userAgent || '',
     scope: scope || (previous && previous.scope) || '',
   });
+  // Entries otherwise age out only when somebody reads the list, so a burst of
+  // many source addresses would grow the map without bound.
+  if (connectedDevices.size > MAX_TRACKED_DEVICES) {
+    const now = Date.now();
+    for (const [staleKey, device] of connectedDevices) {
+      if (now - device.lastSeenMs > CONNECTION_STALE_MS) connectedDevices.delete(staleKey);
+    }
+    while (connectedDevices.size > MAX_TRACKED_DEVICES) connectedDevices.delete(connectedDevices.keys().next().value);
+  }
 }
 
 function trackConnection(serverName, req, scope) {

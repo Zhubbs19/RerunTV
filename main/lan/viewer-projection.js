@@ -5,14 +5,48 @@ const crypto = require('crypto');
 // named plain "auth" entirely, even though it's exactly what this regex
 // exists to catch. `auth` as a substring still matches "authorization" too,
 // so this is strictly broader, not a behavior change for the existing case.
-const SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth|^pinLock$|^pin$|pin.?code)/i;
+const LEGACY_SENSITIVE_CONFIG_KEY = /(?:api.?key|token|secret|password|credential|auth|^pinLock$|^pin$|pin.?code)/i;
 
-function sanitizeViewerConfig(value) {
-  if (Array.isArray(value)) return value.map(sanitizeViewerConfig);
+// The broader, word-aware rule on top of the legacy substring match: a key
+// name is split into its words (camelCase, snake_case, kebab-case, dots) and
+// refused when a word says "credential". A plain substring "key" would also
+// swallow `keyMap`, which a viewer legitimately needs, so `key` only counts
+// when it is the name's final word (apiKey, licenseKey, secretKey, key).
+const SENSITIVE_WORD = /^(?:pass|passwd|password|passcode|passphrase|secret|secrets|token|tokens|webhook|webhooks|licen[sc]e|credential|credentials|cookie|cookies|auth(?!or)\w*|bearer|signature)$/i;
+
+function keyWords(key) {
+  return String(key)
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((word) => word.toLowerCase());
+}
+
+function isSensitiveKey(key) {
+  const text = String(key);
+  if (LEGACY_SENSITIVE_CONFIG_KEY.test(text)) return true;
+  const words = keyWords(text);
+  if (words.some((word) => SENSITIVE_WORD.test(word))) return true;
+  const last = words[words.length - 1];
+  return last === 'key';
+}
+
+// Used as `SENSITIVE_CONFIG_KEY.test(name)` throughout this file.
+const SENSITIVE_CONFIG_KEY = { test: isSensitiveKey };
+
+// A secret can sit in a plugin setting under any name ("id", "value"). Strings
+// shaped like well-known credentials are dropped from plugin settings even
+// when their key looks harmless.
+const SECRET_VALUE_SHAPE = /^(?:(?:sk|pk|rk)[-_][A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9]{20,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{12,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.-]{10,}|[A-Za-z0-9_-]{40,})$/;
+
+function sanitizeViewerConfig(value, inPluginSettings = false) {
+  if (Array.isArray(value)) return value.map((child) => sanitizeViewerConfig(child, inPluginSettings));
+  if (typeof value === 'string') return inPluginSettings && SECRET_VALUE_SHAPE.test(value) ? undefined : value;
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value)
-    .filter(([key]) => !SENSITIVE_CONFIG_KEY.test(key))
-    .map(([key, child]) => [key, sanitizeViewerConfig(child)]));
+    .filter(([key]) => !isSensitiveKey(key))
+    .map(([key, child]) => [key, sanitizeViewerConfig(child, inPluginSettings || key === 'pluginSettings')])
+    .filter(([, child]) => child !== undefined));
 }
 
 // Key-name filtering above only catches a secret stored as its own
@@ -34,11 +68,18 @@ function redactSensitiveUrlValue(value) {
   return changed ? url.toString() : value;
 }
 
+// Ids are derived from the ref (HMAC), so an evicted one is simply registered
+// again the next time the config is projected. The cap only stops a long-lived
+// server from accumulating every ref a library has ever contained.
+const MAX_PROJECTED_REFS = 50000;
+
 function createViewerProjection(secret = crypto.randomBytes(32)) {
   const refs = new Map();
   function opaqueRef(ref) {
     const id = crypto.createHmac('sha256', secret).update(String(ref)).digest('base64url');
+    refs.delete(id); // re-insert so a ref in current use is the newest, not the first evicted
     refs.set(id, { ref: String(ref), name: path.basename(String(ref), path.extname(String(ref))) });
+    while (refs.size > MAX_PROJECTED_REFS) refs.delete(refs.keys().next().value);
     return `viewer:${id}`;
   }
   function project(value, key = '') {
@@ -120,4 +161,4 @@ function sanitizeAppliedUpdate(update) {
   return { ...update, commands };
 }
 
-module.exports = { sanitizeViewerConfig, sanitizeAppliedUpdate, createViewerProjection };
+module.exports = { isSensitiveKey, sanitizeViewerConfig, sanitizeAppliedUpdate, createViewerProjection };

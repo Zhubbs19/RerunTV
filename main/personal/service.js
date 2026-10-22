@@ -4,6 +4,7 @@
 // both call this same API.
 const crypto = require('crypto');
 const fs = require('fs');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
@@ -16,9 +17,7 @@ const safeId = (value) => /^[a-zA-Z0-9_-]{1,80}$/.test(String(value || ''));
 
 function atomicJson(file, value, now) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temp = `${file}.tmp-${process.pid}-${now()}`;
-  fs.writeFileSync(temp, JSON.stringify(value, null, 2), 'utf8');
-  fs.renameSync(temp, file);
+  atomicWriteFileSync(file, JSON.stringify(value, null, 2), { encoding: 'utf8' });
 }
 
 function defaultState(config = {}, history = []) {

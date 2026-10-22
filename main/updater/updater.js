@@ -1,7 +1,8 @@
 const { app, ipcMain, BrowserWindow } = require('electron');
 const fs = require('fs');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 const path = require('path');
-const { loadConfig, backupUserDataForUpdate } = require('../config/config');
+const { loadConfig, backupUserDataForUpdateAsync } = require('../config/config');
 const { getPluginsDir } = require('../plugins/plugins');
 const { fetchJsonCached } = require('./api-cache');
 const {
@@ -79,9 +80,7 @@ function writeUpdateState(state) {
   try {
     const file = updateStatePath();
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    const temp = `${file}.tmp`;
-    fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-    fs.renameSync(temp, file);
+    atomicWriteFileSync(file, `${JSON.stringify(state, null, 2)}\n`, { encoding: 'utf8' });
   } catch (e) {
     console.error('[auto-updater] could not persist update state:', e.message);
   }
@@ -212,8 +211,26 @@ function sendThemeColors() {
 // persisted to update-state.json so the NEXT launch's startup-auto "CHECKING
 // FOR UPDATES" box (shown before the renderer has loaded) has something
 // besides the hardcoded fallback to start from — see latestThemeColors above.
+// The report arrives over an unauthenticated IPC send and is written into the
+// progress window's styles, so only the known custom properties are kept and a
+// value may be a colour or gradient, never something that can escape a
+// declaration (no braces, semicolons, angle brackets, url() or @import).
+function sanitizeThemeColors(colors) {
+  if (!colors || typeof colors !== 'object' || Array.isArray(colors)) return null;
+  const out = {};
+  THEME_COLOR_VARS.forEach((name) => {
+    const value = colors[name];
+    if (typeof value !== 'string') return;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > 400) return;
+    if (/[{};<>\\]|url\s*\(|@import|expression\s*\(/i.test(trimmed)) return;
+    out[name] = trimmed;
+  });
+  return Object.keys(out).length ? out : null;
+}
+
 function setThemeColors(colors) {
-  latestThemeColors = colors && typeof colors === 'object' ? colors : null;
+  latestThemeColors = sanitizeThemeColors(colors);
   const state = readUpdateState();
   state.themeColors = latestThemeColors;
   writeUpdateState(state);
@@ -412,6 +429,7 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   if (diskColors) setThemeColors(diskColors);
 
   const updater = getAutoUpdater();
+  let updateDownloaded = false;
 
   updater.on('update-available', (info) => {
     // The launch timeout only protects a slow/unreachable check. Once a
@@ -439,13 +457,14 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
     closeProgressWindow();
   });
 
-  updater.on('update-downloaded', (info) => {
+  updater.on('update-downloaded', async (info) => {
+    updateDownloaded = true;
     const { strategy } = updatesConfig();
     // Persist release metadata before the safety copy so both the changelog
     // and its previous-version baseline survive an installer that replaces
     // the portable userData directory.
     rememberDownloadedRelease(info);
-    backupUserDataForUpdate();
+    await backupUserDataForUpdateAsync();
 
     if (startupUpdateActive && strategy === 'startup-auto') {
       updater.autoInstallOnAppQuit = false;
@@ -504,12 +523,15 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   });
 
   ipcMain.handle('updates:installNow', async () => {
+    // Only an update this process actually finished downloading can be
+    // installed; otherwise a stray call would quit the app for nothing.
+    if (!updateDownloaded) return { status: 'no-update-downloaded' };
     // The portable userData folder lives inside this app's own install
     // directory (main-config.js) — the NSIS installer quitAndInstall() is
     // about to run can wipe/replace that whole directory as part of laying
     // down the new version. Safety-copy it out first; main-config.js's
     // restoreUserDataIfWiped() reconciles it back on the next boot.
-    backupUserDataForUpdate();
+    await backupUserDataForUpdateAsync();
     showProgressWindow(getMainWindow, {
       kind: 'install', title: 'APPLYING UPDATE',
       detail: 'RerunTV will close and reopen automatically. Keep this window open.',
@@ -579,5 +601,6 @@ function registerThemeIpc(ipcMain) {
 }
 
 module.exports = {
+  sanitizeThemeColors,
   initAutoUpdater, setThemeColors, registerThemeIpc, getLatestThemeList,
 };

@@ -1,6 +1,7 @@
 const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 
 function getWindowStatePath() {
   return path.join(app.getPath('userData'), 'window-state.json');
@@ -16,7 +17,7 @@ function loadWindowState() {
 
 function saveWindowState(state) {
   try {
-    fs.writeFileSync(getWindowStatePath(), JSON.stringify(state), 'utf-8');
+    atomicWriteFileSync(getWindowStatePath(), JSON.stringify(state), { encoding: 'utf-8' });
   } catch (e) {}
 }
 

@@ -12,6 +12,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createLibraryStore } = require('./store');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 const { scanRoot, applyScan, describeScan } = require('./scan');
 const identity = require('./identity');
 const { planMigration, finalizeMigration } = require('./migrate');
@@ -52,6 +53,32 @@ function walkLocal(root, extensions, maxFiles) {
   return { entries: out.sort((a, b) => a.ref.localeCompare(b.ref)), truncated };
 }
 
+// Same walk as walkLocal without blocking the main thread: a large library
+// on a slow or network drive can take many seconds to list, and every IPC and
+// LAN request shares that thread. It yields between directories and files.
+async function walkLocalAsync(root, extensions, maxFiles) {
+  const out = [];
+  let truncated = false;
+  const stack = [root];
+  while (stack.length && !truncated) {
+    const dir = stack.pop();
+    let entries;
+    try { entries = await fs.promises.readdir(dir, { withFileTypes: true }); } catch (e) { continue; }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === '_originals_backup') continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { stack.push(full); continue; }
+      if (!entry.isFile() || !extensions.has(path.extname(entry.name).toLowerCase())) continue;
+      if (out.length >= maxFiles) { truncated = true; break; }
+      try {
+        const stat = await fs.promises.stat(full);
+        out.push({ ref: full, size: stat.size, mtimeMs: stat.mtimeMs });
+      } catch (e) { /* vanished between listing and stat */ }
+    }
+  }
+  return { entries: out.sort((a, b) => a.ref.localeCompare(b.ref)), truncated };
+}
+
 function createLibraryService({
   dir,
   videoExtensions,
@@ -67,9 +94,7 @@ function createLibraryService({
 
   function persistScanLog() {
     fs.mkdirSync(dir, { recursive: true });
-    const temp = `${scanLogPath}.tmp-${process.pid}-${now()}`;
-    fs.writeFileSync(temp, JSON.stringify(lastScanReports, null, 2), 'utf-8');
-    fs.renameSync(temp, scanLogPath);
+    atomicWriteFileSync(scanLogPath, JSON.stringify(lastScanReports, null, 2), { encoding: 'utf-8' });
   }
 
   const api = {
@@ -143,7 +168,7 @@ function createLibraryService({
           fingerprint = async (ref) => identity.fingerprintProvider({ id: root.source, etag: (byRef.get(ref) || {}).etag, size: (byRef.get(ref) || {}).size });
         } else {
           if (!fs.existsSync(root.ref)) throw new Error(`${root.ref} is not reachable. Is the drive connected?`);
-          const walked = walkLocal(root.ref, videoExtensions, maxFiles);
+          const walked = await walkLocalAsync(root.ref, videoExtensions, maxFiles);
           truncated = walked.truncated;
           if (truncated) {
             // Refuse rather than scan part of it: a partial scan cannot tell
@@ -346,4 +371,4 @@ function registerLibraryIpc(ipcMain, { getService }) {
   });
 }
 
-module.exports = { createLibraryService, registerLibraryIpc, walkLocal, DEFAULT_MAX_SCAN_FILES, REMOTE_METHODS };
+module.exports = { createLibraryService, registerLibraryIpc, walkLocal, walkLocalAsync, DEFAULT_MAX_SCAN_FILES, REMOTE_METHODS };

@@ -7,6 +7,7 @@ const { migrateRenamedPlugins } = require('./renamed-plugins');
 const crypto = require('crypto');
 const { createChangeAnnouncer, createConfigHost } = require('./host');
 const { getMainWindow } = require('./window-ref');
+const { atomicWriteFileSync } = require('../util/atomic-write');
 
 // ---------- Portable-install userData migration ----------
 // All per-user data (channels.json, backups, plugins, window state, any
@@ -78,13 +79,43 @@ function pluginDeclaredDataDirs(userDataDir) {
 // this app's own files/folders, plus whatever a plugin's own manifest
 // declares, plus channels.json's rotating backups/corrupt-preserves (which
 // sit alongside it by name, not as one of the fixed entries above).
-function copyOwnDataEntries(fromDir, toDir) {
+function ownDataEntryNames(fromDir) {
   const entriesToCopy = OWN_DATA_ENTRIES.concat(pluginDeclaredDataDirs(fromDir));
-  fs.readdirSync(fromDir).forEach((name) => {
-    if (entriesToCopy.includes(name) || name.startsWith('channels.json.')) {
-      fs.cpSync(path.join(fromDir, name), path.join(toDir, name), { recursive: true });
-    }
+  return fs.readdirSync(fromDir).filter((name) => entriesToCopy.includes(name) || name.startsWith('channels.json.'));
+}
+
+// What the pre-update safety copy leaves out. The copy exists to rescue the
+// lineup and settings from an installer that wipes the install folder, not to
+// duplicate gigabytes of regenerable plugin caches (a download or thumbnail
+// cache can take minutes to copy synchronously on the quit path), and it sits
+// in a temp folder, so credential/token files are also not worth leaving there.
+const BACKUP_MAX_FILE_BYTES = 200 * 1024 * 1024;
+const BACKUP_SKIP_DIR = /(?:^|[-_.])caches?$|^cache[-_.]|^(?:tmp|temp|node_modules)$/i;
+const BACKUP_SKIP_FILE = /(?:credential|token|secret|oauth|password|api[-_]?key|\.pem$|\.key$)/i;
+
+function shouldSkipFromUpdateBackup(srcPath, stat) {
+  const name = path.basename(srcPath);
+  if (stat && stat.isDirectory()) return BACKUP_SKIP_DIR.test(name);
+  if (BACKUP_SKIP_FILE.test(name)) return true;
+  return !!(stat && stat.isFile() && stat.size > BACKUP_MAX_FILE_BYTES);
+}
+
+function updateBackupFilter(src) {
+  let stat;
+  try { stat = fs.statSync(src); } catch (e) { return false; }
+  return !shouldSkipFromUpdateBackup(src, stat);
+}
+
+function copyOwnDataEntries(fromDir, toDir, options = {}) {
+  ownDataEntryNames(fromDir).forEach((name) => {
+    fs.cpSync(path.join(fromDir, name), path.join(toDir, name), { recursive: true, ...options });
   });
+}
+
+async function copyOwnDataEntriesAsync(fromDir, toDir, options = {}) {
+  for (const name of ownDataEntryNames(fromDir)) {
+    await fs.promises.cp(path.join(fromDir, name), path.join(toDir, name), { recursive: true, ...options });
+  }
 }
 
 function portableUserDataDir() {
@@ -120,6 +151,28 @@ function backupUserDataForUpdate() {
   try {
     const localDir = portableUserDataDir();
     if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
+    const backupDir = prepareUpdateBackupDir();
+    copyOwnDataEntries(localDir, backupDir, { filter: updateBackupFilter });
+  } catch (e) {
+    console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
+  }
+}
+
+// Same copy without blocking the main thread; for callers that can await it
+// (the IPC install handler). The lineup restore point is still taken first.
+async function backupUserDataForUpdateAsync() {
+  try {
+    const localDir = portableUserDataDir();
+    if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
+    const backupDir = prepareUpdateBackupDir();
+    await copyOwnDataEntriesAsync(localDir, backupDir, { filter: updateBackupFilter });
+  } catch (e) {
+    console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
+  }
+}
+
+function prepareUpdateBackupDir() {
+  {
     // Keep an ordinary, user-visible restore point as well as the external
     // whole-userData safety copy. This makes the Backups screen explain
     // exactly which snapshot preceded an update and lets users inspect or
@@ -131,9 +184,7 @@ function backupUserDataForUpdate() {
     const backupDir = pendingUpdateBackupDir();
     fs.rmSync(backupDir, { recursive: true, force: true }); // clear any stale backup from a previous update attempt
     fs.mkdirSync(backupDir, { recursive: true });
-    copyOwnDataEntries(localDir, backupDir);
-  } catch (e) {
-    console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
+    return backupDir;
   }
 }
 
@@ -210,6 +261,15 @@ function getConfigPath() {
 // running, restoring from an external tool, etc.).
 let cachedConfigRaw = null;
 let cachedConfigMtimeMs = null;
+// Bumped whenever the text of channels.json is (re)read after a change or
+// written; lets callers cache work derived from the config (the LAN viewer's
+// /api/config projection) and drop it exactly when the file changes.
+let configVersion = 0;
+
+function getConfigVersion() {
+  try { readConfigFileCached(); } catch (e) { /* missing/unreadable: version stays */ }
+  return configVersion;
+}
 
 function readConfigFileCached() {
   const configPath = getConfigPath();
@@ -217,6 +277,7 @@ function readConfigFileCached() {
   if (cachedConfigRaw === null || stat.mtimeMs !== cachedConfigMtimeMs) {
     cachedConfigRaw = fs.readFileSync(configPath, 'utf-8');
     cachedConfigMtimeMs = stat.mtimeMs;
+    configVersion += 1;
   }
   return cachedConfigRaw;
 }
@@ -225,25 +286,10 @@ function readConfigFileCached() {
 // read cache above can never observe stale content after a save/restore.
 function writeConfigFile(raw) {
   const configPath = getConfigPath();
-  const tempPath = `${configPath}.tmp-${process.pid}-${Date.now()}`;
-  try {
-    fs.writeFileSync(tempPath, raw, 'utf-8');
-    // Windows refuses to rename over a file another process (AV, indexer,
-    // backup tool) briefly has open — EPERM/EBUSY. Short synchronous retries
-    // absorb that instead of failing the save.
-    for (let attempt = 1; ; attempt++) {
-      try {
-        fs.renameSync(tempPath, configPath);
-        break;
-      } catch (e) {
-        if ((e.code !== 'EPERM' && e.code !== 'EBUSY') || attempt >= 6) throw e;
-        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40 * attempt);
-      }
-    }
-  } catch (e) {
-    try { fs.unlinkSync(tempPath); } catch (e2) { /* temp never created or already gone */ }
-    throw e;
-  }
+  // fsync'd temp file + rename, with the EPERM/EBUSY retry Windows needs when
+  // an indexer or backup tool briefly holds the target open.
+  atomicWriteFileSync(configPath, raw, { encoding: 'utf-8' });
+  configVersion += 1;
   cachedConfigRaw = null;
   cachedConfigMtimeMs = null;
 }
@@ -489,6 +535,7 @@ function loadConfig() {
   try {
     const parsed = JSON.parse(raw);
     if (!parsed.channels) parsed.channels = [];
+    noteChannelCount(parsed);
     migrateRenamedPlugins(parsed); // plugins renamed in a later release: carry their config over
     return parsed;
   } catch (e) {
@@ -515,9 +562,25 @@ function loadConfig() {
 // otherwise leave channels.json truncated/corrupt with no way back. The
 // temp file lives next to the real one so the rename stays on the same
 // volume (cross-volume renames aren't atomic).
+// Channel count of the lineup as last read or written by this process, so a
+// save that would drop most of it can force a restore point first without a
+// second parse of the file on every autosave.
+let knownChannelCount = null;
+function noteChannelCount(config) {
+  if (config && Array.isArray(config.channels) && !config._configLoadError) knownChannelCount = config.channels.length;
+}
+// True when `next` channels is a sharp drop from `previous` (a bulk delete,
+// a bad import, a stale in-memory config) rather than an ordinary edit.
+function isSharpChannelDrop(previous, next) {
+  return Number.isInteger(previous) && Number.isInteger(next) && previous >= 4 && next <= Math.floor(previous / 2);
+}
+
 function saveConfig(config) {
-  backupCurrentConfig(false, 'automatic'); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
+  const incoming = config && Array.isArray(config.channels) ? config.channels.length : null;
+  if (isSharpChannelDrop(knownChannelCount, incoming)) backupCurrentConfig(true, 'before-bulk-drop');
+  else backupCurrentConfig(false, 'automatic'); // snapshot whatever's on disk *before* overwriting it (rate-limited — see above)
   writeConfigFile(JSON.stringify(config, null, 2));
+  noteChannelCount(config);
   configChanges.written(config);
   return true;
 }
@@ -681,7 +744,7 @@ function registerConfigIpc(ipcMain) {
 }
 
 module.exports = {
-  migrateUserDataIfNeeded, backupUserDataForUpdate,
+  migrateUserDataIfNeeded, backupUserDataForUpdate, backupUserDataForUpdateAsync, shouldSkipFromUpdateBackup, isSharpChannelDrop, getConfigVersion,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
   registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost, onViewerRelevantConfigChange, onConfigApplied,
 };

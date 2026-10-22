@@ -8,6 +8,8 @@
 const { app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { atomicWriteFile } = require('../util/atomic-write');
+const { optionsForRedirect, readBodyTextLimited } = require('../util/fetch-guards');
 
 // A function, not a top-level constant — computed lazily on every call
 // rather than captured at require() time, since main.js's one-time
@@ -62,11 +64,10 @@ function saveCache() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     pruneCache(cache);
-    fs.writeFile(getCachePath(), JSON.stringify(cache), 'utf-8', (err) => {
-      // best-effort — a failed cache write shouldn't break the caller, and
-      // the caller (fetchJsonCached) has long since returned by the time
-      // this runs anyway.
-    });
+    // best-effort — a failed cache write shouldn't break the caller, and
+    // the caller (fetchJsonCached) has long since returned by the time
+    // this runs anyway.
+    atomicWriteFile(getCachePath(), JSON.stringify(cache), { encoding: 'utf-8' }).catch(() => {});
   }, SAVE_DEBOUNCE_MS);
 }
 
@@ -136,17 +137,24 @@ async function fetchJsonCached(key, url, opts, ttlMs) {
     // filter; a public URL that 302s to 169.254.169.254 is refused.
     let res;
     let target = url;
+    let hopOpts = opts;
     for (let hop = 0; ; hop++) {
       // eslint-disable-next-line no-await-in-loop
-      res = await fetch(target, { ...opts, redirect: 'manual', signal: controller.signal });
+      res = await fetch(target, { ...hopOpts, redirect: 'manual', signal: controller.signal });
       if (res.status < 300 || res.status >= 400) break;
       const location = res.headers.get('location');
       if (!location || hop >= 3) throw new Error('too many redirects');
-      target = new URL(location, target).toString();
-      if (isBlockedFetchTarget(target)) throw new Error('fetchJsonCached: refusing a redirect to a private/internal address');
+      const next = new URL(location, target).toString();
+      if (isBlockedFetchTarget(next)) throw new Error('fetchJsonCached: refusing a redirect to a private/internal address');
+      // Authorization/Cookie/API-key headers are meant for the host the plugin
+      // named; they do not follow a redirect to a different origin.
+      hopOpts = optionsForRedirect(hopOpts, target, next);
+      target = next;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    // A bounded read: a hostile or broken endpoint cannot make the host buffer
+    // an arbitrarily large body.
+    const data = JSON.parse(await readBodyTextLimited(res));
     store[key] = { at: Date.now(), data };
     saveCache();
     return data;

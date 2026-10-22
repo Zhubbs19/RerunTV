@@ -19,6 +19,7 @@
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
 const WINDOWS_ZIP_URL = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip';
@@ -90,6 +91,35 @@ async function downloadToBuffer(url, onProgress) {
   return Buffer.concat(chunks.map((c) => Buffer.from(c)));
 }
 
+// gyan.dev publishes the SHA-256 of each build next to it as <url>.sha256
+// (a bare hex digest, sometimes followed by a file name). This does not defend
+// against the publisher itself being compromised, but it does catch a truncated,
+// corrupted or tampered-in-transit download before anything is extracted.
+// Returns the expected digest, or null when the text holds none.
+function parseSha256(text) {
+  const match = /(?:^|[^0-9a-fA-F])([0-9a-fA-F]{64})(?![0-9a-fA-F])/.exec(String(text || ''));
+  return match ? match[1].toLowerCase() : null;
+}
+
+function sha256Hex(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+// Throws when a published digest exists and does not match. A source that
+// publishes no digest (or whose digest file cannot be fetched) is not blocked:
+// an unreachable checksum file must not make the one-click install unusable.
+async function verifyDownload(zipBuffer, checksumUrl, fetchImpl = fetch) {
+  if (!checksumUrl) return { verified: false, reason: 'no checksum published' };
+  let expected = null;
+  try {
+    const res = await fetchImpl(checksumUrl, { signal: AbortSignal.timeout(30 * 1000) });
+    if (res.ok) expected = parseSha256((await res.text()).slice(0, 4096));
+  } catch (e) { /* treated as unavailable below */ }
+  if (!expected) return { verified: false, reason: 'checksum unavailable' };
+  if (sha256Hex(zipBuffer) !== expected) throw new Error('The downloaded ffmpeg does not match its published checksum — not installing it.');
+  return { verified: true };
+}
+
 // Finds the actual ffmpeg binary inside a downloaded zip (Windows builds
 // nest it under a versioned folder's bin/, macOS builds are a single bare
 // file at the zip's root) and writes just that one file out.
@@ -113,6 +143,10 @@ async function installFfmpeg(onProgress) {
   }
   const url = process.platform === 'win32' ? WINDOWS_ZIP_URL : MAC_ZIP_URL;
   const zipBuffer = await downloadToBuffer(url, onProgress);
+  onProgress({ phase: 'verifying' });
+  // evermeet.cx publishes no checksum file alongside its zip; gyan.dev does.
+  const checked = await verifyDownload(zipBuffer, process.platform === 'win32' ? `${WINDOWS_ZIP_URL}.sha256` : null);
+  if (!checked.verified) console.warn(`[ffmpeg-install] download not checksum-verified (${checked.reason})`);
   onProgress({ phase: 'extracting' });
   const destPath = path.join(ffmpegInstallDir(), process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
   extractFfmpegBinary(zipBuffer, destPath);
@@ -139,4 +173,4 @@ function registerFfmpegInstallIpc(ipcMain, { getMainWindow }) {
   });
 }
 
-module.exports = { registerFfmpegInstallIpc, getPlatformInstallInfo, installFfmpeg, ffmpegInstallDir };
+module.exports = { parseSha256, sha256Hex, verifyDownload, registerFfmpegInstallIpc, getPlatformInstallInfo, installFfmpeg, ffmpegInstallDir };
