@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Sandboxable, CI-runnable checks with no Electron/display dependency:
 //
-//   1. Every plugins/*/manifest.json has the shape PLUGIN_DEVELOPMENT.md
+//   1. Every plugins/*/manifest.json and plugin-dev-kit/*/manifest.json has the shape PLUGIN_DEVELOPMENT.md
 //      documents (required `id`, correct types on every optional field,
 //      well-formed `capabilities` entries).
 //   2. renderer/js/api-contract.js's method list stays in sync with the
@@ -18,7 +18,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = path.join(__dirname, '..');
+// RERUNTV_VALIDATE_ROOT lets the tooling tests point this at a scratch tree.
+const ROOT = process.env.RERUNTV_VALIDATE_ROOT || path.join(__dirname, '..');
 const errors = [];
 
 // ---------- declared-vs-used IPC ----------
@@ -32,8 +33,8 @@ const errors = [];
 // Literal channel names are statically visible, so this is checkable without
 // running anything. A dynamically built channel name is not, and is skipped
 // rather than guessed at.
-function checkDeclaredIpc(dir, manifest, mainSource) {
-  const tag = `plugins/${dir}/${manifest.main}`;
+function checkDeclaredIpc(dir, manifest, mainSource, base = 'plugins') {
+  const tag = `${base}/${dir}/${manifest.main}`;
   const declared = new Set(((manifest.capabilities || {}).ipc || []).map((e) => e.channel));
   const used = new Set();
   const pattern = /ipcMain\s*\.\s*(?:handle|on)\s*\(\s*(['"`])([^'"`]+)\1/g;
@@ -95,8 +96,8 @@ function validateCapabilities(caps, pluginTag) {
   });
 }
 
-function validateManifest(dir, manifestPath) {
-  const tag = `plugins/${dir}/manifest.json`;
+function validateManifest(dir, manifestPath, base = 'plugins') {
+  const tag = `${base}/${dir}/manifest.json`;
   let raw;
   try {
     raw = fs.readFileSync(manifestPath, 'utf-8');
@@ -156,26 +157,34 @@ function validateManifest(dir, manifestPath) {
   if (typeof m.main === 'string' && m.main) {
     const mainPath = path.join(path.dirname(manifestPath), m.main);
     try {
-      checkDeclaredIpc(dir, m, fs.readFileSync(mainPath, 'utf-8'));
+      checkDeclaredIpc(dir, m, fs.readFileSync(mainPath, 'utf-8'), base);
     } catch (e) {
       errors.push(`${tag}: "main" points at ${m.main}, which could not be read (${e.message})`);
     }
   }
 }
 
+// Both the bundled plugins and the copyable starters in plugin-dev-kit/ must
+// satisfy the same contract: a starter that fails it teaches authors to ship
+// a plugin that will not load.
+const MANIFEST_ROOTS = ['plugins', 'plugin-dev-kit'];
+
 function validateAllManifests() {
-  const pluginsDir = path.join(ROOT, 'plugins');
-  let entries;
-  try {
-    entries = fs.readdirSync(pluginsDir, { withFileTypes: true }).filter((e) => e.isDirectory());
-  } catch (e) {
-    errors.push(`could not read plugins/ directory (${e.message})`);
-    return;
-  }
-  entries.forEach((entry) => {
-    const manifestPath = path.join(pluginsDir, entry.name, 'manifest.json');
-    if (!fs.existsSync(manifestPath)) { errors.push(`plugins/${entry.name}: missing manifest.json`); return; }
-    validateManifest(entry.name, manifestPath);
+  MANIFEST_ROOTS.forEach((base) => {
+    const baseDir = path.join(ROOT, base);
+    let entries;
+    try {
+      entries = fs.readdirSync(baseDir, { withFileTypes: true }).filter((e) => e.isDirectory());
+    } catch (e) {
+      // plugins/ is required; plugin-dev-kit/ is optional in a trimmed checkout.
+      if (base === 'plugins') errors.push(`could not read plugins/ directory (${e.message})`);
+      return;
+    }
+    entries.forEach((entry) => {
+      const manifestPath = path.join(baseDir, entry.name, 'manifest.json');
+      if (!fs.existsSync(manifestPath)) { errors.push(`${base}/${entry.name}: missing manifest.json`); return; }
+      validateManifest(entry.name, manifestPath, base);
+    });
   });
 }
 

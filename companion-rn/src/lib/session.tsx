@@ -7,6 +7,11 @@ import { AppState } from 'react-native';
 import { ApiError, createClient, type Client, type RemoteState, type Session } from './api';
 import type { LineupRow } from './pure';
 
+// Storage failures are survivable (the session still works) but should not vanish silently in development.
+function warnDev(what: string, error: unknown): void {
+  if (__DEV__) console.warn(`[session] ${what}`, error);
+}
+
 const STORE_KEY = 'reruntv_session';
 const POLL_MS = 1500;
 const POLL_OFFLINE_MS = 4000;
@@ -56,18 +61,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     SecureStore.getItemAsync(STORE_KEY)
       .then((raw) => { if (raw) setSession(JSON.parse(raw) as Session); })
-      .catch(() => {})
+      .catch((e) => warnDev('could not read the saved pairing', e))
       .finally(() => setLoaded(true));
   }, []);
 
   const signOut = useCallback(async () => {
     setSession(null); setState(null); setChannels([]); setConnection('connecting');
-    await SecureStore.deleteItemAsync(STORE_KEY).catch(() => {});
+    await SecureStore.deleteItemAsync(STORE_KEY).catch((e) => warnDev('could not forget the saved pairing', e));
   }, []);
 
   const signIn = useCallback(async (next: Session) => {
     // Failing to remember the pairing must not stop this session from working.
-    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(next)).catch(() => {});
+    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(next)).catch((e) => warnDev('could not remember the pairing', e));
     setSession(next);
   }, []);
 

@@ -7,5 +7,10 @@
   "style": "style.css",
   "renderer": "renderer.js",
   "settings": "settings.js",
-  "main": "main.js"
+  "main": "main.js",
+  "capabilities": {
+    "ipc": [
+      { "channel": "starter-plugin:ping", "why": "answers the renderer's ping so you can see a round trip to the main process" }
+    ]
+  }
 }

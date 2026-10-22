@@ -99,6 +99,21 @@ only a 60 s fallback now. If you add a new frequently rewritten piece of host-lo
 state (like `lastChannel` or `volume`), add it to `HOST_LOCAL_FIELDS` in `main/config/host.js`.
 Otherwise every paired TV will refetch the whole lineup each time it changes.
 
+## Security model (where the boundaries live)
+
+- **Plugin fallbacks are data.** A plugin that should answer an IPC channel while it is disabled or
+  unapproved declares `"fallbackIpc": { "<channel>": <JSON value> }` in its manifest; the old
+  `registerFallback(ipcMain)` export is gone. `main/plugins/plugins.js` (`normalizeFallbackIpc`,
+  `registerFallbackHandlers`) registers those answers.
+- **Remote clients are deny-listed in `main/config/host.js`.** `REMOTE_DENIED_COMMANDS` and
+  `REMOTE_DENIED_SETTINGS` name what a LAN control client may never change (plugin approvals and
+  settings, network, updates, PIN lock, PC power). Add new host-only commands and settings there;
+  the check is keyed on `remote`, not `origin`, so a second remote transport cannot skip it.
+- **Writes are atomic.** Main-process JSON/state writers go through `main/util/atomic-write.js`
+  (temp file, fsync, rename with retry on Windows' EPERM/EBUSY), not a bare `fs.writeFile`.
+- LAN pairing and session auth are in `main/lan/security.js`; `SECURITY.md` has the user-facing
+  threat model, including the companion app's cleartext-LAN assumptions.
+
 ## Usage modes (desktop / TV)
 
 `html[data-mode]` is `desktop` or `tv`, resolved per device by `renderer/js/tv/usage-mode.js`
@@ -290,7 +305,6 @@ composed by `setup/plugin-settings.js`); LAN hardening (`main/lan/security.js`'s
 pairing-code + session-cookie auth, `main/lan/viewer-projection.js`'s config redaction for the LAN
 viewer); several new plugins and theme packs; and a UI/UX polish pass across `setup.css`/
 `tokens.css`/`overlays.css`. This pass also produced a `tests/ui/` suite and an `AGENTS.md` (both tracked now; see
-the test-suite note above) and an `AUDIT_2026-08-24.md` that was later removed — check git history on
-`master` if you need that audit's original findings. As with the
+the test-suite note above; `AGENTS.md` is now just a pointer to this file). As with the
 first pass, no new invalidation scheme was invented for config-derived state — the
 `S.configGeneration` counter above is still the one to extend.

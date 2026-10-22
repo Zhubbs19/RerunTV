@@ -95,6 +95,19 @@ Knowing the design helps you judge what counts as a vulnerability:
   you trust. The Android clients allow cleartext traffic for the same reason.
   Administration (installing plugins, approving capabilities, updates) is never
   available remotely.
+- **Companion app threat model.** The phone companion talks to the box over
+  cleartext HTTP on the LAN (Android `usesCleartextTraffic`, iOS
+  `NSAllowsLocalNetworking`). Pairing sends the pairing code once in the query
+  string of a `GET /?pair=<code>`, so the code can appear in the box's request
+  logs and is visible to anyone who can sniff the network; the box answers with
+  a session token that the app stores in the platform secure store and sends as
+  an `Authorization: Bearer` header afterwards. Anyone on the same network who
+  captures the code or token before the pairing code rotates can act with that
+  scope. Mitigations: codes are per-boot and rate limited, view and control
+  scopes are separate, and administration is never remote. Android's network
+  security config can only allow cleartext per domain, not per private IP range,
+  so the app cannot be restricted to LAN addresses at the OS level; use the
+  companion only on a network you trust.
 - **Plugins are trusted code.** A plugin you install can run in the Electron
   main process with full Node access. Declared capabilities (IPC channels,
   spawned binaries, network ports, filesystem paths) are an approval step shown

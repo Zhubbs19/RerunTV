@@ -9,10 +9,31 @@ Thumbs.db
 *.log
 *.swp
 *.bak
-# Covers all untracked one-off audit/probe/sweep scripts in tests/ui/. Already-
-# tracked harness files (tests/ui/lib/cdp.mjs, tests/ui/run-ui-tests.mjs, verify-*.mjs
-# etc.) are unaffected — git ignores this rule for files it already tracks.
-*.mjs
+# One-off audit / probe / sweep scripts in tests/ui/. These are explicit scratch
+# patterns, not a blanket *.mjs rule, so a new harness file (tests/ui/lib/*.mjs,
+# run-ui-tests.mjs, ...) shows up in `git status` and can be added normally.
+# Files already tracked (some verify-*.mjs and theme-*.mjs) are unaffected.
+tests/ui/audit-*.mjs
+tests/ui/check-*.mjs
+tests/ui/cosmetic-*.mjs
+tests/ui/current-*.mjs
+tests/ui/debug-*.mjs
+tests/ui/diff-*.mjs
+tests/ui/flip-*.mjs
+tests/ui/fullaudit-*.mjs
+tests/ui/hold-*.mjs
+tests/ui/livepass-*.mjs
+tests/ui/make-*.mjs
+tests/ui/measure-*.mjs
+tests/ui/probe-*.mjs
+tests/ui/quick-*.mjs
+tests/ui/shot-*.mjs
+tests/ui/sweep-*.mjs
+tests/ui/ui-*.mjs
+tests/ui/visual-*.mjs
+tests/ui/verify-*.mjs
+tests/ui/theme-*.mjs
+tests/ui/_tmp_*
 
 # ---------- Runtime logs (written by Electron / npm scripts) ----------
 electron-launch.log
@@ -31,7 +52,7 @@ run-server.bat
 # ---------- tests/ui harness ----------
 # The shared harness lives in tests/ui/:
 #   README.md, lib/, fixtures/, run-ui-tests.*, theme-visual-sweep.*,
-#   verify-*.mjs/js  — all tracked.
+#   the tracked verify-*.mjs/js files (new ones stay local unless added with -f).
 # Everything below is run output, personal audit work, or one-off scripts
 # that belong only on the developer's own machine.
 
@@ -57,8 +78,8 @@ tests/ui/audit-*/
 tests/ui/audit-*.*
 
 # Personal/one-off verify scripts not part of the main harness
-# (.mjs ones are already caught by the global *.mjs rule above; these are
-# the .ps1 and .js variants that aren't)
+# (.mjs ones are caught by the explicit patterns above; these are the .ps1 and
+# .js variants that aren't)
 tests/ui/verify-music-*.ps1
 tests/ui/run-repeated-jump-test.ps1
 tests/ui/run-*-cadence-test.ps1

@@ -20,9 +20,20 @@ module.exports = {
   // file also retains a development fallback for running from the repo.
   extraFiles: ['run-server.bat', 'run-headless.bat'],
   asarUnpack: ['plugins/**'],
+  // Packaged-build hardening. The app starts its own helper processes with
+  // utilityProcess.fork() (plugin isolation, the splicer), never by running the
+  // exe as plain Node, so the exe cannot be turned into a general Node
+  // interpreter (ELECTRON_RUN_AS_NODE) or have --inspect / NODE_OPTIONS
+  // injected. Dev runs (`electron .`) are not affected.
+  electronFuses: {
+    runAsNode: false,
+    enableNodeCliInspectArguments: false,
+    enableNodeOptionsEnvironmentVariable: false,
+  },
   publish: {
     provider: 'github', owner: 'Zhubbs19', repo: 'RerunTV',
   },
+  // Windows is the only packaged platform (CI builds only the NSIS installer).
   win: { target: 'nsis', icon: 'build/icon.png' },
   nsis: {
     oneClick: false,
@@ -30,6 +41,4 @@ module.exports = {
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
   },
-  mac: { target: 'dmg', category: 'public.app-category.entertainment', icon: 'build/icon.png' },
-  linux: { target: 'AppImage', category: 'AudioVideo', icon: 'build/icon.png' },
 };

@@ -489,14 +489,14 @@ collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). Thi
 ```bash
 npm run pack    # reproducible unpacked release build from the tracked plugin allowlist
 npm run pack:personal # local build that also includes ignored plugins in this checkout
-npm run dist    # installer (nsis / dmg / AppImage)
+npm run dist    # Windows installer (NSIS)
 ```
 
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
 if no tests are discovered. The larger real-Electron/CDP suite lives under the tracked
 `tests/ui/` working directory; run it with
-`powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`. (The repo's `.gitignore`
-ignores `*.mjs`, so new harness files there need `git add -f`; see `tests/ui/README.md`.)
+`powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`. (Scratch scripts named
+`tests/ui/audit-*.mjs` or `tests/ui/_tmp_*` are gitignored; see `tests/ui/README.md`.)
 
 Release plugin contents are explicit in `build/bundled-plugins.json`; machine-local
 integrations cannot silently change the default artifact.

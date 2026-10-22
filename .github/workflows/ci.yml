@@ -26,3 +26,26 @@ jobs:
 
       - name: Unit and contract tests
         run: npm test
+
+  companion-rn:
+    name: Companion app (typecheck and tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion-rn
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion-rn/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test

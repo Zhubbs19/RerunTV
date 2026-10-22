@@ -15,6 +15,9 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
+    # Scorecard publishes a public score and can only read a public repository, so on a
+    # private copy it just fails ("repository not found"). Skip it there.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     permissions:
       security-events: write   # upload results to code scanning

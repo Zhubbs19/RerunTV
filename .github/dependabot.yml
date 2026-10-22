@@ -13,6 +13,14 @@ updates:
         update-types: [minor, patch]
     # Electron and electron-builder majors can break packaging and the preload
     # surface, so those arrive as their own pull requests to be reviewed by hand.
+  - package-ecosystem: npm
+    directory: /companion-rn
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
   - package-ecosystem: github-actions
     directory: /
     schedule:
