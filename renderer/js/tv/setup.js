@@ -7,6 +7,7 @@ import { sortedChannels } from '../core/channels.js';
 import { openHandoff } from './handoff.js';
 import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, cycleSleepTimer, refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { applyBakedBars } from '../playback/bars.js';
+import { pcShutdownAvailable, pcShutdownEnabled, setPcShutdownEnabled, setShutsDownPcWithBox, shutsDownPcWithBox } from '../playback/pc-power.js';
 import { themePackEntries } from '../plugin/host.js';
 import { S, commitConfigPatch, dispatch } from '../core/state.js';
 import { applyTheme } from '../display/themes.js';
@@ -221,6 +222,12 @@ function powerItems() {
     valueItem('STANDBY AFTER', () => `${standby().intervalMinutes || 15} MIN`, (d) => setSetting(['autoStandby', 'intervalMinutes'], stepNumber(standby().intervalMinutes || 15, d, { min: 15, max: 240, step: 15 }))),
     { label: 'SLEEP TIMER', keepOpen: true, run: () => cycleSleepTimer() },
     valueItem('KEEP DISPLAY AWAKE', () => onOff(S.config.keepDisplayAwake?.enabled !== false), () => { setSetting(['keepDisplayAwake', 'enabled'], S.config.keepDisplayAwake?.enabled === false); applyDisplayWakeLock(); }),
+    // Shutting the PC down (playback/pc-power.js): off until allowed here,
+    // and then optionally tied to the box's own power-off.
+    ...(pcShutdownAvailable() ? [
+      valueItem('ALLOW PC SHUTDOWN', () => onOff(pcShutdownEnabled()), () => setPcShutdownEnabled(!pcShutdownEnabled())),
+      ...(pcShutdownEnabled() ? [valueItem('POWER OFF SHUTS DOWN PC', () => onOff(shutsDownPcWithBox()), () => setShutsDownPcWithBox(!shutsDownPcWithBox()))] : []),
+    ] : []),
   ];
 }
 

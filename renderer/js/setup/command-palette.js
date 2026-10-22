@@ -9,6 +9,7 @@
 // setup-interstitials.js, setup-settings.js), so reusing it means this file
 // can't drift out of sync with what those buttons actually do.
 import { canUndo, canRedo, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
+import { confirmPcShutdown, pcShutdownEnabled } from '../playback/pc-power.js';
 
 // Set by setup-keyboard.js after undo/redo runs, so undo/redo chosen from the
 // search still re-renders the setup screen the same way the toolbar buttons
@@ -44,6 +45,8 @@ export function searchActions() {
     { label: 'Add an ad preset', hint: 'PROGRAMMING', run: click('presets-add-btn') },
     { label: 'Install a plugin from ZIP', hint: 'PLUG-INS', run: click('plugins-install-zip-btn') },
     { label: 'Run a health check', hint: 'SYSTEM', run: click('box-status-check-btn') },
+    // Only once SYSTEM › POWER allows it; it confirms and counts down first.
+    ...(pcShutdownEnabled() ? [{ label: 'Shut down this PC', hint: 'POWER', run: () => confirmPcShutdown(), keywords: 'shutdown computer turn off machine' }] : []),
     { label: 'Check for updates', hint: 'SYSTEM', run: click('check-updates-btn'), keywords: 'upgrade version' },
     { label: 'Snapshot the config now', hint: 'SYSTEM', run: click('backups-snapshot-now-btn'), keywords: 'backup' },
     { label: 'Export config…', hint: 'SYSTEM', run: click('config-export-btn'), keywords: 'backup save file' },

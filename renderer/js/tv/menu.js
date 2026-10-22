@@ -24,6 +24,7 @@ import {
   toggleMute, adjustVolume, toggleCrt, cyclePictureMode, cycleAspectMode,
   cycleSleepTimer, powerOff, toggleHintBar,
 } from '../playback/power.js';
+import { confirmPcShutdown, pcShutdownEnabled } from '../playback/pc-power.js';
 import { getClientId, MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
 import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } from './usage-mode.js';
 import { commitEntry, pushDigit, showSetupScreen } from '../app.js';
@@ -238,6 +239,8 @@ function tvRootItems() {
       ...(window.AndroidRemoteBridge && window.AndroidRemoteBridge.openClientSettings
         ? [{ label: 'TV CLIENT SETTINGS', run: () => window.AndroidRemoteBridge.openClientSettings() }] : []),
       { label: 'POWER OFF', run: () => powerOff() },
+      // Only once SYSTEM › POWER allows it (playback/pc-power.js); it asks first.
+      ...(pcShutdownEnabled() ? [{ label: 'SHUT DOWN PC', run: () => confirmPcShutdown() }] : []),
     ]),
   ];
 }
@@ -293,6 +296,7 @@ function actions() {
     { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
     { label: backExitsImmediately() ? 'BACK ASKS FIRST' : 'BACK EXITS AT ONCE', run: () => setBackExitsImmediately(!backExitsImmediately()) },
     { label: 'POWER OFF', run: () => powerOff() },
+    ...(pcShutdownEnabled() ? [{ label: 'SHUT DOWN PC', run: () => confirmPcShutdown() }] : []),
   ];
 }
 

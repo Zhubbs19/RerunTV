@@ -53,6 +53,10 @@
     // Host-only: ffmpeg measures files on the host's own disk.
     'getLoudness', 'prefetchLoudness', 'cancelLoudnessPrefetch', 'getLoudnessStatus',
     'getCrop', 'prefetchCrops', 'cancelCropPrefetch', 'getCropStatus',
+    // Host-only: only the machine running RerunTV can shut itself down. A LAN
+    // viewer never gets these; a paired companion remote goes through its own
+    // authenticated route instead.
+    'shutdownPc', 'cancelPcShutdown', 'getPcShutdownStatus', 'onPcShutdownChanged',
     // Host-only for the same reason: the Video Splicer cuts and joins files
     // on the host's disk, through the host's own file dialogs.
     'splicerCall', 'onSplicerJob',

@@ -97,6 +97,7 @@ const { registerFfmpegInstallIpc } = require('./media/ffmpeg-install');
 const { applyWindowUiScale, normalizeUiScalePreference } = require('./ui/scale');
 const { registerStartupServerIpc } = require('./lan/startup-server');
 const { registerHistoryIpc, flushHistoryNow } = require('./diagnostics/history');
+const { createShutdownController, registerShutdownIpc } = require('./system/shutdown');
 
 // A device that's already entered a LAN service's pairing code once stays
 // paired across restarts (createLanAccess's opts.sessionsFile/
@@ -489,6 +490,10 @@ async function bootApp() {
     }
     return found;
   };
+  // The companion remote's SHUT DOWN PC button (plugins/companion-app/main.js)
+  // starts and cancels the same countdown the host window uses, so neither
+  // side can lose track of the other's. Published before any plugin loads.
+  pluginServices.pcShutdown = pcShutdown;
   pluginServicesRef = pluginServices;
   setMediaDispatchServices(pluginServices);
   wireAppQuitPropagation();
@@ -764,6 +769,23 @@ ipcMain.handle('window:quit', async () => {
   app.quit();
   return true;
 });
+
+// ---------- PC shutdown (SYSTEM › POWER) ----------
+// main/system/shutdown.js owns the countdown and the OS command; this is only
+// the glue to config (the opt-in switch) and to the host window (a remote
+// starting or cancelling the countdown has to show on the TV too).
+const pcShutdown = createShutdownController({
+  isAllowed: () => {
+    try { const cfg = loadConfig(); return !!(cfg && cfg.pcPower && cfg.pcPower.enabled); } catch (e) { return false; }
+  },
+  onChange: (status) => {
+    const mainWindow = getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send('system:pcShutdownChanged', status);
+    }
+  },
+});
+registerShutdownIpc(ipcMain, pcShutdown);
 
 ipcMain.handle('window:setUiScale', async (event, preference) => {
   const mainWindow = getMainWindow();

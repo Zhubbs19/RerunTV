@@ -49,6 +49,7 @@ import { openTvMenu, handleTvMenuKey } from './tv/menu.js';
 import { initUsageMode, installTvScreenRule, isTvMode } from './tv/usage-mode.js';
 import { installAudioOutput } from './display/audio-output.js';
 import { installTvScreen } from './display/tv-screen.js';
+import { installPcPower } from './playback/pc-power.js';
 import { applyLeveler } from './playback/leveler.js';
 import { applyBakedBars } from './playback/bars.js';
 import { handleRecentKey, toggleRecentChannels } from './playback/recent-channels.js';
@@ -480,7 +481,7 @@ installTvSuggestion(() => document.documentElement.dataset.mode || 'desktop');
 // Samsung/LG TV browser's key registration and standby-on-hide.
 installGamepad({ isTvMode });
 installTvPlatform(window, document, {
-  standby: () => { if (S.isPoweredOn) powerOff(); },
+  standby: () => { if (S.isPoweredOn) powerOff({ reason: 'standby' }); },
   wake: () => { if (!S.isPoweredOn) powerOn(); },
 });
 // An explicit route back to live TV for remote clients. Escape remains a
@@ -1445,7 +1446,7 @@ async function init() {
     // a TV that's still off at boot puts it straight back in standby.
     await showTvScreen();
   }
-  if (!window.__isViewer && !window.__controlClient) installTvScreen();
+  if (!window.__isViewer && !window.__controlClient) { installTvScreen(); installPcPower(); }
 }
 
 // Keeps a LAN viewer's channel/block/interstitial data in sync with edits

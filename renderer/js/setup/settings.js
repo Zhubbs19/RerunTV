@@ -17,7 +17,8 @@ import { applyKeyHints } from '../core/key-remap.js';
 import { defaultForPath } from '../core/setting-defaults.js';
 import { renderHighlights } from '../update/highlights.js';
 import { getUsageModePreference, onUsageModeChange, setTvPreview, setUsageModePreference, usageMode, usageModeSource } from '../tv/usage-mode.js';
-import { installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
+import { SettingRow, installSettingDependencies, settingRowControl, settingRowSearchText, syncSettingDependencies } from '../ui/field.js';
+import { PC_SHUTDOWN_DELAY_SEC, pcShutdownAvailable, pcShutdownEnabled, setPcShutdownEnabled, setShutsDownPcWithBox, shutsDownPcWithBox } from '../playback/pc-power.js';
 import { searchActions } from './command-palette.js';
 import { searchUpcomingPrograms } from '../guide/program-search.js';
 import { viewNow } from '../core/state.js';
@@ -384,6 +385,7 @@ export function renderSettingsPanels() {
   renderEraPanel();
   if (keepDisplayAwakeEl) keepDisplayAwakeEl.checked = S.config.keepDisplayAwake?.enabled !== false;
   if (playbackResyncEnabledEl) playbackResyncEnabledEl.checked = S.config.playbackResync?.enabled !== false;
+  renderPcShutdownRows();
   noSignalTitleInput.value = S.config.display.noSignalTitle || '';
   noSignalMessageInput.value = S.config.display.noSignalMessage || '';
   renderThemeSelectOptions();
@@ -1174,6 +1176,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-22', items: [
+    'Shut down the PC from the box. SYSTEM › POWER has a new switch, off by default, that adds SHUT DOWN PC to the TV menu (desktop and TV mode) and a SHUT DOWN PC button to the companion remote. Both ask first, then count down 20 seconds on the screen and on the phone, with CANCEL on either. A second option makes the box’s own power-off (P, the remote’s power button, the TV menu) shut the computer down too; auto standby and the screen turning off never do.',
+  ] },
   { date: '2026-10-18', items: [
     'Volume leveler has a new CONSISTENT setting (PICTURE & SOUND › VOLUME). It levels every show and commercial to a slightly lower common volume, so quiet files are no longer stuck below loud ones when the master volume is high, loud ads are cut deeper, and a file is held back for the moment before its loudness is measured instead of blasting.',
   ] },
@@ -2235,6 +2240,50 @@ keepDisplayAwakeEl?.addEventListener('change', () => {
 playbackResyncEnabledEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['playbackResync', 'enabled'], value: playbackResyncEnabledEl.checked });
 });
+
+// ---------- PC shutdown (SYSTEM › POWER, playback/pc-power.js) ----------
+// Two kit rows (ui/field.js) after "Keep the display awake". Host window
+// only: a LAN viewer or control client has no window.api.shutdownPc, and the
+// rows simply do not exist there.
+const pcShutdownEnabledEl = document.createElement('input');
+pcShutdownEnabledEl.type = 'checkbox';
+pcShutdownEnabledEl.id = 'pc-shutdown-enabled';
+const pcShutdownWithBoxEl = document.createElement('input');
+pcShutdownWithBoxEl.type = 'checkbox';
+pcShutdownWithBoxEl.id = 'pc-shutdown-with-box';
+if (keepDisplayAwakeEl && pcShutdownAvailable()) {
+  const anchor = keepDisplayAwakeEl.closest('.setting-row');
+  const rows = [
+    SettingRow({
+      key: 'pc-shutdown-enabled',
+      label: 'Allow shutting down the PC from RerunTV',
+      control: pcShutdownEnabledEl,
+      help: `Adds SHUT DOWN PC to the TV menu and to the companion remote. It always counts down ${PC_SHUTDOWN_DELAY_SEC} seconds first, with CANCEL on the screen and on the remote.`,
+      synonyms: 'shut down shutdown computer turn off pc machine power windows remote',
+    }),
+    SettingRow({
+      key: 'pc-shutdown-with-box',
+      label: 'Shut down the PC when the box is turned off',
+      control: pcShutdownWithBoxEl,
+      dependsOn: 'pc-shutdown-enabled',
+      help: 'Power off (P, the remote’s power button or the TV menu) also shuts the computer down. Auto standby and the screen turning off never do.',
+      synonyms: 'shut down computer power key standby off',
+    }),
+  ];
+  rows.forEach((row) => row.setAttribute('data-simple-settings', ''));
+  if (anchor) anchor.after(...rows);
+  pcShutdownEnabledEl.addEventListener('change', () => {
+    setPcShutdownEnabled(pcShutdownEnabledEl.checked);
+    syncSettingDependencies(document);
+  });
+  pcShutdownWithBoxEl.addEventListener('change', () => setShutsDownPcWithBox(pcShutdownWithBoxEl.checked));
+}
+
+function renderPcShutdownRows() {
+  pcShutdownEnabledEl.checked = pcShutdownEnabled();
+  pcShutdownWithBoxEl.checked = shutsDownPcWithBox();
+  syncSettingDependencies(document);
+}
 
 // ---------- Config backups (AUDIO & SYSTEM tab) ----------
 // See main.js's backupCurrentConfig/listBackups/restoreBackup — rotating,

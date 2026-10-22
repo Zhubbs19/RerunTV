@@ -1987,3 +1987,19 @@ body:has(.crt.power-off) .track-card { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .track-card { transition: opacity 200ms linear; transform: none; }
 }
+
+/* PC shutdown countdown (playback/pc-power.js): the kit's danger dialog with a
+   large count, sized to read from a couch. Sits above the powered-off tube. */
+.pc-shutdown-overlay { z-index: 320; }
+.pc-shutdown-box { align-items: center; text-align: center; min-width: min(420px, 90%); }
+.pc-shutdown-count {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 9vw, 120px);
+  line-height: 1;
+  color: var(--danger);
+  letter-spacing: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.pc-shutdown-actions { justify-content: center; width: 100%; }
+.pc-shutdown-actions .btn, .pc-shutdown-actions button { min-width: 160px; }
+html[data-mode="tv"] .pc-shutdown-box .confirm-dialog-message { font-size: 16px; }

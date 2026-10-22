@@ -108,7 +108,7 @@ function onScreenPower({ state } = {}) {
   if (state === 'lost') {
     if (getScreenOffAction() !== 'standby' || !S.isPoweredOn) return;
     standbyFromScreen = true;
-    powerOff();
+    powerOff({ reason: 'screen' });
   } else if (state === 'returned') {
     const wake = standbyFromScreen && !S.isPoweredOn;
     standbyFromScreen = false;

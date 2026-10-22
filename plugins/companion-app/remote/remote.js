@@ -575,7 +575,38 @@
     else if (action === 'trigger-trivia') request('/party/trivia/start', { method: 'POST' }).then(function () { feedback('TRIVIA TRIGGERED'); }).catch(function () { feedback('TRIVIA FAILED', true); });
     else if (action === 'ticker-on' || action === 'ticker-off') request('/ticker/set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: document.getElementById('ticker-text').value, enabled: action === 'ticker-on' }) }).then(function () { feedback(action === 'ticker-on' ? 'TICKER ON' : 'TICKER OFF'); }).catch(function () { feedback('TICKER UPDATE FAILED', true); });
     else if (action === 'send-hotkey') { var key = document.getElementById('custom-hotkey').value; if (key) sendCommand({ dataset: { key: key }, textContent: key.toUpperCase() }); }
+    else if (action === 'shutdown-pc') {
+      // Asks on the phone (data-confirm); the box starts the countdown
+      // without asking again, and the next /state poll shows it here.
+      if (!confirmed(button)) return;
+      request('/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'shutdown-pc' }) })
+        .then(function (result) { applyPcShutdown(result && result.pcShutdown); feedback('SHUTTING DOWN THE PC'); })
+        .catch(function (err) { feedback(/switched off/i.test(String(err && err.message)) ? 'NOT ALLOWED ON THE BOX' : 'COULD NOT SHUT DOWN', true); });
+    } else if (action === 'cancel-pc-shutdown') {
+      request('/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cancel-pc-shutdown' }) })
+        .then(function (result) { applyPcShutdown(result && result.pcShutdown); feedback('SHUTDOWN CANCELLED'); })
+        .catch(function () { feedback('COULD NOT CANCEL', true); });
+    }
   });
+
+  // ---------- PC shutdown countdown ----------
+  // The box reports the countdown in every /state poll (pcShutdown: {
+  // allowed, pending, at }). The notice counts down locally between polls
+  // from the deadline, so it never looks frozen at a 1.5 s poll.
+  var pcShutdown = { allowed: false, pending: false, at: null };
+  var pcShutdownTimer = null;
+  function renderPcShutdownCount() {
+    var remaining = pcShutdown.pending && pcShutdown.at ? Math.max(0, Math.ceil((pcShutdown.at - Date.now()) / 1000)) : 0;
+    document.getElementById('pc-shutdown-count').textContent = String(remaining);
+  }
+  function applyPcShutdown(status) {
+    pcShutdown = status && typeof status === 'object' ? status : { allowed: false, pending: false, at: null };
+    document.getElementById('pc-shutdown-actions').hidden = !pcShutdown.allowed;
+    var notice = document.getElementById('pc-shutdown-notice');
+    notice.hidden = !pcShutdown.pending;
+    clearInterval(pcShutdownTimer); pcShutdownTimer = null;
+    if (pcShutdown.pending) { renderPcShutdownCount(); pcShutdownTimer = setInterval(renderPcShutdownCount, 250); }
+  }
 
   // ---------- Live box state -> the controls that change it ----------
   // The box reports mute, volume, CRT, picture/aspect/audio mode and the
@@ -703,6 +734,7 @@
       }
       applyBoxState(remoteState);
       applySettingsResult(remoteState.settingsResult);
+      applyPcShutdown(remoteState.pcShutdown);
     }).catch(function () {
       document.getElementById('live-status').dataset.state = 'offline';
       document.getElementById('now-watching').textContent = 'DISCONNECTED';

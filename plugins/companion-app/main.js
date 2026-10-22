@@ -314,6 +314,27 @@ async function activate(ctx) {
     if (req.method === 'POST' && url.pathname === '/command') {
       try {
         const body = await readJsonBody(req);
+        if (body?.action === 'shutdown-pc' || body?.action === 'cancel-pc-shutdown') {
+          // Shutting the PC down (main/system/shutdown.js, published by core
+          // as ctx.services.pcShutdown). Goes straight to the controller, not
+          // through the renderer: a headless box has none, and the countdown
+          // is the main process's anyway. The phone has confirmed already.
+          // access.authorize above has already required a paired session;
+          // the controller itself refuses while SYSTEM › POWER has it off,
+          // so a remote can never shut down a box whose owner never opted in.
+          const power = ctx.services.pcShutdown;
+          if (!power || typeof power.schedule !== 'function') {
+            res.writeHead(503, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: 'This box cannot shut the PC down.' }));
+            return;
+          }
+          const status = body.action === 'shutdown-pc' ? power.schedule({ source: 'remote' }) : power.cancel();
+          if (body.action === 'shutdown-pc' && !status.pending) {
+            res.writeHead(403, { 'Content-Type': 'application/json' }).end(JSON.stringify({ error: status.error || 'Shutting down the PC is switched off in SYSTEM › POWER.', pcShutdown: status }));
+            return;
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }).end(JSON.stringify({ pcShutdown: status }));
+          return;
+        }
         if (body?.action === 'watch-tv') {
           sendToMainWindow('remote:command', { action: 'watch-tv' });
         } else if (body && typeof body.key === 'string') {
@@ -332,8 +353,13 @@ async function activate(ctx) {
     }
 
     if (req.method === 'GET' && url.pathname === '/state') {
+      // pcShutdown rides along from the main process's own controller (see
+      // POST /command above), so the phone shows the countdown whoever
+      // started it, and hides its button while the box has the feature off.
+      const power = ctx.services.pcShutdown;
+      const pcShutdown = power && typeof power.status === 'function' ? power.status() : null;
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
-        .end(JSON.stringify(currentRemoteState()));
+        .end(JSON.stringify({ ...currentRemoteState(), pcShutdown }));
       return;
     }
 

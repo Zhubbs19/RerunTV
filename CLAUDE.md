@@ -173,7 +173,9 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `updater/` (`updater.js` via electron-updater, `state.js` pure history/version-transition helpers,
   `api-cache.js`), `diagnostics/` (`diagnostics.js` bounded/redacted logging for the support-bundle
   export, `history.js` viewing log), `library/` (store/scan/identity/migrate/service), `personal/`,
-  `ui/` (dialogs, scale, screen placement, CEC), and `util/` (`http.js`, `path-safety.js`).
+  `ui/` (dialogs, scale, screen placement, CEC), `system/` (`shutdown.js`, the opt-in PC-shutdown
+  countdown behind SYSTEM › POWER, the TV menu's SHUT DOWN PC and the companion remote's button; its
+  renderer half is `renderer/js/playback/pc-power.js`), and `util/` (`http.js`, `path-safety.js`).
 - `main/splicer/` — the Video Splicer (setup › LIBRARY › SPLICER): command-line scripts
   (`splice.js`, `combine.js`) run in an Electron utility process by `service.js`, which
   queues runs and streams their output to `renderer/js/setup/splicer.js`. The cut editor's

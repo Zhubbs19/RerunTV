@@ -19,6 +19,7 @@ export const HIGHLIGHTS = [
   { id: 'recent', title: 'Recent channels and start over', text: 'Shift+Backspace lists the last channels you watched; J restarts the show on screen.', tab: 'help', subtab: 'shortcuts' },
   { id: 'cabinet', title: 'The music cabinet', text: 'On the music channel press OK, then CABINET: a CD rack or record crate of every album, with covers, favourites and search by artist.', tab: 'plugins', subtab: 'installed' },
   { id: 'leveler-consistent', title: 'A steadier volume leveler', text: 'CONSISTENT brings every show and ad down to one level, cuts loud ads deeper, and holds a file back until it has been measured.', tab: 'display', subtab: 'sound', setting: 'audio-leveler' },
+  { id: 'pc-shutdown', title: 'Shut down the PC from the couch', text: 'Switch it on under SYSTEM › POWER: SHUT DOWN PC joins the TV menu and the companion remote, with a 20-second countdown you can cancel, and power-off can take the PC down with it.', tab: 'audio', subtab: 'system', setting: 'pc-shutdown-enabled' },
   { id: 'presets', title: 'Channel presets', text: 'Build a whole channel from a preset such as MUSIC VIDEOS or CHRISTMAS TV, or make your own: what plays, when, and which ads, with no file paths.', tab: 'library', subtab: 'librarypresets' },
 ];
 

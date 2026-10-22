@@ -70,3 +70,15 @@ html:not([data-companion-scale="100"]) .action-grid,html:not([data-companion-sca
 .file-text small{display:block;margin-top:2px;color:var(--dim);font-size:10px;font-weight:400;letter-spacing:.05em}
 .file-row a{flex:0 0 auto;margin-left:10px;min-height:44px;display:flex;align-items:center;padding:0 10px}
 .empty .mini{margin-top:10px}
+
+/* ---------- PC shutdown countdown ---------- */
+/* Pinned above the hero controls while the box counts down, whoever started
+   it; CANCEL is the one thing the viewer wants to reach in that moment. */
+.pc-shutdown-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;padding:12px 14px;border:1px solid var(--red);border-radius:9px;background:#1d0f0d;box-shadow:0 0 0 1px rgba(230,91,79,.25),0 8px 24px var(--shadow)}
+.pc-shutdown-notice[hidden]{display:none}
+.pc-shutdown-notice span{display:block;color:#ffaaa3;font-size:10px;font-weight:800;letter-spacing:.17em}
+.pc-shutdown-notice strong{display:block;margin-top:2px;color:var(--text);font-size:14px;letter-spacing:.08em}
+.pc-shutdown-notice b{color:var(--red);font-size:22px;font-variant-numeric:tabular-nums}
+.pc-shutdown-notice button{flex:0 0 auto;min-width:96px}
+#pc-shutdown-actions{margin-top:8px}
+#pc-shutdown-actions[hidden]{display:none}

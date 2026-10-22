@@ -305,6 +305,7 @@ const SETTING_LABELS = {
   customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
   controls: 'tuning & controls', keyMap: 'keyboard shortcuts', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
+  pcPower: 'PC power',
 };
 const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));
 

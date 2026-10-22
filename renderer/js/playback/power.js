@@ -17,6 +17,7 @@ import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
 import { levelerGain } from './leveler.js';
 import { currentBakedCrop, currentPictureCrop } from './bars.js';
+import { shutsDownPcWithBox, startPcShutdown } from './pc-power.js';
 
 // Three layers multiply together: the master volume (0-1, the existing +/-
 // keys), a per-channel override (ch.volume, null = inherit 1x — for a
@@ -850,7 +851,12 @@ export function applyDisplayWakeLock() {
   Promise.resolve(window.api.setKeepDisplayAwake(wanted)).catch(() => {});
 }
 
-export function powerOff() {
+// `reason` says who is switching the box off: 'user' (the power key, the
+// remote's power button, the TV menu — the default), 'standby' (auto standby,
+// a TV platform hiding the page) or 'screen' (following the TV's power,
+// display/tv-screen.js). Only a deliberate power-off can take the PC down
+// with it (SYSTEM › POWER, playback/pc-power.js).
+export function powerOff({ reason = 'user' } = {}) {
   if (!S.isPoweredOn) return;
   S.isPoweredOn = false;
   applyDisplayWakeLock();
@@ -892,6 +898,7 @@ export function powerOff() {
     crtContainer.classList.add('power-off');
   }, POWER_OFF_ANIM_MS);
   pushRemoteState();
+  if (reason === 'user' && shutsDownPcWithBox()) startPcShutdown({ source: 'power-off', poweredOffBox: true });
 }
 
 export function powerOn() {

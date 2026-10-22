@@ -507,8 +507,12 @@ module.exports = { activate };
   executable).
 - `services` — a shared object other main-process plugins can publish
   capabilities onto and you can read from (e.g. `ctx.services.ffmpegPath`,
-  published by the ffmpeg-transcode plugin). Check for existence before
-  using anything on it — a plugin you depend on may be disabled or missing.
+  published by the ffmpeg-transcode plugin, or `ctx.services.pcShutdown`,
+  core's PC-shutdown countdown — `schedule({ source })`, `cancel()`,
+  `status()` — which refuses until the user switches it on under SYSTEM ›
+  POWER, so only put it behind an authenticated, confirmed control). Check
+  for existence before using anything on it — a plugin you depend on may be
+  disabled or missing.
 - A handful of app-specific helpers plugins have found useful:
   `getMainWindow`, `sendToMainWindow`, `getLanAddresses`, `fetchJsonCached`, `readJsonBody`,
   `serveStatic`, `loadConfig`, `trackConnection`, `mimeFor`. These aren't a stable

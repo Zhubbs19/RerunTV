@@ -120,6 +120,14 @@ contextBridge.exposeInMainWorld('api', {
   },
   toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
   quitApp: () => ipcRenderer.invoke('window:quit'),
+  // SYSTEM › POWER's "Shut down this PC" (playback/pc-power.js). The countdown
+  // runs in the main process (main/system/shutdown.js) so the companion
+  // remote can start or cancel the same one; onPcShutdownChanged is how the
+  // window hears about that.
+  shutdownPc: (opts) => ipcRenderer.invoke('system:shutdownPc', opts),
+  cancelPcShutdown: () => ipcRenderer.invoke('system:cancelPcShutdown'),
+  getPcShutdownStatus: () => ipcRenderer.invoke('system:pcShutdownStatus'),
+  onPcShutdownChanged: (cb) => ipcRenderer.on('system:pcShutdownChanged', (event, status) => cb(status)),
   // App-wide display mode's "lock window" mode (display-mode.js) — locks/
   // unlocks the real OS window's aspect ratio. aspect: null clears the lock.
   setAspectLock: (aspect) => ipcRenderer.invoke('window:setAspectLock', { aspect }),

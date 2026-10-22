@@ -24,6 +24,9 @@
   </nav>
   <main class="app-shell">
     <section class="tab-panel active" role="tabpanel" id="panel-remote" aria-labelledby="tab-remote" data-panel="remote">
+      <!-- Shown while the PC is counting down to shutdown, whoever started it
+           (this phone, the TV menu, or the box's power-off). -->
+      <div id="pc-shutdown-notice" class="pc-shutdown-notice" role="alert" hidden><div><span>THE PC IS SHUTTING DOWN</span><strong><b id="pc-shutdown-count">20</b> SECONDS</strong></div><button class="primary" data-action="cancel-pc-shutdown">CANCEL</button></div>
       <div class="hero-controls">
         <button class="control danger" data-key="p"><span>POWER</span><b>⏻</b></button><button class="control" data-key="m" data-live="muted"><span>MUTE</span><b>◖</b><i class="control-state" data-live-text="muted"></i></button><button class="control" data-key="g"><span>GUIDE</span><b>▦</b></button><button class="control" data-key="i"><span>INFO</span><b>i</b></button>
       </div>
@@ -67,6 +70,8 @@
         <details class="more-actions">
           <summary>SET UP THE BOX</summary>
           <div class="action-grid compact"><button data-key="Escape">BACK</button><button data-key="?">TV MENU</button><button data-key="s">SETUP</button><button data-key="h">HINT BAR</button><button data-key="o">OVERLAY EDITOR</button><button data-key="f">FULLSCREEN</button></div>
+          <!-- Only while the box allows it (SYSTEM › POWER); hidden otherwise. -->
+          <div class="action-grid compact" id="pc-shutdown-actions" hidden><button class="danger" data-action="shutdown-pc" data-confirm="Shut down the computer running RerunTV? It turns off after a 20-second countdown you can cancel.">SHUT DOWN PC</button></div>
         </details>
       </article>
     </section>
