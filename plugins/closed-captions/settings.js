@@ -4,9 +4,10 @@ window.RCBPlugins.registerPluginSettings('closed-captions', {
   sections: [{
     id: 'general',
   render(container, ctx) {
-    if (!ctx.S.config.closedCaptions) ctx.S.config.closedCaptions = { enabled: false };
-    const c = ctx.S.config.closedCaptions;
-    if (!c.sizeScale) c.sizeScale = 1;
+    // Edited through ctx.settings (labelled undo steps); c is the same live object, for reading.
+    const c = ctx.settings.ensureLegacyConfig('closed-captions', { enabled: false });
+    if (!c.sizeScale) c.sizeScale = 1; // default for display only; saved with the next real edit
+    const update = (patch, opts) => { ctx.settings.updateLegacyConfig('closed-captions', patch, opts); applyCaptionStyle(); };
     container.innerHTML = `
       <label class="panel-toggle">
         <input type="checkbox" id="cc-plugin-enabled">
@@ -56,7 +57,6 @@ window.RCBPlugins.registerPluginSettings('closed-captions', {
       setCaptionsEnabled(enabledEl.checked);
     });
     const q = (el) => container.querySelector(`[data-el="${el}"]`);
-    const commit = () => { ctx.saveConfigDebounced(); applyCaptionStyle(); };
     q('lang').value = c.language || 'eng';
     q('position').value = c.position === 'top' ? 'top' : 'bottom';
     q('color').value = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : '#ffffff';
@@ -66,20 +66,16 @@ window.RCBPlugins.registerPluginSettings('closed-captions', {
     const showBg = () => { q('bg-value').textContent = Number.isFinite(c.bgOpacity) ? `${c.bgOpacity}%` : 'THEME'; };
     q('bg').value = Number.isFinite(c.bgOpacity) ? c.bgOpacity : 75;
     showBg();
-    q('lang').addEventListener('change', () => { c.language = q('lang').value.trim().toLowerCase() || 'eng'; commit(); });
-    q('position').addEventListener('change', () => { c.position = q('position').value; commit(); });
-    q('color').addEventListener('input', () => { c.color = q('color').value; commit(); });
-    q('color-reset').addEventListener('click', () => { delete c.color; q('color').value = '#ffffff'; commit(); });
-    q('font').addEventListener('change', () => { if (q('font').value) c.font = q('font').value; else delete c.font; commit(); });
-    q('edge').addEventListener('change', () => { if (q('edge').value) c.edge = q('edge').value; else delete c.edge; commit(); });
-    q('caps').addEventListener('change', () => { c.allCaps = q('caps').checked; commit(); });
-    q('bg').addEventListener('input', () => { c.bgOpacity = parseInt(q('bg').value, 10); showBg(); commit(); });
-    q('bg-reset').addEventListener('click', () => { delete c.bgOpacity; showBg(); commit(); });
-    sizeEl.addEventListener('change', () => {
-      c.sizeScale = parseFloat(sizeEl.value) || 1;
-      ctx.saveConfigDebounced();
-      applyCaptionStyle();
-    });
+    q('lang').addEventListener('change', () => { update({ language: q('lang').value.trim().toLowerCase() || 'eng' }); });
+    q('position').addEventListener('change', () => { update({ position: q('position').value }); });
+    q('color').addEventListener('input', () => { update({ color: q('color').value }); });
+    q('color-reset').addEventListener('click', () => { update({ color: undefined }); q('color').value = '#ffffff'; });
+    q('font').addEventListener('change', () => { update({ font: q('font').value || undefined }); });
+    q('edge').addEventListener('change', () => { update({ edge: q('edge').value || undefined }); });
+    q('caps').addEventListener('change', () => { update({ allCaps: q('caps').checked }); });
+    q('bg').addEventListener('input', () => { update({ bgOpacity: parseInt(q('bg').value, 10) }); showBg(); });
+    q('bg-reset').addEventListener('click', () => { update({ bgOpacity: undefined }); showBg(); });
+    sizeEl.addEventListener('change', () => { update({ sizeScale: parseFloat(sizeEl.value) || 1 }); });
     },
   }],
 });

@@ -29,6 +29,7 @@ import { freshChannel, mediaRefId, newInterstitialPoolEntry } from '../core/chan
 import { confirmDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
 import { commitOwnerFields, probeDurationForEntry } from './util.js';
+import { basename, plural } from '../core/util.js';
 import { renderChannelList } from './channels.js';
 import {
   addCut, clipsOf, counts, createModel, episodeNames, keptCuts, mergeWithNext, moveCut, planFor, setClipMeta, setKept,
@@ -140,8 +141,6 @@ export function countByCategory(segments) {
   return out;
 }
 
-const plural = (n, one, many = `${one}s`) => `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
-const basename = (p) => String(p || '').split(/[\\/]/).pop();
 const dirname = (p) => String(p || '').replace(/[\\/][^\\/]*$/, '');
 
 function categorySummary(c) {

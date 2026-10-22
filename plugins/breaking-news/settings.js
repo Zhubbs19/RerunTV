@@ -4,8 +4,10 @@ window.RCBPlugins.registerPluginSettings('breaking-news', {
   sections: [{
     id: 'general',
   render(container, ctx) {
-    if (!ctx.S.config.breakingNews) ctx.S.config.breakingNews = {};
-    const cfg = ctx.S.config.breakingNews;
+    // The section is edited through ctx.settings (labelled undo steps), not by
+    // assigning to ctx.S.config; cfg is the same live object, kept for reading.
+    const cfg = ctx.settings.ensureLegacyConfig('breaking-news');
+    const update = (patch) => ctx.settings.updateLegacyConfig('breaking-news', patch);
     container.innerHTML = `
       <label class="panel-toggle"><input type="checkbox" data-el="enabled">BREAKING NEWS ALERTS</label>
       <div class="panel-body">
@@ -64,30 +66,25 @@ window.RCBPlugins.registerPluginSettings('breaking-news', {
     renderHeadlinesList(container, cfg, ctx.saveConfigDebounced);
 
     enabledEl.addEventListener('change', () => {
-      cfg.enabled = enabledEl.checked;
+      update({ enabled: enabledEl.checked });
       scheduleNextNewsAlert();
-      ctx.saveConfigDebounced();
     });
     intervalEl.addEventListener('change', () => {
       const n = parseInt(intervalEl.value, 10);
-      cfg.intervalMinutes = (Number.isFinite(n) && n > 0) ? n : 30;
+      update({ intervalMinutes: (Number.isFinite(n) && n > 0) ? n : 30 });
       scheduleNextNewsAlert();
-      ctx.saveConfigDebounced();
     });
-    styleEl.addEventListener('change', () => { cfg.style = styleEl.value; ctx.saveConfigDebounced(); });
-    positionEl.addEventListener('change', () => { cfg.position = positionEl.value; ctx.saveConfigDebounced(); });
+    styleEl.addEventListener('change', () => { update({ style: styleEl.value }); });
+    positionEl.addEventListener('change', () => { update({ position: positionEl.value }); });
     durationEl.addEventListener('change', () => {
       const n = parseInt(durationEl.value, 10);
-      cfg.durationSec = (Number.isFinite(n) && n > 0) ? n : 15;
-      ctx.saveConfigDebounced();
+      update({ durationSec: (Number.isFinite(n) && n > 0) ? n : 15 });
     });
-    stingerEl.addEventListener('change', () => { cfg.soundStinger = stingerEl.checked; ctx.saveConfigDebounced(); });
-    voiceoverEl.addEventListener('change', () => { cfg.voiceover = voiceoverEl.checked; ctx.saveConfigDebounced(); });
+    stingerEl.addEventListener('change', () => { update({ soundStinger: stingerEl.checked }); });
+    voiceoverEl.addEventListener('change', () => { update({ voiceover: voiceoverEl.checked }); });
     q('add-headline').addEventListener('click', () => {
-      if (!cfg.headlines) cfg.headlines = [];
-      cfg.headlines.push('');
+      update({ headlines: [...(cfg.headlines || []), ''] });
       renderHeadlinesList(container, cfg, ctx.saveConfigDebounced);
-      ctx.saveConfigDebounced();
     });
     q('test').addEventListener('click', () => runBreakingNewsAlert({ manual: true }));
     },

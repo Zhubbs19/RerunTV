@@ -12,6 +12,26 @@ import { NumberStepper, Select, Slider, Toggle } from '../ui/controls.js';
 import { SettingRow, syncSettingDependencies } from '../ui/field.js';
 import { h } from '../ui/kit-core.js';
 
+// A plugin's settings markup is its own, and many controls are written as
+// bare text followed by a <select>/<input> with nothing tying them together.
+// Give every control that has no accessible name one: the text of its row
+// (the nearest .panel-interval / .block-row / label, minus other controls'
+// values), else its data-el. Re-run as the section redraws parts of itself.
+export function labelUnlabeledControls(root) {
+  root.querySelectorAll('input, select, textarea').forEach((el) => {
+    if (el.type === 'hidden' || el.getAttribute('aria-label') || el.getAttribute('aria-labelledby') || el.title) return;
+    if (el.id && root.querySelector(`label[for="${CSS.escape(el.id)}"]`)) return;
+    const wrapping = el.closest('label');
+    if (wrapping && wrapping.textContent.trim()) return;
+    const row = el.closest('.panel-interval, .block-row, .setting-row, .field') || el.parentElement;
+    const clone = row ? row.cloneNode(true) : null;
+    if (clone) clone.querySelectorAll('input, select, textarea, button, option, .panel-status').forEach((n) => n.remove());
+    const text = clone ? clone.textContent.replace(/\s+/g, ' ').trim() : '';
+    const fallback = (el.dataset.el || el.name || el.type || 'value').replace(/[-_]+/g, ' ');
+    el.setAttribute('aria-label', (text || fallback).slice(0, 80).toLowerCase());
+  });
+}
+
 // ---------- Declarative fields (docs/design/04 §5) ----------
 // A section's fields become SettingRows of kit controls. Each change writes
 // one dotted path through updatePluginSettings, so the plugin's validate()
@@ -210,6 +230,13 @@ export function renderPluginSettings(container, plugin, channelDefinition, secti
     try {
       if (section.fields && !section.render) { renderFieldsSection(target, plugin.id, section); return; }
       const result = section.render(target, makeContext());
+      labelUnlabeledControls(target);
+      let labelQueued = false;
+      new MutationObserver(() => {
+        if (labelQueued) return;
+        labelQueued = true;
+        queueMicrotask(() => { labelQueued = false; labelUnlabeledControls(target); });
+      }).observe(target, { childList: true, subtree: true });
       // An async render rejects rather than throwing, so the catch below
       // never sees it: the section silently rendered nothing and the real
       // error went to an unhandled rejection. Found exactly that way — two

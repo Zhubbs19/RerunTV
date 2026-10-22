@@ -22,7 +22,7 @@
 // session opens with that target already selected (panels.js uses it for the
 // ticker bar).
 import { S, commitInPlace } from '../core/state.js';
-import { deepClone } from '../core/util.js';
+import { clamp, deepClone } from '../core/util.js';
 
 let profileIdCounter = 0;
 function newProfileId() { return `p${Date.now().toString(36)}${(profileIdCounter++).toString(36)}`; }
@@ -39,7 +39,6 @@ function el(tag, props = {}, ...children) {
 }
 
 const round1 = (value) => Math.round(value * 10) / 10;
-const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
 
 // What an element shows when it is empty (most badges only exist while
 // something is airing), so it can be placed without waiting for that.

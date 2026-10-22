@@ -563,7 +563,8 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
   padding: 7px 12px;
 }
 .guide-search::placeholder { color: var(--text-muted); opacity: 0.7; }
-.guide-search:focus { outline: none; border-color: var(--accent); }
+/* A border-colour change alone can fall under 3:1 against the field, so the focus state also draws a ring. */
+.guide-search:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .guide-view-btn {
   background: var(--surface-0);
   border: 1px solid var(--border);
@@ -578,6 +579,7 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
   cursor: pointer;
 }
 .guide-view-btn:hover, .guide-view-btn:focus-visible, .guide-view-btn.active { color: var(--text); border-color: var(--accent); outline: none; }
+.guide-view-btn:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
 
 .guide-daterange {
   font-family: var(--font-ui);

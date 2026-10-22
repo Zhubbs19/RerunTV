@@ -60,17 +60,24 @@ export function runScheduledCuration() {
   // airing right now" calculations.
   const now = Date.now();
   const appliedNames = [];
+  let ranAny = false;
   profiles.forEach((profile) => {
     if (!isDue(profile, now)) return;
     const proposal = curateChannel(profile, now);
     profile.lastRunAt = now;
+    ranAny = true;
     if (proposal.targetMissing) return;
     const hasContent = proposal.channelPatch.files.length > 0 || proposal.newInterstitialEntries.length > 0;
     if (!hasContent) return;
     applyCurationProposal(proposal);
     appliedNames.push(profile.name || `channel ${proposal.channelNumber}`);
   });
-  if (!appliedNames.length) return;
+  if (!appliedNames.length) {
+    // A due run that found nothing still advanced lastRunAt in place; persist it
+    // (no undo step, nothing visible changed) or it would re-run on every restart.
+    if (ranAny) commitConfigPatch('Scheduled curation (no changes)', { skipUndo: true });
+    return;
+  }
   commitConfigPatch(`Scheduled curation: ${appliedNames.join(', ')}`);
   if (setupVisible()) {
     renderChannelList();

@@ -17,17 +17,19 @@ import {
   interstitialsBulkTagInputEl, interstitialsBulkToggleBtn, interstitialsDetailEl,
   interstitialsFilterChannelEl, interstitialsFilterTypeEl, interstitialsListEl, interstitialsSearchEl,
   preemptionWindowsEditorEl, presetsAddBtn, presetsDetailEl, presetsListEl, presetsSearchEl,
-  scanProgressEl, standbyEnabledEl, standbyIntervalEl, player,
+  standbyEnabledEl, standbyIntervalEl, player,
 } from '../core/dom.js';
-import { getMediaSourcePicker } from '../plugin/host.js';
 import { blockPickerLabel } from './schedule.js';
 import {
   attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, buildPreemptionWindowsEditor,
-  emptyState, parsePositiveInt, probeDuration, probeDurationForEntry,
+  emptyState, parsePositiveInt, probeDuration, probeDurationForEntry, showScanStatus, hideScanStatus, hideScanStatusAfter, safeApi,
 } from './util.js';
 import { S, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
-import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
-import { basenameNoExt } from '../core/util.js';
+import {
+  buildProviderSelect, ensureMediaSourceProvidersLoaded, getMediaSourceProviders, pickFolderRefForProvider,
+} from './media-sources.js';
+import { alertDialog, confirmDialog } from './dialogs.js';
+import { basenameNoExt, debounce } from '../core/util.js';
 import { MenuButton } from '../ui/menu.js';
 
 // ---------- Media sources (import bumpers/ads from a plugin folder) ----------
@@ -38,34 +40,11 @@ import { MenuButton } from '../ui/menu.js';
 // one channel's files, and (pickSingleFileFromProvider below) letting a
 // single bumper/ad/promo entry point at exactly one plugin-sourced file
 // instead of only ever a local one.
-let cachedMediaSourceProviders = [];
-let mediaSourceProvidersFetchStarted = false;
-function ensureMediaSourceProvidersLoaded() {
-  if (mediaSourceProvidersFetchStarted) return;
-  mediaSourceProvidersFetchStarted = true;
-  window.api.listMediaSourceProviders().then((providers) => {
-    if (!providers || !providers.length) return;
-    cachedMediaSourceProviders = providers;
-    renderMediaSourceImportControl();
-    renderInterstitialsList(); // re-render so already-drawn entries pick up the IMPORT FROM SOURCE option
-  }).catch(() => {}); // no providers active — every control just stays local-only, same as before this existed
-}
-ensureMediaSourceProvidersLoaded();
-
-async function pickFolderRefForProvider(providerId) {
-  const providerInfo = cachedMediaSourceProviders.find((p) => p.providerId === providerId);
-  const label = providerInfo ? providerInfo.displayName : providerId;
-  const renderedPicker = getMediaSourcePicker(providerId);
-  if (renderedPicker) return renderedPicker();
-  try {
-    return await window.api.callMediaSourceHook(providerId, 'pickFolder');
-  } catch (err) {
-    return promptDialog({
-      title: `${label.toUpperCase()} FOLDER`,
-      message: `Enter a folder reference for ${label} (this provider has no picker UI of its own):`,
-    });
-  }
-}
+// The provider list, its fetch and the folder picker are shared with channels.js (media-sources.js).
+ensureMediaSourceProvidersLoaded(() => {
+  renderMediaSourceImportControl();
+  renderInterstitialsList(); // re-render so already-drawn entries pick up the IMPORT FROM SOURCE option
+});
 
 // A breadcrumb-free "pick one" list — unlike a channel's folder scan (which
 // wants every file), a single bumper/ad/promo slot wants exactly one, so a
@@ -134,17 +113,16 @@ function pickOneFromList(refs, labels) {
 async function pickSingleFileFromProvider(providerId) {
   const folderRef = await pickFolderRefForProvider(providerId);
   if (!folderRef) return null;
-  scanProgressEl.classList.remove('hidden');
-  scanProgressEl.textContent = 'SCANNING…';
+  showScanStatus('SCANNING…');
   let refs;
   try {
     refs = await window.api.scanFolder(providerId, folderRef);
   } catch (err) {
-    scanProgressEl.textContent = `COULDN'T REACH THAT SOURCE: ${(err && err.message) || 'unknown error'}`;
-    setTimeout(() => scanProgressEl.classList.add('hidden'), 3000);
+    showScanStatus(`COULDN'T REACH THAT SOURCE: ${(err && err.message) || 'unknown error'}`);
+    hideScanStatusAfter(3000);
     return null;
   }
-  scanProgressEl.classList.add('hidden');
+  hideScanStatus();
   if (!refs || !refs.length) {
     await alertDialog({ title: 'NO FILES FOUND', message: 'That folder had no playable video files.' });
     return null;
@@ -284,28 +262,26 @@ async function promptBatchImportOptions(count) {
 async function importPoolFromProvider(providerId) {
   const folderRef = await pickFolderRefForProvider(providerId);
   if (!folderRef) return;
-  scanProgressEl.classList.remove('hidden');
-  scanProgressEl.textContent = 'SCANNING…';
+  showScanStatus('SCANNING…');
   let refs;
   try {
     refs = await window.api.scanFolder(providerId, folderRef);
   } catch (err) {
-    scanProgressEl.textContent = `COULDN'T REACH THAT SOURCE: ${(err && err.message) || 'unknown error'}`;
-    setTimeout(() => scanProgressEl.classList.add('hidden'), 3000);
+    showScanStatus(`COULDN'T REACH THAT SOURCE: ${(err && err.message) || 'unknown error'}`);
+    hideScanStatusAfter(3000);
     return;
   }
   if (!refs || !refs.length) {
-    scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
-    setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+    showScanStatus('NO VIDEO FILES FOUND IN THAT FOLDER');
+    hideScanStatusAfter(2500);
     return;
   }
-  scanProgressEl.classList.add('hidden');
+  hideScanStatus();
   const options = await promptBatchImportOptions(refs.length);
   if (!options) return;
-  scanProgressEl.classList.remove('hidden');
   const added = [];
   for (let i = 0; i < refs.length; i++) {
-    scanProgressEl.textContent = `PROBING ${i + 1} / ${refs.length}…`;
+    showScanStatus(`PROBING ${i + 1} / ${refs.length}…`);
     const rawRef = parseMediaRef(refs[i]).ref;
     // eslint-disable-next-line no-await-in-loop
     const [duration, title] = await Promise.all([
@@ -319,7 +295,7 @@ async function importPoolFromProvider(providerId) {
       contentTags: options.contentTags,
     }));
   }
-  scanProgressEl.classList.add('hidden');
+  hideScanStatus();
   addPoolEntries(added);
   renderInterstitialsList();
 }
@@ -331,25 +307,12 @@ async function importPoolFromProvider(providerId) {
 function renderMediaSourceImportControl() {
   const existing = document.getElementById('interstitials-source-select');
   if (existing) existing.remove();
-  if (!cachedMediaSourceProviders.length || !interstitialsAddFolderBtn) return;
-  const select = document.createElement('select');
-  select.id = 'interstitials-source-select';
-  select.className = 'btn folder-btn';
-  select.title = 'IMPORT FROM SOURCE';
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = 'IMPORT FROM SOURCE…';
-  select.appendChild(opt0);
-  cachedMediaSourceProviders.forEach((p) => {
-    const opt = document.createElement('option');
-    opt.value = p.providerId;
-    opt.textContent = p.displayName.toUpperCase();
-    select.appendChild(opt);
-  });
-  select.addEventListener('change', () => {
-    const providerId = select.value;
-    select.value = '';
-    if (providerId) importPoolFromProvider(providerId);
+  if (!getMediaSourceProviders().length || !interstitialsAddFolderBtn) return;
+  const select = buildProviderSelect({
+    id: 'interstitials-source-select',
+    title: 'IMPORT FROM SOURCE',
+    leadingOptions: [{ value: '', text: 'IMPORT FROM SOURCE…' }],
+    onPick: importPoolFromProvider,
   });
   interstitialsAddFolderBtn.insertAdjacentElement('afterend', select);
 }
@@ -365,31 +328,13 @@ function interstitialFileLabel(file) {
 
 // A small "IMPORT FROM SOURCE" select dropped next to CHOOSE FILE/CHOOSE
 // BACKGROUND CLIP — only ever built when at least one provider is active
-// (callers already check cachedMediaSourceProviders.length first). Kept as
+// (callers already check getMediaSourceProviders().length first). Kept as
 // its own <select> rather than folding into the CHOOSE FILE button itself,
 // same reasoning buildChooseSourceControl (setup-channels.js) has for a
 // channel's own folder picker: a single control can't be "a local file
 // dialog" and "a themed provider list" at once.
 function buildMediaSourcePickButton(onPick) {
-  const select = document.createElement('select');
-  select.className = 'btn folder-btn';
-  select.title = 'IMPORT FROM SOURCE';
-  const opt0 = document.createElement('option');
-  opt0.value = '';
-  opt0.textContent = 'FROM SOURCE…';
-  select.appendChild(opt0);
-  cachedMediaSourceProviders.forEach((p) => {
-    const opt = document.createElement('option');
-    opt.value = p.providerId;
-    opt.textContent = p.displayName.toUpperCase();
-    select.appendChild(opt);
-  });
-  select.addEventListener('change', () => {
-    const providerId = select.value;
-    select.value = '';
-    if (providerId) onPick(providerId);
-  });
-  return select;
+  return buildProviderSelect({ title: 'IMPORT FROM SOURCE', leadingOptions: [{ value: '', text: 'FROM SOURCE…' }], onPick });
 }
 
 // A folder import's new entries, as one undoable step.
@@ -541,14 +486,6 @@ const selectedInterstitialEntries = new Set();
 // pool grows into the hundreds, re-diffing/re-filtering on every single
 // keypress starts to visibly lag typing. A short debounce keeps typing snappy
 // without giving up "search re-filters live" responsiveness.
-function debounce(fn, ms) {
-  let t = null;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
 function entrySearchHaystack(entry) {
   const parts = [entry.text, entry.file && entry.file.path, entry.bgFile && entry.bgFile.path];
   return parts.filter(Boolean).join(' ').toLowerCase();
@@ -1024,14 +961,14 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
         bgBtn.textContent = entry.bgFile ? interstitialFileLabel(entry.bgFile) : 'CHOOSE BACKGROUND CLIP';
         bgBtn.addEventListener('click', async () => {
           const prior = cloneJson(entry);
-          const path = await window.api.selectVideo();
+          const path = await safeApi('Opening the file picker', () => window.api.selectVideo());
           if (!path) return;
           entry.bgFile = { path, source: 'local' };
           renderInterstitialsList();
           commitItemEdit('pool', [entry, prior]);
         });
         body.appendChild(bgBtn);
-        if (cachedMediaSourceProviders.length) {
+        if (getMediaSourceProviders().length) {
           body.appendChild(buildMediaSourcePickButton(async (providerId) => {
             const prior = cloneJson(entry);
             const picked = await pickSingleFileFromProvider(providerId);
@@ -1073,15 +1010,16 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
         fileBtn.textContent = entry.file ? interstitialFileLabel(entry.file) : 'CHOOSE FILE';
         fileBtn.addEventListener('click', async () => {
           const prior = cloneJson(entry);
-          const path = await window.api.selectVideo();
+          const path = await safeApi('Opening the file picker', () => window.api.selectVideo());
           if (!path) return;
           const duration = await probeDuration(path);
+          if (!(duration > 0)) { showScanStatus('COULD NOT READ THAT VIDEO — NOT CHANGED', 4000); return; }
           entry.file = { path, source: 'local', duration };
           renderInterstitialsList();
           commitItemEdit('pool', [entry, prior]);
         });
         body.appendChild(fileBtn);
-        if (cachedMediaSourceProviders.length) {
+        if (getMediaSourceProviders().length) {
           body.appendChild(buildMediaSourcePickButton(async (providerId) => {
             const prior = cloneJson(entry);
             const picked = await pickSingleFileFromProvider(providerId);
@@ -1423,34 +1361,32 @@ interstitialsAddEntryBtn.addEventListener('click', () => {
 });
 
 interstitialsAddFolderBtn.addEventListener('click', async () => {
-  const folder = await window.api.selectFolder();
+  const folder = await safeApi('Opening the file picker', () => window.api.selectFolder());
   if (!folder) return;
 
-  scanProgressEl.classList.remove('hidden');
-  scanProgressEl.textContent = 'SCANNING INTERSTITIALS FOLDER…';
+  showScanStatus('SCANNING INTERSTITIALS FOLDER…');
   let paths;
   try {
     paths = await window.api.scanFolder('local', folder);
   } catch (err) {
-    scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
-    setTimeout(() => scanProgressEl.classList.add('hidden'), 4000);
+    showScanStatus(`COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`);
+    hideScanStatusAfter(4000);
     return;
   }
-  scanProgressEl.classList.add('hidden');
+  hideScanStatus();
   if (!paths || !paths.length) {
-    scanProgressEl.classList.remove('hidden');
-    scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER';
-    setTimeout(() => scanProgressEl.classList.add('hidden'), 2500);
+    showScanStatus('NO VIDEO FILES FOUND IN THAT FOLDER', 2500);
     return;
   }
   const options = await promptBatchImportOptions(paths.length);
   if (!options) return;
-  scanProgressEl.classList.remove('hidden');
   const added = [];
+  let unreadable = 0;
   for (let i = 0; i < paths.length; i++) {
-    scanProgressEl.textContent = `PROBING ${i + 1} / ${paths.length}…`;
+    showScanStatus(`PROBING ${i + 1} / ${paths.length}…`);
     // eslint-disable-next-line no-await-in-loop
     const duration = await probeDuration(paths[i]);
+    if (!(duration > 0)) { unreadable++; continue; }
     added.push(newInterstitialPoolEntry({
       file: { path: paths[i], source: 'local', duration },
       type: options.type,
@@ -1458,7 +1394,9 @@ interstitialsAddFolderBtn.addEventListener('click', async () => {
       contentTags: options.contentTags,
     }));
   }
-  scanProgressEl.classList.add('hidden');
+  if (unreadable) showScanStatus(`${unreadable} UNREADABLE FILE${unreadable === 1 ? '' : 'S'} SKIPPED`, 5000);
+  else hideScanStatus();
+  if (!added.length) return;
   addPoolEntries(added);
   renderInterstitialsList();
 });

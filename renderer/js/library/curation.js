@@ -259,10 +259,9 @@ function buildBlockFromPatch(patch) {
   return block;
 }
 
-// Writes a proposal into S.config — a plain mutation, so it's automatically
-// covered by the existing snapshot-based undo stack (state.js); the caller
-// still needs to call saveConfigDebounced() and refresh the CHANNELS/BUMPER
-// & AD POOL UI itself, same as any other setup-side mutation.
+// Writes a proposal into S.config in place. The caller records it with
+// commitConfigPatch('…') (one labelled, undoable structural patch, state.js)
+// and refreshes the CHANNELS/BUMPER & AD POOL UI itself.
 export function applyCurationProposal(proposal) {
   let ch;
   if (proposal.isNewChannel) {

@@ -26,10 +26,10 @@
       { "channel": "cast:getStatus", "why": "reports connection/casting status back to the settings panel" }
     ],
     "net": [
-      { "port": 8731, "why": "serves either the complete live RerunTV mirror or the currently-airing local video to the selected Cast receiver" }
+      { "port": 8731, "why": "serves either the complete live RerunTV mirror or the currently-airing local video to the selected Cast receiver. Beyond this port the plugin also makes raw LAN connections that this list cannot gate: multicast mDNS on UDP 5353 to find Cast devices, and a TLS connection to the chosen receiver on TCP 8009 to control it" }
     ],
     "system": [
-      { "action": "desktopCapturer.getSources", "why": "captures either the RerunTV application window or a selected desktop display for mirroring" }
+      { "action": "desktopCapturer.getSources", "why": "captures either the RerunTV application window or a selected desktop display for mirroring (screen contents are sent to the receiver you selected)" }
     ]
   }
 }

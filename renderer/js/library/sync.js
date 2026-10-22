@@ -8,6 +8,7 @@ import { probeDurationForEntry } from '../setup/util.js';
 import { confirmDialog } from '../setup/dialogs.js';
 import { reconcileFolderFiles } from './sync-core.js';
 import { applyPlaylistPreservingAir } from './reanchor.js';
+const SYNC_PROBE_CONCURRENCY = 4;
 let periodicTimer = null;
 let syncRunning = false;
 
@@ -27,11 +28,22 @@ async function scanFolder(folder, tracked) {
   // channel; an actually emptied folder is reported for manual review.
   if (!listed.length && tracked.length) throw new Error('Source returned no files; existing titles were left untouched.');
   const knownDurations = new Map(tracked.map((file) => [file.path, file.duration]));
-  return Promise.all(listed.map(async (path) => {
-    const parsed = parseMediaRef(path);
-    const duration = knownDurations.get(path) || await probeDurationForEntry(parsed.source, parsed.ref);
-    return { path, source: parsed.source, duration: duration || 180 };
-  }));
+  // Probe at most a few files at a time: provider probes are plain IPC and
+  // would otherwise all fire at once on a big folder. An unreadable file keeps
+  // a null duration; reconcileFolderFiles leaves it out rather than guessing.
+  const out = new Array(listed.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < listed.length) {
+      const i = next++;
+      const path = listed[i];
+      const parsed = parseMediaRef(path);
+      const duration = knownDurations.get(path) || await probeDurationForEntry(parsed.source, parsed.ref);
+      out[i] = { path, source: parsed.source, duration: duration > 0 ? duration : null };
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SYNC_PROBE_CONCURRENCY, listed.length) }, worker));
+  return out;
 }
 
 // Changing a channel's playlist changes what airs unless its anchor moves with
@@ -50,6 +62,7 @@ function summaryText(result) {
   if (result.renamed) parts.push(`${result.renamed} renamed`);
   if (result.removed) parts.push(`${result.removed} removed`);
   if (result.missing) parts.push(`${result.missing} missing (kept)`);
+  if (result.unprobed) parts.push(`${result.unprobed} unreadable (will retry)`);
   if (result.errors) parts.push(`${result.errors} source warning${result.errors === 1 ? '' : 's'}`);
   if (result.onAirChanged) parts.push(result.onAirChanged === true ? 'what is on the air changed' : `on-air changed on ${result.onAirChanged} channel${result.onAirChanged === 1 ? '' : 's'}`);
   return parts.length ? parts.join(' · ') : 'No library changes found';
@@ -84,7 +97,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
   const status = document.getElementById('library-sync-status');
   if (status) status.textContent = 'CHECKING LINKED FOLDERS…';
   const prefs = settings();
-  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0, onAirChanged: 0 };
+  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0, onAirChanged: 0, unprobed: 0 };
   const rows = [];
   let contentChanged = false;
   try {
@@ -102,6 +115,7 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
             renamed: result.renames.length,
             removed: prefs.removeMissing ? result.missing.length : 0,
             missing: prefs.removeMissing ? 0 : result.missing.length,
+            unprobed: result.unprobed.length,
           };
           if (row.added || row.renamed || row.removed) {
             const air = applyPlaylistPreservingAir(channel, result.files, scheduleClockFor(channel));
@@ -122,7 +136,15 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
     prefs.lastRunAt = new Date().toISOString(); // real wall-clock audit timestamp, not schedule time
     prefs.lastReason = reason;
     prefs.lastSummary = totals;
-    commitConfigPatch('Library sync', { delay: 100, skipUndo: !contentChanged });
+    // The run's own bookkeeping is a skipUndo command (these fields are host-local
+    // watching state: main/config/host.js HOST_LOCAL_FIELDS), recorded first so the
+    // content patch below, which is the one undoable step, doesn't carry it.
+    commitInPlace([
+      { type: 'settings.set', path: ['librarySync', 'lastRunAt'], value: prefs.lastRunAt },
+      { type: 'settings.set', path: ['librarySync', 'lastReason'], value: prefs.lastReason },
+      { type: 'settings.set', path: ['librarySync', 'lastSummary'], value: prefs.lastSummary },
+    ], { delay: 100, skipUndo: true });
+    if (contentChanged) commitConfigPatch('Library sync', { delay: 100 });
     if (status) status.textContent = `${summaryText(totals).toUpperCase()} · ${new Date(prefs.lastRunAt).toLocaleString()}`;
     renderResults(rows);
     refreshSidebarBadges();

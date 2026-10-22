@@ -178,10 +178,15 @@ export function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+// Safe for element text and for quoted attribute values (quotes escaped too).
 export function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 export function basenameNoExt(filePath) {
@@ -239,6 +244,29 @@ export function shuffleArray(arr) {
 }
 
 export function pad2(n) { return String(n).padStart(2, '0'); }
+
+// "1 title" / "1,204 titles".
+export function plural(n, one, many = `${one}s`) {
+  return `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
+}
+
+// Last path segment, either slash style.
+export function basename(ref) {
+  return String(ref || '').split(/[\\/]/).pop();
+}
+
+export function clamp(value, low, high) {
+  return Math.min(high, Math.max(low, value));
+}
+
+// Trailing-edge debounce: runs fn once, ms after the last call.
+export function debounce(fn, ms) {
+  let t = null;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), ms);
+  };
+}
 
 // datetime-local's value format is always "YYYY-MM-DDTHH:mm" in the input's
 // own local time, regardless of locale — building it by hand (rather than

@@ -16,6 +16,7 @@ import {
 } from '../plugin/host.js';
 import { S, applyHostUpdate, commitInPlace } from '../core/state.js';
 import { renderPluginSettings } from './plugin-settings.js';
+import { safeApi, tryApi } from './util.js';
 
 // Set right before a renderPluginsList() triggered by an approve/revoke, so
 // that row gets a brief highlight flash instead of silently reappearing —
@@ -31,7 +32,7 @@ function renderCustomCssRow() {
 
 if (customCssChooseBtn) {
   customCssChooseBtn.addEventListener('click', async () => {
-    const path = await window.api.selectCss();
+    const path = await safeApi('Choosing a stylesheet', () => window.api.selectCss());
     if (!path) return;
     S.config.display.customCssPath = path;
     renderCustomCssRow();
@@ -103,8 +104,9 @@ async function promptCapabilityApproval(p) {
   // The host applies this as a command (main/config-host.js) and hands the
   // same update back, so S.config matches straight away and no later save
   // can revert it — the old hand-mirroring of each field is no longer needed.
-  const approval = await window.api.pluginsApproveCapabilities(p.id, signature);
-  applyHostUpdate(approval && approval.hostUpdate);
+  const approval = await safeApi(`Approving ${p.name}`, () => window.api.pluginsApproveCapabilities(p.id, signature));
+  if (!approval) return;
+  applyHostUpdate(approval.hostUpdate);
   await alertDialog(`Approved — restart the app to activate ${p.name}.`, { title: 'RESTART NEEDED' });
   lastCapabilityChangedId = p.id;
   renderPluginsList();
@@ -121,8 +123,9 @@ async function revokeCapabilityApproval(p) {
     confirmText: 'REVOKE',
   });
   if (!ok) return;
-  const revoked = await window.api.pluginsRevokeCapabilities(p.id);
-  applyHostUpdate(revoked && revoked.hostUpdate);
+  const revoked = await safeApi(`Revoking ${p.name}`, () => window.api.pluginsRevokeCapabilities(p.id));
+  if (!revoked) return;
+  applyHostUpdate(revoked.hostUpdate);
   await alertDialog(`Revoked — restart the app for ${p.name} to stop activating.`, { title: 'RESTART NEEDED' });
   lastCapabilityChangedId = p.id;
   renderPluginsList();
@@ -158,12 +161,12 @@ async function confirmUninstallPlugin(p) {
     confirmText: 'UNINSTALL',
   });
   if (!ok) return;
-  const result = await window.api.pluginsUninstall(p.id);
-  if (!result || !result.success) {
-    await alertDialog((result && result.error) || `Couldn't uninstall ${p.name}.`, { variant: 'error', title: 'COULD NOT UNINSTALL' });
+  const result = await tryApi(() => window.api.pluginsUninstall(p.id));
+  if (!result.ok || !result.value || !result.value.success) {
+    await alertDialog((result.value && result.value.error) || (result.error && result.error.message) || `Couldn't uninstall ${p.name}.`, { variant: 'error', title: 'COULD NOT UNINSTALL' });
     return;
   }
-  applyHostUpdate(result.hostUpdate);
+  applyHostUpdate(result.value.hostUpdate);
   await alertDialog(`${p.name} uninstalled — restart the app for this to fully take effect.`, { title: 'RESTART NEEDED' });
   renderPluginsList();
 }
@@ -329,7 +332,8 @@ async function promptIntegrityApproval(p) {
     confirmText: 'TRUST THIS VERSION',
   });
   if (!approved) return;
-  await window.api.pluginsApproveIntegrity(p.id, p.integrityHash);
+  const trusted = await safeApi(`Trusting ${p.name}`, () => window.api.pluginsApproveIntegrity(p.id, p.integrityHash));
+  if (trusted === undefined) return;
   await alertDialog(`This exact version of ${p.name} is trusted. Restart RerunTV to load it.`, { title: 'RESTART NEEDED' });
   lastCapabilityChangedId = p.id;
   renderPluginsList();
@@ -794,14 +798,27 @@ async function commitPendingPluginChanges(plugins, pendingChanges) {
     }
   }
 
-  for (const [id, enabled] of pendingChanges) {
+  // Keep going past a failure so one bad plugin doesn't strand the rest; only
+  // the ones that saved leave the pending map, so the failures stay staged.
+  const failures = [];
+  let savedCount = 0;
+  for (const [id, enabled] of [...pendingChanges]) {
     // eslint-disable-next-line no-await-in-loop
-    const changed = await window.api.pluginsSetEnabled(id, enabled);
-    applyHostUpdate(changed && changed.hostUpdate);
+    const r = await tryApi(() => window.api.pluginsSetEnabled(id, enabled));
+    if (r.ok) {
+      applyHostUpdate(r.value && r.value.hostUpdate);
+      pendingChanges.delete(id);
+      savedCount += 1;
+    } else {
+      const name = (plugins.find((p) => p.id === id) || {}).name || id;
+      failures.push(`${name}: ${(r.error && r.error.message) || r.error}`);
+    }
   }
-  const savedCount = pendingChanges.size;
-  pendingChanges.clear();
   await renderPluginsList();
+  if (failures.length) {
+    await alertDialog(`${failures.length} change${failures.length === 1 ? '' : 's'} could not be saved and ${failures.length === 1 ? 'is' : 'are'} still pending:\n\n${failures.join('\n')}`, { variant: 'error', title: 'SOME PLUGIN CHANGES FAILED' });
+    if (!savedCount) return;
+  }
   // Set after the re-render (which rebuilds the list but never touches this
   // status element) rather than before it, so the message is what's
   // actually left on screen instead of being visible for one frame and
@@ -850,8 +867,8 @@ if (pluginsStateFilterEl) {
 // confirm()) before retrying with { zipPath, overwrite: true } against the
 // exact same file rather than re-prompting the picker.
 async function installFromZip() {
-  const result = await window.api.pluginsInstallFromZip({});
-  if (result.cancelled) return;
+  const result = await safeApi('Installing the plugin', () => window.api.pluginsInstallFromZip({}));
+  if (!result || result.cancelled) return;
   if (result.alreadyExists) {
     const ok = await confirmDialog({
       title: 'PLUGIN ALREADY INSTALLED',
@@ -860,7 +877,8 @@ async function installFromZip() {
       confirmText: 'OVERWRITE',
     });
     if (!ok) return;
-    const retry = await window.api.pluginsInstallFromZip({ zipPath: result.zipPath, overwrite: true });
+    const retry = await safeApi('Installing the plugin', () => window.api.pluginsInstallFromZip({ zipPath: result.zipPath, overwrite: true }));
+    if (!retry) return;
     if (!retry.success) { alertDialog(`Install failed: ${retry.error}`, { title: 'PLUGIN ERROR' }); return; }
     await alertDialog(`Installed "${retry.name}" — restart the app to activate it.`, { title: 'PLUGIN INSTALLED' });
     renderPluginsList();
@@ -875,7 +893,7 @@ if (pluginsInstallZipBtn) {
   pluginsInstallZipBtn.addEventListener('click', installFromZip);
 }
 if (pluginsOpenFolderBtn) {
-  pluginsOpenFolderBtn.addEventListener('click', () => window.api.pluginsOpenFolder());
+  pluginsOpenFolderBtn.addEventListener('click', () => { safeApi('Opening the plugins folder', () => window.api.pluginsOpenFolder()); });
 }
 if (pluginsRescanBtn) {
   pluginsRescanBtn.addEventListener('click', () => renderPluginsList());

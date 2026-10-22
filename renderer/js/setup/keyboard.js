@@ -87,9 +87,10 @@ setUndoRedoHook(() => { refreshSetupScreen(); refreshUndoRedoButtons(); });
 
 // state.js reports every history change (an edit, a settled burst, a
 // dispatched command, undo/redo), so the buttons and their "Undo: …" labels
-// update the moment it happens. The slow poll stays as a backstop only.
-onHistoryChange(() => { if (setupVisible()) { refreshUndoRedoButtons(); refreshSidebarBadges(); } });
-setInterval(() => { if (setupVisible()) refreshUndoRedoButtons(); }, 2000);
+// update the moment it happens.
+// The buttons refresh even while setup is hidden (cheap), so opening it never
+// shows stale labels; this replaces the old 2 s poll.
+onHistoryChange(() => { refreshUndoRedoButtons(); if (setupVisible()) refreshSidebarBadges(); });
 refreshUndoRedoButtons();
 
 // ---------- Global setup-screen shortcuts ----------

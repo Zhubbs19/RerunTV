@@ -6,8 +6,8 @@
 //   by the same main-process scan + ADD FOLDER uses.
 // - Videos dropped on the bumper & ad pool list become pool entries.
 import { S, commitConfigPatch } from '../core/state.js';
-import { channelListEl, channelListPaneEl, interstitialsListEl, scanProgressEl } from '../core/dom.js';
-import { probeDuration } from './util.js';
+import { channelListEl, channelListPaneEl, interstitialsListEl } from '../core/dom.js';
+import { probeDuration, showScanStatus } from './util.js';
 import { addInterstitialPoolEntry } from '../core/channels.js';
 import { addFolderToChannel, addVideoFilesToChannel, createChannelFromFolder } from './channels.js';
 import { renderInterstitialsList } from './interstitials.js';
@@ -25,10 +25,7 @@ function extOf(filePath) {
 }
 
 function flashStatus(text, ms) {
-  scanProgressEl.classList.remove('hidden');
-  scanProgressEl.textContent = text;
-  clearTimeout(flashStatus._t);
-  flashStatus._t = setTimeout(() => scanProgressEl.classList.add('hidden'), ms || 2500);
+  showScanStatus(text, ms || 2500);
 }
 
 // Resolves every dropped File to a real filesystem path via the preload
@@ -119,13 +116,18 @@ interstitialsListEl.addEventListener('drop', async (e) => {
   const paths = await resolveDroppedVideoPaths(e.dataTransfer);
   if (!paths.length) { flashStatus('NO VIDEO FILES IN THAT DROP'); return; }
 
+  let okCount = 0;
+  let unreadable = 0;
   for (let i = 0; i < paths.length; i++) {
     flashStatus(`ADDING DROPPED VIDEO ${i + 1} / ${paths.length}…`, 60000);
     const duration = await probeDuration(paths[i]);
+    if (!(duration > 0)) { unreadable++; continue; }
     addInterstitialPoolEntry({ file: { path: paths[i], duration } });
+    okCount++;
   }
-  flashStatus(`ADDED ${paths.length} POOL ENTR${paths.length === 1 ? 'Y' : 'IES'}`);
-  commitConfigPatch(`Add ${paths.length} ad pool entr${paths.length === 1 ? 'y' : 'ies'}`);
+  if (!okCount) { flashStatus('COULD NOT READ THOSE VIDEOS — NOTHING ADDED', 4000); return; }
+  flashStatus(`ADDED ${okCount} POOL ENTR${okCount === 1 ? 'Y' : 'IES'}${unreadable ? ` — ${unreadable} UNREADABLE SKIPPED` : ''}`);
+  commitConfigPatch(`Add ${okCount} ad pool entr${okCount === 1 ? 'y' : 'ies'}`);
   renderInterstitialsList();
 });
 

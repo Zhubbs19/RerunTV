@@ -11,10 +11,7 @@
 // question is "does the same content air at the same times", keyed by library
 // item instead.
 import { querySchedule } from '../core/schedule-query.js';
-
-function cloneJson(value) {
-  return JSON.parse(JSON.stringify(value));
-}
+import { deepClone as cloneJson } from '../core/util.js';
 
 // Windows paths (a drive letter or UNC share) compare case-insensitively, the
 // way the filesystem does; anything else stays exact.

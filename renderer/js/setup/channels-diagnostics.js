@@ -18,7 +18,7 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
 import { takeRestorePoint } from './restore-point.js';
 import { applyLocalFolderRelink, replaceLocalRoot } from '../library/relink.js';
-import { collectRealContentTags } from './util.js';
+import { collectRealContentTags, safeApi } from './util.js';
 import { S, viewNow, commitConfigPatch } from '../core/state.js';
 import { formatSlotLabel, getDisplayTitle, titleNeedsMetadata } from '../core/util.js';
 
@@ -127,7 +127,7 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
       button.className = 'btn btn-small';
       button.textContent = 'RELINK…';
       button.addEventListener('click', async () => {
-        const newRoot = await window.api.selectFolder();
+        const newRoot = await safeApi('Opening the file picker', () => window.api.selectFolder());
         if (!newRoot || newRoot === entry.ref) return;
         const candidates = Array.from(paths).map((oldPath) => replaceLocalRoot(oldPath, entry.ref, newRoot));
         const checks = await window.api.checkPathsExist(candidates.map((ref) => ({ source: 'local', ref })));

@@ -11,7 +11,7 @@
 import { S, dispatch, viewNow } from '../core/state.js';
 import { nextChannelNumber } from '../core/channels.js';
 import { channelFilterEl } from '../core/dom.js';
-import { randomInterstitialId } from '../core/util.js';
+import { plural, randomInterstitialId } from '../core/util.js';
 import { Badge, Button, EmptyState } from '../ui/button.js';
 import { NumberStepper, Select, Toggle } from '../ui/controls.js';
 import { Dialog } from '../ui/dialog.js';
@@ -82,7 +82,6 @@ async function run(busy, fn) {
 
 // ---------- Small helpers ----------
 
-const plural = (n, one, many = `${one}s`) => `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
 const liveItems = () => (P.index ? Object.values(P.index.items || {}).filter((item) => !item.detached) : []);
 const savedPresets = () => (P.index && P.index.presets ? Object.values(P.index.presets) : []);
 

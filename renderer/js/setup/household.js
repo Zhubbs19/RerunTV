@@ -9,6 +9,7 @@ import {
 import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { getRendererService, themePackEntries } from '../plugin/host.js';
 import { applyTheme } from '../display/themes.js';
+import { showTvScreen } from '../app.js';
 
 const listEl = document.getElementById('household-profiles-list');
 const addBtn = document.getElementById('household-add-profile');
@@ -115,6 +116,7 @@ function renderRecordings() {
     if (recording.status === 'ready' && recording.tapeId) row.appendChild(button(resume?.positionMs ? 'CONTINUE' : 'PLAY', async () => {
       const deck = getRendererService('tape-deck');
       const { tuneToChannel } = await import('../playback/core.js');
+      showTvScreen(); // tuneToChannel is a no-op while Setup is open
       tuneToChannel(101);
       setTimeout(() => deck?.play?.(recording.tapeId, resume?.positionMs || 0), 250);
     }));

@@ -33,7 +33,11 @@ export function reconcileFolderFiles(files, scanned, folderId, removeMissing) {
   const scannedPaths = new Set(scanned.map((file) => file.path));
   const trackedPaths = new Set(files.map((file) => file.path));
   const missing = tracked.filter((file) => !scannedPaths.has(file.path));
-  const added = scanned.filter((file) => !trackedPaths.has(file.path));
+  // A new file whose duration couldn't be probed is left out (and reported as
+  // unprobed) rather than stored with a guessed length; the next sync retries it.
+  const fresh = scanned.filter((file) => !trackedPaths.has(file.path));
+  const unprobed = fresh.filter((file) => !(file.duration > 0));
+  const added = fresh.filter((file) => file.duration > 0);
   const renames = detectUnambiguousRenames(missing, added);
   const renamedOld = new Set(renames.map((pair) => pair.oldFile));
   const renamedNew = new Set(renames.map((pair) => pair.newFile));
@@ -48,7 +52,7 @@ export function reconcileFolderFiles(files, scanned, folderId, removeMissing) {
     return [file];
   });
   unresolvedAdded.forEach((file) => next.push({
-    path: file.path, duration: file.duration || 180, folder: folderId, source: file.source || 'local',
+    path: file.path, duration: file.duration, folder: folderId, source: file.source || 'local',
   }));
-  return { files: next, added: unresolvedAdded, missing: unresolvedMissing, renames };
+  return { files: next, added: unresolvedAdded, missing: unresolvedMissing, renames, unprobed };
 }

@@ -16,14 +16,13 @@
 // which renders a single SCHEDULE tab with a BLOCKS/CALENDAR view toggle
 // instead of two separate tabs.
 import { freshBlock, freshBroadcastHours } from '../core/channels.js';
-import { scanProgressEl } from '../core/dom.js';
 import { buildCommercialsPanel, buildTitlesPanel } from './panels.js';
-import { parsePositiveInt, probeDuration, toggleLazyPanel } from './util.js';
+import { parsePositiveInt, probeDuration, toggleLazyPanel, showScanStatus, hideScanStatus, hideScanStatusAfter, safeApi } from './util.js';
 import {
   computeSourcePosition, matchesTrigger, matchingBlocks, mdKey, resolveActiveCommercials, resolveActiveSource,
 } from '../core/schedule.js';
 import { cloneJson } from '../core/commands.js';
-import { MONTHS, BADGE_COLORS, S, WEEKDAYS, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
+import { MONTHS, BADGE_COLORS, S, WEEKDAYS, commitInPlace, commitItemEdit, dispatch, viewNow } from '../core/state.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
 import { buildOnAirPanel } from './onair.js';
 import { basenameNoExt, formatHourLabel, getDisplayTitle, shuffleArray } from '../core/util.js';
@@ -225,7 +224,9 @@ export function buildCalendarPanel(channels, panelEl, opts) {
   opts = opts || {};
   panelEl.innerHTML = '';
 
-  const viewDate = new Date();
+  // The calendar's "today" is the box's clock, so with the time machine on it
+  // agrees with the schedule it is showing.
+  const viewDate = new Date(viewNow());
   viewDate.setDate(1);
   viewDate.setHours(12, 0, 0, 0);
   let selectedDayMs = null;
@@ -469,7 +470,7 @@ export function buildCalendarPanel(channels, panelEl, opts) {
     const firstOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1, 12, 0, 0, 0);
     const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
     const leadingBlanks = firstOfMonth.getDay();
-    const today = new Date();
+    const today = new Date(viewNow());
     const isCurrentMonth = today.getFullYear() === viewDate.getFullYear() && today.getMonth() === viewDate.getMonth();
     const monthEntries = [];
 
@@ -563,7 +564,7 @@ export function buildCalendarPanel(channels, panelEl, opts) {
   prevBtn.addEventListener('click', () => { viewDate.setMonth(viewDate.getMonth() - 1); render(); });
   nextBtn.addEventListener('click', () => { viewDate.setMonth(viewDate.getMonth() + 1); render(); });
   todayBtn.addEventListener('click', () => {
-    const now = new Date();
+    const now = new Date(viewNow());
     viewDate.setFullYear(now.getFullYear(), now.getMonth(), 1);
     render();
   });
@@ -1079,40 +1080,47 @@ export function buildSchedulePanel(ch, panelEl) {
       folderBtn.textContent = block.folder ? 'CHANGE FOLDER' : 'CHOOSE FOLDER';
       folderBtn.addEventListener('click', async () => {
         const prior = cloneJson(block);
-        const folder = await window.api.selectFolder();
+        const folder = await safeApi('Opening the file picker', () => window.api.selectFolder());
         if (!folder) return;
         // Scan first, assign after: a failed or empty scan used to leave the block
         // pointing at a new folder with no files at all.
         folderBtn.disabled = true;
-        scanProgressEl.classList.remove('hidden');
-        scanProgressEl.textContent = 'SCANNING BLOCK FOLDER…';
+        showScanStatus('SCANNING BLOCK FOLDER…');
         let hideAfterMs = 0;
         try {
           const paths = await window.api.scanFolder('local', folder);
           if (!Array.isArray(paths) || !paths.length) {
-            scanProgressEl.textContent = 'NO VIDEO FILES FOUND IN THAT FOLDER — BLOCK LEFT AS IT WAS';
+            showScanStatus('NO VIDEO FILES FOUND IN THAT FOLDER — BLOCK LEFT AS IT WAS');
             hideAfterMs = 3000;
             return;
           }
           const files = [];
+          let unreadable = 0;
           for (let i = 0; i < paths.length; i++) {
-            scanProgressEl.textContent = `PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`;
+            showScanStatus(`PROBING BLOCK VIDEO ${i + 1} / ${paths.length}…`);
             // eslint-disable-next-line no-await-in-loop
             const duration = await probeDuration(paths[i]);
+            if (!(duration > 0)) { unreadable++; continue; }
             files.push({ path: paths[i], duration, source: 'local' });
           }
+          if (!files.length) {
+            showScanStatus('COULD NOT READ ANY VIDEO IN THAT FOLDER — BLOCK LEFT AS IT WAS');
+            hideAfterMs = 4000;
+            return;
+          }
+          if (unreadable) { showScanStatus(`${unreadable} UNREADABLE FILE${unreadable === 1 ? '' : 'S'} SKIPPED`); hideAfterMs = 4000; }
           if (ch.shuffle) shuffleArray(files);
           block.folder = folder;
           block.files = files;
           block.anchor = Date.now();
           commitBlockEdit(block, prior);
         } catch (err) {
-          scanProgressEl.textContent = `COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`;
+          showScanStatus(`COULD NOT SCAN THAT FOLDER — ${String((err && err.message) || err).slice(0, 100).toUpperCase()}`);
           hideAfterMs = 4000;
         } finally {
           folderBtn.disabled = false;
-          if (hideAfterMs) setTimeout(() => scanProgressEl.classList.add('hidden'), hideAfterMs);
-          else scanProgressEl.classList.add('hidden');
+          if (hideAfterMs) hideScanStatusAfter(hideAfterMs);
+          else hideScanStatus();
           renderBlocks();
         }
       });

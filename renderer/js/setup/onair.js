@@ -27,7 +27,7 @@ import { tuneToChannel } from '../playback/core.js';
 import { normalizeKey } from '../remote/input.js';
 import { addDays, diffSchedules, explainLayers, proposeEdit, queryDay, startOfDay } from '../core/schedule-query.js';
 import { confirmDialog } from './dialogs.js';
-import { probeDuration } from './util.js';
+import { probeDuration, safeApi } from './util.js';
 import { MONTHS, S, WEEKDAYS, dispatch, viewNow } from '../core/state.js';
 import {
   addBreakHereCommands, blockSpansForDay, copyToWeekdayCommand, createBlockCommand, diffCounts, exceptionBlockCommand,
@@ -403,7 +403,7 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
       nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !commitBtn.disabled) { e.preventDefault(); commitBtn.click(); } });
     }
     browseBtn.addEventListener('click', async () => {
-      const folder = await window.api.selectFolder();
+      const folder = await safeApi('Opening the file picker', () => window.api.selectFolder());
       if (!folder) return;
       browseBtn.disabled = true;
       previewLine.textContent = 'Scanning folder…';
@@ -413,7 +413,8 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
         for (let i = 0; i < (paths || []).length; i++) {
           previewLine.textContent = `Reading video ${i + 1} of ${paths.length}…`;
           // eslint-disable-next-line no-await-in-loop -- one video element at a time, as the BLOCKS folder picker does
-          files.push({ path: paths[i], duration: await probeDuration(paths[i]), source: 'local' });
+          const duration = await probeDuration(paths[i]);
+          if (duration > 0) files.push({ path: paths[i], duration, source: 'local' });
         }
       } catch (err) {
         previewLine.textContent = `Couldn't read that folder: ${(err && err.message) || err}`;

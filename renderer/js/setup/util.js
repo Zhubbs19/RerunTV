@@ -11,6 +11,8 @@ import { EmptyState } from '../ui/button.js';
 import { basenameNoExt, randomId, toDatetimeLocalValue, deepClone } from '../core/util.js';
 import { openDynamicOverlayPositionEditor } from './overlay-editor.js';
 import { openLiveLogoBugEditor } from './overlay-layout-editor.js';
+import { scanProgressEl } from '../core/dom.js';
+import { alertDialog } from './dialogs.js';
 
 export { openDynamicOverlayPositionEditor } from './overlay-editor.js';
 
@@ -482,7 +484,7 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       imgBtn.className = 'btn';
       imgBtn.textContent = 'IMAGE…';
       imgBtn.addEventListener('click', async () => {
-        const path = await window.api.selectImage();
+        const path = await safeApi('Opening the file picker', () => window.api.selectImage());
         if (!path) return;
         rule.mediaPath = path;
         setRules(rules);
@@ -493,7 +495,7 @@ export function buildDynamicOverlaysEditor(getRules, setRules, ch) {
       vidBtn.className = 'btn';
       vidBtn.textContent = 'VIDEO…';
       vidBtn.addEventListener('click', async () => {
-        const path = await window.api.selectVideo();
+        const path = await safeApi('Opening the file picker', () => window.api.selectVideo());
         if (!path) return;
         rule.mediaPath = path;
         setRules(rules);
@@ -678,7 +680,7 @@ export function buildIconOverridesEditor(getOverrides, setOverrides) {
       imgBtn.className = 'btn';
       imgBtn.textContent = 'IMAGE…';
       imgBtn.addEventListener('click', async () => {
-        const path = await window.api.selectImage();
+        const path = await safeApi('Opening the file picker', () => window.api.selectImage());
         if (!path) return;
         o.icon = path;
         setOverrides(overrides);
@@ -959,32 +961,108 @@ export function attachSliderReadout(slider, opts) {
   return { el: readout, refresh: update };
 }
 
+// IPC wrappers for the setup screen. A bare `await window.api.x()` that rejects
+// becomes an unhandled promise rejection and the click silently does nothing;
+// tests/setup-api-calls.test.js fails on new bare awaits outside these.
+//   tryApi(fn)          -> { ok, value, error } and never throws or shows UI
+//                          (for loops that want to continue and report once)
+//   safeApi(label, fn)  -> the value, or undefined after an error dialog
+export async function tryApi(fn) {
+  try { return { ok: true, value: await fn(), error: null }; }
+  catch (error) { return { ok: false, value: undefined, error }; }
+}
+export async function safeApi(label, fn) {
+  const r = await tryApi(fn);
+  if (r.ok) return r.value;
+  const reason = (r.error && r.error.message) || String(r.error);
+  console.warn(`[setup] ${label} failed:`, r.error);
+  await alertDialog(`${label} failed: ${reason}`, { variant: 'error', title: 'SOMETHING WENT WRONG' });
+  return undefined;
+}
+
+// The one writer for the shared status line (#scan-progress). Every caller used
+// to pair its own setTimeout(hide) with a bare textContent write, so an older
+// timer could hide a newer message mid-scan. A single pending timer is owned
+// here: each call cancels the previous one. ttlMs omitted/0 leaves the text up
+// (progress); a number auto-hides after that long.
+let scanStatusTimer = null;
+export function showScanStatus(text, ttlMs = 0) {
+  if (!scanProgressEl) return;
+  clearTimeout(scanStatusTimer);
+  scanStatusTimer = null;
+  scanProgressEl.classList.remove('hidden');
+  scanProgressEl.textContent = text;
+  if (ttlMs > 0) scanStatusTimer = setTimeout(hideScanStatus, ttlMs);
+}
+export function hideScanStatus() {
+  if (!scanProgressEl) return;
+  clearTimeout(scanStatusTimer);
+  scanStatusTimer = null;
+  scanProgressEl.classList.add('hidden');
+}
+// Hide the current message after ttlMs (replaces a bare setTimeout(hide)).
+export function hideScanStatusAfter(ttlMs) {
+  clearTimeout(scanStatusTimer);
+  scanStatusTimer = setTimeout(hideScanStatus, ttlMs);
+}
+
 // Probes a file's duration by loading it into a detached <video> element —
 // used by every folder/file scan path (channel folders, block folders,
 // interstitials pool entries) so a newly-added file's duration is known
 // before it's ever scheduled.
-// `fallback` is what an unreadable file reports. Playlists use 180 s so a bad
-// file still schedules; the media library passes null, because a guessed
-// length stored in the catalogue would be copied into every smart channel.
-export function probeDuration(filePath, { fallback = 180 } = {}) {
+// An unreadable file resolves to `fallback`, which is null by default: callers
+// must treat null as "unprobed" and not store a guessed length (a made-up 180 s
+// in a playlist skews every boundary after it, and the media library would copy
+// it into every smart channel). Pass a number only for a purely cosmetic use.
+// Probes are limited to PROBE_CONCURRENCY at a time, retried once with a longer
+// timeout, and always release the media element (src cleared, load() called) so
+// a failed or timed-out probe doesn't keep a file handle and decoder open.
+const PROBE_CONCURRENCY = 4;
+let probesRunning = 0;
+const probeWaiters = [];
+
+function acquireProbeSlot() {
+  if (probesRunning < PROBE_CONCURRENCY) { probesRunning++; return Promise.resolve(); }
+  return new Promise((resolve) => probeWaiters.push(resolve));
+}
+function releaseProbeSlot() {
+  const next = probeWaiters.shift();
+  if (next) next(); // slot handed straight over; probesRunning unchanged
+  else probesRunning--;
+}
+
+function probeOnce(url, timeoutMs) {
   return new Promise((resolve) => {
-    Promise.resolve(window.api.toFileUrl(filePath)).then((url) => {
     const v = document.createElement('video');
+    let done = false;
+    const finish = (value) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      v.removeAttribute('src');
+      try { v.load(); } catch { /* element is being discarded anyway */ }
+      resolve(value);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
     v.preload = 'metadata';
+    v.addEventListener('loadedmetadata', () => finish(isFinite(v.duration) && v.duration > 0 ? v.duration : null));
+    v.addEventListener('error', () => finish(null));
     v.src = url;
-    const timer = setTimeout(() => resolve(fallback), 4000);
-    v.addEventListener('loadedmetadata', () => {
-      clearTimeout(timer);
-      const d = isFinite(v.duration) && v.duration > 0 ? v.duration : fallback;
-      resolve(d);
-      v.src = '';
-    });
-    v.addEventListener('error', () => {
-      clearTimeout(timer);
-      resolve(fallback);
-    });
-    }).catch(() => resolve(fallback));
   });
+}
+
+export async function probeDuration(filePath, { fallback = null } = {}) {
+  await acquireProbeSlot();
+  try {
+    const url = await window.api.toFileUrl(filePath);
+    let d = await probeOnce(url, 6000);
+    if (d == null) d = await probeOnce(url, 15000);
+    return d == null ? fallback : d;
+  } catch {
+    return fallback;
+  } finally {
+    releaseProbeSlot();
+  }
 }
 
 // Source-aware sibling of probeDuration above — 'local' defers to the exact

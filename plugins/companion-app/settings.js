@@ -2,7 +2,7 @@ window.RCBPlugins.registerPluginSettings('companion-app', {
   sections: [{
     id: 'general',
     render(container, ctx) {
-      if (!ctx.S.config.network) ctx.S.config.network = {};
+      ctx.settings.ensureLegacyConfig('companion-app'); // the network section; edited via updateLegacyConfig below
       container.innerHTML = `
         <label class="panel-toggle"><input type="checkbox" data-el="enabled"> COMPANION APP LAN ACCESS (REMOTE + SETTINGS + FILES)</label>
         <div class="panel-body">
@@ -21,8 +21,7 @@ window.RCBPlugins.registerPluginSettings('companion-app', {
       const urlsEl = container.querySelector('[data-el="urls"]');
       enabledEl.checked = !!ctx.S.config.network.companionEnabled;
       enabledEl.addEventListener('change', () => {
-        ctx.S.config.network.companionEnabled = enabledEl.checked;
-        ctx.saveConfigDebounced();
+        ctx.settings.updateLegacyConfig('companion-app', { companionEnabled: enabledEl.checked });
         pairingEl.classList.add('hidden');
         statusEl.textContent = `${enabledEl.checked ? 'Companion access will start' : 'Companion access will stop'} after RerunTV restarts.`;
       });

@@ -71,11 +71,11 @@ import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChan
 import { getChannelSchedule } from '../core/schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { alertDialog } from '../setup/dialogs.js';
-import { MONTHS, S, WEEKDAYS, commitInPlace, dispatch, saveConfigDebounced, viewNow } from '../core/state.js';
+import { MONTHS, S, WEEKDAYS, commitConfigPatch, commitInPlace, dispatch, saveConfigDebounced, viewNow } from '../core/state.js';
 import { registerEra } from '../display/eras.js';
 import { registerTemplate } from '../library/channel-builder.js';
 import { pluginCommandType, registerPluginCommand } from '../core/commands.js';
-import { formatClock, formatSlotLabel, getDisplayTitle } from '../core/util.js';
+import { escapeHtml, formatClock, formatDuration, formatSlotLabel, getDisplayTitle } from '../core/util.js';
 import { player } from '../core/dom.js';
 import { PLUGIN_CHANNEL_ACTIONS, keyForAction } from '../remote/input.js';
 import { usageMode } from '../tv/usage-mode.js';
@@ -209,6 +209,55 @@ export function updatePluginSettings(id, patch) {
   });
   commitInPlace({ type: 'plugin.setSettings', id, settings: next });
   return S.config.pluginSettings[id];
+}
+
+// ---------- First-party plugins that predate pluginSettings ----------
+// A few bundled plugins keep their settings in an older top-level section
+// (config.breakingNews, config.closedCaptions, config.network.companionEnabled)
+// that other code, main-process code included, already reads. Moving that
+// storage needs a migration, so for now these plugins edit it through here
+// rather than assigning to ctx.S.config themselves: only the section a plugin
+// owns is reachable (the table below, not a name the plugin supplies freely), and
+// the edit is recorded as one labelled step in the undo history.
+const LEGACY_CONFIG_OWNERS = {
+  'breaking-news': { section: 'breakingNews' },
+  'closed-captions': { section: 'closedCaptions' },
+  'companion-app': { section: 'network', fields: ['companionEnabled'] },
+};
+
+function legacyOwner(id, where) {
+  const owner = LEGACY_CONFIG_OWNERS[id];
+  if (!owner) throw new Error(`ctx.settings.${where}: "${id}" has no legacy config section`);
+  return owner;
+}
+
+// The plugin's section object, created (empty or from `defaults`) when missing.
+// Seeding defaults is not an edit, so nothing is saved here.
+export function ensureLegacyConfig(id, defaults = {}) {
+  const { section } = legacyOwner(id, 'ensureLegacyConfig');
+  if (!S.config[section] || typeof S.config[section] !== 'object' || Array.isArray(S.config[section])) {
+    S.config[section] = { ...defaults };
+  }
+  return S.config[section];
+}
+
+// Applies `patch` (a value of undefined removes the key) to the plugin's legacy
+// section as a single labelled, undoable change.
+export function updateLegacyConfig(id, patch, opts = {}) {
+  const owner = legacyOwner(id, 'updateLegacyConfig');
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error(`updateLegacyConfig("${id}"): patch must be an object`);
+  const keys = Object.keys(patch);
+  if (owner.fields) {
+    const stray = keys.find((key) => !owner.fields.includes(key));
+    if (stray) throw new Error(`updateLegacyConfig("${id}"): "${stray}" isn't a field this plugin owns`);
+  }
+  if (keys.some((key) => key === '__proto__' || key === 'constructor' || key === 'prototype')) {
+    throw new Error(`updateLegacyConfig("${id}"): invalid key`);
+  }
+  const target = ensureLegacyConfig(id);
+  keys.forEach((key) => { if (patch[key] === undefined) delete target[key]; else target[key] = patch[key]; });
+  commitConfigPatch(opts.label || `Change ${id} settings`, { delay: opts.delay });
+  return target;
 }
 
 // ---------- A plugin's own commands (docs/design/05 §3) ----------
@@ -747,7 +796,10 @@ export function pluginDiagnosticsSnapshot() {
 // v8 added the transport actions to onAction ('media.playPause',
 // 'media.rewind', 'media.fastForward', 'media.previous', 'media.next') and
 // ctx.input.openKeyboard, the D-pad on-screen keyboard.
-const CTX_VERSION = 8;
+// v9 added ctx.ui.escapeHtml / ctx.ui.formatDuration and ctx.settings.
+// updateLegacyConfig / ensureLegacyConfig (labelled edits to a first-party plugin's
+// older top-level config section, instead of mutating ctx.S.config directly).
+const CTX_VERSION = 9;
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -757,7 +809,7 @@ function installGlobalApi() {
     addFilesToChannel, addInterstitialPoolEntry,
     resolveBreakAt, nextBreakBoundary,
   };
-  const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings };
+  const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings, updateLegacyConfig, ensureLegacyConfig };
   const commands = pluginCommands;
   const util = { formatClock, WEEKDAYS, MONTHS };
   const search = { registerEntries: registerSettingsSearchEntries };
@@ -772,6 +824,9 @@ function installGlobalApi() {
   const ui = Object.freeze({
     Button, IconButton, Field, SettingRow, Toggle, Slider, Select, Segmented, NumberStepper, ColorPick,
     Tabs, ListDetail, Menu, MenuButton, Dialog, Toast, EmptyState, Badge, Chip, FocusScope, SpatialFocus,
+    // Plain helpers for plugin-built markup: escape every interpolated value that
+    // isn't a number you produced yourself (tests/plugin-template-safety.test.js).
+    escapeHtml, formatDuration,
   });
 
   window.RCBPlugins = {

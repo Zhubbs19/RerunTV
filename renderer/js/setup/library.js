@@ -21,6 +21,7 @@ import { h } from '../ui/kit-core.js';
 import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
 import { probeDurationForEntry } from './util.js';
+import { basename, plural } from '../core/util.js';
 import { renderChannelList } from './channels.js';
 import { MIGRATION_WINDOW_DAYS, applyMigrationIds, verifyMigrationPlan } from '../library/migration.js';
 import { acceptGroup, suggestGroups } from '../library/tagging.js';
@@ -99,8 +100,6 @@ async function run(busy, fn) {
 
 // ---------- Small helpers ----------
 
-const plural = (n, one, many = `${one}s`) => `${Number(n).toLocaleString()} ${n === 1 ? one : many}`;
-const basename = (ref) => String(ref || '').split(/[\\/]/).pop();
 const itemLabel = (item) => (item && (item.title || basename(item.ref))) || 'Unknown item';
 const liveItems = () => (L.index ? Object.values(L.index.items).filter((item) => !item.detached) : []);
 const smartChannels = () => (S.config.channels || []).filter((ch) => (ch.sources || []).some((s) => s && s.type === 'query'));

@@ -130,6 +130,7 @@ make that call.
 | `capabilities` | no, but required if your `main.js` needs `ctx.ipcMain`/`ctx.spawn`/`ctx.createServer` | What your `main.js` needs to touch beyond reading files — see "Declaring capabilities" below. Shown to the user as a permission-approval prompt before your plugin is allowed to activate. |
 | `isolated` | no | `true` runs your `main.js` in its own real OS process instead of the same-process default — see "Isolated plugins" below. Recommended for any plugin with real `spawn`/`net`/filesystem-write capabilities. |
 | `minCtxVersion` | no | Integer. Declare this if your `renderer`/`settings` code depends on a `window.RCBPlugins.ctx` shape newer than the app's current `ctx.version` — see "renderer-process side" below. An app build whose `ctx.version` is lower refuses to import your entry with a clear error instead of letting it crash on a missing property. |
+| `fallbackIpc` | no | Object mapping an IPC channel name to a JSON value, e.g. `{ "my-plugin:getStatus": { "ready": false } }`. While your plugin is disabled, or waiting on a permissions approval, core registers each channel to answer with that value, so renderer code that calls it unconditionally gets an empty result instead of a raw "no handler registered" rejection. Your own `main.js` is never loaded in that state. This replaced the old `registerFallback` hook: **core no longer calls `registerFallback`** (it would run unapproved code), so move any fallback answers into this field. |
 
 At least one of `style`/`renderer`/`settings`/`main` should be present, or your plugin
 does nothing.
@@ -833,6 +834,32 @@ plain `plugin.setSettings` instead, which is what reaches `channels.json` and
 any other paired editor. Your precise command stays in this client's undo
 history. You do not have to do anything about this — it is worth knowing only
 because another device sees "plugin settings changed", not your step's label.
+
+### Escaping text, and the other helpers on `ctx` (ctx v9)
+
+Anything you put into `innerHTML` that did not come from a literal in your own
+source (a title, a file or station name, a path, an error message, a string from a
+remote service) must be escaped, or it can become markup. `ctx.ui.escapeHtml(value)`
+escapes `& < > " '`, so it is safe in element text and inside quoted attributes;
+`null`/`undefined` become an empty string. `ctx.ui.formatDuration(seconds)` gives
+`m:ss` / `h:mm:ss`.
+
+```js
+const { escapeHtml } = window.RCBPlugins.ctx.ui;
+container.innerHTML = `<span class="name">${escapeHtml(station.name)}</span>`;
+```
+
+Prefer `textContent` or building nodes when that is just as easy. A test
+(`tests/plugin-template-safety.test.js`) scans bundled plugins for unescaped
+free-text `${...}` inside `innerHTML` templates.
+
+First-party plugins whose settings predate `pluginSettings` (breaking news, closed
+captions, the companion app) edit their older config section with
+`ctx.settings.updateLegacyConfig(pluginId, patch, { label })` and read or seed it with
+`ctx.settings.ensureLegacyConfig(pluginId, defaults)`. Only a plugin id core knows
+about is accepted. New plugins should use `ctx.settings.updatePluginSettings`
+or `ctx.commands` instead of assigning to `ctx.S.config` (guarded by
+`tests/plugin-config-writes.test.js`).
 
 ### Building UI with `ctx.ui` (ctx v6)
 
