@@ -1,0 +1,194 @@
+name: Build companion APKs
+
+# Builds the phone companion apps on Linux, which is where the React Native
+# Android build works: on Windows its native C++ step runs into the 260-character
+# path limit. Produces two installable APKs as workflow artifacts:
+#
+#   reruntv-companion-rn    the React Native app (companion-rn/), the main one
+#   reruntv-companion-web   the Kotlin WebView shell (android-companion-client/)
+#
+# Artifacts only, on purpose. The "Build installer" workflow keeps exactly one
+# GitHub prerelease alive and electron-updater picks the newest prerelease, so an
+# APK must never become a release or prerelease of its own. Download the files
+# from the run's summary page (kept for 30 days).
+#
+# Signing: with no secrets the React Native APK is signed with the debug key the
+# Expo template uses, fine for sideloading. To sign with your own key add the
+# repository secrets ANDROID_KEYSTORE_BASE64 (the keystore file, base64),
+# ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD.
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'companion-rn/**'
+      - 'android-companion-client/**'
+      - '.github/workflows/companion-apk.yml'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'companion-rn/**'
+      - 'android-companion-client/**'
+      - '.github/workflows/companion-apk.yml'
+  workflow_dispatch:
+    inputs:
+      architectures:
+        description: 'CPU architectures for the React Native APK'
+        required: false
+        default: 'arm64-v8a,armeabi-v7a'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: companion-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rn-checks:
+    name: React Native checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companion-rn
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion-rn/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  rn-apk:
+    name: React Native APK
+    needs: rn-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: companion-rn
+    env:
+      CI: '1'
+      ARCHITECTURES: ${{ github.event.inputs.architectures || 'arm64-v8a,armeabi-v7a' }}
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: companion-rn/package-lock.json
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - run: npm ci
+
+      # The android/ project is generated from app.json (it is not committed).
+      - name: Generate the native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Number the build
+        run: |
+          # Every install needs a higher versionCode than the one before it.
+          grep -Eq 'versionCode [0-9]+' android/app/build.gradle
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/" android/app/build.gradle
+
+      - name: Build the release APK
+        working-directory: companion-rn/android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures="$ARCHITECTURES" --no-daemon --console=plain
+
+      - name: Find the APK
+        id: apk
+        run: |
+          src=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          version=$(node -p "require('./app.json').expo.version")
+          out="reruntv-companion-${version}-build${{ github.run_number }}.apk"
+          cp "$src" "$out"
+          echo "path=companion-rn/$out" >> "$GITHUB_OUTPUT"
+          echo "file=$out" >> "$GITHUB_OUTPUT"
+
+      # Only when the signing secrets exist; otherwise the debug-key APK stands.
+      - name: Sign with the release key
+        if: ${{ env.KEYSTORE_B64 != '' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+          tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$tools/apksigner" sign \
+            --ks "$RUNNER_TEMP/release.keystore" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            "${{ steps.apk.outputs.file }}"
+          "$tools/apksigner" verify --print-certs "${{ steps.apk.outputs.file }}" | head -3
+          rm -f "$RUNNER_TEMP/release.keystore"
+
+      - name: Summary
+        run: |
+          {
+            echo "### React Native APK"
+            echo "- File: \`${{ steps.apk.outputs.file }}\`"
+            echo "- Architectures: \`$ARCHITECTURES\`"
+            echo "- Signing: ${{ env.KEYSTORE_B64 != '' && 'release key' || 'debug key (sideload only)' }}"
+            echo "- SHA-256: \`$(sha256sum "${{ steps.apk.outputs.file }}" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reruntv-companion-rn
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  web-shell-apk:
+    name: Kotlin web shell APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: android-companion-client
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build the debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --console=plain
+
+      - name: Find the APK
+        id: apk
+        run: |
+          version=$(sed -n "s/.*versionName '\(.*\)'.*/\1/p" app/build.gradle)
+          out="reruntv-companion-web-${version}-build${{ github.run_number }}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$out"
+          echo "path=android-companion-client/$out" >> "$GITHUB_OUTPUT"
+          echo "### Kotlin web shell APK: \`$out\` (debug-signed)" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reruntv-companion-web
+          path: ${{ steps.apk.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30

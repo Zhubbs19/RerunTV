@@ -70,3 +70,20 @@ npm test            # pure logic: addresses, layout, settings model, discovery (
 ```
 
 `npx expo export --platform android` bundles the JS and is a quick "does it build" check.
+
+## Building the APK (GitHub Actions)
+
+`.github/workflows/companion-apk.yml` builds both phone apps on Linux (the React Native Android build does not
+work on Windows: its C++ step exceeds the 260-character path limit). It runs on pushes and pull requests that
+touch `companion-rn/` or `android-companion-client/`, and by hand from the Actions tab (Run workflow, with a choice
+of CPU architectures).
+
+- `reruntv-companion-rn`: this app, a release APK (`arm64-v8a` and `armeabi-v7a` by default).
+- `reruntv-companion-web`: the Kotlin WebView shell, a debug APK.
+
+Download them from the run's summary page; they are kept for 30 days. They are artifacts, not GitHub Releases, so
+they never interfere with the installer workflow's single-prerelease updates.
+
+Without secrets the React Native APK is signed with the debug key the Expo template uses, which is fine for
+sideloading. To sign with your own key, add these repository secrets: `ANDROID_KEYSTORE_BASE64` (the keystore file,
+base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
