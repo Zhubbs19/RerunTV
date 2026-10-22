@@ -303,7 +303,7 @@ const SETTING_LABELS = {
   reminderNotify: 'reminder notifications', reminderLeadMinutes: 'reminder lead time',
   viewingHistory: 'viewing history', keepDisplayAwake: 'keep display awake', playbackResync: 'playback resync',
   customSounds: 'sounds', pinLock: 'PIN lock', commercials: 'commercials', autoStandby: 'auto standby', preemptionWindows: 'preemption windows', subChannels: 'sub-channels',
-  controls: 'tuning & controls', keyMap: 'keyboard shortcuts', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', librarySync: 'library sync',
+  controls: 'tuning & controls', keyMap: 'keyboard shortcuts', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', lastSeenAt: 'last seen', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
   pcPower: 'PC power',
 };
@@ -368,7 +368,7 @@ const CHANNEL_FIELDS = {
   resolutionOverride: 'resolution', displayAspectOverride: 'display aspect', color: 'color', volume: 'volume',
   adsEnabled: 'ads', defaultHasCC: 'default CC', defaultHasSAP: 'default SAP', defaultHasStereo: 'default stereo',
   iconOverrides: 'seasonal icons', logoBugProfiles: 'logo bug placement', dynamicOverlays: 'dynamic overlays',
-  callLetters: 'call letters', logoBugHideNumber: 'logo number', logoBugHidesOnBreak: 'logo in breaks',
+  anchor: 'schedule anchor', callLetters: 'call letters', logoBugHideNumber: 'logo number', logoBugHidesOnBreak: 'logo in breaks',
 };
 
 registerCommand('channel.set', {

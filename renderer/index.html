@@ -248,6 +248,20 @@
               <select id="bulk-aspect-select"></select>
               <button id="bulk-aspect-apply-btn" class="btn">APPLY</button>
             </span>
+            <span class="bulk-action-group">
+              TUNING
+              <select id="bulk-hide-select" aria-label="Hide selected channels from tuning">
+                <option value="">CHOOSE…</option>
+                <option value="show">SHOW</option>
+                <option value="hide">HIDE FROM TUNING</option>
+              </select>
+              <button id="bulk-hide-apply-btn" class="btn">APPLY</button>
+            </span>
+            <span class="bulk-action-group">
+              RUN BEHIND (HRS)
+              <input type="number" id="bulk-shift-input" class="title-row-input" value="3" step="1" aria-label="Hours to run the selected channels behind; negative runs ahead">
+              <button id="bulk-shift-apply-btn" class="btn">SHIFT</button>
+            </span>
             <button id="bulk-remove-btn" class="btn remove-btn">REMOVE SELECTED</button>
           </div>
           <!-- List + detail (docs/design/03 §4): the lineup as compact rows on
@@ -2268,6 +2282,7 @@
         </div>
         <div class="guide-search-row">
           <input type="text" id="guide-search" class="guide-search" placeholder="/ SEARCH CHANNELS OR UPCOMING PROGRAMS…" aria-label="Search guide channels and upcoming programs">
+          <button type="button" id="guide-view-btn" class="guide-view-btn" title="Show all channels, favorites, or channels you haven't watched lately" aria-label="Guide channel view">ALL CHANNELS</button>
           <div class="guide-daterange" id="guide-daterange"></div>
         </div>
       </div>

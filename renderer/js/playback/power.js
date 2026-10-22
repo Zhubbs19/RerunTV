@@ -1,6 +1,6 @@
 import { refreshSfxGainLevel, sfxPowerOff, sfxPowerOn, sfxVolumeTick } from '../core/audio.js';
 import { getChannel } from '../core/channels.js';
-import { computeSourcePosition, resolveActiveSource } from '../core/schedule.js';
+import { computeSourcePosition, getChannelSchedule, resolveActiveSource } from '../core/schedule.js';
 import {
   channelEntryEl, creditsSqueezeVideoEl, crtContainer, crtPreviewEl, crtToggleFlash, guideGrid, guideMuteEl, guideOverlay, hintBarEl, logoBugEl, player,
   screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
@@ -12,7 +12,7 @@ import { resetCreditsSpeedup } from './broadcast-fx.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from '../plugin/host.js';
 import { POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, S, viewNow, commitInPlace } from '../core/state.js';
 import { stopShuttle } from './timemachine.js';
-import { autoHideAfter, settingNumber } from '../core/util.js';
+import { autoHideAfter, getDisplayTitle, settingNumber } from '../core/util.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { Toast } from '../ui/toast.js';
 import { levelerGain } from './leveler.js';
@@ -34,9 +34,26 @@ import { shutsDownPcWithBox, startPcShutdown } from './pc-power.js';
 // GET /state always reflects what's actually on screen, not just which
 // channel. tuneToChannel (playback.js) calls this too, after setting
 // S.currentNumber, to cover the channel-number/name half of the snapshot.
+// What is on now (when it ends) and what follows, for the phone's NOW/NEXT line.
+function remoteNowNext(ch) {
+  if (!ch) return { nowEndsAtMs: null, nextTitle: '' };
+  try {
+    const at = viewNow();
+    const entries = getChannelSchedule(ch, at, at + 3 * 3600000);
+    return {
+      nowEndsAtMs: entries[0] ? entries[0].end : null,
+      nextTitle: entries[1] ? getDisplayTitle(entries[1].file) : '',
+    };
+  } catch (e) {
+    return { nowEndsAtMs: null, nextTitle: '' }; // a channel with no readable schedule just has no NEXT line
+  }
+}
+
 export function pushRemoteState() {
   const ch = getChannel(S.currentNumber);
   window.api.sendRemoteState({
+    ...remoteNowNext(ch),
+    sleepEndsAtMs: S.sleepEndsAt || null,
     number: S.currentNumber,
     name: ch ? ch.name : null,
     powered: S.isPoweredOn,
@@ -795,17 +812,55 @@ export function sleepOptions() {
   return [0, ...(valid.length ? valid : DEFAULT_SLEEP_STEPS)];
 }
 
+// A small "SLEEP 4:59" badge over the picture for the last five minutes, so the
+// fade-out never comes as a surprise. The timer is wall-clock by design (a
+// real TV's sleep button), hence Date.now() and not viewNow().
+const SLEEP_BADGE_WINDOW_MS = 5 * 60000;
+let sleepBadgeEl = null;
+let sleepBadgeTick = null;
+export function sleepRemainingMs() {
+  return S.sleepEndsAt ? Math.max(0, S.sleepEndsAt - Date.now()) : 0;
+}
+export function formatSleepRemaining(ms) {
+  const total = Math.ceil(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+function updateSleepBadge() {
+  const left = sleepRemainingMs();
+  if (!S.sleepEndsAt || !S.isPoweredOn || left <= 0 || left > SLEEP_BADGE_WINDOW_MS) {
+    if (sleepBadgeEl) sleepBadgeEl.classList.add('hidden');
+    if (!S.sleepEndsAt || left <= 0) { clearInterval(sleepBadgeTick); sleepBadgeTick = null; }
+    return;
+  }
+  if (!sleepBadgeEl) {
+    sleepBadgeEl = document.createElement('div');
+    sleepBadgeEl.className = 'sleep-badge hidden';
+    crtContainer.appendChild(sleepBadgeEl);
+  }
+  sleepBadgeEl.textContent = `SLEEP ${formatSleepRemaining(left)}`;
+  sleepBadgeEl.classList.remove('hidden');
+}
+function stopSleepBadge() {
+  S.sleepEndsAt = 0;
+  updateSleepBadge();
+}
+
 export function cycleSleepTimer() {
   const options = sleepOptions();
   const idx = options.indexOf(S.sleepMinutes || 0);
   const next = options[(idx + 1) % options.length];
   S.sleepMinutes = next;
+  stopSleepBadge();
+  setTimeout(pushRemoteState, 0); // the phone shows the countdown too
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
   clearTimeout(S.sleepFadeTimer);
   cancelAnimationFrame(S.sleepFadeRAF);
   S.sleepFadeGain = 1;
   applyVolume();
   if (next > 0) {
+    S.sleepEndsAt = Date.now() + next * 60000;
+    clearInterval(sleepBadgeTick);
+    sleepBadgeTick = setInterval(updateSleepBadge, 1000);
     S.sleepTimer = setTimeout(() => {
       if (S.isPoweredOn) powerOff();
       S.sleepFadeGain = 1; // back to full for the next time it's switched on
@@ -864,6 +919,7 @@ export function powerOff({ reason = 'user' } = {}) {
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
+  stopSleepBadge();
   // A fade armed for the sleep timer just cleared would silence the next power-on.
   clearTimeout(S.sleepFadeTimer); S.sleepFadeTimer = null;
   if (S.sleepFadeRAF) { cancelAnimationFrame(S.sleepFadeRAF); S.sleepFadeRAF = null; }

@@ -16,6 +16,7 @@ import {
 } from '../core/dom.js';
 import { getChannelSchedule } from '../core/schedule.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
+import { takeRestorePoint } from './restore-point.js';
 import { applyLocalFolderRelink, replaceLocalRoot } from '../library/relink.js';
 import { collectRealContentTags } from './util.js';
 import { S, viewNow, commitConfigPatch } from '../core/state.js';
@@ -141,6 +142,7 @@ function renderHealthCheckResults({ missingByChannel, missingFolderGroups, orpha
           '\n\nUpdate every channel and schedule reference that uses this folder? This can be undone with Ctrl+Z.';
         if (!(await confirmDialog({ message, title: 'RELINK MOVED FOLDER', danger: false, confirmText: 'RELINK' }))) return;
         const newId = mediaRefId('local', newRoot);
+        await takeRestorePoint('before-relink');
         const result = applyLocalFolderRelink(S.config, {
           oldId: entry.id, oldRoot: entry.ref, newId, newRoot,
         });

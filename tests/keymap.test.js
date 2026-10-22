@@ -42,6 +42,14 @@ test('keys that are taken, reserved or not a single key are refused', async () =
   assert.equal(keyProblem({ guide: 'y' }, 'setup', 'g'), null, 'a default letter its owner moved away from is free');
 });
 
+test('every default key is unique and none is reserved', async () => {
+  const { KEY_ACTIONS, RESERVED_KEYS } = await load();
+  const keys = KEY_ACTIONS.map((a) => a.key);
+  assert.equal(new Set(keys).size, keys.length, 'no two actions share a default key');
+  keys.forEach((k) => assert.ok(!RESERVED_KEYS.has(k), `${k} is not reserved`));
+  assert.ok(KEY_ACTIONS.some((a) => a.id === 'skipbreak' && a.key === 'q'));
+});
+
 test('the hint bar text swaps only the leading key', async () => {
   const { hintWithKey } = await load();
   assert.equal(hintWithKey('G GUIDE', 'g', 'y'), 'Y GUIDE');

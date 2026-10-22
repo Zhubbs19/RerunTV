@@ -707,6 +707,24 @@
     feedback('SOME SETTINGS REFUSED', true);
   }
 
+  // "12 MIN LEFT · NEXT: TITLE · SLEEP 23:00" under the programme line. Times
+  // are the box's clock when it pushed the state; minutes are good enough for
+  // a 1.5 s poll, so a phone clock a little off doesn't matter.
+  function applyNowDetail(remoteState) {
+    var el = document.getElementById('now-detail');
+    var parts = [];
+    var now = Date.now();
+    if (remoteState.number != null && remoteState.onAir !== 'break' && typeof remoteState.nowEndsAtMs === 'number' && remoteState.nowEndsAtMs > now) {
+      parts.push(Math.max(1, Math.round((remoteState.nowEndsAtMs - now) / 60000)) + ' MIN LEFT');
+    }
+    if (remoteState.nextTitle) parts.push('NEXT: ' + String(remoteState.nextTitle).toUpperCase());
+    if (typeof remoteState.sleepEndsAtMs === 'number' && remoteState.sleepEndsAtMs > now) {
+      var secs = Math.round((remoteState.sleepEndsAtMs - now) / 1000);
+      parts.push('SLEEP ' + Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0'));
+    }
+    el.textContent = parts.join(' · ');
+  }
+
   function pollState() {
     request('/state').then(function (remoteState) {
       var watching = document.getElementById('now-watching');
@@ -732,6 +750,7 @@
         watching.textContent = remoteState.powered === false ? 'POWERED OFF' : 'NO SIGNAL';
         program.textContent = '';
       }
+      applyNowDetail(remoteState);
       applyBoxState(remoteState);
       applySettingsResult(remoteState.settingsResult);
       applyPcShutdown(remoteState.pcShutdown);

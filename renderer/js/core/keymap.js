@@ -21,6 +21,7 @@ export const KEY_ACTIONS = [
   { id: 'calendar', key: 'd', hint: null, label: 'Time machine calendar' },
   { id: 'startover', key: 'j', hint: 'restart', label: 'Start the show over' },
   { id: 'live', key: 'l', hint: null, label: 'Back to live' },
+  { id: 'skipbreak', key: 'q', hint: null, label: 'Skip the commercial break' },
   { id: 'scan', key: 'n', hint: 'scan', label: 'Scan channels' },
   { id: 'details', key: 'i', hint: null, label: 'Show details' },
   { id: 'aircheck', key: 'x', hint: 'air-check', label: 'Mark an air check' },

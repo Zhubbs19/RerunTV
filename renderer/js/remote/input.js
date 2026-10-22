@@ -96,6 +96,7 @@ const WATCHING = {
   guide: 'guide.open', info: 'info.show', last: 'key:Backspace',
   mute: 'key:m', volUp: 'key:+', volDown: 'key:-',
   rewind: 'timeMachine.open', fastForward: 'timeMachine.open', record: 'key:x',
+  blue: 'key:q',
   dot: 'key:.',
 };
 

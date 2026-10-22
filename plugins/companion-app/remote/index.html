@@ -17,7 +17,7 @@
 <body>
   <header class="app-header">
     <div><div class="eyebrow">RERUNTV // HEADEND CONTROL</div><h1>COMPANION</h1></div>
-    <div class="live-status" id="live-status" data-state="connecting"><span class="status-lamp"></span><div><small>NOW WATCHING</small><strong id="now-watching">CONNECTING…</strong><small class="now-program" id="now-program"></small></div></div>
+    <div class="live-status" id="live-status" data-state="connecting"><span class="status-lamp"></span><div><small>NOW WATCHING</small><strong id="now-watching">CONNECTING…</strong><small class="now-program" id="now-program"></small><small class="now-program" id="now-detail"></small></div></div>
   </header>
   <nav class="tab-bar" id="tab-bar" role="tablist" aria-label="Companion sections">
     <button class="tab active" role="tab" aria-selected="true" aria-controls="panel-remote" id="tab-remote" data-tab="remote">REMOTE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-guide" id="tab-guide" data-tab="guide">GUIDE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-channels" id="tab-channels" data-tab="channels">LINEUP</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-settings" id="tab-settings" data-tab="settings">SETTINGS</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-tools" id="tab-tools" data-tab="tools">TOOLS</button>
@@ -29,6 +29,9 @@
       <div id="pc-shutdown-notice" class="pc-shutdown-notice" role="alert" hidden><div><span>THE PC IS SHUTTING DOWN</span><strong><b id="pc-shutdown-count">20</b> SECONDS</strong></div><button class="primary" data-action="cancel-pc-shutdown">CANCEL</button></div>
       <div class="hero-controls">
         <button class="control danger" data-key="p"><span>POWER</span><b>⏻</b></button><button class="control" data-key="m" data-live="muted"><span>MUTE</span><b>◖</b><i class="control-state" data-live-text="muted"></i></button><button class="control" data-key="g"><span>GUIDE</span><b>▦</b></button><button class="control" data-key="i"><span>INFO</span><b>i</b></button>
+      </div>
+      <div class="hero-controls">
+        <button class="control" data-key="q"><span>SKIP BREAK</span><b>⏭</b></button><button class="control" data-key="z"><span>SLEEP</span><b>☾</b></button>
       </div>
 
       <!-- Volume and channel sit above the keypad on purpose: they are the

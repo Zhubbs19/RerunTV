@@ -83,7 +83,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteBackup: (file) => ipcRenderer.invoke('backups:delete', file),
   setBackupLabel: (file, label) => ipcRenderer.invoke('backups:setLabel', file, label),
   setBackupPinned: (file, pinned) => ipcRenderer.invoke('backups:setPinned', file, pinned),
-  createBackupNow: () => ipcRenderer.invoke('backups:createNow'),
+  createBackupNow: (reason) => ipcRenderer.invoke('backups:createNow', reason),
   loadConfig: () => ipcRenderer.invoke('config:load'),
   saveConfig: (config, baseRevision, client) => ipcRenderer.invoke('config:save', config, baseRevision, client),
   applyConfigCommands: (batch, meta) => ipcRenderer.invoke('config:command', batch, meta),

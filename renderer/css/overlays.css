@@ -1875,6 +1875,49 @@ html[data-mode="tv"].cursor-idle * { cursor: none !important; }
 body:has(.crt.power-off) .recent-channels,
 body:has(.crt.guide-active) .recent-channels { display: none; }
 
+/* ---------- Sign-on card (playback/sign-on-card.js) ---------- */
+.sign-on-card {
+  position: absolute;
+  left: 50%;
+  bottom: 14%;
+  transform: translateX(-50%);
+  z-index: 14;
+  min-width: 360px;
+  max-width: 80%;
+  padding: 12px 18px;
+  background: var(--surface-panel, rgba(6, 10, 32, 0.92));
+  border: 2px solid var(--accent, #ffd02e);
+  border-radius: 4px;
+  font-family: var(--font-ui);
+  color: var(--text, #fff);
+}
+.sign-on-card.hidden { display: none; }
+.sign-on-title { font-weight: 800; letter-spacing: 2px; font-size: 13px; color: var(--accent, #ffd02e); margin-bottom: 8px; }
+.sign-on-row { font-size: 14px; font-weight: 700; letter-spacing: 1px; padding: 3px 0; white-space: pre-wrap; }
+body:has(.crt.power-off) .sign-on-card,
+body:has(.crt.guide-active) .sign-on-card { display: none; }
+
+/* ---------- Sleep timer countdown (playback/power.js) ---------- */
+.sleep-badge {
+  position: absolute;
+  right: 3%;
+  bottom: 12%;
+  z-index: 13;
+  padding: 4px 10px;
+  background: var(--surface-panel, rgba(6, 10, 32, 0.92));
+  border: 1px solid var(--accent, #ffd02e);
+  border-radius: 3px;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--text, #fff);
+  pointer-events: none;
+}
+.sleep-badge.hidden { display: none; }
+body:has(.crt.power-off) .sleep-badge,
+body:has(.crt.guide-active) .sleep-badge { display: none; }
+
 /* ---------- Time machine calendar (playback/time-calendar.js) ---------- */
 .time-calendar {
   position: fixed;

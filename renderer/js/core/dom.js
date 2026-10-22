@@ -276,6 +276,7 @@ export const guideBarFillEl = document.getElementById('guide-bar-fill');
 export const guideMuteEl = document.getElementById('guide-mute');
 export const guideGrid = document.getElementById('guide-grid');
 export const guideSearchEl = document.getElementById('guide-search');
+export const guideViewBtnEl = document.getElementById('guide-view-btn');
 export const guideTimeHeaderEl = document.getElementById('guide-timeheader');
 export const guideRowsEl = document.getElementById('guide-rows');
 export const guideNowLineEl = document.getElementById('guide-now-line');

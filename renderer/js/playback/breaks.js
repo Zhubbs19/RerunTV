@@ -569,6 +569,23 @@ export function forceInterstitialPreview(ch, entry) {
   return true;
 }
 
+// The Q key / blue button: leave the commercial break on screen and go back to
+// the show. Only breaks that took the picture from the show can be skipped,
+// and never an emergency alert or a preemption (those are not the viewer's to
+// dismiss). Returns whether anything was skipped.
+export function skipCurrentBreak() {
+  const ch = getChannel(S.currentNumber);
+  if (!ch || !S.isPoweredOn || S.easActive || S.timeMachineOn) return false;
+  if (!S.activeBreakKey || !S.activeBreakInterruptsContent || S.activeBreakKind === 'preemption') return false;
+  if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
+  if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
+  if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
+  S.endedHandler = null; S.errorHandler = null; S.metaHandler = null;
+  endBreak(ch);
+  scheduleNextBreak(ch);
+  return true;
+}
+
 function endBreak(ch) {
   const shouldResume = S.activeBreakInterruptsContent;
   // Preemption is the one break type that must NOT credit its time back —

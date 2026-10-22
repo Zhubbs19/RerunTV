@@ -18,6 +18,7 @@ import { Dialog } from '../ui/dialog.js';
 import { h } from '../ui/kit-core.js';
 import { MenuButton } from '../ui/menu.js';
 import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
+import { takeRestorePoint } from './restore-point.js';
 import { renderChannelList } from './channels.js';
 import {
   blankTemplate, compilePreset, listTemplates, normalizeTrackCard, resolveTemplate, slugify, templateFromChannel, templateSource, validateTemplate,
@@ -180,6 +181,7 @@ export async function applyPreset(template) {
     danger: false, confirmText: 'APPLY CHANNEL', cancelText: 'ADJUST',
   });
   if (!apply) return false;
+  await takeRestorePoint('before-preset');
   // One undo step for the channel and its ads together.
   const coalesce = `preset-apply:${channel.number}:${Date.now()}`;
   const label = `Add CH ${channel.number} from the ${template.name} preset`;

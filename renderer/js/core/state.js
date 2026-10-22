@@ -94,6 +94,8 @@ export const S = {
   guideSelTime: 0,
   guideTickTimer: null,
   guideFilterQuery: '',
+  guideView: 'all', // 'all' | 'favorites' | 'unseen' (core/guide-filter.js)
+  guideLastWatched: null, // Map(channel -> last real watch time), loaded for 'unseen'
   guideDocked: true,
   // Ad-break overlay blocks (buildChannelRow, guide.js) are opt-in — off by
   // default since a channel with a busy ad cadence can tile enough of them
@@ -438,7 +440,7 @@ export function setConfigNormalizer(fn) {
 
 // Settings that only describe this box's watching state; writing one doesn't
 // change anything any config-derived cache could depend on.
-const WATCH_STATE_SETTINGS = ['lastChannel', 'volume', 'muted', 'channelVolumes', 'pictureMode', 'aspectMode'];
+const WATCH_STATE_SETTINGS = ['lastChannel', 'lastSeenAt', 'volume', 'muted', 'channelVolumes', 'pictureMode', 'aspectMode'];
 function isWatchStateCommand(cmd) {
   return !!cmd && cmd.type === 'settings.set' && Array.isArray(cmd.path) && cmd.path.length === 1
     && WATCH_STATE_SETTINGS.includes(cmd.path[0]);

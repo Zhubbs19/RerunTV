@@ -13,6 +13,9 @@ import { h } from '../ui/kit-core.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { Dialog } from '../ui/dialog.js';
 import { applyPlaylistPreservingAir } from '../library/reanchor.js';
+import { describeShift, parseShiftHours, shiftedAnchor } from '../core/anchor-shift.js';
+import { takeRestorePoint } from './restore-point.js';
+import { diffSchedules, proposeEdit } from '../core/schedule-query.js';
 import { isFavorite, previewOnClient, refreshPersonalClients, setFavorite } from '../personal/state.js';
 import {
   buildChannelBadge, channelColor, formatChannelNumber, freshBroadcastHours, freshChannel, freshFileFacets, isSubChannel, mediaRefId, nextChannelNumber, parseChannelNumber, parseMediaRef,
@@ -1100,11 +1103,55 @@ function moveSetupChannel(ch, direction) {
   channelListPaneEl?.querySelector('.channel-list-item.selected')?.focus();
 }
 
-function duplicateSetupChannel(ch) {
+// Asks before moving channels' anchors, showing how many programs in the next
+// three days the move changes (the same previewed-edit path ON AIR uses).
+const SHIFT_PREVIEW_DAYS = 3;
+async function confirmAnchorShift(targets, hours) {
+  const from = viewNow();
+  const to = from + SHIFT_PREVIEW_DAYS * 86400000;
+  let moved = 0;
+  targets.forEach((c) => {
+    const cmd = { type: 'channel.set', channel: c.number, field: 'anchor', value: shiftedAnchor(c.anchor, hours, Date.now()) };
+    const proposal = proposeEdit(S.config, c.number, [cmd]);
+    moved += diffSchedules(c, proposal.channel, from, to, { breaks: false, afterConfig: proposal.config }).added.length;
+  });
+  const who = targets.length === 1 ? `CH ${targets[0].number}` : `${targets.length} channels`;
+  return confirmDialog({
+    title: 'Run behind / ahead',
+    message: `Run ${who} ${describeShift(hours)}? About ${moved} program${moved === 1 ? '' : 's'} in the next ${SHIFT_PREVIEW_DAYS} days will move. You can undo this.`,
+    danger: false,
+    confirmText: 'SHIFT',
+  });
+}
+
+async function shiftSelectedChannels(hours) {
+  const targets = selectedChannels();
+  if (!targets.length || !(await confirmAnchorShift(targets, hours))) return;
+  const now = Date.now(); // anchors are real-clock timestamps
+  dispatch(targets.map((c) => ({ type: 'channel.set', channel: c.number, field: 'anchor', value: shiftedAnchor(c.anchor, hours, now) })),
+    { label: `Run ${targets.length} channel${targets.length === 1 ? '' : 's'} ${describeShift(hours)}` });
+  renderChannelList();
+}
+
+async function duplicateShiftedChannel(ch) {
+  const answer = await promptDialog({
+    title: 'Duplicate behind / ahead',
+    message: `Copy CH ${ch.number} so it airs what this channel aired N hours ago. Use a negative number to run ahead.`,
+    placeholder: 'hours, e.g. 3',
+    defaultValue: '3',
+  });
+  if (answer == null) return;
+  const hours = parseShiftHours(answer);
+  if (hours == null) { await alertDialog('Enter a number of hours other than zero.'); return; }
+  duplicateSetupChannel(ch, { shiftHours: hours });
+}
+
+function duplicateSetupChannel(ch, { shiftHours = 0 } = {}) {
   const clone = deepClone(ch);
   clone.number = nextChannelNumber();
   clone.name = ch.name && ch.name.trim() ? `${ch.name.trim()} COPY` : '';
-  dispatch({ type: 'channel.insert', channel: clone }, { label: `Duplicate CH ${ch.number}` });
+  if (shiftHours) clone.anchor = shiftedAnchor(ch.anchor, shiftHours, Date.now());
+  dispatch({ type: 'channel.insert', channel: clone }, { label: shiftHours ? `Duplicate CH ${ch.number}, ${describeShift(shiftHours)}` : `Duplicate CH ${ch.number}` });
   S.bulkSelectedChannels.clear();
   S.setupSelectedChannel = clone.number;
   S.setupFilterQuery = '';
@@ -1142,6 +1189,7 @@ function channelRowMenu(ch) {
         { label: 'Add files…', run: () => pickFilesForChannel(ch) },
         { label: 'Preview…', run: () => openPreviewModal(ch), disabled: !ch.files.length },
         { label: 'Duplicate', run: () => duplicateSetupChannel(ch) },
+        { label: 'Duplicate, running behind…', run: () => duplicateShiftedChannel(ch) },
       ],
       [{ label: 'Remove channel…', run: () => removeSetupChannel(ch), danger: true }],
     ],
@@ -1744,6 +1792,19 @@ bulkVolumeApplyBtn.addEventListener('click', () => {
 bulkVolumeInheritBtn.addEventListener('click', () => {
   setOnSelected('volume', null, 'Reset volume');
   renderChannelList();
+});
+const bulkHideSelect = document.getElementById('bulk-hide-select');
+document.getElementById('bulk-hide-apply-btn').addEventListener('click', () => {
+  const v = bulkHideSelect.value;
+  if (!v) return;
+  setOnSelected('hidden', v === 'hide', v === 'hide' ? 'Hide from tuning' : 'Show in tuning');
+  renderChannelList();
+});
+const bulkShiftInput = document.getElementById('bulk-shift-input');
+document.getElementById('bulk-shift-apply-btn').addEventListener('click', async () => {
+  const hours = parseShiftHours(bulkShiftInput.value);
+  if (hours == null) { await alertDialog('Enter a number of hours other than zero.'); return; }
+  await shiftSelectedChannels(hours);
 });
 bulkRemoveBtn.addEventListener('click', async () => {
   const targets = selectedChannels();
@@ -2502,6 +2563,7 @@ channelImportBtn.addEventListener('click', async () => {
     }
   }
 
+  await takeRestorePoint('before-import');
   const result = mergeChannelPackage(S.config, pkg, {
     targetNumber, replace, makeId: randomInterstitialId,
   });
@@ -2562,6 +2624,7 @@ settingsImportBtn.addEventListener('click', async () => {
     message: `This replaces ${names} settings group${names === 1 ? '' : 's'} (look, volume, controls, plug-in options). Channels, the ad pool and watching history are not touched. Undo (Ctrl+Z) reverts it.`,
     confirmText: 'IMPORT SETTINGS',
   }))) return;
+  await takeRestorePoint('before-import');
   applySettingsBundle(S.config, settings);
   commitConfigPatch('Import settings');
   // Bring the live picture, sound and theme in line with what was imported.
@@ -2605,6 +2668,7 @@ configImportBtn.addEventListener('click', async () => {
   }
   if (!(await confirmDialog('Import this config? It replaces every channel and setting currently loaded. You can undo it with Ctrl+Z until you leave setup.'))) return;
 
+  await takeRestorePoint('before-import');
   S.config = applyConfigDefaults(imported);
   resetUndoBaseline();
   S.setupFilterQuery = '';

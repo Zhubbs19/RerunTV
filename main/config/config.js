@@ -623,7 +623,9 @@ function registerBackupsIpc(ipcMain) {
   // created filename (or null if there's nothing to snapshot yet) so the
   // caller can immediately attach the user's label to the exact file just
   // written, not "whichever is newest" a moment later.
-  ipcMain.handle('backups:createNow', async () => backupCurrentConfig(true, 'manual'));
+  // A renderer-named reason is only honoured from this short list.
+  const RESTORE_POINT_REASONS = new Set(['before-import', 'before-preset', 'before-relink']);
+  ipcMain.handle('backups:createNow', async (_event, reason) => backupCurrentConfig(true, RESTORE_POINT_REASONS.has(reason) ? reason : 'manual'));
 }
 
 function registerConfigIpc(ipcMain) {

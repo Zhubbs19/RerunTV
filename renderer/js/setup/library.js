@@ -110,7 +110,7 @@ const smartChannels = () => (S.config.channels || []).filter((ch) => (ch.sources
 // writes that change nothing a schedule reads — a library sync's bookkeeping
 // on its 30-minute timer, the last channel tuned — bump it too, and must not
 // throw away minutes of checking.
-const WATCH_STATE = new Set(['librarySync', 'lastChannel', 'muted', 'volume', 'pictureMode', 'aspectMode']);
+const WATCH_STATE = new Set(['librarySync', 'lastChannel', 'lastSeenAt', 'muted', 'volume', 'pictureMode', 'aspectMode']);
 function configSignature() {
   return JSON.stringify(S.config, (key, value) => (WATCH_STATE.has(key) ? undefined : value));
 }

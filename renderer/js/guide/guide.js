@@ -5,8 +5,10 @@ import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber,
 import {
   crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid,
   guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay,
-  guideRowsEl, guideSearchEl, guideTimeHeaderEl, player,
+  guideRowsEl, guideSearchEl, guideTimeHeaderEl, guideViewBtnEl, player,
 } from '../core/dom.js';
+import { GUIDE_VIEW_LABELS, lastWatchedByChannel, nextGuideView } from '../core/guide-filter.js';
+import { listViewingHistory } from '../playback/history.js';
 import { showDetailsOverlay } from '../tv/details.js';
 import { tuneToChannel } from '../playback/core.js';
 import { breakEntriesInWindow } from '../core/interstitials.js';
@@ -294,6 +296,35 @@ function guideLivePreviewEnabled() {
   return !(pack && pack.guidePreviewDefault === false);
 }
 
+export function syncGuideViewButton() {
+  if (guideViewBtnEl) {
+    guideViewBtnEl.textContent = GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all;
+    guideViewBtnEl.classList.toggle('active', S.guideView !== 'all');
+  }
+}
+
+// The guide's channel-view button: ALL -> FAVORITES -> NOT WATCHED LATELY.
+// "Not watched" reads the viewing log once per switch into it.
+export async function cycleGuideView() {
+  let rows = null;
+  // A view with no channels in it is skipped, so the grid is never left empty.
+  for (let i = 0; i < 3; i += 1) {
+    S.guideView = nextGuideView(S.guideView);
+    if (S.guideView === 'unseen') {
+      if (!rows) {
+        try { rows = await listViewingHistory(5000); } catch { rows = []; /* an empty log lists every channel */ }
+      }
+      S.guideLastWatched = lastWatchedByChannel(rows);
+    }
+    if (S.guideView === 'all' || filteredChannels().length) break;
+  }
+  S.guideSelNumber = null; // first matching row
+  syncGuideViewButton();
+  renderGuideGrid();
+}
+
+if (guideViewBtnEl) guideViewBtnEl.addEventListener('click', () => { cycleGuideView(); });
+
 export function openGuideGrid() {
   if (sortedChannels().length === 0) return;
   if (guideGrid.classList.contains('hidden')) guidePreviouslyFocused = document.activeElement;
@@ -302,6 +333,8 @@ export function openGuideGrid() {
   S.guideHideTimer = null;
   guideOverlay.classList.add('hidden');
   S.guideFilterQuery = '';
+  S.guideView = 'all';
+  syncGuideViewButton();
   guideSearchEl.value = '';
   const now = viewNow();
   S.guideWindowStart = floorToSlot(now);
@@ -910,7 +943,7 @@ let lastGuideRenderSig = null;
 // switching sides changes which rows exist without touching configGeneration.
 function guideRenderSignature(rows, windowEnd, minMs) {
   return [
-    S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery,
+    S.configGeneration, S.guideWindowStart, windowEnd, S.guideFilterQuery, S.guideView,
     S.guideDocked, S.guideShowBreaks, guideSlots(), rows.map((r) => r.number).join(','), S.guideSelNumber, S.guideSelTime,
     minMs, document.documentElement.dataset.theme,
   ].join('|');

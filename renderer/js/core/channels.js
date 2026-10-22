@@ -6,7 +6,8 @@ import {
 } from './util.js';
 import { virtualChannelNumbers } from '../playback/virtual.js';
 import { normalizeTrackCard } from '../library/channel-builder.js';
-import { isHiddenForProfile } from '../personal/state.js';
+import { isFavorite, isHiddenForProfile } from '../personal/state.js';
+import { applyGuideView } from './guide-filter.js';
 
 // Block-level ad override — only present when a daypart block explicitly
 // opts out of the channel/flow default (block.commercials !== null).
@@ -794,7 +795,11 @@ export function parseChannelNumber(text) {
 // channel-up/down cycles through.
 export function filteredChannels() {
   const q = S.guideFilterQuery.trim().toLowerCase();
-  const list = sortedChannels().filter((ch) => !ch.hidden && !isHiddenForProfile(ch.number));
+  const list = applyGuideView(
+    sortedChannels().filter((ch) => !ch.hidden && !isHiddenForProfile(ch.number)),
+    S.guideView,
+    { isFavorite, lastWatched: S.guideLastWatched, now: Date.now() },
+  );
   if (!q) return list;
   return list.filter((ch) => (ch.name || '').toLowerCase().includes(q) || String(ch.number).includes(q));
 }

@@ -23,7 +23,7 @@ import {
   stopChannelScan, toggleChannelScan,
   startScheduleDriftWatchdog,
 } from './playback/core.js';
-import { cancelUpNextBar, checkBreakState, resetActiveBreakState } from './playback/breaks.js';
+import { cancelUpNextBar, checkBreakState, resetActiveBreakState, skipCurrentBreak } from './playback/breaks.js';
 import { applyLogoBugPlacement, initMediaSession, showNoSignal } from './playback/broadcast-fx.js';
 import {
   showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
@@ -53,6 +53,7 @@ import { installPcPower } from './playback/pc-power.js';
 import { applyLeveler } from './playback/leveler.js';
 import { applyBakedBars } from './playback/bars.js';
 import { handleRecentKey, toggleRecentChannels } from './playback/recent-channels.js';
+import { startSignOn } from './playback/sign-on-card.js';
 import { openTimeCalendar } from './playback/time-calendar.js';
 import { applyKeyHints, remapKeyboardEvent } from './core/key-remap.js';
 import { fillNewSettingDefaults } from './core/setting-defaults.js';
@@ -356,6 +357,10 @@ export function handleKey(e) {
     case 'j':
     case 'J':
       restartCurrentShow();
+      break;
+    case 'q':
+    case 'Q':
+      skipCurrentBreak();
       break;
     case ' ':
     case 'Enter':
@@ -926,6 +931,7 @@ export async function showTvScreen() {
   const wanted = startup === 'first' ? list[0].number : (typeof startupNumber === 'number' && Number.isFinite(startupNumber) ? startupNumber : S.config.lastChannel);
   const resume = list.find((c) => c.number === wanted);
   tuneToChannel((resume || list[0]).number, { silent: true });
+  startSignOn();
   resetIdleTimer();
 }
 

@@ -314,7 +314,7 @@ function createConfigHost({ load, save, broadcast = () => {}, loadCommands }) {
 // state, rewritten on every channel change or volume tap; a viewer keeps its
 // own, so announcing them would make every TV refetch the whole lineup each
 // time someone surfs on the host.
-const HOST_LOCAL_FIELDS = ['lastChannel', 'muted', 'volume', 'pictureMode', 'aspectMode', 'channelVolumes'];
+const HOST_LOCAL_FIELDS = ['lastChannel', 'lastSeenAt', 'muted', 'volume', 'pictureMode', 'aspectMode', 'channelVolumes'];
 const HOST_LOCAL_DISPLAY_FIELDS = ['hintBar'];
 
 function viewerRelevantKey(config, hash) {

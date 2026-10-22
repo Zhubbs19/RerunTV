@@ -564,6 +564,20 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
 }
 .guide-search::placeholder { color: var(--text-muted); opacity: 0.7; }
 .guide-search:focus { outline: none; border-color: var(--accent); }
+.guide-view-btn {
+  background: var(--surface-0);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 7px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.guide-view-btn:hover, .guide-view-btn:focus-visible, .guide-view-btn.active { color: var(--text); border-color: var(--accent); outline: none; }
 
 .guide-daterange {
   font-family: var(--font-ui);

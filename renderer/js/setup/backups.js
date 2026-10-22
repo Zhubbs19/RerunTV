@@ -30,6 +30,9 @@ const BACKUP_REASON_LABELS = {
   'session-start': 'SESSION START',
   'before-restore': 'BEFORE RESTORE',
   'before-update': 'BEFORE UPDATE',
+  'before-import': 'BEFORE IMPORT',
+  'before-preset': 'BEFORE PRESET',
+  'before-relink': 'BEFORE RELINK',
 };
 
 function metricLine(label, current, snapshot) {

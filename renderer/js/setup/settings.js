@@ -452,7 +452,7 @@ export function renderSettingsPanels() {
 
 import { startPerfMonitor, stopPerfMonitor } from '../core/perf.js';
 import { openPluginFromSearch, renderPluginsTab, reportPluginAttention } from './plugins.js';
-import { refreshSidebarBadges } from './sidebar.js';
+import { refreshMissingFileBadge, refreshSidebarBadges } from './sidebar.js';
 import { renderPluginDiagnostics } from '../plugin/diagnostics.js';
 
 // ---------- Settings screen tabs ----------
@@ -660,6 +660,7 @@ export function resetSetupTabs() {
   syncDiagnosticsMonitor();
   updateBreadcrumb();
   refreshSidebarBadges();
+  refreshMissingFileBadge();
   reportPluginAttention();
 }
 
@@ -1177,6 +1178,13 @@ if (helpPrintManualBtn) {
 
 const CHANGELOG = [
   { date: '2026-10-22', items: [
+    'Skip a commercial break with Q (the blue button on a remote, SKIP BREAK on the phone). The show comes back where it left off.',
+    'The sleep timer now shows a SLEEP m:ss countdown over the picture for its last five minutes, and the phone remote shows it too, along with how long the current show has left and what is next.',
+    'The I details card also says why the show is on: the block or lineup that picked it and the ad flow behind its breaks.',
+    'The guide has a channel view button next to search: ALL CHANNELS, FAVORITES, or channels you have not watched in 14 days.',
+    'When the box starts after a long time away, a short card says how long it was off and lists your next reminders.',
+    'Setup: DUPLICATE, RUNNING BEHIND… copies a channel shifted by some hours (a second copy of a channel that is never on the same episode); the multi-select bar can hide channels from tuning and shift their schedules, with a count of the programs that will move. The CHANNELS sidebar item is badged when files are missing.',
+    'Restore points: importing a config, settings or channel, applying a preset and relinking a folder each save a named backup first (SETTINGS › Backups).',
     'Shut down the PC from the box. SYSTEM › POWER has a new switch, off by default, that adds SHUT DOWN PC to the TV menu (desktop and TV mode) and a SHUT DOWN PC button to the companion remote. Both ask first, then count down 20 seconds on the screen and on the phone, with CANCEL on either. A second option makes the box’s own power-off (P, the remote’s power button, the TV menu) shut the computer down too; auto standby and the screen turning off never do.',
   ] },
   { date: '2026-10-18', items: [

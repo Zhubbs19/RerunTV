@@ -7,8 +7,10 @@
 import { detailsDescriptionEl, detailsMetaEl, detailsOverlayEl, detailsPosterEl, detailsTagsEl, detailsTitleEl } from '../core/dom.js';
 import { getChannel } from '../core/channels.js';
 import { computeLivePosition } from '../core/schedule.js';
-import { S } from '../core/state.js';
+import { S, viewNow } from '../core/state.js';
+import { explainLayers } from '../core/schedule-query.js';
 import { getDisplayTitle } from '../core/util.js';
+import { describeWhyAiring } from '../core/why-airing.js';
 
 let detailsPreviouslyFocused = null;
 
@@ -114,6 +116,7 @@ function populateDetails(file, ctx) {
     metaParts.push(`CH ${ctx.channelNumber}${ctx.channelName ? ' — ' + ctx.channelName : ''}`);
   }
   if (ctx.airTime) metaParts.push(ctx.airTime);
+  if (ctx.why) metaParts.push(ctx.why);
   detailsMetaEl.textContent = metaParts.join('   ·   ');
 
   detailsDescriptionEl.textContent = (file && file.description && file.description.trim())
@@ -185,5 +188,7 @@ export function showDetailsForCurrentChannel() {
   if (!ch) return;
   const pos = computeLivePosition(ch);
   if (!pos || !pos.file) return;
-  showDetailsOverlay(pos.file, { channelNumber: ch.number, channelName: ch.name });
+  let why = '';
+  try { why = describeWhyAiring(explainLayers(ch, viewNow())); } catch { /* the card still shows without it */ }
+  showDetailsOverlay(pos.file, { channelNumber: ch.number, channelName: ch.name, why });
 }
