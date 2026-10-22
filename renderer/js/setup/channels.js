@@ -36,6 +36,11 @@ import { channelRowMenu } from './channel-row-actions.js';
 export { selectAllChannelsFromSearch } from './channel-selection.js';
 export { addPluginSourceToChannel, addFolderToChannel, addVideoFilesToChannel, pickFilesForChannel, removeFileFromChannel, createChannelFromFolder, rescanAllFolders, removeFolderFromChannel } from './channel-sources.js';
 export { openPreviewModal } from './channel-preview-modal.js';
+// These modules only wire listeners (bulk bar, library search, DONE / ADD CHANNEL / import and
+// export buttons) and export nothing channels.js uses, so they have to be imported for effect.
+import './channel-bulk-actions.js';
+import './channel-search.js';
+import './channel-toolbar.js';
 
 // Loads a file into a detached <video> element and confirms a frame
 // actually decodes within timeoutMs — same check used live in
