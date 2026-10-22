@@ -43,6 +43,7 @@ function showToast() {
   toastEl = document.createElement('div');
   toastEl.className = 'tv-suggest';
   toastEl.setAttribute('role', 'dialog');
+  toastEl.setAttribute('aria-label', 'Switch to TV mode?');
   toastEl.innerHTML = '<span class="tv-suggest-text">Using a remote? TV mode makes everything reachable with the D-pad.</span>';
   const yes = document.createElement('button');
   yes.type = 'button';
@@ -75,8 +76,9 @@ function showToast() {
 export function installTvSuggestion(getMode) {
   const state = { remoteKeys: 0, firstRemoteAt: null, pointerAt: false };
   let offered = false;
+  let timer = null;
   const check = () => {
-    if (offered) return;
+    if (offered) { clearInterval(timer); return; }
     const ok = shouldSuggestTvMode({
       mode: getMode(),
       fullscreen: !!(document.fullscreenElement || (window.innerWidth === window.screen.width && window.innerHeight === window.screen.height)),
@@ -86,7 +88,8 @@ export function installTvSuggestion(getMode) {
       firstRemoteAt: state.firstRemoteAt,
       now: Date.now(),
     });
-    if (ok) { offered = true; showToast(); }
+    // Offered once per session: the interval has nothing left to do after that.
+    if (ok) { offered = true; clearInterval(timer); showToast(); }
   };
   window.addEventListener('pointermove', () => { state.pointerAt = true; }, { passive: true, once: true });
   window.addEventListener('mousedown', () => { state.pointerAt = true; }, { passive: true, once: true });
@@ -96,5 +99,5 @@ export function installTvSuggestion(getMode) {
     if (state.firstRemoteAt == null) state.firstRemoteAt = Date.now();
     check();
   });
-  setInterval(check, 5000);
+  timer = setInterval(check, 5000);
 }

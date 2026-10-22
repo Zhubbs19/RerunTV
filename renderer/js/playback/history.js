@@ -13,9 +13,31 @@ import { S, viewNow } from '../core/state.js';
 import { getDisplayTitle } from '../core/util.js';
 import { currentProfile, personalCommand } from '../personal/state.js';
 
-export function recordViewing(ch, file) {
+// playChannelLive runs again for the SAME programme after every break (endBreak resumes through it)
+// and after a transcode/play retry, which used to log a fresh row each time and inflate plays and
+// watch time. A programme is identified by channel + file + the instant the file started airing
+// (fileStartMs, constant across breaks because the lag S.contentLostMs is folded into it).
+const SAME_START_TOLERANCE_MS = 2000;
+let lastViewing = null;
+
+export function isSameViewing(last, next) {
+  if (!last || !next) return false;
+  if (last.channelNumber !== next.channelNumber || last.path !== next.path) return false;
+  if (!Number.isFinite(last.fileStartMs) || !Number.isFinite(next.fileStartMs)) return false;
+  return Math.abs(last.fileStartMs - next.fileStartMs) <= SAME_START_TOLERANCE_MS;
+}
+
+export function resetViewingDedupe() {
+  lastViewing = null;
+}
+
+// fileStartMs is optional; without it every call records (the old behaviour).
+export function recordViewing(ch, file, fileStartMs) {
   if (!window.api || typeof window.api.historyAppend !== 'function') return;
   if (!ch || !file) return;
+  const marker = { channelNumber: ch.number, path: file.path || '', fileStartMs };
+  if (isSameViewing(lastViewing, marker)) return;
+  lastViewing = marker;
   const entry = {
     // Both clocks: `at` is when this was really watched, which is what a
     // "last week" readout needs, while `viewAt` is where it sat in the

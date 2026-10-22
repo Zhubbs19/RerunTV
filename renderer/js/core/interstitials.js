@@ -197,7 +197,13 @@ function eligiblePremiereJingleEntries(pool, ch, block) {
 export function pickDeterministic(pool, seedKey, slotIndex) {
   if (!pool.length) return null;
   const expanded = [];
-  pool.forEach((e) => { for (let i = 0; i < Math.min(100, Math.max(1, e.weight || 1)); i++) expanded.push(e); });
+  // A non-numeric weight ("abc", undefined, NaN) counts as 1: it used to expand to zero copies, so
+  // the entry silently never aired (and an all-NaN pool made the index below NaN).
+  pool.forEach((e) => {
+    const w = Number(e.weight);
+    const copies = Number.isFinite(w) ? Math.min(100, Math.max(1, w)) : 1;
+    for (let i = 0; i < copies; i++) expanded.push(e);
+  });
   const cycleLen = expanded.length;
   const cycleIndex = Math.floor(slotIndex / cycleLen);
   const shuffled = seededShuffle(expanded, hashString(`${seedKey}:${cycleIndex}`));

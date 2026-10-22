@@ -19,7 +19,7 @@ import { getChannel } from '../core/channels.js';
 import { flashMessage } from '../playback/power.js';
 import { tuneToChannel } from '../playback/core.js';
 import { computeLivePosition } from '../core/schedule.js';
-import { S, viewNow, commitInPlace } from '../core/state.js';
+import { S, viewNow, commitInPlace, setViewedTime } from '../core/state.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
 import { formatClock, getDisplayTitle } from '../core/util.js';
 import { currentProfile, personalCommand } from '../personal/state.js';
@@ -115,7 +115,7 @@ export function clearAirChecks() {
 export function recallAirCheck(id) {
   const mark = airCheckArray().find((entry) => entry.id === id);
   if (!mark) return false;
-  S.timeOffsetMs += mark.at - viewNow();
+  setViewedTime(mark.at);
   updateTimeShiftBadge();
   tuneToChannel(mark.channelNumber);
   flashMessage(`AIR CHECK — ${airCheckLabel(mark)}`, 'airCheckFlashTimer');

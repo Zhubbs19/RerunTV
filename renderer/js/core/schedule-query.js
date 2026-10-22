@@ -97,6 +97,7 @@ export function queryDay(ch, dayStart, { breaks = true } = {}) {
   if (!day.programs) {
     const began = performance.now();
     day.programs = getChannelSchedule(ch, day.dayStart, day.dayEnd);
+    if (day.programs.truncated) day.truncated = true; // the listing hit a safety cap; see schedule.js
     day.ms += performance.now() - began;
   }
   if (breaks && !day.breaks) {
@@ -177,7 +178,9 @@ export function querySchedule(ch, from, to, { breaks = true, offAir = true } = {
   const days = [];
   for (let day = startOfDay(from); day < to; day = addDays(day, 1)) days.push(queryDay(ch, day, { breaks }));
   const overlaps = (e) => e.end > from && e.start < to;
+  const truncated = days.some((d) => d.truncated);
   return {
+    ...(truncated ? { truncated: true } : {}),
     from,
     to,
     programs: stitchPrograms(days.map((d) => d.programs)).filter(overlaps),

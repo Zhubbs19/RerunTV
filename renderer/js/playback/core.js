@@ -34,13 +34,14 @@ import {
   computeSourcePosition, isWithinBroadcastHours, nextBroadcastHoursBoundary, nextSourceBoundary,
   resolveActiveSource,
 } from '../core/schedule.js';
-import { S, viewNow, commitInPlace, onSchedulingConfigChange } from '../core/state.js';
+import { S, viewNow, commitInPlace, onSchedulingConfigChange, canPlay } from '../core/state.js';
 import { isFavorite, isHiddenForProfile, syncSharedTune } from '../personal/state.js';
 import { exitTimeMachine, stopShuttle, updateTimeShiftBadge, updateVcrOsd } from './timemachine.js';
 import { isEnabledByDefault, settingNumber } from '../core/util.js';
 import { getVirtualBadge, hideVirtualChannels, isVirtualChannel, showVirtualChannel, virtualChannelNumbers } from './virtual.js';
 import { waitForMediaSourceReady as waitForProviderMediaSource } from './recovery.js';
 import { historyEnabled, recordViewing } from './history.js';
+import { decideDriftAction } from './drift-model.js';
 import {
   cancelUpNextBar, checkBreakState, fadeInPlayer, resetActiveBreakState, scheduleContentAdvisoryCues,
   scheduleNextBreak, scheduleUpNextBar,
@@ -123,13 +124,17 @@ let correctionLeadMs = 120;
 // A corrective seek that never produces a frame must not hold the reveal.
 const CATCH_UP_FRAME_TIMEOUT_MS = 2000;
 
+// Consecutive ticks the player has claimed to be playing without any data (see decideDriftAction).
+let driftStallTicks = 0;
+
 export function checkScheduleDrift() {
-  if (!S.isPoweredOn || S.isSetupOpen) return;
-  if (S.activeBreakKey || S.creditsSpeedupActive) return;
-  if (S.shuttleDir !== 0) return;
-  if (!S.liveContentPath || S.liveContentChannel !== S.currentNumber) return;
-  if (player.paused || player.seeking || player.readyState < 3) return;
-  if (!Number.isFinite(player.duration) || player.duration <= 0) return;
+  if (!canPlay()) { driftStallTicks = 0; return; }
+  if (S.activeBreakKey || S.creditsSpeedupActive) { driftStallTicks = 0; return; }
+  // A shuttle, a parked scrub (the viewed clock is frozen) and an emergency alert all pause or
+  // move the picture on purpose.
+  if (S.shuttleDir !== 0 || S.scrubPending || S.frozenViewMs != null || S.easActive) { driftStallTicks = 0; return; }
+  if (!S.liveContentPath || S.liveContentChannel !== S.currentNumber) { driftStallTicks = 0; return; }
+  if (!player.currentSrc && !player.getAttribute('src')) return;
   // Real time, not viewNow(): this is a rate limit on how often we're willing
   // to disturb the player, which is a wall-clock concern and has nothing to
   // do with what the schedule thinks the time is.
@@ -149,11 +154,36 @@ export function checkScheduleDrift() {
   const pos = computeSourcePosition(source, now);
   if (!pos || !pos.file || pos.file.path !== S.liveContentPath) return;
   const expected = pos.offset;
-  if (expected >= player.duration - DRIFT_TAIL_GUARD_S) return;
-  const delta = expected - player.currentTime;
-  if (Math.abs(delta) < DRIFT_TOLERANCE_S) return;
+  const action = decideDriftAction({
+    paused: player.paused, seeking: player.seeking, ended: player.ended, readyState: player.readyState,
+    currentTime: player.currentTime, duration: player.duration, expected, stallTicks: driftStallTicks,
+  });
+  // Stall bookkeeping: counts ticks that look like "playing but starved".
+  driftStallTicks = (!player.paused && !player.seeking && player.readyState < 3) ? driftStallTicks + 1 : 0;
+  if (action === 'none') return;
 
   S.lastDriftSeekMs = Date.now();
+  if (action === 'resume') {
+    // Paused (an interrupted load, a rejected play(), the OS pausing the element) while the
+    // schedule says this should be airing. Resume where the clock says, not where it stopped.
+    console.log(`[drift] CH${ch.number} was paused mid-program; resuming`);
+    const behind = expected - player.currentTime;
+    if (Math.abs(behind) >= DRIFT_TOLERANCE_S) player.currentTime = expected;
+    player.play().catch((err) => {
+      console.warn(`[drift] CH${ch.number} resume rejected:`, err && err.name ? err.name : err);
+      setTimeout(() => {
+        if (canPlay() && player.paused && !S.activeBreakKey && S.currentNumber === ch.number) player.play().catch(() => {});
+      }, 500);
+    });
+    return;
+  }
+  if (action === 'nudge') {
+    console.log(`[drift] CH${ch.number} starved of data; re-seeking to the schedule position`);
+    driftStallTicks = 0;
+    player.currentTime = expected;
+    return;
+  }
+  const delta = expected - player.currentTime;
   console.log(`[drift] CH${ch.number} resynced ${delta > 0 ? '+' : ''}${delta.toFixed(1)}s to match the schedule`);
   player.currentTime = expected;
 }
@@ -161,7 +191,7 @@ export function checkScheduleDrift() {
 // A host edit or resync can change channels/flows/presets under the running
 // timers; re-derive them against the config as it now stands.
 onSchedulingConfigChange(() => {
-  if (!S.isPoweredOn || S.currentNumber == null) return;
+  if (!canPlay() || S.currentNumber == null) return;
   if (S.shuttleDir !== 0 || S.scrubPending) return;
   const ch = getChannel(S.currentNumber);
   if (!ch || isVirtualChannel(ch.number)) return;
@@ -225,7 +255,7 @@ function clearPlayerToBlank() {
 async function waitForMediaSourceReady(ch, file) {
   return waitForProviderMediaSource(ch, file, {
     clearPlayer: clearPlayerToBlank,
-    isActive: () => S.currentNumber === ch.number && S.isPoweredOn,
+    isActive: () => S.currentNumber === ch.number && canPlay(),
     markVisualReady: markStaticReady,
     showStatus: showNoSignal,
     clearStatus: () => hideNoSignal(),
@@ -237,7 +267,11 @@ export async function playChannelLive(ch, opts) {
   // Every legitimate caller has already tuned to ch (tuneToChannel sets
   // S.currentNumber first) and is powered on; a stale caller (a break's fade
   // await, a retry after tune-away/power-off) must not start content.
-  if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+  if (S.currentNumber !== ch.number || !canPlay()) return;
+  // Generation captured now; anything that awaits below re-checks it, so a tune-away (even
+  // A -> B -> A), power-off or Setup opening mid-await retires this attempt.
+  const seq = S.playbackSeq;
+  const isStale = () => seq !== S.playbackSeq || S.currentNumber !== ch.number || !canPlay();
   window.__tuneT0 = performance.now();
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} start`);
   applyBlockTheme(resolveActiveSource(ch, viewNow()).block);
@@ -278,7 +312,7 @@ export async function playChannelLive(ch, opts) {
     return;
   }
 
-  if (S.currentNumber !== ch.number || !S.isPoweredOn) { markStaticReady(); return; }
+  if (isStale()) { markStaticReady(); return; }
 
   if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
   if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
@@ -292,7 +326,7 @@ export async function playChannelLive(ch, opts) {
   let handled = false;
 
   async function handleUnplayable() {
-    if (handled || S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (handled || isStale()) return;
     handled = true;
 
     // Live playback (the default, first attempt for every file — local or
@@ -310,7 +344,7 @@ export async function playChannelLive(ch, opts) {
     // the normal transcode-or-give-up logic exactly once, not forever.
     if (!opts.cacheRetried && file.source && file.source !== 'local' && resolved.transcodable === false) {
       const ready = await waitForMediaSourceReady(ch, file);
-      if (!ready) return; // tuned away while waiting
+      if (!ready || isStale()) return; // tuned away while waiting
       playChannelLive(ch, { ...opts, cacheRetried: true });
       return;
     }
@@ -401,7 +435,7 @@ export async function playChannelLive(ch, opts) {
     } catch (err) {
       result = { error: (err && err.message) || 'transcode call failed' };
     }
-    if (S.currentNumber !== ch.number) return; // user tuned away meanwhile
+    if (isStale()) return; // user tuned away (or opened Setup / powered off) meanwhile
 
     if (result.error) {
       if (isPermanent) {
@@ -496,7 +530,7 @@ export async function playChannelLive(ch, opts) {
     function catchUpToSchedule() {
       if (corrected) return false;
       corrected = true;
-      if (S.currentNumber !== ch.number || !S.isPoweredOn) return false;
+      if (isStale()) return false;
       // A bumper owns the player during a break; this is content's own catch-up.
       if (S.activeBreakKey) return false;
       if (!Number.isFinite(player.duration) || player.duration <= 0) return false;
@@ -590,7 +624,7 @@ export async function playChannelLive(ch, opts) {
   S.liveContentPath = file.path;
   S.liveContentChannel = ch.number;
   updateMediaSession(ch, file);
-  if (historyEnabled()) recordViewing(ch, file);
+  if (historyEnabled()) recordViewing(ch, file, viewNow() - (S.contentLostMs || 0) - pos.offset * 1000);
   // Real content only (not the bumper/dynamic-background player.src= sites
   // below) — lets a captions plugin know a new file is about to play without
   // core knowing captions exist at all (registerCoreHook, plugins.js).
@@ -600,10 +634,21 @@ export async function playChannelLive(ch, opts) {
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} src set +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
   let metaTimer = null;
+  // play() can reject (autoplay policy, an interrupted load). Swallowing that left a paused
+  // picture that only the drift watchdog could notice; retry once shortly after, and log it.
+  const playWithRetry = () => {
+    player.play().catch((err) => {
+      console.warn(`[play] CH${ch.number} play() rejected:`, err && err.name ? err.name : err);
+      setTimeout(() => {
+        if (isStale() || S.activeBreakKey || !player.paused) return;
+        player.play().catch((err2) => console.warn(`[play] CH${ch.number} retry rejected:`, err2 && err2.name ? err2.name : err2));
+      }, 400);
+    });
+  };
   const onMeta = () => {
     clearTimeout(metaTimer);
     if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} loadedmetadata +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
-    if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (isStale()) return;
     // Recompute the seek position at the exact instant metadata is ready —
     // the IPC round-trips above (resolvePlayablePath + toFileUrl) can take
     // 50-200 ms, so closing over the pre-IPC pos.offset would place the
@@ -627,7 +672,7 @@ export async function playChannelLive(ch, opts) {
       return;
     }
     player.currentTime = seekOffset;
-    player.play().catch(() => {});
+    playWithRetry();
     player.removeEventListener('loadedmetadata', onMeta);
     if (S.metaHandler === onMeta) S.metaHandler = null;
     // Safety net: guarantees a break's fade-to-black never gets stuck if the
@@ -768,7 +813,7 @@ export async function playChannelLive(ch, opts) {
   // Metadata that never arrives (and no 'error' event either) used to leave
   // the screen on static forever; fall into the normal unplayable treatment.
   metaTimer = setTimeout(() => {
-    if (S.metaHandler !== onMeta || S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (S.metaHandler !== onMeta || isStale()) return;
     if (player.readyState > 0) return;
     player.removeEventListener('loadedmetadata', onMeta);
     S.metaHandler = null;
@@ -801,6 +846,10 @@ function handleContentEnded(ch) {
 export async function tuneToChannel(number, opts) {
   opts = opts || {};
   window.tuneToChannel = tuneToChannel;
+  // Setup covers the TV: tuning now would start audio/video behind it. Callers that mean to
+  // preview (AIR CHECK, ON AIR, overlay editors) call showTvScreen() first.
+  if (S.isSetupOpen) return;
+  S.playbackSeq++;
   // playChannelLive normally sets this itself, but a break preempting
   // content below means this tune may never reach it — set it here too so
   // the tuneTimingEnabled() diagnostics below always measure from this
@@ -1044,7 +1093,7 @@ export function scheduleBroadcastHoursRetune(ch) {
   const boundary = nextBroadcastHoursBoundary(ch, viewNow());
   if (!isFinite(boundary)) return;
   S.broadcastHoursTimer = setTimeout(() => {
-    if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (S.currentNumber !== ch.number || !canPlay()) return;
     tuneToChannel(ch.number, { silent: true });
   }, Math.max(0, boundary - viewNow()) + 500);
 }
@@ -1064,12 +1113,12 @@ export function scheduleBlockBoundaryRetune(ch) {
   const delayMs = Math.max(0, boundary - viewNow()) + 500;
   if (delayMs > 2147483647) {
     S.blockBoundaryTimer = setTimeout(() => {
-      if (S.currentNumber === ch.number && S.isPoweredOn) scheduleBlockBoundaryRetune(ch);
+      if (S.currentNumber === ch.number && canPlay()) scheduleBlockBoundaryRetune(ch);
     }, 2147483647);
     return;
   }
   S.blockBoundaryTimer = setTimeout(() => {
-    if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (S.currentNumber !== ch.number || !canPlay()) return;
     // S.config may have been replaced wholesale since this was armed.
     ch = getChannel(ch.number) || ch;
     // Dayparting transition chime — a short sting when the schedule crosses

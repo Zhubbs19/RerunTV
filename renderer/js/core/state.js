@@ -71,6 +71,11 @@ export const S = {
   // the video itself already pauses there, instead of continuing to play
   // under a screen that isn't the TV anymore.
   isSetupOpen: false,
+  // Playback generation token. Bumped by tuneToChannel, powerOff and showSetupScreen so any
+  // async playback work (playChannelLive's IPC awaits, a bumper chain, a WAIT AFTER timer)
+  // that captured the value at its start can tell it has been superseded, including the
+  // A -> B -> A case where a channel-number comparison alone can't. See canPlay().
+  playbackSeq: 0,
   idleTimer: null,
   powerAnimTimer: null,
   audioCtx: null,
@@ -618,6 +623,15 @@ export function saveConfigNow() {
     hostAgreed = true;
     setSaveIndicator('saved');
     return result;
+  }).catch((e) => {
+    // Mirrors flushCommands: the IPC itself failed (host gone, serialization error). Callers
+    // (the DONE flush, import, restore) await this and must not see a throw, so report it as a
+    // refused save. hostAgreed is dropped so the next write that does carry commands goes out
+    // as a whole-config save and carries this one's edits along with it.
+    console.error('[config] whole-config save failed:', e);
+    hostAgreed = false;
+    setSaveIndicator('saved');
+    return { ok: false, reason: 'error', message: (e && e.message) || String(e) };
   });
 }
 
@@ -657,9 +671,13 @@ export function applyHostUpdate(update) {
     }
   });
   hostRevision = update.revision;
-  bumpConfigGeneration();
+  // Watching-state-only updates (lastChannel, volume, ...) can't change anything a config-derived
+  // cache depends on, and commit() already skips the bump for them (see isWatchStateCommand);
+  // bumping here made every paired TV's channel surf invalidate the guide and ad caches.
+  const watchStateOnly = (update.commands || []).length > 0 && update.commands.every(isWatchStateCommand);
+  if (!watchStateOnly) bumpConfigGeneration();
   notifyRemoteChange('host-update');
-  if (!(update.commands || []).every(isWatchStateCommand)) notifySchedulingConfigChange('host-update');
+  if (!watchStateOnly) notifySchedulingConfigChange('host-update');
   return true;
 }
 
@@ -925,6 +943,24 @@ export function performRedo() {
 // than Date.now(), so shifting one offset moves playback, the guide,
 // dayparting and the on-screen clocks together. Channel anchors deliberately
 // keep using real Date.now() — they record when a folder was scanned.
+// One gate for "may anything start (or keep) playing right now": the box is on and the Setup
+// screen isn't covering the TV. Every timer or async continuation that would start content
+// checks this, instead of each re-deriving a partial version of it.
+export function canPlay() {
+  return !!S.isPoweredOn && !S.isSetupOpen;
+}
+
+// Moves the viewing clock so viewNow() reads `ms`, absolutely. Use this instead of
+// `S.timeOffsetMs += target - viewNow()`: while a scrub is parked viewNow() is the frozen
+// moment and the wall clock has run on since it was taken, so the relative form lands
+// short by however long the scrub sat there. Also drops any freeze, since the offset is
+// being set deliberately and the old frozen moment no longer describes it.
+export function setViewedTime(ms) {
+  if (!Number.isFinite(ms)) return;
+  S.timeOffsetMs = ms - Date.now();
+  S.frozenViewMs = null;
+}
+
 export function viewNow() {
   if (S.frozenViewMs != null && S.timeOffsetMs === S.frozenOffsetMs) return S.frozenViewMs;
   return Date.now() + S.timeOffsetMs;

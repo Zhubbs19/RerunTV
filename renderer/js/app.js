@@ -1,4 +1,4 @@
-import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch } from './core/state.js';
+import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch, canPlay } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
 import { randomInterstitialId, getDisplayTitle, settingNumber } from './core/util.js';
 import {
@@ -181,8 +181,14 @@ export function commitEntry() {
 // IPC — see preload.js's onRemoteCommand and main.js's startRemoteServer)
 // can drive the exact same logic through a synthesized event object
 // ({key, shiftKey, preventDefault(){}}) instead of duplicating this switch.
+// Keys that are only a modifier/lock being held down. Pressing Ctrl for a shortcut elsewhere, or
+// Shift on its way to another key, shouldn't light the set up.
+const BARE_MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'AltGraph', 'Meta', 'OS', 'CapsLock', 'NumLock', 'ScrollLock', 'Fn', 'FnLock', 'Hyper', 'Super']);
+
 export function handleKey(e) {
   if (tvScreen.classList.contains('hidden')) return;
+
+  if (!S.isPoweredOn && BARE_MODIFIER_KEYS.has(e.key)) return;
 
   resetIdleTimer();
 
@@ -730,6 +736,14 @@ const COMPANION_LINEUP_PUSH_MS = 30000;
 const COMPANION_LINEUP_MAX_CHANNELS = 300;
 function pushCompanionLineup() {
   if (!window.api || typeof window.api.sendRemoteState !== 'function') return;
+  // The per-channel schedule sweep below is the cost, and nothing reads the snapshot when the
+  // box is off or Setup is covering the TV (no main-process "has a client" signal exists to
+  // gate on, so this is the cheap approximation; the next tick after power-on refreshes it).
+  if (!canPlay()) return;
+  // Only the two LAN services that read this snapshot (the companion app and the
+  // phone remote) can use it; with both off there is nothing to feed.
+  const net = (S.config && S.config.network) || {};
+  if (!net.companionEnabled && !net.remoteEnabled) return;
   const now = viewNow();
   const lineup = [];
   for (const ch of sortedChannels(S.config.channels || [])) {
@@ -840,9 +854,11 @@ export async function showSetupScreen() {
   }
   player.pause();
   S.isSetupOpen = true;
+  S.playbackSeq++; // retires in-flight tune/bumper continuations so nothing starts behind Setup
   runCoreHooks('enter-setup');
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
+  clearTimeout(S.broadcastHoursTimer);
   cancelAllScheduledInterrupts();
   resetActiveBreakState();
   triviaCardEl.classList.add('hidden');

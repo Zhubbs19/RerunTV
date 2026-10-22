@@ -48,6 +48,9 @@ let keyboardHandler = null;
 // most recently opened one on screen is the one that answers. The stack lives
 // in ui/focus.js, which imports nothing, so overlays in an import cycle with
 // this module can register while it is still evaluating.
+// Thin alias of ui/focus.js's registerModal, which is what every overlay in the tree calls
+// directly (nothing imports this one). Kept as the name the docs and CLAUDE.md mention; prefer
+// registerModal in new code.
 export function registerTvModal(modal) {
   return registerModal(modal);
 }
@@ -603,6 +606,17 @@ function onPointerMove() {
 export function installTvInput({ handleKey }) {
   keyboardHandler = handleKey;
   window.addEventListener('keyup', routeKeyup);
+  // A key held down when the window loses focus (or the tab is hidden) never delivers its
+  // keyup, so the long-press tracker kept it "down" and the next real press was swallowed as a
+  // repeat. Forget every in-flight hold whenever we stop being the foreground page.
+  const forgetHolds = () => {
+    longPress.reset();
+    holdTimers.forEach((timer) => clearTimeout(timer));
+    holdTimers.clear();
+    holdStartedAt.clear();
+  };
+  window.addEventListener('blur', forgetHolds);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) forgetHolds(); });
   window.addEventListener('mousemove', onPointerMove, { passive: true });
   onUsageModeChange((mode) => {
     longPress.reset();

@@ -25,11 +25,10 @@
 // every instant is a parameter.
 import { effectiveContentTags } from './interstitials.js';
 import {
-  flowCommercials, hourInRange, isWithinBroadcastHours, resolveActiveCommercials,
+  flowCommercials, hourInRange, isWithinBroadcastHours, ownerInstant, resolveActiveCommercials,
   resolveActiveSource, sourceFromBlock,
 } from './schedule.js';
-
-const DAY_MS = 86400000;
+import { addDays } from './schedule-query.js';
 
 function pad2(n) {
   return String(n).padStart(2, '0');
@@ -78,9 +77,13 @@ export function matchesWhen(when, atMs, fileTags = []) {
     return when.tags.some((t) => fileTags.includes(t));
   }
   const d = new Date(atMs);
-  if (when.dates && !inDates(atMs, when.dates)) return false;
-  if (when.days && when.days.length && !when.days.includes(d.getDay())) return false;
-  if (when.hours && !hourInRange(d.getHours(), { startHour: when.hours[0], endHour: when.hours[1] })) return false;
+  const hoursT = when.hours ? { startHour: when.hours[0], endHour: when.hours[1] } : null;
+  // Same rule as schedule.js's matchesTrigger: a midnight-wrapping slot's post-midnight tail
+  // belongs to the day it started on, for both the day filter and the date range.
+  const owner = hoursT ? ownerInstant(atMs, hoursT) : atMs;
+  if (when.dates && !inDates(owner, when.dates)) return false;
+  if (when.days && when.days.length && !when.days.includes(new Date(owner).getDay())) return false;
+  if (hoursT && !hourInRange(d.getHours(), hoursT)) return false;
   return true;
 }
 
@@ -216,7 +219,9 @@ export function decisionInstants(ch, from, to) {
   const unlocks = new Set();
   (ch.blocks || []).forEach((b) => Object.values((b && b.dayOverrides) || {}).forEach((ov) => { if (ov && ov.unlockTime) unlocks.add(ov.unlockTime); }));
   if (unlocks.size) {
-    for (let day = new Date(from).setHours(0, 0, 0, 0); day < to; day += DAY_MS) {
+    // Calendar-day steps (not +24h): a DST day is 23 or 25 hours long, and ms arithmetic drifts
+    // an hour off midnight for the rest of the window.
+    for (let day = new Date(from).setHours(0, 0, 0, 0); day < to; day = addDays(day, 1)) {
       unlocks.forEach((hhmm) => {
         const [h, m] = hhmm.split(':').map(Number);
         const t = new Date(day).setHours(h || 0, m || 0, 0, 0);

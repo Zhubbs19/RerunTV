@@ -57,16 +57,39 @@ const DESKTOP_KEYS = {
   info: 'i', guide: 'g', chUp: 'PageUp', chDown: 'PageDown', menu: '?',
 };
 
+// One mapper per physical pad. The mapper keeps per-key held state, so sharing one across pads
+// made a second controller's button look "already held" (swallowing its first press) and let
+// one pad's release drop the other's hold. Keyed by pad.index (falling back to id); pads that
+// have gone away are pruned so a reconnect starts clean.
+export function createPadMappers(options) {
+  const mappers = new Map();
+  const keyOf = (pad) => (pad.index != null ? pad.index : pad.id);
+  return {
+    update(pad, now) {
+      const k = keyOf(pad);
+      let mapper = mappers.get(k);
+      if (!mapper) { mapper = createGamepadMapper(options); mappers.set(k, mapper); }
+      return mapper(pad, now);
+    },
+    prune(pads) {
+      const live = new Set(pads.map(keyOf));
+      Array.from(mappers.keys()).forEach((k) => { if (!live.has(k)) mappers.delete(k); });
+    },
+    size: () => mappers.size,
+  };
+}
+
 export function installGamepad({ isTvMode }) {
   if (typeof navigator === 'undefined' || !navigator.getGamepads) return;
-  const mapper = createGamepadMapper();
+  const mappers = createPadMappers();
   let polling = false;
   const poll = () => {
     const pads = Array.from(navigator.getGamepads() || []).filter(Boolean);
+    mappers.prune(pads);
     if (!pads.length) { polling = false; return; }
     const now = performance.now();
     pads.forEach((pad) => {
-      mapper(pad, now).forEach(({ key, button, repeat }) => {
+      mappers.update(pad, now).forEach(({ key, button, repeat }) => {
         if (isTvMode() && window.RerunTVInput) {
           window.RerunTVInput.native({ source: 'gamepad', key, button, repeat });
         } else if (DESKTOP_KEYS[key]) {

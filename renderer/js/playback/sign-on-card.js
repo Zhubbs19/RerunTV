@@ -59,8 +59,14 @@ export function showSignOnCard() {
   return true;
 }
 
-// Called once at boot, after the first tune.
+// Called once at boot, after the first tune. showTvScreen() calls it on every return from
+// Setup too, so it is idempotent: the card shows and the listeners/interval are installed
+// only the first time (a second call used to stack another interval, another beforeunload
+// stamp, another key listener, and re-show the card after every Setup visit).
+let signOnStarted = false;
 export function startSignOn() {
+  if (signOnStarted) return;
+  signOnStarted = true;
   showSignOnCard();
   const stamp = () => {
     S.config.lastSeenAt = Date.now();

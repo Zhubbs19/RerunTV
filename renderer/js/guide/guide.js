@@ -14,7 +14,7 @@ import { tuneToChannel } from '../playback/core.js';
 import { breakEntriesInWindow } from '../core/interstitials.js';
 import { isHiddenForProfile } from '../personal/state.js';
 import { computeLivePosition, getChannelSchedule } from '../core/schedule.js';
-import { guideSlotMs, MONTHS, S, WEEKDAYS, viewNow, commitInPlace } from '../core/state.js';
+import { guideSlotMs, MONTHS, S, WEEKDAYS, viewNow, commitInPlace, setViewedTime } from '../core/state.js';
 import { searchUpcomingPrograms } from './program-search.js';
 import { guideGenreStyleForFile } from './genres.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
@@ -33,12 +33,16 @@ import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
 import { focusDefault, registerModal } from '../ui/focus.js';
 import { currentProfile, personalCommand } from '../personal/state.js';
+import { addDays } from '../core/schedule-query.js';
 
+// Callers only read, filter or spread this. A read must not write to S.config (the old code
+// created `config.reminders` here, mutating config without a generation bump), so a missing
+// list is a shared empty array and replaceReminders() is the only writer.
+const NO_REMINDERS = Object.freeze([]);
 function reminderList() {
   const profile = currentProfile();
   if (profile) return profile.state.reminders;
-  if (!Array.isArray(S.config.reminders)) S.config.reminders = [];
-  return S.config.reminders;
+  return Array.isArray(S.config.reminders) ? S.config.reminders : NO_REMINDERS;
 }
 
 function replaceReminders(next, opts = {}) {
@@ -86,6 +90,7 @@ export function showGuideOverlay(number, ch) {
   updateGuideLogo(ch);
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
+  startGuideNowTick();
   playConfiguredSound('card', number);
   const cardDuration = S.config.display?.guideCardDuration ?? 4000;
   S.guideHideTimer = autoHideAfter(S.guideHideTimer, cardDuration, () => guideOverlay.classList.add('hidden'));
@@ -100,12 +105,22 @@ export function updateGuideNowPlaying(ch) {
   guideBarFillEl.style.width = `${Math.min(100, Math.max(0, pct))}%`;
 }
 
-setInterval(() => {
-  if (!guideOverlay.classList.contains('hidden')) {
+// The surf card's progress bar ticks once a second, but only while the card is up: the timer is
+// started by showGuideOverlay and stops itself the first tick it finds the card hidden (the card
+// is hidden from several places, so polling its class is simpler than hooking each).
+let guideNowTimer = null;
+function startGuideNowTick() {
+  if (guideNowTimer) return;
+  guideNowTimer = setInterval(() => {
+    if (guideOverlay.classList.contains('hidden')) {
+      clearInterval(guideNowTimer);
+      guideNowTimer = null;
+      return;
+    }
     const ch = getChannel(S.currentNumber);
     if (ch) updateGuideNowPlaying(ch);
-  }
-}, 1000);
+  }, 1000);
+}
 
 // Guards the deferred close cleanup below against a rapid re-open/re-close
 // landing while its setTimeout is still pending — without this, a stale
@@ -147,6 +162,10 @@ function jumpToProgramResult(result) {
   renderGuideGrid();
 }
 
+// Clock for reminders: entry.start/end are absolute schedule instants (the schedule is a pure
+// function of time, so a program airs at the same instant whatever offset a viewer is watching
+// at), so they are compared against the REAL clock (Date.now()), not viewNow(): a reminder is an
+// appointment in the world, and scrubbing the time machine must neither fire nor prune it.
 function addProgramReminder(result) {
   const reminders = reminderList();
   const duplicate = reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
@@ -209,6 +228,10 @@ function removeReminder(id) {
 const TV_REMINDER_TOAST_MS = 15000;
 let reminderToastTimer = null;
 if (reminderToastEl) {
+  // index.html marks it role="status" + aria-live="assertive", which contradict each other
+  // (status is polite). A reminder is meant to interrupt, so say so with the matching role.
+  reminderToastEl.setAttribute('role', 'alert');
+  reminderToastEl.setAttribute('aria-live', 'assertive');
   registerModal({
     isOpen: () => isTvMode() && !reminderToastEl.classList.contains('hidden'),
     element: () => reminderToastEl,
@@ -593,6 +616,25 @@ function selectedCellEl() {
   return guideRowsEl.querySelector('.guide-row.active-row .guide-entry.sel');
 }
 
+// Keeps the assistive-tech view of the highlighted cell in step with the visual one. Focus never
+// leaves #guide-grid, so the selection is announced via aria-activedescendant on it; cells carry
+// aria-selected from the moment they are built, this only repairs the ones left stale by the
+// fast-path tick and points the descendant at the current one.
+function syncGuideAria() {
+  guideRowsEl.setAttribute('role', 'grid');
+  if (!guideRowsEl.hasAttribute('aria-label')) guideRowsEl.setAttribute('aria-label', 'Channel guide');
+  const sel = selectedCellEl();
+  guideRowsEl.querySelectorAll('.guide-entry[aria-selected="true"]').forEach((el) => {
+    if (el !== sel) el.setAttribute('aria-selected', 'false');
+  });
+  if (sel && sel.id) {
+    sel.setAttribute('aria-selected', 'true');
+    guideGrid.setAttribute('aria-activedescendant', sel.id);
+  } else {
+    guideGrid.removeAttribute('aria-activedescendant');
+  }
+}
+
 // OK/click on a merged cell: its entries, OK tunes one (from its start with
 // the time machine on).
 function openRunList(ch, cell, anchorEl) {
@@ -644,15 +686,16 @@ export function openGuideReminders() {
 // Without the time machine the guide can't go back past the current slot,
 // same rule as ◀ (moveGuideSelectionTime).
 export function shiftGuideDay(direction) {
-  const DAY = 86400000;
+  // Calendar-day steps (addDays), not +/-86400000: a DST day is 23 or 25 hours, and ms arithmetic
+  // left the window an hour off its slot grid for the rest of the session.
   const windowMs = guideSlotMs() * guideSlots();
   const canRewind = !!(S.config.timeMachine && S.config.timeMachine.enabled);
   const floor = floorToSlot(viewNow());
-  let start = S.guideWindowStart + direction * DAY;
+  let start = addDays(S.guideWindowStart, direction);
   if (!canRewind && start < floor) start = floor;
   if (start === S.guideWindowStart) return;
   S.guideWindowStart = start;
-  S.guideSelTime = Math.min(Math.max(S.guideSelTime + direction * DAY, start), start + windowMs - 1);
+  S.guideSelTime = Math.min(Math.max(addDays(S.guideSelTime, direction), start), start + windowMs - 1);
   closeGuidePopover();
   renderGuideGrid();
 }
@@ -732,9 +775,11 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
   const cells = guideCells(ch, S.guideWindowStart, windowEnd, minMs);
   const row = document.createElement('div');
   row.className = 'guide-row' + (ch.number === S.guideSelNumber ? ' active-row' : '');
+  row.setAttribute('role', 'row');
 
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
+  chanCell.setAttribute('role', 'rowheader');
   chanCell.dataset.slot = 'guide-rail';
   chanCell.dataset.active = String(ch.number === S.guideSelNumber);
   // Addressable by channel number so anything that wants to decorate a row
@@ -765,6 +810,10 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
 
     const block = document.createElement('div');
     block.dataset.slot = 'guide-cell';
+    // Focus stays on the grid; the highlighted cell is exposed through aria-activedescendant (syncGuideAria).
+    block.id = `guide-cell-${ch.number}-${Math.round(cell.start)}`;
+    block.setAttribute('role', 'gridcell');
+    block.setAttribute('aria-selected', String(isSel));
     block.className = 'guide-entry' + (cell.kind === 'run' ? ' guide-entry-run' : '') + (isSel ? ' sel' : '') +
       (cell.end <= viewNow() ? ' past' : '');
     block.style.left = pos.left + '%';
@@ -851,9 +900,11 @@ function buildSpecialRow(row) {
   const { number, info } = row;
   const rowEl = document.createElement('div');
   rowEl.className = 'guide-row guide-row-special' + (number === S.guideSelNumber ? ' active-row' : '');
+  rowEl.setAttribute('role', 'row');
 
   const chanCell = document.createElement('div');
   chanCell.className = 'guide-row-chan';
+  chanCell.setAttribute('role', 'rowheader');
   chanCell.dataset.slot = 'guide-rail';
   chanCell.dataset.active = String(number === S.guideSelNumber);
   chanCell.dataset.channelNumber = String(number);
@@ -869,6 +920,9 @@ function buildSpecialRow(row) {
   track.dataset.slot = 'guide-track';
   const block = document.createElement('div');
   block.dataset.slot = 'guide-cell';
+  block.id = `guide-cell-${number}-special`;
+  block.setAttribute('role', 'gridcell');
+  block.setAttribute('aria-selected', String(number === S.guideSelNumber));
   block.className = 'guide-entry guide-entry-special' + (number === S.guideSelNumber ? ' sel' : '');
   block.style.left = '0%';
   block.style.width = '100%';
@@ -1093,6 +1147,7 @@ export function renderGuideGrid() {
     positionNowLine(windowEnd);
     refreshPastClasses();
     refreshSpecialCells(rows);
+    syncGuideAria();
     return;
   }
   lastGuideRenderSig = sig;
@@ -1142,6 +1197,7 @@ export function renderGuideGrid() {
 
   positionNowLine(windowEnd);
   updateGuideInfoPanel(rows[selIdx], selRef.info);
+  syncGuideAria();
 
   if (initialCount < rows.length) {
     setTimeout(() => scheduleRemainingRows(rows, windowEnd, initialCount, selRef, renderGen, minMs), 0);
@@ -1153,7 +1209,7 @@ export function renderGuideGrid() {
 // point of the mode. Without it, this is a plain tune-in as before.
 export function jumpToGuideEntry(ch, entry) {
   if (S.config.timeMachine && S.config.timeMachine.enabled && entry) {
-    S.timeOffsetMs += entry.start - viewNow();
+    setViewedTime(entry.start);
     updateTimeShiftBadge();
   }
   tuneToChannel(ch.number);

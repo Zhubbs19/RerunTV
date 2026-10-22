@@ -19,8 +19,20 @@ export function hourInRange(hour, t) {
 // block saved before the weekly grid existed keeps behaving exactly as it did.
 function matchesDayOfWeek(atMs, t) {
   const d = new Date(atMs);
-  if (t.days && t.days.length && !t.days.includes(d.getDay())) return false;
+  if (t.days && t.days.length && !t.days.includes(new Date(ownerInstant(atMs, t)).getDay())) return false;
   return hourInRange(d.getHours(), t);
+}
+
+// An hour range that wraps midnight (e.g. 22-2) belongs, in its post-midnight tail, to the day
+// it STARTED on: Friday 22-2 airs through Saturday 01:59, and a day filter / date range naming
+// Friday must cover that tail while excluding Friday 00:00-01:59 (which is Thursday's tail).
+// Returns an instant on the day that owns atMs under trigger t (atMs's own day for anything
+// that isn't a wrapped tail). Midday, so DST edges can't roll it onto a neighbouring date.
+export function ownerInstant(atMs, t) {
+  const d = new Date(atMs);
+  const wraps = t && t.startHour != null && t.endHour != null && t.startHour > t.endHour;
+  if (wraps && d.getHours() < t.endHour) return new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1, 12).getTime();
+  return atMs;
 }
 
 // Calendar-date range check (month/day only, year-independent), mirroring
@@ -68,7 +80,7 @@ function inDateRange(atMs, t) {
 // this existed) means "no narrowing," so this is purely additive.
 function matchesDateRangeNarrowing(atMs, t) {
   const d = new Date(atMs);
-  if (t.days && t.days.length && !t.days.includes(d.getDay())) return false;
+  if (t.days && t.days.length && !t.days.includes(new Date(ownerInstant(atMs, t)).getDay())) return false;
   if (t.startHour != null && t.endHour != null && !hourInRange(d.getHours(), t)) return false;
   return true;
 }
@@ -88,7 +100,12 @@ export function dateBlocksOn(ch, atMs) {
 export function matchesTrigger(atMs, block) {
   const t = block.trigger;
   if (!t) return false;
-  if (t.type === 'dateRange') return inDateRange(atMs, effectiveTrigger(t, atMs)) && matchesDateRangeNarrowing(atMs, t);
+  if (t.type === 'dateRange') {
+    // The date range is judged on the day the occurrence started (see ownerInstant), so a wrapped
+    // 22-2 window on the range's last day still airs its tail after midnight.
+    const owner = ownerInstant(atMs, t);
+    return inDateRange(owner, effectiveTrigger(t, owner)) && matchesDateRangeNarrowing(atMs, t);
+  }
   return matchesDayOfWeek(atMs, t);
 }
 
@@ -292,10 +309,7 @@ function resolveDailySource(block, atMs) {
 // occurrence that started the evening before, so weekly-occurrence counting
 // doesn't see it as a separate, discontinuous day.
 function occurrenceDayFor(atMs, t) {
-  const d = new Date(atMs);
-  const today = startOfLocalDay(atMs);
-  if (t.startHour > t.endHour && d.getHours() < t.startHour) return addLocalDays(today, -1);
-  return today;
+  return startOfLocalDay(ownerInstant(atMs, t));
 }
 
 // Next (or same-day) local-midnight timestamp on which `weekday` (0=Sun..
@@ -852,15 +866,30 @@ export function computeLivePosition(ch) {
   return computeSourcePosition(resolveActiveSource(ch, viewNow()), viewNow(), { ignoreContentLost: true });
 }
 
+// A usable duration in seconds: a finite positive number, else 0. A NaN, negative or missing
+// duration (a probe that failed, a hand-edited config) used to poison the playlist total (NaN
+// compares false against everything, so the `total <= 0` guard let it through) or, worse, walk the
+// cursor backwards.
+export function safeDurationS(file) {
+  const d = Number(file && file.duration);
+  return Number.isFinite(d) && d > 0 ? d : 0;
+}
+
+const SAFETY_FILES_PER_SEGMENT = 1000;
+
+// Returns the entries; when the per-segment cap cut the walk short, the returned array also
+// carries `truncated: true` (additive: absent otherwise, so existing callers and deep-equals
+// are unaffected).
 export function walkSourceSchedule(source, segStart, segEnd) {
   const files = source.files;
-  const total = files.reduce((sum, f) => sum + f.duration, 0);
+  const durs = files.map(safeDurationS);
+  const total = durs.reduce((sum, d) => sum + d, 0);
   if (total <= 0 || !source.anchor) return [];
   const elapsedRaw = (segStart - source.anchor) / 1000;
   const elapsed = ((elapsedRaw % total) + total) % total;
   let acc = 0, idx = 0;
   for (; idx < files.length; idx++) {
-    const d = files[idx].duration;
+    const d = durs[idx];
     if (elapsed < acc + d) break;
     acc += d;
   }
@@ -869,16 +898,29 @@ export function walkSourceSchedule(source, segStart, segEnd) {
   const entries = [];
   let cursor = segStart - (elapsed - acc) * 1000;
   let i = idx, safety = 0;
-  while (cursor < segEnd && safety < 1000) {
-    const file = files[i % files.length];
-    const start = cursor;
-    const end = Math.min(cursor + file.duration * 1000, segEnd);
-    entries.push({ file, start, end, block: source.block });
-    cursor = cursor + file.duration * 1000;
+  while (cursor < segEnd && safety < SAFETY_FILES_PER_SEGMENT) {
+    const k = i % files.length;
+    const dMs = durs[k] * 1000;
     i++;
     safety++;
+    if (dMs <= 0) continue; // zero-length / invalid file: nothing airs, nothing to list
+    const start = cursor;
+    const end = Math.min(cursor + dMs, segEnd);
+    entries.push({ file: files[k], start, end, block: source.block });
+    cursor += dMs;
+  }
+  if (cursor < segEnd) {
+    entries.truncated = true;
+    warnTruncatedOnce('a source segment', SAFETY_FILES_PER_SEGMENT);
   }
   return entries;
+}
+
+let warnedTruncation = false;
+function warnTruncatedOnce(what, cap) {
+  if (warnedTruncation) return;
+  warnedTruncation = true;
+  console.warn(`[schedule] ${what} hit its safety cap of ${cap}; the listing is cut short (very short files or a very long window)`);
 }
 
 // Channel schedule across [windowStart, windowEnd), segmented wherever the
@@ -888,13 +930,26 @@ export function getChannelSchedule(ch, windowStart, windowEnd) {
   const entries = [];
   let segStart = windowStart;
   let safety = 0;
-  while (segStart < windowEnd && safety < 30) {
+  let truncated = false;
+  while (segStart < windowEnd && safety < SAFETY_SEGMENTS) {
     const boundary = nextSourceBoundary(ch, segStart, windowEnd);
     const segEnd = Math.min(boundary, windowEnd);
     const source = resolveActiveSource(ch, segStart);
-    entries.push(...walkSourceSchedule(source, segStart, segEnd));
-    segStart = segEnd;
+    const walked = walkSourceSchedule(source, segStart, segEnd);
+    if (walked.truncated) truncated = true;
+    entries.push(...walked);
+    // A non-advancing boundary would spin to the cap; step past it instead.
+    segStart = segEnd > segStart ? segEnd : windowEnd;
     safety++;
   }
+  if (segStart < windowEnd) {
+    truncated = true;
+    warnTruncatedOnce('getChannelSchedule', SAFETY_SEGMENTS);
+  }
+  // Additive flag: present (true) only when the listing was cut short, so callers that never
+  // look for it, and tests that deep-equal the array, see exactly what they always did.
+  if (truncated) entries.truncated = true;
   return entries;
 }
+
+const SAFETY_SEGMENTS = 30;

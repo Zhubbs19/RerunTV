@@ -28,7 +28,7 @@ import { runCoreHooks } from '../plugin/host.js';
 import {
   computeSourcePosition, fillDayCounters, nextBlockStartMs, nextSourceBoundary, resolveActiveSource,
 } from '../core/schedule.js';
-import { S, saveConfigDebounced, viewNow } from '../core/state.js';
+import { S, saveConfigDebounced, viewNow, canPlay } from '../core/state.js';
 import { autoHideAfter, formatClock, getDisplayTitle } from '../core/util.js';
 import { getChannel } from '../core/channels.js';
 import { playChannelLive } from './core.js';
@@ -99,7 +99,7 @@ export function scheduleNextBreak(ch) {
 // otherwise nothing else would advance content to the next file.
 export function checkBreakState(ch, opts) {
   opts = opts || {};
-  if (!S.isPoweredOn || S.currentNumber !== ch.number) return;
+  if (!canPlay() || S.currentNumber !== ch.number) return;
   if (S.easActive || !guideGrid.classList.contains('hidden')) {
     // Don't interrupt EAS or the open guide — check again shortly rather
     // than dropping the break entirely (same policy the old per-system
@@ -310,6 +310,10 @@ function startBreak(ch, resolved, key) {
   // the bumper needs to start at the matching offset instead of 0 — otherwise
   // a 60s commercial whose window has 20s left would play 20s then get cut.
   const windowElapsedS = Math.max(0, (viewNow() - windowStart) / 1000);
+  // Generation of this break's own async work (resolve/fade awaits, WAIT AFTER timer): a tune,
+  // power-off or Setup opening bumps S.playbackSeq and retires it.
+  const seq = S.playbackSeq;
+  const superseded = () => seq !== S.playbackSeq || S.currentNumber !== ch.number || !canPlay();
 
   S.activeBreakKey = key;
   S.activeBreakInterruptsContent = !isTextOnlyChannelId;
@@ -437,7 +441,7 @@ function startBreak(ch, resolved, key) {
         const fileSource = (entry.bgFile && entry.bgFile.source) || 'local';
         const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
         const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
-        if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
+        if (superseded() || S.activeBreakKey !== key) return;
         player.loop = true;
         player.src = url;
         dynamicBumperTextEl.textContent = renderDynamicText(entry.text, ch, entry);
@@ -445,7 +449,7 @@ function startBreak(ch, resolved, key) {
 
         if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
         const onMeta = () => {
-          if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+          if (superseded()) return;
           player.currentTime = windowElapsedS;
           player.play().catch(() => {});
           player.removeEventListener('loadedmetadata', onMeta);
@@ -486,14 +490,14 @@ function startBreak(ch, resolved, key) {
       const resolved = await window.api.resolvePlayablePath(fileSource, filePath);
       const [, url] = await Promise.all([fadeOutPlayer(entryFadeOutMs), window.api.toFileUrl(resolved.path)]);
       // The break may have ended/changed during the awaits above.
-      if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey !== key) return;
+      if (superseded() || S.activeBreakKey !== key) return;
       player.loop = false; // a looping bumper before this one (time machine preview) must not make an ad replay instead of ending
       player.src = url;
       S.awaitingBumperEnd = true;
 
       if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
       const onMeta = () => {
-        if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+        if (superseded()) return;
         player.currentTime = windowElapsedS;
         player.play().catch(() => {});
         player.removeEventListener('loadedmetadata', onMeta);
@@ -523,6 +527,9 @@ function startBreak(ch, resolved, key) {
         player.removeEventListener('ended', resume);
         player.removeEventListener('error', resume);
         const finish = () => {
+          // A WAIT AFTER timer that outlived its tune/power-off/Setup must not touch the new
+          // state (it used to clear S.awaitingBumperEnd for the NEXT bumper).
+          if (superseded()) return;
           S.awaitingBumperEnd = false;
           if (key) markBreakCompleted(key);
           // Re-resolve instead of unconditionally calling endBreak: a
@@ -620,11 +627,12 @@ function endBreak(ch) {
     if (!skipResumeLag) S.contentLostMs += viewNow() - S.breakEnteredAtMs;
     S.breakEnteredAtMs = 0;
   }
-  if (shouldResume && S.currentNumber === ch.number && S.isPoweredOn) {
+  if (shouldResume && S.currentNumber === ch.number && canPlay()) {
     if (logoBugHidesOnBreakFor(ch)) updateLogoBug(ch);
+    const seq = S.playbackSeq;
     (async () => {
       await fadeOutPlayer();
-      if (S.currentNumber !== ch.number || !S.isPoweredOn || S.activeBreakKey) return;
+      if (seq !== S.playbackSeq || S.currentNumber !== ch.number || !canPlay() || S.activeBreakKey) return;
       // fadeInOnReady: reveal only once the resumed show has actually
       // decoded a frame, instead of unfading immediately after src is set
       // (which exposed whatever stale/black frame was sitting in the
@@ -646,7 +654,10 @@ export function scheduleContentAdvisoryCues(ch, file, seekOffsetS) {
   S.contentAdvisoryCueTimers = [];
   if (ch.hideContentAdvisory || !file.advisoryCues || !file.advisoryCues.length) return;
   file.advisoryCues.forEach((cue) => {
-    const delayMs = (cue.offsetS - seekOffsetS) * 1000;
+    const delayMs = (Number(cue.offsetS) - seekOffsetS) * 1000;
+    // NaN (a blank/garbled offset) fails the comparison below, so test for it explicitly: it
+    // used to reach setTimeout(NaN), which fires immediately and flashed every bad cue at once.
+    if (!Number.isFinite(delayMs)) return;
     if (delayMs < 0) return; // already past this cue's point in the file
     const timer = setTimeout(() => {
       if (S.currentNumber !== ch.number || !S.isPoweredOn) return;

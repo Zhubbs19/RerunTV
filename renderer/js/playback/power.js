@@ -914,10 +914,12 @@ export function applyDisplayWakeLock() {
 export function powerOff({ reason = 'user' } = {}) {
   if (!S.isPoweredOn) return;
   S.isPoweredOn = false;
+  S.playbackSeq++; // retires any in-flight tune/bumper continuation (canPlay is false now anyway)
   applyDisplayWakeLock();
 
   clearTimeout(S.breakTimer);
   clearTimeout(S.blockBoundaryTimer);
+  clearTimeout(S.broadcastHoursTimer);
   clearTimeout(S.sleepTimer); S.sleepTimer = null;
   stopSleepBadge();
   // A fade armed for the sleep timer just cleared would silence the next power-on.
