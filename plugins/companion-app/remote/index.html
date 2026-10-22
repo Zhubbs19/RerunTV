@@ -17,7 +17,7 @@
 <body>
   <header class="app-header">
     <div><div class="eyebrow">RERUNTV // HEADEND CONTROL</div><h1>COMPANION</h1></div>
-    <div class="live-status" id="live-status" data-state="connecting"><span class="status-lamp"></span><div><small>NOW WATCHING</small><strong id="now-watching">CONNECTING…</strong><small class="now-program" id="now-program"></small><small class="now-program" id="now-detail"></small></div></div>
+    <div class="header-status" id="header-status" data-state="connecting" role="status" aria-live="polite"><span class="status-lamp"></span><span id="header-status-text">CONNECTING</span></div>
   </header>
   <nav class="tab-bar" id="tab-bar" role="tablist" aria-label="Companion sections">
     <button class="tab active" role="tab" aria-selected="true" aria-controls="panel-remote" id="tab-remote" data-tab="remote">REMOTE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-guide" id="tab-guide" data-tab="guide">GUIDE</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-channels" id="tab-channels" data-tab="channels">LINEUP</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-settings" id="tab-settings" data-tab="settings">SETTINGS</button><button class="tab" role="tab" aria-selected="false" aria-controls="panel-tools" id="tab-tools" data-tab="tools">TOOLS</button>
@@ -27,48 +27,64 @@
       <!-- Shown while the PC is counting down to shutdown, whoever started it
            (this phone, the TV menu, or the box's power-off). -->
       <div id="pc-shutdown-notice" class="pc-shutdown-notice" role="alert" hidden><div><span>THE PC IS SHUTTING DOWN</span><strong><b id="pc-shutdown-count">20</b> SECONDS</strong></div><button class="primary" data-action="cancel-pc-shutdown">CANCEL</button></div>
+
+      <!-- What is on right now: channel plate, name, programme, time left. -->
+      <section class="now-card live-status" id="live-status" data-state="connecting" aria-label="Now watching">
+        <div class="now-plate" id="now-number" aria-hidden="true">--</div>
+        <div class="now-text">
+          <small>NOW WATCHING</small>
+          <strong id="now-watching">CONNECTING…</strong>
+          <small class="now-program" id="now-program"></small>
+          <small class="now-detail" id="now-detail"></small>
+        </div>
+        <button class="primary skip-break" id="skip-break" data-key="q" hidden>SKIP BREAK</button>
+      </section>
+
       <div class="hero-controls">
-        <button class="control danger" data-key="p"><span>POWER</span><b>⏻</b></button><button class="control" data-key="m" data-live="muted"><span>MUTE</span><b>◖</b><i class="control-state" data-live-text="muted"></i></button><button class="control" data-key="g"><span>GUIDE</span><b>▦</b></button><button class="control" data-key="i"><span>INFO</span><b>i</b></button>
-      </div>
-      <div class="hero-controls">
-        <button class="control" data-key="q"><span>SKIP BREAK</span><b>⏭</b></button><button class="control" data-key="z"><span>SLEEP</span><b>☾</b></button>
+        <button class="control danger" data-key="p"><b>⏻</b><span>POWER</span></button><button class="control" data-key="m" data-live="muted"><b>◖</b><span>MUTE</span><i class="control-state" data-live-text="muted"></i></button><button class="control" data-key="g"><b>▦</b><span>GUIDE</span></button><button class="control" data-key="i"><b>i</b><span>INFO</span></button>
       </div>
 
-      <!-- Volume and channel sit above the keypad on purpose: they are the
-           two controls a viewer actually reaches for, and burying them under
-           a numpad and a D-pad put them below the fold on a phone. -->
-      <article class="panel">
-        <div class="panel-heading"><div><span>EVERY FEW SECONDS</span><h2>VOLUME &amp; CHANNEL</h2></div><output class="volume-readout" id="volume-readout" aria-live="off">—</output></div>
-        <div class="rocker-row"><div class="rocker"><small>CHANNEL</small><button class="repeat" data-key="ArrowUp">CH +</button><button class="repeat" data-key="ArrowDown">CH −</button></div><div class="rocker"><small>VOLUME</small><button class="repeat" data-key="+">VOL +</button><button class="repeat" data-key="-">VOL −</button></div></div>
-        <div class="volume-meter" aria-hidden="true"><span id="volume-meter-fill"></span></div>
-      </article>
-
-      <article class="panel"><div class="panel-heading"><div><span>ONE-TOUCH</span><h2>QUICK CHANNELS</h2></div><button class="mini" data-action="refresh-channels">REFRESH</button></div><div id="quick-channels" class="channel-grid"><div class="empty">LOADING CHANNELS…</div></div></article>
-
-      <article class="panel" id="recent-panel" hidden><div class="panel-heading"><div><span>JUMP BACK</span><h2>RECENT CHANNELS</h2></div></div><div id="recent-channels" class="channel-grid"></div></article>
-
-      <article class="panel remote-face">
-        <div class="panel-heading"><div><span>PRIMARY CONTROL</span><h2>CABLE BOX REMOTE</h2></div><button class="mini" data-key="Backspace">LAST</button><button class="mini" data-key="Backspace" data-shift="1">RECENT</button></div>
-        <div class="remote-layout">
-          <div class="numpad" aria-label="Channel number pad">
-            <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button data-key="Backspace">LAST</button><button data-key="0">0</button><button data-key="Enter">ENTER</button>
-          </div>
-          <div class="navigation-cluster">
-            <div class="dpad" aria-label="Navigation pad"><button class="up repeat" data-key="ArrowUp" aria-label="Up">▲</button><button class="left repeat" data-key="ArrowLeft" aria-label="Left">◀</button><button class="ok" data-key="Enter">OK</button><button class="right repeat" data-key="ArrowRight" aria-label="Right">▶</button><button class="down repeat" data-key="ArrowDown" aria-label="Down">▼</button></div>
-          </div>
+      <!-- Volume and channel sit above everything else on purpose: they are the
+           two controls a viewer actually reaches for. -->
+      <article class="panel rockers">
+        <div class="rocker-row">
+          <div class="rocker"><small>CHANNEL <output class="volume-readout" id="channel-readout" aria-live="off">—</output></small><button class="repeat" data-key="ArrowUp"><b>＋</b>CH +</button><button class="repeat" data-key="ArrowDown"><b>－</b>CH −</button></div>
+          <div class="rocker"><small>VOLUME <output class="volume-readout" id="volume-readout" aria-live="off">—</output></small><button class="repeat" data-key="+"><b>＋</b>VOL +</button><button class="repeat" data-key="-"><b>－</b>VOL −</button><div class="volume-meter" aria-hidden="true"><span id="volume-meter-fill"></span></div></div>
         </div>
       </article>
 
-      <article class="panel"><div class="panel-heading"><div><span>WHILE WATCHING</span><h2>PICTURE &amp; SOUND</h2></div><button class="primary" data-action="watch-tv">WATCH TV / EXIT SETUP</button></div>
+      <!-- One card, three views: pick a channel, type a number, or steer. -->
+      <article class="panel remote-face">
+        <div class="segmented" role="tablist" aria-label="Remote controls">
+          <button class="seg active" role="tab" aria-selected="true" data-seg="channels"><b>▤</b>CHANNELS</button><button class="seg" role="tab" aria-selected="false" data-seg="keypad"><b>⠿</b>KEYPAD</button><button class="seg" role="tab" aria-selected="false" data-seg="dpad"><b>✥</b>D-PAD</button>
+        </div>
+        <div class="seg-panel active" data-seg-panel="channels">
+          <div class="chip-row"><button class="chip" data-key="Backspace">↶ LAST</button><button class="chip" data-key="Backspace" data-shift="1">⟲ RECENT</button><button class="chip" data-key="ArrowUp" data-shift="1">★＋ FAV</button><button class="chip" data-key="ArrowDown" data-shift="1">★－ FAV</button></div>
+          <div id="recent-panel" hidden><div class="seg-label">JUMP BACK</div><div id="recent-channels" class="channel-grid"></div></div>
+          <div class="seg-label">QUICK CHANNELS <button class="mini" data-action="refresh-channels">REFRESH</button></div>
+          <div id="quick-channels" class="channel-grid"><div class="empty">LOADING CHANNELS…</div></div>
+        </div>
+        <div class="seg-panel" data-seg-panel="keypad" hidden>
+          <div class="numpad" aria-label="Channel number pad">
+            <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button><button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button><button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button><button data-key="Backspace">LAST</button><button data-key="0">0</button><button class="primary" data-key="Enter">ENTER</button>
+          </div>
+        </div>
+        <div class="seg-panel" data-seg-panel="dpad" hidden>
+          <div class="dpad" aria-label="Navigation pad"><button class="up repeat" data-key="ArrowUp" aria-label="Up">▲</button><button class="left repeat" data-key="ArrowLeft" aria-label="Left">◀</button><button class="ok" data-key="Enter">OK</button><button class="right repeat" data-key="ArrowRight" aria-label="Right">▶</button><button class="down repeat" data-key="ArrowDown" aria-label="Down">▼</button></div>
+          <div class="chip-row"><button class="chip" data-key="Escape">← BACK</button><button class="chip" data-key="?">☰ TV MENU</button></div>
+        </div>
+      </article>
+
+      <article class="panel"><div class="panel-heading"><div><span>WHILE WATCHING</span><h2>PICTURE &amp; SOUND</h2></div></div>
         <div class="action-grid">
           <button data-key="k">CAPTIONS</button>
           <button data-key="v" data-live-text="pictureMode">PICTURE MODE</button>
           <button data-key="a" data-live-text="aspectMode">ASPECT RATIO</button>
           <button data-key="c" data-live-text="crt">CRT EFFECT</button>
           <button data-key="m" data-shift="1" data-live-text="audioMode">AUDIO MODE</button>
-          <button data-key="z">SLEEP TIMER</button>
-          <button data-key="ArrowUp" data-shift="1">NEXT FAVORITE</button>
-          <button data-key="ArrowDown" data-shift="1">PREV FAVORITE</button>
+          <button data-key="z" id="sleep-button">SLEEP TIMER</button>
+          <button data-key="q">SKIP BREAK</button>
+          <button class="primary" data-action="watch-tv">WATCH TV / EXIT SETUP</button>
         </div>
         <details class="more-actions">
           <summary>SET UP THE BOX</summary>

@@ -82,3 +82,78 @@ html:not([data-companion-scale="100"]) .action-grid,html:not([data-companion-sca
 .pc-shutdown-notice button{flex:0 0 auto;min-width:96px}
 #pc-shutdown-actions{margin-top:8px}
 #pc-shutdown-actions[hidden]{display:none}
+
+/* =====================================================================
+   Material 3 pass, in the box's colours (matches companion-rn/).
+   Tonal surfaces instead of gradients, a shape scale, 48px targets, a
+   bottom navigation bar with a pill indicator, a segmented control, and
+   the retro LED / amber accents kept as the accent colours.
+   ===================================================================== */
+:root{--m3-surface:#0e1114;--m3-container:#171c21;--m3-container-high:#1e252b;--m3-container-highest:#27303a;--m3-outline:#5b6770;--m3-outline-variant:#39434b;--m3-primary-container:#4a3300;--m3-on-primary-container:#ffdea0;--m3-tertiary-container:#0b3f43;--m3-on-tertiary-container:#a5f2f7;--m3-error-container:#5e1b14;--shape-sm:8px;--shape-md:12px;--shape-lg:16px;--shape-xl:28px;--nav-height:76px}
+body{background:var(--m3-surface)}
+.app-shell{padding-bottom:calc(var(--nav-height) + 28px + env(safe-area-inset-bottom))}
+button{min-height:48px;border:0;border-bottom:3px solid rgba(0,0,0,.45);border-top:1px solid rgba(255,255,255,.1);border-radius:var(--shape-md);background:var(--m3-container-highest);box-shadow:none;letter-spacing:.07em}
+button:active{background:#323c46;transform:translateY(1px);border-bottom-width:2px}
+button.primary,.accent{border-color:transparent;border-bottom:3px solid rgba(0,0,0,.35);background:var(--amber);color:#1f1500;text-shadow:none}
+button.danger{background:var(--m3-error-container);color:#ffdad5;border-bottom-color:rgba(0,0,0,.45)}
+.mini{min-height:36px;border-radius:999px}
+.panel{border:1px solid var(--m3-outline-variant);border-radius:var(--shape-lg);background:var(--m3-container);box-shadow:none}
+.search,input,select,textarea{border:1px solid var(--m3-outline);border-radius:var(--shape-sm);background:#090b0d}
+.app-header{padding-top:max(14px,env(safe-area-inset-top));background:rgba(14,17,20,.96);border-bottom:1px solid var(--m3-outline-variant)}
+.header-status{display:flex;align-items:center;gap:8px;min-height:32px;padding:0 12px;border-radius:999px;background:var(--m3-container);color:var(--dim);font-size:11px;font-weight:800;letter-spacing:.14em}
+.header-status[data-state=online] .status-lamp{background:var(--green);box-shadow:0 0 10px var(--green)}
+.header-status[data-state=offline] .status-lamp{background:var(--red);box-shadow:0 0 10px var(--red)}
+
+/* Now playing card */
+.live-status.now-card{display:flex;align-items:center;gap:14px;padding:14px;margin-bottom:14px;text-align:left;border:1px solid var(--m3-outline-variant);border-radius:var(--shape-lg);background:var(--m3-container-high);flex-wrap:wrap}
+.now-plate{min-width:76px;padding:8px 10px;border:1px solid var(--m3-outline-variant);border-radius:var(--shape-md);background:#090b0d;color:var(--amber);font:700 38px/1.1 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;text-align:center}
+.now-text{flex:1 1 150px;min-width:0}
+.now-text small{display:block;color:var(--cyan);font-size:10px;font-weight:800;letter-spacing:.2em}
+.now-text strong{display:block;margin-top:2px;max-width:none;font-size:16px;letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.now-text .now-program{max-width:none;margin-top:2px;color:var(--dim);font-size:12px;font-weight:700;letter-spacing:.05em}
+.now-text .now-detail{margin-top:5px;color:var(--amber);font:700 11px ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;white-space:normal}
+.now-card .skip-break{flex:1 1 100%}.now-card .skip-break[hidden]{display:none}
+.live-status[data-state=offline] .now-plate{color:var(--red)}
+
+/* Primary controls */
+.hero-controls{grid-template-columns:repeat(4,1fr);gap:8px}
+.control{min-height:64px;gap:4px}.control b{font-size:22px;line-height:1}.control span{font-size:10px}
+.rockers{padding:12px}.rocker{padding:10px;border:1px solid var(--m3-outline-variant);border-radius:var(--shape-xl);background:var(--m3-container-high);gap:8px;align-content:start}
+.rocker small{display:flex;align-items:center;justify-content:center;gap:10px;font-size:11px;color:var(--dim)}
+.rocker button{min-height:64px;border-radius:var(--shape-lg);font-size:11px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.rocker button b{font-size:22px;line-height:1}
+.rocker .volume-meter{grid-column:1/-1;margin-top:2px}
+.rocker-row{gap:10px}
+.rocker{grid-template-columns:1fr}
+
+/* Segmented control and its three views */
+.segmented{display:flex;border:1px solid var(--m3-outline);border-radius:999px;overflow:hidden;margin-bottom:14px}
+.segmented .seg{flex:1;min-height:44px;border:0;border-radius:0;background:transparent;color:var(--dim);font-size:11px;display:flex;align-items:center;justify-content:center;gap:6px}
+.segmented .seg+.seg{border-left:1px solid var(--m3-outline)}
+.segmented .seg b{font-size:14px}
+.segmented .seg.active{background:var(--m3-tertiary-container);color:var(--m3-on-tertiary-container)}
+.seg-panel[hidden]{display:none}
+.chip-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.chip{min-height:40px;padding:0 14px;border:1px solid var(--m3-outline);border-bottom-width:1px;border-top-width:1px;border-radius:var(--shape-sm);background:transparent;color:var(--text);font-size:11px}
+.seg-label{display:flex;align-items:center;justify-content:space-between;margin:10px 0 8px;color:var(--dim);font-size:10px;font-weight:800;letter-spacing:.17em}
+.numpad button{min-height:60px;font-size:20px}
+.dpad{width:min(270px,100%)}
+.dpad button{border-radius:var(--shape-xl)}
+.dpad .ok{background:var(--amber);color:#1f1500}
+.channel-grid button{min-height:56px}
+
+/* Bottom navigation bar with the M3 pill indicator (phones); stays a top
+   tab strip on wide screens. Icons are drawn by CSS so the markup stays text. */
+@media(max-width:849px){
+  .tab-bar{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:25;display:grid;grid-template-columns:repeat(5,1fr);overflow:visible;padding:8px 4px max(8px,env(safe-area-inset-bottom));background:var(--m3-container);border-top:1px solid var(--m3-outline-variant);border-bottom:0;-webkit-mask-image:none;mask-image:none}
+  .tab{min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;min-height:60px;border:0;border-radius:0;background:transparent;box-shadow:none;font-size:10px;letter-spacing:.1em;color:var(--dim)}
+  .tab::before{content:"◉";display:flex;align-items:center;justify-content:center;width:60px;height:30px;border-radius:999px;font-size:17px;letter-spacing:0}
+  .tab[data-tab=guide]::before{content:"▦"}.tab[data-tab=channels]::before{content:"☰"}.tab[data-tab=settings]::before{content:"⚙"}.tab[data-tab=tools]::before{content:"✦"}
+  .tab.active{background:transparent;box-shadow:none;color:var(--amber)}
+  .tab.active::before{background:var(--m3-primary-container);color:var(--m3-on-primary-container)}
+  .command-feedback{bottom:calc(var(--nav-height) + 14px + env(safe-area-inset-bottom))}
+}
+@media(min-width:850px){
+  .tab-panel[data-panel=remote].active{display:block;max-width:600px;margin:0 auto}
+  .tab-bar{justify-content:center}
+}

@@ -725,14 +725,41 @@
     el.textContent = parts.join(' · ');
   }
 
+  // The lamp in the header (every tab) and the now-playing card share one state.
+  function setConnection(value) {
+    document.getElementById('live-status').dataset.state = value;
+    var header = document.getElementById('header-status');
+    header.dataset.state = value;
+    document.getElementById('header-status-text').textContent = value === 'online' ? 'ONLINE' : value === 'offline' ? 'NO SIGNAL' : 'CONNECTING';
+  }
+
+  // CHANNELS / KEYPAD / D-PAD: one card, one view at a time.
+  document.querySelectorAll('[data-seg]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.querySelectorAll('[data-seg]').forEach(function (other) {
+        var on = other === button;
+        other.classList.toggle('active', on);
+        other.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.querySelectorAll('[data-seg-panel]').forEach(function (panel) {
+        var on = panel.dataset.segPanel === button.dataset.seg;
+        panel.hidden = !on;
+        panel.classList.toggle('active', on);
+      });
+    });
+  });
+
   function pollState() {
     request('/state').then(function (remoteState) {
       var watching = document.getElementById('now-watching');
       var program = document.getElementById('now-program');
       var live = document.getElementById('live-status');
-      live.dataset.state = 'online';
+      setConnection('online');
       remoteState = remoteState || {};
       state.watchingNumber = remoteState.number;
+      document.getElementById('now-number').textContent = remoteState.number == null ? '--' : (Number.isInteger(remoteState.number) ? String(remoteState.number).padStart(2, '0') : String(remoteState.number));
+      document.getElementById('skip-break').hidden = remoteState.onAir !== 'break';
+      document.getElementById('channel-readout').textContent = remoteState.number == null ? '—' : 'CH ' + remoteState.number;
       if (remoteState.number != null) {
         var behind = remoteState.timeOffsetMin ? ' ' + (remoteState.timeOffsetMin < 0 ? '−' : '+') + Math.abs(remoteState.timeOffsetMin) + ' MIN' : '';
         var mode = remoteState.timeMachineOn ? (remoteState.shuttleDir < 0 ? ' · REW' : remoteState.shuttleDir > 0 ? ' · FF' : ' · TIME MACHINE') + behind : '';
@@ -755,7 +782,9 @@
       applySettingsResult(remoteState.settingsResult);
       applyPcShutdown(remoteState.pcShutdown);
     }).catch(function () {
-      document.getElementById('live-status').dataset.state = 'offline';
+      setConnection('offline');
+      document.getElementById('now-number').textContent = '--';
+      document.getElementById('skip-break').hidden = true;
       document.getElementById('now-watching').textContent = 'DISCONNECTED';
       document.getElementById('now-program').textContent = '';
     });

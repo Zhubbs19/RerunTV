@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "RerunTV Companion",
+    "slug": "reruntv-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "reruntv-companion",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0E1114",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.reruntv.companion",
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "Finds and controls your RerunTV box on this network.",
+        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+      }
+    },
+    "android": {
+      "package": "app.reruntv.companion",
+      "adaptiveIcon": {
+        "backgroundColor": "#0E1114",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "usesCleartextTraffic": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-camera", { "cameraPermission": "Scan the pairing QR code shown on your RerunTV box.", "barcodeScannerEnabled": true }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
