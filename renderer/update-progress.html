@@ -9,11 +9,13 @@
 </head>
 <body>
   <main class="update-window" aria-labelledby="update-progress-title">
-    <div class="update-signal" aria-hidden="true"><span></span><span></span><span></span></div>
-    <div class="update-copy">
-      <div class="update-kicker">RERUNTV SYSTEM UPDATE</div>
-      <h1 id="update-progress-title">PREPARING UPDATE</h1>
-      <div id="update-progress-detail" class="update-detail" aria-live="polite">Getting the next broadcast ready…</div>
+    <div class="update-head">
+      <div class="update-logo" aria-hidden="true"><img src="img/logo.png" alt=""><div class="update-logo-shadow"></div></div>
+      <div class="update-copy">
+        <div class="update-kicker">RERUNTV SYSTEM UPDATE</div>
+        <h1 id="update-progress-title">PREPARING UPDATE</h1>
+        <div id="update-progress-detail" class="update-detail" aria-live="polite">Getting the next broadcast ready…</div>
+      </div>
     </div>
     <div class="update-track" role="progressbar" aria-label="Update progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
       <div id="update-progress-fill" class="update-fill"></div>
