@@ -13,7 +13,9 @@
       "bundleIdentifier": "app.reruntv.companion",
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Finds and controls your RerunTV box on this network.",
-        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true }
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {
@@ -24,14 +26,22 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "usesCleartextTraffic": true,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-camera", { "cameraPermission": "Scan the pairing QR code shown on your RerunTV box.", "barcodeScannerEnabled": true }]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Scan the pairing QR code shown on your RerunTV box.",
+          "barcodeScannerEnabled": true
+        }
+      ],
+      ["expo-build-properties", { "android": { "usesCleartextTraffic": true } }]
     ],
-    "experiments": { "typedRoutes": true }
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }
