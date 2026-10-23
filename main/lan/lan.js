@@ -83,7 +83,13 @@ function registerLanIpc(ipcMain, { getViewerAccessUrls, getViewerControlAccessUr
   // Companion app (remote control + Settings + Files, all merged into one
   // plugin/port — see plugins/companion-app/main.js), same pattern as
   // viewer:getUrl above.
-  ipcMain.handle('companion:getUrl', async () => getCompanionAccessUrls());
+  // Each candidate also carries a QR of its pairing link for the setup panel; a
+  // failed render leaves qrDataUrl empty (the URL and code still work).
+  ipcMain.handle('companion:getUrl', async () => Promise.all((getCompanionAccessUrls() || []).map(async (c) => {
+    let qrDataUrl = '';
+    try { qrDataUrl = await QRCode.toDataURL(c.url, { margin: 1, width: 240 }); } catch (e) { /* text link still works */ }
+    return { ...c, qrDataUrl };
+  })));
 }
 
 module.exports = {

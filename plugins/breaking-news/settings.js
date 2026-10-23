@@ -4,10 +4,12 @@ window.RCBPlugins.registerPluginSettings('breaking-news', {
   sections: [{
     id: 'general',
   render(container, ctx) {
-    // The section is edited through ctx.settings (labelled undo steps), not by
-    // assigning to ctx.S.config; cfg is the same live object, kept for reading.
-    const cfg = ctx.settings.ensureLegacyConfig('breaking-news');
-    const update = (patch) => ctx.settings.updateLegacyConfig('breaking-news', patch);
+    // The section is edited through the global ctx.settings (labelled undo steps; the
+    // section's own ctx.settings is a data snapshot), not by assigning to ctx.S.config;
+    // cfg is the same live object, kept for reading.
+    const coreSettings = window.RCBPlugins.ctx.settings;
+    const cfg = coreSettings.ensureLegacyConfig('breaking-news');
+    const update = (patch) => coreSettings.updateLegacyConfig('breaking-news', patch);
     container.innerHTML = `
       <label class="panel-toggle"><input type="checkbox" data-el="enabled">BREAKING NEWS ALERTS</label>
       <div class="panel-body">

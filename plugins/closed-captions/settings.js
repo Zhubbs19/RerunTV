@@ -4,10 +4,11 @@ window.RCBPlugins.registerPluginSettings('closed-captions', {
   sections: [{
     id: 'general',
   render(container, ctx) {
-    // Edited through ctx.settings (labelled undo steps); c is the same live object, for reading.
-    const c = ctx.settings.ensureLegacyConfig('closed-captions', { enabled: false });
+    // Edited through the global ctx.settings (labelled undo steps; the section's own ctx.settings is a data snapshot); c is the same live object, for reading.
+    const coreSettings = window.RCBPlugins.ctx.settings;
+    const c = coreSettings.ensureLegacyConfig('closed-captions', { enabled: false });
     if (!c.sizeScale) c.sizeScale = 1; // default for display only; saved with the next real edit
-    const update = (patch, opts) => { ctx.settings.updateLegacyConfig('closed-captions', patch, opts); applyCaptionStyle(); };
+    const update = (patch, opts) => { coreSettings.updateLegacyConfig('closed-captions', patch, opts); applyCaptionStyle(); };
     container.innerHTML = `
       <label class="panel-toggle">
         <input type="checkbox" id="cc-plugin-enabled">
