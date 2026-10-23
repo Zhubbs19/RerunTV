@@ -147,8 +147,11 @@ class MainActivity : AppCompatActivity() {
             .build()
         GmsBarcodeScanning.getClient(this, options).startScan()
             .addOnSuccessListener { barcode -> openPairingLink(barcode.rawValue) }
+            .addOnCanceledListener { statusText.text = "SCAN CANCELLED" }
             .addOnFailureListener { error ->
-                Toast.makeText(this, "Could not scan: ${error.message}", Toast.LENGTH_LONG).show()
+                statusText.text = "SCAN FAILED"
+                errorDetail.text = "Scan error: ${error.javaClass.simpleName}: ${error.message}\nApp v${BuildConfig.VERSION_NAME}"
+                errorPanel.visibility = View.VISIBLE
             }
     }
 
@@ -156,7 +159,9 @@ class MainActivity : AppCompatActivity() {
         val uri = try { Uri.parse(raw ?: "") } catch (e: Exception) { null }
         val host = uri?.host
         if (uri == null || uri.scheme != "http" || host.isNullOrBlank() || uri.getQueryParameter("pair").isNullOrBlank()) {
-            Toast.makeText(this, "That QR is not a RerunTV pairing code", Toast.LENGTH_LONG).show()
+            statusText.text = "THAT QR IS NOT A RERUNTV PAIRING CODE"
+            errorDetail.text = "Scanned: ${raw ?: "(empty)"}\nApp v${BuildConfig.VERSION_NAME}"
+            errorPanel.visibility = View.VISIBLE
             return
         }
         prefs.host = host
@@ -232,7 +237,7 @@ class MainActivity : AppCompatActivity() {
             // failing from a sub-resource that merely 404'd.
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (!request.isForMainFrame) return
-                showFailure(error.description?.toString())
+                showFailure("${error.description ?: "unknown error"} (code ${error.errorCode})", request.url.toString())
             }
         }
         webView.setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
@@ -252,11 +257,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** A dead end before: the failure was a text label with nothing to tap. */
-    private fun showFailure(detail: String?) {
+    private fun showFailure(detail: String?, tried: String? = null) {
         loadFailed = true
         swipeRefresh.isRefreshing = false
         statusText.text = "CONNECTION FAILED"
-        errorDetail.text = listOfNotNull(prefs.baseUrl(), detail).joinToString("\n")
+        // Always say what was tried and what went wrong, so a failure can be
+        // reported without guessing; never leave this blank.
+        errorDetail.text = listOf(
+            "Tried: ${tried ?: prefs.baseUrl() ?: "no host saved"}",
+            "Error: ${detail ?: "no detail from Android"}",
+            "App v${BuildConfig.VERSION_NAME}",
+        ).joinToString("\n")
         errorPanel.visibility = View.VISIBLE
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
