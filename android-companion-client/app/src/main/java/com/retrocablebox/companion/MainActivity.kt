@@ -24,6 +24,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.launch
 
 /**
@@ -75,6 +78,7 @@ class MainActivity : AppCompatActivity() {
 
         openButton.setOnClickListener { openEnteredHost() }
         discoverButton.setOnClickListener { discover() }
+        findViewById<Button>(R.id.scanButton).setOnClickListener { scanPairingQr() }
         findViewById<Button>(R.id.errorFindButton).setOnClickListener { discover() }
         findViewById<Button>(R.id.retryButton).setOnClickListener { loadCompanion() }
         toggleConnectButton.setOnClickListener { setConnectBarVisible(connectBar.visibility != View.VISIBLE) }
@@ -129,6 +133,39 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
+    }
+
+    /**
+     * Reads the QR on the desktop's Companion App panel: the full pairing link
+     * (http://host:port/?pair=CODE). Loading it as-is is what pairs this
+     * device, because the server answers it with a redirect that sets the
+     * session cookie. Only an http link whose pair code is present is accepted.
+     */
+    private fun scanPairingQr() {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .build()
+        GmsBarcodeScanning.getClient(this, options).startScan()
+            .addOnSuccessListener { barcode -> openPairingLink(barcode.rawValue) }
+            .addOnFailureListener { error ->
+                Toast.makeText(this, "Could not scan: ${error.message}", Toast.LENGTH_LONG).show()
+            }
+    }
+
+    private fun openPairingLink(raw: String?) {
+        val uri = try { Uri.parse(raw ?: "") } catch (e: Exception) { null }
+        val host = uri?.host
+        if (uri == null || uri.scheme != "http" || host.isNullOrBlank() || uri.getQueryParameter("pair").isNullOrBlank()) {
+            Toast.makeText(this, "That QR is not a RerunTV pairing code", Toast.LENGTH_LONG).show()
+            return
+        }
+        prefs.host = host
+        prefs.port = if (uri.port > 0) uri.port else 8725
+        prefs.hostName = null
+        hostInput.setText(if (prefs.port == 8725) host else "$host:${prefs.port}")
+        loadFailed = false
+        errorPanel.visibility = View.GONE
+        webView.loadUrl(uri.toString())
     }
 
     private fun useHost(result: Discovery.Result) {
