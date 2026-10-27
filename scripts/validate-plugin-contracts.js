@@ -17,6 +17,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { isValidHostPattern } = require('../main/plugins/capabilities');
 
 // RERUNTV_VALIDATE_ROOT lets the tooling tests point this at a scratch tree.
 const ROOT = process.env.RERUNTV_VALIDATE_ROOT || path.join(__dirname, '..');
@@ -81,11 +82,11 @@ function validateCapabilityEntry(list, entry, tag, requiredKey, requiredKeyType)
 function validateCapabilities(caps, pluginTag) {
   if (caps === undefined) return;
   if (!isPlainObject(caps)) { errors.push(`${pluginTag}: "capabilities" must be an object`); return; }
-  const known = ['ipc', 'spawn', 'net', 'mediaSource', 'system'];
+  const known = ['ipc', 'spawn', 'net', 'mediaSource', 'system', 'internet'];
   Object.keys(caps).forEach((k) => {
     if (!known.includes(k)) errors.push(`${pluginTag}: unknown capabilities key "${k}"`);
   });
-  ['ipc', 'spawn', 'net', 'mediaSource', 'system'].forEach((key) => {
+  ['ipc', 'spawn', 'net', 'mediaSource', 'system', 'internet'].forEach((key) => {
     if (caps[key] === undefined) return;
     if (!Array.isArray(caps[key])) { errors.push(`${pluginTag}: capabilities.${key} must be an array`); return; }
     if (key === 'ipc') validateCapabilityEntry(caps, caps[key], key, 'channel', 'string');
@@ -93,6 +94,16 @@ function validateCapabilities(caps, pluginTag) {
     if (key === 'net') validateCapabilityEntry(caps, caps[key], key, 'port', 'number');
     if (key === 'mediaSource') validateCapabilityEntry(caps, caps[key], key, 'providerId', 'string');
     if (key === 'system') validateCapabilityEntry(caps, caps[key], key, 'action', 'string');
+    if (key === 'internet') {
+      validateCapabilityEntry(caps, caps[key], key, 'host', 'string');
+      // The same rule the loader applies (capabilities.js): an entry it would
+      // silently drop is worth an error here instead.
+      caps[key].forEach((item, i) => {
+        if (item && typeof item.host === 'string' && !isValidHostPattern(item.host.trim().toLowerCase())) {
+          errors.push(`capabilities.internet[${i}]: "${item.host}" isn't a host pattern (a name, *.domain, an IPv4 address, localhost or *)`);
+        }
+      });
+    }
   });
 }
 

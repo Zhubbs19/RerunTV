@@ -22,6 +22,7 @@ const { recordDiagnostic } = require('../diagnostics/diagnostics');
 const { allowedSetsFor, capabilityError, resolveUserPaths } = require('./capabilities');
 const { isolatedConfigView } = require('./config-view');
 const { isAllowedExternalUrl } = require('../util/fetch-guards');
+const bridge = require('./bridge');
 
 const RUNTIME_SCRIPT = path.join(__dirname, 'isolation-runtime.js');
 // A hung/broken isolated plugin (forked but never emitting 'runtime-ready',
@@ -175,6 +176,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
       return;
     }
     ipcMain.handle(channel, async (event, ...args) => childRpc.request('ipc:call', { channel, args }));
+    bridge.registerPluginHandler(manifest.id, channel, (event, args) => childRpc.request('ipc:call', { channel, args }));
   });
   childRpc.on('ipc:on-register', ({ channel }) => {
     if (!allowedIpc.has(channel)) {
@@ -182,6 +184,7 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
       return;
     }
     ipcMain.on(channel, (event, ...args) => childRpc.emit('ipc:on-fire', { channel, args }));
+    bridge.registerPluginHandler(manifest.id, channel, (event, args) => { childRpc.emit('ipc:on-fire', { channel, args }); });
   });
   // Unlike ipc:handle-register/ipc:on-register above, these two proxy
   // straight to a real OS-level action with no per-call value to check
@@ -215,7 +218,18 @@ function registerChildInitiatedHandlers(childRpc, baseCtx, pluginServices, manif
   childRpc.on('app:on-before-quit-register', () => { beforeQuitChildren.add(childRpc); });
   childRpc.on('sendToMainWindow', ({ channel, data }) => {
     const mainWindow = baseCtx.getMainWindow();
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, data);
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.webContents.send(channel, data);
+    // Tagged here with this child's own id, so a plugin can't send as another.
+    mainWindow.webContents.send('plugins:event', bridge.eventEnvelope(manifest.id, channel, data));
+  });
+  // The connections this plugin's process made or was refused (net-guard.js).
+  // Reported by the plugin's own process, so it's a record for the user, not
+  // a security control in itself; the refusal itself happened in-process.
+  childRpc.on('net:activity', (batch) => {
+    bridge.recordNetwork(manifest.id, batch).forEach((host) => {
+      recordDiagnostic(`plugin:${manifest.id}`, 'error', `Plugin "${manifest.id}" was blocked from connecting to ${host}, which its manifest doesn't list in capabilities.internet.`);
+    });
   });
   childRpc.handle('fetchJsonCached', async ({
     key, url, opts, ttlMs,
@@ -392,6 +406,7 @@ function activateIsolatedPlugin(manifest, pluginDir, baseCtx, pluginServices, ap
         partyRouteOwners.delete(key);
       });
       beforeQuitChildren.delete(childRpc);
+      bridge.unregisterPlugin(manifest.id);
       childRpc.dispose(`plugin "${manifest.id}" process exited (code ${code})`);
       settle({ ok: false, error: `isolated process exited (code ${code}) before finishing activation` });
     });

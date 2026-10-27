@@ -314,6 +314,11 @@ contextBridge.exposeInMainWorld('api', {
   onFfmpegInstallProgress: (cb) => ipcRenderer.on('ffmpeg:installProgress', (event, data) => cb(data)),
   // Plugins — see main-plugins.js and renderer/js/plugins.js.
   pluginsList: () => ipcRenderer.invoke('plugins:list'),
+  // The generic plugin bridge (main/plugins/bridge.js): any approved plugin's
+  // declared channels, so a locally installed plugin needs no entry here.
+  pluginInvoke: (pluginId, channel, ...args) => ipcRenderer.invoke('plugins:invoke', pluginId, channel, args),
+  onPluginEvent: (cb) => ipcRenderer.on('plugins:event', (event, data) => cb(data)),
+  pluginsActivity: (pluginId) => ipcRenderer.invoke('plugins:activity', pluginId),
   getDiagnostics: () => ipcRenderer.invoke('diagnostics:get'),
   exportDiagnostics: (rendererSnapshot) => ipcRenderer.invoke('diagnostics:export', rendererSnapshot),
   pluginsOpenFolder: () => ipcRenderer.invoke('plugins:openFolder'),

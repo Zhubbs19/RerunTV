@@ -109,6 +109,14 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   `REMOTE_DENIED_SETTINGS` name what a LAN control client may never change (plugin approvals and
   settings, network, updates, PIN lock, PC power). Add new host-only commands and settings there;
   the check is keyed on `remote`, not `origin`, so a second remote transport cannot skip it.
+- **One generic plugin bridge.** A plugin's on-screen code reaches its own main.js through
+  `ctx.ipc` → `window.api.pluginInvoke` → `plugins:invoke` (`main/plugins/bridge.js`), which only
+  answers channels that plugin registered through its capability-checked `ctx.ipcMain`. New
+  plugins don't get named entries in `main/preload.js`; that's what lets a locally installed
+  plugin work in a release build. `capabilities.internet` (optional, signature-neutral when
+  absent) is enforced inside an isolated plugin's process by `main/plugins/net-guard.js`, and
+  `renderer/js/plugin/permissions.js` is the plain-language wording the approval prompt and
+  plugin page share.
 - **Writes are atomic.** Main-process JSON/state writers go through `main/util/atomic-write.js`
   (temp file, fsync, rename with retry on Windows' EPERM/EBUSY), not a bare `fs.writeFile`.
 - LAN pairing and session auth are in `main/lan/security.js`; `SECURITY.md` has the user-facing

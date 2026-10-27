@@ -27,6 +27,7 @@ const { createLanAccess, isLanServiceEnabled } = require('../lan/security');
 const {
   capabilityError, allowedSetsFor, createCheckedSpawn, createCheckedServer, createCheckedFs,
 } = require('./capabilities');
+const { installNetGuard, createActivityBatcher } = require('./net-guard');
 // Pure Node npm packages, no Electron dependency — same reasoning as
 // getLanAddresses/getViewerUrls above: an isolated plugin's process can
 // require() these fresh right here rather than needing them proxied over
@@ -189,6 +190,13 @@ async function main() {
   try {
     const manifest = init.manifest;
     const pluginDir = init.pluginDir;
+    // Before the plugin's own code loads, so every connection it can make
+    // goes through the declared-sites check (net-guard.js).
+    installNetGuard({
+      pluginId: manifest.id,
+      patterns: allowedSetsFor(manifest.capabilities).allowedHosts,
+      onActivity: createActivityBatcher((batch) => rpc.emit('net:activity', batch)),
+    });
     const mainPath = path.join(pluginDir, manifest.main);
     // eslint-disable-next-line import/no-dynamic-require, global-require
     const mod = require(mainPath);

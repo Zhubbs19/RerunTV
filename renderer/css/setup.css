@@ -1927,6 +1927,24 @@ body.theme-browser-open #setup-screen { overflow: hidden; }
   color: var(--good, #5fd68a);
   margin-top: 4px;
 }
+
+/* What a plugin can do (plugin/permissions.js): the approval dialog and the
+   plugin's page share these. Tone is a left rule and the heading colour only;
+   the text itself stays the theme's body colour. */
+.plugin-perms { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); text-align: left; }
+.plugin-perms-section { border-left: 3px solid var(--border); padding: 2px 0 2px var(--space-3); }
+.plugin-perms-section.tone-ok { border-left-color: var(--success, var(--border)); }
+.plugin-perms-section.tone-warn { border-left-color: var(--warning, var(--accent)); }
+.plugin-perms-section.tone-danger { border-left-color: var(--danger); }
+.plugin-perms-heading { font-family: var(--font-ui); font-weight: 700; font-size: var(--font-size-label); letter-spacing: .4px; color: var(--text-muted); text-transform: uppercase; }
+.plugin-perms-section.tone-danger .plugin-perms-heading { color: var(--danger-text, var(--danger)); }
+.plugin-perms-line { color: var(--text); font-family: var(--font-ui); margin-top: 2px; }
+.plugin-perms-line.tone-danger { color: var(--danger-text, var(--danger)); font-weight: 600; }
+.plugin-perms-why { color: var(--text-muted); font-size: var(--font-size-label); margin-top: 1px; }
+.plugin-activity { margin-top: var(--space-2); }
+.plugin-perms-dialog .confirm-dialog-box { max-width: min(640px, 92vw); }
+/* The list scrolls inside the dialog, so the buttons stay on screen. */
+.plugin-perms-dialog .plugin-perms { min-height: 0; overflow-y: auto; flex: 1 1 auto; padding-right: 4px; }
 .plugin-row-perm-actions {
   display: flex;
   gap: 6px;

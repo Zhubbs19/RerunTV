@@ -28,6 +28,11 @@ const { recordDiagnostic } = require('../diagnostics/diagnostics');
 //   spawn:       [{ bin: "ffmpeg", why: "..." }]                — a child-process executable, matched by basename
 //   net:         [{ port: 8723, why: "..." }]                   — a port this plugin's own HTTP server binds
 //   mediaSource: [{ providerId: "my-source", why: "..." }]        — registers as a channel media-content source
+//   internet:    [{ host: "*.example.com", why: "..." }]       — a site an isolated plugin's own code may
+//                                                                   connect to ("*" for any). Enforced inside an
+//                                                                   isolated plugin's process (net-guard.js) when
+//                                                                   declared; a plugin that declares none is not
+//                                                                   limited, and the approval prompt says so.
 //   system:      [{ action: "shell.openExternal", why: "..." }]   — one of the OS-level actions proxied to an
 //                                                                   isolated plugin's ctx.shell/ctx.desktopCapturer
 //                                                                   ("shell.openExternal" or
@@ -61,13 +66,45 @@ function normalizeCapabilities(raw) {
       .filter((e) => e && typeof e === 'object' && typeof e[valueKey] !== 'undefined' && typeof e.why === 'string' && e.why)
       .map((e) => ({ [valueKey]: e[valueKey], why: e.why, ...(e.displayName ? { displayName: e.displayName } : {}) }));
   }
-  return {
+  const normalized = {
     ipc: normalizeList(caps.ipc, 'channel'),
     spawn: normalizeList(caps.spawn, 'bin'),
     net: normalizeList(caps.net, 'port'),
     mediaSource: normalizeList(caps.mediaSource, 'providerId'),
     system: normalizeList(caps.system, 'action'),
   };
+  // Only present when declared: the approval signature is this object's
+  // JSON, and an always-present empty list would change every installed
+  // plugin's signature and ask the user to approve them all again.
+  const internet = normalizeList(caps.internet, 'host')
+    .map((e) => ({ ...e, host: String(e.host).trim().toLowerCase() }))
+    .filter((e) => isValidHostPattern(e.host));
+  if (internet.length) normalized.internet = internet;
+  return normalized;
+}
+
+// "*" (anywhere), "example.com", "*.example.com" (the domain and anything
+// under it), or a literal IPv4 address. No schemes, ports or paths.
+function isValidHostPattern(host) {
+  if (host === '*') return true;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return true;
+  return /^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(host)
+    || host === 'localhost';
+}
+
+// Whether `host` (a name or IP literal a plugin is connecting to) matches one
+// of the declared patterns. "*.example.com" also matches example.com itself.
+function hostAllowed(host, patterns) {
+  const h = String(host || '').trim().toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+  if (!h) return false;
+  return (patterns || []).some((pattern) => {
+    if (pattern === '*') return true;
+    if (pattern.startsWith('*.')) {
+      const base = pattern.slice(2);
+      return h === base || h.endsWith(`.${base}`);
+    }
+    return h === pattern;
+  });
 }
 
 // A stable string identifying exactly what a plugin's manifest currently
@@ -100,6 +137,9 @@ function allowedSetsFor(capabilities) {
     allowedSpawn: new Set(caps.spawn.map((e) => stripExeSuffix(String(e.bin)))),
     allowedPorts: new Set(caps.net.map((e) => e.port)),
     allowedSystem: new Set((caps.system || []).map((e) => e.action)),
+    // null when the plugin declared no internet permission at all (not
+    // limited), otherwise the host patterns it may connect to.
+    allowedHosts: caps.internet && caps.internet.length ? caps.internet.map((e) => e.host) : null,
   };
 }
 
@@ -233,6 +273,6 @@ function createCheckedFs(pluginId, dataDir, userDirs = []) {
 }
 
 module.exports = {
-  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor, resolveUserPaths,
+  normalizeCapabilities, capabilitiesSignature, capabilityError, allowedSetsFor, resolveUserPaths, hostAllowed, isValidHostPattern,
   createCheckedSpawn, createCheckedServer, createCheckedFs,
 };

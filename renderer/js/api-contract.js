@@ -39,6 +39,9 @@
     // quitApp as null and the digital-music pair not at all, so
     // createApiSurface threw and a LAN browser ended up with no window.api at
     // all. tests/api-surface.test.js keeps the two lists honest now.
+    // Host-only: the generic plugin bridge reaches plugin code running on
+    // the host, and a LAN viewer must not drive it.
+    'pluginInvoke', 'onPluginEvent', 'pluginsActivity',
     'quitApp', 'digitalMusicScanFolder', 'digitalMusicEmbeddedArt', 'digitalMusicReadTags',
     'checkForUpdates', 'onUpdateStatus', 'installUpdateNow', 'getReleaseNotes',
     'getStartupServerStatus', 'setStartupServerEnabled', 'getStartupWindowStatus', 'setStartupWindowEnabled',

@@ -169,6 +169,47 @@ an undeclared `ipc` channel does. A non-isolated plugin's `ctx.shell`/
 same-process plugins already have unrestricted access via `require('electron')`
 directly, so there's nothing this capability could meaningfully gate there.
 
+#### `internet`: the sites your plugin connects to
+
+```json
+"internet": [
+  { "host": "*.api.example.org", "why": "searches the example directory" },
+  { "host": "*", "why": "plays whatever station you add, from its own server" }
+]
+```
+
+`host` is a name (`api.example.org`), a domain and everything under it
+(`*.example.org`), a literal IPv4 address, `localhost`, or `*` for anywhere.
+No schemes, ports or paths.
+
+- **Isolated plugins are held to it.** Once declared, every connection the
+  plugin's own process makes (`net`, `tls`, `http`/`https`, `fetch`, UDP) to
+  a host that isn't listed fails with `ERR_PLUGIN_HOST_NOT_ALLOWED`, and is
+  logged and shown as blocked on the plugin's page. The check runs inside
+  the plugin's process (`main/plugins/net-guard.js`), with Node's permission
+  model blocking the usual ways around it. It isn't an OS firewall, and a
+  program the plugin spawns isn't covered.
+- **Not declaring it** leaves an isolated plugin unlimited, as before. The
+  approval prompt says so, and the plugin's page still lists where it
+  connected.
+- **A same-process plugin** has full access regardless. The prompt says that
+  in red.
+- Declaring `internet` is optional and only enters the approval signature
+  when present, so adding it to an existing plugin asks for approval once.
+
+#### What the user is shown
+
+The approval prompt and the plugin's page describe these capabilities in
+plain words (`renderer/js/plugin/permissions.js`): where the plugin runs,
+that its on-screen part shares the app's window, the sites it may reach,
+the files it may read and write, programs, ports and system actions, each
+with your `why`, and whether its files are built in, installed and
+unchanged, or copied in by hand. The raw entries sit under a Details fold.
+A plugin that isn't isolated is approved with a red APPROVE FULL ACCESS
+button. Each plugin's page also shows what it has done since the app
+started: bridge calls, refused calls, sites it connected to, and anything
+it was blocked from.
+
 Every entry needs a `why` — it's shown verbatim in the approval prompt the
 user sees before your plugin is allowed to activate (a fresh install, or an
 update that adds a new entry, both re-prompt). Use `ctx.ipcMain`/
@@ -762,6 +803,7 @@ the piece you need instead of pulling every key off the flat object:
 - `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)
 - `ctx.input` — `{ usageMode, keyForAction, actions }` (v5, see `onAction` under `registerChannelType` above), plus `openKeyboard({ title, value, maxLength })` (v8): the D-pad on-screen keyboard, resolving the typed text (upper-cased) or `null` if cancelled — use it for text entry in TV mode, where a focused `<input>` can't be typed into from a remote
 - `ctx.ui` — the component kit (v6, see "Building UI with `ctx.ui`" below)
+- `ctx.ipc` — `{ invoke, on, available }` (v10, see "Calling your own `main.js`" below)
 - `ctx.commands` — `{ register, dispatch, type }` (v7, see "Undoable edits with
   `ctx.commands`" below)
 
@@ -1380,18 +1422,44 @@ window.RCBPlugins.registerTitleRowAction('my-plugin', {
 (bulk action only) and `rerender()`. See `plugins/tmdb-metadata/renderer.js`
 for a full real example (search, bulk match, per-file re-match).
 
-### `window.api` — the IPC bridge
+### Calling your own `main.js`: `ctx.ipc` (ctx v10)
+
+Your renderer and settings code reach your own `main.js` through the generic
+plugin bridge. No `preload.js` entry is needed, so a plugin you install
+yourself works in any app build at ctx v10 or later.
+
+```js
+const { ipc } = window.RCBPlugins.ctx;
+// main.js: ctx.ipcMain.handle('my-plugin:search', async (event, query) => …)
+const results = await ipc.invoke('my-plugin', 'my-plugin:search', 'jazz');
+// main.js: ctx.sendToMainWindow('my-plugin:status', { playing: true })
+const off = ipc.on('my-plugin', 'my-plugin:status', (data) => render(data));
+```
+
+- **What goes through.** `invoke` reaches a channel only if your plugin
+  registered it through its own `ctx.ipcMain.handle`/`.on`, the channel is in
+  your manifest's `capabilities.ipc`, and the user approved those
+  capabilities. Anything else is refused with an error, including another
+  plugin's channels under your id.
+- **While your plugin is off.** If it's disabled or waiting for approval,
+  `invoke` answers with your manifest's `fallbackIpc` value for that channel,
+  or rejects if you declared none.
+- **Events.** Every `ctx.sendToMainWindow(channel, data)` your `main.js`
+  makes also reaches `ctx.ipc.on(yourId, channel, cb)`. Core tags each one
+  with the id of the plugin that sent it, so a plugin can't speak as
+  another. `on` returns a function that removes the listener.
+- **Host only.** A LAN viewer has no bridge: `invoke` rejects there, and
+  `ctx.ipc.available()` says whether this window has one.
+- Declare `"minCtxVersion": 10` if your plugin needs it.
+
+### `window.api` — the app's own IPC surface
 
 Your renderer code also has full access to `window.api`, the same
 contextBridge surface the core app uses (see `main/preload.js` for the
 complete list) — file pickers (`selectAudio`, `selectImage`, `selectVideo`,
-`selectCss`, …), `toFileUrl`, backups, config load/save, and anything
-another plugin's `main.js` registered an `ipcMain.handle` for. If your own
-`main.js` adds a new IPC channel, you'll need it added to `preload.js` too
-(core-owned file) for your renderer code to call it — first-party plugins
-do this by editing `main/preload.js` directly; if you're a third-party
-plugin author without an app fork, structure your `main.js` to use IPC
-channels the app already exposes, or ask for your channel to be added.
+`selectCss`, …), `toFileUrl`, backups, config load/save. Some older
+first-party plugins still have named entries of their own there; new
+plugins use `ctx.ipc` above instead of adding to `preload.js`.
 
 ### Cross-plugin calls: the `window.RCBPlugins.<yourId>` escape hatch
 

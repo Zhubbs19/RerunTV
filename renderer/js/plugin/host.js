@@ -799,7 +799,56 @@ export function pluginDiagnosticsSnapshot() {
 // v9 added ctx.ui.escapeHtml / ctx.ui.formatDuration and ctx.settings.
 // updateLegacyConfig / ensureLegacyConfig (labelled edits to a first-party plugin's
 // older top-level config section, instead of mutating ctx.S.config directly).
-const CTX_VERSION = 9;
+// v10 added ctx.ipc, the generic plugin bridge (main/plugins/bridge.js):
+// invoke(pluginId, channel, ...args) and on(pluginId, channel, cb), so a
+// plugin's on-screen code reaches its own declared, approved main-process
+// channels without a named bridge in preload.js.
+const CTX_VERSION = 10;
+
+// ctx.ipc.on listeners, keyed "pluginId\u0000channel". One window.api
+// listener feeds them all; ipcRenderer listeners can't be removed through
+// the preload bridge, so this map is what makes unsubscribing possible.
+const pluginEventListeners = new Map();
+let pluginEventsBound = false;
+
+function bindPluginEvents() {
+  if (pluginEventsBound || !window.api || typeof window.api.onPluginEvent !== 'function') return;
+  pluginEventsBound = true;
+  window.api.onPluginEvent((envelope) => {
+    if (!envelope || typeof envelope.pluginId !== 'string') return;
+    const set = pluginEventListeners.get(`${envelope.pluginId}\u0000${envelope.channel}`);
+    if (!set) return;
+    set.forEach((cb) => {
+      try { cb(envelope.data); } catch (e) { console.error(`[plugin:${envelope.pluginId}] ${envelope.channel} listener failed`, e); }
+    });
+  });
+}
+
+const pluginIpc = Object.freeze({
+  // Resolves with the handler's answer, or the plugin's fallbackIpc value
+  // while it is disabled or unapproved. Rejects when the plugin has no
+  // approved handler for the channel, or this window has no bridge (a LAN
+  // viewer).
+  invoke(pluginId, channel, ...args) {
+    if (!window.api || typeof window.api.pluginInvoke !== 'function') {
+      return Promise.reject(new Error('Plugin calls only work on the box itself.'));
+    }
+    return window.api.pluginInvoke(pluginId, channel, ...args);
+  },
+  // Messages the plugin's main side sends with ctx.sendToMainWindow(channel,
+  // data). Returns a function that removes the listener.
+  on(pluginId, channel, cb) {
+    if (typeof cb !== 'function') throw new Error('ctx.ipc.on needs a callback');
+    bindPluginEvents();
+    const key = `${pluginId}\u0000${channel}`;
+    if (!pluginEventListeners.has(key)) pluginEventListeners.set(key, new Set());
+    pluginEventListeners.get(key).add(cb);
+    return () => { const set = pluginEventListeners.get(key); if (set) set.delete(cb); };
+  },
+  available() {
+    return !!(window.api && typeof window.api.pluginInvoke === 'function');
+  },
+});
 
 function installGlobalApi() {
   const core = { S, viewNow, player, saveConfigDebounced };
@@ -894,6 +943,7 @@ function installGlobalApi() {
       // keys) so a plugin can destructure `const { channels } = ctx`
       // without pulling in everything else.
       core, audio, channels, settings, util, search, input, ui, commands,
+      ipc: pluginIpc,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's

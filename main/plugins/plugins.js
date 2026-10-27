@@ -25,6 +25,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const { activateIsolatedPlugin, callAnyService, claimServiceKey } = require('./isolation');
+const bridge = require('./bridge');
 const { isPathContained } = require('../util/path-safety');
 const { createLanAccess, isLanServiceEnabled } = require('../lan/security');
 const {
@@ -493,11 +494,15 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
     handle: (channel, fn) => {
       if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
       recordDiagnostic('plugin-capability', 'log', `${manifest.id} registered declared IPC handler ${channel}`);
+      // Also reachable through the generic bridge (bridge.js), so the
+      // plugin's on-screen code needs no named preload entry.
+      bridge.registerPluginHandler(manifest.id, channel, (event, args) => fn(event, ...args));
       return ipcMain.handle(channel, fn);
     },
     on: (channel, fn) => {
       if (!allowedIpc.has(channel)) throw capabilityError(manifest.id, 'register IPC channel', channel, 'ipc');
       recordDiagnostic('plugin-capability', 'log', `${manifest.id} registered declared IPC listener ${channel}`);
+      bridge.registerPluginHandler(manifest.id, channel, (event, args) => { fn(event, ...args); });
       return ipcMain.on(channel, fn);
     },
   };
@@ -532,6 +537,8 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
       : null;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send(channel, data);
+      // The same message for ctx.ipc.on (bridge.js), tagged with its sender.
+      mainWindow.webContents.send('plugins:event', bridge.eventEnvelope(manifest.id, channel, data));
     }
   };
 
@@ -636,7 +643,8 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
     const signature = capabilitiesSignature(plugin.capabilities);
     const hasAnyCapability = plugin.capabilities.ipc.length || plugin.capabilities.spawn.length
       || plugin.capabilities.net.length || plugin.capabilities.mediaSource.length
-      || (plugin.capabilities.system && plugin.capabilities.system.length);
+      || (plugin.capabilities.system && plugin.capabilities.system.length)
+      || (plugin.capabilities.internet && plugin.capabilities.internet.length);
     if (hasAnyCapability && approved[plugin.id] !== signature) {
       needsApproval.push(plugin.id);
       continue; // eslint-disable-line no-continue
@@ -827,6 +835,8 @@ function registerFallbackHandlers(inactiveIds, ipcMain, plugins) {
       // A plugin whose activate() threw may already own some of its channels;
       // a second handler for one of those throws, so each is tried on its own.
       try { ipcMain.handle(channel, async () => JSON.parse(JSON.stringify(value))); } catch (e) { /* already registered */ }
+      // The generic bridge answers with the same value (bridge.js).
+      bridge.registerPluginFallback(plugin.id, channel, value);
     });
   });
 }
@@ -852,6 +862,9 @@ function registerPluginsIpc(ipcMain, deps) {
   const {
     getPluginMainLoadErrors, getPluginsNeedingApproval, getActivatedMediaSourceProviders, getPluginServicesRef,
   } = deps;
+
+  // plugins:invoke and plugins:activity, the generic bridge (bridge.js).
+  bridge.registerBridgeIpc(ipcMain);
 
   // See this file's own header comment for the discovery/loading model, the
   // declared-capabilities check (buildCheckedCtx above) a plugin's fs/spawn/

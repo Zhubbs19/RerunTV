@@ -8,6 +8,8 @@ import {
   pluginsStateFilterEl, pluginsSummaryEl,
 } from '../core/dom.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
+import { Dialog } from '../ui/dialog.js';
+import { describeActivity, describePermissions } from '../plugin/permissions.js';
 import {
   applyCustomCss,
   getPluginChannelType,
@@ -72,17 +74,77 @@ function sortPluginsForDisplay(plugins) {
   });
 }
 
-// Human-readable line per declared capability, for the approval prompt —
-// one line per manifest.json capabilities.ipc/spawn/net/mediaSource/system
-// entry, each already carrying its own author-supplied `why`.
-function formatCapabilityLines(caps) {
-  const lines = [];
-  (caps.ipc || []).forEach((e) => lines.push(`Talk to the app internally as "${e.channel}" — ${e.why}`));
-  (caps.spawn || []).forEach((e) => lines.push(`Run "${e.bin}" as a separate program — ${e.why}`));
-  (caps.net || []).forEach((e) => lines.push(`Open network port ${e.port} — ${e.why}`));
-  (caps.mediaSource || []).forEach((e) => lines.push(`Supply channel media as a source named "${e.displayName || e.providerId}" — ${e.why}`));
-  (caps.system || []).forEach((e) => lines.push(`Use the system action "${e.action}" — ${e.why}`));
-  return lines;
+// The plain-language summary (plugin/permissions.js) as DOM: one block per
+// section, coloured by how much it allows, with the author's reason under each line
+// and the raw manifest entries behind a Details fold. Used by both the
+// approval dialog and the plugin's own page, so they always say the same.
+function permissionsElement(p) {
+  const { sections, technical } = describePermissions(p);
+  const wrap = document.createElement('div');
+  wrap.className = 'plugin-perms';
+  sections.forEach((section) => {
+    const block = document.createElement('div');
+    block.className = `plugin-perms-section tone-${section.tone}`;
+    const heading = document.createElement('div');
+    heading.className = 'plugin-perms-heading';
+    heading.textContent = section.heading;
+    block.appendChild(heading);
+    section.lines.forEach((line) => {
+      const row = document.createElement('div');
+      row.className = 'plugin-perms-line';
+      row.textContent = line.text;
+      if (line.why) {
+        const why = document.createElement('div');
+        why.className = 'plugin-perms-why';
+        why.textContent = `Why: ${line.why}`;
+        row.appendChild(why);
+      }
+      block.appendChild(row);
+    });
+    wrap.appendChild(block);
+  });
+  if (technical.length) {
+    const details = document.createElement('details');
+    details.className = 'plugin-dev-details';
+    const summary = document.createElement('summary');
+    summary.textContent = 'PERMISSION DETAILS';
+    const body = document.createElement('div');
+    body.className = 'plugin-dev-details-body';
+    technical.forEach((line) => {
+      const row = document.createElement('div');
+      row.className = 'plugin-perms-why';
+      row.textContent = line;
+      body.appendChild(row);
+    });
+    details.append(summary, body);
+    wrap.appendChild(details);
+  }
+  return wrap;
+}
+
+// What the plugin has actually done since the app started (bridge.js keeps
+// the record). Filled in after the call returns, so the page never waits on it.
+function activityElement(p) {
+  const wrap = document.createElement('div');
+  wrap.className = 'plugin-perms-section tone-ok plugin-activity';
+  const heading = document.createElement('div');
+  heading.className = 'plugin-perms-heading';
+  heading.textContent = 'What it has done since RerunTV started';
+  wrap.appendChild(heading);
+  const fill = (activity) => {
+    describeActivity(p, activity).forEach((line) => {
+      const row = document.createElement('div');
+      row.className = `plugin-perms-line tone-${line.tone}`;
+      row.textContent = line.text;
+      wrap.appendChild(row);
+    });
+  };
+  if (window.api && typeof window.api.pluginsActivity === 'function') {
+    window.api.pluginsActivity(p.id).then(fill, () => fill(null));
+  } else {
+    fill(null);
+  }
+  return wrap;
 }
 
 // Shows what a plugin's *current* manifest declares and asks the user to
@@ -93,12 +155,23 @@ function formatCapabilityLines(caps) {
 // so a later plugin update that adds a new port/channel/binary re-prompts
 // instead of silently inheriting a stale approval.
 async function promptCapabilityApproval(p) {
-  const lines = formatCapabilityLines(p.capabilities);
-  const body = lines.length
-    ? lines.map((l) => `• ${l}`).join('\n')
-    : '(This plugin declares no special capabilities.)';
-  const message = `${p.name} wants to:\n\n${body}\n\nApprove these permissions? You'll need to restart the app afterward for ${p.name} to activate.`;
-  const approved = await confirmDialog({ title: 'PLUGIN PERMISSIONS', message, danger: false, confirmText: 'APPROVE' });
+  const { fullAccess } = describePermissions(p);
+  const message = `Here's what ${p.name} can do once you approve it. Restart RerunTV afterwards for it to start.`;
+  // A full-access plugin is confirmed like a destructive action: the safe
+  // button has focus and the approve button is red.
+  const approved = await Dialog({
+    title: `${p.name.toUpperCase()} WANTS PERMISSION`,
+    message,
+    body: permissionsElement(p),
+    kind: fullAccess ? 'confirm-danger' : 'confirm',
+    danger: fullAccess,
+    dismissValue: false,
+    className: 'confirm-dialog plugin-perms-dialog',
+    actions: [
+      { label: 'CANCEL', value: false },
+      { label: fullAccess ? 'APPROVE FULL ACCESS' : 'APPROVE', variant: fullAccess ? 'danger' : 'primary', value: true, isDefault: !fullAccess },
+    ],
+  }).result;
   if (!approved) return;
   const signature = JSON.stringify(p.capabilities);
   // The host applies this as a command (main/config-host.js) and hands the
@@ -623,6 +696,8 @@ export async function renderPluginsList() {
         notice.className = 'plugin-row-approved';
         notice.textContent = 'Permissions approved.';
         detailsTarget.appendChild(notice);
+        detailsTarget.appendChild(permissionsElement(p));
+        detailsTarget.appendChild(activityElement(p));
         const permActions = document.createElement('div');
         permActions.className = 'plugin-row-perm-actions';
         const revokeBtn = document.createElement('button');
