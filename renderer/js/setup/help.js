@@ -477,6 +477,11 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-10-29', items: [
+    'Plugins you install yourself now work in a release build: a plugin talks to its own background code through one shared, checked route instead of needing its own entry built into the app.',
+    'Plugin permissions in plain words: the approval prompt and each plugin’s page say where it runs, which sites, files, programs and ports it can use, and whether it is sandboxed (a plugin that is not gets a red APPROVE FULL ACCESS button). A plugin can list the sites it connects to, and a sandboxed one is held to that list. Each plugin’s page also shows what it has done since start: calls, refused calls, sites reached and sites blocked.',
+    'Companion app on Android: the app now reaches the box over your home network (it could not before in installed builds), and SCAN QR CODE reads the pairing QR on the Companion App panel. A failed connection or scan now says what was tried and why it failed.',
+  ] },
   { date: '2026-10-22', items: [
     'Skip a commercial break with Q (the blue button on a remote, SKIP BREAK on the phone). The show comes back where it left off.',
     'The sleep timer now shows a SLEEP m:ss countdown over the picture for its last five minutes, and the phone remote shows it too, along with how long the current show has left and what is next.',
