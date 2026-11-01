@@ -89,7 +89,7 @@ test('guide ranges read compactly, the way the real guides wrote them', async ()
 test('legacy layout hides every part only the cable-guide layout uses', () => {
   const css = h.stripComments(h.read('renderer', 'css', 'guide.css'));
   const rule = css.match(/([^{}]+)\{\s*display:\s*none;\s*\}/g).find((r) => r.includes('.guide-brand'));
-  ['.guide-brand', '.guide-info-rating', '.guide-info-desc', '.guide-th-day', '.cg-program-info']
+  ['.guide-brand', '.guide-info-rating', '.guide-info-desc', '.guide-th-day', '.guide-th-now', '.cg-flip', '.cg-program-info']
     .forEach((sel) => assert.ok(rule && rule.includes(sel), `${sel} is hidden on the legacy layout`));
 });
 
@@ -108,6 +108,7 @@ test('the header clock reads like a guide: 8:01pm, or 20:01 on a 24-hour box', a
   assert.equal(guideClock(new Date(2026, 9, 31, 12, 0)), '12:00pm');
   assert.equal(guideClock(new Date(2026, 9, 31, 20, 1), true), '20:01');
   assert.equal(guideClock(new Date(2026, 9, 31, 7, 9), true), '07:09');
+  assert.equal(guideClock(new Date(2026, 9, 31, 20, 1), false, true), '8:01p', 'the Mini Guide\'s short form');
 });
 
 test('the overlay signal lists connected, visible surfaces once each, sorted', async () => {

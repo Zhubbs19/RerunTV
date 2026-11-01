@@ -32,6 +32,7 @@ import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange } from '../cable-guide/model.js';
 import { syncListingsPicture } from '../cable-guide/listings.js';
 import { openProgramInfo } from '../cable-guide/program-info.js';
+import { fillFlipBar, flipBarProgram, installFlipBar } from '../cable-guide/flip-bar.js';
 import { openTvMenu } from '../tv/menu.js';
 import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
@@ -92,6 +93,7 @@ export function showGuideOverlay(number, ch) {
     updateGuideNowPlaying(ch);
   }
   updateGuideLogo(ch);
+  if (cableGuide()) fillFlipBar(number, ch);
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
   startGuideNowTick();
@@ -123,6 +125,10 @@ function startGuideNowTick() {
     }
     const ch = getChannel(S.currentNumber);
     if (ch) updateGuideNowPlaying(ch);
+    // The Flip Bar follows whatever it is showing (the banner hub browses
+    // channels without tuning them).
+    const flip = flipBarProgram();
+    if (cableGuide() && flip) fillFlipBar(flip.number, flip.ch);
   }, 1000);
 }
 
@@ -307,6 +313,19 @@ setInterval(checkProgramReminders, 15000);
 function cableGuide() {
   return currentUiMode() === CABLE_GUIDE_UI;
 }
+
+// The Flip Bar's Info and Guide buttons.
+installFlipBar({
+  onInfo: ({ ch, entry }) => showDetailsOverlay(entry.file, {
+    channelNumber: ch.number,
+    channelName: ch.name,
+    airTime: `${formatSlotLabel(entry.start)} – ${formatSlotLabel(entry.end)}`,
+  }),
+  onGuide: () => {
+    guideOverlay.classList.add('hidden');
+    openGuideGrid();
+  },
+});
 
 function guideAnimEnabled() {
   return !!(S.config.display && S.config.display.guideOpenCloseAnim)
@@ -1084,7 +1103,8 @@ function fitDockedGuideHeight() {
 // not the target fitDockedGuideHeight asked for, so the picture never overlaps
 // a strip that came out taller or shorter than requested.
 function publishPictureArea() {
-  const docked = isTvMode() && S.guideDocked && !guideGrid.classList.contains('hidden');
+  // The cable-guide Mini Guide sits over the full picture instead.
+  const docked = isTvMode() && S.guideDocked && !guideGrid.classList.contains('hidden') && !cableGuide();
   if (!docked) {
     if (crtContainer.style.getPropertyValue('--guide-picture-h')) {
       crtContainer.style.removeProperty('--guide-picture-h');
@@ -1143,7 +1163,8 @@ function scrollSelectedRowIntoView(selIdx) {
     viewportH: guideRowsEl.clientHeight,
     scrollTop: guideRowsEl.scrollTop,
     contentH: guideRowsEl.scrollHeight,
-    mode: S.guideDocked ? 'docked' : 'full',
+    // The cable-guide Mini Guide keeps the selection in its middle row.
+    mode: S.guideDocked && !cableGuide() ? 'docked' : 'full',
   });
   if (top !== guideRowsEl.scrollTop) guideRowsEl.scrollTop = top;
 }
@@ -1199,7 +1220,8 @@ export function renderGuideGrid() {
   // that resizes the channel rail doesn't slide every time label off its slot.
   guideTimeHeaderEl.style.gridTemplateColumns = `var(--guide-chan-col, 170px) repeat(${guideSlots()}, 1fr)`;
   // The day label shows on the cable-guide layout only (guide.css hides it).
-  guideTimeHeaderEl.innerHTML = `<div><span class="guide-th-day">${guideDayLabel(S.guideWindowStart, viewNow())}</span></div>` + Array.from(
+  guideTimeHeaderEl.innerHTML = `<div><span class="guide-th-day">${guideDayLabel(S.guideWindowStart, viewNow())}</span>`
+    + `<span class="guide-th-now">${guideClock(new Date(viewNow()), !!(S.config.display && S.config.display.clock24), true)}</span></div>` + Array.from(
     { length: guideSlots() },
     (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * guideSlotMs())}</div>`
   ).join('');

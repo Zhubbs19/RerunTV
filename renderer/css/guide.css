@@ -533,6 +533,8 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
 .guide-info-rating,
 .guide-info-desc,
 .guide-th-day,
+.guide-th-now,
+.cg-flip,
 .cg-program-info { display: none; }
 
 /* Brief crossfade when the selected show changes (updateGuideInfoPanel,

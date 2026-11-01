@@ -64,11 +64,12 @@ export function sameRect(a, b) {
 }
 
 // "8:01pm" / "20:01" — the guide's own short clock, not formatClock's "8:01 PM".
-export function guideClock(date, clock24 = false) {
+// `short` gives the Mini Guide's "8:01p".
+export function guideClock(date, clock24 = false, short = false) {
   const h = date.getHours();
   const m = String(date.getMinutes()).padStart(2, '0');
   if (clock24) return `${String(h).padStart(2, '0')}:${m}`;
-  return `${h % 12 || 12}:${m}${h >= 12 ? 'pm' : 'am'}`;
+  return `${h % 12 || 12}:${m}${h >= 12 ? 'p' : 'a'}${short ? '' : 'm'}`;
 }
 
 // Program info's action tiles. A plugin action may name its own icon

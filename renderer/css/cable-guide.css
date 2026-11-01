@@ -264,7 +264,6 @@ html[data-ui="cable-guide"] .guide-grid .guide-topbar {
   background: var(--cg-header);
   border-bottom: .12em solid var(--cg-header-rule);
 }
-html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar { height: 6.2em; }
 html[data-ui="cable-guide"] .guide-brand { display: block; }
 /* Header text keeps clear of the picture box, which starts 37.75 grid units
    in. Edges are in grid units (100cqw / 60), not em: these blocks set their
@@ -285,7 +284,6 @@ html[data-ui="cable-guide"] .guide-grid .guide-info-panel {
   font-size: 1.12em;
   line-height: 1.42;
 }
-html[data-ui="cable-guide"] .guide-grid.docked .guide-info-panel { top: 1.1em; right: 3em; left: 14em; }
 html[data-ui="cable-guide"] .guide-grid .guide-info-body { display: contents; }
 html[data-ui="cable-guide"] .guide-grid :is(.guide-info-number, .guide-info-channel, .guide-info-title, .guide-info-time) {
   min-width: 0;
@@ -337,7 +335,6 @@ html[data-ui="cable-guide"] .guide-grid .guide-info-desc {
   overflow: hidden;
   line-height: 1.35;
 }
-html[data-ui="cable-guide"] .guide-grid.docked .guide-info-desc { display: none; }
 /* Search, view and dates: one slim line along the header's foot. */
 html[data-ui="cable-guide"] .guide-grid .guide-search-row {
   position: absolute;
@@ -349,7 +346,6 @@ html[data-ui="cable-guide"] .guide-grid .guide-search-row {
   gap: .6em;
   font-size: .95em;
 }
-html[data-ui="cable-guide"] .guide-grid.docked .guide-search-row { display: none; }
 html[data-ui="cable-guide"] .guide-grid .guide-search {
   flex: 1 1 auto;
   min-width: 0;
@@ -618,4 +614,208 @@ html[data-ui="cable-guide"] .cg-tile-meaning {
   left: 2.9em;
   bottom: 1.6em;
   font-size: 1.12em;
+}
+
+/* ======================================================================
+   Mini Guide: the docked guide as a band of three rows over the full
+   picture (guide.js no longer shrinks the picture for it). No header; the
+   time row starts with the current time. The search line opens above the
+   rows only while it is in use.
+   ====================================================================== */
+html[data-ui="cable-guide"] .guide-grid.docked {
+  --guide-docked-rows: 3;
+  /* fitDockedGuideHeight sizes it to the time row + three rows; the legacy
+     46% / 380px floor would add rows. */
+  height: min(var(--guide-docked-h, 30%), 60%);
+  min-height: 0;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-rows { min-height: 0; }
+html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar {
+  height: 0;
+  border: 0;
+  overflow: hidden;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar:focus-within {
+  height: 2.4em;
+  overflow: visible;
+}
+html[data-ui="cable-guide"] .guide-grid.docked :is(.guide-brand, .guide-info-panel) { display: none; }
+html[data-ui="cable-guide"] .guide-grid.docked .guide-search-row {
+  right: calc(100cqw / 60 * 2.9);
+  bottom: .4em;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-hint { display: none; }
+html[data-ui="cable-guide"] .guide-grid.docked .guide-th-day { display: none; }
+html[data-ui="cable-guide"] .guide-grid.docked .guide-th-now { display: inline; }
+
+/* ======================================================================
+   Flip Bar (cable-guide/flip-bar.js): the channel banner across the bottom
+   third. The legacy card's parts stay in the DOM, hidden.
+   ====================================================================== */
+html[data-ui="cable-guide"] .guide-overlay {
+  container-type: inline-size;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  min-width: 0;
+  max-width: none;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  animation: none;
+}
+html[data-ui="cable-guide"] .guide-overlay > :is(.guide-number, .guide-meta) { display: none; }
+html[data-ui="cable-guide"] .cg-flip {
+  display: grid;
+  grid-template-columns: 14em minmax(0, 1fr);
+  grid-template-areas:
+    "top top"
+    "acts meta"
+    "acts desc";
+  column-gap: 1.6em;
+  row-gap: .25em;
+  padding: .55em 2.8em 1.1em;
+  background: var(--cg-overlay);
+  border-top: .12em solid var(--cg-header-rule);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  font-size: calc(100cqw / 60);
+  line-height: 1.3;
+  text-shadow: var(--cg-text-shadow);
+  letter-spacing: 0;
+}
+html[data-ui="cable-guide"] .cg-flip-top {
+  grid-area: top;
+  display: flex;
+  align-items: baseline;
+  gap: .8em;
+  padding-bottom: .4em;
+  margin-bottom: .35em;
+  border-bottom: .08em solid var(--cg-header-rule);
+  font-size: 1.12em;
+  white-space: nowrap;
+}
+html[data-ui="cable-guide"] .cg-flip-title {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--cg-hilite);
+}
+html[data-ui="cable-guide"] .cg-flip-sep { color: var(--cg-text-dim); }
+html[data-ui="cable-guide"] .cg-flip-acts {
+  grid-area: acts;
+  display: grid;
+  align-content: start;
+  row-gap: .2em;
+}
+html[data-ui="cable-guide"] .cg-flip-acts .cg-btn {
+  height: 1.7em;
+  font-size: 1.05em;
+  /* #overlay-extend-layer ignores the pointer so the picture stays clickable;
+     the bar's own buttons take it back. */
+  pointer-events: auto;
+}
+html[data-ui="cable-guide"] .cg-flip-acts .cg-btn:hover { background: var(--cg-focus); color: var(--cg-focus-text); text-shadow: none; }
+html[data-ui="cable-guide"] .cg-flip-acts .cg-btn:disabled { opacity: .5; cursor: default; }
+html[data-ui="cable-guide"] .cg-flip-meta {
+  grid-area: meta;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 1.12em;
+  color: var(--cg-text-dim);
+}
+html[data-ui="cable-guide"] .cg-flip-desc {
+  grid-area: desc;
+  font-size: 1.12em;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+html[data-ui="cable-guide"] .guide-overlay .guide-mute {
+  position: absolute;
+  right: 2.8em;
+  bottom: calc(100% + .4em);
+  padding: .1em .5em;
+  background: var(--cg-overlay);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  font-size: calc(100cqw / 60 * 1.12);
+  letter-spacing: 0;
+  border-radius: var(--cg-radius);
+}
+/* Classic: an inset panel with rounded top corners and a lighter title band. */
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip {
+  margin: 0 2em 1.4em;
+  padding: 0 1.4em 1em;
+  border: .12em solid var(--cg-dialog-rim);
+  border-radius: .8em .8em .35em .35em;
+  background: var(--cg-dialog);
+  font-size: calc(100cqw / 60 * 1.15);
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-top {
+  margin: 0 -1.4em .4em;
+  padding: .35em 1.4em;
+  border: 0;
+  border-radius: .7em .7em 0 0;
+  background: var(--cg-btn);
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-title { color: var(--cg-text); }
+/* The SD banner had no buttons: time and description run the full width. */
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "meta" "desc";
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-acts { display: none; }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-meta { color: var(--cg-text); }
+
+/* ======================================================================
+   On-screen display: number entry and volume, flat and still.
+   ====================================================================== */
+html[data-ui="cable-guide"] .channel-entry {
+  top: calc(100cqw / 60 * 1.6);
+  right: calc(100cqw / 60 * 1.8);
+  padding: .05em .4em;
+  background: var(--cg-overlay);
+  border: .04em solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight-strong);
+  font-size: calc(100cqw / 60 * 2.6);
+  letter-spacing: .04em;
+  text-shadow: var(--cg-text-shadow);
+  animation: none;
+  transform: none;
+}
+html[data-ui="cable-guide"] .channel-entry.digit-flash { animation: none; }
+html[data-ui="cable-guide"] .volume-indicator {
+  background: var(--cg-overlay);
+  border: 2px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .volume-label {
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  color: var(--cg-text);
+  letter-spacing: 0;
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .volume-bar {
+  background: var(--cg-cell);
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .volume-bar-fill {
+  background: var(--cg-focus);
+  border-radius: var(--cg-btn-radius);
+  box-shadow: none;
 }
