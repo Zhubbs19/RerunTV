@@ -154,7 +154,7 @@ export function guideShortDay(start, now) {
 // Menu labels are written in caps for the legacy menu; the cable-guide
 // menus show them in title case ("LAST CH" → "Last CH", "CHANNELS ›" →
 // "Channels"). Abbreviations and symbols keep their case.
-const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR']);
+const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR', 'CSS', 'DVD', 'URL', 'IP']);
 const LOWER_WORDS = new Set(['a', 'an', 'and', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 export function menuLabel(label) {

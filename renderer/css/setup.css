@@ -6007,3 +6007,7 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 .preset-when, .preset-dates { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: end; }
 .preset-when .block-days-row { min-height: 2.2em; align-items: center; }
 .preset-dates .library-form-field { width: 7em; }
+
+/* The cable-guide layout's setup header lines (cable-guide/setup-shell.js);
+   cable-guide.css shows them. */
+#setup-screen :is(.cg-setup-focus, .cg-setup-status) { display: none; }

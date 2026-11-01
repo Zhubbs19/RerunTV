@@ -99,6 +99,7 @@ test('menu labels read in title case, keeping abbreviations', async () => {
   const { menuLabel } = await load();
   assert.equal(menuLabel('CHANNELS ›'), 'Channels');
   assert.equal(menuLabel('LAST CH'), 'Last CH');
+  assert.equal(menuLabel('CUSTOM CSS'), 'Custom CSS');
   assert.equal(menuLabel('PICTURE & SOUND ›'), 'Picture & Sound');
   assert.equal(menuLabel('PROFILE: EVERYONE ›'), 'Profile: Everyone');
   assert.equal(menuLabel('CONTINUE ON… ›'), 'Continue on…');

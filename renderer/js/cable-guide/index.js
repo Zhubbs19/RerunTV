@@ -4,6 +4,7 @@
 import { registerCoreHook } from '../plugin/host.js';
 import { LEGACY_UI } from './model.js';
 import { hidePictureBox } from './picture-box.js';
+import { installSetupShell } from './setup-shell.js';
 
 export { createGuideHeader } from './header.js';
 export { hidePictureBox, pictureBox, showPictureBox } from './picture-box.js';
@@ -17,4 +18,5 @@ export function installCableGuide() {
   // Switching to a legacy theme while a cable-guide page is up must not leave
   // overlay plugins dodging a picture box that no longer exists.
   registerCoreHook('ui-mode-change', (mode) => { if (mode === LEGACY_UI) hidePictureBox(); });
+  installSetupShell();
 }

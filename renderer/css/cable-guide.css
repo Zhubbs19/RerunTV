@@ -1395,3 +1395,282 @@ html[data-ui="cable-guide"] .cg-msg-row:focus .cg-msg-text { background: var(--c
 html[data-ui="cable-guide"] .cg-msg-empty { color: var(--cg-text-dim); font-size: 1.12em; }
 /* Classic: the SD guide's bigger type. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-page :is(.cg-search-result, .cg-bychan-row, .cg-msg-row) { font-size: 1.25em; }
+
+/* ---------- Channel Setup ----------
+   The setup screen keeps its markup and behaviour; on this layout it reads
+   like the guide's own setup pages: one sans face with no tracking, flat
+   bars for buttons and sections, settings as "Label:  < value >" rows, and
+   the focused setting's help in the header (cable-guide/setup-shell.js)
+   instead of under every row. Desktop setup is denser than anything a box
+   showed, so pages keep their panels, drawn as the guide's bordered dialog
+   boxes. The #setup-screen id lifts these over setup.css. */
+html[data-ui="cable-guide"] #setup-screen {
+  background: var(--cg-page);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] #setup-screen :is(*, *::before, *::after) {
+  letter-spacing: 0;
+  font-family: inherit;
+}
+html[data-ui="cable-guide"] #setup-screen :is(button, input, select, textarea, label, h1, h2, h3, h4, p, span, div, a) { text-transform: none; }
+html[data-ui="cable-guide"] #setup-screen :is(.setup-panel, .setup-shell, .setup-main, .setup-nav, .setup-content) {
+  background: var(--cg-page);
+  background-image: none;
+  box-shadow: none;
+}
+
+/* Header: section, focused setting, its help; envelope and clock right. */
+html[data-ui="cable-guide"] #setup-screen .setup-nav {
+  min-height: 104px;
+  border-bottom: 2px solid var(--cg-header-rule);
+  align-items: flex-start;
+}
+html[data-ui="cable-guide"] #setup-screen .setup-title {
+  font-size: 22px;
+  font-weight: var(--cg-weight);
+  color: var(--cg-text);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] #setup-screen .setup-header { flex-wrap: wrap; align-items: baseline; column-gap: 14px; }
+html[data-ui="cable-guide"] #setup-screen .setup-breadcrumb { color: var(--cg-text-dim); font-size: 15px; }
+html[data-ui="cable-guide"] #setup-screen #setup-page-description { display: none; }
+html[data-ui="cable-guide"] #setup-screen .cg-setup-focus { display: block; flex: 0 0 100%; margin-top: 4px; font-size: 17px; line-height: 1.3; }
+html[data-ui="cable-guide"] #setup-screen .cg-setup-name { min-height: 1.3em; color: var(--cg-hilite); }
+html[data-ui="cable-guide"] #setup-screen .cg-setup-help {
+  min-height: 1.3em;
+  max-width: 70ch;
+  color: var(--cg-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+html[data-ui="cable-guide"] #setup-screen .cg-setup-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  padding: 4px 16px 0;
+  font-size: 20px;
+  white-space: nowrap;
+}
+html[data-ui="cable-guide"] #setup-screen .cg-setup-status svg { width: 26px; height: 20px; fill: currentColor; display: block; }
+html[data-ui="cable-guide"] #setup-screen .cg-setup-status .hidden { display: none; }
+
+/* Sidebar: the operator logo over a column of flat menu bars. */
+html[data-ui="cable-guide"] #setup-screen .setup-sidebar {
+  background: var(--cg-page);
+  background-image: none;
+  border-right: 2px solid var(--cg-header-rule);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] #setup-screen .setup-brand-name {
+  font-weight: var(--cg-weight-strong);
+  font-size: 19px;
+  letter-spacing: .32em;
+  color: var(--cg-text);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] #setup-screen .setup-eyebrow { font-size: 11px; letter-spacing: .35em; white-space: nowrap; color: var(--cg-text-dim); }
+html[data-ui="cable-guide"] #setup-screen .setup-tabs { gap: 2px; }
+html[data-ui="cable-guide"] #setup-screen :is(.setup-tab-btn, .setup-sidebar-watch) {
+  min-height: 34px;
+  justify-content: center;
+  font-size: 16px;
+}
+html[data-ui="cable-guide"] #setup-screen .setup-tab-btn[data-badge]::after { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); margin: 0; background: var(--cg-rec); box-shadow: none; }
+html[data-ui="cable-guide"] #setup-screen .setup-view-label { color: var(--cg-text-dim); font-size: 13px; }
+html[data-ui="cable-guide"] #setup-screen .setup-view-help { display: none; }
+@media (min-width: 1101px) {
+  html[data-ui="cable-guide"] #setup-screen .setup-tab-btn::before { display: none; }
+}
+
+/* Every button on the screen: a flat bar; hover, focus and the current
+   choice take the focus fill. The legacy gloss layer and the primary /
+   danger !important fills are taken back. */
+html[data-ui="cable-guide"] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn),
+html[data-ui="cable-guide"][data-theme] #setup-screen .btn:is(.btn-primary, .btn-danger, .remove-btn) {
+  border: 0 !important;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-btn) !important;
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim) !important;
+  color: var(--cg-text) !important;
+  text-shadow: var(--cg-text-shadow);
+  font-weight: var(--cg-weight);
+  font-size: 15px;
+  transform: none;
+  filter: none;
+}
+html[data-ui="cable-guide"] #setup-screen .btn::before { display: none; }
+html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn):is(:hover, :focus-visible, .active, [aria-pressed="true"], [aria-selected="true"]):not(:disabled) {
+  background: var(--cg-focus) !important;
+  color: var(--cg-focus-text) !important;
+  text-shadow: none;
+  outline: none;
+}
+html[data-ui="cable-guide"] #setup-screen .btn:disabled { opacity: .45; }
+html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:hover, :focus-visible) { color: var(--cg-rec) !important; }
+html[data-ui="cable-guide"] #setup-screen :is(.setup-subtabs, .edit-tab-bar) { gap: 2px; border-bottom: 0; }
+
+/* Panels: the guide's bordered dialog box with a caps title. */
+html[data-ui="cable-guide"] #setup-screen :is(.panel, .titles-panel) {
+  border: 1px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-dialog);
+  background-image: none;
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] #setup-screen .panel-toggle {
+  text-transform: uppercase;
+  font-size: 15px;
+  font-weight: var(--cg-weight);
+  color: var(--cg-hilite);
+  text-shadow: none;
+}
+
+/* Setting rows: "Label:" right-aligned, then the value bar. The help line
+   moves to the header; it stays in the DOM for search. */
+html[data-ui="cable-guide"] #setup-screen .setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  column-gap: 10px;
+  padding: 3px 0;
+  border: 0;
+  background: none;
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-help { display: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-label {
+  text-align: right;
+  font-size: 15px;
+  font-weight: var(--cg-weight);
+  color: var(--cg-text);
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-label::after { content: ':'; }
+/* The SD boxes set labels flush left; the HD boxes right-aligned them. */
+html[data-ui="cable-guide"][data-guide-layout="classic"] #setup-screen .setting-row-label { text-align: left; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control { justify-content: flex-start; gap: 6px; min-width: 0; }
+html[data-ui="cable-guide"] #setup-screen .setting-row:is(:hover, :focus-within) .setting-row-label { color: var(--cg-hilite); }
+
+/* Value bars: selects, on/off switches and text fields share one look. */
+html[data-ui="cable-guide"] #setup-screen :is(select, input[type="text"], input[type="number"], input[type="search"], textarea) {
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-cell);
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  color: var(--cg-cell-text);
+  font-size: 15px;
+  font-weight: var(--cg-weight);
+  text-shadow: none;
+}
+html[data-ui="cable-guide"] #setup-screen :is(select, input, textarea):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--cg-focus);
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > select {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  height: 28px;
+  padding: 0 22px;
+  text-align: center;
+  text-align-last: center;
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select) { position: relative; max-width: 340px; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::before,
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-52%);
+  pointer-events: none;
+  color: var(--cg-cell-text);
+  font-size: 17px;
+  z-index: 1;
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::before { content: '‹'; left: 8px; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::after { content: '›'; right: 8px; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > select:focus-visible { background: var(--cg-focus); color: var(--cg-focus-text); box-shadow: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::before,
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::after { color: var(--cg-focus-text); }
+html[data-ui="cable-guide"] #setup-screen select option { background: var(--cg-dialog); color: var(--cg-text); }
+
+/* A checkbox in a row is an Off / On cycler. */
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 28px;
+  margin: 0;
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-cell);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  cursor: pointer;
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]::after {
+  content: '‹   Off   ›';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  white-space: pre;
+  color: var(--cg-cell-text);
+  font: 15px var(--cg-font);
+}
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:checked::after { content: '‹   On   ›'; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:focus-visible { background: var(--cg-focus); box-shadow: none; outline: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:focus-visible::after { color: var(--cg-focus-text); }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
+
+/* Sliders: a flat gauge with a square handle. */
+html[data-ui="cable-guide"] #setup-screen input[type="range"] { accent-color: var(--cg-focus); }
+html[data-ui="cable-guide"] #setup-screen input[type="range"]::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 0;
+  background: var(--cg-cell);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+}
+html[data-ui="cable-guide"] #setup-screen input[type="range"]::-webkit-slider-thumb {
+  width: 12px;
+  height: 20px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: 0;
+  background: var(--cg-text);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] #setup-screen input[type="range"]:focus-visible::-webkit-slider-thumb { background: var(--cg-focus); }
+
+/* Lists: rows like the guide's lists. */
+html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row) {
+  border: 0;
+  border-radius: var(--cg-radius);
+  background: var(--cg-cell);
+  background-image: none;
+  box-shadow: none;
+  color: var(--cg-cell-text);
+}
+html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(:hover, .active, .selected, [aria-selected="true"]) {
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  outline: none;
+}
+html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(:hover, .active, .selected, [aria-selected="true"]) * { color: inherit; }
+
+/* The status bar: one plain line under a rule. */
+html[data-ui="cable-guide"] #setup-screen .setup-footer {
+  background: var(--cg-page);
+  background-image: none;
+  border-top: 2px solid var(--cg-header-rule);
+  box-shadow: none;
+}
