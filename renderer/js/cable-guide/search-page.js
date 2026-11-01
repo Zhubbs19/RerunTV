@@ -1,0 +1,134 @@
+// Search on the cable-guide layout: an on-screen keyboard (Delete / Space,
+// then A–Z and 0–9 six to a row) with the matching programs listed beside it
+// as you spell, the way the boxes searched by title. A keyboard types into it
+// too. OK on a result shows that program in the full guide, where its
+// actions (record, remind, watch from start) are one press away.
+//
+// The matching is the guide's own seven-day program search.
+import { S, viewNow } from '../core/state.js';
+import { escapeHtml } from '../core/util.js';
+import { formatChannelNumber, sortedChannels } from '../core/channels.js';
+import { isHiddenForProfile } from '../personal/state.js';
+import { searchUpcomingPrograms } from '../guide/program-search.js';
+import { showProgramInGuide } from '../guide/guide.js';
+import { channelCallLetters } from '../guide/model.js';
+import { guideDayLabel, guideRange, guideShortDay } from './model.js';
+import { openCgPage } from './page.js';
+
+export const KEY_ROWS = Object.freeze(['ABCDEF', 'GHIJKL', 'MNOPQR', 'STUVWX', 'YZ1234', '567890']);
+const MAX_RESULTS = 40;
+const MAX_QUERY = 30;
+
+export function openSearchPage() {
+  let query = '';
+  let results = [];
+  let timer = null;
+  const clock24 = () => !!(S.config.display && S.config.display.clock24);
+
+  return openCgPage({
+    name: 'search',
+    build(body, page) {
+      body.innerHTML = `
+        <div class="cg-search-keys">
+          <div class="cg-search-field"><span class="cg-search-text"></span><span class="cg-search-cursor">_</span></div>
+          <div class="cg-search-edit">
+            <button type="button" class="cg-key cg-key-wide" data-key="delete">Delete</button>
+            <button type="button" class="cg-key cg-key-wide" data-key="space">Space</button>
+          </div>
+          <div class="cg-search-grid">${KEY_ROWS.join('').split('').map((c, i) => `<button type="button" class="cg-key" data-key="${c}"${i === 0 ? ' data-default-focus' : ''}>${c}</button>`).join('')}</div>
+        </div>
+        <div class="cg-search-results">
+          <div class="cg-search-count"><span class="cg-search-total"></span><span class="cg-search-sort">Sorted by time</span></div>
+          <div class="cg-search-tips">
+            <div class="cg-search-tips-head">Search Tips:</div>
+            <p>A few letters (ex.: DET) find more shows.</p>
+            <p>A whole word or two (ex.: DETECTIVE) narrow the list.</p>
+          </div>
+          <div class="cg-search-list" role="list"></div>
+        </div>`;
+      const textEl = body.querySelector('.cg-search-text');
+      const resultsEl = body.querySelector('.cg-search-results');
+      const countEl = body.querySelector('.cg-search-total');
+      const listEl = body.querySelector('.cg-search-list');
+
+      const keyboardHelp = () => page.header.setFocus({
+        where: 'Search',
+        name: 'Search by Title',
+        help: 'Spell any part of a title. Matching shows are listed on the right.',
+      });
+
+      const paintResults = () => {
+        const spelling = query.trim().length < 2;
+        resultsEl.classList.toggle('cg-search-empty', spelling);
+        if (spelling) {
+          countEl.textContent = '';
+          listEl.innerHTML = '';
+          return;
+        }
+        countEl.textContent = `${results.length} Result${results.length === 1 ? '' : 's'}`;
+        listEl.innerHTML = results.slice(0, MAX_RESULTS).map((r, i) => `
+          <button type="button" class="cg-search-result" data-index="${i}" role="listitem">
+            <span class="cg-result-title">${escapeHtml(r.title)}</span>
+            <span class="cg-result-when">${escapeHtml(guideShortDay(r.entry.start, viewNow()))}</span>
+          </button>`).join('');
+      };
+
+      const search = () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          const channels = sortedChannels().filter((c) => !c.hidden && !isHiddenForProfile(c.number));
+          results = query.trim().length >= 2 ? searchUpcomingPrograms(channels, query, viewNow()) : [];
+          paintResults();
+        }, 120);
+      };
+
+      const setQuery = (next) => {
+        query = next.slice(0, MAX_QUERY);
+        textEl.textContent = query;
+        search();
+      };
+
+      body.querySelector('.cg-search-keys').addEventListener('click', (e) => {
+        const key = e.target.closest('[data-key]');
+        if (!key) return;
+        const k = key.dataset.key;
+        if (k === 'delete') setQuery(query.slice(0, -1));
+        else if (k === 'space') setQuery(`${query} `);
+        else setQuery(query + k);
+      });
+      listEl.addEventListener('click', (e) => {
+        const row = e.target.closest('[data-index]');
+        if (!row) return;
+        const result = results[Number(row.dataset.index)];
+        page.close();
+        if (result) showProgramInGuide(result);
+      });
+      page.el.addEventListener('focusin', (e) => {
+        const row = e.target.closest && e.target.closest('.cg-search-result');
+        if (!row) { keyboardHelp(); return; }
+        const r = results[Number(row.dataset.index)];
+        if (!r) return;
+        const rating = r.entry.file.rating === 'NONE' ? '' : (r.entry.file.rating || r.channel.rating || '');
+        page.header.setProgram({
+          title: r.title,
+          time: `${guideDayLabel(r.entry.start, viewNow())} ${guideRange(new Date(r.entry.start), new Date(r.entry.end), clock24())}`,
+          channel: `${formatChannelNumber(r.channel.number)} ${channelCallLetters(r.channel) || r.channel.name || ''}`.trim(),
+          rating,
+        });
+      });
+      page.typeKey = (key) => {
+        if (key === 'Backspace') { if (!query) return false; setQuery(query.slice(0, -1)); return true; }
+        if (/^[a-z0-9 ]$/i.test(key)) { setQuery(query + key.toUpperCase()); return true; }
+        return false;
+      };
+      keyboardHelp();
+      paintResults();
+    },
+    // A keyboard types straight in; arrows, OK and Back stay the page's.
+    onKey(e, page) {
+      if (e.ctrlKey || e.altKey || e.metaKey) return false;
+      if (e.key === ' ' && document.activeElement && document.activeElement.closest('.cg-search-results')) return false;
+      return page.typeKey(e.key);
+    },
+  });
+}

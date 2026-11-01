@@ -44,6 +44,7 @@ export function createGuideHeader({ logo = 'RERUN TV', tagline = 'CABLE' } = {})
     el,
     // Any line left undefined keeps its text; pass '' to clear it.
     setFocus({ where, name, help } = {}) {
+      el.classList.remove('cg-program');
       if (where !== undefined) lines.where.textContent = where;
       if (name !== undefined) lines.name.textContent = name;
       if (help !== undefined) lines.help.textContent = help;

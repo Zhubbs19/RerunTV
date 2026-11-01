@@ -138,6 +138,18 @@ export function guideDayLabel(windowStart, now) {
   return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][a.getDay()];
 }
 
+// The short airing date a result list prints beside a title: "Today", a
+// three-letter day within the coming week, then the month and day.
+export function guideShortDay(start, now) {
+  const label = guideDayLabel(start, now);
+  if (label === 'Today') return label;
+  const a = new Date(start);
+  const b = new Date(now);
+  const weekOut = new Date(b.getFullYear(), b.getMonth(), b.getDate() + 7);
+  if (a < weekOut) return label.slice(0, 3);
+  return `${a.getMonth() + 1}/${a.getDate()}`;
+}
+
 // ---------- Menus ----------
 // Menu labels are written in caps for the legacy menu; the cable-guide
 // menus show them in title case ("LAST CH" → "Last CH", "CHANNELS ›" →
@@ -215,6 +227,13 @@ export function menuMove(index, count, key, layout = 'grid') {
     return { index, edge: 'left' };
   }
   return stay;
+}
+
+// Listings by Channel: what OK does with a program.
+export function byChannelAction(entry, now, timeMachineOn, reminded) {
+  if (entry.start <= now && entry.end > now) return 'watch';
+  if (entry.end <= now) return timeMachineOn ? 'rewind' : 'none';
+  return reminded ? 'unremind' : 'remind';
 }
 
 // surfaces: [[name, { connected, hidden }]] → the open names, sorted and

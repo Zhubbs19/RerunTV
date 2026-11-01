@@ -86,6 +86,15 @@ test('guide ranges read compactly, the way the real guides wrote them', async ()
   assert.equal(guideDayLabel(new Date(2026, 10, 1, 8).getTime(), d(9).getTime()), 'Sunday');
 });
 
+test('result lists print a short airing day', async () => {
+  const { guideShortDay } = await load();
+  const now = new Date(2026, 9, 31, 9).getTime();
+  assert.equal(guideShortDay(new Date(2026, 9, 31, 22).getTime(), now), 'Today');
+  assert.equal(guideShortDay(new Date(2026, 10, 1, 8).getTime(), now), 'Sun');
+  assert.equal(guideShortDay(new Date(2026, 10, 6, 23).getTime(), now), 'Fri');
+  assert.equal(guideShortDay(new Date(2026, 10, 7, 1).getTime(), now), '11/7');
+});
+
 test('menu labels read in title case, keeping abbreviations', async () => {
   const { menuLabel } = await load();
   assert.equal(menuLabel('CHANNELS ›'), 'Channels');
@@ -121,6 +130,16 @@ test('settings rows and fixed grids', async () => {
   assert.deepEqual(menuMove(4, 12, 'ArrowDown', 3), { index: 7, edge: null });
   assert.deepEqual(menuMove(3, 12, 'ArrowLeft', 3), { index: 3, edge: 'left' });
   assert.deepEqual(menuMove(11, 12, 'ArrowDown', 3), { index: 11, edge: null });
+});
+
+test('Listings by Channel: OK watches, rewinds, or sets / clears a reminder', async () => {
+  const { byChannelAction } = await load();
+  const e = (start, end) => ({ start, end });
+  assert.equal(byChannelAction(e(0, 100), 50, false, false), 'watch');
+  assert.equal(byChannelAction(e(0, 100), 150, true, false), 'rewind');
+  assert.equal(byChannelAction(e(0, 100), 150, false, false), 'none', 'aired, no time machine');
+  assert.equal(byChannelAction(e(200, 300), 150, false, false), 'remind');
+  assert.equal(byChannelAction(e(200, 300), 150, false, true), 'unremind');
 });
 
 test('legacy layout hides every part only the cable-guide layout uses', () => {

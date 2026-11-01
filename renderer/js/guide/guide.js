@@ -33,6 +33,8 @@ import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange } from '../cable-
 import { syncListingsPicture } from '../cable-guide/listings.js';
 import { openProgramInfo } from '../cable-guide/program-info.js';
 import { fillFlipBar, flipBarProgram, installFlipBar } from '../cable-guide/flip-bar.js';
+import { openSearchPage } from '../cable-guide/search-page.js';
+import { currentMessageCount } from '../cable-guide/page.js';
 import { openTvMenu } from '../tv/menu.js';
 import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
@@ -162,6 +164,20 @@ function hideProgramResults() {
   if (programResultsEl) programResultsEl.innerHTML = '';
 }
 
+// The pending reminders, for the cable-guide Messages page.
+export function listReminders() {
+  return reminderList().slice();
+}
+
+// A search result in the full-page guide, opening it if it isn't up.
+export function showProgramInGuide(result) {
+  if (guideGrid.classList.contains('hidden')) {
+    S.guideDocked = false;
+    openGuideGrid();
+  }
+  jumpToProgramResult(result);
+}
+
 function jumpToProgramResult(result) {
   S.guideFilterQuery = '';
   guideSearchEl.value = '';
@@ -176,7 +192,7 @@ function jumpToProgramResult(result) {
 // function of time, so a program airs at the same instant whatever offset a viewer is watching
 // at), so they are compared against the REAL clock (Date.now()), not viewNow(): a reminder is an
 // appointment in the world, and scrubbing the time machine must neither fire nor prune it.
-function addProgramReminder(result) {
+export function addProgramReminder(result) {
   const reminders = reminderList();
   const duplicate = reminders.some((reminder) => reminder.channelNumber === result.channel.number && reminder.start === result.entry.start && reminder.path === result.entry.file.path);
   if (duplicate) return;
@@ -227,7 +243,7 @@ guideSearchEl.addEventListener('input', () => {
   programSearchTimer = setTimeout(() => renderProgramResults(guideSearchEl.value), 160);
 });
 
-function removeReminder(id) {
+export function removeReminder(id) {
   const next = reminderList().filter((reminder) => reminder.id !== id);
   notifiedReminders.delete(id);
   replaceReminders(next, { label: 'Remove reminder' });
@@ -505,6 +521,12 @@ export function toggleGuideDockMode() {
 // box / opens. On Google TV focusing it brings up the on-screen keyboard.
 export async function focusGuideSearch() {
   closeGuidePopover();
+  // The cable-guide layout searches on its own page (keyboard + results).
+  if (cableGuide()) {
+    closeGuideGrid();
+    openSearchPage();
+    return;
+  }
   // A remote has no keyboard: TV mode types with the on-screen keyboard
   // (docs/design/01 §6.2) and fills the same filter box.
   if (isTvMode()) {
@@ -1183,6 +1205,7 @@ function refreshPastClasses() {
 export function renderGuideGrid() {
   if (sortedChannels().length === 0) { closeGuideGrid(); return; }
   guideBrandClockEl.textContent = guideClock(new Date(viewNow()), !!(S.config.display && S.config.display.clock24));
+  if (cableGuide()) document.getElementById('guide-brand-messages')?.classList.toggle('hidden', !(currentMessageCount() > 0));
   const rows = currentGuideRows();
   if (rows.length === 0) {
     guideTimeHeaderEl.innerHTML = '';
@@ -1483,7 +1506,8 @@ export function handleGuideGridKey(e) {
   }
 
   if (e.key === '/') {
-    guideSearchEl.focus();
+    if (cableGuide()) focusGuideSearch();
+    else guideSearchEl.focus();
     e.preventDefault();
     return;
   }

@@ -19,6 +19,9 @@ import { toggleRecentChannels } from '../playback/recent-channels.js';
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 import { cgMenuKey, cgMenuMode, closeCgMenu, openQuickMenu, renderMainMenu } from '../cable-guide/main-menu.js';
+import { openSearchPage } from '../cable-guide/search-page.js';
+import { openByChannelPage } from '../cable-guide/by-channel.js';
+import { openMessagesPage } from '../cable-guide/messages.js';
 import { getRendererService, interruptEntries } from '../plugin/host.js';
 import {
   currentProgramStart, enterTimeMachine, exitTimeMachine, restartCurrentShow, returnToLive, timeMachineAvailable, timeMachineGoTo,
@@ -206,6 +209,12 @@ function tvRootItems() {
   return [
     ...guideActions(),
     { label: 'GUIDE', help: 'See what\'s on now and later on every channel.', run: () => openGuideGrid() },
+    // Cable-guide pages of their own, as on the boxes the layout copies.
+    ...(cableGuide() ? [
+      { label: 'LISTINGS BY CHANNEL', help: 'One channel\'s day, a show at a time.', run: () => openByChannelPage() },
+      { label: 'SEARCH', help: 'Find a show by spelling part of its title.', run: () => openSearchPage() },
+      { label: 'MESSAGES', help: 'Reminders and notices.', run: () => openMessagesPage() },
+    ] : []),
     // Second, so from live TV "yesterday same time" is Play/Pause, ▼, OK, OK,
     // OK — docs/design/11 §5.
     { ...timeMachineMenuItem(), help: 'Go back in time and watch what aired then.' },
@@ -347,7 +356,7 @@ function quickTiles() {
     { icon: 'start', label: 'Start Over', help: 'Watch this show from the start', run: () => restartCurrentShow() },
     { icon: 'recent', label: 'Recent', help: 'The channels you watched last', run: () => toggleRecentChannels() },
     { icon: 'favorite', label: 'Favourites', help: 'Next favourite channel', run: () => changeFavoriteChannel(1) },
-    { icon: 'search', label: 'Search', help: 'Find a show by name', run: () => { openGuideGrid(); setTimeout(() => focusGuideSearch(), 50); } },
+    { icon: 'search', label: 'Search', help: 'Find a show by name', run: () => openSearchPage() },
     { icon: 'skip', label: 'Skip Break', help: 'Jump past this commercial break', run: () => skipCurrentBreak() },
     { icon: 'audio', label: 'Audio', help: `Stereo, mono or SAP (now ${String(S.sapMode || 'stereo').toUpperCase()})`, run: () => cycleSapMode() },
     { icon: 'lock', label: 'Parental Lock', help: lock ? 'The lock is on' : 'The lock is off', run: () => openTvMenuAt(['SETUP ›', 'PARENTAL LOCK ›']) },

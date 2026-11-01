@@ -22,6 +22,18 @@ import { focusDefault, registerModal } from '../ui/focus.js';
 const TV_TOAST_AUTO_HIDE_MS = 20000;
 let toastTimer = null;
 let pendingPostUpdate = null;
+// The version downloaded and waiting to install, for the cable-guide Messages
+// page; null when there is none.
+let readyVersion = null;
+
+export function updateReadyVersion() {
+  return readyVersion;
+}
+
+// Brings back the Install / Later prompt (Messages › the update).
+export function showUpdatePrompt() {
+  if (readyVersion) showToast(readyVersion);
+}
 let postUpdatePreviouslyFocused = null;
 
 function hideToast() {
@@ -143,6 +155,7 @@ export function initUpdateNotice() {
   }
 
   window.api.onUpdateStatus((status) => {
+    if (status.state === 'downloaded') readyVersion = status.version;
     if (status.state === 'downloaded' && status.showPopup) showToast(status.version);
     // showPopup: false means main-updater.js already set
     // autoUpdater.autoInstallOnAppQuit — it'll install quietly next quit,

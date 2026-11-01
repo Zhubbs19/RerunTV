@@ -13,6 +13,7 @@ import { createGuideHeader } from './header.js';
 import { iconSvg } from './icons.js';
 import { MENU_PAGE, MENU_ROWS, menuLabel, menuMove, menuPageOf } from './model.js';
 import { hidePictureBox, showPictureBox } from './picture-box.js';
+import { currentMessageCount } from './page.js';
 
 let mode = null; // 'quick' | 'main' | null
 let host = null;
@@ -124,6 +125,7 @@ export function renderMainMenu(overlay, v, focusIndex, cb) {
     mainEl.innerHTML = '<div class="cg-frame"><div class="cg-menu-items" role="menu"></div><div class="cg-more"></div></div>';
     header = createGuideHeader();
     mainEl.querySelector('.cg-frame').prepend(header.el);
+    header.setMessages(currentMessageCount());
     host.appendChild(mainEl);
   }
   mode = 'main';
