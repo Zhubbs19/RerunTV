@@ -1,0 +1,195 @@
+/* The cable-guide UI: a second on-screen layout styled after a mid-2000s
+   digital cable box's program guide, with two skins. Everything here is
+   scoped to html[data-ui="cable-guide"], which only the two skin packs turn
+   on (cable-guide/mode.js), so the legacy layout and its 25 theme packs are
+   untouched by this file.
+
+   Rules the layout keeps: one body size, hierarchy by colour and position,
+   focus as a solid fill with no motion, no shadows or section boxes, help for
+   the focused item in the header only. Structural differences between the
+   skins key on html[data-guide-layout] ("hd" | "classic"), never on a theme
+   id; colours come from the --cg-* tokens each skin pack sets.
+
+   Sizes are in em on a 60-unit grid: a .cg-surface sets font-size to 1/60 of
+   its width, so 1em = 16px on a 960px-wide screen. */
+
+/* Fallbacks with zero specificity, so a skin pack's html[data-theme] block
+   always wins. Values are the HD skin's. */
+:where(html[data-ui="cable-guide"]) {
+  --cg-font: 'Roboto Condensed', 'Archivo Narrow', system-ui, sans-serif;
+  --cg-weight: 400;
+  --cg-weight-strong: 700;
+  --cg-text-shadow: none;
+  --cg-page: #010101;
+  --cg-header: #010101;
+  --cg-header-rule: #2a2931;
+  --cg-text: #ececec;
+  --cg-text-dim: #a4a8ad;
+  --cg-hilite: #3a9ad6;
+  --cg-prompt: #dbd5bd;
+  --cg-cell: #303539;
+  --cg-cell-text: #ececec;
+  --cg-chcol: #1c2023;
+  --cg-chcol-text: #ececec;
+  --cg-gap: #000000;
+  --cg-timerow: #010101;
+  --cg-btn: #464d52;
+  --cg-btn-rim: transparent;
+  --cg-focus: #207baa;
+  --cg-focus-text: #ffffff;
+  --cg-radius: 0;
+  --cg-btn-radius: 0;
+  --cg-video-rim: transparent;
+  --cg-cat-movie: #9b69be;
+  --cg-cat-sports: #6dc56f;
+  --cg-cat-kids: #56bdde;
+  --cg-cat-news: #d9a441;
+  --cg-rec: #fe463a;
+  --cg-dialog: #010101;
+  --cg-dialog-rim: #3a3d4e;
+  --cg-overlay: rgba(1, 1, 1, .92);
+  --cg-badge-bg: #efefef;
+  --cg-badge-text: #111111;
+}
+
+/* ---------- Surface: a full-screen cable-guide page ---------- */
+html[data-ui="cable-guide"] .cg-surface {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  overflow: hidden;
+  background: var(--cg-page);
+}
+html[data-ui="cable-guide"] .cg-frame {
+  position: absolute;
+  inset: 0;
+  font-size: calc(100cqw / 60);
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  color: var(--cg-text);
+  text-shadow: var(--cg-text-shadow);
+  line-height: 1.25;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ---------- Header ---------- */
+html[data-ui="cable-guide"] .cg-header {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  height: 11.5em;
+  background: var(--cg-header);
+  border-bottom: .12em solid var(--cg-header-rule);
+}
+html[data-ui="cable-guide"] .cg-logo {
+  position: absolute;
+  left: 3em;
+  top: 1.3em;
+  font-weight: var(--cg-weight-strong);
+  font-size: .95em;
+  letter-spacing: .32em;
+  line-height: 1;
+}
+html[data-ui="cable-guide"] .cg-logo small {
+  display: block;
+  margin-top: .35em;
+  font-size: .62em;
+  letter-spacing: .9em;
+  color: var(--cg-text-dim);
+}
+html[data-ui="cable-guide"] .cg-status {
+  position: absolute;
+  right: 23.5em;
+  top: 1.5em;
+  display: flex;
+  align-items: center;
+  gap: .6em;
+  font-size: 1.15em;
+}
+html[data-ui="cable-guide"] .cg-messages svg {
+  display: block;
+  width: 1.3em;
+  height: 1em;
+  fill: currentColor;
+}
+html[data-ui="cable-guide"] .cg-lines {
+  position: absolute;
+  left: 2.9em;
+  top: 4.3em;
+  right: 23em;
+  font-size: 1.12em;
+  line-height: 1.42;
+}
+html[data-ui="cable-guide"] .cg-line {
+  min-height: 1.42em;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+html[data-ui="cable-guide"] .cg-help {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+html[data-ui="cable-guide"] .cg-name { color: var(--cg-hilite); }
+/* Where the live picture shows through; the page moves #player under it. */
+html[data-ui="cable-guide"] .cg-picture {
+  position: absolute;
+  right: 1.75em;
+  top: 0;
+  width: 20.5em;
+  height: 11.5em;
+  background: transparent;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-picture {
+  top: .9em;
+  height: 9.8em;
+  border: .15em solid var(--cg-video-rim);
+  border-radius: .3em;
+}
+
+/* ---------- Shared pieces ---------- */
+html[data-ui="cable-guide"] .cg-badge {
+  display: inline-block;
+  padding: .05em .35em;
+  border-radius: .2em;
+  background: var(--cg-badge-bg);
+  color: var(--cg-badge-text);
+  text-shadow: none;
+  font-weight: var(--cg-weight-strong);
+  font-size: .8em;
+  vertical-align: .1em;
+}
+html[data-ui="cable-guide"] .cg-rec {
+  display: inline-block;
+  width: .7em;
+  height: .7em;
+  margin-right: .35em;
+  border-radius: 50%;
+  background: var(--cg-rec);
+  vertical-align: .05em;
+}
+html[data-ui="cable-guide"] .cg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  color: var(--cg-text);
+  font: inherit;
+  text-shadow: var(--cg-text-shadow);
+  cursor: pointer;
+}
+/* Focus is a solid fill and nothing moves. */
+html[data-ui="cable-guide"] :is(.cg-btn, .cg-tile, .cg-choice).focus,
+html[data-ui="cable-guide"] :is(.cg-btn, .cg-tile, .cg-choice):focus-visible {
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  text-shadow: none;
+  outline: none;
+}

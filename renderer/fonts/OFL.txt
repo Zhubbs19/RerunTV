@@ -3,12 +3,14 @@ SIL Open Font License, Version 1.1. Copyright notices, as embedded in each font 
 
   Archivo Black      Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack)
   Archivo Narrow     Copyright 2019 The Archivo Narrow Project Authors (https://github.com/Omnibus-Type/ArchivoNarrow)
+  Arimo              Copyright 2020 The Arimo Project Authors (https://github.com/googlefonts/arimo)
   Barlow             Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
   Barlow Condensed   Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
   Comfortaa          Copyright 2011 The Comfortaa Project Authors (https://github.com/alexeiva/comfortaa), with Reserved Font Name "Comfortaa"
   Fjalla One         Copyright 2012 The Fjalla Project Authors (https://github.com/SorkinType/FjallaOne)
   IBM Plex Mono      Copyright 2017 IBM Corp. All rights reserved.
   Monoton            Copyright (c) 2011 by Vernon Adams
+  Roboto Condensed   Copyright 2011 Google Inc. All Rights Reserved.
   VT323              Copyright 2011, The VT323 Project Authors (peter.hull@oikoi.com)
 
 -----------------------------------------------------------

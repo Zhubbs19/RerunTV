@@ -37,6 +37,7 @@ import { isTvMode, onUsageModeChange } from './usage-mode.js';
 import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesActions } from '../playback/virtual.js';
 import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
 import { moveFocusSpatially, registerModal, topModal } from '../ui/focus.js';
+import { registerOverlaySurface } from '../display/overlay-signal.js';
 
 let keyboardHandler = null;
 
@@ -509,6 +510,7 @@ function buildExitPrompt() {
       <div class="tv-exit-prompt-hint">BACK TO KEEP WATCHING</div>
     </div>`;
   (tvScreen.querySelector('.crt') || tvScreen).appendChild(el);
+  registerOverlaySurface('exit', el);
   return el;
 }
 

@@ -9,6 +9,10 @@ Thumbs.db
 *.log
 *.swp
 *.bak
+
+# Local design reference images for the UI redesign (screenshots, manual
+# scans, patent drawings). Kept out of git because most are third-party.
+design-refs/
 # One-off audit / probe / sweep scripts in tests/ui/. These are explicit scratch
 # patterns, not a blanket *.mjs rule, so a new harness file (tests/ui/lib/*.mjs,
 # run-ui-tests.mjs, ...) shows up in `git status` and can be added normally.
@@ -146,6 +150,8 @@ plugins/*
 !plugins/theme-addressable-converter-89/
 !plugins/theme-analog-90s/
 !plugins/theme-cable-box-osd/
+!plugins/theme-cable-guide-classic-05/
+!plugins/theme-cable-guide-hd-15/
 !plugins/theme-cloud-guide-16/
 !plugins/theme-cyberpunk-synth/
 !plugins/theme-digital-satellite-2000s/

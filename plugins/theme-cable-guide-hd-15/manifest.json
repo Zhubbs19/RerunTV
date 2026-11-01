@@ -1,0 +1,9 @@
+{
+  "id": "theme-cable-guide-hd-15",
+  "name": "Cable Guide HD '15",
+  "version": "1.0.0",
+  "description": "Cable-guide layout, HD skin: near-black screens, flat square buttons, a solid blue focus bar and a thin colour edge for each program category.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

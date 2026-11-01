@@ -9,6 +9,8 @@ import { S } from '../core/state.js';
 import { player } from '../core/dom.js';
 import { getChannel } from '../core/channels.js';
 import { effectiveThemeId } from './identity.js';
+import { setUiMode } from '../cable-guide/mode.js';
+import { paintedThemeId, uiModeForPack } from '../cable-guide/model.js';
 
 // The palette the frameless update-progress window (main-updater.js) knows,
 // by its long-standing names. Read from body, where those names are
@@ -22,7 +24,12 @@ const REPORTED_THEME_VARS = [
 export function applyTheme({ boxOnly = false } = {}) {
   const personalTheme = S.personalProfile?.state?.theme;
   const themeConfig = personalTheme ? { ...S.config, theme: personalTheme } : S.config;
-  const themeId = effectiveThemeId(themeConfig, S.currentNumber, boxOnly);
+  const boxThemeId = effectiveThemeId(themeConfig, S.currentNumber, true);
+  const uiMode = uiModeForPack(getThemePack(boxThemeId));
+  setUiMode(uiMode);
+  const themeId = paintedThemeId({
+    uiMode, boxThemeId, channelThemeId: effectiveThemeId(themeConfig, S.currentNumber, boxOnly),
+  });
   document.documentElement.dataset.theme = themeId;
   // A pack's guide composition (registerThemePack's guideLayout, docs/design/04
   // §4.1): layout is core's, chosen by name, never a theme's structural CSS.

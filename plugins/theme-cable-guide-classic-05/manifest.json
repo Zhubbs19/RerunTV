@@ -1,0 +1,9 @@
+{
+  "id": "theme-cable-guide-classic-05",
+  "name": "Cable Guide Classic '05",
+  "version": "1.0.0",
+  "description": "Cable-guide layout, Classic skin: royal-blue screens, rounded pill buttons, a pale-yellow focus bar and whole program cells coloured by category.",
+  "category": "theme",
+  "renderer": "renderer.js",
+  "style": "style.css"
+}

@@ -1366,6 +1366,24 @@ on a program in the guide, with `{ channel, entry, actions }` — push
 `entry` is a schedule entry `{ file, start, end }`, and `run` is called after
 the menu closes. `plugins/tape-deck/renderer.js` adds RECORD this way).
 
+Three more describe what is on screen, so an overlay plugin can stay out of
+the way in either on-screen layout (the legacy one, or the cable-guide layout
+the two `cable-guide-*` theme packs turn on):
+
+- `'ui-overlay-change'`, with the sorted list of open surfaces (`'guide'`,
+  `'menu'`, `'details'`, `'pin'`, `'exit'`, and later cable-guide pages). The
+  same list is on `html[data-ui-overlay]` (absent when nothing is open). Use
+  this instead of checking `#guide-grid`'s `.hidden` class, which only knows
+  about the legacy guide.
+- `'ui-mode-change'`, with `'cable-guide'` or `'legacy'`, also on
+  `html[data-ui]`. The box theme decides it (a pack registered with
+  `ui: 'cable-guide'`); a channel's identity theme never changes it.
+- `'picture-box-change'`, with `{ left, top, width, height }` (px, relative to
+  the `.crt` screen) while a cable-guide page shows the live picture in its
+  top-right box, and `null` when the picture is full screen again. The same
+  rect is on `--picture-box-left/-top/-width/-height`, with
+  `html[data-picture-box="on"]`, so CSS can keep a corner badge out of it.
+
 One thing to know about `'guide-channel-cell'`: the guide does NOT rebuild
 its rows on its 30-second tick (see the render-signature fast path in
 `guide.js`), so a marker added only from this hook goes stale as soon as

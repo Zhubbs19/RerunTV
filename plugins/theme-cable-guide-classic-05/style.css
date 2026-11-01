@@ -1,0 +1,67 @@
+/* Cable Guide Classic '05: the blue SD-era guide. The --cg-* tokens are what
+   the cable-guide layout reads (renderer/css/cable-guide.css); the semantic
+   tokens below them keep the legacy screens readable if a channel's
+   identity paints with this theme on the legacy layout. Focus is a solid
+   fill; only buttons keep the era's soft gloss. */
+html[data-theme="cable-guide-classic-05"] {
+  --cg-font: Arimo, Arial, system-ui, sans-serif;
+  --cg-weight: 700;
+  --cg-weight-strong: 700;
+  --cg-text-shadow: 0 .08em 0 rgba(0, 0, 0, .65);
+  --cg-page: linear-gradient(180deg, #00248f 0%, #001b84 40%, #00124f 100%);
+  --cg-header: linear-gradient(180deg, #002a9a 0%, #0a3fb0 55%, #3f7fe0 100%);
+  --cg-header-rule: #76aff6;
+  --cg-text: #ffffff;
+  --cg-text-dim: #c8dcff;
+  --cg-hilite: #fff27a;
+  --cg-prompt: #fff27a;
+  --cg-cell: #0b2d5a;
+  --cg-cell-text: #ffffff;
+  --cg-chcol: #92b8dd;
+  --cg-chcol-text: #0b2d5a;
+  --cg-gap: #0967ed;
+  --cg-timerow: #060a47;
+  --cg-btn: linear-gradient(180deg, #3c63e6 0%, #173cd3 55%, #1230b0 100%);
+  --cg-btn-rim: #7fa5ff;
+  --cg-focus: #eaef8b;
+  --cg-focus-text: #0b1f4a;
+  --cg-radius: .35em;
+  --cg-btn-radius: 999px;
+  --cg-video-rim: #cfe0ff;
+  --cg-cat-movie: #5a2a7e;
+  --cg-cat-sports: #1f7a3a;
+  --cg-cat-kids: #1d6f9e;
+  --cg-cat-news: #7a5a12;
+  --cg-rec: #ff2a1f;
+  --cg-dialog: linear-gradient(180deg, #0b2d6e, #061d4f);
+  --cg-dialog-rim: #7fa5ff;
+  --cg-overlay: linear-gradient(180deg, rgba(0, 27, 132, .92), rgba(0, 18, 79, .96));
+  --cg-badge-bg: #ffffff;
+  --cg-badge-text: #0b1f4a;
+
+  --surface-0: #00124f; --surface-1: #001b84; --surface-2: #0b2d5a; --surface-3: #173cd3;
+  --surface-panel: linear-gradient(180deg, #0b2d6e, #061d4f);
+  --text: #ffffff; --text-muted: #c8dcff; --border: #7fa5ff;
+  --accent: #eaef8b; --accent-rgb: 234, 239, 139; --accent-text: #0b1f4a;
+  --accent-2: #92b8dd; --accent-2-rgb: 146, 184, 221;
+  --danger: #ff8a7a; --danger-rgb: 255, 138, 122;
+  --focus-ring: #fff27a; --focus-halo: #00124f;
+  --control-bg: linear-gradient(180deg, #3c63e6 0%, #173cd3 55%, #1230b0 100%); --control-text: #ffffff;
+  --selected-bg: #eaef8b; --selected-text: #0b1f4a;
+  --font-display: Arimo, Arial, system-ui, sans-serif;
+  --font-ui: Arimo, Arial, system-ui, sans-serif;
+  --font-body: Arimo, Arial, system-ui, sans-serif;
+  --gradient-page: linear-gradient(180deg, #00248f 0%, #001b84 40%, #00124f 100%);
+  --gradient-cell: #0b2d5a; --gradient-gold: #eaef8b;
+  --gloss-strong: none; --gloss-soft: none;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px;
+  --shadow-hard: none; --shadow-hard-sm: none; --shadow-hard-lg: none; --shadow-soft: none;
+  --bevel-raised: none; --bevel-inset: none;
+  --motion-control-hover: none; --motion-control-active: none;
+  --guide-grid-bg: linear-gradient(180deg, #00248f 0%, #001b84 40%, #00124f 100%);
+  --guide-rail-bg: #92b8dd; --guide-rail-text: #0b2d5a; --guide-rail-subtle: #1d3f6e;
+  --guide-cell-bg: #0b2d5a; --guide-cell-alt-bg: #0b2d5a; --guide-cell-text: #ffffff;
+  --guide-selected-bg: #eaef8b; --guide-selected-text: #0b1f4a;
+  --guide-timebar-bg: #060a47;
+  --setup-nav-bg: #001b84; --setup-overflow-shadow: rgba(0, 0, 0, .6);
+}

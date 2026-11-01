@@ -43,6 +43,8 @@ import {
 import { saveAirCheck } from './library/airchecks.js';
 import { applyDisplayModeSettled } from './display/mode.js';
 import { applyTheme, startThemeCheck } from './display/themes.js';
+import { installOverlaySignal } from './display/overlay-signal.js';
+import { installCableGuide } from './cable-guide/index.js';
 import { initTouchControls } from './tv/touch.js';
 import { initUpdateNotice } from './update/notice.js';
 import { openTvMenu, handleTvMenuKey } from './tv/menu.js';
@@ -920,7 +922,9 @@ export async function showTvScreen() {
   applyBakedBars();
   applyHintBarState();
   applyKeyHints();
+  installCableGuide();
   applyTheme();
+  installOverlaySignal();
   applyDisplayModeSettled();
   applyLogoBugPlacement();
 

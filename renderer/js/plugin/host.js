@@ -559,6 +559,8 @@ export function themePackEntries() {
       preview: def.preview || null,
       contrastExempt: def.contrastExempt && typeof def.contrastExempt === 'object' ? def.contrastExempt : null,
       guideLayout: typeof def.guideLayout === 'string' ? def.guideLayout : null,
+      // 'cable-guide' turns on the cable-guide layout (cable-guide/mode.js).
+      ui: def.ui === 'cable-guide' ? 'cable-guide' : 'legacy',
     }));
   if (!themePackRegistry.has('digital-2000s')) {
     entries.unshift({
