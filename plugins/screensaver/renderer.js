@@ -76,10 +76,14 @@ function show() {
   const tvScreen = document.getElementById('tv-screen');
   const guideGrid = document.getElementById('guide-grid');
   if (!S.isPoweredOn || tvScreen.classList.contains('hidden')) return;
+  // On the cable-guide layout a full page (search, messages, a menu) can be
+  // up without the guide; html[data-ui-overlay] names whatever is open.
+  const root = document.documentElement;
+  const pageOpen = root.dataset.ui === 'cable-guide' && !!root.dataset.uiOverlay;
   // anyOtherInterruptActive (plugins.js) covers eas-alerts/breaking-news/any
   // future interrupt plugin generically - screensaver never hardcodes
   // another plugin's name or private state field.
-  if (!guideGrid.classList.contains('hidden') || S.activeBreakKey || S.timeMachineOn || window.RCBPlugins.anyOtherInterruptActive('screensaver')) {
+  if (!guideGrid.classList.contains('hidden') || pageOpen || S.activeBreakKey || S.timeMachineOn || window.RCBPlugins.anyOtherInterruptActive('screensaver')) {
     // Any of these count as "in use" — check again next interval instead of
     // popping up mid-browse/mid-break.
     scheduleTimer();

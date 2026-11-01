@@ -151,6 +151,27 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 - **Plugin channels in TV mode** get `onAction(action, ctx)` (ctx v5) before core. Unhandled actions
   fall back to core, so ▲▼ still change channel.
 
+## On-screen layouts (legacy / cable-guide)
+
+`html[data-ui]` is `legacy` or `cable-guide` (docs/design/13). The box theme decides it: the two
+`theme-cable-guide-*` packs register `ui: 'cable-guide'`; every other pack, and any channel's
+identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
+
+- **Logic is shared, markup and CSS fork.** Don't fork schedule, guide-model or input code for the
+  layout. New cable-guide CSS goes in `renderer/css/cable-guide.css` under
+  `html[data-ui="cable-guide"]` (`tests/cable-guide.test.js` enforces the scope and the `--cg-*`
+  token coverage). Keep `:is(...)` lists free of nested parentheses; the scope test's splitter
+  can't read them.
+- **Full pages** use `cable-guide/page.js`'s `openCgPage` (header, picture box, modal stack, Back).
+- **Overlay signal.** Anything that shows over live TV registers with `registerOverlaySurface`
+  (`display/overlay-signal.js`); a surface that is removed rather than hidden must call the
+  unregister function it returns. Plugins that hide while a menu is up read
+  `html[data-ui-overlay]`.
+- **Theme switching in tests** goes through `window.applyTheme()`, not a bare `data-theme` write,
+  or the layout never changes.
+- **Compare with reference screens.** Every cable-guide screen is checked side by side with
+  screenshots of the real boxes before it is called done.
+
 ## Setup screen patterns
 
 - **Shell:** sidebar sections, a `#setup-content` scroll pane and a pinned status bar
@@ -159,7 +180,9 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
 - **Channels:** a list plus the selected channel's editor. `S.setupSelectedChannel` picks which
   channel; set it before `renderChannelList()` whenever numbers change.
 - **New box-level settings:** write a `.setting-row` (`renderer/js/ui/field.js` SettingRow) with a
-  sentence-case label wired `for` its control and a one-line help.
+  sentence-case label wired `for` its control and a one-line help (`.setting-row-help`). The help is
+  data: the legacy layout prints it under the row, the cable-guide layout hides it and shows it in
+  the header for the focused row, and settings search reads it in both.
   - Use `data-depends-on` for settings that only apply while a switch is on.
   - Add `data-synonyms` for words people would search for.
 - **Live layout editor** (the O key, LIVE EDITOR buttons): `setup/overlay-layout-editor.js`,

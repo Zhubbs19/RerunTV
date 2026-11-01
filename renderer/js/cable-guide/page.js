@@ -54,6 +54,7 @@ export function openCgPage({ name, build, onKey = null, onClose = null }) {
 
   let open = true;
   let unregister = null;
+  let unsurface = null;
   let resizeWatch = null;
   const previouslyFocused = document.activeElement;
 
@@ -70,6 +71,7 @@ export function openCgPage({ name, build, onKey = null, onClose = null }) {
       if (unregister) unregister();
       header.destroy();
       el.remove();
+      if (unsurface) unsurface();
       hidePictureBox();
       if (current === page) current = null;
       if (onClose) onClose();
@@ -94,7 +96,7 @@ export function openCgPage({ name, build, onKey = null, onClose = null }) {
   });
 
   unregister = registerModal({ isOpen: () => open, element: () => el, cancel: () => page.close() });
-  registerOverlaySurface(name, el);
+  unsurface = registerOverlaySurface(name, el);
   showPictureBox(crt);
   if (typeof ResizeObserver !== 'undefined') {
     resizeWatch = new ResizeObserver(() => { if (open) showPictureBox(crt); });

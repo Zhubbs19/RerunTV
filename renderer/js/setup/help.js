@@ -477,6 +477,14 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-01', items: [
+    'A new on-screen layout modelled on a mid-2000s digital cable box, in two skins: HD (black, square, blue focus) and Classic (blue, rounded, yellow focus). Pick either under GUIDE & THEME › Theme; every older theme keeps the layout it always had.',
+    'On the new layout: the guide keeps the live picture in its corner, the channel banner and a Mini Guide sit over the picture, MENU opens a Quick Menu and then the Main Menu, and I opens a program page with its actions as icons.',
+    'New pages there: Search with an on-screen keyboard, Listings by Channel, and Messages (your reminders and a downloaded update; an envelope in the corner counts them).',
+    'Channel Setup on the new layout shows the setting you are on and what it does at the top, instead of a line under every row, and on/off and choice settings read as ‹ value › bars.',
+    'The RECORD button on a remote now records; captions and audio-track buttons work.',
+    'New installs start on the HD skin.',
+  ] },
   { date: '2026-10-29', items: [
     'Plugins you install yourself now work in a release build: a plugin talks to its own background code through one shared, checked route instead of needing its own entry built into the app.',
     'Plugin permissions in plain words: the approval prompt and each plugin’s page say where it runs, which sites, files, programs and ports it can use, and whether it is sandboxed (a plugin that is not gets a red APPROVE FULL ACCESS button). A plugin can list the sites it connects to, and a sandboxed one is held to that list. Each plugin’s page also shows what it has done since start: calls, refused calls, sites reached and sites blocked.',

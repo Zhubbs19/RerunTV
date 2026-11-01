@@ -1376,7 +1376,8 @@ the way in either on-screen layout (the legacy one, or the cable-guide layout
 the two `cable-guide-*` theme packs turn on):
 
 - `'ui-overlay-change'`, with the sorted list of open surfaces (`'guide'`,
-  `'menu'`, `'details'`, `'pin'`, `'exit'`, and later cable-guide pages). The
+  `'menu'`, `'details'`, `'pin'`, `'exit'`, and the cable-guide pages `'search'`,
+  `'by-channel'` and `'messages'`). The
   same list is on `html[data-ui-overlay]` (absent when nothing is open). Use
   this instead of checking `#guide-grid`'s `.hidden` class, which only knows
   about the legacy guide.

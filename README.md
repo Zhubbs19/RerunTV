@@ -287,6 +287,10 @@ the guide also scrolls backward into the past.
   right alongside your own channels
 - **Plugin developer diagnostics** — registration/capability inventory, bounded main and
   renderer logs, reload status, and redacted JSON support bundles
+- **A cable-box layout in two skins** — HD (black, square, blue focus) and Classic (blue, rounded,
+  yellow focus), modelled on a mid-2000s digital cable box: the guide keeps live TV in its corner,
+  a channel banner and Mini Guide over the picture, Quick and Main menus, Search with an on-screen
+  keyboard, Listings by Channel, Messages, and a matching Channel Setup. New installs start on HD.
 - **23 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
   set through dense SD grids, metallic late-2000s menus, widescreen preview guides, and
   modern streaming design languages. Themes can change guide density, preview composition, focus behavior,

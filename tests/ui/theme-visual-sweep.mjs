@@ -137,9 +137,12 @@ for (let themeIndex = 0; themeIndex < themeIds.length; themeIndex += 1) {
     // eslint-disable-next-line no-await-in-loop
     await fs.mkdir(themeDir, { recursive: true });
     // eslint-disable-next-line no-await-in-loop
+    // applyTheme() (not a bare data-theme write) so a pack's layout follows
+    // it: the cable-guide skins switch html[data-ui] there.
     await page.evaluate((id) => {
       window.S.config.theme = id;
-      document.documentElement.dataset.theme = id;
+      if (typeof window.applyTheme === 'function') window.applyTheme();
+      else document.documentElement.dataset.theme = id;
     }, themeId);
 
     for (const state of screenStates) {
@@ -226,7 +229,8 @@ for (let themeIndex = 0; themeIndex < themeIds.length; themeIndex += 1) {
 
 await page.evaluate(({ applied, configured }) => {
   window.S.config.theme = configured;
-  document.documentElement.dataset.theme = applied;
+  if (typeof window.applyTheme === 'function') window.applyTheme();
+  else document.documentElement.dataset.theme = applied;
 }, originalTheme);
 await fs.writeFile(path.join(outputDir, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
 await browser.close();

@@ -1302,7 +1302,10 @@ export function applyConfigDefaults(config) {
   if (config.staticEffect.durationMs == null) config.staticEffect.durationMs = 150;
   if (!config.testPattern) config.testPattern = { enabled: true };
   if (!config.pictureMode) config.pictureMode = 'standard';
-  if (!config.theme) config.theme = 'digital-2000s';
+  // A new box starts on the cable-guide layout's HD skin. Every saved config
+  // already names its theme, so nobody's look changes; without the skin's
+  // pack installed the id simply paints the base palette.
+  if (!config.theme) config.theme = 'cable-guide-hd-15';
   // App-wide display mode (DISPLAY > APP DISPLAY MODE, display-mode.js) —
   // simulates the box's own fixed aspect/resolution, separate from
   // aspectMode above which only affects video content's object-fit.

@@ -138,6 +138,11 @@ motion, guide surfaces (the existing `--guide-*` set). Structural selectors (`.b
 decorative rules scoped to documented **slots** (`[data-slot="guide-topbar"]`,
 `[data-slot="power-fx"]`) that don't change layout or state colours.
 
+A pack may also name a **layout**: `ui: 'cable-guide'` plus `guideLayout: 'hd' | 'classic'`
+switches `html[data-ui]` to the cable-guide layout (doc 13), whose structural CSS is core's
+(`renderer/css/cable-guide.css`), never the pack's. Those packs set the `--cg-*` tokens on top of
+the semantic set below.
+
 ### 4.2 Semantic tokens (new, required)
 `--surface-0..3`, `--text`, `--text-muted`, `--accent`, `--accent-text`, `--selected-bg`,
 `--selected-text`, `--focus-ring`, `--danger`, `--danger-text`, `--warning`, `--success`,

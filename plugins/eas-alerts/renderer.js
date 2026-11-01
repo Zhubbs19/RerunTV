@@ -99,7 +99,10 @@ export function runEasAlert(opts) {
   const guideGrid = document.getElementById('guide-grid');
   const isOff = !S.isPoweredOn;
   const onVirtualOrNoChannel = window.isVirtualChannel(S.currentNumber) || !window.getChannel(S.currentNumber);
-  const guideIsOpen = !guideGrid.classList.contains('hidden');
+  // On the cable-guide layout a full page (search, messages, a menu) can be
+  // up without the guide; html[data-ui-overlay] names whatever is open.
+  const root = document.documentElement;
+  const guideIsOpen = !guideGrid.classList.contains('hidden') || (root.dataset.ui === 'cable-guide' && !!root.dataset.uiOverlay);
   // Never hardcodes another plugin's name or state field — a peer
   // interrupt plugin (breaking-news, or any future one) only counts here if
   // IT chooses to declare its own isActive() (registerInterrupt,

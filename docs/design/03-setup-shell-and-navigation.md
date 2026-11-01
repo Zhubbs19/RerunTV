@@ -435,6 +435,11 @@ Label (sentence case, ≤ 5 words) · control · one line of help (normal case, 
 disable (not hide) when the parent is off — the CRT toggle fix generalized. All-caps is reserved
 for section eyebrows and buttons.
 
+On the cable-guide layout (doc 13) the same markup reads differently: the help line is hidden
+under the row and shown in the page header for the focused or pointed-at row, labels end in a
+colon, and a select or checkbox is drawn as a `‹ value ›` cycler. The markup and the help text
+don't change, so search and every listener work the same in both layouts.
+
 ### 5.2 Section cards
 A page is a column of section cards with a heading and ≤ 8 rows; wide screens use two columns
 only for independent sections (never split a dependent group).

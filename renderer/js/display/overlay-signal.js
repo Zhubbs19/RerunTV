@@ -33,11 +33,16 @@ function publish() {
   runCoreHooks('ui-overlay-change', names);
 }
 
+// Returns an unregister function. A surface that is removed from the page
+// rather than hidden (a cable-guide page) must call it: removal fires no
+// class or hidden change, so the signal would go on naming it.
 export function registerOverlaySurface(name, element) {
-  if (!name || !element || surfaces.get(element) === name) return;
+  const unregister = () => { if (surfaces.delete(element)) publish(); };
+  if (!name || !element || surfaces.get(element) === name) return unregister;
   surfaces.set(element, name);
   if (observer) observer.observe(element, { attributes: true, attributeFilter: ['class', 'hidden'] });
   publish();
+  return unregister;
 }
 
 export function openOverlays() {

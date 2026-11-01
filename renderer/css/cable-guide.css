@@ -522,6 +522,8 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid {
 html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-info-panel { font-size: 1.25em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-info-panel { font-size: 1.35em; top: 3.7em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-search-row { font-size: .8em; bottom: .4em; }
+/* Classic's bold face runs wider: the hint line would lose its last key. */
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-hint { gap: 0 1.1em; font-size: calc(100cqw / 60 * .8); }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { font-size: calc(100cqw / 60 * 1.3); }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry {
   white-space: normal;

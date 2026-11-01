@@ -172,7 +172,10 @@ export function runBreakingNewsAlert(opts) {
   const guideGrid = document.getElementById('guide-grid');
   const isOff = !S.isPoweredOn;
   const onVirtualOrNoChannel = window.isVirtualChannel(S.currentNumber) || !window.getChannel(S.currentNumber);
-  const guideIsOpen = !guideGrid.classList.contains('hidden');
+  // On the cable-guide layout a full page (search, messages, a menu) can be
+  // up without the guide; html[data-ui-overlay] names whatever is open.
+  const root = document.documentElement;
+  const guideIsOpen = !guideGrid.classList.contains('hidden') || (root.dataset.ui === 'cable-guide' && !!root.dataset.uiOverlay);
   // anyOtherInterruptActive (plugins.js) generically covers any other
   // registered interrupt plugin (eas-alerts, or a future one) that declares
   // its own isActive() - this plugin never has to know another plugin's

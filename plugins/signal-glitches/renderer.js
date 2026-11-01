@@ -82,6 +82,10 @@ function isEligibleNow() {
   if (!S.isPoweredOn || S.easActive || S.creditsSpeedupActive) return false;
   const guideGrid = document.getElementById('guide-grid');
   if (guideGrid && !guideGrid.classList.contains('hidden')) return false;
+  // On the cable-guide layout a full page (search, messages, a menu) can be
+  // up without the guide; html[data-ui-overlay] names whatever is open.
+  const root = document.documentElement;
+  if (root.dataset.ui === 'cable-guide' && root.dataset.uiOverlay) return false;
   return true;
 }
 

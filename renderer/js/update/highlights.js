@@ -5,6 +5,7 @@
 // worth pointing at; `setting` is a .setting-row data-setting value (optional).
 
 export const HIGHLIGHTS = [
+  { id: 'cable-guide-layout', title: 'A cable-box layout, in two skins', text: 'Pick the HD or Classic skin under Theme for a guide, banner, menus and setup modelled on a mid-2000s cable box.', tab: 'guide', subtab: 'guidetheme' },
   { id: 'layout-editor', title: 'A rebuilt on-screen layout editor', text: 'Press O while watching to drag the logo and every card over the real picture, with snapping, undo and a clean view (H).', tab: 'guide', subtab: 'guideonscreen' },
   { id: 'simple-advanced', title: 'Simple and Advanced settings', text: 'Simple shows the everyday controls; switch to Advanced in the sidebar for everything. Search finds both.', tab: 'channels' },
   { id: 'splicer', title: 'Cut and combine recordings', text: 'The Video Splicer is built in: split a recording into episodes, ads and bumpers, then join clips.', tab: 'library', subtab: 'librarysplicer' },
