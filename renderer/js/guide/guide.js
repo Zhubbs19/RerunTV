@@ -3,7 +3,7 @@ import { refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { playConfiguredSound, sfxGuideToggle } from '../core/audio.js';
 import { buildChannelBadge, channelColor, filteredChannels, formatChannelNumber, getChannel, guideSlots, sortedChannels } from '../core/channels.js';
 import {
-  crtContainer, giChannelEl, giNumberEl, giTimeEl, giTitleEl, guideBarFillEl, guideDateRangeEl, guideGrid,
+  crtContainer, giChannelEl, giDescEl, giNumberEl, giRatingEl, giTimeEl, giTitleEl, guideBarFillEl, guideBrandClockEl, guideDateRangeEl, guideGrid,
   guideGridlinesEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNowLineEl, guideNumberEl, guideOverlay,
   guideRowsEl, guideSearchEl, guideTimeHeaderEl, guideViewBtnEl, player,
 } from '../core/dom.js';
@@ -28,6 +28,10 @@ import {
 import { BREAK_LABELS, breakMarkEl, spanPercent } from '../timeline/render.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { getThemePack, runCoreHooks } from '../plugin/host.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange } from '../cable-guide/model.js';
+import { syncListingsPicture } from '../cable-guide/listings.js';
+import { openProgramInfo } from '../cable-guide/program-info.js';
 import { openTvMenu } from '../tv/menu.js';
 import { isTvMode } from '../tv/usage-mode.js';
 import { Menu } from '../ui/menu.js';
@@ -299,9 +303,15 @@ reminderTuneBtn?.addEventListener('click', () => {
 reminderDismissBtn?.addEventListener('click', dismissActiveReminder);
 setInterval(checkProgramReminders, 15000);
 
+// The cable-guide layout never animates its pages (cable-guide.css).
+function cableGuide() {
+  return currentUiMode() === CABLE_GUIDE_UI;
+}
+
 function guideAnimEnabled() {
   return !!(S.config.display && S.config.display.guideOpenCloseAnim)
-    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    && !cableGuide();
 }
 
 // Full-page guide mode (see guide.css's .guide-full rules) shrinks the live
@@ -431,6 +441,7 @@ export function closeGuideGrid() {
     guideGrid.classList.add('hidden');
     crtContainer.classList.remove('guide-active', 'guide-docked', 'guide-full', 'guide-anim-enabled');
     publishPictureArea(); // the picture gets the whole screen back
+    syncListingsPicture(guideGrid, crtContainer);
     if (guidePreviouslyFocused && guidePreviouslyFocused.isConnected && guidePreviouslyFocused.getClientRects().length && guidePreviouslyFocused.focus) {
       guidePreviouslyFocused.focus({ preventScroll: true });
     } else if (document.activeElement && document.activeElement.blur) {
@@ -462,6 +473,7 @@ export function applyGuideDockMode() {
   // fitDockedGuideHeight returns early when the guide is full-page, so the
   // picture area has to be released here rather than only from inside it.
   publishPictureArea();
+  syncListingsPicture(guideGrid, crtContainer);
 }
 
 export function toggleGuideDockMode() {
@@ -534,6 +546,8 @@ function abbreviatedNames() {
 }
 
 function railName(ch) {
+  // The cable-guide rail is number + call letters, like the boxes it copies.
+  if (cableGuide()) return channelCallLetters(ch) || ch.name || 'UNTITLED';
   if (!abbreviatedNames()) return ch.name || 'UNTITLED';
   return channelCallLetters(ch) || ch.name || 'UNTITLED';
 }
@@ -608,6 +622,7 @@ function openGuidePopover({ heading, ariaLabel, items, anchorEl, initialIdx = 0,
 }
 
 function handleGuidePopoverKey(e) {
+  if (popover.handleKey) { popover.handleKey(e); return; }
   const action = { ArrowUp: 'up', ArrowDown: 'down', Enter: 'ok' }[e.key] || 'close';
   popover.key(action);
 }
@@ -751,7 +766,7 @@ export function openGuideProgramActions() {
       const actions = [];
       runCoreHooks('guide-program-actions', { channel: ch, entry, actions });
       actions.filter((a) => a && a.label && typeof a.run === 'function').forEach((a) => {
-        items.push({ label: String(a.label).toUpperCase(), run: () => a.run() });
+        items.push({ label: String(a.label).toUpperCase(), icon: a.icon, run: () => a.run() });
       });
       if (entry.start > viewNow()) {
         const exists = reminderList().some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
@@ -768,6 +783,18 @@ export function openGuideProgramActions() {
   items.push({ label: 'GUIDE −24 HOURS', run: () => shiftGuideDay(-1) });
   items.push({ label: 'GUIDE +24 HOURS', run: () => shiftGuideDay(1) });
   items.push(tvMenu);
+  if (cableGuide()) {
+    // The cable-guide layout shows these as program info's action tiles.
+    closeGuidePopover();
+    const info = openProgramInfo({
+      grid: guideGrid,
+      items,
+      description: giDescEl.textContent,
+      onClose: () => { if (popover === info) popover = null; },
+    });
+    popover = info;
+    return;
+  }
   openGuidePopover({ heading, items, anchorEl: selectedCellEl() || guideRowsEl.querySelector('.guide-row.active-row'), className: 'guide-actions' });
 }
 
@@ -790,7 +817,7 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
   chanCell.dataset.channelNumber = String(ch.number);
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
-  chanText.innerHTML = `<span class="grc-num" data-slot="guide-rail-number">CH ${formatChannelNumber(ch.number)}</span><span class="grc-name" data-slot="guide-rail-name">${escapeHtml(railName(ch))}</span>`;
+  chanText.innerHTML = `<span class="grc-num" data-slot="guide-rail-number"><span class="grc-prefix">CH </span>${formatChannelNumber(ch.number)}</span><span class="grc-name" data-slot="guide-rail-name">${escapeHtml(railName(ch))}</span>`;
   if (abbreviatedNames()) chanText.title = ch.name || '';
   chanCell.appendChild(buildChannelBadge(ch, { small: true, editable: false }));
   chanCell.appendChild(chanText);
@@ -815,7 +842,9 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
     block.setAttribute('role', 'gridcell');
     block.setAttribute('aria-selected', String(isSel));
     block.className = 'guide-entry' + (cell.kind === 'run' ? ' guide-entry-run' : '') + (isSel ? ' sel' : '') +
-      (cell.end <= viewNow() ? ' past' : '');
+      (cell.end <= viewNow() ? ' past' : '') +
+      // Started before the window: the cable-guide layout marks it with "<".
+      (cell.start < S.guideWindowStart ? ' cont' : '');
     block.style.left = pos.left + '%';
     block.style.width = pos.width + '%';
     // Read back by refreshPastClasses() below on the fast-path re-render —
@@ -859,6 +888,15 @@ function buildChannelRow(ch, windowEnd, selRef, minMs = microProgramMs()) {
       S.guideSelTime = entry.start + 1;
       jumpToGuideEntry(ch, entry);
       closeGuideGrid();
+    });
+    // Right-click: this program's actions, the desktop's way to the menu a
+    // remote reaches by holding OK.
+    block.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      S.guideSelNumber = ch.number;
+      S.guideSelTime = entry.start + 1;
+      renderGuideGrid();
+      openGuideProgramActions();
     });
     track.appendChild(block);
   });
@@ -911,7 +949,7 @@ function buildSpecialRow(row) {
   chanCell.appendChild(buildChannelBadge({ number, name: info.name, icon: null }, { small: true, editable: false }));
   const chanText = document.createElement('div');
   chanText.className = 'grc-text';
-  chanText.innerHTML = `<span class="grc-num" data-slot="guide-rail-number">CH ${formatChannelNumber(number)}</span><span class="grc-name" data-slot="guide-rail-name">${escapeHtml(abbreviatedNames() ? (abbreviateChannelName(info.name) || info.name) : info.name)}</span>`;
+  chanText.innerHTML = `<span class="grc-num" data-slot="guide-rail-number"><span class="grc-prefix">CH </span>${formatChannelNumber(number)}</span><span class="grc-name" data-slot="guide-rail-name">${escapeHtml(abbreviatedNames() ? (abbreviateChannelName(info.name) || info.name) : info.name)}</span>`;
   chanCell.appendChild(chanText);
   runCoreHooks('guide-channel-cell', { channel: { number, name: info.name }, cell: chanCell });
 
@@ -1072,7 +1110,10 @@ function publishPictureArea() {
 //
 // No feedback loop: this only ever resizes #player, which is not observed.
 if (typeof ResizeObserver !== 'undefined') {
-  const pictureAreaObserver = new ResizeObserver(() => publishPictureArea());
+  const pictureAreaObserver = new ResizeObserver(() => {
+    publishPictureArea();
+    syncListingsPicture(guideGrid, crtContainer);
+  });
   pictureAreaObserver.observe(guideGrid);
   pictureAreaObserver.observe(crtContainer);
 }
@@ -1119,6 +1160,7 @@ function refreshPastClasses() {
 
 export function renderGuideGrid() {
   if (sortedChannels().length === 0) { closeGuideGrid(); return; }
+  guideBrandClockEl.textContent = guideClock(new Date(viewNow()), !!(S.config.display && S.config.display.clock24));
   const rows = currentGuideRows();
   if (rows.length === 0) {
     guideTimeHeaderEl.innerHTML = '';
@@ -1156,7 +1198,8 @@ export function renderGuideGrid() {
   // Same column token the rows use (guide.css), so a theme or a narrow window
   // that resizes the channel rail doesn't slide every time label off its slot.
   guideTimeHeaderEl.style.gridTemplateColumns = `var(--guide-chan-col, 170px) repeat(${guideSlots()}, 1fr)`;
-  guideTimeHeaderEl.innerHTML = '<div></div>' + Array.from(
+  // The day label shows on the cable-guide layout only (guide.css hides it).
+  guideTimeHeaderEl.innerHTML = `<div><span class="guide-th-day">${guideDayLabel(S.guideWindowStart, viewNow())}</span></div>` + Array.from(
     { length: guideSlots() },
     (_, i) => `<div class="guide-th-slot">${formatSlotLabel(S.guideWindowStart + i * guideSlotMs())}</div>`
   ).join('');
@@ -1237,7 +1280,8 @@ export function updateGuideInfoPanel(row, selectedInfo) {
   if (!row) return;
   const ch = row.kind === 'special' ? { number: row.number, name: row.info.name } : row.ch;
   giNumberEl.textContent = formatChannelNumber(ch.number);
-  giChannelEl.textContent = ch.name || 'UNTITLED CHANNEL';
+  // The cable-guide header names a channel by its call letters, like the rail.
+  giChannelEl.textContent = (cableGuide() && channelCallLetters(ch)) || ch.name || 'UNTITLED CHANNEL';
   if (row.kind === 'special') {
     giTitleEl.textContent = row.info.nowText || row.info.name;
     giTimeEl.textContent = '';
@@ -1246,11 +1290,19 @@ export function updateGuideInfoPanel(row, selectedInfo) {
     giTimeEl.textContent = `${formatSlotLabel(selectedInfo.cell.start)} – ${formatSlotLabel(selectedInfo.cell.end)}`;
   } else if (selectedInfo && selectedInfo.entry) {
     giTitleEl.textContent = getDisplayTitle(selectedInfo.entry.file);
-    giTimeEl.textContent = `${formatSlotLabel(selectedInfo.entry.start)} – ${formatSlotLabel(selectedInfo.entry.end)}`;
+    giTimeEl.textContent = cableGuide()
+      ? guideRange(new Date(selectedInfo.entry.start), new Date(selectedInfo.entry.end), !!(S.config.display && S.config.display.clock24))
+      : `${formatSlotLabel(selectedInfo.entry.start)} – ${formatSlotLabel(selectedInfo.entry.end)}`;
   } else {
     giTitleEl.textContent = '—';
     giTimeEl.textContent = '';
   }
+  // Rating badge and description: only the cable-guide layout shows them.
+  const file = row.kind === 'channel' && selectedInfo && selectedInfo.entry ? selectedInfo.entry.file : null;
+  const rating = file ? (file.rating === 'NONE' ? null : (file.rating || ch.rating)) : null;
+  giRatingEl.textContent = rating || '';
+  giRatingEl.classList.toggle('empty', !rating);
+  giDescEl.textContent = (file && typeof file.description === 'string' && file.description.trim()) || '';
   // Restart the crossfade on every update: remove the class, force a
   // reflow read, then re-add it — plain re-adding an already-present class
   // is a no-op and wouldn't replay the animation.
@@ -1450,7 +1502,14 @@ export function handleGuideGridKey(e) {
       break;
     case 'i':
     case 'I':
-      showDetailsForGuideSelection();
+      // Cable-guide program info already carries the details.
+      if (cableGuide()) openGuideProgramActions();
+      else showDetailsForGuideSelection();
+      break;
+    case 'a':
+    case 'A':
+      // This program's actions from a keyboard (a remote holds OK).
+      openGuideProgramActions();
       break;
     case 's':
     case 'S':

@@ -528,6 +528,12 @@ html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
   letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
 }
+/* Parts only the cable-guide layout shows (cable-guide.css). */
+.guide-brand,
+.guide-info-rating,
+.guide-info-desc,
+.guide-th-day,
+.cg-program-info { display: none; }
 
 /* Brief crossfade when the selected show changes (updateGuideInfoPanel,
    guide.js restarts this by toggling the class off/on across a reflow). */

@@ -88,7 +88,7 @@ html[data-ui="cable-guide"] .cg-logo {
   left: 3em;
   top: 1.3em;
   font-weight: var(--cg-weight-strong);
-  font-size: .95em;
+  font-size: 1.3em;
   letter-spacing: .32em;
   line-height: 1;
 }
@@ -192,4 +192,430 @@ html[data-ui="cable-guide"] :is(.cg-btn, .cg-tile, .cg-choice):focus-visible {
   color: var(--cg-focus-text);
   text-shadow: none;
   outline: none;
+}
+
+/* ======================================================================
+   Listings by Time: the legacy #guide-grid restyled (cable-guide/listings.js
+   keeps the live picture in the header's hole). Every guide feature, hook
+   and plugin marker is the legacy guide's own; only the look changes.
+   ====================================================================== */
+html[data-ui="cable-guide"] .guide-grid {
+  padding: 0;
+  background: var(--cg-page);
+  color: var(--cg-text);
+  /* Rows, rail and time columns all size off the same 60-unit grid. */
+  --guide-chan-col: 12.05em;
+  --guide-row-height: 2.18em;
+  --guide-row-gap: .12em;
+}
+html[data-ui="cable-guide"] .guide-grid,
+html[data-ui="cable-guide"] .guide-grid * {
+  font-family: var(--cg-font);
+  letter-spacing: 0;
+  text-transform: none;
+  text-shadow: var(--cg-text-shadow);
+  animation: none;
+  transition: none;
+}
+/* The logo is the one spaced word; the reset above would flatten it. */
+html[data-ui="cable-guide"] .guide-grid .cg-logo { letter-spacing: .32em; }
+html[data-ui="cable-guide"] .guide-grid .cg-logo small { letter-spacing: .9em; }
+/* Children resolve 1em = 1/60 of the grid's width (#guide-grid is a size
+   container, so its children's cqw read its box). */
+html[data-ui="cable-guide"] .guide-grid > :is(.guide-topbar, .guide-rows, .guide-program-results, .cg-program-info) {
+  font-size: calc(100cqw / 60);
+}
+/* The picture's hole: a mask cut from the page where listings.js put it. */
+html[data-ui="cable-guide"] .guide-grid.full {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0, var(--listings-hole-left, 0) var(--listings-hole-top, 0);
+  -webkit-mask-size: 100% 100%, var(--listings-hole-width, 0) var(--listings-hole-height, 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+html[data-ui="cable-guide"][data-picture-box="on"] .crt.guide-active.guide-full #player {
+  left: var(--picture-box-left) !important;
+  top: var(--picture-box-top) !important;
+  width: var(--picture-box-width) !important;
+  height: var(--picture-box-height) !important;
+  right: auto !important;
+  bottom: auto !important;
+  aspect-ratio: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: #000;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"][data-picture-box="on"] .crt.guide-active.guide-full #player {
+  box-sizing: border-box;
+  border: 2px solid var(--cg-video-rim);
+  border-radius: 4px;
+}
+
+/* ---------- Header ---------- */
+html[data-ui="cable-guide"] .guide-grid .guide-topbar {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  height: 11.5em;
+  margin: 0;
+  padding: 0;
+  background: var(--cg-header);
+  border-bottom: .12em solid var(--cg-header-rule);
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar { height: 6.2em; }
+html[data-ui="cable-guide"] .guide-brand { display: block; }
+/* Header text keeps clear of the picture box, which starts 37.75 grid units
+   in. Edges are in grid units (100cqw / 60), not em: these blocks set their
+   own font sizes per skin, and an em edge would move with them. */
+html[data-ui="cable-guide"] .guide-grid .guide-info-panel {
+  position: absolute;
+  left: calc(100cqw / 60 * 2.9);
+  top: 4.3em;
+  right: calc(100cqw / 60 * 24);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "title num chan"
+    "time time rating"
+    "desc desc desc";
+  align-items: baseline;
+  gap: 0 .35em;
+  font-size: 1.12em;
+  line-height: 1.42;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-info-panel { top: 1.1em; right: 3em; left: 14em; }
+html[data-ui="cable-guide"] .guide-grid .guide-info-body { display: contents; }
+html[data-ui="cable-guide"] .guide-grid :is(.guide-info-number, .guide-info-channel, .guide-info-title, .guide-info-time) {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 1em;
+  font-weight: var(--cg-weight);
+  line-height: inherit;
+  color: var(--cg-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-info-title { grid-area: title; color: var(--cg-hilite); }
+html[data-ui="cable-guide"] .guide-grid .guide-info-number { grid-area: num; text-align: right; }
+html[data-ui="cable-guide"] .guide-grid .guide-info-channel { grid-area: chan; max-width: 9em; }
+html[data-ui="cable-guide"] .guide-grid .guide-info-time { grid-area: time; }
+html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-info-time { color: var(--cg-text-dim); }
+/* Program info: the channel drops to its own third line, under the time. */
+html[data-ui="cable-guide"] .guide-grid.cg-info-open .guide-info-panel {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title title title"
+    "time time rating"
+    "num chan .";
+}
+html[data-ui="cable-guide"] .guide-grid.cg-info-open .guide-info-number { text-align: left; }
+html[data-ui="cable-guide"] .guide-grid .guide-info-rating {
+  grid-area: rating;
+  display: inline-block;
+  justify-self: end;
+  padding: .05em .35em;
+  border-radius: .2em;
+  background: var(--cg-badge-bg);
+  color: var(--cg-badge-text);
+  text-shadow: none;
+  font-weight: var(--cg-weight-strong);
+  font-size: .8em;
+  line-height: 1.2;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-info-rating.empty { visibility: hidden; }
+html[data-ui="cable-guide"] .guide-grid .guide-info-desc {
+  grid-area: desc;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  line-height: 1.35;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-info-desc { display: none; }
+/* Search, view and dates: one slim line along the header's foot. */
+html[data-ui="cable-guide"] .guide-grid .guide-search-row {
+  position: absolute;
+  left: calc(100cqw / 60 * 2.9);
+  right: calc(100cqw / 60 * 24);
+  bottom: .55em;
+  display: flex;
+  align-items: center;
+  gap: .6em;
+  font-size: .95em;
+}
+html[data-ui="cable-guide"] .guide-grid.docked .guide-search-row { display: none; }
+html[data-ui="cable-guide"] .guide-grid .guide-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1.6em;
+  padding: 0 .4em;
+  border: 0;
+  border-bottom: .08em solid var(--cg-text-dim);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--cg-text);
+  font-size: 1em;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-search::placeholder { color: var(--cg-text-dim); opacity: 1; }
+html[data-ui="cable-guide"] .guide-grid .guide-search:focus { border-bottom-color: var(--cg-focus); box-shadow: none; }
+html[data-ui="cable-guide"] .guide-grid .guide-view-btn {
+  height: 1.6em;
+  padding: 0 .6em;
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  color: var(--cg-text);
+  font-size: .9em;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-view-btn:is(:hover, :focus-visible, .active) {
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  text-shadow: none;
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-daterange { color: var(--cg-text-dim); font-size: .9em; }
+
+/* ---------- Time row ---------- */
+/* The page-forward arrow at the end of the time row. */
+html[data-ui="cable-guide"] .guide-grid .guide-timeheader::after {
+  content: '›';
+  position: absolute;
+  right: .6em;
+  color: var(--cg-text);
+  font-size: 1.2em;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-timeheader {
+  position: relative;
+  height: 1.95em;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  align-items: center;
+  background: var(--cg-timerow);
+  color: var(--cg-text);
+  font-size: calc(100cqw / 60 * 1.12);
+  font-weight: var(--cg-weight);
+}
+html[data-ui="cable-guide"] .guide-grid .guide-timeheader > :first-child { padding-left: 2.3em; }
+html[data-ui="cable-guide"] .guide-th-day { display: inline; }
+html[data-ui="cable-guide"] .guide-grid .guide-th-slot {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: .45em;
+  border-left: .1em solid var(--cg-text-dim);
+  color: var(--cg-text-dim);
+}
+html[data-ui="cable-guide"] .guide-grid .guide-th-slot:nth-child(2) { color: var(--cg-text); }
+
+/* ---------- Rows ---------- */
+html[data-ui="cable-guide"] .guide-grid .guide-rows {
+  padding: 0;
+  scroll-snap-type: y mandatory;
+}
+html[data-ui="cable-guide"] .guide-grid :is(.guide-gridlines, .guide-now-line) { display: none; }
+html[data-ui="cable-guide"] .guide-grid .guide-row { background: var(--cg-gap); }
+html[data-ui="cable-guide"] .guide-grid .guide-row-chan,
+html[data-ui="cable-guide"] .guide-grid .guide-row.active-row .guide-row-chan {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--cg-chcol);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-row-chan > :not(.grc-text) { display: none; }
+html[data-ui="cable-guide"] .guide-grid .grc-text {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 4.3em minmax(0, 1fr);
+  align-items: center;
+  gap: 0;
+  font-size: 1.12em;
+}
+html[data-ui="cable-guide"] .guide-grid :is(.grc-num, .grc-name) {
+  color: var(--cg-chcol-text);
+  font-size: 1em;
+  font-weight: var(--cg-weight);
+  text-shadow: none;
+}
+html[data-ui="cable-guide"] .guide-grid .grc-num { text-align: right; padding-right: 1em; }
+html[data-ui="cable-guide"] .guide-grid .grc-name {
+  display: block;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-ui="cable-guide"] .grc-prefix { display: none; }
+html[data-ui="cable-guide"] .guide-grid .guide-row-track {
+  border: 0;
+  border-radius: 0;
+  background: var(--cg-gap);
+}
+
+/* ---------- Program cells ---------- */
+html[data-ui="cable-guide"] .guide-grid .guide-entry,
+html[data-ui="cable-guide"] .guide-grid .guide-entry:nth-child(even),
+html[data-ui="cable-guide"] .guide-grid .guide-entry.guide-entry-genre:not(.sel) {
+  padding: 0 .4em;
+  border: 0;
+  border-right: .12em solid var(--cg-gap);
+  border-radius: 0;
+  background: var(--cg-cell);
+  box-shadow: none;
+  filter: none;
+  color: var(--cg-cell-text);
+  font-size: 1.12em;
+  font-weight: var(--cg-weight);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .guide-grid .guide-entry:hover { background: var(--cg-cell); }
+html[data-ui="cable-guide"] .guide-grid .guide-entry.past { opacity: 1; color: var(--cg-text-dim); }
+html[data-ui="cable-guide"] .guide-grid .guide-entry.cont::before {
+  content: '<';
+  flex: 0 0 auto;
+  margin-right: .35em;
+  color: var(--cg-text-dim);
+}
+html[data-ui="cable-guide"] .guide-grid .guide-entry.sel,
+html[data-ui="cable-guide"] .guide-grid .guide-entry.sel.guide-entry-genre {
+  z-index: 2;
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  text-shadow: none;
+  box-shadow: none;
+  outline: none;
+  will-change: auto;
+}
+html[data-ui="cable-guide"] .guide-grid .guide-entry.sel.cont::before { color: inherit; }
+/* A block's own accent stays a left edge, where category ticks also go. */
+html[data-ui="cable-guide"] .guide-grid .guide-entry.guide-entry-themed { border-left: .2em solid; }
+
+/* Category. HD: a thin colour edge on the cell. Classic: the whole cell. */
+html[data-ui="cable-guide"] .guide-entry[data-genre] { --category-color: var(--guide-genre-bg); }
+html[data-ui="cable-guide"] .guide-entry[data-genre="movie"] { --category-color: var(--cg-cat-movie); }
+html[data-ui="cable-guide"] .guide-entry[data-genre="sports"] { --category-color: var(--cg-cat-sports); }
+html[data-ui="cable-guide"] .guide-entry[data-genre="kids"] { --category-color: var(--cg-cat-kids); }
+html[data-ui="cable-guide"] .guide-entry[data-genre="news"] { --category-color: var(--cg-cat-news); }
+html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-entry[data-genre]:not(.sel) {
+  box-shadow: inset .2em 0 0 var(--category-color);
+  padding-left: .55em;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry.guide-entry-genre:not(.sel) {
+  background: var(--category-color);
+  color: #ffffff;
+}
+
+/* Classic: two-line titles and number over call letters, and bigger type
+   throughout — the SD guides it copies were sized for a 4:3 tube. */
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid {
+  --guide-row-height: 3.2em;
+}
+html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-info-panel { font-size: 1.25em; }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-info-panel { font-size: 1.35em; top: 3.7em; }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-search-row { font-size: .8em; bottom: .4em; }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { font-size: calc(100cqw / 60 * 1.3); }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry {
+  white-space: normal;
+  line-height: 1.05;
+  font-size: 1.3em;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .grc-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.05;
+  font-size: 1.15em;
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .grc-num {
+  text-align: center;
+  padding: 0;
+}
+
+/* ---------- Footer: key hints as one dim line ---------- */
+html[data-ui="cable-guide"] .guide-grid .guide-hint {
+  margin: 0;
+  padding: .5em 2.9em .6em;
+  border: 0;
+  gap: 0 1.6em;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--cg-text-dim);
+  font-size: calc(100cqw / 60 * .9);
+  font-weight: var(--cg-weight);
+}
+
+/* ---------- Program info (cable-guide/program-info.js) ---------- */
+html[data-ui="cable-guide"] .guide-grid.cg-info-open > :is(.guide-timeheader, .guide-rows, .guide-hint, .guide-program-results) { display: none; }
+html[data-ui="cable-guide"] .guide-grid.cg-info-open .guide-search-row { visibility: hidden; }
+html[data-ui="cable-guide"] .guide-grid.cg-info-open .guide-info-desc { visibility: hidden; }
+html[data-ui="cable-guide"] .cg-program-info {
+  position: relative;
+  flex: 1 1 auto;
+  display: block;
+  min-height: 0;
+}
+html[data-ui="cable-guide"] .cg-info-desc {
+  position: absolute;
+  left: 2.6em;
+  right: 2.6em;
+  top: 2.4em;
+  font-size: 1.12em;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+html[data-ui="cable-guide"] .cg-info-desc-empty { color: var(--cg-text-dim); }
+html[data-ui="cable-guide"] .cg-tiles {
+  position: absolute;
+  left: 2.9em;
+  bottom: 3.6em;
+  display: flex;
+  gap: .45em;
+}
+html[data-ui="cable-guide"] .cg-tile {
+  /* A button doesn't inherit font size; without this its em sizes read the
+     browser's 13px instead of the screen grid. */
+  font: inherit;
+  width: 2.65em;
+  height: 2.65em;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--cg-radius);
+  background: var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  color: var(--cg-text);
+  cursor: pointer;
+}
+html[data-ui="cable-guide"] .cg-tile svg { width: 1.4em; height: 1.4em; fill: currentColor; }
+html[data-ui="cable-guide"] .cg-tile .cg-icon-rec { fill: var(--cg-rec); }
+html[data-ui="cable-guide"] .cg-tile-text { font-size: .62em; font-weight: var(--cg-weight-strong); }
+html[data-ui="cable-guide"] .cg-tile-muted { opacity: .55; }
+html[data-ui="cable-guide"] .cg-tile.focus { background: var(--cg-focus); color: var(--cg-focus-text); box-shadow: none; }
+html[data-ui="cable-guide"] .cg-tile-meaning {
+  position: absolute;
+  left: 2.9em;
+  bottom: 1.6em;
+  font-size: 1.12em;
 }

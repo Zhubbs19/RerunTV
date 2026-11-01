@@ -26,6 +26,12 @@ function write(rect) {
   runCoreHooks('picture-box-change', rect ? { ...rect } : null);
 }
 
+// For a page that works out its own box (listings.js aligns it with a hole in
+// #guide-grid); rect is in the .crt's local pixels, or null.
+export function setPictureBox(rect) {
+  write(rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : null);
+}
+
 export function showPictureBox(screenEl) {
   const crt = screenEl || document.querySelector('#tv-screen .crt');
   if (!crt) return null;

@@ -2273,12 +2273,19 @@
          display wins over picture authenticity for anyone who opts in. -->
     <div id="guide-grid" class="guide-grid hidden" data-slot="guide-grid" role="dialog" aria-modal="true" aria-labelledby="gi-channel" tabindex="-1">
       <div class="guide-topbar" data-slot="guide-topbar">
+        <!-- Cable-guide layout only (cable-guide.css); hidden on the legacy layout. -->
+        <div class="guide-brand" aria-hidden="true">
+          <div class="cg-logo">RERUN TV<small>CABLE</small></div>
+          <div class="cg-status"><span class="cg-clock" id="guide-brand-clock"></span></div>
+        </div>
         <div class="guide-info-panel" data-slot="guide-info-panel">
           <div class="guide-info-number" id="gi-number" data-slot="guide-info-number">--</div>
           <div class="guide-info-body" data-slot="guide-info-body">
             <div class="guide-info-channel" id="gi-channel">CHANNEL GUIDE</div>
             <div class="guide-info-title" id="gi-title" data-slot="guide-info-title">&mdash;</div>
             <div class="guide-info-time" id="gi-time" data-slot="guide-info-time"></div>
+            <span class="guide-info-rating" id="gi-rating"></span>
+            <div class="guide-info-desc" id="gi-desc"></div>
           </div>
         </div>
         <div class="guide-search-row">
@@ -2298,6 +2305,7 @@
         <span>&larr;&rarr; TIME</span>
         <span>/ FILTER</span>
         <span>ENTER TUNE</span>
+        <span>A ACTIONS</span>
         <span>D DOCK / FULL PAGE</span>
         <span>B SHOW BREAKS</span>
         <span>G / ESC CLOSE</span>

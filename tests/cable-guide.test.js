@@ -35,6 +35,64 @@ test('the picture box sits in the header corner on the 60-unit grid', async () =
   assert.equal(pictureBoxRect(960, 100, 'hd').height, 100, 'never taller than the screen');
 });
 
+test('listings: the picture lands in the grid\'s hole even when the grid and screen differ', async () => {
+  const { listingsPictureBox } = await load();
+  // Same box, no scale: the hole and the picture are the same rect.
+  const same = listingsPictureBox({ left: 100, top: 50, width: 960, height: 540 }, { left: 100, top: 50, width: 960, height: 540 }, 960, 'hd');
+  assert.deepEqual(same.hole, { left: 604, top: 0, width: 328, height: 184 });
+  assert.deepEqual(same.picture, { left: 604, top: 0, width: 328, height: 184 });
+  // EXTEND GUIDE TO FULL SCREEN: the grid covers the window, the screen is pillarboxed inside it.
+  const extended = listingsPictureBox({ left: 0, top: 0, width: 1920, height: 1080 }, { left: 240, top: 0, width: 1440, height: 1080 }, 1440, 'hd');
+  assert.deepEqual(extended.picture, { left: 1208 - 240, top: 0, width: 656, height: 368 });
+  // A simulated resolution scales the screen 2x on screen: local pixels are half.
+  const scaled = listingsPictureBox({ left: 0, top: 0, width: 1280, height: 720 }, { left: 0, top: 0, width: 1280, height: 720 }, 640, 'hd');
+  assert.equal(scaled.picture.width, Math.round(scaled.hole.width / 2));
+  assert.equal(listingsPictureBox(null, { left: 0, top: 0, width: 10, height: 10 }, 10), null);
+});
+
+test('program info: tiles pick an icon from the label, or the plugin\'s own', async () => {
+  const { actionIcon, actionMeaning, stepTile } = await load();
+  assert.equal(actionIcon('WATCH FROM START'), 'start');
+  assert.equal(actionIcon('RECORD SERIES'), 'series');
+  assert.equal(actionIcon('RECORD ONCE'), 'record');
+  assert.equal(actionIcon('REMIND ME'), 'remind');
+  assert.equal(actionIcon('REMINDER SET'), 'remind');
+  assert.equal(actionIcon('GUIDE −24 HOURS'), 'day-back');
+  assert.equal(actionIcon('GUIDE +24 HOURS'), 'day-ahead');
+  assert.equal(actionIcon('TV MENU'), 'menu');
+  assert.equal(actionIcon('TUNE'), 'play');
+  assert.equal(actionIcon('SOMETHING NEW'), null, 'unknown labels get a text tile');
+  assert.equal(actionIcon('SOMETHING NEW', 'lock'), 'lock', 'a plugin can name its icon');
+  assert.equal(actionIcon('RECORD', 'not-an-icon'), 'record', 'an unknown icon name falls back to the label');
+  assert.equal(actionMeaning('RECORD SERIES'), 'Record series');
+  assert.equal(actionMeaning('TV MENU'), 'TV menu');
+  assert.equal(stepTile(0, 5, -1), 0);
+  assert.equal(stepTile(4, 5, 1), 4);
+  assert.equal(stepTile(2, 5, 1), 3);
+  assert.equal(stepTile(0, 0, 1), -1);
+});
+
+test('guide ranges read compactly, the way the real guides wrote them', async () => {
+  const { guideRange, guideDayLabel } = await load();
+  const d = (h, m = 0) => new Date(2026, 9, 31, h, m);
+  assert.equal(guideRange(d(12), d(13)), '12-1p');
+  assert.equal(guideRange(d(15, 30), d(16)), '3:30-4p');
+  assert.equal(guideRange(d(20), d(22)), '8-10p');
+  assert.equal(guideRange(d(9, 43), d(11, 9)), '9:43-11:09a');
+  assert.equal(guideRange(d(11, 30), d(12, 30)), '11:30a-12:30p', 'am/pm on both ends when it crosses noon');
+  assert.equal(guideRange(new Date(2026, 9, 31, 23, 30), new Date(2026, 10, 1, 0, 30)), '11:30p-12:30a');
+  assert.equal(guideRange(d(20), d(21, 30), true), '20:00-21:30');
+  assert.equal(guideDayLabel(d(20).getTime(), d(9).getTime()), 'Today');
+  assert.equal(guideDayLabel(new Date(2026, 10, 1, 8).getTime(), d(9).getTime()), 'Sunday');
+});
+
+test('legacy layout hides every part only the cable-guide layout uses', () => {
+  const css = h.stripComments(h.read('renderer', 'css', 'guide.css'));
+  const rule = css.match(/([^{}]+)\{\s*display:\s*none;\s*\}/g).find((r) => r.includes('.guide-brand'));
+  ['.guide-brand', '.guide-info-rating', '.guide-info-desc', '.guide-th-day', '.cg-program-info']
+    .forEach((sel) => assert.ok(rule && rule.includes(sel), `${sel} is hidden on the legacy layout`));
+});
+
 test('sameRect compares by value and treats null as no box', async () => {
   const { sameRect } = await load();
   assert.ok(sameRect({ left: 1, top: 2, width: 3, height: 4 }, { left: 1, top: 2, width: 3, height: 4 }));

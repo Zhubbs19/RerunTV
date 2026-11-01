@@ -1364,7 +1364,12 @@ cares what you added), `'guide-program-actions'` (fired when someone holds OK
 on a program in the guide, with `{ channel, entry, actions }` — push
 `{ label, run }` onto `actions` to add an item to that program's actions menu;
 `entry` is a schedule entry `{ file, start, end }`, and `run` is called after
-the menu closes. `plugins/tape-deck/renderer.js` adds RECORD this way).
+the menu closes. `plugins/tape-deck/renderer.js` adds RECORD this way. The
+cable-guide layout shows these as square icon tiles; add `icon` to pick one
+of `back`, `play`, `start`, `info`, `record`, `series`, `remind`, `list`,
+`day-back`, `day-ahead`, `menu`, `favorite`, `lock`, `mark` — without it the
+label picks one, or the tile shows the label's first letters. The menu opens
+from a held OK on a remote, `A` or a right-click on desktop).
 
 Three more describe what is on screen, so an overlay plugin can stay out of
 the way in either on-screen layout (the legacy one, or the cable-guide layout
