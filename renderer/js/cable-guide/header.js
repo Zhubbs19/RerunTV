@@ -48,6 +48,20 @@ export function createGuideHeader({ logo = 'RERUN TV', tagline = 'CABLE' } = {})
       if (name !== undefined) lines.name.textContent = name;
       if (help !== undefined) lines.help.textContent = help;
     },
+    // A program page's header: title (highlight colour), time with a rating
+    // badge, then the channel — the order program info uses.
+    setProgram({ title = '', time = '', channel = '', rating = '' } = {}) {
+      el.classList.add('cg-program');
+      lines.where.textContent = title;
+      lines.name.textContent = time;
+      lines.help.textContent = channel;
+      let badge = lines.name.querySelector('.cg-badge');
+      if (rating) {
+        if (!badge) { badge = document.createElement('span'); badge.className = 'cg-badge'; }
+        badge.textContent = rating;
+        lines.name.appendChild(badge);
+      } else if (badge) badge.remove();
+    },
     setMessages(count) {
       messagesEl.classList.toggle('hidden', !(count > 0));
       messagesEl.title = count > 0 ? `${count} message${count === 1 ? '' : 's'}` : 'Messages';

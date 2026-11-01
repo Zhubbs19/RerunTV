@@ -11,6 +11,9 @@ import { S, viewNow } from '../core/state.js';
 import { explainLayers } from '../core/schedule-query.js';
 import { getDisplayTitle } from '../core/util.js';
 import { describeWhyAiring } from '../core/why-airing.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
+import { hideDetailsPage, showDetailsPage } from '../cable-guide/details-page.js';
 
 let detailsPreviouslyFocused = null;
 
@@ -164,12 +167,17 @@ function populateDetails(file, ctx) {
 export function showDetailsOverlay(file, ctx) {
   if (detailsOverlayEl.classList.contains('hidden')) detailsPreviouslyFocused = document.activeElement;
   populateDetails(file, ctx || {});
+  // The cable-guide layout shows this as a program info page.
+  if (currentUiMode() === CABLE_GUIDE_UI) {
+    showDetailsPage(detailsOverlayEl, { title: detailsTitleEl.textContent, file, ctx: ctx || {}, onBack: hideDetailsOverlay });
+  }
   detailsOverlayEl.classList.remove('hidden');
   requestAnimationFrame(() => detailsOverlayEl.focus({ preventScroll: true }));
 }
 
 export function hideDetailsOverlay() {
   detailsOverlayEl.classList.add('hidden');
+  hideDetailsPage(detailsOverlayEl);
   if (detailsPreviouslyFocused && detailsPreviouslyFocused.isConnected && detailsPreviouslyFocused.getClientRects().length && detailsPreviouslyFocused.focus) {
     detailsPreviouslyFocused.focus({ preventScroll: true });
   } else if (document.activeElement && document.activeElement.blur) {

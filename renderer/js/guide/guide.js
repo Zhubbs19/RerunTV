@@ -770,7 +770,8 @@ export function openGuideProgramActions() {
           },
         });
       }
-      if (!S.config.details || S.config.details.enabled !== false) items.push({ label: 'INFO', run: () => showDetailsForGuideSelection() });
+      // Cable-guide program info already is the info page.
+      if ((!S.config.details || S.config.details.enabled !== false) && !cableGuide()) items.push({ label: 'INFO', run: () => showDetailsForGuideSelection() });
       if (currentProfile()) {
         items.push({
           label: 'RECORD ONCE',

@@ -970,3 +970,247 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-quick-title {
 html[data-ui="cable-guide"][data-guide-layout="classic"] :is(.cg-menu-btn, .cg-row) { font-size: 1.28em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-menu-grid { grid-template-rows: repeat(5, 2.3em); }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-quick { padding-top: 0; }
+
+/* ======================================================================
+   Dialogs on the TV screen: a thin-rimmed box, a caps title, the question
+   in the prompt colour, and the choices as rows that each start with a
+   small square tile (filled when focused). Setup keeps the legacy dialogs
+   until it is redesigned, so body-level dialogs are scoped to the TV
+   screen being up.
+   ====================================================================== */
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) :is(.confirm-dialog-box, .time-calendar-box),
+html[data-ui="cable-guide"] :is(.tv-exit-prompt-panel, .tv-wizard > *, .handoff > *),
+html[data-ui="cable-guide"] .preview-modal-box.pin-modal-box {
+  /* Sized to the window, like the rest of the TV screen: a 1080p-wide
+     window reads it at couch distance, a small one still fits. */
+  font-size: clamp(15px, 1.1vw, 30px) !important;
+  min-width: min(30em, 86vw);
+  max-width: 46em;
+  padding: 1em 1.5em 1.2em !important;
+  border: .12em solid var(--cg-dialog-rim) !important;
+  border-radius: var(--cg-radius) !important;
+  background: var(--cg-dialog) !important;
+  box-shadow: none !important;
+  color: var(--cg-text) !important;
+  font-family: var(--cg-font) !important;
+  font-weight: var(--cg-weight);
+  letter-spacing: 0;
+  text-shadow: var(--cg-text-shadow);
+  animation: none;
+}
+/* The boxes the real guides drew wide: questions, PIN, leaving. */
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-box,
+html[data-ui="cable-guide"] .tv-exit-prompt-panel,
+html[data-ui="cable-guide"] .preview-modal-box.pin-modal-box {
+  width: min(60vw, 46em);
+  max-width: 86vw;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog { background: rgba(0, 0, 0, .35); animation: none; }
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) :is(.confirm-dialog-title, .time-calendar-title),
+html[data-ui="cable-guide"] :is(.tv-exit-prompt-title, .pin-title) {
+  text-align: center;
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight-strong);
+  font-size: 1.12em;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--cg-text);
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-danger .confirm-dialog-title { color: var(--cg-text); }
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) :is(.confirm-dialog-message, .time-calendar-note),
+html[data-ui="cable-guide"] .pin-notice {
+  text-align: center;
+  font-family: var(--cg-font);
+  font-size: 1.05em;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--cg-prompt);
+}
+/* Choices: one per row, a tile on the left. The legacy button paints its
+   gloss with an absolute ::before and forces its default button's colours,
+   so the tile and colours here have to take both back. */
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: .35em;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: .7em;
+  min-height: 2em;
+  padding: .1em .6em .1em .1em;
+  border: 0 !important;
+  border-radius: var(--cg-btn-radius);
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--cg-text) !important;
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  font-size: 1.05em;
+  letter-spacing: 0;
+  text-transform: none;
+  text-align: left;
+  text-shadow: var(--cg-text-shadow);
+  transform: none;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn::before,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn::before {
+  content: '›';
+  position: static;
+  inset: auto;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: var(--cg-radius);
+  background: var(--cg-btn);
+  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim);
+  color: var(--cg-text);
+  font-size: 1.1em;
+  line-height: 1;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:hover, :focus, :focus-visible),
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :focus, :focus-visible) {
+  outline: none;
+  color: var(--cg-hilite) !important;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:hover, :focus, :focus-visible)::before,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :focus, :focus-visible)::before {
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .tv-exit-prompt-hint { color: var(--cg-text-dim); letter-spacing: 0; font-family: var(--cg-font); }
+
+/* PIN: a wide dialog — caps title, prompt, the code as a value bar, and a
+   one-row keypad for the mouse (digits on a keyboard or remote work too). */
+html[data-ui="cable-guide"] .preview-modal-box.pin-modal-box { text-align: center; }
+html[data-ui="cable-guide"] .pin-header { display: none; }
+html[data-ui="cable-guide"] .pin-dots,
+html[data-ui="cable-guide"] .pin-dots.pin-shake {
+  display: inline-block;
+  min-width: 7em;
+  margin: .5em auto;
+  padding: .15em 1em;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  font-family: var(--cg-font);
+  font-size: 1.2em;
+  letter-spacing: .2em;
+  text-shadow: none;
+  animation: none;
+}
+html[data-ui="cable-guide"] .pin-keypad {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: .25em;
+  max-width: none;
+  margin: .4em auto;
+}
+html[data-ui="cable-guide"] .pin-key {
+  width: auto !important;
+  grid-column: auto !important;
+  min-width: 1.9em;
+  padding: .25em .4em !important;
+  border: 0 !important;
+  border-radius: var(--cg-btn-radius) !important;
+  background: var(--cg-btn) !important;
+  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim) !important;
+  color: var(--cg-text) !important;
+  font-family: var(--cg-font) !important;
+  font-size: .95em !important;
+  letter-spacing: 0;
+  text-shadow: none;
+  transform: none;
+  transition: none;
+}
+html[data-ui="cable-guide"] .pin-key:is(:hover, :focus-visible) {
+  background: var(--cg-focus) !important;
+  color: var(--cg-focus-text) !important;
+  box-shadow: none !important;
+  outline: none;
+}
+html[data-ui="cable-guide"] .pin-hint { color: var(--cg-text-dim); font-family: var(--cg-font); font-size: .85em; letter-spacing: 0; }
+
+/* Time machine calendar: the skin's cells, solid focus. */
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .time-calendar-box :is(.btn, button) {
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-btn);
+  box-shadow: inset 0 0 0 2px var(--cg-btn-rim);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  letter-spacing: 0;
+  text-shadow: none;
+  transform: none;
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .time-calendar-box :is(.btn, button):is(:hover, :focus-visible, [aria-selected="true"], .selected) {
+  background: var(--cg-focus);
+  color: var(--cg-focus-text);
+  box-shadow: none;
+  outline: none;
+}
+
+/* The update notice and changelog card take the skin too. */
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) :is(#update-toast, .update-changelog-card) {
+  border: 2px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-dialog);
+  box-shadow: none;
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  letter-spacing: 0;
+}
+
+/* ======================================================================
+   Info (cable-guide/details-page.js): the I card as a program info page.
+   ====================================================================== */
+html[data-ui="cable-guide"] .details-overlay.cg-details-open {
+  display: block;
+  container-type: size;
+  background: none;
+}
+html[data-ui="cable-guide"] .details-overlay.cg-details-open > .details-panel { display: none; }
+html[data-ui="cable-guide"] .cg-details {
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: 0 0, var(--picture-box-left, 0) var(--picture-box-top, 0);
+  -webkit-mask-size: 100% 100%, var(--picture-box-width, 0) var(--picture-box-height, 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+html[data-ui="cable-guide"] .cg-header.cg-program .cg-where { color: var(--cg-hilite); }
+html[data-ui="cable-guide"] .cg-header.cg-program .cg-name { color: var(--cg-text); }
+html[data-ui="cable-guide"][data-guide-layout="hd"] .cg-header.cg-program .cg-name { color: var(--cg-text-dim); }
+html[data-ui="cable-guide"] .cg-header.cg-program .cg-name .cg-badge { float: right; margin-top: .2em; }
+html[data-ui="cable-guide"] .cg-details-desc {
+  position: absolute;
+  left: 2.6em;
+  right: 2.6em;
+  top: 14.2em;
+  font-size: 1.12em;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 7;
+  overflow: hidden;
+}
+html[data-ui="cable-guide"] .cg-details-extra {
+  position: absolute;
+  left: 2.9em;
+  right: 2.9em;
+  bottom: 7.2em;
+  color: var(--cg-text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-ui="cable-guide"] .cg-details .cg-tiles { position: absolute; left: 2.9em; bottom: 3.6em; display: flex; }
+html[data-ui="cable-guide"] .cg-details .cg-tile-meaning { position: absolute; left: 2.9em; bottom: 1.6em; font-size: 1.12em; }
