@@ -59,7 +59,11 @@ test('the same button means different things per context, and D-pad differs from
   assert.equal(routeRemoteKey('timeMachine', 'chUp'), 'key:ArrowUp', 'CH± still changes channel');
   assert.equal(routeRemoteKey('timeMachine', 'ok'), 'key:Enter');
   assert.equal(routeRemoteKey('timeMachine', 'back'), 'key:Escape');
-  assert.equal(routeRemoteKey('menu', 'playPause'), 'key:Escape');
+  assert.equal(routeRemoteKey('menu', 'playPause'), 'menu.again', 'Escape on the legacy menu, Quick → Main Menu on the cable guide');
+  assert.equal(routeRemoteKey('menu', 'menu'), 'menu.again');
+  assert.equal(routeRemoteKey('watching', 'record'), 'key:r', 'RECORD records; air check is X');
+  assert.equal(routeRemoteKey('watching', 'captions'), 'key:k');
+  assert.equal(routeRemoteKey('watching', 'audioTrack'), 'key:u');
   assert.equal(routeRemoteKey('dialog', 'right'), 'focus.right');
   assert.equal(routeRemoteKey('text', 'left'), null, 'a text field keeps its arrows');
   assert.equal(routeRemoteKey('text', 'back'), 'key:Escape');

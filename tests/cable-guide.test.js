@@ -86,6 +86,43 @@ test('guide ranges read compactly, the way the real guides wrote them', async ()
   assert.equal(guideDayLabel(new Date(2026, 10, 1, 8).getTime(), d(9).getTime()), 'Sunday');
 });
 
+test('menu labels read in title case, keeping abbreviations', async () => {
+  const { menuLabel } = await load();
+  assert.equal(menuLabel('CHANNELS ›'), 'Channels');
+  assert.equal(menuLabel('LAST CH'), 'Last CH');
+  assert.equal(menuLabel('PICTURE & SOUND ›'), 'Picture & Sound');
+  assert.equal(menuLabel('PROFILE: EVERYONE ›'), 'Profile: Everyone');
+  assert.equal(menuLabel('CONTINUE ON… ›'), 'Continue on…');
+  assert.equal(menuLabel('SHUT DOWN PC'), 'Shut Down PC');
+  assert.equal(menuLabel('RETURN TO LIVE'), 'Return to Live');
+  assert.equal(menuLabel('CH ▲'), 'CH ▲');
+});
+
+test('Main Menu arrows: two columns of five, filled down, paged', async () => {
+  const { menuMove } = await load();
+  const n = 13; // page 1: 0-4 | 5-9; page 2: 10-12 | —
+  assert.deepEqual(menuMove(0, n, 'ArrowDown'), { index: 1, edge: null });
+  assert.deepEqual(menuMove(4, n, 'ArrowDown'), { index: 10, edge: null }, 'off the bottom of the left column: next page');
+  assert.deepEqual(menuMove(9, n, 'ArrowDown'), { index: 12, edge: null }, 'next page has no right column: its last item');
+  assert.deepEqual(menuMove(10, n, 'ArrowUp'), { index: 4, edge: null }, 'off the top: previous page, same column');
+  assert.deepEqual(menuMove(2, n, 'ArrowRight'), { index: 7, edge: null });
+  assert.deepEqual(menuMove(7, n, 'ArrowLeft'), { index: 2, edge: null });
+  assert.deepEqual(menuMove(2, n, 'ArrowLeft'), { index: 2, edge: 'left' }, 'left of the left column: back');
+  assert.deepEqual(menuMove(11, n, 'ArrowRight'), { index: 11, edge: 'right' }, 'a page with one column has nothing to the right');
+  assert.deepEqual(menuMove(0, 3, 'ArrowUp'), { index: 0, edge: null });
+});
+
+test('settings rows and fixed grids', async () => {
+  const { menuMove } = await load();
+  assert.deepEqual(menuMove(4, 8, 'ArrowDown', 'rows'), { index: 5, edge: null });
+  assert.deepEqual(menuMove(3, 8, 'ArrowLeft', 'rows'), { index: 3, edge: 'left' });
+  assert.deepEqual(menuMove(3, 8, 'ArrowRight', 'rows'), { index: 3, edge: 'right' });
+  // The number pad: 3 wide.
+  assert.deepEqual(menuMove(4, 12, 'ArrowDown', 3), { index: 7, edge: null });
+  assert.deepEqual(menuMove(3, 12, 'ArrowLeft', 3), { index: 3, edge: 'left' });
+  assert.deepEqual(menuMove(11, 12, 'ArrowDown', 3), { index: 11, edge: null });
+});
+
 test('legacy layout hides every part only the cable-guide layout uses', () => {
   const css = h.stripComments(h.read('renderer', 'css', 'guide.css'));
   const rule = css.match(/([^{}]+)\{\s*display:\s*none;\s*\}/g).find((r) => r.includes('.guide-brand'));

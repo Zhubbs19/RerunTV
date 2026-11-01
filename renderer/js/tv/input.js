@@ -38,6 +38,8 @@ import { isVirtualChannel, triggerVirtualChannelAction, virtualChannelHandlesAct
 import { bannerHubOpen, bannerKey, openBannerHub } from './banner-hub.js';
 import { moveFocusSpatially, registerModal, topModal } from '../ui/focus.js';
 import { registerOverlaySurface } from '../display/overlay-signal.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 let keyboardHandler = null;
 
@@ -229,6 +231,7 @@ const ACTIONS = {
   'info.show': () => showDetailsForCurrentChannel(),
   'menu.open': () => openTvMenu(),
   'menu.toggle': () => (shortcutsOverlayEl.classList.contains('hidden') ? openTvMenu() : closeTvMenu()),
+  'menu.again': (source) => runAction(currentUiMode() === CABLE_GUIDE_UI ? 'key:?' : 'key:Escape', source),
   'menu.first': () => { const b = menuButtons(); if (b[0]) b[0].focus(); },
   'menu.last': () => { const b = menuButtons(); if (b.length) b[b.length - 1].focus(); },
   'timeMachine.open': () => { if (!S.timeMachineOn) enterTimeMachine(); },

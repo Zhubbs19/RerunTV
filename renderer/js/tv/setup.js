@@ -29,8 +29,12 @@ const pct = (v) => `${Math.round(v)}%`;
 
 // A menu item for a value: OK and ▶ step forward, ◀ steps back.
 function valueItem(label, read, write) {
+  const value = read();
   return {
-    label: `${label}: ${read()}`,
+    label: `${label}: ${value}`,
+    // The cable-guide menu draws these as `Label:  < value >` rows.
+    name: label,
+    value,
     keepOpen: true,
     run: () => write(1),
     adjust: (direction) => write(direction),
@@ -173,6 +177,8 @@ function guideItems() {
     // Live preview: each step applies the theme straight away.
     valueItem('THEME', () => themeLabel(S.config.theme), (d) => { setSetting(['theme'], cycleChoice(themeIds(), S.config.theme, d)); applyTheme(); }),
     valueItem('24-HOUR CLOCK', () => onOff(display().clock24), () => setSetting(['display', 'clock24'], !display().clock24)),
+    // The switch behind TIME MACHINE ›'s go-to targets, once desktop-only.
+    valueItem('TIME MACHINE', () => onOff(S.config.timeMachine && S.config.timeMachine.enabled), () => setSetting(['timeMachine', 'enabled'], !(S.config.timeMachine && S.config.timeMachine.enabled))),
     valueItem('GUIDE COLUMN', () => `${display().guideSlotMinutes || 30} MIN`, (d) => setSetting(['display', 'guideSlotMinutes'], cycleChoice([15, 30, 60], display().guideSlotMinutes || 30, d))),
     valueItem('GUIDE WIDTH', () => `${display().guideSlots || 3} COLUMNS`, (d) => setSetting(['display', 'guideSlots'], cycleChoice([2, 3, 4], display().guideSlots || 3, d))),
     valueItem('CHANNEL NAMES', () => (display().guideChannelNames === 'short' ? 'CALL LETTERS' : 'FULL'), () => setSetting(['display', 'guideChannelNames'], display().guideChannelNames === 'short' ? 'full' : 'short')),

@@ -138,6 +138,85 @@ export function guideDayLabel(windowStart, now) {
   return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][a.getDay()];
 }
 
+// ---------- Menus ----------
+// Menu labels are written in caps for the legacy menu; the cable-guide
+// menus show them in title case ("LAST CH" → "Last CH", "CHANNELS ›" →
+// "Channels"). Abbreviations and symbols keep their case.
+const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR']);
+const LOWER_WORDS = new Set(['a', 'an', 'and', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+
+export function menuLabel(label) {
+  const text = String(label || '').replace(/\s*›\s*$/, '').trim();
+  let first = true;
+  return text.replace(/[A-Za-z][A-Za-z'’]*/g, (word) => {
+    const upper = word.toUpperCase();
+    let out;
+    if (KEEP_CASE.has(upper)) out = upper;
+    else if (!first && LOWER_WORDS.has(word.toLowerCase())) out = word.toLowerCase();
+    else out = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    first = false;
+    return out;
+  });
+}
+
+// The Main Menu grid: two columns of five, filled down each column, a page at
+// a time ("More Choices"). Settings pages are one column of five rows.
+export const MENU_ROWS = 5;
+export const MENU_PAGE = MENU_ROWS * 2;
+
+export function menuPageOf(index, layout) {
+  return Math.floor(index / (layout === 'rows' ? MENU_ROWS : MENU_PAGE));
+}
+
+// One arrow press on a menu page. layout is 'grid' (two columns, paged),
+// 'rows' (settings, one column, paged by five) or a number (a fixed
+// row-major grid that many columns wide, like the number pad). Returns the
+// new index, or `edge: 'left' | 'right'` when the press runs off the side.
+export function menuMove(index, count, key, layout = 'grid') {
+  if (!(count > 0)) return { index: -1, edge: null };
+  const stay = { index, edge: null };
+  if (typeof layout === 'number') {
+    const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -layout, ArrowDown: layout }[key];
+    if (step == null) return stay;
+    const next = index + step;
+    if (key === 'ArrowLeft' && index % layout === 0) return { index, edge: 'left' };
+    return next >= 0 && next < count ? { index: next, edge: null } : stay;
+  }
+  if (layout === 'rows') {
+    if (key === 'ArrowDown') return { index: Math.min(count - 1, index + 1), edge: null };
+    if (key === 'ArrowUp') return { index: Math.max(0, index - 1), edge: null };
+    if (key === 'ArrowLeft') return { index, edge: 'left' };
+    if (key === 'ArrowRight') return { index, edge: 'right' };
+    return stay;
+  }
+  const page = Math.floor(index / MENU_PAGE);
+  const local = index % MENU_PAGE;
+  const col = Math.floor(local / MENU_ROWS);
+  const row = local % MENU_ROWS;
+  const pageStart = page * MENU_PAGE;
+  const pageEnd = Math.min(count, pageStart + MENU_PAGE);
+  if (key === 'ArrowDown') {
+    if (row < MENU_ROWS - 1 && index + 1 < pageEnd && Math.floor(((index + 1) % MENU_PAGE) / MENU_ROWS) === col) return { index: index + 1, edge: null };
+    const nextStart = pageStart + MENU_PAGE;
+    if (nextStart < count) return { index: Math.min(count - 1, nextStart + col * MENU_ROWS), edge: null };
+    return stay;
+  }
+  if (key === 'ArrowUp') {
+    if (row > 0) return { index: index - 1, edge: null };
+    if (page > 0) return { index: (page - 1) * MENU_PAGE + col * MENU_ROWS + MENU_ROWS - 1, edge: null };
+    return stay;
+  }
+  if (key === 'ArrowRight') {
+    if (col === 0 && pageStart + MENU_ROWS < pageEnd) return { index: Math.min(index + MENU_ROWS, pageEnd - 1), edge: null };
+    return { index, edge: 'right' };
+  }
+  if (key === 'ArrowLeft') {
+    if (col === 1) return { index: index - MENU_ROWS, edge: null };
+    return { index, edge: 'left' };
+  }
+  return stay;
+}
+
 // surfaces: [[name, { connected, hidden }]] → the open names, sorted and
 // de-duplicated, so the published value only changes when the set does.
 export function openSurfaceNames(surfaces) {

@@ -187,6 +187,35 @@ export function commitEntry() {
 // Shift on its way to another key, shouldn't light the set up.
 const BARE_MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'AltGraph', 'Meta', 'OS', 'CapsLock', 'NumLock', 'ScrollLock', 'Fn', 'FnLock', 'Hyper', 'Super']);
 
+// A short note on the channel banner: the legacy card's NOW line, or the
+// cable-guide Flip Bar's description line.
+function bannerNote(text) {
+  showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
+  const guideNow = document.getElementById('guide-now');
+  if (guideNow) guideNow.textContent = text;
+  const flipDesc = document.getElementById('flip-desc');
+  if (flipDesc) flipDesc.textContent = text;
+}
+
+// Quick-jump slots 1-4 (Ctrl / Alt + number, and the TV menu's CHANNELS).
+export function saveQuickJump(slot) {
+  S.quickJumpSlots[slot] = S.currentNumber;
+  if (S.personalProfile) personalCommand({ type: 'state.set', key: 'quickJumpSlots', value: S.quickJumpSlots }).catch(() => {});
+  bannerNote(`⭐ QUICK-JUMP SLOT ${slot} SAVED!`);
+}
+
+export function recallQuickJump(slot) {
+  const target = S.quickJumpSlots[slot];
+  if (target != null) tuneToChannel(target);
+}
+
+// Stereo → mono → SAP (Shift+M, the Quick Menu's audio tile).
+export function cycleSapMode() {
+  const modes = ['stereo', 'mono', 'sap'];
+  S.sapMode = modes[(modes.indexOf(S.sapMode) + 1) % modes.length];
+  bannerNote(`🔊 AUDIO MODE: ${S.sapMode.toUpperCase()}`);
+}
+
 export function handleKey(e) {
   if (tvScreen.classList.contains('hidden')) return;
 
@@ -276,27 +305,17 @@ export function handleKey(e) {
   if (triggerVirtualChannelKey(S.currentNumber, e.key)) return;
 
   if (e.ctrlKey && e.key >= '1' && e.key <= '4') {
-    S.quickJumpSlots[e.key] = S.currentNumber;
-    if (S.personalProfile) personalCommand({ type: 'state.set', key: 'quickJumpSlots', value: S.quickJumpSlots }).catch(() => {});
-    showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
-    const guideNow = document.getElementById('guide-now');
-    if (guideNow) guideNow.textContent = `⭐ QUICK-JUMP SLOT ${e.key} SAVED!`;
+    saveQuickJump(e.key);
     return;
   }
 
   if (e.altKey && e.key >= '1' && e.key <= '4') {
-    const target = S.quickJumpSlots[e.key];
-    if (target != null) tuneToChannel(target);
+    recallQuickJump(e.key);
     return;
   }
 
   if (e.shiftKey && (e.key === 'm' || e.key === 'M')) {
-    const modes = ['stereo', 'mono', 'sap'];
-    const idx = (modes.indexOf(S.sapMode) + 1) % modes.length;
-    S.sapMode = modes[idx];
-    showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
-    const guideNow = document.getElementById('guide-now');
-    if (guideNow) guideNow.textContent = `🔊 AUDIO MODE: ${S.sapMode.toUpperCase()}`;
+    cycleSapMode();
     return;
   }
 

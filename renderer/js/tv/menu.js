@@ -9,13 +9,19 @@
 // controls, since all of those already just dispatch a 'keydown' that
 // lands here the same way.
 import { guideGrid, shortcutsOverlayEl } from '../core/dom.js';
-import { changeChannel, jumpToLastChannel, toggleChannelScan, tuneToChannel } from '../playback/core.js';
+import { changeChannel, changeFavoriteChannel, jumpToLastChannel, toggleChannelScan, tuneToChannel } from '../playback/core.js';
 import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCheck } from '../library/airchecks.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from '../guide/guide.js';
+import { cycleGuideView, focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from '../guide/guide.js';
+import { GUIDE_VIEW_LABELS } from '../core/guide-filter.js';
+import { skipCurrentBreak } from '../playback/breaks.js';
+import { toggleRecentChannels } from '../playback/recent-channels.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
+import { cgMenuKey, cgMenuMode, closeCgMenu, openQuickMenu, renderMainMenu } from '../cable-guide/main-menu.js';
 import { getRendererService, interruptEntries } from '../plugin/host.js';
 import {
-  currentProgramStart, enterTimeMachine, exitTimeMachine, returnToLive, timeMachineAvailable, timeMachineGoTo,
+  currentProgramStart, enterTimeMachine, exitTimeMachine, restartCurrentShow, returnToLive, timeMachineAvailable, timeMachineGoTo,
 } from '../playback/timemachine.js';
 import { formatClock } from '../core/util.js';
 import { openTimeCalendar } from '../playback/time-calendar.js';
@@ -27,7 +33,7 @@ import {
 import { confirmPcShutdown, pcShutdownEnabled } from '../playback/pc-power.js';
 import { getClientId, MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
 import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } from './usage-mode.js';
-import { commitEntry, pushDigit, showSetupScreen } from '../app.js';
+import { commitEntry, cycleSapMode, pushDigit, recallQuickJump, saveQuickJump, showSetupScreen } from '../app.js';
 import { subChannelsEnabled } from '../core/channels.js';
 import { openHandoff } from './handoff.js';
 import { tvSetupItems } from './setup.js';
@@ -111,6 +117,8 @@ function guideActions() {
     { label: S.guideDocked ? 'FULL PAGE GUIDE' : 'DOCK GUIDE', run: () => toggleGuideDockMode() },
     { label: S.guideShowBreaks ? 'HIDE BREAKS' : 'SHOW BREAKS', run: () => toggleGuideShowBreaks() },
     { label: 'SEARCH GUIDE', run: () => focusGuideSearch() },
+    // ALL CHANNELS → FAVORITES → NOT WATCHED LATELY, which had no remote path.
+    { label: `VIEW: ${GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all}`, keepOpen: true, run: () => cycleGuideView() },
   ];
 }
 
@@ -118,8 +126,20 @@ function guideActions() {
 // One column of large choices, a breadcrumb title, Back up a level — instead
 // of the desktop grid, which stays exactly as it was. Everything the app can
 // do is reachable from here with D-pad + OK + Back alone.
-function section(label, title, items, columns) {
-  return { label: `${label} ›`, submenu: () => ({ title, items: items(), columns }) };
+function section(label, title, items, columns, help) {
+  return { label: `${label} ›`, help, submenu: () => ({ title, items: items(), columns }) };
+}
+
+// Quick-jump slots 1-4, which only Ctrl/Alt + number reached before. Shared
+// by the TV menu and the desktop menu.
+function quickJumpItems() {
+  return ['1', '2', '3', '4'].flatMap((slot) => {
+    const target = S.quickJumpSlots && S.quickJumpSlots[slot];
+    return [
+      { label: `GO TO SLOT ${slot}${target != null ? ` · CH ${target}` : ' · EMPTY'}`, disabled: target == null, run: () => recallQuickJump(slot) },
+      { label: `SAVE THIS CHANNEL AS SLOT ${slot}`, keepOpen: true, run: () => saveQuickJump(slot) },
+    ];
+  });
 }
 
 function profileItems() {
@@ -185,19 +205,25 @@ function handoffItems() {
 function tvRootItems() {
   return [
     ...guideActions(),
-    { label: 'GUIDE', run: () => openGuideGrid() },
+    { label: 'GUIDE', help: 'See what\'s on now and later on every channel.', run: () => openGuideGrid() },
     // Second, so from live TV "yesterday same time" is Play/Pause, ▼, OK, OK,
     // OK — docs/design/11 §5.
-    timeMachineMenuItem(),
+    { ...timeMachineMenuItem(), help: 'Go back in time and watch what aired then.' },
     section('CHANNELS', 'TV MENU · CHANNELS', () => [
       { label: 'CH ▲', run: () => changeChannel(1) },
       { label: 'CH ▼', run: () => changeChannel(-1) },
       { label: 'LAST CH', run: () => jumpToLastChannel() },
+      { label: 'RECENT CHANNELS', help: 'The channels you watched last.', run: () => toggleRecentChannels() },
+      { label: 'NEXT FAVOURITE', help: 'Step to the next channel marked as a favourite.', run: () => changeFavoriteChannel(1) },
+      { label: 'PREVIOUS FAVOURITE', run: () => changeFavoriteChannel(-1) },
       { label: 'TUNE TO NUMBER…', submenu: numberPad },
-      { label: 'SCAN', run: () => toggleChannelScan() },
-    ]),
+      { label: 'QUICK-JUMP SLOTS…', help: 'Save up to four channels and jump straight back to them.', submenu: () => ({ title: 'TV MENU · CHANNELS · QUICK-JUMP', items: quickJumpItems() }) },
+      { label: 'SCAN', help: 'Flip through every channel until you press a button.', run: () => toggleChannelScan() },
+    ], undefined, 'Change, scan and jump between channels.'),
     section('WATCH', 'TV MENU · WATCH', () => [
       { label: 'INFO', run: () => showDetailsForCurrentChannel() },
+      { label: 'START OVER', help: 'Watch this show from its beginning.', run: () => restartCurrentShow() },
+      { label: 'SKIP THIS BREAK', help: 'Jump past the commercial break that\'s on now.', run: () => skipCurrentBreak() },
       { label: 'RETURN TO LIVE', run: () => returnToLive() },
       { label: 'MARK AIR CHECK', run: () => saveAirCheck() },
       ...airChecks().slice(0, AIR_CHECK_MENU_MAX).map((mark) => ({
@@ -212,6 +238,7 @@ function tvRootItems() {
     section('CONTINUE ON…', 'TV MENU · CONTINUE ON…', handoffItems),
     section('PICTURE & SOUND', 'TV MENU · PICTURE & SOUND', () => [
       { label: S.config.muted ? 'UNMUTE' : 'MUTE', keepOpen: true, run: () => toggleMute() },
+      { label: `AUDIO: ${String(S.sapMode || 'stereo').toUpperCase()}`, keepOpen: true, help: 'Stereo, mono or the second audio program.', run: () => cycleSapMode() },
       { label: 'VOL ▲', keepOpen: true, run: () => adjustVolume(0.1) },
       { label: 'VOL ▼', keepOpen: true, run: () => adjustVolume(-0.1) },
       { label: 'CRT FX', keepOpen: true, run: () => toggleCrt() },
@@ -267,7 +294,12 @@ function actions() {
     // Play/Pause, ▼, OK, OK (and OK again to play) — docs/design/11 §5.
     timeMachineMenuItem(),
     { label: 'INFO', run: () => showDetailsForCurrentChannel() },
+    { label: 'START OVER', run: () => restartCurrentShow() },
+    { label: 'SKIP BREAK', run: () => skipCurrentBreak() },
     { label: 'RETURN TO LIVE', run: () => returnToLive() },
+    { label: 'RECENT CHANNELS', run: () => toggleRecentChannels() },
+    { label: 'NEXT FAVOURITE', run: () => changeFavoriteChannel(1) },
+    { label: 'QUICK-JUMP SLOTS ›', submenu: () => ({ title: 'TV MENU · QUICK-JUMP SLOTS', items: quickJumpItems(), columns: 2 }) },
     { label: 'SCAN', run: () => toggleChannelScan() },
     { label: 'MARK AIR CHECK', run: () => saveAirCheck() },
     // The most recent marks, as one-press recalls. This is a remote-friendly
@@ -279,6 +311,7 @@ function actions() {
     })),
     ...interruptEntries().filter((e) => e.label).map((e) => ({ label: e.label, run: () => e.run({ manual: true }) })),
     { label: 'MUTE', run: () => toggleMute() },
+    { label: `AUDIO: ${String(S.sapMode || 'stereo').toUpperCase()}`, keepOpen: true, run: () => cycleSapMode() },
     { label: 'VOL ▲', run: () => adjustVolume(0.1) },
     { label: 'VOL ▼', run: () => adjustVolume(-0.1) },
     { label: 'CRT FX', run: () => toggleCrt() },
@@ -295,9 +328,34 @@ function actions() {
     { label: 'REMOTE TEST', run: () => openRemoteTest() },
     { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
     { label: backExitsImmediately() ? 'BACK ASKS FIRST' : 'BACK EXITS AT ONCE', run: () => setBackExitsImmediately(!backExitsImmediately()) },
+    section(`PROFILE: ${currentProfile()?.name || 'EVERYONE'}`, 'TV MENU · WHO’S WATCHING', profileItems, GRID_COLUMNS),
+    section('MY SHOWS', 'TV MENU · MY SHOWS', myShowsItems, GRID_COLUMNS),
+    section('WATCH TOGETHER', 'TV MENU · WATCH TOGETHER', togetherItems, GRID_COLUMNS),
+    section('CONTINUE ON…', 'TV MENU · CONTINUE ON…', handoffItems, GRID_COLUMNS),
     { label: 'POWER OFF', run: () => powerOff() },
     ...(pcShutdownEnabled() ? [{ label: 'SHUT DOWN PC', run: () => confirmPcShutdown() }] : []),
   ];
+}
+
+// The cable-guide Quick Menu: one row of tiles over the picture.
+function quickTiles() {
+  const lock = S.config.pinLock && S.config.pinLock.enabled;
+  return [
+    { icon: 'home', label: 'Main Menu', help: 'Go to the Main Menu', toMain: true },
+    { icon: 'guide', label: 'Guide', help: 'See what\'s on now and later', run: () => openGuideGrid() },
+    { icon: 'clock', label: 'Time Machine', help: 'Go back in time', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) },
+    { icon: 'start', label: 'Start Over', help: 'Watch this show from the start', run: () => restartCurrentShow() },
+    { icon: 'recent', label: 'Recent', help: 'The channels you watched last', run: () => toggleRecentChannels() },
+    { icon: 'favorite', label: 'Favourites', help: 'Next favourite channel', run: () => changeFavoriteChannel(1) },
+    { icon: 'search', label: 'Search', help: 'Find a show by name', run: () => { openGuideGrid(); setTimeout(() => focusGuideSearch(), 50); } },
+    { icon: 'skip', label: 'Skip Break', help: 'Jump past this commercial break', run: () => skipCurrentBreak() },
+    { icon: 'audio', label: 'Audio', help: `Stereo, mono or SAP (now ${String(S.sapMode || 'stereo').toUpperCase()})`, run: () => cycleSapMode() },
+    { icon: 'lock', label: 'Parental Lock', help: lock ? 'The lock is on' : 'The lock is off', run: () => openTvMenuAt(['SETUP ›', 'PARENTAL LOCK ›']) },
+  ];
+}
+
+function cableGuide() {
+  return currentUiMode() === CABLE_GUIDE_UI;
 }
 
 const gridEl = document.getElementById('tv-menu-grid');
@@ -317,9 +375,72 @@ const titleEl = document.getElementById('tv-menu-title');
 let viewColumns = GRID_COLUMNS;
 let viewItems = [];
 
+// What OK on an item does, in either layout's menu.
+function activateItem(a, i) {
+  if (!a || a.disabled) return;
+  if (a.submenu) {
+    menuStack.push(a.submenu);
+    const sub = a.submenu();
+    if (sub.onOpen) sub.onOpen();
+    rebuildMenu(0);
+    return;
+  }
+  if (a.keepOpen) {
+    const result = a.run();
+    rebuildMenu(i);
+    // An item that asks for something first (the on-screen keyboard)
+    // relabels once it's answered.
+    if (result && typeof result.then === 'function') {
+      result.then(() => { if (!shortcutsOverlayEl.classList.contains('hidden')) rebuildMenu(i); });
+    }
+    return;
+  }
+  closeTvMenu();
+  a.run();
+}
+
+function backOneLevel() {
+  if (menuStack.length) { menuStack.pop(); rebuildMenu(0); } else closeTvMenu();
+}
+
+// The cable-guide Main Menu uses the TV hierarchy on desktop too, so every
+// section (profiles, my shows, watch together…) is reachable from both.
+function renderCableGuideMenu(view, focusIndex) {
+  renderMainMenu(shortcutsOverlayEl, view, focusIndex, {
+    activate: (i) => activateItem(viewItems[i], i),
+    adjust: (i, direction) => {
+      const item = viewItems[i];
+      if (item && typeof item.adjust === 'function') { item.adjust(direction); rebuildMenu(i); }
+    },
+    back: backOneLevel,
+    close: () => closeTvMenu(),
+  });
+}
+
+// Opens the menu straight at a path of section labels (the Quick Menu's lock).
+function openTvMenuAt(path) {
+  openTvMenu();
+  if (cableGuide() && cgMenuMode() === 'quick') openTvMenu();
+  let items = tvRootItems();
+  for (const label of path) {
+    const item = items.find((it) => it.label === label);
+    if (!item || !item.submenu) break;
+    menuStack.push(item.submenu);
+    items = item.submenu().items;
+  }
+  rebuildMenu(0);
+}
+
 function rebuildMenu(focusIndex = 0) {
   gridEl.innerHTML = '';
   const level = menuStack[menuStack.length - 1];
+  if (cableGuide()) {
+    const cgView = level ? level() : { title: 'TV MENU', items: tvRootItems() };
+    viewItems = cgView.items;
+    buttons = [];
+    renderCableGuideMenu(cgView, focusIndex);
+    return;
+  }
   const view = level ? level() : { title: 'TV MENU', items: isTvMode() ? tvRootItems() : actions() };
   viewColumns = view.columns || (isTvMode() ? 1 : GRID_COLUMNS);
   gridEl.style.gridTemplateColumns = viewColumns === GRID_COLUMNS ? '' : `repeat(${viewColumns}, 1fr)`;
@@ -333,28 +454,7 @@ function rebuildMenu(focusIndex = 0) {
     btn.dataset.slot = 'tv-menu-button';
     btn.textContent = a.label;
     if (a.disabled) btn.setAttribute('aria-disabled', 'true');
-    btn.addEventListener('click', () => {
-      if (a.disabled) return;
-      if (a.submenu) {
-        menuStack.push(a.submenu);
-        const sub = a.submenu();
-        if (sub.onOpen) sub.onOpen();
-        rebuildMenu(0);
-        return;
-      }
-      if (a.keepOpen) {
-        const result = a.run();
-        rebuildMenu(i);
-        // An item that asks for something first (the on-screen keyboard)
-        // relabels once it's answered.
-        if (result && typeof result.then === 'function') {
-          result.then(() => { if (!shortcutsOverlayEl.classList.contains('hidden')) rebuildMenu(i); });
-        }
-        return;
-      }
-      closeTvMenu();
-      a.run();
-    });
+    btn.addEventListener('click', () => activateItem(a, i));
     gridEl.appendChild(btn);
     return btn;
   });
@@ -363,6 +463,23 @@ function rebuildMenu(focusIndex = 0) {
 }
 
 export function openTvMenu() {
+  if (cableGuide()) {
+    // First press: the Quick Menu. Pressed again while it's up: the Main Menu.
+    const wasHidden = shortcutsOverlayEl.classList.contains('hidden');
+    if (wasHidden) menuPreviouslyFocused = document.activeElement;
+    menuStack = [];
+    if (wasHidden || cgMenuMode() !== 'quick') {
+      shortcutsOverlayEl.classList.remove('hidden');
+      openQuickMenu(shortcutsOverlayEl, quickTiles(), {
+        toMain: () => rebuildMenu(0),
+        close: () => closeTvMenu(),
+      });
+      shortcutsOverlayEl.focus({ preventScroll: true });
+    } else {
+      rebuildMenu(0);
+    }
+    return;
+  }
   if (shortcutsOverlayEl.classList.contains('hidden')) menuPreviouslyFocused = document.activeElement;
   menuStack = [];
   rebuildMenu();
@@ -374,6 +491,7 @@ export function openTvMenu() {
 
 export function closeTvMenu() {
   menuStack = [];
+  closeCgMenu();
   shortcutsOverlayEl.classList.add('hidden');
   if (menuPreviouslyFocused && menuPreviouslyFocused.isConnected && menuPreviouslyFocused.getClientRects().length && menuPreviouslyFocused.focus) {
     menuPreviouslyFocused.focus({ preventScroll: true });
@@ -389,6 +507,7 @@ export function closeTvMenu() {
 // right/left past a row's edge rolls into the next/previous row rather
 // than stopping dead — a common, easy-to-predict grid-navigation behavior.
 export function handleTvMenuKey(e) {
+  if (cableGuide() && cgMenuMode() && cgMenuKey(e)) return;
   if (e.key === 'Escape' && menuStack.length) {
     menuStack.pop();
     rebuildMenu(0);

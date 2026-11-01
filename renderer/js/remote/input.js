@@ -95,7 +95,10 @@ const WATCHING = {
   menu: 'menu.toggle', playPause: 'menu.toggle', settings: 'menu.toggle',
   guide: 'guide.open', info: 'info.show', last: 'key:Backspace',
   mute: 'key:m', volUp: 'key:+', volDown: 'key:-',
-  rewind: 'timeMachine.open', fastForward: 'timeMachine.open', record: 'key:x',
+  // RECORD records (the tape deck's R); MARK AIR CHECK is X and a menu item.
+  // Captions and audio track reach the captions and SAP plugins' keys.
+  rewind: 'timeMachine.open', fastForward: 'timeMachine.open', record: 'key:r',
+  captions: 'key:k', audioTrack: 'key:u',
   blue: 'key:q',
   dot: 'key:.',
 };
@@ -138,7 +141,8 @@ const BANNER = {
 const MENU = {
   up: 'key:ArrowUp', down: 'key:ArrowDown', left: 'key:ArrowLeft', right: 'key:ArrowRight',
   ok: 'key:Enter', back: 'key:Escape', exit: 'key:Escape',
-  menu: 'key:Escape', playPause: 'key:Escape', settings: 'key:Escape',
+  // Up a level on the legacy menu; Quick Menu → Main Menu on the cable guide.
+  menu: 'menu.again', playPause: 'menu.again', settings: 'menu.again',
   chUp: 'menu.first', chDown: 'menu.last',
 };
 
