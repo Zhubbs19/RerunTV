@@ -489,6 +489,9 @@ const CHANGELOG = [
     'Short shows no longer clutter a row: back-to-back episodes too short to label merge into one guide cell, named for the series when they are all one show.',
     'Buttons are spaced evenly, with more room around them.',
     'The update window that shows while RerunTV updates now matches your theme, including the HD and Classic skins.',
+    'Channel logos on the HD and Classic skins: each channel\u2019s icon shows in the guide, the Mini Guide, the channel banner and program pages. While a menu or page shows the picture in its corner, the logo bug shrinks with it into the same spot.',
+    'The time machine calendar fills the screen and shows the chosen day\u2019s whole schedule for a channel, with special programming named and marked. Pick a program to jump to its start, or step through channels with \u2039 \u203a.',
+    'On the HD and Classic skins: no scrollbars, screens cut instantly like a real cable box, and What\u2019s New and the guide\u2019s top line use the skin\u2019s own type.',
   ] },
   { date: '2026-10-29', items: [
     'Plugins you install yourself now work in a release build: a plugin talks to its own background code through one shared, checked route instead of needing its own entry built into the app.',

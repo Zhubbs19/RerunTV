@@ -29,7 +29,7 @@ import { BREAK_LABELS, breakMarkEl, spanPercent } from '../timeline/render.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { getThemePack, runCoreHooks } from '../plugin/host.js';
 import { currentUiMode } from '../cable-guide/mode.js';
-import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange } from '../cable-guide/model.js';
+import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange, menuLabel } from '../cable-guide/model.js';
 import { syncListingsPicture } from '../cable-guide/listings.js';
 import { openProgramInfo } from '../cable-guide/program-info.js';
 import { fillFlipBar, flipBarProgram, installFlipBar } from '../cable-guide/flip-bar.js';
@@ -366,7 +366,8 @@ function guideLivePreviewEnabled() {
 
 export function syncGuideViewButton() {
   if (guideViewBtnEl) {
-    guideViewBtnEl.textContent = GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all;
+    const viewLabel = GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all;
+    guideViewBtnEl.textContent = cableGuide() ? menuLabel(viewLabel) : viewLabel;
     guideViewBtnEl.classList.toggle('active', S.guideView !== 'all');
   }
 }
@@ -592,6 +593,9 @@ function railName(ch) {
   if (!abbreviatedNames()) return ch.name || 'UNTITLED';
   return channelCallLetters(ch) || ch.name || 'UNTITLED';
 }
+
+const LEGACY_SEARCH_HINT = guideSearchEl.placeholder;
+const CABLE_GUIDE_SEARCH_HINT = '/ Search channels and programs';
 
 function mergeShortsEnabled() {
   return !(S.config.display && S.config.display.guideMergeShorts === false);
@@ -1268,9 +1272,13 @@ export function renderGuideGrid() {
   guideRowsEl.style.setProperty('--guide-slot-w', `${100 / guideSlots()}%`);
 
   const winDate = new Date(S.guideWindowStart);
+  // The cable-guide layout writes its top line in title case, with a hint
+  // short enough for Classic's wider face.
+  const day = `${WEEKDAYS[winDate.getDay()].slice(0, 3)} ${MONTHS[winDate.getMonth()]}`;
   guideDateRangeEl.textContent =
-    `${WEEKDAYS[winDate.getDay()].slice(0, 3)} ${MONTHS[winDate.getMonth()]} ${winDate.getDate()}  ` +
+    `${cableGuide() ? menuLabel(day) : day} ${winDate.getDate()}  ` +
     `${formatSlotLabel(S.guideWindowStart)} – ${formatSlotLabel(windowEnd)}`;
+  guideSearchEl.placeholder = cableGuide() ? CABLE_GUIDE_SEARCH_HINT : LEGACY_SEARCH_HINT;
 
   const previousScrollTop = guideRowsEl.scrollTop;
   guideRowsEl.innerHTML = '';

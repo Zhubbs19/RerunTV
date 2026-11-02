@@ -1,9 +1,13 @@
 // The time machine's calendar: pick any date and time and jump there. Opened with
 // D on live TV, from the TV menu (TIME MACHINE › PICK A DATE…), and from a
 // channel's PREVIEW in setup. Days that have a dateRange block on this channel
-// carry a dot (a December countdown, a Thanksgiving weekend…), and the footer
-// says what would be airing at the chosen moment, so you can see where you are
-// jumping before you go.
+// carry a dot (a December countdown, a Thanksgiving weekend…).
+//
+// It fills most of the screen: the month and the time on the left, and on the
+// right that day's whole schedule for a channel (‹ › steps through channels
+// when it was opened from live TV), with special programming named at the top
+// and tagged on its rows. Picking a row sets the time to that program's start,
+// so you can see exactly where you are jumping before you go.
 //
 // Keys (desktop): arrows move a day / week, PageUp/PageDown a month (with Shift a
 // year), Home goes to today, [ ] change the hour, 1-7 pick a time of day, Enter
@@ -11,10 +15,11 @@
 // presses the focused day or button (ui/dialog.js's ModalSurface).
 import { ModalSurface } from '../ui/dialog.js';
 import { h, isTvMode } from '../ui/kit-core.js';
-import { getChannel } from '../core/channels.js';
-import { computeSourcePosition, dateBlocksOn, resolveActiveSource } from '../core/schedule.js';
+import { formatChannelNumber, getChannel, sortedChannels } from '../core/channels.js';
+import { computeSourcePosition, dateBlocksOn, getChannelSchedule, resolveActiveSource } from '../core/schedule.js';
 import { MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
-import { getDisplayTitle } from '../core/util.js';
+import { formatSlotLabel, getDisplayTitle, guessSeriesName } from '../core/util.js';
+import { channelCallLetters, mergeMicroPrograms, runSeriesName } from '../guide/model.js';
 import {
   TIME_PRESETS, dateFromMs, dateTimeToMs, hourLabel, monthGrid, sameDate, shiftDays, shiftMonths, shiftYears,
 } from '../timeline/calendar-grid.js';
@@ -44,6 +49,37 @@ function airingAt(ch, ms) {
   }
 }
 
+// One day of a channel's schedule as rows: programs, with runs of shorts
+// merged the way the guide merges them, so a day of videos stays readable.
+const DAY_MS = 24 * 3600000;
+const SHORT_MS = 5 * 60000;
+function dayRows(ch, date) {
+  const start = new Date(date.year, date.month, date.day).getTime();
+  const end = new Date(date.year, date.month, date.day + 1).getTime();
+  // A wide window: entries are clipped to the one asked for, and a program
+  // that began the evening before should show its real start.
+  const entries = getChannelSchedule(ch, start - DAY_MS / 4, end).filter((e) => e.end > start);
+  return mergeMicroPrograms(entries, SHORT_MS).map((cell) => {
+    if (cell.kind === 'run') {
+      const series = runSeriesName(cell.items, guessSeriesName);
+      return { start: cell.start, end: cell.end, title: `${series || 'Shorts & bumpers'} (${cell.items.length})`, block: null, special: false };
+    }
+    const block = cell.entry.block || null;
+    const special = !!(block && block.trigger && block.trigger.type === 'dateRange');
+    return { start: cell.start, end: cell.end, title: getDisplayTitle(cell.entry.file), block, special };
+  });
+}
+
+function blockName(block) {
+  return (block && block.name && block.name.trim()) || 'Special programming';
+}
+
+function clockLabel(hour, minute) {
+  if (!minute) return hourLabel(hour);
+  const h12 = hour % 12 || 12;
+  return `${h12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
 function dayLabel(date) {
   const wd = WEEKDAYS[new Date(date.year, date.month, date.day).getDay()].slice(0, 3);
   return `${wd} ${MONTHS[date.month]} ${date.day}, ${date.year}`;
@@ -57,6 +93,9 @@ function dayLabel(date) {
 export function openTimeCalendar(options = {}) {
   if (isTimeCalendarOpen()) { closeTimeCalendar(); return; }
   const ch = options.channel || getChannel(S.currentNumber);
+  // From live TV the day view can look at any channel; setup's PREVIEW is about one.
+  const canSwitch = !options.channel;
+  let viewCh = ch;
   const needsTimeMachine = options.needsTimeMachine !== false;
   const usable = !!ch && (!needsTimeMachine || S.timeMachineOn || timeMachineAvailable());
   const startMs = Number.isFinite(options.startMs) ? options.startMs : viewNow();
@@ -64,6 +103,12 @@ export function openTimeCalendar(options = {}) {
 
   let cursor = dateFromMs(startMs);
   let hour = new Date(startMs).getHours();
+  let minute = 0;
+  // A picked program's exact start (programs rarely start on the minute);
+  // anything else that moves the day or time drops it.
+  let exactMs = null;
+  const setHour = (h) => { hour = h; minute = 0; exactMs = null; };
+  const chosenMs = () => (exactMs != null ? exactMs : dateTimeToMs(cursor, hour, minute));
   const realToday = dateFromMs(Date.now()); // the wall-clock "today" marker, not the viewed time
 
   surface = ModalSurface({ className: 'time-calendar', label: 'Time machine calendar', onCancel: closeTimeCalendar });
@@ -72,14 +117,78 @@ export function openTimeCalendar(options = {}) {
 
   function go() {
     if (!usable) { closeTimeCalendar(); return; }
-    const ms = dateTimeToMs(cursor, hour, 0);
-    const label = `${dayLabel(cursor)} ${hourLabel(hour)}`;
+    const ms = chosenMs();
+    const label = `${dayLabel(cursor)} ${clockLabel(hour, minute)}`;
+    const target = viewCh;
     closeTimeCalendar();
     onGo(ms, label);
+    // Looking at another channel's day and going there tunes to it too.
+    if (canSwitch && target && ch && target.number !== ch.number) {
+      import('./core.js').then((core) => core.tuneToChannel(target.number)).catch(() => {});
+    }
+  }
+
+  function stepChannel(delta) {
+    const list = sortedChannels();
+    if (!list.length || !viewCh) return;
+    const at = list.findIndex((c) => c.number === viewCh.number);
+    viewCh = list[(at + delta + list.length) % list.length];
+    render(true);
+  }
+
+  // The right column: the chosen day on one channel, start to end.
+  function dayView() {
+    const view = h('div', { className: 'time-calendar-dayview' });
+    const name = `${formatChannelNumber(viewCh.number)} ${channelCallLetters(viewCh) || viewCh.name || ''}`.trim();
+    view.appendChild(h('div', { className: 'time-calendar-chan' },
+      canSwitch ? h('button', { className: 'btn time-calendar-nav', text: '‹', attrs: { 'aria-label': 'previous channel' }, dataset: { focusKey: 'ch-prev' }, on: { click: () => stepChannel(-1) } }) : null,
+      h('div', { className: 'time-calendar-chan-name' },
+        h('span', { text: name }),
+        h('span', { className: 'time-calendar-chan-day', text: dayLabel(cursor) })),
+      canSwitch ? h('button', { className: 'btn time-calendar-nav', text: '›', attrs: { 'aria-label': 'next channel' }, dataset: { focusKey: 'ch-next' }, on: { click: () => stepChannel(1) } }) : null));
+
+    const noon = new Date(cursor.year, cursor.month, cursor.day, 12).getTime();
+    const specials = dateBlocksOn(viewCh, noon);
+    if (specials.length) {
+      view.appendChild(h('div', { className: 'time-calendar-special', text: `SPECIAL PROGRAMMING: ${specials.map(blockName).join(' · ')}` }));
+    }
+
+    const at = chosenMs();
+    const list = h('div', { className: 'time-calendar-programs', attrs: { role: 'list' } });
+    const rows = dayRows(viewCh, cursor);
+    if (!rows.length) list.appendChild(h('div', { className: 'time-calendar-empty', text: 'Nothing scheduled on this day.' }));
+    rows.forEach((row) => {
+      const current = at >= row.start && at < row.end;
+      const classes = ['time-calendar-program'];
+      if (current) classes.push('is-current');
+      if (row.special) classes.push('is-special');
+      list.appendChild(h('button', {
+        className: classes.join(' '),
+        dataset: { focusKey: `p-${row.start}` },
+        attrs: { role: 'listitem', 'aria-current': current ? 'true' : 'false' },
+        on: {
+          click: () => {
+            const d = new Date(row.start);
+            cursor = dateFromMs(row.start);
+            hour = d.getHours();
+            minute = d.getMinutes();
+            exactMs = row.start;
+            render(true);
+          },
+          dblclick: go,
+        },
+      },
+      h('span', { className: 'time-calendar-program-time', text: formatSlotLabel(row.start) }),
+      h('span', { className: 'time-calendar-program-title', text: row.title }),
+      row.block ? h('span', { className: 'time-calendar-program-tag', text: blockName(row.block) }) : null));
+    });
+    view.appendChild(list);
+    return view;
   }
 
   function setCursor(date) {
     cursor = date;
+    exactMs = null;
     render(true);
   }
 
@@ -89,6 +198,8 @@ export function openTimeCalendar(options = {}) {
     root.textContent = '';
     const box = h('div', { className: 'time-calendar-box' });
     box.appendChild(h('div', { className: 'time-calendar-title', text: options.title || 'TIME MACHINE · GO TO A DATE' }));
+    // The left column: month and time. Then the day view on the right.
+    const pick = h('div', { className: 'time-calendar-pick' });
 
     if (!usable) {
       box.appendChild(h('div', { className: 'time-calendar-note', text: ch ? 'TURN ON THE TIME MACHINE IN BOX SETTINGS TO USE THE CALENDAR.' : 'TUNE A CHANNEL FIRST.' }));
@@ -99,7 +210,7 @@ export function openTimeCalendar(options = {}) {
 
     // Month and year navigation.
     const nav = (label, key, fn) => h('button', { className: 'btn time-calendar-nav', text: label, attrs: { 'aria-label': key }, dataset: { focusKey: `nav-${key}` }, on: { click: fn } });
-    box.appendChild(h('div', { className: 'time-calendar-head' },
+    pick.appendChild(h('div', { className: 'time-calendar-head' },
       nav('«', 'previous year', () => setCursor(shiftYears(cursor, -1))),
       nav('‹', 'previous month', () => setCursor(shiftMonths(cursor, -1))),
       h('div', { className: 'time-calendar-month', text: `${MONTH_NAMES[cursor.month]} ${cursor.year}` }),
@@ -109,13 +220,13 @@ export function openTimeCalendar(options = {}) {
 
     const weekdays = h('div', { className: 'time-calendar-weekdays' });
     WEEKDAYS.forEach((w) => weekdays.appendChild(h('div', { text: w.slice(0, 2) })));
-    box.appendChild(weekdays);
+    pick.appendChild(weekdays);
 
     const viewed = dateFromMs(viewNow());
     const grid = h('div', { className: 'time-calendar-grid', attrs: { role: 'grid' } });
     monthGrid(cursor.year, cursor.month).forEach((week) => week.forEach((cell) => {
       const noon = new Date(cell.year, cell.month, cell.day, 12).getTime();
-      const marked = dateBlocksOn(ch, noon).length > 0;
+      const marked = dateBlocksOn(viewCh, noon).length > 0;
       const classes = ['time-calendar-day'];
       if (!cell.inMonth) classes.push('is-outside');
       if (marked) classes.push('has-block');
@@ -131,39 +242,37 @@ export function openTimeCalendar(options = {}) {
         on: { click: () => setCursor({ year: cell.year, month: cell.month, day: cell.day }), dblclick: go },
       }));
     }));
-    box.appendChild(grid);
+    pick.appendChild(grid);
 
     // Time of day.
     const times = h('div', { className: 'time-calendar-times' });
     TIME_PRESETS.forEach((p, i) => times.appendChild(h('button', {
       className: `btn time-calendar-time${hour === p.hour ? ' is-selected' : ''}`, text: p.label, attrs: { title: `Press ${i + 1}` }, dataset: { focusKey: `t-${p.hour}` },
-      on: { click: () => { hour = p.hour; render(true); } },
+      on: { click: () => { setHour(p.hour); render(true); } },
     })));
-    box.appendChild(times);
-    box.appendChild(h('div', { className: 'time-calendar-hour' },
-      h('button', { className: 'btn time-calendar-nav', text: '−1 H', dataset: { focusKey: 'hour-down' }, on: { click: () => { hour = (hour + 23) % 24; render(true); } } }),
-      h('div', { className: 'time-calendar-hour-label', text: hourLabel(hour) }),
-      h('button', { className: 'btn time-calendar-nav', text: '+1 H', dataset: { focusKey: 'hour-up' }, on: { click: () => { hour = (hour + 1) % 24; render(true); } } })));
+    pick.appendChild(times);
+    pick.appendChild(h('div', { className: 'time-calendar-hour' },
+      h('button', { className: 'btn time-calendar-nav', text: '−1 H', dataset: { focusKey: 'hour-down' }, on: { click: () => { setHour((hour + 23) % 24); render(true); } } }),
+      h('div', { className: 'time-calendar-hour-label', text: clockLabel(hour, minute) }),
+      h('button', { className: 'btn time-calendar-nav', text: '+1 H', dataset: { focusKey: 'hour-up' }, on: { click: () => { setHour((hour + 1) % 24); render(true); } } })));
+    box.appendChild(pick);
+    box.appendChild(dayView());
 
     // What is there.
-    const ms = dateTimeToMs(cursor, hour, 0);
-    const blocks = dateBlocksOn(ch, new Date(cursor.year, cursor.month, cursor.day, 12).getTime());
-    const airing = airingAt(ch, ms);
-    const info = h('div', { className: 'time-calendar-info' },
-      h('div', { className: 'time-calendar-when', text: `${dayLabel(cursor)} · ${hourLabel(hour)}` }),
-      h('div', { className: 'time-calendar-airing', text: `AIRING: ${airing.title}` }));
-    if (blocks.length) {
-      const names = blocks.slice(0, 2).map((b) => (b.name && b.name.trim()) || 'DATE BLOCK');
-      info.appendChild(h('div', { className: 'time-calendar-blocks', text: `BLOCK: ${names.join(' · ')}${blocks.length > 2 ? ` +${blocks.length - 2}` : ''}` }));
-    }
-    box.appendChild(info);
+    const ms = chosenMs();
+    const airing = airingAt(viewCh, ms);
+    box.appendChild(h('div', { className: 'time-calendar-info' },
+      h('div', { className: 'time-calendar-when', text: `${dayLabel(cursor)} · ${clockLabel(hour, minute)} · CH ${formatChannelNumber(viewCh.number)}` }),
+      h('div', { className: 'time-calendar-airing', text: `AIRING: ${airing.title}${airing.block ? `  (${airing.block})` : ''}` })));
 
     box.appendChild(h('div', { className: 'time-calendar-actions' },
       h('button', { className: 'btn time-calendar-btn time-calendar-go', text: options.goText || 'GO', dataset: { focusKey: 'go' }, on: { click: go } }),
       h('button', { className: 'btn time-calendar-btn', text: 'CANCEL', dataset: { focusKey: 'cancel' }, on: { click: closeTimeCalendar } })));
-    box.appendChild(h('div', { className: 'time-calendar-hint', text: '← → ↑ ↓ DAY   PAGE UP/DOWN MONTH   [ ] HOUR   HOME TODAY   ENTER GO' }));
+    box.appendChild(h('div', { className: 'time-calendar-hint', text: `← → ↑ ↓ DAY   PAGE UP/DOWN MONTH   [ ] HOUR${canSwitch ? '   , . CHANNEL' : ''}   HOME TODAY   ENTER GO` }));
     root.appendChild(box);
 
+    const current = root.querySelector('.time-calendar-program.is-current');
+    if (current) current.scrollIntoView({ block: 'center' });
     const target = (focusKey && root.querySelector(`[data-focus-key="${CSS.escape(focusKey)}"]`)) || root.querySelector('.time-calendar-day.is-selected');
     if (target && keepFocus) target.focus({ preventScroll: true });
   }
@@ -185,16 +294,29 @@ export function openTimeCalendar(options = {}) {
     if (e.key === 'PageUp') { consume(); setCursor(e.shiftKey ? shiftYears(cursor, -1) : shiftMonths(cursor, -1)); return; }
     if (e.key === 'PageDown') { consume(); setCursor(e.shiftKey ? shiftYears(cursor, 1) : shiftMonths(cursor, 1)); return; }
     if (e.key === 'Home') { consume(); setCursor(realToday); return; }
-    if (e.key === '[') { consume(); hour = (hour + 23) % 24; render(true); return; }
-    if (e.key === ']') { consume(); hour = (hour + 1) % 24; render(true); return; }
-    if (e.key >= '1' && e.key <= String(TIME_PRESETS.length)) { consume(); hour = TIME_PRESETS[Number(e.key) - 1].hour; render(true); return; }
+    if (e.key === '[') { consume(); setHour((hour + 23) % 24); render(true); return; }
+    if (e.key === ']') { consume(); setHour((hour + 1) % 24); render(true); return; }
+    if (canSwitch && (e.key === ',' || e.key === '.')) { consume(); stepChannel(e.key === ',' ? -1 : 1); return; }
+    if (e.key >= '1' && e.key <= String(TIME_PRESETS.length)) { consume(); setHour(TIME_PRESETS[Number(e.key) - 1].hour); render(true); return; }
     if (tv) return; // the D-pad moves focus by position there
+    // In the day's list ▲▼ move between programs.
+    const row = e.target && e.target.closest && e.target.closest('.time-calendar-program');
+    if (row && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      consume();
+      const next = e.key === 'ArrowUp' ? row.previousElementSibling : row.nextElementSibling;
+      if (next) next.focus();
+      return;
+    }
+    if (row && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
     if (step) { consume(); setCursor(shiftDays(cursor, step)); }
   });
 
   render(false);
   surface.open({ initialFocus: false });
+  // Only now does the list have a height to scroll the chosen program into.
+  const current = root.querySelector('.time-calendar-program.is-current');
+  if (current) current.scrollIntoView({ block: 'center' });
   const selected = root.querySelector('.time-calendar-day.is-selected') || root.querySelector('button');
   if (selected) selected.focus({ preventScroll: true });
 }

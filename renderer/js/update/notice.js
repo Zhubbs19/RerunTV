@@ -15,6 +15,8 @@ import {
 } from '../core/dom.js';
 
 import { isTvMode } from '../tv/usage-mode.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 import { focusDefault, registerModal } from '../ui/focus.js';
 
 // In TV mode the toast is a modal (D-pad focus, OK presses, Back = LATER) and
@@ -84,6 +86,17 @@ async function closePostUpdate({ openReleaseNotes = false } = {}) {
   if (openReleaseNotes) await jumpToReleaseNotes();
 }
 
+// The card's fixed words: capitals on the legacy layout, title case on the
+// cable-guide one (its dialogs never shout).
+const CARD_TEXT = {
+  kicker: ['UPDATE COMPLETE', 'Update Complete'],
+  viewAll: ['VIEW ALL RELEASE NOTES', 'View All Release Notes'],
+  done: ['START WATCHING', 'Start Watching'],
+};
+function cardText(key) {
+  return CARD_TEXT[key][currentUiMode() === CABLE_GUIDE_UI ? 1 : 0];
+}
+
 function showPostUpdate(notice) {
   if (!updateChangelogEl || !notice) return;
   pendingPostUpdate = notice;
@@ -91,7 +104,12 @@ function showPostUpdate(notice) {
   const from = notice.fromVersion ? `v${notice.fromVersion}` : null;
   const to = notice.toVersion ? `v${notice.toVersion}` : '';
   updateChangelogVersionEl.textContent = from ? `${from}  →  ${to}` : to;
-  updateChangelogTitleEl.textContent = notice.name || `WHAT'S NEW IN RERUNTV ${to}`;
+  const cableGuide = currentUiMode() === CABLE_GUIDE_UI;
+  updateChangelogTitleEl.textContent = notice.name || (cableGuide ? `What's New in RerunTV ${to}` : `WHAT'S NEW IN RERUNTV ${to}`);
+  const kicker = updateChangelogEl.querySelector('.update-changelog-kicker');
+  if (kicker) kicker.textContent = cardText('kicker');
+  updateChangelogViewAllBtn.textContent = cardText('viewAll');
+  updateChangelogDoneBtn.textContent = cardText('done');
   updateChangelogBodyEl.textContent = readableReleaseNotes(notice.notes);
   const highlightsEl = document.getElementById('update-changelog-highlights');
   if (highlightsEl) renderHighlights(highlightsEl, { onGo: () => closePostUpdate(), showSetup: showSetupScreen });

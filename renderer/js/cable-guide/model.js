@@ -59,6 +59,22 @@ export function listingsPictureBox(gridRect, crtRect, crtLocalWidth, guideLayout
   };
 }
 
+// Where the logo bug goes while the picture sits in the picture box: the
+// spot it holds on the full screen (its left/top in the screen's px) mapped
+// onto the box, scaled with it. One scale for both axes so the logo keeps its
+// shape. Returns the translate that moves the bug there (its scale origin is
+// its own top-left) and that scale, or null when there's nothing to map.
+export function bugInPictureBox(bug, box, screenW, screenH) {
+  if (!bug || !box || !(screenW > 0) || !(screenH > 0)) return null;
+  const kx = box.width / screenW;
+  const ky = box.height / screenH;
+  return {
+    x: box.left + bug.left * kx - bug.left,
+    y: box.top + bug.top * ky - bug.top,
+    scale: Math.min(kx, ky),
+  };
+}
+
 export function sameRect(a, b) {
   if (!a || !b) return a === b;
   return a.left === b.left && a.top === b.top && a.width === b.width && a.height === b.height;

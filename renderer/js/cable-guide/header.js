@@ -7,9 +7,24 @@
 // The clock reads viewNow() so it matches the schedule under the time machine.
 import { S, viewNow } from '../core/state.js';
 import { escapeHtml } from '../core/util.js';
+import { isVideoMediaPath, resolveEffectiveIcon } from '../core/channels.js';
 import { guideClock } from './model.js';
 
 const ENVELOPE = '<svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 2h24v16H1zM3 4v.6l10 7 10-7V4zm0 3.1V16h20V7.1l-10 7z"/></svg>';
+
+// A channel's logo in an <img>: its icon, or the seasonal one in effect at
+// `atMs`. Hidden when the channel has none, or when its icon is a video (the
+// logo bug can play one; a still slot beside text can't). The cable-guide
+// surfaces put it beside the channel's number and call letters.
+export function setChannelLogo(img, ch, atMs = viewNow()) {
+  const icon = ch ? resolveEffectiveIcon(ch, atMs) : null;
+  const show = !!icon && !isVideoMediaPath(icon);
+  img.classList.toggle('hidden', !show);
+  img.dataset.icon = show ? icon : '';
+  if (!show) { img.removeAttribute('src'); return; }
+  // A slow lookup must not paint the previous channel's logo late.
+  window.api.toFileUrl(icon).then((url) => { if (img.dataset.icon === icon) img.src = url; });
+}
 
 export function createGuideHeader({ logo = 'RERUN TV', tagline = 'CABLE' } = {}) {
   const el = document.createElement('header');
@@ -50,12 +65,20 @@ export function createGuideHeader({ logo = 'RERUN TV', tagline = 'CABLE' } = {})
       if (help !== undefined) lines.help.textContent = help;
     },
     // A program page's header: title (highlight colour), time with a rating
-    // badge, then the channel — the order program info uses.
-    setProgram({ title = '', time = '', channel = '', rating = '' } = {}) {
+    // badge, then the channel — the order program info uses. Given `ch`, the
+    // channel line leads with its logo.
+    setProgram({ title = '', time = '', channel = '', rating = '', ch = null } = {}) {
       el.classList.add('cg-program');
       lines.where.textContent = title;
       lines.name.textContent = time;
       lines.help.textContent = channel;
+      if (ch) {
+        const logo = document.createElement('img');
+        logo.className = 'cg-chan-logo';
+        logo.alt = '';
+        setChannelLogo(logo, ch);
+        lines.help.prepend(logo);
+      }
       let badge = lines.name.querySelector('.cg-badge');
       if (rating) {
         if (!badge) { badge = document.createElement('span'); badge.className = 'cg-badge'; }

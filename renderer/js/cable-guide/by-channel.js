@@ -14,6 +14,7 @@ import { channelCallLetters } from '../guide/model.js';
 import { addProgramReminder, jumpToGuideEntry, listReminders, removeReminder } from '../guide/guide.js';
 import { tuneToChannel } from '../playback/core.js';
 import { byChannelAction, guideClock, guideRange } from './model.js';
+import { setChannelLogo } from './header.js';
 import { openCgPage } from './page.js';
 
 const HOURS_SHOWN = 24;
@@ -45,11 +46,13 @@ export function openByChannelPage(startNumber = S.currentNumber) {
         <div class="cg-bychan-bar">
           <span class="cg-bychan-heading">Listings By Channel</span>
           <button type="button" class="cg-bychan-arrow" data-step="-1" aria-label="Previous channel">‹</button>
+          <img class="cg-chan-logo hidden" alt="">
           <span class="cg-bychan-name"></span>
           <button type="button" class="cg-bychan-arrow" data-step="1" aria-label="Next channel">›</button>
         </div>
         <div class="cg-bychan-list" role="list" data-ui-arrows="horizontal"></div>`;
       const nameEl = body.querySelector('.cg-bychan-name');
+      const logoEl = body.querySelector('.cg-chan-logo');
       const listEl = body.querySelector('.cg-bychan-list');
 
       const reminded = (entry, ch) => listReminders().some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
@@ -71,6 +74,7 @@ export function openByChannelPage(startNumber = S.currentNumber) {
       const paint = (focusIndex = 0) => {
         channels = browsable();
         const ch = channels[index];
+        setChannelLogo(logoEl, ch);
         if (!ch) { nameEl.textContent = 'No channels'; listEl.innerHTML = ''; return; }
         nameEl.textContent = `${formatChannelNumber(ch.number)} ${channelCallLetters(ch) || ch.name || ''}`.trim();
         const now = viewNow();

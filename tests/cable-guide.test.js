@@ -33,6 +33,14 @@ test('the picture box sits in the header corner on the 60-unit grid', async () =
   assert.deepEqual(pictureBoxRect(1920, 1080, 'hd'), { left: 1208, top: 0, width: 656, height: 368 });
   assert.deepEqual(pictureBoxRect(1680, 945, 'hd', 84), { left: 1235, top: 0, width: 410, height: 230 }, 'a desktop window runs a denser grid');
   assert.equal(pictureBoxRect(0, 540), null);
+  // The logo bug keeps its spot, scaled onto the box: a bug at (800, 450) on
+  // a 960x540 screen lands at the same share of a 328x184 box at (604, 0).
+  const { bugInPictureBox } = await load();
+  const fit = bugInPictureBox({ left: 800, top: 450 }, { left: 604, top: 0, width: 328, height: 184 }, 960, 540);
+  assert.equal(Math.round(800 + fit.x), Math.round(604 + 800 * 328 / 960));
+  assert.equal(Math.round(450 + fit.y), Math.round(450 * 184 / 540));
+  assert.equal(fit.scale, Math.min(328 / 960, 184 / 540));
+  assert.equal(bugInPictureBox({ left: 1, top: 1 }, null, 960, 540), null);
   assert.equal(pictureBoxRect(960, 100, 'hd').height, 100, 'never taller than the screen');
 });
 

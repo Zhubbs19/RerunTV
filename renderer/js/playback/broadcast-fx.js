@@ -23,7 +23,9 @@ import {
 } from '../core/dom.js';
 import { authoredFrameWidth, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { applyMuteState, applyVolume } from './power.js';
-import { getThemePack } from '../plugin/host.js';
+import { getThemePack, registerCoreHook } from '../plugin/host.js';
+import { bugInPictureBox } from '../cable-guide/model.js';
+import { pictureBox } from '../cable-guide/picture-box.js';
 import { pickDeterministic, poolFor } from '../core/interstitials.js';
 import { S, viewNow } from '../core/state.js';
 import { autoHideAfter, formatHourLabel, getDisplayTitle } from '../core/util.js';
@@ -545,7 +547,29 @@ export function applyLogoBugPlacement(ch) {
   // fallback in overlays.css, so profiles without it round-trip unchanged.
   if (Number.isFinite(profile.opacity)) logoBugEl.style.setProperty('--logo-bug-opacity', profile.opacity / 100);
   else logoBugEl.style.removeProperty('--logo-bug-opacity');
+  fitLogoBugToPictureBox();
 }
+
+// On the cable-guide layout a menu or page shrinks the picture into a box in
+// its header's corner (cable-guide/picture-box.js). The bug is part of the
+// picture, so it goes with it: the same spot on the small picture, at the
+// box's scale. The individual translate/scale properties, not transform, so
+// the motion presets' transform animations still run on top.
+function fitLogoBugToPictureBox() {
+  const screen = logoBugEl.parentElement;
+  const fit = screen && bugInPictureBox(
+    { left: logoBugEl.offsetLeft, top: logoBugEl.offsetTop }, pictureBox(), screen.clientWidth, screen.clientHeight,
+  );
+  logoBugEl.style.transformOrigin = fit ? '0 0' : '';
+  logoBugEl.style.translate = fit ? `${fit.x}px ${fit.y}px` : '';
+  logoBugEl.style.scale = fit ? String(fit.scale) : '';
+}
+registerCoreHook('picture-box-change', fitLogoBugToPictureBox);
+// A break hides the bug and shows it again without re-placing it; a hidden
+// bug has no position to map, so re-fit it each time it comes back.
+new MutationObserver(() => {
+  if (!logoBugEl.classList.contains('hidden')) fitLogoBugToPictureBox();
+}).observe(logoBugEl, { attributes: true, attributeFilter: ['class'] });
 
 // The picture was re-framed (new file, resize, aspect change): a bug anchored
 // to the picture moves with it.

@@ -49,7 +49,7 @@ export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
   const channel = ctx.channelNumber != null
     ? `${formatChannelNumber(ctx.channelNumber)} ${(ch && channelCallLetters(ch)) || ctx.channelName || ''}`.trim()
     : '';
-  header.setProgram({ title, time, channel, rating });
+  header.setProgram({ title, time, channel, rating, ch });
   const description = file && typeof file.description === 'string' ? file.description.trim() : '';
   const desc = page.querySelector('.cg-details-desc');
   desc.textContent = description || 'No description available.';

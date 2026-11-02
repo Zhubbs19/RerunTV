@@ -13,10 +13,11 @@ import { formatChannelNumber } from '../core/channels.js';
 import { channelCallLetters } from '../guide/model.js';
 import { virtualChannelInfo, isVirtualChannel } from '../playback/virtual.js';
 import { guideClock, guideRange } from './model.js';
+import { setChannelLogo } from './header.js';
 
 const el = (id) => document.getElementById(id);
 const parts = {
-  title: el('flip-title'), chan: el('flip-chan'), clock: el('flip-clock'),
+  title: el('flip-title'), chan: el('flip-chan'), logo: el('flip-logo'), clock: el('flip-clock'),
   range: el('flip-range'), rating: el('flip-rating'), desc: el('flip-desc'),
   info: el('flip-info'), guide: el('flip-guide'),
 };
@@ -42,6 +43,7 @@ export function fillFlipBar(number, ch) {
   const now = viewNow();
   parts.clock.textContent = guideClock(new Date(now), clock24);
   parts.chan.textContent = `${formatChannelNumber(number)} ${ch ? (channelCallLetters(ch) || ch.name || '') : ''}`.trim();
+  if (parts.logo) setChannelLogo(parts.logo, ch, now);
 
   let entry = null;
   if (!ch && isVirtualChannel(number)) {
