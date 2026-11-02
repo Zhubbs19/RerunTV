@@ -1,5 +1,10 @@
 @font-face { font-family: 'Archivo Narrow'; src: url('../fonts/archivo-narrow-var.woff2') format('woff2'); font-weight: 400 800; }
 @font-face { font-family: 'Archivo Black'; src: url('../fonts/archivo-black-900.woff2') format('woff2'); font-weight: 900; }
+/* The cable-guide skins' faces (tokens.css loads them for the main window). */
+@font-face { font-family: 'Roboto Condensed'; src: url('../fonts/roboto-condensed-regular-400.woff2') format('woff2'); font-weight: 400; }
+@font-face { font-family: 'Roboto Condensed'; src: url('../fonts/roboto-condensed-bold-700.woff2') format('woff2'); font-weight: 700; }
+@font-face { font-family: 'Arimo'; src: url('../fonts/arimo-regular-400.woff2') format('woff2'); font-weight: 400; }
+@font-face { font-family: 'Arimo'; src: url('../fonts/arimo-bold-700.woff2') format('woff2'); font-weight: 700; }
 
 :root {
   /* Fallback palette — same names and values as core's tokens.css :root,
@@ -88,6 +93,63 @@ body.is-indeterminate .update-fill { width: 36% !important; animation: indetermi
 body.is-error .update-window { border-left-color: #ff6b5b; }
 body.is-error h1, body.is-error #update-progress-percent { color: #ff8a7a; }
 @keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(280%); } }
+
+/* ---------- Cable-guide skins ----------
+   progress.js sets html[data-ui="cable-guide"] when the reported theme is
+   one of the two skins, and [data-guide-layout] to say which. The popup then
+   draws as that skin's dialog: its face, a rimmed box, the highlight colour
+   for the title and the focus fill for the bar, in title case (progress.js
+   rewrites the text). Every value is the skin's own token. */
+html[data-ui="cable-guide"] body {
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  color: var(--cg-text);
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .update-window {
+  padding: 22px 26px 18px;
+  background: var(--cg-sheen), var(--cg-dialog);
+  border: 2px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-lift), 0 14px 40px rgba(0, 0, 0, .6);
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .update-window { border-radius: 12px; }
+html[data-ui="cable-guide"] .update-window::after { display: none; }
+html[data-ui="cable-guide"] .update-logo img { filter: none; }
+html[data-ui="cable-guide"] .update-kicker {
+  color: var(--cg-text-dim);
+  font-size: 13px;
+  font-weight: var(--cg-weight);
+  letter-spacing: 0;
+}
+html[data-ui="cable-guide"] h1 {
+  margin: 6px 0 4px;
+  color: var(--cg-hilite);
+  font-family: var(--cg-font);
+  font-size: 26px;
+  font-weight: var(--cg-weight-strong);
+  letter-spacing: 0;
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .update-detail { color: var(--cg-text); font-size: 15px; font-weight: var(--cg-weight); }
+html[data-ui="cable-guide"] .update-track {
+  height: 20px;
+  background: rgba(0, 0, 0, .45);
+  border: 1px solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+}
+html[data-ui="cable-guide"][data-guide-layout="classic"] .update-track { border-radius: 10px; }
+html[data-ui="cable-guide"] .update-fill {
+  background: var(--cg-focus-sheen), var(--cg-focus);
+  box-shadow: none;
+}
+html[data-ui="cable-guide"] .update-footer {
+  color: var(--cg-text-dim);
+  font-size: 13px;
+  font-weight: var(--cg-weight);
+  letter-spacing: 0;
+}
+html[data-ui="cable-guide"] #update-progress-percent { color: var(--cg-hilite); font-weight: var(--cg-weight-strong); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

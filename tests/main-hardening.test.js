@@ -463,6 +463,27 @@ test('theme colour reports keep only known variables with safe values', () => {
   assert.equal(sanitizeThemeColors({}), null);
 });
 
+test('a cable-guide skin reports its dialog tokens and layout to the update popup', () => {
+  const { sanitizeThemeColors } = require(mainFile('updater', 'updater.js'));
+  const report = {
+    '--cg-font': "'Roboto Condensed', 'Archivo Narrow', system-ui, sans-serif",
+    '--cg-dialog': 'linear-gradient(180deg, #24282c 0%, #0d0f11 100%)',
+    '--cg-focus-sheen': 'linear-gradient(180deg, rgba(255, 255, 255, .32) 0 1px, rgba(255, 255, 255, 0) 60%)',
+    '--cg-lift': '0 .25em .8em rgba(0, 0, 0, .7)',
+    '--guide-layout': 'hd',
+  };
+  assert.deepEqual(sanitizeThemeColors(report), report);
+  // Every token the popup reads exists in both skin packs' blocks.
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const popupCss = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'css', 'update-progress.css'), 'utf8');
+  const used = new Set((popupCss.match(/var\(--cg-[a-z-]+/g) || []).map((m) => m.slice(4)));
+  for (const skin of ['theme-cable-guide-hd-15', 'theme-cable-guide-classic-05']) {
+    const css = fs.readFileSync(path.join(__dirname, '..', 'plugins', skin, 'style.css'), 'utf8');
+    used.forEach((name) => assert.match(css, new RegExp(`${name}\\s*:`), `${skin} lacks ${name}`));
+  }
+});
+
 // ---------- ffmpeg install ----------
 
 test('ffmpeg downloads are verified against a published SHA-256 when there is one', async () => {

@@ -488,6 +488,7 @@ const CHANGELOG = [
     'In a desktop window the new layout uses smaller type, so the guide shows about twice as many channels; TV mode keeps the size you can read from across the room.',
     'Short shows no longer clutter a row: back-to-back episodes too short to label merge into one guide cell, named for the series when they are all one show.',
     'Buttons are spaced evenly, with more room around them.',
+    'The update window that shows while RerunTV updates now matches your theme, including the HD and Classic skins.',
   ] },
   { date: '2026-10-29', items: [
     'Plugins you install yourself now work in a release build: a plugin talks to its own background code through one shared, checked route instead of needing its own entry built into the app.',

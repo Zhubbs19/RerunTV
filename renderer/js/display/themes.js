@@ -10,7 +10,7 @@ import { player } from '../core/dom.js';
 import { getChannel } from '../core/channels.js';
 import { effectiveThemeId } from './identity.js';
 import { setUiMode } from '../cable-guide/mode.js';
-import { paintedThemeId, uiModeForPack } from '../cable-guide/model.js';
+import { CABLE_GUIDE_UI, paintedThemeId, uiModeForPack } from '../cable-guide/model.js';
 
 // The palette the frameless update-progress window (main-updater.js) knows,
 // by its long-standing names. Read from body, where those names are
@@ -19,6 +19,11 @@ import { paintedThemeId, uiModeForPack } from '../cable-guide/model.js';
 const REPORTED_THEME_VARS = [
   '--ink', '--ink-deep', '--gold', '--cyan', '--paper', '--paper-dim', '--line',
   '--gradient-page', '--gradient-panel',
+  // The cable-guide skins' dialog tokens, so the popup draws as that skin's
+  // dialog; empty (so not sent) on a legacy theme.
+  '--cg-font', '--cg-weight', '--cg-weight-strong', '--cg-text', '--cg-text-dim', '--cg-hilite',
+  '--cg-text-shadow', '--cg-dialog', '--cg-dialog-rim', '--cg-radius', '--cg-focus', '--cg-focus-sheen',
+  '--cg-sheen', '--cg-lift',
 ];
 
 export function applyTheme({ boxOnly = false } = {}) {
@@ -49,6 +54,7 @@ export function applyTheme({ boxOnly = false } = {}) {
       const value = computed.getPropertyValue(name).trim();
       if (value) colors[name] = value;
     });
+    if (uiMode === CABLE_GUIDE_UI) colors['--guide-layout'] = document.documentElement.dataset.guideLayout || 'hd';
     window.api.reportThemeColors(colors);
   }
   const fontOverrides = S.config.display && S.config.display.themeFontOverrides

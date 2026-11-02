@@ -92,6 +92,13 @@ function writeUpdateState(state) {
 const THEME_COLOR_VARS = [
   '--ink', '--ink-deep', '--gold', '--cyan', '--paper', '--paper-dim', '--line',
   '--gradient-page', '--gradient-panel',
+  // The cable-guide skins' own dialog tokens (renderer/css/cable-guide.css),
+  // so the popup draws as that skin's dialog. A legacy pack sets none of them.
+  '--cg-font', '--cg-weight', '--cg-weight-strong', '--cg-text', '--cg-text-dim', '--cg-hilite',
+  '--cg-text-shadow', '--cg-dialog', '--cg-dialog-rim', '--cg-radius', '--cg-focus', '--cg-focus-sheen',
+  '--cg-sheen', '--cg-lift',
+  // Not a CSS property: which cable-guide skin ("hd" | "classic"), or absent.
+  '--guide-layout',
 ];
 
 function escapeRegExp(text) {
@@ -157,7 +164,12 @@ function resolveThemeColorsFromDisk(themeId) {
     if (!registration.test(rendererSrc)) continue;
     try {
       const css = fs.readFileSync(path.join(pluginDir, 'style.css'), 'utf8');
-      return extractThemeVarsFromCss(css, themeId);
+      const colors = extractThemeVarsFromCss(css, themeId);
+      // A cable-guide skin pack names its layout in its registration.
+      const layout = /ui:\s*['"`]cable-guide['"`]/.test(rendererSrc)
+        && (rendererSrc.match(/guideLayout:\s*['"`](\w+)['"`]/) || [])[1];
+      if (colors && layout) colors['--guide-layout'] = layout;
+      return colors;
     } catch (e) {
       return null;
     }
@@ -425,7 +437,8 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   // resolve (a third-party pack with an unconventional layout, or a report
   // simply not landing here yet) still gets last session's real report
   // instead of silently reverting to the hardcoded fallback.
-  const diskColors = resolveThemeColorsFromDisk((loadConfig().theme) || 'digital-2000s');
+  // No saved theme means a new install, which starts on the HD skin (app.js).
+  const diskColors = resolveThemeColorsFromDisk((loadConfig().theme) || 'cable-guide-hd-15');
   if (diskColors) setThemeColors(diskColors);
 
   const updater = getAutoUpdater();
