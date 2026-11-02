@@ -29,6 +29,21 @@ const ASSIGNABLE = [
   'rewind', 'fastForward', 'record', 'captions', 'red', 'green', 'yellow', 'blue', 'search', 'exit',
 ];
 
+// What each button is called on screen: its legend on a remote, not the
+// internal name ("chUp", "digit0").
+const KEY_NAMES = {
+  up: '▲', down: '▼', left: '◀', right: '▶', ok: 'OK', back: 'BACK', chUp: 'CH ▲', chDown: 'CH ▼',
+  playPause: 'PLAY/PAUSE', guide: 'GUIDE', info: 'INFO', menu: 'MENU', settings: 'SETTINGS', last: 'LAST',
+  exit: 'EXIT', red: 'RED', green: 'GREEN', yellow: 'YELLOW', blue: 'BLUE', rewind: 'REW', fastForward: 'FF',
+  record: 'REC', captions: 'CC', volUp: 'VOL +', volDown: 'VOL −', mute: 'MUTE', power: 'POWER',
+  search: 'SEARCH', home: 'HOME',
+};
+
+function keyName(key) {
+  if (KEY_NAMES[key]) return KEY_NAMES[key];
+  return /^digit\d$/.test(key) ? key.slice(5) : String(key).toUpperCase();
+}
+
 const MAX_SHOWN = 14;
 const FINISH_PRESSES = 3;
 const FINISH_WINDOW_MS = 2500;
@@ -60,7 +75,7 @@ export function remoteTestOpen() {
 function describe(info) {
   const source = info.source === 'android' ? `android ${info.keyCode}` : (info.key || info.keyCode || info.source);
   const held = info.longPress ? ' · HELD' : (info.holdMs ? ` · ${Math.round(info.holdMs)}ms` : '');
-  return `${source}${held}  →  ${info.remoteKey || 'not mapped'}`;
+  return `${source}${held}  →  ${info.remoteKey ? keyName(info.remoteKey) : 'not mapped'}`;
 }
 
 function render() {
@@ -74,7 +89,7 @@ function render() {
   grid.innerHTML = '';
   const seen = new Set(events.map((e) => e.remoteKey).filter(Boolean));
   WANTED.forEach((key) => {
-    grid.appendChild(el('span', `remote-test-key${seen.has(key) ? ' seen' : ''}`, key));
+    grid.appendChild(el('span', `remote-test-key${seen.has(key) ? ' seen' : ''}`, keyName(key)));
   });
   overlay.querySelector('.remote-test-count').textContent = `${seen.size} of ${WANTED.length} buttons seen · ${events.length} presses`;
 }
@@ -172,14 +187,14 @@ function renderLearn(focusKey) {
     const item = el('button', 'remote-learn-item');
     item.type = 'button';
     item.tabIndex = i === 0 ? 0 : -1;
-    item.append(el('span', 'remote-learn-key', remoteKey.toUpperCase()));
+    item.append(el('span', 'remote-learn-key', keyName(remoteKey)));
     item.append(el('span', 'remote-learn-binding', byKey[remoteKey] ? byKey[remoteKey] : (profile.has(remoteKey) ? 'this remote has it' : 'not seen yet')));
     item.addEventListener('click', () => startCapture(remoteKey));
-    item.addEventListener('focus', () => { learnOverlay.querySelector('.remote-learn-status').textContent = `OK to reassign ${remoteKey.toUpperCase()}`; });
+    item.addEventListener('focus', () => { learnOverlay.querySelector('.remote-learn-status').textContent = `OK to reassign ${keyName(remoteKey)}`; });
     list.appendChild(item);
   });
   // Rebuilding the list drops focus; put it back on the row just edited.
-  const target = focusKey ? Array.from(list.children).find((b) => b.firstChild && b.firstChild.textContent === focusKey.toUpperCase()) : null;
+  const target = focusKey ? Array.from(list.children).find((b) => b.firstChild && b.firstChild.textContent === keyName(focusKey)) : null;
   if (target) target.focus({ preventScroll: true });
 }
 
@@ -194,7 +209,7 @@ function startCapture(remoteKey) {
   if (cancelCapture) cancelCapture();
   clearInterval(captureTicker);
   let left = CAPTURE_TIMEOUT_S;
-  const prompt = () => { status.textContent = `Press the button you want for ${remoteKey.toUpperCase()}… (cancels in ${left}s)`; };
+  const prompt = () => { status.textContent = `Press the button you want for ${keyName(remoteKey)}… (cancels in ${left}s)`; };
   prompt();
   captureTicker = setInterval(() => {
     left -= 1;
@@ -212,7 +227,7 @@ function startCapture(remoteKey) {
     if (!info.rawId) { renderLearn(remoteKey); status.textContent = 'That button could not be identified — try another.'; return; }
     remoteProfile().setOverride(info.rawId, remoteKey);
     renderLearn(remoteKey);
-    status.textContent = `${info.rawId} now means ${remoteKey.toUpperCase()}.`;
+    status.textContent = `${info.rawId} now means ${keyName(remoteKey)}.`;
   });
 }
 

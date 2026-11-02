@@ -115,6 +115,21 @@ test('menu labels read in title case, keeping abbreviations', async () => {
   assert.equal(menuLabel('SHUT DOWN PC'), 'Shut Down PC');
   assert.equal(menuLabel('RETURN TO LIVE'), 'Return to Live');
   assert.equal(menuLabel('CH ▲'), 'CH ▲');
+  assert.equal(menuLabel('TOGGLE CAPTIONS (CC)'), 'Toggle Captions (CC)');
+  assert.equal(menuLabel('SAVE THIS CHANNEL AS SLOT 1'), 'Save This Channel as Slot 1');
+  assert.equal(menuLabel('CH 6 · THE HARBOR CHANNEL'), 'CH 6 · The Harbor Channel', 'a separator starts a new phrase');
+  assert.equal(menuLabel('1980S — VHS AND UHF'), '1980s — VHS and UHF');
+});
+
+test('search results group one row per show, in first-airing order', async () => {
+  const { groupResultsByTitle } = await load();
+  const result = (title, start) => ({ title, channel: { number: 1 }, entry: { start } });
+  const groups = groupResultsByTitle([
+    result('Harbor Patrol', 1), result('Night Desk', 2), result('Harbor Patrol', 3), result('harbor patrol', 4),
+  ]);
+  assert.deepEqual(groups.map((g) => [g.title, g.results.length]), [['Harbor Patrol', 3], ['Night Desk', 1]]);
+  assert.deepEqual(groups[0].results.map((r) => r.entry.start), [1, 3, 4]);
+  assert.deepEqual(groupResultsByTitle([]), []);
 });
 
 test('Main Menu arrows: two columns of five, filled down, paged', async () => {

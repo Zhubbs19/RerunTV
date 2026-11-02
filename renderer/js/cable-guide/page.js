@@ -35,6 +35,46 @@ export function closeCgPage() {
   if (current) current.close();
 }
 
+// A scrolling list of equal rows shows whole rows only, as the boxes did: its
+// height snaps down to the last row that fits instead of cutting one in
+// half. Re-fits when the space around it changes or its rows are redrawn;
+// active() can switch it off (the Mini Guide sizes itself). Returns stop().
+export function wholeRows(list, active = () => true) {
+  if (!list || typeof ResizeObserver === 'undefined') return () => {};
+  let frame = 0;
+  const fit = () => {
+    frame = 0;
+    list.style.maxHeight = '';
+    if (!list.isConnected) { stop(); return; }
+    if (!active()) return;
+    const rows = Array.from(list.children).filter((row) => row.offsetParent);
+    if (rows.length < 2) return;
+    const pitch = rows[1].offsetTop - rows[0].offsetTop;
+    const row = rows[0].offsetHeight;
+    if (!(pitch > 0) || !(row > 0)) return;
+    const cs = getComputedStyle(list);
+    const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+    const room = list.clientHeight - pad;
+    if (room < row) return;
+    const height = Math.floor((room - row) / pitch) * pitch + row + pad;
+    if (height < list.clientHeight - 0.5) list.style.maxHeight = `${height}px`;
+  };
+  const later = () => { if (!frame) frame = requestAnimationFrame(fit); };
+  const sizes = new ResizeObserver(later);
+  const rows = new MutationObserver(later);
+  function stop() {
+    sizes.disconnect();
+    rows.disconnect();
+    if (frame) cancelAnimationFrame(frame);
+    frame = 0;
+    list.style.maxHeight = '';
+  }
+  sizes.observe(list.parentElement || list);
+  rows.observe(list, { childList: true });
+  later();
+  return stop;
+}
+
 // build(body, page) fills the body; onKey(e, page) may claim a key first by
 // returning true. Returns the page: { el, body, header, close, focusFirst }.
 export function openCgPage({ name, build, onKey = null, onClose = null }) {
@@ -58,8 +98,11 @@ export function openCgPage({ name, build, onKey = null, onClose = null }) {
   let resizeWatch = null;
   const previouslyFocused = document.activeElement;
 
+  const stops = [];
   const page = {
     name, el, body, header,
+    // A list on this page that should show whole rows (wholeRows above).
+    wholeRows(list) { stops.push(wholeRows(list)); },
     focusFirst() {
       const first = el.querySelector('[data-default-focus]') || el.querySelector('button:not([disabled])');
       (first || el).focus({ preventScroll: true });
@@ -68,6 +111,7 @@ export function openCgPage({ name, build, onKey = null, onClose = null }) {
       if (!open) return;
       open = false;
       if (resizeWatch) resizeWatch.disconnect();
+      stops.forEach((stop) => stop());
       if (unregister) unregister();
       header.destroy();
       el.remove();

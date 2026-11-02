@@ -269,6 +269,12 @@ export function handleKey(e) {
   }
 
   if (!guideGrid.classList.contains('hidden')) {
+    // The menu opens over the guide too, with the guide's own actions first
+    // (full page / dock, breaks, search). Not while typing a search.
+    if (e.key === '?' && document.activeElement !== guideSearchEl) {
+      openTvMenu();
+      return;
+    }
     handleGuideGridKey(e);
     return;
   }

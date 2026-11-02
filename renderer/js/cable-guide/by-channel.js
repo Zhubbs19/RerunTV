@@ -44,7 +44,7 @@ export function openByChannelPage(startNumber = S.currentNumber) {
     build(body, page) {
       body.innerHTML = `
         <div class="cg-bychan-bar">
-          <span class="cg-bychan-heading">Listings By Channel</span>
+          <span class="cg-bychan-heading">Listings by Channel</span>
           <button type="button" class="cg-bychan-arrow" data-step="-1" aria-label="Previous channel">‹</button>
           <img class="cg-chan-logo hidden" alt="">
           <span class="cg-bychan-name"></span>
@@ -54,6 +54,7 @@ export function openByChannelPage(startNumber = S.currentNumber) {
       const nameEl = body.querySelector('.cg-bychan-name');
       const logoEl = body.querySelector('.cg-chan-logo');
       const listEl = body.querySelector('.cg-bychan-list');
+      page.wholeRows(listEl);
 
       const reminded = (entry, ch) => listReminders().some((r) => r.channelNumber === ch.number && r.start === entry.start && r.path === entry.file.path);
 

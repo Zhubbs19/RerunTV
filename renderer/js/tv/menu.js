@@ -12,17 +12,17 @@ import { guideGrid, shortcutsOverlayEl } from '../core/dom.js';
 import { changeChannel, changeFavoriteChannel, jumpToLastChannel, toggleChannelScan, tuneToChannel } from '../playback/core.js';
 import { AIR_CHECK_MENU_MAX, airCheckLabel, airChecks, recallAirCheck, saveAirCheck } from '../library/airchecks.js';
 import { showDetailsForCurrentChannel } from './details.js';
-import { cycleGuideView, focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from '../guide/guide.js';
+import { closeGuideGrid, cycleGuideView, focusGuideSearch, openGuideGrid, toggleGuideDockMode, toggleGuideShowBreaks } from '../guide/guide.js';
 import { GUIDE_VIEW_LABELS } from '../core/guide-filter.js';
 import { skipCurrentBreak } from '../playback/breaks.js';
 import { toggleRecentChannels } from '../playback/recent-channels.js';
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
-import { cgMenuKey, cgMenuMode, closeCgMenu, openQuickMenu, renderMainMenu } from '../cable-guide/main-menu.js';
+import { cgMenuFocus, cgMenuKey, cgMenuMode, closeCgMenu, openQuickMenu, renderMainMenu } from '../cable-guide/main-menu.js';
 import { openSearchPage } from '../cable-guide/search-page.js';
 import { openByChannelPage } from '../cable-guide/by-channel.js';
 import { openMessagesPage } from '../cable-guide/messages.js';
-import { getRendererService, interruptEntries } from '../plugin/host.js';
+import { getRendererService, interruptEntries, registerCoreHook } from '../plugin/host.js';
 import {
   currentProgramStart, enterTimeMachine, exitTimeMachine, restartCurrentShow, returnToLive, timeMachineAvailable, timeMachineGoTo,
 } from '../playback/timemachine.js';
@@ -116,12 +116,13 @@ function dayHourPicker() {
 // a remote has no D or B key, and search needs a way to reach the keyboard.
 function guideActions() {
   if (!guideGrid || guideGrid.classList.contains('hidden')) return [];
+  // `guide: true` keeps the guide open when they run (leaveGuideFor).
   return [
-    { label: S.guideDocked ? 'FULL PAGE GUIDE' : 'DOCK GUIDE', run: () => toggleGuideDockMode() },
-    { label: S.guideShowBreaks ? 'HIDE BREAKS' : 'SHOW BREAKS', run: () => toggleGuideShowBreaks() },
-    { label: 'SEARCH GUIDE', run: () => focusGuideSearch() },
+    { label: S.guideDocked ? 'FULL PAGE GUIDE' : 'DOCK GUIDE', guide: true, run: () => toggleGuideDockMode() },
+    { label: S.guideShowBreaks ? 'HIDE BREAKS' : 'SHOW BREAKS', guide: true, run: () => toggleGuideShowBreaks() },
+    { label: 'SEARCH GUIDE', guide: true, run: () => focusGuideSearch() },
     // ALL CHANNELS → FAVORITES → NOT WATCHED LATELY, which had no remote path.
-    { label: `VIEW: ${GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all}`, keepOpen: true, run: () => cycleGuideView() },
+    { label: `VIEW: ${GUIDE_VIEW_LABELS[S.guideView] || GUIDE_VIEW_LABELS.all}`, guide: true, keepOpen: true, run: () => cycleGuideView() },
   ];
 }
 
@@ -208,7 +209,7 @@ function handoffItems() {
 function tvRootItems() {
   return [
     ...guideActions(),
-    { label: 'GUIDE', help: 'See what\'s on now and later on every channel.', run: () => openGuideGrid() },
+    { label: 'GUIDE', help: 'See what\'s on now and later on every channel.', guide: true, run: () => openGuideGrid() },
     // Cable-guide pages of their own, as on the boxes the layout copies.
     ...(cableGuide() ? [
       { label: 'LISTINGS BY CHANNEL', help: 'One channel\'s day, a show at a time.', run: () => openByChannelPage() },
@@ -269,9 +270,13 @@ function tvRootItems() {
     section('SYSTEM', 'TV MENU · SYSTEM', () => [
       { label: 'SLEEP TIMER', keepOpen: true, run: () => cycleSleepTimer() },
       { label: 'HIDE HINTS', keepOpen: true, run: () => toggleHintBar() },
+      // The cable-guide layout shows this hierarchy on desktop too, where the
+      // switch goes the other way.
       isPreviewingTvMode()
         ? { label: 'END TV PREVIEW', run: () => setTvPreview(false) }
-        : { label: 'DESKTOP MODE', run: () => setUsageModePreference('desktop') },
+        : isTvMode()
+          ? { label: 'DESKTOP MODE', run: () => setUsageModePreference('desktop') }
+          : { label: 'TV MODE', run: () => setUsageModePreference('tv') },
       ...(window.AndroidRemoteBridge && window.AndroidRemoteBridge.openClientSettings
         ? [{ label: 'TV CLIENT SETTINGS', run: () => window.AndroidRemoteBridge.openClientSettings() }] : []),
       { label: 'POWER OFF', run: () => powerOff() },
@@ -351,7 +356,7 @@ function quickTiles() {
   const lock = S.config.pinLock && S.config.pinLock.enabled;
   return [
     { icon: 'home', label: 'Main Menu', help: 'Go to the Main Menu', toMain: true },
-    { icon: 'guide', label: 'Guide', help: 'See what\'s on now and later', run: () => openGuideGrid() },
+    { icon: 'guide', label: 'Guide', help: 'See what\'s on now and later', guide: true, run: () => openGuideGrid() },
     { icon: 'clock', label: 'Time Machine', help: 'Go back in time', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) },
     { icon: 'start', label: 'Start Over', help: 'Watch this show from the start', run: () => restartCurrentShow() },
     { icon: 'recent', label: 'Recent', help: 'The channels you watched last', run: () => toggleRecentChannels() },
@@ -360,7 +365,15 @@ function quickTiles() {
     { icon: 'skip', label: 'Skip Break', help: 'Jump past this commercial break', run: () => skipCurrentBreak() },
     { icon: 'audio', label: 'Audio', help: `Stereo, mono or SAP (now ${String(S.sapMode || 'stereo').toUpperCase()})`, run: () => cycleSapMode() },
     { icon: 'lock', label: 'Parental Lock', help: lock ? 'The lock is on' : 'The lock is off', run: () => openTvMenuAt(['SETUP ›', 'PARENTAL LOCK ›']) },
-  ];
+  ].map((tile) => (tile.run ? { ...tile, run: () => { leaveGuideFor(tile); tile.run(); } } : tile));
+}
+
+// The cable-guide menu hides the guide while it's up (cable-guide.css), and
+// its pages open inside the screen, under #guide-grid. Picking something that
+// isn't one of the guide's own actions leaves the guide first, as the boxes
+// do, so the page or picture it leads to is what shows.
+function leaveGuideFor(item) {
+  if (cableGuide() && !item.guide && !guideGrid.classList.contains('hidden')) closeGuideGrid();
 }
 
 function cableGuide() {
@@ -405,6 +418,7 @@ function activateItem(a, i) {
     return;
   }
   closeTvMenu();
+  leaveGuideFor(a);
   a.run();
 }
 
@@ -450,6 +464,9 @@ function rebuildMenu(focusIndex = 0) {
     renderCableGuideMenu(cgView, focusIndex);
     return;
   }
+  // The theme can change the layout under an open menu (Setup › Guide &
+  // Theme): clear the cable-guide page before drawing the legacy grid.
+  if (cgMenuMode()) closeCgMenu();
   const view = level ? level() : { title: 'TV MENU', items: isTvMode() ? tvRootItems() : actions() };
   viewColumns = view.columns || (isTvMode() ? 1 : GRID_COLUMNS);
   gridEl.style.gridTemplateColumns = viewColumns === GRID_COLUMNS ? '' : `repeat(${viewColumns}, 1fr)`;
@@ -470,6 +487,14 @@ function rebuildMenu(focusIndex = 0) {
   const target = buttons[Math.min(focusIndex, buttons.length - 1)];
   if (target && !shortcutsOverlayEl.classList.contains('hidden')) target.focus();
 }
+
+// A theme pack can switch the layout after the step that chose it has
+// redrawn the menu; draw an open menu again in the layout now showing.
+registerCoreHook('ui-mode-change', () => {
+  if (shortcutsOverlayEl.classList.contains('hidden')) return;
+  const at = cgMenuMode() === 'main' ? cgMenuFocus() : buttons.indexOf(document.activeElement);
+  rebuildMenu(Math.max(0, at));
+});
 
 export function openTvMenu() {
   if (cableGuide()) {
@@ -516,7 +541,9 @@ export function closeTvMenu() {
 // right/left past a row's edge rolls into the next/previous row rather
 // than stopping dead — a common, easy-to-predict grid-navigation behavior.
 export function handleTvMenuKey(e) {
-  if (cableGuide() && cgMenuMode() && cgMenuKey(e)) return;
+  // preventDefault: an Enter that opens a page (Search) would otherwise go
+  // on to press whatever that page focuses first (its "A" key).
+  if (cableGuide() && cgMenuMode() && cgMenuKey(e)) { e.preventDefault(); return; }
   if (e.key === 'Escape' && menuStack.length) {
     menuStack.pop();
     rebuildMenu(0);
@@ -534,11 +561,12 @@ export function handleTvMenuKey(e) {
     return;
   }
   if (current === -1) {
-    if (e.key === 'Enter' || e.key === ' ') buttons[0] && buttons[0].click();
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (buttons[0]) buttons[0].click(); }
     else if (buttons[0]) buttons[0].focus();
     return;
   }
   if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
     buttons[current].click();
     return;
   }

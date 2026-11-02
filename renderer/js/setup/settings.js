@@ -270,6 +270,8 @@ export function renderSettingsPanels() {
   if (channelNamesEl) channelNamesEl.value = S.config.display.guideChannelNames === 'short' ? 'short' : 'full';
   const mergeShortsEl = document.getElementById('guide-merge-shorts-enabled');
   if (mergeShortsEl) mergeShortsEl.checked = S.config.display.guideMergeShorts !== false;
+  const searchGroupEl = document.getElementById('search-group-by-title-enabled');
+  if (searchGroupEl) searchGroupEl.checked = S.config.display.searchGroupByTitle !== false;
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }

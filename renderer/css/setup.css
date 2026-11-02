@@ -5995,6 +5995,8 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 .highlight-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .highlight-text strong { letter-spacing: 0.5px; }
 .highlight-text span { font-size: 12px; opacity: 0.8; }
+/* One line, one width: a wrapped label left the buttons' edges ragged. */
+.highlight-row > .btn { flex: none; white-space: nowrap; }
 .update-changelog-highlights { margin-top: 12px; max-height: 32vh; overflow-y: auto; }
 
 /* LIBRARY › PRESETS (setup/presets.js): built from the kit (section cards,

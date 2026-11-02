@@ -44,7 +44,9 @@ import { renderProgramFitPanel } from './program-fit.js';
 // The provider list, its fetch and the folder picker are shared with channels.js (media-sources.js).
 ensureMediaSourceProvidersLoaded(() => {
   renderMediaSourceImportControl();
-  renderInterstitialsList(); // re-render so already-drawn entries pick up the IMPORT FROM SOURCE option
+  // Re-render so already-drawn entries pick up the IMPORT FROM SOURCE option.
+  // The provider list can arrive before the config has loaded at boot.
+  if (S.config && S.config.interstitials) renderInterstitialsList();
 });
 
 // A breadcrumb-free "pick one" list — unlike a channel's folder scan (which

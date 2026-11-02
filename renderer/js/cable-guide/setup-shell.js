@@ -7,9 +7,9 @@
 //   hidden by cable-guide.css but stays in the DOM, where settings search
 //   reads it.
 // - The messages envelope and the clock sit at the top right.
-// - Section, page and channel-tab labels read in title case ("PICTURE & SOUND"
-//   → "Picture & Sound"). The legacy text is kept and put back when a legacy
-//   theme is chosen.
+// - Section, page and channel-tab labels, buttons and choices read in title
+//   case ("PICTURE & SOUND" → "Picture & Sound"). The legacy text is kept and
+//   put back when a legacy theme is chosen.
 import { S, viewNow } from '../core/state.js';
 import { registerCoreHook } from '../plugin/host.js';
 import { CABLE_GUIDE_UI, guideClock, menuLabel } from './model.js';
@@ -17,7 +17,10 @@ import { currentUiMode } from './mode.js';
 import { currentMessageCount } from './page.js';
 
 const ENVELOPE = '<svg viewBox="0 0 26 20" aria-hidden="true"><path d="M1 2h24v16H1zM3 4v.6l10 7 10-7V4zm0 3.1V16h20V7.1l-10 7z"/></svg>';
-const LABELLED = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title';
+const LABELLED = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title, .btn, option, .setup-sidebar-watch-label, .setup-view-btn';
+// Buttons and choices are relabelled only while their text is all caps (the
+// legacy house style): a file name or anything the viewer typed is left as is.
+const ALWAYS = '.setup-tab-btn, .setup-subtab-btn, .edit-tab-btn, .setup-title';
 
 const on = () => currentUiMode() === CABLE_GUIDE_UI;
 
@@ -29,8 +32,12 @@ function relabel(el) {
   const node = Array.from(el.childNodes).find((n) => n.nodeType === 3 && /[A-Za-z]/.test(n.data));
   if (!node) return;
   if (on()) {
-    if (el.dataset.legacyLabel === undefined || node.data !== el.dataset.cgLabel) el.dataset.legacyLabel = node.data;
-    const next = menuLabel(el.dataset.legacyLabel);
+    const fresh = el.dataset.legacyLabel === undefined || node.data !== el.dataset.cgLabel;
+    if (fresh && /[a-z]/.test(node.data) && !el.matches(ALWAYS)) return;
+    if (fresh) el.dataset.legacyLabel = node.data;
+    // Keep the spaces around the words (" WATCH TV" follows its ▶ icon).
+    const legacy = el.dataset.legacyLabel;
+    const next = legacy.match(/^\s*/)[0] + menuLabel(legacy) + legacy.match(/\s*$/)[0];
     el.dataset.cgLabel = next;
     if (node.data !== next) node.data = next;
   } else if (el.dataset.legacyLabel !== undefined) {

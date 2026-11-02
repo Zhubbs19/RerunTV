@@ -166,6 +166,11 @@ const guideMergeShortsEl = document.getElementById('guide-merge-shorts-enabled')
 guideMergeShortsEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideMergeShorts'], value: guideMergeShortsEl.checked });
 });
+// Search page: one row per show, its airings one press away.
+const searchGroupByTitleEl = document.getElementById('search-group-by-title-enabled');
+searchGroupByTitleEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'searchGroupByTitle'], value: searchGroupByTitleEl.checked });
+});
 guideSpecialsTopEnabledEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideSpecialsAtTop'], value: guideSpecialsTopEnabledEl.checked });
 });

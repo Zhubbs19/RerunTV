@@ -10,7 +10,7 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { channelCallLetters } from '../guide/model.js';
 import { createGuideHeader } from './header.js';
 import { iconSvg } from './icons.js';
-import { guideRange } from './model.js';
+import { guideRange, menuLabel } from './model.js';
 import { hidePictureBox, showPictureBox } from './picture-box.js';
 
 let page = null;
@@ -54,7 +54,8 @@ export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
   const desc = page.querySelector('.cg-details-desc');
   desc.textContent = description || 'No description available.';
   desc.classList.toggle('cg-info-desc-empty', !description);
-  const extra = [ctx.why, ((file && file.tags) || []).join(', ')].filter(Boolean).join('  ·  ');
+  // "Why it's on" is written in caps for the legacy card.
+  const extra = [ctx.why && menuLabel(ctx.why), ((file && file.tags) || []).join(', ')].filter(Boolean).join('  ·  ');
   page.querySelector('.cg-details-extra').textContent = extra;
   overlay.classList.add('cg-details-open');
   const crt = overlay.closest('.crt');

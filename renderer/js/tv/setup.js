@@ -50,6 +50,7 @@ function setSetting(path, value, coalesce) {
 function channelItems() {
   return sortedChannels().map((ch) => ({
     label: `CH ${ch.number} · ${(ch.name || 'UNTITLED').toUpperCase()}${ch.hidden ? ' (HIDDEN)' : ''}`,
+    text: `CH ${ch.number} · ${ch.name || 'Untitled'}${ch.hidden ? ' (Hidden)' : ''}`,
     // Closes over the channel object: moving it changes its number, and the
     // menu keeps following the same channel.
     submenu: () => channelMenu(ch),
@@ -69,6 +70,7 @@ function channelMenu(ch) {
   };
   return {
     title: `SETUP · CH ${ch.number} · ${(ch.name || 'UNTITLED').toUpperCase()}`,
+    where: `Setup › CH ${ch.number} · ${ch.name || 'Untitled'}`,
     items: [
       // Move mode, remote style: each OK moves the channel one slot.
       { label: neighbour(ch, -1) ? `MOVE UP (SWAP WITH CH ${neighbour(ch, -1).number})` : 'MOVE UP (ALREADY FIRST)', keepOpen: true, disabled: !neighbour(ch, -1), run: () => move(-1) },
@@ -183,6 +185,7 @@ function guideItems() {
     valueItem('GUIDE WIDTH', () => `${display().guideSlots || 3} COLUMNS`, (d) => setSetting(['display', 'guideSlots'], cycleChoice([2, 3, 4], display().guideSlots || 3, d))),
     valueItem('CHANNEL NAMES', () => (display().guideChannelNames === 'short' ? 'CALL LETTERS' : 'FULL'), () => setSetting(['display', 'guideChannelNames'], display().guideChannelNames === 'short' ? 'full' : 'short')),
     valueItem('GROUP SHORTS', () => onOff(display().guideMergeShorts !== false), () => setSetting(['display', 'guideMergeShorts'], display().guideMergeShorts === false)),
+    valueItem('GROUP SEARCH BY SHOW', () => onOff(display().searchGroupByTitle !== false), () => setSetting(['display', 'searchGroupByTitle'], display().searchGroupByTitle === false)),
     valueItem('SPECIALS AT THE TOP', () => onOff(display().guideSpecialsAtTop), () => setSetting(['display', 'guideSpecialsAtTop'], !display().guideSpecialsAtTop)),
   ];
 }

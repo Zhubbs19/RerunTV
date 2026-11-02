@@ -13,6 +13,7 @@ import { createGuideHeader } from './header.js';
 import { iconSvg } from './icons.js';
 import { MENU_PAGE, MENU_ROWS, menuLabel, menuMove, menuPageOf } from './model.js';
 import { hidePictureBox, showPictureBox } from './picture-box.js';
+import { syncListingsPicture } from './listings.js';
 import { currentMessageCount } from './page.js';
 
 let mode = null; // 'quick' | 'main' | null
@@ -29,6 +30,12 @@ let resizeWatch = null;
 
 export function cgMenuMode() {
   return mode;
+}
+
+// The Main Menu item in focus (tv/menu.js redraws at it when the layout
+// changes under the menu).
+export function cgMenuFocus() {
+  return focus;
 }
 
 function crtOf(el) {
@@ -87,11 +94,14 @@ function layoutOf(v) {
 
 // "TV MENU · CHANNELS" → "Channels"; the root is "Main Menu".
 function whereOf(v) {
+  if (v.where) return v.where;
   const parts = String(v.title || '').split(' · ').filter((p) => p && p !== 'TV MENU');
   return parts.length ? parts.map(menuLabel).join(' › ') : 'Main Menu';
 }
 
 function itemName(item) {
+  // Text that is the viewer's own (a channel's name) is shown as written.
+  if (item.text) return item.text;
   if (item.name) return menuLabel(item.name);
   const label = String(item.label || '');
   const colon = typeof item.adjust === 'function' ? label.indexOf(': ') : -1;
@@ -206,7 +216,13 @@ export function cgMenuKey(e) {
   if (e.key === 'Escape' || e.key === 'Backspace') { callbacks.back(); return true; }
   if (e.key === 'Tab') {
     e.preventDefault();
-    focus = (focus + (e.shiftKey ? -1 : 1) + items.length) % items.length;
+    // Past disabled entries (the number pad's blank key, an empty list's note).
+    let next = focus;
+    for (let n = 0; n < items.length; n += 1) {
+      next = (next + (e.shiftKey ? -1 : 1) + items.length) % items.length;
+      if (!items[next].disabled) break;
+    }
+    focus = next;
     paintMain();
     return true;
   }
@@ -226,6 +242,10 @@ function closeMain() {
   if (header) { header.destroy(); header = null; }
   if (mainEl) { mainEl.remove(); mainEl = null; }
   hidePictureBox();
+  // The menu can open over the full guide (it steps aside, cable-guide.css);
+  // hand the picture back to the guide's own hole.
+  const grid = document.getElementById('guide-grid');
+  if (grid) syncListingsPicture(grid, document.querySelector('#tv-screen .crt'));
 }
 
 export function closeCgMenu() {

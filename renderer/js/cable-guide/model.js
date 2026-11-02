@@ -171,16 +171,21 @@ export function guideShortDay(start, now) {
 // Menu labels are written in caps for the legacy menu; the cable-guide
 // menus show them in title case ("LAST CH" → "Last CH", "CHANNELS ›" →
 // "Channels"). Abbreviations and symbols keep their case.
-const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR', 'CSS', 'DVD', 'URL', 'IP']);
-const LOWER_WORDS = new Set(['a', 'an', 'and', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
+const KEEP_CASE = new Set(['CH', 'TV', 'PC', 'CRT', 'DVR', 'PIN', 'ID', 'OK', 'HD', 'SD', 'SAP', 'VOL', 'AM', 'PM', 'LAN', 'QR', 'CSS', 'DVD', 'URL', 'IP', 'CC', 'FX',
+  'VHS', 'UHF', 'VHF', 'HDMI', 'CEC', 'EAS', 'OSD', 'ZIP', 'JSON', 'CSV', 'MP', 'MKV', 'USB', 'UI', 'API', 'NTSC', 'PAL']);
+const LOWER_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'the', 'to', 'with']);
 
 export function menuLabel(label) {
   const text = String(label || '').replace(/\s*›\s*$/, '').trim();
   let first = true;
-  return text.replace(/[A-Za-z][A-Za-z'’]*/g, (word) => {
+  return text.replace(/[A-Za-z][A-Za-z'’]*/g, (word, at) => {
     const upper = word.toUpperCase();
+    // A word straight after a separator starts a new phrase ("CH 6 · The…").
+    if (/[·›:—(]\s*$/.test(text.slice(0, at))) first = true;
     let out;
-    if (KEEP_CASE.has(upper)) out = upper;
+    // A decade: "1970S" → "1970s".
+    if (upper === 'S' && /\d$/.test(text.slice(0, at))) out = 's';
+    else if (KEEP_CASE.has(upper)) out = upper;
     else if (!first && LOWER_WORDS.has(word.toLowerCase())) out = word.toLowerCase();
     else out = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     first = false;
@@ -261,4 +266,17 @@ export function openSurfaceNames(surfaces) {
     if (state && state.connected && !state.hidden) open.add(name);
   }
   return Array.from(open).sort();
+}
+
+// Search results as one row per show (the cable-guide Search page): airings
+// that share a title, in the order of each show's first airing. Each group
+// keeps its airings in time order.
+export function groupResultsByTitle(results) {
+  const groups = new Map();
+  for (const result of results) {
+    const key = String(result.title || '').trim().toLocaleLowerCase();
+    if (!groups.has(key)) groups.set(key, { title: result.title, results: [] });
+    groups.get(key).results.push(result);
+  }
+  return Array.from(groups.values());
 }

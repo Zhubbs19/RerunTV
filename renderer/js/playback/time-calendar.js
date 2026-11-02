@@ -24,16 +24,23 @@ import {
   TIME_PRESETS, dateFromMs, dateTimeToMs, hourLabel, monthGrid, sameDate, shiftDays, shiftMonths, shiftYears,
 } from '../timeline/calendar-grid.js';
 import { timeMachineAvailable, timeMachineGoTo } from './timemachine.js';
+import { wholeRows } from '../cable-guide/page.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 const MONTH_NAMES = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
 
 let surface = null;
+// The day list's whole-row fit on the cable-guide layout (page.js wholeRows);
+// the list is rebuilt on every step, so the previous fit is stopped first.
+let stopDayRows = () => {};
 
 export function isTimeCalendarOpen() {
   return !!surface && surface.isOpen();
 }
 
 export function closeTimeCalendar() {
+  stopDayRows();
   if (surface) surface.close();
   surface = null;
 }
@@ -183,6 +190,8 @@ export function openTimeCalendar(options = {}) {
       row.block ? h('span', { className: 'time-calendar-program-tag', text: blockName(row.block) }) : null));
     });
     view.appendChild(list);
+    stopDayRows();
+    stopDayRows = wholeRows(list, () => currentUiMode() === CABLE_GUIDE_UI);
     return view;
   }
 

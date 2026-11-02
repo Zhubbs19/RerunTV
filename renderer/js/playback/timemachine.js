@@ -115,9 +115,12 @@ function ensureScrubber() {
   track.setAttribute('role', 'slider');
   track.setAttribute('aria-label', 'Time machine position');
   track.append(el('div', 'tm-scrub-programs'), el('div', 'tm-scrub-breaks'), el('div', 'tm-scrub-live'), el('div', 'tm-scrub-cursor'));
-  track.querySelector('.tm-scrub-live').appendChild(el('span', 'tm-scrub-live-label', 'LIVE ▶'));
+  // The LIVE tag rides a lane of its own over the strip: inside it, it sat on
+  // whichever program title started at the live line.
+  const lane = el('div', 'tm-scrub-lane');
+  lane.appendChild(el('span', 'tm-scrub-live-label', 'LIVE ▶'));
   const banner = el('div', 'tm-scrub-banner hidden');
-  scrubEl.append(labels, track, banner);
+  scrubEl.append(labels, lane, track, banner);
   installScrubberPointer(track);
   vcrOsdEl.appendChild(scrubEl);
   return scrubEl;
@@ -177,8 +180,13 @@ function renderScrubber() {
   // clock by definition isn't.
   const liveMs = Date.now();
   const live = strip.querySelector('.tm-scrub-live');
-  live.classList.toggle('hidden', liveMs < from || liveMs > to);
+  const liveOut = liveMs < from || liveMs > to;
+  live.classList.toggle('hidden', liveOut);
   live.style.left = `${pct(liveMs)}%`;
+  const tag = strip.querySelector('.tm-scrub-live-label');
+  tag.classList.toggle('hidden', liveOut);
+  // Centred on the line, kept inside the strip at either end.
+  tag.style.left = `${Math.max(3, Math.min(97, pct(liveMs)))}%`;
   const current = programAt(scrubPrograms, viewed);
   const atText = current ? getDisplayTitle(current.file) : vcrProgEl.textContent;
   strip.querySelector('.tm-scrub-at').textContent = `▲ ${formatClock(new Date(viewed))} (${formatOffset(S.timeOffsetMs)})${atText ? ` · ${atText}` : ''}`;

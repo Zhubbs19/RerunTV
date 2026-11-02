@@ -6,6 +6,8 @@
 import { crtContainer } from '../core/dom.js';
 import { formatChannelNumber, getChannel } from '../core/channels.js';
 import { S } from '../core/state.js';
+import { currentUiMode } from '../cable-guide/mode.js';
+import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 const MAX_RECENT = 6;
 let cardEl = null;
@@ -28,9 +30,13 @@ export function isRecentOpen() {
   return !!cardEl && !cardEl.classList.contains('hidden');
 }
 
+// The cable-guide layout writes in title case and keeps a name as typed.
+const cableGuide = () => currentUiMode() === CABLE_GUIDE_UI;
+
 function label(number) {
   const ch = getChannel(number);
-  return `${formatChannelNumber(number)}  ${ch && ch.name ? ch.name.toUpperCase() : `CHANNEL ${number}`}`;
+  const name = ch && ch.name ? (cableGuide() ? ch.name : ch.name.toUpperCase()) : `${cableGuide() ? 'Channel' : 'CHANNEL'} ${number}`;
+  return `${formatChannelNumber(number)}  ${name}`;
 }
 
 function render() {
@@ -38,12 +44,12 @@ function render() {
   cardEl.innerHTML = '';
   const title = document.createElement('div');
   title.className = 'recent-channels-title';
-  title.textContent = 'RECENT CHANNELS';
+  title.textContent = cableGuide() ? 'Recent Channels' : 'RECENT CHANNELS';
   cardEl.appendChild(title);
   if (!list.length) {
     const empty = document.createElement('div');
     empty.className = 'recent-channels-empty';
-    empty.textContent = 'NOTHING YET — CHANGE CHANNEL FIRST';
+    empty.textContent = cableGuide() ? 'Nothing yet. Change channel first.' : 'NOTHING YET — CHANGE CHANNEL FIRST';
     cardEl.appendChild(empty);
     return;
   }

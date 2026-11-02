@@ -85,6 +85,21 @@ html[data-ui="cable-guide"] :is(.btn, .hint-bar, .episode-status-bug, .confirm-d
   transition: none;
 }
 
+/* The remote hint bar under the screen, in the skin's face and colours. Its
+   keys are live TV's, so it steps out of sight while a menu or page is up
+   (the guide hides it already, guide.css); visibility keeps the screen from
+   resizing under the page. */
+html[data-ui="cable-guide"] .hint-bar {
+  background: var(--cg-page);
+  border-top: 2px solid var(--cg-header-rule);
+  box-shadow: none;
+  color: var(--cg-text-dim);
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  letter-spacing: .04em;
+}
+html[data-ui="cable-guide"][data-ui-overlay] .hint-bar { visibility: hidden; }
+
 /* ---------- Surface: a full-screen cable-guide page ---------- */
 html[data-ui="cable-guide"] .cg-surface {
   position: absolute;
@@ -417,7 +432,7 @@ html[data-ui="cable-guide"] .guide-grid .guide-view-btn {
   color: var(--cg-text);
   font-size: .9em;
 }
-html[data-ui="cable-guide"] .guide-grid .guide-view-btn:is(:hover, :focus-visible, .active) {
+html[data-ui="cable-guide"] .guide-grid .guide-view-btn:is(:focus-visible, .active) {
   background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   text-shadow: none;
@@ -430,22 +445,27 @@ html[data-ui="cable-guide"] .guide-grid .guide-daterange { color: var(--cg-text-
 html[data-ui="cable-guide"] .guide-grid .guide-timeheader::after {
   content: '›';
   position: absolute;
-  right: .6em;
+  right: calc(.6em * var(--time-row-scale));
   color: var(--cg-text);
-  font-size: 1.2em;
+  font-size: calc(1.2em * var(--time-row-scale));
 }
+/* The row itself keeps the rows' type size, so the em-based rail width
+   (--guide-chan-col) resolves to the same column here as in the rows and
+   every slot line sits over its half hour. Only its text is scaled up. */
 html[data-ui="cable-guide"] .guide-grid .guide-timeheader {
+  --time-row-scale: 1.12;
   position: relative;
-  height: 1.95em;
+  height: calc(1.95em * var(--time-row-scale));
   margin: 0;
   padding: 0;
   border: 0;
   align-items: center;
   background: var(--cg-sheen), var(--cg-timerow);
   color: var(--cg-text);
-  font-size: calc(100cqw / var(--grid-units) * 1.12);
+  font-size: calc(100cqw / var(--grid-units));
   font-weight: var(--cg-weight);
 }
+html[data-ui="cable-guide"] .guide-grid .guide-timeheader > * { font-size: calc(1em * var(--time-row-scale)); }
 html[data-ui="cable-guide"] .guide-grid .guide-timeheader > :first-child { padding-left: 2.3em; }
 html[data-ui="cable-guide"] .guide-th-day { display: inline; }
 html[data-ui="cable-guide"] .guide-grid .guide-th-slot {
@@ -636,7 +656,7 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid {
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-search-row { font-size: .8em; bottom: .4em; }
 /* Classic's bold face runs wider: the hint line would lose its last key. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-hint { gap: 0 1.1em; font-size: calc(100cqw / var(--grid-units) * .8); }
-html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { font-size: calc(100cqw / var(--grid-units) * 1.3); }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { --time-row-scale: 1.3; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry {
   white-space: normal;
   line-height: 1.05;
@@ -662,8 +682,10 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .grc-num {
 }
 
 /* ---------- Footer: key hints as one dim line ---------- */
+/* margin-top: auto keeps the hint line at the foot once the rows above it
+   stop at a whole row (cable-guide/page.js wholeRows). */
 html[data-ui="cable-guide"] .guide-grid .guide-hint {
-  margin: 0;
+  margin: auto 0 0;
   padding: .5em 2.9em .6em;
   border: 0;
   gap: 0 1.6em;
@@ -944,6 +966,117 @@ html[data-ui="cable-guide"] .volume-bar-fill {
   box-shadow: var(--cg-focus-glow);
 }
 
+/* The small notices over the picture (a setting just toggled, TIME SHIFT,
+   Recent Channels): the skin's overlay panel and face, sized on the screen's
+   grid like the Flip Bar, so a TV reads them from the couch. */
+html[data-ui="cable-guide"] :is(.crt-toggle-flash, .timeshift-badge, .recent-channels) {
+  border: .08em solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-sheen), var(--cg-overlay);
+  box-shadow: var(--cg-lift);
+  color: var(--cg-text);
+  font-family: var(--cg-font);
+  font-weight: var(--cg-weight);
+  letter-spacing: .02em;
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .crt-toggle-flash {
+  top: calc(100cqw / var(--grid-units) * 1.6);
+  left: calc(100cqw / var(--grid-units) * 1.8);
+  padding: .3em .7em;
+  font-size: calc(100cqw / var(--grid-units) * 1.1);
+  transition: none;
+}
+html[data-ui="cable-guide"] .timeshift-badge {
+  padding: .3em .7em;
+  font-size: calc(100cqw / var(--grid-units) * 1);
+  color: var(--cg-rec);
+}
+html[data-ui="cable-guide"] .recent-channels {
+  min-width: 0;
+  width: min(90%, 26em);
+  padding: .6em .8em;
+  font-size: calc(100cqw / var(--grid-units) * 1.1);
+}
+html[data-ui="cable-guide"] .recent-channels-title { margin-bottom: .4em; color: var(--cg-hilite); font-size: 1em; font-weight: var(--cg-weight-strong); letter-spacing: 0; }
+html[data-ui="cable-guide"] .recent-channels-empty { color: var(--cg-text-dim); font-size: .9em; letter-spacing: 0; opacity: 1; }
+html[data-ui="cable-guide"] .recent-channels-row {
+  margin-top: var(--btn-gap);
+  padding: .25em .6em;
+  border: 0;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-sheen), var(--cg-cell);
+  color: var(--cg-cell-text);
+  font-size: 1em;
+  letter-spacing: 0;
+}
+html[data-ui="cable-guide"] .recent-channels-row.active { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); text-shadow: none; }
+html[data-ui="cable-guide"] .recent-channels-row:not(.active):hover { background: var(--cg-sheen), var(--cg-cell); box-shadow: inset 0 0 0 .1em var(--cg-focus); }
+
+/* The time machine bar: a panel across the bottom like the Flip Bar, the
+   transport word in the highlight colour, the strip as guide cells. */
+html[data-ui="cable-guide"] .vcr-osd {
+  padding: .5em .8em .6em;
+  border: .08em solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-sheen), var(--cg-overlay);
+  box-shadow: var(--cg-lift);
+  font-size: calc(100cqw / var(--grid-units));
+}
+html[data-ui="cable-guide"] .vcr-osd.has-scrubber {
+  left: calc(100cqw / var(--grid-units) * 2.4);
+  right: calc(100cqw / var(--grid-units) * 2.4);
+  bottom: calc(100cqw / var(--grid-units) * 1.2);
+}
+html[data-ui="cable-guide"] .vcr-osd :is(*, *::before, *::after) {
+  font-family: var(--cg-font);
+  letter-spacing: 0;
+  text-shadow: var(--cg-text-shadow);
+}
+html[data-ui="cable-guide"] .vcr-mode { color: var(--cg-hilite); font-size: 1.5em; font-weight: var(--cg-weight-strong); }
+html[data-ui="cable-guide"] .vcr-speed { color: var(--cg-text-dim); font-size: 1.1em; font-weight: var(--cg-weight); }
+html[data-ui="cable-guide"] .vcr-time { color: var(--cg-text); font-size: 1.2em; font-weight: var(--cg-weight-strong); }
+html[data-ui="cable-guide"] .vcr-prog { max-width: none; color: var(--cg-hilite); font-size: 1em; font-weight: var(--cg-weight); }
+html[data-ui="cable-guide"] .vcr-hint { margin-top: .4em; color: var(--cg-text-dim); font-size: .75em; font-weight: var(--cg-weight); }
+html[data-ui="cable-guide"] .tm-scrubber { margin-top: .4em; }
+html[data-ui="cable-guide"] .tm-scrub-labels { gap: .6em; color: var(--cg-text-dim); font-size: .8em; font-weight: var(--cg-weight); }
+html[data-ui="cable-guide"] .tm-scrub-at { color: var(--cg-hilite); }
+html[data-ui="cable-guide"] .tm-scrub-lane { height: 1.1em; margin-top: .2em; }
+html[data-ui="cable-guide"] .tm-scrub-live-label {
+  padding: 0 .35em;
+  border-radius: var(--cg-btn-radius);
+  background: var(--cg-rec);
+  font-size: .75em;
+  font-weight: var(--cg-weight-strong);
+  line-height: 1.4;
+}
+html[data-ui="cable-guide"] .tm-scrub-track {
+  height: 2.2em;
+  margin-top: .1em;
+  border: 0;
+  border-radius: var(--cg-radius);
+  background: var(--cg-page);
+}
+html[data-ui="cable-guide"] .tm-scrub-program {
+  bottom: .5em;
+  padding: 0 .4em;
+  border-right: .1em solid var(--cg-page);
+  background: var(--cg-sheen), var(--cg-cell);
+  color: var(--cg-cell-text);
+  font-size: .8em;
+  font-weight: var(--cg-weight);
+}
+html[data-ui="cable-guide"] .tm-scrub-program.alt { background: var(--cg-sheen), var(--cg-btn); }
+html[data-ui="cable-guide"] .tm-scrub-cursor { width: .2em; background: var(--cg-focus); box-shadow: var(--cg-focus-glow); }
+html[data-ui="cable-guide"] .tm-scrub-live { background: var(--cg-rec); }
+html[data-ui="cable-guide"] .tm-scrub-banner {
+  border: .08em solid var(--cg-dialog-rim);
+  border-radius: var(--cg-radius);
+  background: var(--cg-dialog);
+  color: var(--cg-hilite);
+  font-size: .9em;
+}
+
 /* ======================================================================
    Quick Menu and Main Menu (cable-guide/main-menu.js), drawn inside the
    legacy #shortcuts-overlay, whose own panel steps aside.
@@ -954,6 +1087,17 @@ html[data-ui="cable-guide"] .shortcuts-overlay.cg-menu-open {
   background: none;
 }
 html[data-ui="cable-guide"] .shortcuts-overlay.cg-menu-open > .shortcuts-panel { display: none; }
+/* #guide-grid sits above the whole screen, so the menu (inside the screen)
+   would open under it. The guide steps aside while the menu is up and comes
+   back if the choice was one of its own actions (tv/menu.js leaveGuideFor). */
+html[data-ui="cable-guide"]:has(#shortcuts-overlay.cg-menu-open) #guide-grid { visibility: hidden; }
+/* The picture's corner bugs stay off while a guide, menu or page is up, as
+   the legacy guide hides them (overlays.css): pages and menus here open
+   without the guide, and the rating bug would sit on the header's logo. */
+html[data-ui="cable-guide"][data-ui-overlay] :is(.rating-bug, .episode-status-bug, .format-disclaimer-card, .capability-badge, .vcr-osd, .sign-on-card, .sleep-badge, .track-card) { display: none; }
+/* Nor does the Flip Bar, which a new program brings up on its own: over a
+   page it sat on the list (the page's own header already names the show). */
+html[data-ui="cable-guide"][data-ui-overlay] .guide-overlay { visibility: hidden; }
 
 /* Main Menu: a full page with the picture in the header's hole. */
 html[data-ui="cable-guide"] .cg-menu {
@@ -997,15 +1141,20 @@ html[data-ui="cable-guide"] .cg-disabled { opacity: .5; }
 html[data-ui="cable-guide"] .cg-menu-rows { row-gap: var(--btn-gap); }
 html[data-ui="cable-guide"] .cg-row {
   display: grid;
+  /* One centred block, as the boxes' settings dialogs are. */
+  justify-self: center;
+  width: min(100%, 40em);
   grid-template-columns: minmax(0, 1fr) 22em;
   align-items: center;
   height: 1.85em;
   font-size: 1.12em;
   cursor: pointer;
 }
+/* The label sits against its value bar, as on the boxes ("Record:  < … >"),
+   not across the page from it. */
 html[data-ui="cable-guide"] .cg-row-label {
-  padding-right: .6em;
-  text-align: left;
+  padding-right: .3em;
+  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1199,13 +1348,13 @@ html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn::before {
   font-size: 1.1em;
   line-height: 1;
 }
-html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:hover, :focus, :focus-visible),
-html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :focus, :focus-visible) {
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:focus, :focus-visible),
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:focus, :focus-visible) {
   outline: none;
   color: var(--cg-hilite) !important;
 }
-html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:hover, :focus, :focus-visible)::before,
-html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :focus, :focus-visible)::before {
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:focus, :focus-visible)::before,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:focus, :focus-visible)::before {
   background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   box-shadow: var(--cg-focus-glow);
@@ -1256,7 +1405,7 @@ html[data-ui="cable-guide"] .pin-key {
   transform: none;
   transition: none;
 }
-html[data-ui="cable-guide"] .pin-key:is(:hover, :focus-visible) {
+html[data-ui="cable-guide"] .pin-key:focus-visible {
   background: var(--cg-focus-sheen), var(--cg-focus) !important;
   color: var(--cg-focus-text) !important;
   box-shadow: var(--cg-focus-glow) !important;
@@ -1271,6 +1420,13 @@ html[data-ui="cable-guide"] .time-calendar .time-calendar-box {
   max-width: none;
   height: min(90vh, 48em);
 }
+/* Its parts in the box's own size (the dialog rule sizes the box to the
+   window), not the legacy calendar's fixed 10-13px. */
+html[data-ui="cable-guide"] .time-calendar-box :is(.time-calendar-month, .time-calendar-hour-label, .time-calendar-btn) { font-size: 1em; }
+html[data-ui="cable-guide"] .time-calendar-box :is(.time-calendar-day, .time-calendar-nav) { font-size: .95em; }
+html[data-ui="cable-guide"] .time-calendar-box :is(.time-calendar-weekdays div, .time-calendar-today, .time-calendar-time, .time-calendar-info) { font-size: .8em; letter-spacing: 0; }
+html[data-ui="cable-guide"] .time-calendar-box .time-calendar-hint { font-size: .72em; letter-spacing: 0; opacity: .8; }
+html[data-ui="cable-guide"] .time-calendar-box .time-calendar-btn { padding: .35em .6em; letter-spacing: .02em; }
 html[data-ui="cable-guide"] .time-calendar-box :is(.btn, button) {
   border-radius: var(--cg-btn-radius);
   background: var(--cg-sheen), var(--cg-btn);
@@ -1281,7 +1437,7 @@ html[data-ui="cable-guide"] .time-calendar-box :is(.btn, button) {
   text-shadow: none;
   transform: none;
 }
-html[data-ui="cable-guide"] .time-calendar-box :is(.btn, button):is(:hover, :focus-visible, [aria-selected="true"], .selected) {
+html[data-ui="cable-guide"] .time-calendar-box :is(.btn, button):is(:focus-visible, [aria-selected="true"], .selected) {
   background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   box-shadow: var(--cg-focus-glow);
@@ -1298,7 +1454,7 @@ html[data-ui="cable-guide"] .time-calendar-box button.time-calendar-program {
   font-size: 1em;
 }
 html[data-ui="cable-guide"] .time-calendar-box button.time-calendar-program.is-current,
-html[data-ui="cable-guide"] .time-calendar-box button.time-calendar-program:is(:hover, :focus-visible) {
+html[data-ui="cable-guide"] .time-calendar-box button.time-calendar-program:focus-visible {
   background: var(--cg-focus-sheen), var(--cg-focus);
   box-shadow: var(--cg-focus-glow);
   color: var(--cg-focus-text);
@@ -1364,7 +1520,7 @@ html[data-ui="cable-guide"] :is(#update-toast, .update-changelog-card) .btn {
   box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
 }
-html[data-ui="cable-guide"] :is(#update-toast, .update-changelog-card) .btn:is(:hover, :focus-visible) {
+html[data-ui="cable-guide"] :is(#update-toast, .update-changelog-card) .btn:focus-visible {
   background: var(--cg-focus-sheen), var(--cg-focus);
   box-shadow: var(--cg-focus-glow);
   color: var(--cg-focus-text);
@@ -1527,6 +1683,10 @@ html[data-ui="cable-guide"] :is(.cg-search-list, .cg-bychan-list, .cg-msg-list) 
   overflow-y: auto;
   scrollbar-width: none;
 }
+/* Lists scroll a row at a time, so the top row is never cut either (the
+   bottom one is kept whole by page.js wholeRows). */
+html[data-ui="cable-guide"] :is(.cg-search-list, .cg-bychan-list, .time-calendar-programs) { scroll-snap-type: y mandatory; }
+html[data-ui="cable-guide"] :is(.cg-search-list, .cg-bychan-list, .time-calendar-programs) > * { scroll-snap-align: start; }
 html[data-ui="cable-guide"] .cg-search-result {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1539,6 +1699,8 @@ html[data-ui="cable-guide"] .cg-search-result {
   text-align: left;
 }
 html[data-ui="cable-guide"] :is(.cg-result-title, .cg-bychan-title, .cg-msg-text) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A show's number of airings beside its title (Search grouped by title). */
+html[data-ui="cable-guide"] .cg-result-count { opacity: .75; }
 
 /* Listings by Channel: a channel bar over time | title rows. */
 html[data-ui="cable-guide"] .cg-bychan-bar {
@@ -1711,14 +1873,14 @@ html[data-ui="cable-guide"][data-theme] #setup-screen .btn:is(.btn-primary, .btn
   filter: none;
 }
 html[data-ui="cable-guide"] #setup-screen .btn::before { display: none; }
-html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn):is(:hover, :focus-visible, .active, [aria-pressed="true"], [aria-selected="true"]):not(:disabled) {
+html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn):is(:focus-visible, .active, [aria-pressed="true"], [aria-selected="true"]):not(:disabled) {
   background: var(--cg-focus-sheen), var(--cg-focus) !important;
   color: var(--cg-focus-text) !important;
   text-shadow: none;
   outline: none;
 }
 html[data-ui="cable-guide"] #setup-screen .btn:disabled { opacity: .45; }
-html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:hover, :focus-visible) { color: var(--cg-rec) !important; }
+html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:focus-visible) { color: var(--cg-rec) !important; }
 html[data-ui="cable-guide"] #setup-screen :is(.setup-subtabs, .edit-tab-bar) { gap: var(--setup-btn-gap); border-bottom: 0; }
 /* Any other row of buttons in setup keeps the same space between them. */
 html[data-ui="cable-guide"] #setup-screen :is(div, span, nav, footer, header):has(> .btn + .btn) { column-gap: var(--setup-btn-gap); }
@@ -1760,6 +1922,9 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-label {
 html[data-ui="cable-guide"] #setup-screen .setting-row-label::after { content: ':'; }
 /* The SD boxes set labels flush left; the HD boxes right-aligned them. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] #setup-screen .setting-row-label { text-align: left; }
+/* A wide row puts its label on a line of its own above the field: there it
+   starts at the field's left edge, not across the page. */
+html[data-ui="cable-guide"] #setup-screen .setting-row-wide .setting-row-label { text-align: left; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control { justify-content: flex-start; gap: var(--setup-btn-gap); min-width: 0; }
 html[data-ui="cable-guide"] #setup-screen .setting-row:is(:hover, :focus-within) .setting-row-label { color: var(--cg-hilite); }
 
@@ -1804,6 +1969,13 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::af
 }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::before { content: '‹'; left: 8px; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::after { content: '›'; right: 8px; }
+/* A select with buttons beside it (the splicer's Kind of recording + Save
+   as…, the theme browser's button over its hidden select): the row's arrows
+   would land on the buttons or the label, so it stays a plain value, and the
+   buttons keep their one-line labels. */
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select):has(> button)::before,
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select):has(> button)::after { content: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select) > button { flex: none; white-space: nowrap; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > select:focus-visible { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); box-shadow: var(--cg-focus-glow); }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::before,
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::after { color: var(--cg-focus-text); }
@@ -1868,12 +2040,34 @@ html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row) 
   box-shadow: none;
   color: var(--cg-cell-text);
 }
-html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(:hover, .active, .selected, [aria-selected="true"]) {
+html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(.active, .selected, [aria-selected="true"]) {
   background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   outline: none;
 }
-html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(:hover, .active, .selected, [aria-selected="true"]) * { color: inherit; }
+html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(.active, .selected, [aria-selected="true"]) * { color: inherit; }
+/* The editor's own header reuses .channel-row but isn't a list row: it
+   never takes the focus fill, and its fields keep light text. */
+html[data-ui="cable-guide"] #setup-screen .channel-detail-pane .channel-row:is(.active, .selected, [aria-selected="true"]) {
+  background: var(--cg-sheen), var(--cg-cell);
+  color: var(--cg-cell-text);
+}
+html[data-ui="cable-guide"] #setup-screen .channel-detail-pane .channel-row :is(input, select) { color: var(--cg-text); }
+
+/* Pointing is not choosing: the focus fill marks the one focused or
+   selected item, and the pointer only draws a rim, so a resting mouse can't
+   make a second item look picked. */
+html[data-ui="cable-guide"] :is(.guide-grid .guide-view-btn, .pin-key, .time-calendar-box button, #update-toast .btn, .update-changelog-card .btn):hover:not(:focus-visible, .active, .selected, .is-current, [aria-selected="true"]) {
+  box-shadow: inset 0 0 0 .1em var(--cg-focus);
+}
+html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:hover:not(:focus)::before,
+html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:hover:not(:focus)::before { box-shadow: inset 0 0 0 .1em var(--cg-focus); }
+html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn, .channel-list-item):hover:not(:disabled, :focus-visible, .active, .selected, [aria-pressed="true"], [aria-selected="true"]) {
+  box-shadow: inset 0 0 0 2px var(--cg-focus) !important;
+}
+/* A count on a selected pill (Plug-Ins › Needs Attention 3) reads in the
+   focus text colour, not white on the focus fill. */
+html[data-ui="cable-guide"] #setup-screen .setup-subtab-btn.active .setup-subtab-btn-count { color: var(--cg-focus-text); box-shadow: inset 0 0 0 1px currentColor; }
 
 /* The status bar: one plain line under a rule. */
 html[data-ui="cable-guide"] #setup-screen .setup-footer {
