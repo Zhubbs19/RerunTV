@@ -1979,7 +1979,10 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select) > b
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > select:focus-visible { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); box-shadow: var(--cg-focus-glow); }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::before,
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::after { color: var(--cg-focus-text); }
-html[data-ui="cable-guide"] #setup-screen select option { background: var(--cg-dialog); color: var(--cg-text); }
+/* The native popup reads only a solid background-color, and falls back to the
+   select's own (the focus fill) without one, so no gradient tokens here. */
+html[data-ui="cable-guide"] #setup-screen select option { background-color: var(--cg-cell); color: var(--cg-cell-text); text-shadow: none; }
+html[data-ui="cable-guide"] #setup-screen select option:checked { background-color: var(--cg-focus); color: var(--cg-focus-text); }
 
 /* A checkbox in a row is an Off / On cycler. */
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"] {
