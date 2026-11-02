@@ -31,6 +31,7 @@ test('the picture box sits in the header corner on the 60-unit grid', async () =
   assert.deepEqual(pictureBoxRect(960, 540, 'hd'), { left: 604, top: 0, width: 328, height: 184 });
   assert.deepEqual(pictureBoxRect(960, 540, 'classic'), { left: 604, top: 14, width: 328, height: 157 });
   assert.deepEqual(pictureBoxRect(1920, 1080, 'hd'), { left: 1208, top: 0, width: 656, height: 368 });
+  assert.deepEqual(pictureBoxRect(1680, 945, 'hd', 84), { left: 1235, top: 0, width: 410, height: 230 }, 'a desktop window runs a denser grid');
   assert.equal(pictureBoxRect(0, 540), null);
   assert.equal(pictureBoxRect(960, 100, 'hd').height, 100, 'never taller than the screen');
 });

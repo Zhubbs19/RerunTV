@@ -7,8 +7,8 @@ html[data-theme="cable-guide-hd-15"] {
   --cg-weight: 400;
   --cg-weight-strong: 700;
   --cg-text-shadow: none;
-  --cg-page: #010101;
-  --cg-header: #010101;
+  --cg-page: linear-gradient(180deg, #0c0e10 0%, #010101 100%);
+  --cg-header: linear-gradient(180deg, #1d2125 0%, #0a0b0d 100%);
   --cg-header-rule: #2a2931;
   --cg-text: #ececec;
   --cg-text-dim: #a4a8ad;
@@ -19,7 +19,7 @@ html[data-theme="cable-guide-hd-15"] {
   --cg-chcol: #1c2023;
   --cg-chcol-text: #ececec;
   --cg-gap: #000000;
-  --cg-timerow: #010101;
+  --cg-timerow: #15181b;
   --cg-btn: #464d52;
   --cg-btn-rim: transparent;
   --cg-focus: #207baa;
@@ -32,11 +32,15 @@ html[data-theme="cable-guide-hd-15"] {
   --cg-cat-kids: #56bdde;
   --cg-cat-news: #d9a441;
   --cg-rec: #fe463a;
-  --cg-dialog: #010101;
+  --cg-dialog: linear-gradient(180deg, #24282c 0%, #0d0f11 100%);
   --cg-dialog-rim: #3a3d4e;
   --cg-overlay: rgba(1, 1, 1, .92);
   --cg-badge-bg: #efefef;
   --cg-badge-text: #111111;
+  --cg-sheen: linear-gradient(180deg, rgba(255, 255, 255, .22) 0 1px, rgba(255, 255, 255, .09) 1px, rgba(255, 255, 255, .02) 50%, rgba(0, 0, 0, .38) 100%);
+  --cg-focus-sheen: linear-gradient(180deg, rgba(255, 255, 255, .32) 0 1px, rgba(255, 255, 255, .14) 1px, rgba(255, 255, 255, 0) 60%, rgba(0, 0, 0, .2) 100%);
+  --cg-lift: 0 .25em .8em rgba(0, 0, 0, .7);
+  --cg-focus-glow: 0 0 .55em rgba(58, 154, 214, .6);
 
   --surface-0: #010101; --surface-1: #0b0c0e; --surface-2: #303539; --surface-3: #464d52;
   --surface-panel: #1c2023;

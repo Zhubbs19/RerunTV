@@ -47,9 +47,17 @@ New installs start on HD (`app.js`'s config defaults). Saved configs keep their 
   item, line 3 is one sentence about it. Setup rows keep their `.setting-row-help` text in the
   DOM (settings search reads it); the cable-guide layout hides it under the row and shows it in
   the header for the focused or pointed-at row.
-- **Sizes on a 60-unit grid** for TV-screen surfaces: `font-size: calc(100cqw / 60)`. Edges near
-  the picture box use grid units, never `em`, so a skin's type size can't push text under the
-  picture.
+- **Sizes on a grid `--grid-units` wide** for TV-screen surfaces:
+  `font-size: calc(100cqw / var(--grid-units))`. It is 60 in TV mode and 84 on a desktop window
+  (read at desk distance, more rows); `picture-box.js`'s `gridUnits()` reads the same property.
+  Edges near the picture box use grid units, never `em`, so a skin's type size can't push text
+  under the picture. Width-relative sizing plus the app's UI scale keeps a 4K screen in proportion.
+- **Depth from the skin.** `--cg-sheen` / `--cg-focus-sheen` are gradient layers over every bar
+  and cell, `--cg-lift` drops panels, buttons and dialogs, `--cg-focus-glow` rings the focus.
+- **One button spacing.** `--btn-gap` (grid em) between TV-screen buttons and tiles,
+  `--setup-btn-gap` (px) between setup buttons.
+- **Short shows merge.** In this layout a run of entries too narrow for about eight letters
+  becomes one cell, named for the series when every episode shares one ("Harbor Patrol (2)"), else "Shorts & Bumpers (N)". A cell under ~4 letters wide shows no title.
 - **Labels in title case** (`menuLabel`, keeping abbreviations such as CH, DVR, CSS). Setup's
   section, page and channel-tab labels are relabelled at runtime; the legacy text is kept in
   `data-legacy-label` and put back with a legacy theme.

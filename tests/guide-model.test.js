@@ -14,6 +14,17 @@ const specials = [
   { number: 6, name: 'Party', nowText: '' },
 ];
 
+test('a run of one series is named for it; bumpers between episodes do not count', async () => {
+  const { runSeriesName } = await load();
+  const ep = (series) => ({ file: { path: 'x.mkv', series } });
+  const seriesOf = (file) => file.series || null;
+  const bumper = { file: { path: 'b.mkv', facets: { contentType: 'bumper' } } };
+  assert.equal(runSeriesName([ep('Harbor Patrol'), bumper, ep('harbor patrol')], seriesOf), 'Harbor Patrol');
+  assert.equal(runSeriesName([ep('Harbor Patrol'), ep('Night Desk')], seriesOf), null);
+  assert.equal(runSeriesName([ep('Harbor Patrol'), ep(null)], seriesOf), null);
+  assert.equal(runSeriesName([bumper, bumper], seriesOf), null);
+});
+
 test('specials sit in numeric order among channels by default', async () => {
   const { guideRows } = await load();
   const rows = guideRows(channels, specials);

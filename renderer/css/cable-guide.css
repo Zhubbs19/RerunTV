@@ -5,13 +5,28 @@
    untouched by this file.
 
    Rules the layout keeps: one body size, hierarchy by colour and position,
-   focus as a solid fill with no motion, no shadows or section boxes, help for
-   the focused item in the header only. Structural differences between the
-   skins key on html[data-guide-layout] ("hd" | "classic"), never on a theme
-   id; colours come from the --cg-* tokens each skin pack sets.
+   focus as a filled bar with no motion, help for the focused item in the
+   header only. Depth comes from the skin: --cg-sheen and --cg-focus-sheen are
+   gradient layers painted over every bar and cell, --cg-lift drops panels,
+   buttons and the picture off the page, --cg-focus-glow rings the focus.
+   Structural differences between the skins key on html[data-guide-layout]
+   ("hd" | "classic"), never on a theme id; colours come from the --cg-*
+   tokens each skin pack sets.
 
-   Sizes are in em on a 60-unit grid: a .cg-surface sets font-size to 1/60 of
-   its width, so 1em = 16px on a 960px-wide screen. */
+   Sizes are in em on a grid --grid-units wide: a .cg-surface sets font-size
+   to 1/--grid-units of its width. In TV mode that is 60 (1em = 16px on a
+   960px-wide screen, sized for the far side of a room); on a desktop window
+   it is 84, so the same page reads at desk distance and shows more rows.
+   cable-guide/picture-box.js reads the same property. */
+html[data-ui="cable-guide"] {
+  --grid-units: 60;
+  /* One space between neighbouring buttons, bars and tiles everywhere: in
+     grid em on the TV-screen pages, in px on Channel Setup (which the app's
+     UI scale already enlarges on a big screen). */
+  --btn-gap: .5em;
+  --setup-btn-gap: 12px;
+}
+html[data-ui="cable-guide"][data-mode="desktop"] { --grid-units: 84; }
 
 /* Fallbacks with zero specificity, so a skin pack's html[data-theme] block
    always wins. Values are the HD skin's. */
@@ -50,6 +65,10 @@
   --cg-overlay: rgba(1, 1, 1, .92);
   --cg-badge-bg: #efefef;
   --cg-badge-text: #111111;
+  --cg-sheen: linear-gradient(180deg, rgba(255, 255, 255, .22) 0 1px, rgba(255, 255, 255, .09) 1px, rgba(255, 255, 255, .02) 50%, rgba(0, 0, 0, .38) 100%);
+  --cg-focus-sheen: linear-gradient(180deg, rgba(255, 255, 255, .32) 0 1px, rgba(255, 255, 255, .14) 1px, rgba(255, 255, 255, 0) 60%, rgba(0, 0, 0, .2) 100%);
+  --cg-lift: 0 .25em .8em rgba(0, 0, 0, .7);
+  --cg-focus-glow: 0 0 .55em rgba(58, 154, 214, .6);
 }
 
 /* ---------- Surface: a full-screen cable-guide page ---------- */
@@ -63,7 +82,7 @@ html[data-ui="cable-guide"] .cg-surface {
 html[data-ui="cable-guide"] .cg-frame {
   position: absolute;
   inset: 0;
-  font-size: calc(100cqw / 60);
+  font-size: calc(100cqw / var(--grid-units));
   font-family: var(--cg-font);
   font-weight: var(--cg-weight);
   color: var(--cg-text);
@@ -82,6 +101,8 @@ html[data-ui="cable-guide"] .cg-header {
   height: 11.5em;
   background: var(--cg-header);
   border-bottom: .12em solid var(--cg-header-rule);
+  box-shadow: var(--cg-lift);
+  z-index: 1;
 }
 html[data-ui="cable-guide"] .cg-logo {
   position: absolute;
@@ -178,8 +199,8 @@ html[data-ui="cable-guide"] .cg-btn {
   justify-content: center;
   border: 0;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   font: inherit;
   text-shadow: var(--cg-text-shadow);
@@ -188,7 +209,8 @@ html[data-ui="cable-guide"] .cg-btn {
 /* Focus is a solid fill and nothing moves. */
 html[data-ui="cable-guide"] :is(.cg-btn, .cg-tile, .cg-choice).focus,
 html[data-ui="cable-guide"] :is(.cg-btn, .cg-tile, .cg-choice):focus-visible {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
+  box-shadow: var(--cg-focus-glow);
   color: var(--cg-focus-text);
   text-shadow: none;
   outline: none;
@@ -223,7 +245,7 @@ html[data-ui="cable-guide"] .guide-grid .cg-logo small { letter-spacing: .9em; }
 /* Children resolve 1em = 1/60 of the grid's width (#guide-grid is a size
    container, so its children's cqw read its box). */
 html[data-ui="cable-guide"] .guide-grid > :is(.guide-topbar, .guide-rows, .guide-program-results, .cg-program-info) {
-  font-size: calc(100cqw / 60);
+  font-size: calc(100cqw / var(--grid-units));
 }
 /* The picture's hole: a mask cut from the page where listings.js put it. */
 html[data-ui="cable-guide"] .guide-grid.full {
@@ -247,7 +269,7 @@ html[data-ui="cable-guide"][data-picture-box="on"] #tv-screen .crt #player {
   aspect-ratio: auto;
   border: 0;
   border-radius: 0;
-  box-shadow: none;
+  box-shadow: var(--cg-lift);
   background: #000;
 }
 html[data-ui="cable-guide"][data-guide-layout="classic"][data-picture-box="on"] #tv-screen .crt #player {
@@ -266,16 +288,18 @@ html[data-ui="cable-guide"] .guide-grid .guide-topbar {
   padding: 0;
   background: var(--cg-header);
   border-bottom: .12em solid var(--cg-header-rule);
+  box-shadow: var(--cg-lift);
+  z-index: 1;
 }
 html[data-ui="cable-guide"] .guide-brand { display: block; }
 /* Header text keeps clear of the picture box, which starts 37.75 grid units
-   in. Edges are in grid units (100cqw / 60), not em: these blocks set their
+   in. Edges are in grid units (100cqw / var(--grid-units)), not em: these blocks set their
    own font sizes per skin, and an em edge would move with them. */
 html[data-ui="cable-guide"] .guide-grid .guide-info-panel {
   position: absolute;
-  left: calc(100cqw / 60 * 2.9);
+  left: calc(100cqw / var(--grid-units) * 2.9);
   top: 4.3em;
-  right: calc(100cqw / 60 * 24);
+  right: calc(100cqw / var(--grid-units) * 24);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-areas:
@@ -341,8 +365,8 @@ html[data-ui="cable-guide"] .guide-grid .guide-info-desc {
 /* Search, view and dates: one slim line along the header's foot. */
 html[data-ui="cable-guide"] .guide-grid .guide-search-row {
   position: absolute;
-  left: calc(100cqw / 60 * 2.9);
-  right: calc(100cqw / 60 * 24);
+  left: calc(100cqw / var(--grid-units) * 2.9);
+  right: calc(100cqw / var(--grid-units) * 24);
   bottom: .55em;
   display: flex;
   align-items: center;
@@ -369,16 +393,16 @@ html[data-ui="cable-guide"] .guide-grid .guide-view-btn {
   padding: 0 .6em;
   border: 0;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   font-size: .9em;
 }
 html[data-ui="cable-guide"] .guide-grid .guide-view-btn:is(:hover, :focus-visible, .active) {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   text-shadow: none;
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
 }
 html[data-ui="cable-guide"] .guide-grid .guide-daterange { color: var(--cg-text-dim); font-size: .9em; }
 
@@ -398,9 +422,9 @@ html[data-ui="cable-guide"] .guide-grid .guide-timeheader {
   padding: 0;
   border: 0;
   align-items: center;
-  background: var(--cg-timerow);
+  background: var(--cg-sheen), var(--cg-timerow);
   color: var(--cg-text);
-  font-size: calc(100cqw / 60 * 1.12);
+  font-size: calc(100cqw / var(--grid-units) * 1.12);
   font-weight: var(--cg-weight);
 }
 html[data-ui="cable-guide"] .guide-grid .guide-timeheader > :first-child { padding-left: 2.3em; }
@@ -421,14 +445,20 @@ html[data-ui="cable-guide"] .guide-grid .guide-rows {
   scroll-snap-type: y mandatory;
 }
 html[data-ui="cable-guide"] .guide-grid :is(.guide-gridlines, .guide-now-line) { display: none; }
-html[data-ui="cable-guide"] .guide-grid .guide-row { background: var(--cg-gap); }
+/* Every row the same height, so a wrapped title can't make one row taller
+   and throw off a count of whole rows (the Mini Guide's three). */
+html[data-ui="cable-guide"] .guide-grid .guide-row {
+  height: var(--guide-row-height);
+  overflow: hidden;
+  background: var(--cg-gap);
+}
 html[data-ui="cable-guide"] .guide-grid .guide-row-chan,
 html[data-ui="cable-guide"] .guide-grid .guide-row.active-row .guide-row-chan {
   gap: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--cg-chcol);
+  background: var(--cg-sheen), var(--cg-chcol);
   box-shadow: none;
 }
 html[data-ui="cable-guide"] .guide-grid .guide-row-chan > :not(.grc-text) { display: none; }
@@ -469,7 +499,7 @@ html[data-ui="cable-guide"] .guide-grid .guide-entry.guide-entry-genre:not(.sel)
   border: 0;
   border-right: .12em solid var(--cg-gap);
   border-radius: 0;
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   box-shadow: none;
   filter: none;
   color: var(--cg-cell-text);
@@ -477,7 +507,7 @@ html[data-ui="cable-guide"] .guide-grid .guide-entry.guide-entry-genre:not(.sel)
   font-weight: var(--cg-weight);
   text-shadow: var(--cg-text-shadow);
 }
-html[data-ui="cable-guide"] .guide-grid .guide-entry:hover { background: var(--cg-cell); }
+html[data-ui="cable-guide"] .guide-grid .guide-entry:hover { background: var(--cg-sheen), var(--cg-cell); }
 html[data-ui="cable-guide"] .guide-grid .guide-entry.past { opacity: 1; color: var(--cg-text-dim); }
 html[data-ui="cable-guide"] .guide-grid .guide-entry.cont::before {
   content: '<';
@@ -488,14 +518,21 @@ html[data-ui="cable-guide"] .guide-grid .guide-entry.cont::before {
 html[data-ui="cable-guide"] .guide-grid .guide-entry.sel,
 html[data-ui="cable-guide"] .guide-grid .guide-entry.sel.guide-entry-genre {
   z-index: 2;
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   text-shadow: none;
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
   outline: none;
   will-change: auto;
 }
 html[data-ui="cable-guide"] .guide-grid .guide-entry.sel.cont::before { color: inherit; }
+/* A cell too narrow for four letters (a show cut off at the window's left
+   edge, a lone short) shows no title rather than "T… P..". The legacy rule
+   is a fixed 52px; here it is in the cell's own type size (a container
+   query's em reads the cell). */
+@container (max-width: 4.2em) {
+  html[data-ui="cable-guide"] .guide-grid .guide-entry-label { visibility: hidden; }
+}
 /* A block's own accent stays a left edge, where category ticks also go. */
 html[data-ui="cable-guide"] .guide-grid .guide-entry.guide-entry-themed { border-left: .2em solid; }
 
@@ -523,8 +560,8 @@ html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-info-pane
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-info-panel { font-size: 1.35em; top: 3.7em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-search-row { font-size: .8em; bottom: .4em; }
 /* Classic's bold face runs wider: the hint line would lose its last key. */
-html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-hint { gap: 0 1.1em; font-size: calc(100cqw / 60 * .8); }
-html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { font-size: calc(100cqw / 60 * 1.3); }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-hint { gap: 0 1.1em; font-size: calc(100cqw / var(--grid-units) * .8); }
+html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-timeheader { font-size: calc(100cqw / var(--grid-units) * 1.3); }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entry {
   white-space: normal;
   line-height: 1.05;
@@ -559,7 +596,7 @@ html[data-ui="cable-guide"] .guide-grid .guide-hint {
   overflow: hidden;
   white-space: nowrap;
   color: var(--cg-text-dim);
-  font-size: calc(100cqw / 60 * .9);
+  font-size: calc(100cqw / var(--grid-units) * .9);
   font-weight: var(--cg-weight);
 }
 
@@ -591,7 +628,7 @@ html[data-ui="cable-guide"] .cg-tiles {
   left: 2.9em;
   bottom: 3.6em;
   display: flex;
-  gap: .45em;
+  gap: var(--btn-gap);
 }
 html[data-ui="cable-guide"] .cg-tile {
   /* A button doesn't inherit font size; without this its em sizes read the
@@ -604,8 +641,8 @@ html[data-ui="cable-guide"] .cg-tile {
   padding: 0;
   border: 0;
   border-radius: var(--cg-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   cursor: pointer;
 }
@@ -613,7 +650,7 @@ html[data-ui="cable-guide"] .cg-tile svg { width: 1.4em; height: 1.4em; fill: cu
 html[data-ui="cable-guide"] .cg-tile .cg-icon-rec { fill: var(--cg-rec); }
 html[data-ui="cable-guide"] .cg-tile-text { font-size: .62em; font-weight: var(--cg-weight-strong); }
 html[data-ui="cable-guide"] .cg-tile-muted { opacity: .55; }
-html[data-ui="cable-guide"] .cg-tile.focus { background: var(--cg-focus); color: var(--cg-focus-text); box-shadow: none; }
+html[data-ui="cable-guide"] .cg-tile.focus { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); box-shadow: var(--cg-focus-glow); }
 html[data-ui="cable-guide"] .cg-tile-meaning {
   position: absolute;
   left: 2.9em;
@@ -646,7 +683,7 @@ html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar:focus-within {
 }
 html[data-ui="cable-guide"] .guide-grid.docked :is(.guide-brand, .guide-info-panel) { display: none; }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-search-row {
-  right: calc(100cqw / 60 * 2.9);
+  right: calc(100cqw / var(--grid-units) * 2.9);
   bottom: .4em;
 }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-hint { display: none; }
@@ -683,12 +720,12 @@ html[data-ui="cable-guide"] .cg-flip {
   column-gap: 1.6em;
   row-gap: .25em;
   padding: .55em 2.8em 1.1em;
-  background: var(--cg-overlay);
+  background: var(--cg-overlay); box-shadow: var(--cg-lift);
   border-top: .12em solid var(--cg-header-rule);
   color: var(--cg-text);
   font-family: var(--cg-font);
   font-weight: var(--cg-weight);
-  font-size: calc(100cqw / 60);
+  font-size: calc(100cqw / var(--grid-units));
   line-height: 1.3;
   text-shadow: var(--cg-text-shadow);
   letter-spacing: 0;
@@ -716,7 +753,7 @@ html[data-ui="cable-guide"] .cg-flip-acts {
   grid-area: acts;
   display: grid;
   align-content: start;
-  row-gap: .2em;
+  row-gap: var(--btn-gap);
 }
 html[data-ui="cable-guide"] .cg-flip-acts .cg-btn {
   height: 1.7em;
@@ -725,7 +762,7 @@ html[data-ui="cable-guide"] .cg-flip-acts .cg-btn {
      the bar's own buttons take it back. */
   pointer-events: auto;
 }
-html[data-ui="cable-guide"] .cg-flip-acts .cg-btn:hover { background: var(--cg-focus); color: var(--cg-focus-text); text-shadow: none; }
+html[data-ui="cable-guide"] .cg-flip-acts .cg-btn:hover { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); text-shadow: none; }
 html[data-ui="cable-guide"] .cg-flip-acts .cg-btn:disabled { opacity: .5; cursor: default; }
 html[data-ui="cable-guide"] .cg-flip-meta {
   grid-area: meta;
@@ -748,10 +785,10 @@ html[data-ui="cable-guide"] .guide-overlay .guide-mute {
   right: 2.8em;
   bottom: calc(100% + .4em);
   padding: .1em .5em;
-  background: var(--cg-overlay);
+  background: var(--cg-overlay); box-shadow: var(--cg-lift);
   color: var(--cg-text);
   font-family: var(--cg-font);
-  font-size: calc(100cqw / 60 * 1.12);
+  font-size: calc(100cqw / var(--grid-units) * 1.12);
   letter-spacing: 0;
   border-radius: var(--cg-radius);
 }
@@ -761,15 +798,15 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip {
   padding: 0 1.4em 1em;
   border: .12em solid var(--cg-dialog-rim);
   border-radius: .8em .8em .35em .35em;
-  background: var(--cg-dialog);
-  font-size: calc(100cqw / 60 * 1.15);
+  background: var(--cg-dialog); box-shadow: var(--cg-lift);
+  font-size: calc(100cqw / var(--grid-units) * 1.15);
 }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-top {
   margin: 0 -1.4em .4em;
   padding: .35em 1.4em;
   border: 0;
   border-radius: .7em .7em 0 0;
-  background: var(--cg-btn);
+  background: var(--cg-sheen), var(--cg-btn);
 }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-title { color: var(--cg-text); }
 /* The SD banner had no buttons: time and description run the full width. */
@@ -784,16 +821,16 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-flip-meta { color: 
    On-screen display: number entry and volume, flat and still.
    ====================================================================== */
 html[data-ui="cable-guide"] .channel-entry {
-  top: calc(100cqw / 60 * 1.6);
-  right: calc(100cqw / 60 * 1.8);
+  top: calc(100cqw / var(--grid-units) * 1.6);
+  right: calc(100cqw / var(--grid-units) * 1.8);
   padding: .05em .4em;
-  background: var(--cg-overlay);
+  background: var(--cg-overlay); box-shadow: var(--cg-lift);
   border: .04em solid var(--cg-dialog-rim);
   border-radius: var(--cg-radius);
   color: var(--cg-text);
   font-family: var(--cg-font);
   font-weight: var(--cg-weight-strong);
-  font-size: calc(100cqw / 60 * 2.6);
+  font-size: calc(100cqw / var(--grid-units) * 2.6);
   letter-spacing: .04em;
   text-shadow: var(--cg-text-shadow);
   animation: none;
@@ -804,7 +841,7 @@ html[data-ui="cable-guide"] .volume-indicator {
   background: var(--cg-overlay);
   border: 2px solid var(--cg-dialog-rim);
   border-radius: var(--cg-radius);
-  box-shadow: none;
+  box-shadow: var(--cg-lift);
 }
 html[data-ui="cable-guide"] .volume-label {
   font-family: var(--cg-font);
@@ -814,15 +851,15 @@ html[data-ui="cable-guide"] .volume-label {
   text-shadow: var(--cg-text-shadow);
 }
 html[data-ui="cable-guide"] .volume-bar {
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   border: 0;
   border-radius: var(--cg-btn-radius);
   box-shadow: none;
 }
 html[data-ui="cable-guide"] .volume-bar-fill {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   border-radius: var(--cg-btn-radius);
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
 }
 
 /* ======================================================================
@@ -857,12 +894,12 @@ html[data-ui="cable-guide"] .cg-menu-grid {
   grid-template-rows: repeat(5, 2.2em);
   grid-auto-flow: column;
   column-gap: 1.3em;
-  row-gap: .2em;
+  row-gap: var(--btn-gap);
 }
 html[data-ui="cable-guide"] .cg-menu-pad {
   left: 18em;
   right: 18em;
-  gap: .3em;
+  gap: var(--btn-gap);
   grid-auto-rows: 2.2em;
 }
 html[data-ui="cable-guide"] .cg-menu-btn {
@@ -875,7 +912,7 @@ html[data-ui="cable-guide"] .cg-menu-btn {
 html[data-ui="cable-guide"] .cg-menu-btn:not(.focus):hover { box-shadow: inset 0 0 0 .1em var(--cg-focus); }
 html[data-ui="cable-guide"] .cg-disabled { opacity: .5; }
 /* Settings: `Label:  < value >` rows. */
-html[data-ui="cable-guide"] .cg-menu-rows { row-gap: .35em; }
+html[data-ui="cable-guide"] .cg-menu-rows { row-gap: var(--btn-gap); }
 html[data-ui="cable-guide"] .cg-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22em;
@@ -904,17 +941,17 @@ html[data-ui="cable-guide"] .cg-value {
   align-items: center;
   justify-content: center;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim), var(--cg-lift);
   white-space: nowrap;
   overflow: hidden;
 }
 html[data-ui="cable-guide"] .cg-arrow { text-align: center; color: var(--cg-text-dim); }
 html[data-ui="cable-guide"] .cg-row.focus .cg-value {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   text-shadow: none;
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
 }
 html[data-ui="cable-guide"] .cg-row.focus .cg-arrow { color: var(--cg-text); }
 html[data-ui="cable-guide"] .cg-more {
@@ -943,31 +980,31 @@ html[data-ui="cable-guide"] .cg-quick {
   right: 0;
   bottom: 0;
   padding: .55em 2.8em 1em;
-  background: var(--cg-overlay);
+  background: var(--cg-overlay); box-shadow: var(--cg-lift);
   border-top: .12em solid var(--cg-header-rule);
   color: var(--cg-text);
   font-family: var(--cg-font);
   font-weight: var(--cg-weight);
-  font-size: calc(100cqw / 60);
+  font-size: calc(100cqw / var(--grid-units));
   text-shadow: var(--cg-text-shadow);
   text-align: center;
   line-height: 1.3;
 }
 html[data-ui="cable-guide"] .cg-quick-title { font-size: 1.12em; margin-bottom: .45em; }
-html[data-ui="cable-guide"] .cg-quick-tiles { display: flex; justify-content: center; gap: .45em; }
+html[data-ui="cable-guide"] .cg-quick-tiles { display: flex; justify-content: center; gap: var(--btn-gap); }
 html[data-ui="cable-guide"] .cg-quick-line { margin-top: .45em; font-size: 1.12em; }
 html[data-ui="cable-guide"] .cg-quick-name { color: var(--cg-hilite); }
 /* Classic: a full-width band under a lighter title strip, and the SD
    guide's bigger type on the menu pages. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-quick {
   border-top: .12em solid var(--cg-dialog-rim);
-  background: var(--cg-dialog);
-  font-size: calc(100cqw / 60 * 1.15);
+  background: var(--cg-dialog); box-shadow: var(--cg-lift);
+  font-size: calc(100cqw / var(--grid-units) * 1.15);
 }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-quick-title {
   margin: 0 -2.8em .45em;
   padding: .25em 0;
-  background: var(--cg-btn);
+  background: var(--cg-sheen), var(--cg-btn);
 }
 html[data-ui="cable-guide"][data-guide-layout="classic"] :is(.cg-menu-btn, .cg-row) { font-size: 1.28em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-menu-grid { grid-template-rows: repeat(5, 2.3em); }
@@ -992,7 +1029,7 @@ html[data-ui="cable-guide"] .preview-modal-box.pin-modal-box {
   border: .12em solid var(--cg-dialog-rim) !important;
   border-radius: var(--cg-radius) !important;
   background: var(--cg-dialog) !important;
-  box-shadow: none !important;
+  box-shadow: var(--cg-lift) !important;
   color: var(--cg-text) !important;
   font-family: var(--cg-font) !important;
   font-weight: var(--cg-weight);
@@ -1036,7 +1073,7 @@ html[data-ui="cable-guide"] .tv-exit-prompt-actions {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: .35em;
+  gap: var(--btn-gap);
 }
 html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn,
 html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn {
@@ -1071,8 +1108,8 @@ html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn::before {
   width: 1.7em;
   height: 1.7em;
   border-radius: var(--cg-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   font-size: 1.1em;
   line-height: 1;
@@ -1084,9 +1121,9 @@ html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :foc
 }
 html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .confirm-dialog-actions .btn:is(:hover, :focus, :focus-visible)::before,
 html[data-ui="cable-guide"] .tv-exit-prompt-actions .tv-menu-btn:is(:hover, :focus, :focus-visible)::before {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
 }
 html[data-ui="cable-guide"] .tv-exit-prompt-hint { color: var(--cg-text-dim); letter-spacing: 0; font-family: var(--cg-font); }
 
@@ -1101,7 +1138,7 @@ html[data-ui="cable-guide"] .pin-dots.pin-shake {
   margin: .5em auto;
   padding: .15em 1em;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   font-family: var(--cg-font);
   font-size: 1.2em;
@@ -1113,7 +1150,7 @@ html[data-ui="cable-guide"] .pin-keypad {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: .25em;
+  gap: var(--btn-gap);
   max-width: none;
   margin: .4em auto;
 }
@@ -1124,8 +1161,8 @@ html[data-ui="cable-guide"] .pin-key {
   padding: .25em .4em !important;
   border: 0 !important;
   border-radius: var(--cg-btn-radius) !important;
-  background: var(--cg-btn) !important;
-  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim) !important;
+  background: var(--cg-sheen), var(--cg-btn) !important;
+  box-shadow: inset 0 0 0 .1em var(--cg-btn-rim), var(--cg-lift) !important;
   color: var(--cg-text) !important;
   font-family: var(--cg-font) !important;
   font-size: .95em !important;
@@ -1135,9 +1172,9 @@ html[data-ui="cable-guide"] .pin-key {
   transition: none;
 }
 html[data-ui="cable-guide"] .pin-key:is(:hover, :focus-visible) {
-  background: var(--cg-focus) !important;
+  background: var(--cg-focus-sheen), var(--cg-focus) !important;
   color: var(--cg-focus-text) !important;
-  box-shadow: none !important;
+  box-shadow: var(--cg-focus-glow) !important;
   outline: none;
 }
 html[data-ui="cable-guide"] .pin-hint { color: var(--cg-text-dim); font-family: var(--cg-font); font-size: .85em; letter-spacing: 0; }
@@ -1145,8 +1182,8 @@ html[data-ui="cable-guide"] .pin-hint { color: var(--cg-text-dim); font-family: 
 /* Time machine calendar: the skin's cells, solid focus. */
 html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .time-calendar-box :is(.btn, button) {
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 2px var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 2px var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   font-family: var(--cg-font);
   letter-spacing: 0;
@@ -1154,9 +1191,9 @@ html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .time-calendar-box
   transform: none;
 }
 html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) .time-calendar-box :is(.btn, button):is(:hover, :focus-visible, [aria-selected="true"], .selected) {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
   outline: none;
 }
 
@@ -1165,7 +1202,7 @@ html[data-ui="cable-guide"] body:has(#tv-screen:not(.hidden)) :is(#update-toast,
   border: 2px solid var(--cg-dialog-rim);
   border-radius: var(--cg-radius);
   background: var(--cg-dialog);
-  box-shadow: none;
+  box-shadow: var(--cg-lift);
   color: var(--cg-text);
   font-family: var(--cg-font);
   letter-spacing: 0;
@@ -1248,10 +1285,10 @@ html[data-ui="cable-guide"] .cg-page :is(.cg-key, .cg-search-result, .cg-bychan-
 }
 html[data-ui="cable-guide"] .cg-page :is(.cg-key, .cg-search-result, .cg-bychan-row, .cg-bychan-arrow, .cg-msg-row):focus {
   outline: none;
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   text-shadow: none;
-  box-shadow: none;
+  box-shadow: var(--cg-focus-glow);
 }
 
 /* Search: the keyboard on the left, results on the right. */
@@ -1282,8 +1319,8 @@ html[data-ui="cable-guide"] .cg-search-grid { grid-template-columns: repeat(6, 1
 html[data-ui="cable-guide"] .cg-key {
   height: 1.75em;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn);
-  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-btn);
+  box-shadow: inset 0 0 0 .09em var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-text);
   font-size: 1.05em;
 }
@@ -1333,7 +1370,7 @@ html[data-ui="cable-guide"] .cg-search-result {
   gap: 1em;
   height: 1.85em;
   padding: 0 .6em;
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   font-size: 1.12em;
   text-align: left;
 }
@@ -1346,7 +1383,7 @@ html[data-ui="cable-guide"] .cg-bychan-bar {
   gap: .6em;
   height: 1.9em;
   padding: 0 .4em;
-  background: var(--cg-timerow);
+  background: var(--cg-sheen), var(--cg-timerow);
   font-size: 1.12em;
 }
 html[data-ui="cable-guide"] .cg-bychan-heading { margin-right: auto; padding-left: .5em; color: var(--cg-text); }
@@ -1359,12 +1396,12 @@ html[data-ui="cable-guide"] .cg-bychan-row {
   align-items: stretch;
   height: 1.95em;
   padding: 0;
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   font-size: 1.12em;
   text-align: left;
 }
 html[data-ui="cable-guide"] .cg-bychan-row > span { display: flex; align-items: center; padding: 0 .6em; }
-html[data-ui="cable-guide"] .cg-bychan-time { background: var(--cg-chcol); color: var(--cg-chcol-text); justify-content: flex-end; text-shadow: none; }
+html[data-ui="cable-guide"] .cg-bychan-time { background: var(--cg-sheen), var(--cg-chcol); color: var(--cg-chcol-text); justify-content: flex-end; text-shadow: none; }
 html[data-ui="cable-guide"] .cg-bychan-mark { color: var(--cg-rec); }
 html[data-ui="cable-guide"] .cg-bychan-row[data-genre] { --category-color: var(--guide-genre-bg); }
 html[data-ui="cable-guide"] .cg-bychan-row[data-genre="movie"] { --category-color: var(--cg-cat-movie); }
@@ -1391,9 +1428,9 @@ html[data-ui="cable-guide"] .cg-msg-row {
 html[data-ui="cable-guide"] .cg-msg-row > span { display: flex; align-items: center; padding: 0 .6em; }
 /* The date column keeps its own cell; focus lights the message only. */
 html[data-ui="cable-guide"] .cg-page .cg-msg-row:focus { background: transparent; }
-html[data-ui="cable-guide"] .cg-msg-date { justify-content: flex-end; background: var(--cg-chcol); color: var(--cg-chcol-text); text-shadow: none; }
-html[data-ui="cable-guide"] .cg-msg-text { background: var(--cg-cell); }
-html[data-ui="cable-guide"] .cg-msg-row:focus .cg-msg-text { background: var(--cg-focus); color: var(--cg-focus-text); }
+html[data-ui="cable-guide"] .cg-msg-date { justify-content: flex-end; background: var(--cg-sheen), var(--cg-chcol); color: var(--cg-chcol-text); text-shadow: none; }
+html[data-ui="cable-guide"] .cg-msg-text { background: var(--cg-sheen), var(--cg-cell); }
+html[data-ui="cable-guide"] .cg-msg-row:focus .cg-msg-text { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); }
 html[data-ui="cable-guide"] .cg-msg-empty { color: var(--cg-text-dim); font-size: 1.12em; }
 /* Classic: the SD guide's bigger type. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] .cg-page :is(.cg-search-result, .cg-bychan-row, .cg-msg-row) { font-size: 1.25em; }
@@ -1452,7 +1489,7 @@ html[data-ui="cable-guide"] #setup-screen .cg-setup-help {
 html[data-ui="cable-guide"] #setup-screen .cg-setup-status {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--setup-btn-gap);
   margin-left: auto;
   padding: 4px 16px 0;
   font-size: 20px;
@@ -1476,7 +1513,7 @@ html[data-ui="cable-guide"] #setup-screen .setup-brand-name {
   text-shadow: var(--cg-text-shadow);
 }
 html[data-ui="cable-guide"] #setup-screen .setup-eyebrow { font-size: 11px; letter-spacing: .35em; white-space: nowrap; color: var(--cg-text-dim); }
-html[data-ui="cable-guide"] #setup-screen .setup-tabs { gap: 2px; }
+html[data-ui="cable-guide"] #setup-screen .setup-tabs { gap: var(--setup-btn-gap); }
 html[data-ui="cable-guide"] #setup-screen :is(.setup-tab-btn, .setup-sidebar-watch) {
   min-height: 34px;
   justify-content: center;
@@ -1496,26 +1533,31 @@ html[data-ui="cable-guide"] #setup-screen :is(.btn, .setup-tab-btn, .setup-subta
 html[data-ui="cable-guide"][data-theme] #setup-screen .btn:is(.btn-primary, .btn-danger, .remove-btn) {
   border: 0 !important;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-btn) !important;
+  background: var(--cg-sheen), var(--cg-btn) !important;
   background-image: none;
-  box-shadow: inset 0 0 0 1px var(--cg-btn-rim) !important;
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift) !important;
   color: var(--cg-text) !important;
   text-shadow: var(--cg-text-shadow);
   font-weight: var(--cg-weight);
   font-size: 15px;
+  /* Room inside every bar, matching the room between them. */
+  min-height: 34px;
+  padding: 6px 18px;
   transform: none;
   filter: none;
 }
 html[data-ui="cable-guide"] #setup-screen .btn::before { display: none; }
 html[data-ui="cable-guide"][data-theme] #setup-screen :is(.btn, .setup-tab-btn, .setup-subtab-btn, .setup-view-btn, .edit-tab-btn):is(:hover, :focus-visible, .active, [aria-pressed="true"], [aria-selected="true"]):not(:disabled) {
-  background: var(--cg-focus) !important;
+  background: var(--cg-focus-sheen), var(--cg-focus) !important;
   color: var(--cg-focus-text) !important;
   text-shadow: none;
   outline: none;
 }
 html[data-ui="cable-guide"] #setup-screen .btn:disabled { opacity: .45; }
 html[data-ui="cable-guide"][data-theme] #setup-screen .btn.remove-btn:not(:disabled):not(:hover, :focus-visible) { color: var(--cg-rec) !important; }
-html[data-ui="cable-guide"] #setup-screen :is(.setup-subtabs, .edit-tab-bar) { gap: 2px; border-bottom: 0; }
+html[data-ui="cable-guide"] #setup-screen :is(.setup-subtabs, .edit-tab-bar) { gap: var(--setup-btn-gap); border-bottom: 0; }
+/* Any other row of buttons in setup keeps the same space between them. */
+html[data-ui="cable-guide"] #setup-screen :is(div, span, nav, footer, header):has(> .btn + .btn) { column-gap: var(--setup-btn-gap); }
 
 /* Panels: the guide's bordered dialog box with a caps title. */
 html[data-ui="cable-guide"] #setup-screen :is(.panel, .titles-panel) {
@@ -1523,7 +1565,7 @@ html[data-ui="cable-guide"] #setup-screen :is(.panel, .titles-panel) {
   border-radius: var(--cg-radius);
   background: var(--cg-dialog);
   background-image: none;
-  box-shadow: none;
+  box-shadow: var(--cg-lift);
 }
 html[data-ui="cable-guide"] #setup-screen .panel-toggle {
   text-transform: uppercase;
@@ -1554,16 +1596,16 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-label {
 html[data-ui="cable-guide"] #setup-screen .setting-row-label::after { content: ':'; }
 /* The SD boxes set labels flush left; the HD boxes right-aligned them. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] #setup-screen .setting-row-label { text-align: left; }
-html[data-ui="cable-guide"] #setup-screen .setting-row-control { justify-content: flex-start; gap: 6px; min-width: 0; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control { justify-content: flex-start; gap: var(--setup-btn-gap); min-width: 0; }
 html[data-ui="cable-guide"] #setup-screen .setting-row:is(:hover, :focus-within) .setting-row-label { color: var(--cg-hilite); }
 
 /* Value bars: selects, on/off switches and text fields share one look. */
 html[data-ui="cable-guide"] #setup-screen :is(select, input[type="text"], input[type="number"], input[type="search"], textarea) {
   border: 0;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   background-image: none;
-  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift);
   color: var(--cg-cell-text);
   font-size: 15px;
   font-weight: var(--cg-weight);
@@ -1598,7 +1640,7 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::af
 }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::before { content: '‹'; left: 8px; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select)::after { content: '›'; right: 8px; }
-html[data-ui="cable-guide"] #setup-screen .setting-row-control > select:focus-visible { background: var(--cg-focus); color: var(--cg-focus-text); box-shadow: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > select:focus-visible { background: var(--cg-focus-sheen), var(--cg-focus); color: var(--cg-focus-text); box-shadow: var(--cg-focus-glow); }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::before,
 html[data-ui="cable-guide"] #setup-screen .setting-row-control:has(> select:focus-visible)::after { color: var(--cg-focus-text); }
 html[data-ui="cable-guide"] #setup-screen select option { background: var(--cg-dialog); color: var(--cg-text); }
@@ -1614,8 +1656,8 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="che
   margin: 0;
   border: 0;
   border-radius: var(--cg-btn-radius);
-  background: var(--cg-cell);
-  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-cell);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift);
   cursor: pointer;
 }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]::after {
@@ -1630,7 +1672,7 @@ html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="che
   font: 15px var(--cg-font);
 }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:checked::after { content: '‹   On   ›'; }
-html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:focus-visible { background: var(--cg-focus); box-shadow: none; outline: none; }
+html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:focus-visible { background: var(--cg-focus-sheen), var(--cg-focus); box-shadow: var(--cg-focus-glow); outline: none; }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:focus-visible::after { color: var(--cg-focus-text); }
 html[data-ui="cable-guide"] #setup-screen .setting-row-control > input[type="checkbox"]:disabled { opacity: .45; cursor: default; }
 
@@ -1639,8 +1681,8 @@ html[data-ui="cable-guide"] #setup-screen input[type="range"] { accent-color: va
 html[data-ui="cable-guide"] #setup-screen input[type="range"]::-webkit-slider-runnable-track {
   height: 8px;
   border-radius: 0;
-  background: var(--cg-cell);
-  box-shadow: inset 0 0 0 1px var(--cg-btn-rim);
+  background: var(--cg-sheen), var(--cg-cell);
+  box-shadow: inset 0 0 0 1px var(--cg-btn-rim), var(--cg-lift);
 }
 html[data-ui="cable-guide"] #setup-screen input[type="range"]::-webkit-slider-thumb {
   width: 12px;
@@ -1651,19 +1693,19 @@ html[data-ui="cable-guide"] #setup-screen input[type="range"]::-webkit-slider-th
   background: var(--cg-text);
   box-shadow: none;
 }
-html[data-ui="cable-guide"] #setup-screen input[type="range"]:focus-visible::-webkit-slider-thumb { background: var(--cg-focus); }
+html[data-ui="cable-guide"] #setup-screen input[type="range"]:focus-visible::-webkit-slider-thumb { background: var(--cg-focus-sheen), var(--cg-focus); }
 
 /* Lists: rows like the guide's lists. */
 html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row) {
   border: 0;
   border-radius: var(--cg-radius);
-  background: var(--cg-cell);
+  background: var(--cg-sheen), var(--cg-cell);
   background-image: none;
   box-shadow: none;
   color: var(--cg-cell-text);
 }
 html[data-ui="cable-guide"] #setup-screen :is(.channel-list-item, .channel-row):is(:hover, .active, .selected, [aria-selected="true"]) {
-  background: var(--cg-focus);
+  background: var(--cg-focus-sheen), var(--cg-focus);
   color: var(--cg-focus-text);
   outline: none;
 }

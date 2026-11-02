@@ -151,6 +151,24 @@ export function mergeMicroPrograms(entries, minMs) {
   return cells;
 }
 
+// What a merged run is called when it isn't a mix: the series every episode
+// in it shares ("Harbor Patrol"), so a stretch of 11-minute episodes
+// reads as one show. Bumpers and promos between them don't count either way.
+// seriesOf(file) gives a file's series or null; returns null for a mix.
+const RUN_FILLER = new Set(['bumper', 'promo']);
+export function runSeriesName(items, seriesOf) {
+  let name = null;
+  for (const entry of items || []) {
+    const file = entry && entry.file;
+    if (file && file.facets && RUN_FILLER.has(file.facets.contentType)) continue;
+    const series = file ? seriesOf(file) : null;
+    if (!series) return null;
+    if (name === null) name = series;
+    else if (series.toLowerCase() !== name.toLowerCase()) return null;
+  }
+  return name;
+}
+
 // The cell containing an instant, or -1.
 export function cellIndexAt(cells, atMs) {
   return cells.findIndex((cell) => atMs >= cell.start && atMs < cell.end);

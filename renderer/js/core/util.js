@@ -5,6 +5,19 @@ export function getDisplayTitle(file) {
   return stripReleaseTags(guessCleanTitle(basenameNoExt(file.path)));
 }
 
+// The series a file belongs to: its library series name, else the part of a
+// "Show - S01E02 - Title" filename before the episode code. null when neither
+// says (a movie, a bumper, a bare episode title).
+export function guessSeriesName(file) {
+  if (!file) return null;
+  const named = file.series && file.series.name && String(file.series.name).trim();
+  if (named) return named;
+  const base = basenameNoExt(file.path || '').replace(/[._]+/g, ' ');
+  const match = base.match(/^(.*?)\s*-?\s*(?:S\d{2,4}E\d{2,4}|\b\d{1,2}x\d{2,3})\b/i);
+  const show = match && match[1].replace(/[\s-]+$/, '').trim();
+  return show || null;
+}
+
 // Most of this library follows "Show - SxxExx - Episode Title" (or just
 // "SxxExx - Episode Title (tech tags)") once underscores are read as
 // spaces. Strip the season/episode code, keep only the last " - "

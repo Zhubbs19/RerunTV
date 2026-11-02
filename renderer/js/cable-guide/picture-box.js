@@ -8,9 +8,16 @@
 // Pages call showPictureBox() when they open and hidePictureBox() when they
 // close; moving #player into the box is the page's job (step 2 onward).
 import { runCoreHooks } from '../plugin/host.js';
-import { pictureBoxRect, sameRect } from './model.js';
+import { GRID_UNITS, pictureBoxRect, sameRect } from './model.js';
 
 let current = null;
+
+// The grid width the page CSS is using right now (cable-guide.css sets
+// --grid-units per usage mode), so the box lands where the header leaves it.
+export function gridUnits() {
+  const value = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--grid-units'));
+  return value > 0 ? value : GRID_UNITS;
+}
 
 function write(rect) {
   if (sameRect(rect, current)) return;
@@ -35,7 +42,7 @@ export function setPictureBox(rect) {
 export function showPictureBox(screenEl) {
   const crt = screenEl || document.querySelector('#tv-screen .crt');
   if (!crt) return null;
-  write(pictureBoxRect(crt.clientWidth, crt.clientHeight, document.documentElement.dataset.guideLayout));
+  write(pictureBoxRect(crt.clientWidth, crt.clientHeight, document.documentElement.dataset.guideLayout, gridUnits()));
   return current;
 }
 

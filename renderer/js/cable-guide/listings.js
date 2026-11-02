@@ -8,7 +8,7 @@
 // .crt's local pixels), which also tells overlay plugins to keep clear.
 import { CABLE_GUIDE_UI, listingsPictureBox } from './model.js';
 import { currentUiMode } from './mode.js';
-import { pictureBox, setPictureBox } from './picture-box.js';
+import { gridUnits, pictureBox, setPictureBox } from './picture-box.js';
 
 const HOLE_VARS = ['left', 'top', 'width', 'height'];
 
@@ -34,7 +34,7 @@ export function syncListingsPicture(grid, crt) {
     return;
   }
   const box = listingsPictureBox(grid.getBoundingClientRect(), crt.getBoundingClientRect(), crt.offsetWidth,
-    document.documentElement.dataset.guideLayout);
+    document.documentElement.dataset.guideLayout, gridUnits());
   if (!box) return;
   HOLE_VARS.forEach((key) => grid.style.setProperty(`--listings-hole-${key}`, `${box.hole[key]}px`));
   setPictureBox(box.picture);

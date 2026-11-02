@@ -17,15 +17,16 @@ export function paintedThemeId({ uiMode, boxThemeId, channelThemeId }) {
   return uiMode === CABLE_GUIDE_UI ? boxThemeId : channelThemeId;
 }
 
-// The cable-guide screens are laid out on a 60-unit-wide grid (1 unit = 16px
-// at 960 wide). The live-video box hangs from the top-right corner of the
+// The cable-guide screens are laid out on a grid `units` wide: 60 in TV mode
+// (1 unit = 16px at 960 wide), denser on a desktop window (cable-guide.css's
+// --grid-units). The live-video box hangs from the top-right corner of the
 // header: 20.5 × 11.5 units, 1.75 units in from the right. Classic insets it
 // from the top and frames it, so it is a little shorter.
 export const GRID_UNITS = 60;
 
-export function pictureBoxRect(width, height, guideLayout = 'hd') {
+export function pictureBoxRect(width, height, guideLayout = 'hd', units = GRID_UNITS) {
   if (!(width > 0) || !(height > 0)) return null;
-  const unit = width / GRID_UNITS;
+  const unit = width / (units > 0 ? units : GRID_UNITS);
   const classic = guideLayout === 'classic';
   const w = 20.5 * unit;
   const h = (classic ? 9.8 : 11.5) * unit;
@@ -43,8 +44,8 @@ export function pictureBoxRect(width, height, guideLayout = 'hd') {
 // on-screen rects; crtLocalWidth is the .crt's own unscaled width. Returns the
 // hole in grid pixels and the same box in .crt's local pixels, which is where
 // #player is positioned — so the picture always lands in the hole.
-export function listingsPictureBox(gridRect, crtRect, crtLocalWidth, guideLayout = 'hd') {
-  const hole = pictureBoxRect(gridRect && gridRect.width, gridRect && gridRect.height, guideLayout);
+export function listingsPictureBox(gridRect, crtRect, crtLocalWidth, guideLayout = 'hd', units = GRID_UNITS) {
+  const hole = pictureBoxRect(gridRect && gridRect.width, gridRect && gridRect.height, guideLayout, units);
   if (!hole || !crtRect || !(crtRect.width > 0)) return null;
   const scale = crtLocalWidth > 0 ? crtRect.width / crtLocalWidth : 1;
   return {

@@ -2,7 +2,7 @@
    the cable-guide layout reads (renderer/css/cable-guide.css); the semantic
    tokens below them keep the legacy screens readable if a channel's
    identity paints with this theme on the legacy layout. Focus is a solid
-   fill; only buttons keep the era's soft gloss. */
+   bar with the era's gloss; panels and buttons drop a soft shadow. */
 html[data-theme="cable-guide-classic-05"] {
   --cg-font: Arimo, Arial, system-ui, sans-serif;
   --cg-weight: 700;
@@ -38,6 +38,10 @@ html[data-theme="cable-guide-classic-05"] {
   --cg-overlay: linear-gradient(180deg, rgba(0, 27, 132, .92), rgba(0, 18, 79, .96));
   --cg-badge-bg: #ffffff;
   --cg-badge-text: #0b1f4a;
+  --cg-sheen: linear-gradient(180deg, rgba(255, 255, 255, .26) 0, rgba(255, 255, 255, .1) 46%, rgba(255, 255, 255, 0) 50%, rgba(0, 0, 30, .22) 100%);
+  --cg-focus-sheen: linear-gradient(180deg, rgba(255, 255, 255, .6) 0, rgba(255, 255, 255, .18) 47%, rgba(255, 255, 255, 0) 51%, rgba(110, 100, 0, .2) 100%);
+  --cg-lift: .1em .2em .4em rgba(0, 0, 25, .75);
+  --cg-focus-glow: 0 0 .5em rgba(255, 242, 122, .55);
 
   --surface-0: #00124f; --surface-1: #001b84; --surface-2: #0b2d5a; --surface-3: #173cd3;
   --surface-panel: linear-gradient(180deg, #0b2d6e, #061d4f);

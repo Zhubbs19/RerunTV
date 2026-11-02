@@ -19,11 +19,11 @@ import { searchUpcomingPrograms } from './program-search.js';
 import { guideGenreStyleForFile } from './genres.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
 import {
-  autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle,
+  autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle, guessSeriesName,
 } from '../core/util.js';
 import { virtualChannelInfo, virtualChannelNumbers } from '../playback/virtual.js';
 import {
-  cellIndexAt, channelCallLetters, abbreviateChannelName, guideRows, mergeMicroPrograms, moveSelection, rowScrollTop, selectedIndex,
+  cellIndexAt, channelCallLetters, abbreviateChannelName, guideRows, mergeMicroPrograms, moveSelection, rowScrollTop, runSeriesName, selectedIndex,
 } from './model.js';
 import { BREAK_LABELS, breakMarkEl, spanPercent } from '../timeline/render.js';
 import { effectiveThemeId } from '../display/identity.js';
@@ -600,7 +600,16 @@ function mergeShortsEnabled() {
 // Width below which guide.css hides a cell's label (@container max-width:
 // 52px), as a duration in the current window — so a run of entries merges
 // exactly when their cells would otherwise have been label-less slivers.
+// The cable-guide layout merges sooner: anything too narrow for about eight
+// letters of a title ("Rabbi…", "W… W…") reads as clutter there, so its
+// minimum is in grid units of the rows' own type size.
 const LABEL_MIN_PX = 52;
+const CABLE_GUIDE_LABEL_MIN_EM = 7.5;
+function labelMinPx() {
+  if (!cableGuide()) return LABEL_MIN_PX;
+  const unit = parseFloat(getComputedStyle(guideRowsEl).fontSize) || 0;
+  return Math.max(LABEL_MIN_PX, unit * CABLE_GUIDE_LABEL_MIN_EM);
+}
 function microProgramMs() {
   if (!mergeShortsEnabled()) return 0;
   const windowMs = guideSlotMs() * guideSlots();
@@ -610,7 +619,7 @@ function microProgramMs() {
   const width = guideTimeHeaderEl.clientWidth || guideRowsEl.clientWidth;
   const railPx = railEl ? railEl.offsetWidth : Math.min(170, width * 0.22);
   const trackPx = width - railPx;
-  const ms = trackPx > 0 ? (windowMs * LABEL_MIN_PX) / trackPx : windowMs * 0.03;
+  const ms = trackPx > 0 ? (windowMs * labelMinPx()) / trackPx : windowMs * 0.03;
   // Rounded so a few pixels of resize don't change the render signature.
   return Math.round(ms / 10000) * 10000;
 }
@@ -620,8 +629,12 @@ function guideCells(ch, from, to, minMs = microProgramMs()) {
   return mergeMicroPrograms(getChannelSchedule(ch, from, to), minMs);
 }
 
+// A run of one series' episodes is named for the series; a mix is shorts.
 function runLabel(cell) {
-  return `SHORTS & BUMPERS (${cell.items.length})`;
+  const n = cell.items.length;
+  const series = runSeriesName(cell.items, guessSeriesName);
+  if (cableGuide()) return series ? `${series} (${n})` : `Shorts & Bumpers (${n})`;
+  return series ? `${series.toUpperCase()} (${n})` : `SHORTS & BUMPERS (${n})`;
 }
 
 // ---------- Popovers: shorts & bumpers list, program actions ----------
@@ -1110,7 +1123,8 @@ function fitDockedGuideHeight() {
   const rowH = rowEls.slice(0, 40).reduce((max, el) => Math.max(max, el.offsetHeight), minRow);
   const gap = parseFloat(rowsStyle.rowGap) || 0;
   const chrome = guideGrid.offsetHeight - guideRowsEl.clientHeight;
-  const target = Math.ceil(chrome + rows * (rowH + gap) + (parseFloat(rowsStyle.paddingTop) || 0) + 1);
+  // Gaps only between rows: a trailing one would show a sliver of the next row.
+  const target = Math.ceil(chrome + rows * rowH + (rows - 1) * gap + (parseFloat(rowsStyle.paddingTop) || 0) + 1);
   const current = parseFloat(guideGrid.style.getPropertyValue('--guide-docked-h')) || 0;
   if (Math.abs(current - target) > 1) guideGrid.style.setProperty('--guide-docked-h', `${target}px`);
   publishPictureArea();

@@ -27,6 +27,14 @@ test('fallback media titles remove dotted release noise and expose suspicious me
   assert.equal(util.namespace.titleNeedsMetadata(file), true);
   assert.equal(util.namespace.titleNeedsMetadata({ path: 'Pilot.mkv' }), false);
   assert.equal(util.namespace.titleNeedsMetadata({ path: file.path, title: 'Email Surveillance PSA' }), false);
+
+  // The guide names a run of short episodes for their series.
+  const { guessSeriesName } = util.namespace;
+  assert.equal(guessSeriesName({ path: 'D:/tv/Harbor Patrol - S01E02 - Low Tide.mkv' }), 'Harbor Patrol');
+  assert.equal(guessSeriesName({ path: 'D:/tv/Night.Desk.1x05.Late.Edition.mp4' }), 'Night Desk');
+  assert.equal(guessSeriesName({ path: 'D:/tv/x.mkv', series: { name: ' Garden Club ' } }), 'Garden Club');
+  assert.equal(guessSeriesName({ path: 'D:/movies/The Long Road 720p x265.mkv' }), null);
+  assert.equal(guessSeriesName({ path: 'D:/tv/S01E01 - Pilot.mkv' }), null);
 });
 
 test('custom overlay placement has keyboard, numeric, focus-return, and live-region paths', () => {
