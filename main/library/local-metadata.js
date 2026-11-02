@@ -237,22 +237,25 @@ function parseFfmetadata(text) {
 
 const RELEASE_TOKENS = /\b(\d{3,4}p|[xh][ .]?26[45]|hevc|avc|xvid|divx|blu-?ray|bdrip|brrip|web-?dl|web-?rip|webrip|hdtv|dvd-?rip|remux|aac\d?|ac3|e-?ac-?3|ddp?\d|10bit)\b/i;
 const EPISODE_CODE = /(?<![a-z0-9])(s\d{1,4}[ ._-]?e\d{1,3}|\d{1,2}x\d{2,3})(?![0-9])/i;
+// A box set's name stamped on one of its files ("… 2-Movie Collection").
+const SET_NAME = /\b(\d+[- ](movie|film|disc|episode)s?|collection|complete (series|season|seasons)|box ?set|trilogy|anthology)\b/i;
 
 /**
  * A title tag as a person would write it, or null. Rejects what encoders and
  * release groups leave behind: a URL or domain, a "site | name" banner, a
- * dotted release name, codec and source tokens, or an episode code (a title
- * that still carries one is a filename, not an episode's name). A trailing
- * " - GROUP" in capitals is dropped.
+ * dotted release name, codec and source tokens, an episode code (a title
+ * that still carries one is a filename, not an episode's name), or a box
+ * set's name. A trailing " - GROUP" in capitals and a trailing "(1998)" are
+ * dropped.
  */
 function cleanTagTitle(raw) {
   let title = String(raw || '').replace(/\s+/g, ' ').trim();
   if (!title) return null;
   if (/https?:\/\/|www\.|\b[\w-]+\.(com|org|net|io|to|me|tv|info|cc|ws)\b/i.test(title)) return null;
   if (title.includes('|')) return null;
-  title = title.replace(/\s+-\s+[A-Z0-9]{3,8}$/, '').trim();
+  title = title.replace(/\s+-\s+[A-Z0-9]{3,8}$/, '').replace(/\s*\((19|20)\d\d\)$/, '').trim();
   if ((title.match(/[._]/g) || []).length >= 3 && !/\s/.test(title.replace(/[._]/g, ''))) return null;
-  if (RELEASE_TOKENS.test(title) || EPISODE_CODE.test(title)) return null;
+  if (RELEASE_TOKENS.test(title) || EPISODE_CODE.test(title) || SET_NAME.test(title)) return null;
   if (/^\d{1,2}:\d\d(:\d\d)?([.,]\d+)?$/.test(title) || /^(chapter|track|title) ?\d+$/i.test(title)) return null;
   return title.length >= 2 ? title : null;
 }

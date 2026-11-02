@@ -8,6 +8,7 @@ import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 export const HIGHLIGHTS = [
+  { id: 'file-details', title: 'Details from your own files', text: 'Fill in episode titles, descriptions and ratings from .nfo files and tags in your media, for every channel at once or as new files arrive.', tab: 'library', subtab: 'librarysync', setting: 'local-meta-fill' },
   { id: 'cable-guide-layout', title: 'A cable-box layout, in two skins', text: 'Pick the HD or Classic skin under Theme for a guide, banner, menus and setup modelled on a mid-2000s cable box.', tab: 'guide', subtab: 'guidetheme' },
   { id: 'search-by-show', title: 'Search lists each show once', text: 'On the HD and Classic skins, Search shows every matching show with how often it airs, and OK lists its airings. You can switch back to every airing in a row.', tab: 'guide', subtab: 'guidegrid', setting: 'search-group-by-title' },
   { id: 'layout-editor', title: 'A rebuilt on-screen layout editor', text: 'Press O while watching to drag the logo and every card over the real picture, with snapping, undo and a clean view (H).', tab: 'guide', subtab: 'guideonscreen' },

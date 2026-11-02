@@ -113,7 +113,10 @@ test('tag titles that encoders and release groups leave behind are rejected', ()
   assert.equal(cleanTagTitle('Show Name S03E11 - Team Release'), null, 'an episode code means a filename');
   assert.equal(cleanTagTitle('00:00:00.211'), null);
   assert.equal(cleanTagTitle('Chapter 3'), null);
+  assert.equal(cleanTagTitle('Some Film 2-Movie Collection'), null, "a box set's name");
+  assert.equal(cleanTagTitle('The Complete Series'), null);
   assert.equal(cleanTagTitle('A Movie Title - GRP'), 'A Movie Title', 'a trailing group tag is dropped');
+  assert.equal(cleanTagTitle('A Holiday Film (2004)'), 'A Holiday Film', 'and a trailing year');
   assert.equal(cleanTagTitle('Hoppy Days'), 'Hoppy Days');
   assert.equal(cleanTagTitle("What's Up, Dog?"), "What's Up, Dog?");
 });
