@@ -12,7 +12,7 @@ function activate(ctx) {
   ipcMain.handle('tmdb:search', async (event, opts) => {
     const apiKey = opts && opts.apiKey;
     const query = opts && opts.query && opts.query.trim();
-    if (!apiKey) return { results: [], error: 'No TMDB API key set (DISPLAY & SYSTEM → TMDB METADATA).' };
+    if (!apiKey) return { results: [], error: 'No TMDB API key set (PLUGINS › TMDB Metadata › SETTINGS).' };
     if (!query) return { results: [] };
     try {
       const url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(query)}&include_adult=false`;

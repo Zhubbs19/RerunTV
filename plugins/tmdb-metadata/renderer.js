@@ -3,8 +3,23 @@
 // plugin renderer.js is imported (plugins.js's loadPlugins()), so this is
 // safe to read at module top level, before this plugin's own render() has
 // ever been called.
-const { S: tmdbS } = window.RCBPlugins.ctx;
+const { S: tmdbS, ipc } = window.RCBPlugins.ctx;
 if (!tmdbS.config.tmdb) tmdbS.config.tmdb = { apiKey: null };
+
+// Lookups reach this plugin's own main.js over the generic plugin bridge, which
+// answers with the manifest's fallbackIpc while the plugin is off. A LAN viewer
+// has no bridge, so it gets the same "host only" answer the old preload gave.
+const PLUGIN_ID = 'tmdb-metadata';
+const HOST_ONLY = 'TMDB lookups only run on the host device.';
+const NO_KEY = 'Add an API key first: PLUGINS › TMDB Metadata › SETTINGS.';
+async function tmdbSearch(opts) {
+  if (!ipc.available()) return { results: [], error: HOST_ONLY };
+  try { return await ipc.invoke(PLUGIN_ID, 'tmdb:search', opts); } catch (e) { return { results: [], error: e.message }; }
+}
+async function tmdbGetCredits(opts) {
+  if (!ipc.available()) return { cast: [] };
+  try { return await ipc.invoke(PLUGIN_ID, 'tmdb:getCredits', opts); } catch (e) { return { cast: [] }; }
+}
 
 // Settings panel — just an API key field.
 
@@ -32,7 +47,7 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
       const files = Array.from(ctx.getSelectedFiles());
       if (!files.length) return;
       if (!ctx.S.config.tmdb.apiKey) {
-        window.alertDialog('Add an API key first — expand this plugin\'s SETTINGS in the PLUGINS tab.');
+        window.alertDialog(NO_KEY);
         return;
       }
       if (!(await window.confirmDialog(`Look up matches for ${files.length} selected file(s)? The top result for each is applied automatically (no per-file confirmation), skipping any file that already has a description.`, { danger: false, confirmText: 'MATCH' }))) return;
@@ -50,14 +65,14 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
         const query = (file.title || guessCleanTitleFallback((file.path || '').split(/[\\/]/).pop())).trim();
         try {
           // eslint-disable-next-line no-await-in-loop -- intentionally sequential, see pacing note above
-          const { results } = await window.api.tmdbSearch({ apiKey: ctx.S.config.tmdb.apiKey, query });
-          if (!results || !results.length) { noResult += 1; continue; } // eslint-disable-line no-continue
+          const { results, error } = await tmdbSearch({ apiKey: ctx.S.config.tmdb.apiKey, query });
+          if (error || !results || !results.length) { noResult += 1; continue; } // eslint-disable-line no-continue
           const top = results[0];
           file.tmdb = { id: top.id, mediaType: top.mediaType, posterUrl: top.posterUrl };
           if (top.overview) file.description = top.overview;
           matched += 1;
           // eslint-disable-next-line no-await-in-loop
-          const { cast } = await window.api.tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: top.id, mediaType: top.mediaType });
+          const { cast } = await tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: top.id, mediaType: top.mediaType });
           if (cast && cast.length) file.tmdb.cast = cast;
         } catch (e) { noResult += 1; }
         // eslint-disable-next-line no-await-in-loop
@@ -103,7 +118,7 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
       btn.textContent = 'RE-MATCH';
       results.classList.add('hidden');
       ctx.saveConfigDebounced();
-      window.api.tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: match.id, mediaType: match.mediaType })
+      tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: match.id, mediaType: match.mediaType })
         .then(({ cast }) => {
           if (cast && cast.length) { file.tmdb.cast = cast; ctx.saveConfigDebounced(); }
         });
@@ -111,13 +126,13 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
 
     btn.addEventListener('click', async () => {
       if (!ctx.S.config.tmdb.apiKey) {
-        window.alertDialog('Add an API key first — expand this plugin\'s SETTINGS in the PLUGINS tab.');
+        window.alertDialog(NO_KEY);
         return;
       }
       btn.disabled = true;
       btn.textContent = 'SEARCHING…';
       const query = (file.title || guessCleanTitleFallback((file.path || '').split(/[\\/]/).pop())).trim();
-      const { results: matches, error } = await window.api.tmdbSearch({ apiKey: ctx.S.config.tmdb.apiKey, query });
+      const { results: matches, error } = await tmdbSearch({ apiKey: ctx.S.config.tmdb.apiKey, query });
       btn.disabled = false;
       btn.textContent = file.tmdb ? 'RE-MATCH' : 'MATCH';
       if (error) { window.alertDialog(error, { variant: 'error' }); return; }

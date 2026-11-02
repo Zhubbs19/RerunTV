@@ -81,6 +81,17 @@ test('program info: tiles pick an icon from the label, or the plugin\'s own', as
   assert.equal(stepTile(0, 0, 1), -1);
 });
 
+test('program info ends the description with a matched cast', async () => {
+  const { descriptionWithCast } = await load();
+  const file = (cast) => ({ tmdb: { id: 1, cast } });
+  assert.equal(descriptionWithCast('A heist goes wrong.', file(['Ann Lee', 'Bo Ray', 'Cy Dunn'])), 'A heist goes wrong. Starring Ann Lee, Bo Ray and Cy Dunn.');
+  assert.equal(descriptionWithCast('A heist goes wrong', file(['Ann Lee'])), 'A heist goes wrong. Starring Ann Lee.');
+  assert.equal(descriptionWithCast('', file(['Ann Lee', 'Bo Ray'])), 'Starring Ann Lee and Bo Ray.');
+  assert.equal(descriptionWithCast('  Plain.  ', {}), 'Plain.', 'no match leaves the description alone');
+  assert.equal(descriptionWithCast('Plain.', file([' ', null])), 'Plain.', 'blank names are dropped');
+  assert.equal(descriptionWithCast('', null), '');
+});
+
 test('guide ranges read compactly, the way the real guides wrote them', async () => {
   const { guideRange, guideDayLabel } = await load();
   const d = (h, m = 0) => new Date(2026, 9, 31, h, m);

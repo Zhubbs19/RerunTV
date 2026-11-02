@@ -1,6 +1,7 @@
 // The info card (I on live TV, INFO in the guide's actions) as a program info
 // page on the cable-guide layout: the shared header with the picture in its
-// corner — title, time and rating, channel — then the description, and a
+// corner — title, time and rating, channel — then the description (with any
+// matched cast as its last sentence), and a
 // Back tile with its meaning underneath, like the guide's program info.
 // tv/details.js still fills the legacy card; this draws next to it inside
 // #details-overlay while the cable-guide layout is on.
@@ -10,7 +11,7 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { channelCallLetters } from '../guide/model.js';
 import { createGuideHeader } from './header.js';
 import { iconSvg } from './icons.js';
-import { guideRange, menuLabel } from './model.js';
+import { descriptionWithCast, guideRange, menuLabel } from './model.js';
 import { hidePictureBox, showPictureBox } from './picture-box.js';
 
 let page = null;
@@ -50,7 +51,7 @@ export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
     ? `${formatChannelNumber(ctx.channelNumber)} ${(ch && channelCallLetters(ch)) || ctx.channelName || ''}`.trim()
     : '';
   header.setProgram({ title, time, channel, rating, ch });
-  const description = file && typeof file.description === 'string' ? file.description.trim() : '';
+  const description = descriptionWithCast(file && typeof file.description === 'string' ? file.description : '', file);
   const desc = page.querySelector('.cg-details-desc');
   desc.textContent = description || 'No description available.';
   desc.classList.toggle('cg-info-desc-empty', !description);

@@ -470,15 +470,13 @@
     }).then((r) => r.json()).catch((e) => ({ ok: false, error: e.message })),
     getHandoffInfo: () => fetch('/api/handoff-info').then((r) => r.json()).catch(() => ({ url: '', qrDataUrl: '', label: '' })),
 
-    // ---- TMDB metadata / NOAA alerts: both go through main.js's fetch+
-    // cache helper on the host, not something a viewer can reach on its own.
-    // Empty-but-well-shaped results so setup-panels.js/eas.js's normal
-    // destructuring (`{ results }`, `{ cast }`, `{ alerts }`) never throws
-    // here — a viewer just sees "no results" rather than a broken button,
-    // and eas.js's NOAA poll loop (which runs on every tuneToChannel, same
-    // as on the host) silently no-ops instead of erroring on every tune.
-    tmdbSearch: () => Promise.resolve({ results: [], error: 'TMDB lookups only run on the host device' }),
-    tmdbGetCredits: () => Promise.resolve({ cast: [] }),
+    // ---- Captions / NOAA alerts: both run on the host, not something a
+    // viewer can reach on its own. Empty-but-well-shaped results so eas.js's
+    // normal destructuring (`{ alerts }`) never throws here — a viewer just
+    // sees nothing rather than a broken button, and eas.js's NOAA poll loop
+    // (which runs on every tuneToChannel, same as on the host) silently
+    // no-ops instead of erroring on every tune. (TMDB lookups use the plugin
+    // bridge, which a viewer doesn't have; the plugin checks for that.)
     captionsScanForFile: () => Promise.resolve({ tracks: [] }),
     captionsExtractTrack: () => Promise.resolve({ error: 'Caption extraction only runs on the host device' }),
     noaaGetActiveAlerts: () => Promise.resolve({ alerts: [] }),

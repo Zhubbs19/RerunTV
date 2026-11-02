@@ -24,7 +24,7 @@
     'spotifyStart', 'spotifyStop', 'spotifyGetStreamUrl', 'onSpotifyStatus', 'onSpotifyEvent',
     'youtubeSearch', 'youtubePlay', 'youtubeStop', 'onYoutubeStatus',
     'sendPartyJukeboxState', 'onPartyJukeboxAdd', 'onPartyJukeboxSkipVote', 'onPartyJukeboxFun',
-    'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'saveRemoteProfile', 'getHandoffInfo', 'tmdbSearch', 'tmdbGetCredits',
+    'sendPartyQueueState', 'getPartyJoinInfo', 'getViewerUrl', 'saveRemoteProfile', 'getHandoffInfo',
     'captionsScanForFile', 'captionsExtractTrack', 'noaaGetActiveAlerts', 'noaaGetForecast', 'pluginsList', 'getDiagnostics', 'exportDiagnostics',
     'pluginsOpenFolder', 'pluginsSetEnabled', 'pluginsInstallFromZip', 'pluginsApproveCapabilities',
     'pluginsRevokeCapabilities', 'pluginsApproveIntegrity', 'pluginsUninstall', 'listMediaSourceProviders',

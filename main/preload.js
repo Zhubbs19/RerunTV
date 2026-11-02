@@ -251,10 +251,6 @@ contextBridge.exposeInMainWorld('api', {
   // the phone/computer handoff URL + QR.
   saveRemoteProfile: (profile) => ipcRenderer.invoke('tvClient:saveRemoteProfile', profile),
   getHandoffInfo: (opts) => ipcRenderer.invoke('tvClient:getHandoffInfo', opts),
-  // TMDB metadata lookup (a plugin's own TITLES-tab match action, see
-  // plugins/tmdb-metadata) — handled by that plugin's own main.js, not core.
-  tmdbSearch: (opts) => ipcRenderer.invoke('tmdb:search', opts),
-  tmdbGetCredits: (opts) => ipcRenderer.invoke('tmdb:getCredits', opts),
   // Closed captions (sidecar/embedded subtitle discovery + extraction) —
   // handled by plugins/closed-captions's own main.js, not core.
   captionsScanForFile: (filePath) => ipcRenderer.invoke('captions:scanForFile', filePath),
