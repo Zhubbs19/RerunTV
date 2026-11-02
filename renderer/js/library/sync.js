@@ -9,6 +9,7 @@ import { confirmDialog } from '../setup/dialogs.js';
 import { reconcileFolderFiles } from './sync-core.js';
 import { applyPlaylistPreservingAir } from './reanchor.js';
 import { describeFilled, fileFieldsFromLocal, fillFilesInPlace, localMetadataPrefs, localPathOf, readLocalMetadata } from './local-metadata.js';
+import { inheritFromCopies, shareAcrossCopies } from './file-copies.js';
 const SYNC_PROBE_CONCURRENCY = 4;
 let periodicTimer = null;
 let syncRunning = false;
@@ -120,6 +121,12 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
             missing: prefs.removeMissing ? 0 : result.missing.length,
             unprobed: result.unprobed.length,
           };
+          // A new file that another channel already plays arrives with the
+          // details it has there (a TMDB match, a description, a title).
+          if (result.added.length) {
+            const addedPaths = new Set(result.added.map((file) => file.path));
+            row.inherited = inheritFromCopies(S.config, result.files.filter((file) => addedPaths.has(file.path) && file.folder === folder.id));
+          }
           // New files arrive with what their .nfo files and tags say, before
           // they join the playlist (LIBRARY SYNC › "Fill in new files' details").
           // A failed read never blocks the sync itself.
@@ -187,16 +194,21 @@ function filesMissingDetails() {
 }
 
 // LIBRARY SYNC › FILL IN ALL CHANNELS NOW: one pass over the whole lineup,
-// recorded as a single undoable patch. Titles, descriptions, ratings and
+// recorded as a single undoable patch. First every entry takes what its
+// other copies already know (a TMDB match made on one channel before matches
+// were shared, library/file-copies.js), then the rest are read from disk. Titles, descriptions, ratings and
 // series names don't move anything in a schedule, so nothing on the air
 // changes; only empty fields are filled.
 export async function fillAllChannelDetails() {
   if (syncRunning || window.__isViewer) return null;
-  const files = filesMissingDetails();
   const status = document.getElementById('local-meta-status');
+  const shared = shareAcrossCopies(S.config);
+  const sharedText = shared ? `SHARED DETAILS WITH ${shared} COP${shared === 1 ? 'Y' : 'IES'} OF FILES ON OTHER CHANNELS. ` : '';
+  const files = filesMissingDetails();
   if (!files.length) {
-    if (status) status.textContent = 'EVERY LOCAL FILE ALREADY HAS ITS DETAILS.';
-    return { filled: 0 };
+    if (shared) commitConfigPatch('Fill in details from files', { delay: 100 });
+    if (status) status.textContent = `${sharedText}EVERY LOCAL FILE ALREADY HAS ITS DETAILS.`;
+    return { filled: 0, shared };
   }
   syncRunning = true;
   const button = document.getElementById('local-meta-fill-btn');
@@ -214,15 +226,17 @@ export async function fillAllChannelDetails() {
       Object.assign(file, fields);
       applied.push(fields);
     });
-    if (applied.length) commitConfigPatch('Fill in details from files', { delay: 100 });
+    if (applied.length || shared) commitConfigPatch('Fill in details from files', { delay: 100 });
     if (status) {
-      status.textContent = applied.length
+      status.textContent = sharedText + (applied.length
         ? `FILLED IN ${describeFilled(applied).toUpperCase()} ON ${applied.length} OF ${files.length} FILES.`
-        : `NOTHING NEW IN ${files.length} FILES' .NFO FILES${tagsAvailable ? ' OR TAGS' : ''}.`;
+        : `NOTHING NEW IN ${files.length} FILES' .NFO FILES${tagsAvailable ? ' OR TAGS' : ''}.`);
     }
-    return { filled: applied.length, read: files.length };
+    return { filled: applied.length, read: files.length, shared };
   } catch (error) {
-    if (status) status.textContent = `COULD NOT READ FILE DETAILS: ${error.message}`;
+    // Details shared between copies above are kept even when reading fails.
+    if (shared) commitConfigPatch('Fill in details from files', { delay: 100 });
+    if (status) status.textContent = `${sharedText}COULD NOT READ FILE DETAILS: ${error.message}`;
     return null;
   } finally {
     syncRunning = false;

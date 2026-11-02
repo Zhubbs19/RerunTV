@@ -1443,7 +1443,17 @@ window.RCBPlugins.registerTitleRowAction('my-plugin', {
 ```
 
 `ctx` is the standard `window.RCBPlugins.ctx`, plus `getSelectedFiles()`
-(bulk action only) and `rerender()`. See `plugins/tmdb-metadata/renderer.js`
+(bulk action only), `rerender()`, and two savers for details that describe
+the media rather than one playlist entry:
+
+- `shareFileFields(file, fields, { label, commit })` writes `fields` on every
+  entry for the same file, in every channel and schedule block, and on its
+  library item, as one undo step. A description another copy was given by hand
+  is kept. Pass `commit: false` inside a loop and finish with
+- `commitSharedFileFields(label)`, which records the whole loop as one step.
+
+Feature-detect both (`typeof ctx.shareFileFields === 'function'`) so the
+plugin still works in an older app. See `plugins/tmdb-metadata/renderer.js`
 for a full real example (search, bulk match, per-file re-match).
 
 ### Calling your own `main.js`: `ctx.ipc` (ctx v10)

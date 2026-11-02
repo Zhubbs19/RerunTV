@@ -226,15 +226,23 @@ function createLibraryService({
 
     // Writes item fields: accepted tagging suggestions, probed durations,
     // hand edits, and `local` — what the file's .nfo files and tags said
-    // (readLocalMetadata), kept as evidence for REVIEW. Only known fields:
-    // ids, refs and fingerprints are identity and are never set this way.
+    // (readLocalMetadata), kept as evidence for REVIEW, and `tmdb`, a metadata
+    // match shared from a playlist entry. Only known fields: ids, refs and
+    // fingerprints are identity and are never set this way. A field named in
+    // an update's `onlyIfEmpty` is written only where the item has none.
     applyItemUpdates({ updates }) {
-      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local']);
+      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb']);
+      const empty = (value) => value == null || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
       let changed = 0;
-      (updates || []).forEach(({ id, fields }) => {
-        if (!store.getItem(id) || !fields) return;
+      (updates || []).forEach(({ id, fields, onlyIfEmpty = [] }) => {
+        const item = store.getItem(id);
+        if (!item || !fields) return;
         const clean = {};
-        Object.keys(fields).forEach((key) => { if (allowed.has(key)) clean[key] = fields[key]; });
+        Object.keys(fields).forEach((key) => {
+          if (!allowed.has(key)) return;
+          if (Array.isArray(onlyIfEmpty) && onlyIfEmpty.includes(key) && !empty(item[key])) return;
+          clean[key] = fields[key];
+        });
         if (!Object.keys(clean).length) return;
         store.updateItem(id, clean);
         changed += 1;

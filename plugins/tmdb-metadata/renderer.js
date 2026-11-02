@@ -36,6 +36,19 @@ function guessCleanTitleFallback(name) {
   return name.replace(/\.[^./\\]+$/, '').replace(/[[(][^\])]*[\])]\s*$/, '').trim();
 }
 
+// A match describes the media, not one playlist entry. ctx.shareFileFields
+// (core's TITLES row ctx) writes it on every channel and schedule block that
+// plays the same file, and on its library item; an older app without it
+// keeps the match on this entry only.
+function saveMatch(ctx, file, fields, opts) {
+  if (typeof ctx.shareFileFields === 'function') {
+    ctx.shareFileFields(file, fields, opts);
+    return;
+  }
+  Object.assign(file, fields);
+  if (!opts || opts.commit !== false) ctx.saveConfigDebounced();
+}
+
 window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
   renderBulkAction(container, ctx) {
     const btn = document.createElement('button');
@@ -68,12 +81,12 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
           const { results, error } = await tmdbSearch({ apiKey: ctx.S.config.tmdb.apiKey, query });
           if (error || !results || !results.length) { noResult += 1; continue; } // eslint-disable-line no-continue
           const top = results[0];
-          file.tmdb = { id: top.id, mediaType: top.mediaType, posterUrl: top.posterUrl };
-          if (top.overview) file.description = top.overview;
+          const tmdb = { id: top.id, mediaType: top.mediaType, posterUrl: top.posterUrl };
           matched += 1;
           // eslint-disable-next-line no-await-in-loop
           const { cast } = await tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: top.id, mediaType: top.mediaType });
-          if (cast && cast.length) file.tmdb.cast = cast;
+          if (cast && cast.length) tmdb.cast = cast;
+          saveMatch(ctx, file, top.overview ? { tmdb, description: top.overview } : { tmdb }, { commit: false });
         } catch (e) { noResult += 1; }
         // eslint-disable-next-line no-await-in-loop
         if (i < files.length - 1) await new Promise((r) => { setTimeout(r, 250); });
@@ -81,7 +94,8 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
       btn.disabled = false;
       btn.textContent = 'MATCH FOR SELECTED';
       ctx.rerender();
-      ctx.saveConfigDebounced();
+      if (typeof ctx.commitSharedFileFields === 'function') ctx.commitSharedFileFields('TMDB match for selected');
+      else ctx.saveConfigDebounced();
       window.alertDialog(`Bulk match done — ${matched} matched, ${skipped} skipped (already had a description), ${noResult} had no result.`);
     });
   },
@@ -104,24 +118,23 @@ window.RCBPlugins.registerTitleRowAction('tmdb-metadata', {
     async function applyMatch(match) {
       const overwrite = !file.description || !file.description.trim() ||
         (await window.confirmDialog({ message: 'Overwrite this file\'s existing description?', danger: false, confirmText: 'OVERWRITE' }));
-      file.tmdb = { id: match.id, mediaType: match.mediaType, posterUrl: match.posterUrl };
+      const tmdb = { id: match.id, mediaType: match.mediaType, posterUrl: match.posterUrl };
       if (match.posterUrl) {
         poster.src = match.posterUrl;
         poster.classList.remove('hidden');
       }
-      if (overwrite && match.overview && ctx.descInput) {
-        file.description = match.overview;
+      const useOverview = overwrite && match.overview && ctx.descInput;
+      if (useOverview) {
         ctx.descInput.value = match.overview;
         ctx.descInput.classList.remove('hidden');
         if (ctx.descToggleBtn) ctx.descToggleBtn.textContent = 'DESCRIPTION ▾';
       }
       btn.textContent = 'RE-MATCH';
       results.classList.add('hidden');
-      ctx.saveConfigDebounced();
-      tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: match.id, mediaType: match.mediaType })
-        .then(({ cast }) => {
-          if (cast && cast.length) { file.tmdb.cast = cast; ctx.saveConfigDebounced(); }
-        });
+      // The cast arrives with the match, so the whole match is one undo step.
+      const { cast } = await tmdbGetCredits({ apiKey: ctx.S.config.tmdb.apiKey, id: match.id, mediaType: match.mediaType });
+      if (cast && cast.length) tmdb.cast = cast;
+      saveMatch(ctx, file, useOverview ? { tmdb, description: match.overview } : { tmdb }, { label: 'TMDB match' });
     }
 
     btn.addEventListener('click', async () => {

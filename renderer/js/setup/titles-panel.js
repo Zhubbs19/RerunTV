@@ -3,12 +3,13 @@
 // uses. Split out of panels.js; panels.js re-exports buildTitlesPanel.
 import { freshFileFacets, mirrorFacetsIntoTags, parseMediaRef } from '../core/channels.js';
 import { titleRowActionEntries } from '../plugin/host.js';
-import { S, dispatch, viewNow } from '../core/state.js';
+import { S, commitConfigPatch, dispatch, viewNow } from '../core/state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from '../core/util.js';
 import { attachTagAutocomplete, commitOwnerFields, buildMediaThumbnail, parsePositiveInt, safeApi } from './util.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
 import { describeFilled, fileFieldsFromLocal, localMetadataPrefs, localPathOf, readLocalMetadata } from '../library/local-metadata.js';
+import { shareFileFields } from '../library/file-copies.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from '../playback/order.js';
 
 // Downloads a mediaSource-plugin file's full bytes to a local folder (via
@@ -80,6 +81,26 @@ async function downloadFileToLocal(target, file, btn) {
   } finally {
     unsubscribe();
   }
+}
+
+// Details a row action finds for a file (a TMDB match) describe the media,
+// not this one playlist entry: they are written on every entry for the same
+// path, in every channel and schedule block (library/file-copies.js), and on
+// its library item, so a smart-channel rebuild keeps them too. A description
+// another copy was given by hand stays. `commit: false` lets a bulk action
+// record one undo step at the end with commitSharedFileFields.
+function shareFileFieldsEverywhere(file, fields, { label = 'Update file details', commit = true } = {}) {
+  const changed = shareFileFields(S.config, file, fields);
+  if (changed.length && commit) commitConfigPatch(label, { delay: 100 });
+  const ids = [...new Set([file, ...changed].map((f) => f.item).filter(Boolean))];
+  const itemFields = {};
+  if ('tmdb' in fields) itemFields.tmdb = fields.tmdb;
+  if (fields.description) itemFields.description = fields.description;
+  if (ids.length && Object.keys(itemFields).length && window.api && typeof window.api.libraryCall === 'function') {
+    window.api.libraryCall('applyItemUpdates', { updates: ids.map((id) => ({ id, fields: itemFields, onlyIfEmpty: ['description'] })) })
+      .catch((e) => console.warn('[titles] library item update failed:', e));
+  }
+  return changed.length;
 }
 
 // Per-file metadata edits go through file.set (commands.js): one named undo
@@ -514,6 +535,8 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     ...(window.RCBPlugins && window.RCBPlugins.ctx),
     getSelectedFiles: () => selected,
     rerender: () => renderRows(search.value),
+    shareFileFields: shareFileFieldsEverywhere,
+    commitSharedFileFields: (label = 'Update file details') => commitConfigPatch(label, { delay: 100 }),
   };
   titleRowActions.forEach((action) => {
     if (typeof action.renderBulkAction !== 'function') return;

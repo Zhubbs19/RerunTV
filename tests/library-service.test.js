@@ -212,6 +212,21 @@ test('a LAN control session cannot rewrite the whole library', async () => {
   await assert.rejects(service.call('toString'), /Unknown library method/);
 });
 
+test('applyItemUpdates takes a tmdb match and can fill a field only where it is empty', async () => {
+  const { service } = await builtService();
+  const [a, b] = Object.values((await service.call('getIndex')).items);
+  await service.call('applyItemUpdates', { updates: [{ id: a.id, fields: { description: 'Kept' } }] });
+  const tmdb = { id: 9, mediaType: 'tv', cast: ['A'] };
+  const result = await service.call('applyItemUpdates', {
+    updates: [a, b].map((item) => ({ id: item.id, fields: { tmdb, description: 'Shared' }, onlyIfEmpty: ['description'] })),
+  });
+  assert.equal(result.changed, 2);
+  const items = (await service.call('getIndex')).items;
+  assert.deepEqual(items[a.id].tmdb, tmdb);
+  assert.equal(items[a.id].description, 'Kept');
+  assert.equal(items[b.id].description, 'Shared');
+});
+
 test('readLocalMetadata reads local media paths only, and caps a call', async () => {
   const { media, dir } = tempDirs();
   const seen = [];
