@@ -31,6 +31,7 @@ import {
 import { alertDialog, confirmDialog } from './dialogs.js';
 import { basenameNoExt, debounce } from '../core/util.js';
 import { MenuButton } from '../ui/menu.js';
+import { renderProgramFitPanel } from './program-fit.js';
 
 // ---------- Media sources (import bumpers/ads from a plugin folder) ----------
 // Mirrors setup-channels.js's own CHOOSE SOURCE flow (addPluginSourceToChannel)
@@ -345,6 +346,7 @@ function addPoolEntries(entries) {
 }
 
 export function renderCommercialsPanel() {
+  renderProgramFitPanel();
   const cm = S.config.commercials;
   commercialsIntervalEl.value = cm.intervalMinutes || 10;
   for (const [el, key] of NO_REPEAT_TOGGLES) el.checked = cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;

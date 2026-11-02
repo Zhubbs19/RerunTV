@@ -35,6 +35,14 @@ different timestamp. A channel file's `path` can now be a plain local path (unch
 this layer (parsing/fetching a ref), so schedule.js's scheduling math never had to change to
 support it.
 
+Fit to time slots (`core/fit.js`, opt-in per channel with a box default in `S.config.programFit`)
+lives inside that same pure layer: `resolveActiveSource` passes its source through `applyFit`, which
+aligns the anchor to the :00/:30 grid and swaps each file for a copy whose `duration` is its airing
+slot and whose `fit` is the plan (program at a rate, sped-up credits, breaks). A position's `offset` is
+then time into the slot; seek with `seekOffsetOf(pos)`, never `pos.offset`. Fitted breaks come from
+`resolveBreakAt` with `fit: true` and are already in the schedule, so they add nothing to
+`contentLostMs`; the ordinary ad cadence does not run on a fitted channel.
+
 ## Config mutation — read before caching anything
 
 Config objects (channels, interstitial flows, blocks) are mutated **in place** throughout

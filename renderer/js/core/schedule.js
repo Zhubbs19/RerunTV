@@ -1,4 +1,5 @@
 import { S, viewNow } from './state.js';
+import { applyFit, mapFitAir } from './fit.js';
 
 const DAY_MS = 86400000;
 const DAILY_SAFETY_CAP = 400;
@@ -363,13 +364,15 @@ function resolveWeeklyOccurrenceSource(block, atMs) {
 // blocks resolve via resolveDailySource, weekly-mode dayOfWeek blocks via
 // resolveWeeklyOccurrenceSource, instead of playing their folder straight
 // through), else the channel's default folder.
+// Fit to time slots (core/fit.js) is applied last, to whichever source won,
+// so every caller sees programs on the grid when the channel has it on.
 export function resolveActiveSource(ch, atMs) {
   const candidates = matchingBlocks(ch, atMs);
   for (let i = 0; i < candidates.length; i++) {
     const source = sourceFromBlock(candidates[i], atMs);
-    if (source) return source; // null: walked back past this block's own start — try the next candidate
+    if (source) return applyFit(ch, source); // null: walked back past this block's own start — try the next candidate
   }
-  return { files: ch.files, anchor: ch.anchor, key: -1, block: null };
+  return applyFit(ch, { files: ch.files, anchor: ch.anchor, key: -1, block: null });
 }
 
 // What one matching block airs at atMs, or null when it has nothing yet (a
@@ -840,7 +843,15 @@ export function computeSourcePosition(source, atMs, opts) {
   for (let i = 0; i < files.length; i++) {
     const d = files[i].duration || 0;
     if (elapsed < acc + d) {
-      return { fileIndex: i, offset: elapsed - acc, total, elapsed, loopCount, files, file: files[i] };
+      const pos = { fileIndex: i, offset: elapsed - acc, total, elapsed, loopCount, files, file: files[i] };
+      // A fitted file's offset is time into its airing slot; contentOffset is
+      // where that is in the video itself, and fitAt says whether it's the
+      // program, its sped-up credits or a break (core/fit.js).
+      if (files[i].fit) {
+        pos.fitAt = mapFitAir(files[i].fit, pos.offset);
+        pos.contentOffset = pos.fitAt.contentS;
+      }
+      return pos;
     }
     acc += d;
   }

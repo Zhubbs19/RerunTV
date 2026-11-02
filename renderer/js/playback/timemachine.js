@@ -1,8 +1,9 @@
+import { seekOffsetOf } from '../core/fit.js';
 import { sfxGuideToggle, sfxVolumeTick } from '../core/audio.js';
 import { getChannel } from '../core/channels.js';
 import {
   crtToggleFlash, dynamicBumperTextEl, player, stationIdBarEl, stationIdNameEl, tapeFxEl, timeShiftBadgeEl,
-  triviaCardEl, triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
+  fitSlotCardEl, fitSlotHeaderEl, fitSlotTextEl, triviaCardEl, triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
 } from '../core/dom.js';
 import { nextBreakStart, prevBreakStart, resolveBreakAt } from '../core/interstitials.js';
 import { playChannelLive, scheduleBlockBoundaryRetune } from './core.js';
@@ -371,6 +372,7 @@ export function currentProgramStart() {
 
 function hideShuttleBreakOverlays() {
   triviaCardEl.classList.add('hidden');
+  fitSlotCardEl.classList.add('hidden');
   stationIdBarEl.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
 }
@@ -435,7 +437,12 @@ export async function updateShuttlePreview() {
     return;
   }
 
-  if (brk && brk.type === 'trivia') {
+  if (brk && brk.type === 'fitPlaceholder') {
+    hideShuttleBreakOverlays();
+    fitSlotHeaderEl.textContent = brk.entry.role === 'bumper' ? (ch.name || `CHANNEL ${ch.number}`).toUpperCase() : 'COMMERCIAL BREAK';
+    fitSlotTextEl.textContent = brk.entry.text;
+    fitSlotCardEl.classList.remove('hidden');
+  } else if (brk && brk.type === 'trivia') {
     hideShuttleBreakOverlays();
     triviaTextEl.textContent = brk.entry.text;
     triviaCardEl.classList.remove('hidden');
@@ -469,12 +476,12 @@ export async function updateShuttlePreview() {
       player.removeEventListener('loadedmetadata', onMeta);
       if (S.metaHandler === onMeta) S.metaHandler = null;
       applyTvBezel(player.videoWidth, player.videoHeight, ch);
-      try { player.currentTime = pos.offset; } catch (e) {}
+      try { player.currentTime = seekOffsetOf(pos); } catch (e) {}
     };
     S.metaHandler = onMeta;
     player.addEventListener('loadedmetadata', onMeta);
   } else if (player.readyState >= 1) {
-    try { player.currentTime = pos.offset; } catch (e) {}
+    try { player.currentTime = seekOffsetOf(pos); } catch (e) {}
   }
 }
 

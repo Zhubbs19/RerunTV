@@ -22,7 +22,7 @@ import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.j
 import { hideTrackCard, scheduleTrackCard } from './track-card.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
-  guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
+  fitSlotCardEl, guideOverlay, localAvailCardEl, movieRatingCardEl, player, ratingBugEl, stationIdBarEl, testPatternCanvasEl, triviaCardEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
@@ -50,9 +50,11 @@ import {
   applyLogoBugPlacement, channelNoSignalCopy, finishCreditsSpeedupIfActive, flashCapabilityBadge,
   flashContentAdvisory, flashEpisodeStatusBug,
   flashFormatDisclaimer, flashRatingBug, genericNoSignalCopy, hideNoSignal, markStaticReady, resetCreditsSpeedup,
-  scheduleCreditsSpeedup, showBlockedCard, showMovieRatingCard, showNoSignal, showSignOffCard, showStaticBurst,
+  scheduleCreditsSpeedup, scheduleFitCredits, showBlockedCard, showMovieRatingCard, showNoSignal, showSignOffCard, showStaticBurst,
   initMediaSession, updateLogoBug, updateMediaSession,
 } from './broadcast-fx.js';
+import { fitConfigFor, fitDisclaimerFor, playbackRateOf, seekOffsetOf } from '../core/fit.js';
+import { resolveBreakAt } from '../core/interstitials.js';
 
 // Same shape as computeLivePosition, but content playback lags real time by
 // however many ms it's been paused through breaks on this source so far
@@ -153,7 +155,9 @@ export function checkScheduleDrift() {
   if (S.contentLostKey !== `${ch.number}:${source.key}`) return;
   const pos = computeSourcePosition(source, now);
   if (!pos || !pos.file || pos.file.path !== S.liveContentPath) return;
-  const expected = pos.offset;
+  // A fitted slot holds the program paused through its own breaks.
+  if (pos.fitAt && pos.fitAt.kind === 'break') return;
+  const expected = seekOffsetOf(pos);
   const action = decideDriftAction({
     paused: player.paused, seeking: player.seeking, ended: player.ended, readyState: player.readyState,
     currentTime: player.currentTime, duration: player.duration, expected, stallTicks: driftStallTicks,
@@ -287,6 +291,17 @@ export async function playChannelLive(ch, opts) {
     return;
   }
   const file = pos.file;
+  // A fitted slot's break (core/fit.js) is the break machine's to show. One
+  // too short to fill (a few frames of rounding) holds the picture instead,
+  // and comes back here when it is over.
+  if (pos.fitAt && pos.fitAt.kind === 'break') {
+    clearTimeout(S.fitRateTimer);
+    if (resolveBreakAt(ch, viewNow())) { checkBreakState(ch); return; }
+    S.fitRateTimer = setTimeout(() => {
+      if (!isStale()) playChannelLive(ch, opts);
+    }, Math.max(50, (pos.fitAt.segAirEnd - pos.offset) * 1000 + 20));
+    return;
+  }
 
   // Re-applied for real once metadata is confirmed (onMeta below) — this
   // early call exists only to avoid sitting at a STALE previous-channel
@@ -538,9 +553,10 @@ export async function playChannelLive(ch, opts) {
       // A boundary crossed while this file was loading — the normal
       // content-ended machinery is about to move on, so leave it alone.
       if (!fresh || !fresh.file || fresh.file.path !== posFile.path) return false;
-      const delta = fresh.offset - player.currentTime;
+      if (fresh.fitAt && fresh.fitAt.kind === 'break') return false;
+      const delta = seekOffsetOf(fresh) - player.currentTime;
       if (Math.abs(delta) < CATCH_UP_MIN_S) return false;
-      const target = fresh.offset + correctionLeadMs / 1000;
+      const target = seekOffsetOf(fresh) + (correctionLeadMs / 1000) * playbackRateOf(fresh);
       // Same reasoning as the drift watchdog's own tail guard: this close to
       // the end, the boundary resolves the transition properly on its own.
       if (target >= player.duration - DRIFT_TAIL_GUARD_S) return false;
@@ -556,7 +572,7 @@ export async function playChannelLive(ch, opts) {
         // is not the same number.
         const after = computeLiveContentPosition(ch);
         const residualS = (after && after.file && after.file.path === posFile.path)
-          ? after.offset - player.currentTime
+          ? seekOffsetOf(after) - player.currentTime
           : 0;
         correctionLeadMs = Math.max(0, Math.min(CORRECTION_LEAD_MAX_MS,
           Math.round(correctionLeadMs + residualS * 1000 * CORRECTION_LEAD_DAMPING)));
@@ -630,7 +646,7 @@ export async function playChannelLive(ch, opts) {
   // core knowing captions exist at all (registerCoreHook, plugins.js).
   runCoreHooks('content-playing', { file, ch });
   triggerDynamicOverlays(ch, 'contentStart');
-  scheduleTrackCard(ch, file, pos.offset);
+  scheduleTrackCard(ch, file, seekOffsetOf(pos));
   if (tuneTimingEnabled()) console.log(`[tune] CH${ch.number} src set +${(performance.now() - window.__tuneT0).toFixed(0)}ms`);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
   let metaTimer = null;
@@ -656,9 +672,8 @@ export async function playChannelLive(ch, opts) {
     // Only resync if we're still in the same file; if a boundary crossed
     // during the IPC wait, contentJustEnded will advance to the next file.
     const freshPos = computeLiveContentPosition(ch);
-    const seekOffset = (freshPos && freshPos.file && freshPos.file.path === posFile.path)
-      ? freshPos.offset
-      : pos.offset;
+    const livePos = (freshPos && freshPos.file && freshPos.file.path === posFile.path) ? freshPos : pos;
+    const seekOffset = seekOffsetOf(livePos);
     // The probed duration can overshoot the real file: seeking at/after its
     // true end just fires 'ended' on the same file again. Credit the leftover
     // schedule time (a negative lost-time, as credits speedup does) so the
@@ -667,11 +682,26 @@ export async function playChannelLive(ch, opts) {
       && freshPos && freshPos.file && freshPos.file.path === posFile.path) {
       player.removeEventListener('loadedmetadata', onMeta);
       if (S.metaHandler === onMeta) S.metaHandler = null;
+      if (freshPos.file.fit) {
+        // A fitted slot's times are fixed: hold the last frame until the
+        // plan's next segment (a break or the next program) is due.
+        player.currentTime = Math.max(0, player.duration - 0.1);
+        clearTimeout(S.fitRateTimer);
+        S.fitRateTimer = setTimeout(() => {
+          if (!isStale()) checkBreakState(ch, { contentJustEnded: true });
+        }, Math.max(50, (freshPos.fitAt.segAirEnd - freshPos.offset) * 1000 + 60));
+        hideNoSignal();
+        markStaticReady();
+        return;
+      }
       S.contentLostMs -= Math.max(0, (freshPos.file.duration - seekOffset) * 1000) + 50;
       checkBreakState(ch, { contentJustEnded: true });
       return;
     }
     player.currentTime = seekOffset;
+    // A fitted program can run a few percent fast (core/fit.js); everything
+    // else plays at normal speed (a new src already resets the rate to 1).
+    player.playbackRate = playbackRateOf(livePos);
     playWithRetry();
     player.removeEventListener('loadedmetadata', onMeta);
     if (S.metaHandler === onMeta) S.metaHandler = null;
@@ -777,7 +807,12 @@ export async function playChannelLive(ch, opts) {
     // only trustworthy here, same as the AUTO-resolution comment above,
     // since player.videoWidth/videoHeight are now real and confirmed to
     // belong to this channel.
-    if (isEarlyInProgram && !ch.hideFormatDisclaimer) try {
+    // The fitted card has its own switch (FIT TO TIME SLOTS › Show the
+    // formatted-for-television card); hideFormatDisclaimer is the aspect card's.
+    const fitDisclaimer = isEarlyInProgram && fitDisclaimerFor(fitConfigFor(ch), file);
+    if (fitDisclaimer) {
+      if (!triggerDynamicOverlays(ch, 'formatDisclaimer')) flashFormatDisclaimer(ch, fitDisclaimer);
+    } else if (isEarlyInProgram && !ch.hideFormatDisclaimer) try {
       const contentAspect = resolveContentDisplayMode().aspect;
       const effectiveAspect = resolveEffectiveDisplayMode().aspect;
       if (contentAspect !== effectiveAspect) {
@@ -804,7 +839,8 @@ export async function playChannelLive(ch, opts) {
     // Schedule "UP NEXT" bar based on fresh position (post-IPC), not the
     // stale pre-IPC pos — remainingMs depends on current offset accuracy.
     scheduleUpNextBar(ch, freshPos || pos);
-    scheduleCreditsSpeedup(ch, freshPos || pos);
+    if (livePos.file.fit) scheduleFitCredits(ch, livePos);
+    else scheduleCreditsSpeedup(ch, livePos);
   };
   S.metaHandler = onMeta;
   player.addEventListener('loadedmetadata', onMeta);
@@ -900,6 +936,8 @@ export async function tuneToChannel(number, opts) {
   triviaCardEl.classList.add('hidden');
   // The local-avail / sponsor card is a break card too; a tune or time-machine exit mid-break must not leave it on screen.
   if (localAvailCardEl) localAvailCardEl.classList.add('hidden');
+  if (fitSlotCardEl) fitSlotCardEl.classList.add('hidden');
+  clearTimeout(S.fitRateTimer);
   stationIdBarEl.classList.remove('show');
   crtToggleFlash.classList.remove('show');
   // Every start-of-program corner card flashes for 16 s on a timer; tuning away must drop them too, or the

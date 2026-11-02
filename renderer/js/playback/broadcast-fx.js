@@ -17,7 +17,7 @@ import {
 } from '../core/channels.js';
 import {
   crtContainer, capabilityBadgeEl, contentAdvisoryCardEl, creditsSqueezeChannelEl, creditsSqueezePanelEl,
-  creditsSqueezeTitleEl, creditsSqueezeVideoEl, episodeStatusBugEl, formatDisclaimerCardEl, logoBugEl,
+  creditsSqueezeTimeEl, creditsSqueezeTitleEl, creditsSqueezeVideoEl, episodeStatusBugEl, formatDisclaimerCardEl, logoBugEl,
   logoBugGhostEl, movieRatingCardEl, noSignalChannelEl, noSignalEl, noSignalMainEl, player, ratingBugEl,
   staticCanvas, staticCtx,
 } from '../core/dom.js';
@@ -28,7 +28,8 @@ import { bugInPictureBox } from '../cable-guide/model.js';
 import { pictureBox } from '../cable-guide/picture-box.js';
 import { pickDeterministic, poolFor } from '../core/interstitials.js';
 import { S, viewNow } from '../core/state.js';
-import { autoHideAfter, formatHourLabel, getDisplayTitle } from '../core/util.js';
+import { autoHideAfter, formatClock, formatHourLabel, getDisplayTitle } from '../core/util.js';
+import { computeSourcePosition, resolveActiveSource } from '../core/schedule.js';
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
 import { computeNextTitle } from './breaks.js';
 
@@ -313,13 +314,14 @@ export function cancelCreditsSpeedup() {
 // already cause elsewhere.
 export function resetCreditsSpeedup() {
   cancelCreditsSpeedup();
+  S.creditsSpeedupFit = false;
   if (!S.creditsSpeedupActive) return;
   player.playbackRate = 1;
   player.muted = S.creditsSpeedupPrevMuted;
   S.creditsSpeedupActive = false;
   creditsSqueezePanelEl.classList.add('hidden');
   creditsSqueezePanelEl.classList.remove('video-mode');
-  document.querySelector('.crt')?.classList.remove('credits-squeeze');
+  document.querySelector('.crt')?.classList.remove('credits-squeeze', ...SQUEEZE_LAYOUTS.map((l) => `squeeze-${l}`));
   // Video mode only: stop the promo and release its decode handle rather
   // than leaving it paused mid-file — it gets a fresh pick next time
   // (startCreditsSpeedup below), not resumed from where it left off.
@@ -340,11 +342,19 @@ export function scheduleCreditsSpeedup(ch, pos) {
   cancelCreditsSpeedup();
   const file = pos.file;
   const cfg = ch.creditsSpeedup;
-  const leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? cfg.leadSeconds : null);
+  let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? cfg.leadSeconds : null);
   if (!leadS) return;
+  // WHEN IT APPLIES (END CREDITS panel): 'fit' means only on a channel fitted
+  // to time slots, which runs its credits through scheduleFitCredits instead.
+  const applies = cfg && cfg.applies;
+  if (applies === 'never' || applies === 'fit') return;
+  if (applies === 'movies' && !(file.facets && file.facets.contentType === 'movie')) return;
+  const rate = (cfg && cfg.rate) || 3;
+  // MAX TIME SAVED: start the squeeze later rather than save more than that.
+  const maxSqueezeS = cfg && Number(cfg.maxSqueezeSeconds);
+  if (maxSqueezeS > 0) leadS = Math.min(leadS, maxSqueezeS / (1 - 1 / rate));
   const remainingMs = (file.duration - pos.offset) * 1000;
   if (remainingMs <= leadS * 1000) return;
-  const rate = (cfg && cfg.rate) || 3;
   S.creditsSpeedupTimer = setTimeout(() => {
     if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
     if (S.activeBreakKey || S.scrubPending || S.shuttleDir) return; // a break/scrub owns the player now
@@ -352,11 +362,49 @@ export function scheduleCreditsSpeedup(ch, pos) {
   }, remainingMs - leadS * 1000);
 }
 
+// A fitted program (core/fit.js) runs its credits at the speed its slot plan
+// worked out, from the plan's own credits segment. The time is already in the
+// schedule, so finishCreditsSpeedupIfActive credits nothing back for it.
+export function scheduleFitCredits(ch, pos) {
+  cancelCreditsSpeedup();
+  const plan = pos.file.fit;
+  const seg = plan.segments.find((s) => s.kind === 'credits');
+  if (!seg || !(seg.rate > 1.001)) return;
+  const delayMs = pos.fitAt && pos.fitAt.kind === 'credits' ? 0 : (seg.airStart - pos.offset) * 1000;
+  if (delayMs < 0) return;
+  S.creditsSpeedupTimer = setTimeout(() => {
+    if (S.currentNumber !== ch.number || !S.isPoweredOn) return;
+    if (S.activeBreakKey || S.scrubPending || S.shuttleDir) return;
+    startCreditsSpeedup(ch, pos.file, seg.rate, plan.contentS - plan.creditsAtS, { fit: true });
+  }, delayMs);
+}
+
 // Exported (alongside the timer-arming/reset functions above) so both real
 // call sites and tests can invoke start/finish directly without needing to
 // wait out a real setTimeout — see tests/ui/verify-credits-speedup.mjs.
-export function startCreditsSpeedup(ch, file, rate, leadS) {
+// END CREDITS › LAYOUT: where the sped-up credits go. 'side' (credits left,
+// card right), 'right' (the mirror), 'corner' (credits top-left, card along
+// the bottom), 'banner' (credits full size under a lower-third bar). A
+// channel's own choice wins, then the box's fit-to-time-slots default.
+export const SQUEEZE_LAYOUTS = ['side', 'right', 'corner', 'banner'];
+export function squeezeLayoutFor(ch) {
+  const picks = [
+    ch && ch.creditsSpeedup && ch.creditsSpeedup.squeezeLayout,
+    ch && ch.programFit && ch.programFit.creditsLayout,
+    S.config.programFit && S.config.programFit.creditsLayout,
+  ];
+  return picks.find((l) => SQUEEZE_LAYOUTS.includes(l)) || 'side';
+}
+
+function nextProgramStartMs(ch) {
+  const now = viewNow();
+  const pos = computeSourcePosition(resolveActiveSource(ch, now), now, { ignoreContentLost: true });
+  return pos && pos.file ? now - pos.offset * 1000 + pos.file.duration * 1000 : null;
+}
+
+export function startCreditsSpeedup(ch, file, rate, leadS, opts) {
   S.creditsSpeedupPrevMuted = player.muted;
+  S.creditsSpeedupFit = !!(opts && opts.fit);
   player.muted = true;
   player.playbackRate = rate;
   S.creditsSpeedupActive = true;
@@ -381,6 +429,13 @@ export function startCreditsSpeedup(ch, file, rate, leadS) {
   }
   creditsSqueezeChannelEl.textContent = (ch.name || `CHANNEL ${ch.number}`).toUpperCase();
   creditsSqueezeTitleEl.textContent = computeNextTitle(ch);
+  // "NEXT AT 9:00": when the airing program's slot ends, which on a fitted
+  // channel is the :00/:30 itself.
+  const nextAt = nextProgramStartMs(ch);
+  creditsSqueezeTimeEl.textContent = nextAt ? `NEXT AT ${formatClock(new Date(nextAt))}` : '';
+  const layout = squeezeLayoutFor(ch);
+  const crtEl = document.querySelector('.crt');
+  SQUEEZE_LAYOUTS.forEach((l) => crtEl?.classList.toggle(`squeeze-${l}`, l === layout));
 
   // VIDEO mode: a real, audible upNext-pool promo fills the panel instead
   // of the text trio above. Reuses the exact same pool-resolution machinery
@@ -423,7 +478,7 @@ export function finishCreditsSpeedupIfActive() {
   if (!S.creditsSpeedupActive) return;
   const realElapsedMs = viewNow() - S.creditsSpeedupRealStartMs;
   const creditMs = S.creditsSpeedupScheduledRemainingMs - realElapsedMs;
-  S.contentLostMs -= creditMs;
+  if (!S.creditsSpeedupFit) S.contentLostMs -= creditMs;
   resetCreditsSpeedup();
 }
 

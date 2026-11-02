@@ -155,6 +155,13 @@ export const S = {
   creditsSpeedupPrevMuted: false,
   creditsSpeedupRealStartMs: 0,
   creditsSpeedupScheduledRemainingMs: 0,
+  // True while the speedup running is a fitted program's own credits
+  // (core/fit.js): its time is already in the schedule, so nothing is
+  // credited back when the file ends.
+  creditsSpeedupFit: false,
+  // Pending timer for a fitted program's next playback-rate change (its
+  // credits starting) — playback/core.js's scheduleFitRate.
+  fitRateTimer: null,
   blockBoundaryTimer: null,
   broadcastHoursTimer: null,
   breakTimer: null,
@@ -167,6 +174,9 @@ export const S = {
   // `player`) vs. leave content volume alone (trivia pauses `player`
   // entirely; a text-only channelId doesn't touch it at all).
   activeBreakKind: null,
+  // The break on screen is a fitted slot's own break (core/fit.js): already
+  // in the schedule, so it adds nothing to contentLostMs and Q can't skip it.
+  activeBreakFit: false,
   // How far live content playback is lagging real time because of breaks
   // it's paused through so far on the current source — see
   // computeLiveContentPosition (playback.js). contentLostKey is the

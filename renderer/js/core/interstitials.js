@@ -16,6 +16,7 @@ import {
 } from './schedule.js';
 import { S } from './state.js';
 import { hashString, mulberry32 } from './util.js';
+import { MIN_FIT_BREAK_S } from './fit.js';
 
 // The real US TV sweeps months — a pure function of atMs, no per-channel
 // config needed for "which months" (see resolveBreakAt's sweepsPromo gate).
@@ -419,6 +420,119 @@ function normalizeFlowStepType(type) {
 }
 
 
+// ---------- Fit to time slots (core/fit.js) ----------
+// On a fitted channel the spare time in each program's slot is part of the
+// schedule: the plan says exactly when each break starts and ends. This fills
+// one such break, [windowStart, windowEnd), end to end: a bump-in, as many
+// pool commercials as fit, a bump-out, and placeholder slots for whatever the
+// pool can't cover ('placeholders' fill uses only placeholders, to show where
+// ads and bumpers would go). Pure in (pool, channel, seedKey, window).
+function placeholderEntry(role, durationS, index, count) {
+  const mmss = `${Math.floor(durationS / 60)}:${String(Math.round(durationS % 60)).padStart(2, '0')}`;
+  let text;
+  if (role === 'bumper') text = `BUMPER SLOT · ${mmss}`;
+  else if (role === 'commercial') text = `COMMERCIAL SLOT ${index + 1} OF ${count} · ${mmss}`;
+  else text = 'WE’LL BE RIGHT BACK';
+  return { placeholder: true, role, text, durationS };
+}
+
+// tags: { in, comm, out } — the tag lists each pick matches, the same way the
+// channel's own breaks would pick them (see fitBreakAt).
+function buildFitPod(pool, ch, block, cfg, seedKey, windowStart, windowEnd, tags) {
+  const segments = [];
+  const usePool = cfg.fill !== 'placeholders';
+  const totalS = (windowEnd - windowStart) / 1000;
+  const durOf = (entry) => entryDurationS(entry, 0) + entryWaitMs(entry) / 1000;
+  const fits = (entry, roomS) => { const d = durOf(entry); return d > 0 && d <= roomS + 1e-6; };
+
+  // Bumpers first, so the commercials know how much room is left between them.
+  let inPick = null;
+  let outPick = null;
+  if (cfg.bumpers) {
+    const roomS = totalS / 3;
+    if (usePool) {
+      const inEntry = pickDeterministic(poolFor(pool, 'adBreakIn', ch, block, tags.in).filter((e) => fits(e, roomS)), `${seedKey}:in`, 0);
+      const outEntry = pickDeterministic(poolFor(pool, 'adBreakOut', ch, block, tags.out).filter((e) => e !== inEntry && fits(e, roomS)), `${seedKey}:out`, 0);
+      if (inEntry) inPick = { type: 'adBreakIn', entry: inEntry, durS: durOf(inEntry) };
+      if (outEntry) outPick = { type: 'adBreakOut', entry: outEntry, durS: durOf(outEntry) };
+    }
+    const placeholderS = Math.min(cfg.placeholderBumperSeconds, roomS);
+    if (cfg.placeholders && placeholderS >= MIN_FIT_BREAK_S) {
+      if (!inPick) inPick = { type: 'fitPlaceholder', entry: placeholderEntry('bumper', placeholderS), durS: placeholderS };
+      if (!outPick) outPick = { type: 'fitPlaceholder', entry: placeholderEntry('bumper', placeholderS), durS: placeholderS };
+    }
+  }
+  let cursor = windowStart;
+  const push = (type, entry, durS) => {
+    segments.push({ type, entry, windowStart: cursor, windowEnd: cursor + durS * 1000 });
+    cursor += durS * 1000;
+  };
+  if (inPick) push(inPick.type, inPick.entry, inPick.durS);
+  const middleEnd = windowEnd - (outPick ? outPick.durS * 1000 : 0);
+
+  if (usePool) {
+    // A fitted break can be minutes long; an ad never repeats inside one, so
+    // a small pool leaves placeholder slots rather than the same spot on a loop.
+    const used = new Set();
+    for (let slot = 0; slot < 64; slot++) {
+      const roomS = (middleEnd - cursor) / 1000;
+      const candidates = poolFor(pool, 'commercial', ch, block, tags.comm).filter((e) => fits(e, roomS) && !used.has(e));
+      const entry = pickDeterministic(candidates, seedKey, slot);
+      if (!entry) break;
+      used.add(entry);
+      push('commercial', entry, durOf(entry));
+    }
+  }
+  // Whatever the pool couldn't fill.
+  const leftS = (middleEnd - cursor) / 1000;
+  if (leftS >= MIN_FIT_BREAK_S) {
+    if (cfg.placeholders) {
+      const count = Math.max(1, Math.ceil(leftS / cfg.placeholderSpotSeconds - 1e-6));
+      for (let i = 0; i < count; i++) {
+        const d = i < count - 1 ? cfg.placeholderSpotSeconds : (middleEnd - cursor) / 1000;
+        push('fitPlaceholder', placeholderEntry('commercial', d, i, count), d);
+      }
+    } else {
+      push('fitPlaceholder', placeholderEntry('filler', leftS), leftS);
+    }
+  }
+  cursor = Math.max(cursor, middleEnd);
+  if (outPick) push(outPick.type, outPick.entry, outPick.durS);
+  // Float rounding: the last segment always ends exactly on the break's end.
+  if (segments.length) segments[segments.length - 1].windowEnd = windowEnd;
+  return segments;
+}
+
+// The fitted break segment airing at atMs on a fitted source, or null. Each
+// segment carries fit: true, which tells playback (breaks.js) that the break
+// is already in the schedule, so no lost time is credited back afterwards.
+function fitBreakAt(ch, source, atMs, pool, knownPos) {
+  const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
+  if (!pos || !pos.fitAt || pos.fitAt.kind !== 'break') return null;
+  const fileStartMs = atMs - pos.offset * 1000;
+  const windowStart = fileStartMs + pos.fitAt.segAirStart * 1000;
+  const windowEnd = fileStartMs + pos.fitAt.segAirEnd * 1000;
+  if (windowEnd - windowStart < MIN_FIT_BREAK_S * 1000) return null;
+  const bs = boundarySlot(source, atMs, pos);
+  const fileTags = effectiveContentTags(ch, pos.file);
+  // The channel's own ad policy (a flow's pod step, a preset, a block) says
+  // which tags its ads and bumpers carry; the fitted break picks the same ones.
+  const cc = resolveActiveCommercials(ch, atMs, fileTags).commercials || {};
+  const tags = {
+    in: firstNonEmpty(cc.bumpInTags, cc.midBumpInTags, fileTags),
+    comm: firstNonEmpty(cc.commercialTags, cc.midCommercialTags, fileTags),
+    out: firstNonEmpty(cc.bumpOutTags, cc.midBumpOutTags, fileTags),
+  };
+  const seedKey = `fit:${ch.number}:${bs ? bs.ordinal : 0}:${pos.fitAt.index}`;
+  const segments = buildFitPod(pool, ch, source.block, source.fit, seedKey, windowStart, windowEnd, tags);
+  const seg = segments.find((s) => atMs >= s.windowStart && atMs < s.windowEnd);
+  if (!seg) return null;
+  return {
+    type: seg.type, entry: seg.entry, windowStart: seg.windowStart, windowEnd: seg.windowEnd,
+    fit: true, fitBreakStart: windowStart, fitBreakEnd: windowEnd, segments,
+  };
+}
+
 // Is a break showing on this channel at this exact instant? Checks
 // commercial (per its resolved timing mode), channelId, trivia, then upNext,
 // in that order — first one whose window contains atMs wins (two break
@@ -480,6 +594,11 @@ export function resolveBreakAt(ch, atMs) {
       type: 'preemption', entry, windowStart, windowEnd, preemptionLabel: w.label || 'SPECIAL REPORT',
     };
   }
+
+  // A fitted channel's breaks are the ones its slot plan places (fitBreakAt
+  // above). The ordinary cadence, station IDs, trivia and the rest would each
+  // push the program late and undo the fit, so they don't run here.
+  if (source.fit) return fitBreakAt(ch, source, atMs, pool);
 
   // Premiere jingle — checked next (ahead of the ordinary commercial
   // cadence below, after preemption above) since it's a rare,
@@ -927,6 +1046,7 @@ const BOUNDARY_EPSILON_MS = 50;
 function nextCandidateBoundary(ch, fromMs) {
   const source = resolveActiveSource(ch, fromMs);
   if (!source.anchor) return null;
+  if (source.fit) return nextFitCandidate(ch, source, fromMs);
   const candidates = [];
   // ignoreContentLost: true — same as boundarySlot/resolveBreakAt's own
   // posNow lookups in this file. Without it, this folds in S.contentLostMs,
@@ -1020,6 +1140,33 @@ function nextCandidateBoundary(ch, fromMs) {
     }
   }
 
+  return candidates.length ? Math.min(...candidates) : null;
+}
+
+// A fitted source's candidates: every segment edge of the airing file's plan
+// (program/credits/break), every pod segment edge inside a break on screen,
+// the file's end, and the broadcast-hours edges.
+function nextFitCandidate(ch, source, fromMs) {
+  const candidates = [];
+  const pos = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
+  if (pos) {
+    const fileStartMs = fromMs - pos.offset * 1000;
+    const plan = pos.file.fit;
+    if (plan) {
+      for (const seg of plan.segments) {
+        const t = fileStartMs + seg.airStart * 1000 + BOUNDARY_EPSILON_MS;
+        if (t > fromMs) candidates.push(t);
+      }
+      const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
+      const brk = fitBreakAt(ch, source, fromMs, pool, pos);
+      if (brk) brk.segments.forEach((s) => { if (s.windowStart > fromMs) candidates.push(s.windowStart); });
+    }
+    candidates.push(fileStartMs + pos.file.duration * 1000 + BOUNDARY_EPSILON_MS);
+  }
+  if (ch.broadcastHours && ch.broadcastHours.enabled) {
+    const boundary = nextBroadcastHoursBoundary(ch, fromMs);
+    if (isFinite(boundary)) candidates.push(boundary);
+  }
   return candidates.length ? Math.min(...candidates) : null;
 }
 

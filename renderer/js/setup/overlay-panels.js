@@ -199,7 +199,55 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
     rateLabel.textContent = 'SPEED (×)';
     grid.insertBefore(rateLabel, rateInput);
 
+    // Most time the speedup may save; it starts later rather than save more.
+    // A fitted channel (core/fit.js) also uses this as its squeeze cap.
+    const maxInput = document.createElement('input');
+    maxInput.type = 'number';
+    maxInput.min = 0;
+    maxInput.className = 'block-priority-input';
+    maxInput.placeholder = 'NO LIMIT';
+    maxInput.title = 'The most time sped-up credits may save, in seconds. Blank means no limit.';
+    maxInput.value = cfg.maxSqueezeSeconds != null ? cfg.maxSqueezeSeconds : '';
+    maxInput.addEventListener('change', () => {
+      if (maxInput.value.trim() === '') delete cfg.maxSqueezeSeconds;
+      else cfg.maxSqueezeSeconds = parsePositiveInt(maxInput.value, 0);
+      commitOwnerFields(ch, ['creditsSpeedup']);
+    });
+    const maxLabel = document.createElement('span');
+    maxLabel.className = 'option-label';
+    maxLabel.textContent = 'SAVE AT MOST (SEC)';
+    grid.append(maxLabel, maxInput);
+
     panelEl.appendChild(grid);
+
+    // When the speedup runs. 'fit' only speeds up credits a program needs
+    // shortened to end on the half hour (BREAKS › FIT TO TIME SLOTS).
+    const choiceRow = (labelText, options, value, onChange) => {
+      const label = document.createElement('span');
+      label.className = 'option-label';
+      label.textContent = labelText;
+      const select = document.createElement('select');
+      select.className = 'block-hour-select';
+      options.forEach(([v, l]) => select.appendChild(new Option(l, v)));
+      select.value = value;
+      select.addEventListener('change', () => onChange(select.value));
+      panelEl.append(label, select);
+    };
+    choiceRow('WHEN IT APPLIES', [
+      ['always', 'EVERY TITLE WITH CREDITS'], ['movies', 'MOVIES ONLY'],
+      ['fit', 'ONLY TO FIT A TIME SLOT'], ['never', 'NEVER'],
+    ], cfg.applies || 'always', (v) => {
+      if (v === 'always') delete cfg.applies; else cfg.applies = v;
+      commitOwnerFields(ch, ['creditsSpeedup']);
+    });
+    // Where the credits go while they run fast (startCreditsSpeedup).
+    choiceRow('LAYOUT', [
+      ['', 'BOX DEFAULT'], ['side', 'CREDITS LEFT, UP NEXT RIGHT'], ['right', 'CREDITS RIGHT, UP NEXT LEFT'],
+      ['corner', 'CREDITS IN THE CORNER'], ['banner', 'FULL SCREEN, UP NEXT BANNER'],
+    ], cfg.squeezeLayout || '', (v) => {
+      if (v) cfg.squeezeLayout = v; else delete cfg.squeezeLayout;
+      commitOwnerFields(ch, ['creditsSpeedup']);
+    });
 
     // What fills the space #player's squeeze transform frees up. 'text' (the
     // original, still the default) is a static UP NEXT card; 'video' plays a

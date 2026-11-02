@@ -3,6 +3,7 @@
 // panel's tab bar (wiring together the panels built in setup-panels.js and
 // setup-schedule.js), and the box-wide config export/import/done buttons.
 import { buildChannelPackage } from '../library/channel-package.js';
+import { buildProgramFitChannelPanel } from './program-fit.js';
 import { CHANNEL_ASPECT_OPTIONS } from '../playback/power.js';
 import { templateFromChannel } from '../library/channel-builder.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
@@ -365,10 +366,11 @@ export function renderChannelList() {
         },
         {
           id: 'breaks',
-          label: ch.creditsSpeedup && ch.creditsSpeedup.enabled ? 'BREAKS ✓' : 'BREAKS',
+          label: (ch.creditsSpeedup && ch.creditsSpeedup.enabled) || (ch.programFit && ch.programFit.mode) ? 'BREAKS ✓' : 'BREAKS',
           build: sectionedPage([
             ['ads', 'ADS', (c, body) => buildChannelAdsPanel(c, body)],
             ['credits', 'END CREDITS', buildCreditsSpeedupPanel],
+            ['fit', 'FIT TO TIME SLOTS', buildProgramFitChannelPanel],
           ]),
         },
         { id: 'advanced', label: 'ADVANCED', build: (c, p) => p.appendChild(advancedOptions) },

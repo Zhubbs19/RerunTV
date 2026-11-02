@@ -89,12 +89,14 @@ html.titlebar-hidden #titlebar-drag-strip {
 /* End-credits squeeze-back (ch.creditsSpeedup, playback.js's
    startCreditsSpeedup) — shrinks #player into the left side of the screen,
    opening up the right side for #credits-squeeze-panel's "up next" card.
-   Re-declares the opacity transition alongside the new `right` one rather
-   than just adding a second rule, since #player's base transition-property
-   is `opacity` only — needs both listed together to animate at once. */
+   A scale, not a new box: #player's own width/height (and the inline size
+   applyTvBezel gives it) would override an inset change. Re-declares the
+   opacity transition alongside the transform one, since #player's base
+   transition-property is `opacity` only. */
 .crt.credits-squeeze #player {
-  right: 35%;
-  transition: opacity 220ms linear, right 500ms ease-in-out;
+  transform: scale(0.65);
+  transform-origin: left center;
+  transition: opacity 220ms linear, transform 500ms ease-in-out;
 }
 
 .credits-squeeze-panel {
@@ -166,6 +168,53 @@ html.titlebar-hidden #titlebar-drag-strip {
 .credits-squeeze-panel.video-mode .credits-squeeze-video {
   display: block;
 }
+
+.credits-squeeze-time {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--accent);
+}
+.credits-squeeze-panel.video-mode .credits-squeeze-time { display: none; }
+
+/* Squeeze layouts (END CREDITS › LAYOUT, startCreditsSpeedup). The default
+   above is credits on the left, card on the right. */
+.crt.credits-squeeze.squeeze-right #player { transform-origin: right center; }
+.crt.squeeze-right .credits-squeeze-panel {
+  right: auto;
+  left: 0;
+  border-left: 0;
+  border-right: 2px solid var(--border);
+}
+/* Corner: credits shrink into the top-left, the card wraps the bottom. */
+.crt.credits-squeeze.squeeze-corner #player {
+  transform: scale(0.6);
+  transform-origin: left top;
+}
+.crt.squeeze-corner .credits-squeeze-panel {
+  top: 60%;
+  left: 0;
+  width: auto;
+  border-left: 0;
+  border-top: 2px solid var(--border);
+  flex-direction: row;
+  gap: 24px;
+}
+/* Banner: credits stay full size, a lower-third bar names what's next. */
+.crt.credits-squeeze.squeeze-banner #player { transform: none; }
+.crt.squeeze-banner .credits-squeeze-panel {
+  top: auto;
+  left: 0;
+  width: auto;
+  height: 18%;
+  border-left: 0;
+  border-top: 2px solid var(--border);
+  flex-direction: row;
+  gap: 24px;
+  background: var(--surface-panel);
+  opacity: 0.94;
+}
+.crt.squeeze-banner .credits-squeeze-panel.video-mode { display: none !important; }
 
 /* Aspect ratio toggle: 'stretch' badly distorts a mismatched-aspect signal
    to fill the tube edge-to-edge, the retro cable-box counterpart to

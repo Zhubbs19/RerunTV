@@ -298,6 +298,11 @@
         <div class="settings-grid">
 
         <div class="panel span-full">
+          <div class="panel-toggle">FIT TO TIME SLOTS</div>
+          <div class="panel-body setting-rows" id="program-fit-rows"></div>
+        </div>
+
+        <div class="panel span-full">
           <div class="panel-toggle">BREAK CADENCE</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="commercials-interval" data-synonyms="commercial interval ads frequency">
@@ -1951,6 +1956,7 @@
           <div class="credits-squeeze-eyebrow">UP NEXT</div>
           <div class="credits-squeeze-channel" id="credits-squeeze-channel"></div>
           <div class="credits-squeeze-title" id="credits-squeeze-title"></div>
+          <div class="credits-squeeze-time" id="credits-squeeze-time"></div>
           <!-- VIDEO mode (ch.creditsSpeedup.squeezeMode === 'video') swaps
                to a real, audible upNext-pool promo instead of the text trio
                above - both live in the same panel/frame, toggled by the
@@ -2142,6 +2148,14 @@
         <div id="local-avail-card" class="trivia-card hidden">
           <div class="trivia-header">A MESSAGE FROM THIS STATION</div>
           <div class="trivia-body" id="local-avail-text"></div>
+        </div>
+
+        <!-- Fit to time slots placeholder (core/fit.js): marks where a
+             commercial or bumper belongs in a fitted break when the pool
+             has nothing to fill it. Same paused-card chrome as trivia. -->
+        <div id="fit-slot-card" class="trivia-card hidden">
+          <div class="trivia-header" id="fit-slot-header">COMMERCIAL BREAK</div>
+          <div class="trivia-body" id="fit-slot-text"></div>
         </div>
 
         <!-- Program details card, toggled with I — the live-playing show, or

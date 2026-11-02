@@ -3,7 +3,7 @@ import { getChannel } from '../core/channels.js';
 import { computeSourcePosition, getChannelSchedule, resolveActiveSource } from '../core/schedule.js';
 import {
   channelEntryEl, creditsSqueezeVideoEl, crtContainer, crtPreviewEl, crtToggleFlash, guideGrid, guideMuteEl, guideOverlay, hintBarEl, logoBugEl, player,
-  screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, triviaCardEl, tvBezelEl, tvScreen,
+  screenCrtOverlayEl, shortcutsOverlayEl, stationIdBarEl, fitSlotCardEl, triviaCardEl, tvBezelEl, tvScreen,
   vhsTimestampEl, volumeBarFillEl, volumeIndicatorEl,
 } from '../core/dom.js';
 import { tuneToChannel } from './core.js';
@@ -928,6 +928,8 @@ export function powerOff({ reason = 'user' } = {}) {
   S.sleepFadeGain = 1;
   runCoreHooks('power-off');
   triviaCardEl.classList.add('hidden');
+  fitSlotCardEl.classList.add('hidden');
+  clearTimeout(S.fitRateTimer);
   stationIdBarEl.classList.remove('show');
   crtToggleFlash.classList.remove('show');
   cancelUpNextBar();

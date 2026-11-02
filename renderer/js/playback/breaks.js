@@ -19,7 +19,7 @@ import { clearDynamicOverlaysForBreak, triggerDynamicOverlays } from './dynamic-
 import { hideTrackCard } from './track-card.js';
 import {
   capabilityBadgeEl, contentAdvisoryCardEl, crtToggleFlash, dynamicBumperTextEl, episodeStatusBugEl, formatDisclaimerCardEl,
-  guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, ratingBugEl,
+  fitSlotCardEl, fitSlotHeaderEl, fitSlotTextEl, guideGrid, localAvailCardEl, localAvailTextEl, logoBugEl, movieRatingCardEl, player, ratingBugEl,
   stationIdBarEl, stationIdNameEl, testPatternCanvasEl, triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize } from '../display/mode.js';
@@ -73,6 +73,7 @@ export function resetActiveBreakState() {
   S.activeBreakKey = null;
   S.activeBreakInterruptsContent = false;
   S.activeBreakKind = null;
+  S.activeBreakFit = false;
 }
 
 // One unified boundary timer drives every break type (commercial/channelId/
@@ -135,7 +136,7 @@ export function checkBreakState(ch, opts) {
       // Same preemption exception as endBreak below — a break-to-break
       // transition straight out of a preemption must not credit its time
       // back either.
-      if (S.activeBreakKey && S.activeBreakInterruptsContent && S.activeBreakKind !== 'preemption') {
+      if (S.activeBreakKey && S.activeBreakInterruptsContent && S.activeBreakKind !== 'preemption' && !S.activeBreakFit) {
         S.contentLostMs += viewNow() - S.breakEnteredAtMs;
       }
       startBreak(ch, resolved, key);
@@ -318,6 +319,7 @@ function startBreak(ch, resolved, key) {
   S.activeBreakKey = key;
   S.activeBreakInterruptsContent = !isTextOnlyChannelId;
   S.activeBreakKind = type;
+  S.activeBreakFit = !!resolved.fit;
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
   // Some real networks drop their corner bug during breaks, some keep it up
@@ -357,6 +359,7 @@ function startBreak(ch, resolved, key) {
   // without the break ever ending, and the card would otherwise stay over the next segment.
   if (type !== 'trivia') triviaCardEl.classList.add('hidden');
   if (type !== 'localAvail') localAvailCardEl.classList.add('hidden');
+  if (type !== 'fitPlaceholder') fitSlotCardEl.classList.add('hidden');
   if (type === 'trivia') {
     cancelUpNextBar();
     player.pause();
@@ -379,6 +382,18 @@ function startBreak(ch, resolved, key) {
     if (!ch.hideLocalAvailGlitch) flashLocalAvailCut();
     localAvailTextEl.textContent = (entry && entry.text) || 'ONE MOMENT, PLEASE.';
     localAvailCardEl.classList.remove('hidden');
+    return;
+  }
+
+  if (type === 'fitPlaceholder') {
+    // A fitted break's placeholder (core/interstitials.js buildFitPod): marks
+    // where a commercial or bumper belongs when the pool has none. Ends on
+    // the boundary timer, like localAvail above.
+    cancelUpNextBar();
+    player.pause();
+    fitSlotHeaderEl.textContent = entry.role === 'bumper' ? (ch.name || `CHANNEL ${ch.number}`).toUpperCase() : 'COMMERCIAL BREAK';
+    fitSlotTextEl.textContent = entry.text;
+    fitSlotCardEl.classList.remove('hidden');
     return;
   }
 
@@ -584,6 +599,8 @@ export function skipCurrentBreak() {
   const ch = getChannel(S.currentNumber);
   if (!ch || !S.isPoweredOn || S.easActive || S.timeMachineOn) return false;
   if (!S.activeBreakKey || !S.activeBreakInterruptsContent || S.activeBreakKind === 'preemption') return false;
+  // A fitted break is part of the slot: skipping it would only freeze the program until it ends.
+  if (S.activeBreakFit) return false;
   if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
   if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
@@ -599,7 +616,7 @@ function endBreak(ch) {
   // see resolveBreakAt's comment (interstitials.js). Captured before
   // resetActiveBreakState() clears S.activeBreakKind below, same as
   // shouldResume above.
-  const skipResumeLag = S.activeBreakKind === 'preemption';
+  const skipResumeLag = S.activeBreakKind === 'preemption' || S.activeBreakFit;
   if (S.activeBreakKey) markBreakCompleted(S.activeBreakKey);
   resetActiveBreakState();
   S.awaitingBumperEnd = false;
@@ -607,6 +624,7 @@ function endBreak(ch) {
   stationIdBarEl.classList.remove('show');
   triviaCardEl.classList.add('hidden');
   localAvailCardEl.classList.add('hidden');
+  fitSlotCardEl.classList.add('hidden');
   crtToggleFlash.classList.remove('show');
   dynamicBumperTextEl.classList.add('hidden');
   // Cleans up the default sign-off/sign-on test-pattern visual (above) if
