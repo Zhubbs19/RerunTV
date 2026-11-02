@@ -118,18 +118,20 @@ html[data-ui="cable-guide"] .cg-header {
   box-shadow: var(--cg-lift);
   z-index: 1;
 }
+/* Two compact lines in the top-left corner, as the operator logo sat on the
+   boxes, so the header's text can start right under it. */
 html[data-ui="cable-guide"] .cg-logo {
   position: absolute;
-  left: 3em;
-  top: 1.3em;
+  left: 2.6em;
+  top: .9em;
   font-weight: var(--cg-weight-strong);
-  font-size: 1.3em;
+  font-size: 1.15em;
   letter-spacing: .32em;
   line-height: 1;
 }
 html[data-ui="cable-guide"] .cg-logo small {
   display: block;
-  margin-top: .35em;
+  margin-top: .25em;
   font-size: .62em;
   letter-spacing: .9em;
   color: var(--cg-text-dim);
@@ -137,7 +139,7 @@ html[data-ui="cable-guide"] .cg-logo small {
 html[data-ui="cable-guide"] .cg-status {
   position: absolute;
   right: 23.5em;
-  top: 1.5em;
+  top: .9em; /* level with the logo, as on the boxes */
   display: flex;
   align-items: center;
   gap: .6em;
@@ -307,12 +309,15 @@ html[data-ui="cable-guide"] .guide-grid .guide-topbar {
 }
 html[data-ui="cable-guide"] .guide-brand { display: block; }
 /* Header text keeps clear of the picture box, which starts 37.75 grid units
-   in. Edges are in grid units (100cqw / var(--grid-units)), not em: these blocks set their
-   own font sizes per skin, and an em edge would move with them. */
+   in. Edges are in grid units (100cqw / var(--grid-units)), not em: these
+   blocks set their own font sizes, and an em edge would move with them.
+   Four lines in body type, as on the boxes: title and channel, time and
+   rating, then two lines of description. They start under the logo and end
+   above the search line, so nothing in the header overlaps. */
 html[data-ui="cable-guide"] .guide-grid .guide-info-panel {
   position: absolute;
   left: calc(100cqw / var(--grid-units) * 2.9);
-  top: 4.3em;
+  top: calc(100cqw / var(--grid-units) * 3.5);
   right: calc(100cqw / var(--grid-units) * 24);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -323,7 +328,7 @@ html[data-ui="cable-guide"] .guide-grid .guide-info-panel {
   align-items: baseline;
   gap: 0 .35em;
   font-size: 1.12em;
-  line-height: 1.42;
+  line-height: 1.25;
 }
 html[data-ui="cable-guide"] .guide-grid .guide-info-body { display: contents; }
 html[data-ui="cable-guide"] .guide-grid :is(.guide-info-number, .guide-info-channel, .guide-info-title, .guide-info-time) {
@@ -374,18 +379,18 @@ html[data-ui="cable-guide"] .guide-grid .guide-info-desc {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 /* Search, view and dates: one slim line along the header's foot. */
 html[data-ui="cable-guide"] .guide-grid .guide-search-row {
   position: absolute;
   left: calc(100cqw / var(--grid-units) * 2.9);
   right: calc(100cqw / var(--grid-units) * 24);
-  bottom: .55em;
+  bottom: .4em;
   display: flex;
   align-items: center;
   gap: .6em;
-  font-size: .95em;
+  font-size: .85em;
 }
 html[data-ui="cable-guide"] .guide-grid .guide-search {
   flex: 1 1 auto;
@@ -628,8 +633,6 @@ html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-entr
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid {
   --guide-row-height: 3.2em;
 }
-html[data-ui="cable-guide"][data-guide-layout="hd"] .guide-grid .guide-info-panel { font-size: 1.25em; }
-html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-info-panel { font-size: 1.35em; top: 3.7em; }
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-search-row { font-size: .8em; bottom: .4em; }
 /* Classic's bold face runs wider: the hint line would lose its last key. */
 html[data-ui="cable-guide"][data-guide-layout="classic"] .guide-grid .guide-hint { gap: 0 1.1em; font-size: calc(100cqw / var(--grid-units) * .8); }
@@ -742,7 +745,14 @@ html[data-ui="cable-guide"] .guide-grid.docked {
      46% / 380px floor would add rows. */
   height: min(var(--guide-docked-h, 30%), 60%);
   min-height: 0;
+  /* The boxes' Mini Guide sits straight on the picture: no accent edge, no
+     shadow. */
+  border: 0;
+  box-shadow: none;
 }
+/* The grid holds keyboard focus while it is up; the highlighted cell is the
+   focus, so no ring around the whole guide. */
+html[data-ui="cable-guide"] .guide-grid:is(:focus, :focus-visible, :focus-within) { outline: none; }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-rows { min-height: 0; }
 html[data-ui="cable-guide"] .guide-grid.docked .guide-topbar {
   height: 0;

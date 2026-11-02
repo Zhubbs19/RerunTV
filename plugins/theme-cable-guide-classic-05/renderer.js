@@ -16,7 +16,7 @@ window.RCBPlugins.registerThemePack('cable-guide-classic-05', {
   guidePreviewDefault: true,
   captionStyle: {
     background: 'rgba(0, 18, 79, .88)', color: '#ffffff',
-    fontFamily: 'Arimo, Arial, sans-serif', fontSize: '1.05em', padding: '.15em .4em',
+    fontFamily: "'Istok Web', 'Trebuchet MS', sans-serif", fontSize: '1.05em', padding: '.15em .4em',
     textShadow: '1px 1px #000000',
   },
   channelChangeSfx() {

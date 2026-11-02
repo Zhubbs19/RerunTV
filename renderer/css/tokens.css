@@ -103,7 +103,9 @@
   src: url('../fonts/comfortaa-bold-700.woff2') format('woff2');
 }
 /* The cable-guide UI's two skins (cable-guide.css): Roboto Condensed for
-   HD '15, Arimo for Classic '05. One face per skin, regular and bold only. */
+   HD '15, Istok Web for Classic '05 (the nearest open faces to the boxes'
+   own: a condensed grotesque, and a wide humanist bold). One face per skin,
+   regular and bold only. */
 @font-face {
   font-family: 'Roboto Condensed';
   font-style: normal;
@@ -119,18 +121,18 @@
   src: url('../fonts/roboto-condensed-bold-700.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'Arimo';
+  font-family: 'Istok Web';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/arimo-regular-400.woff2') format('woff2');
+  src: url('../fonts/istok-web-regular-400.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'Arimo';
+  font-family: 'Istok Web';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/arimo-bold-700.woff2') format('woff2');
+  src: url('../fonts/istok-web-bold-700.woff2') format('woff2');
 }
 
 :root {

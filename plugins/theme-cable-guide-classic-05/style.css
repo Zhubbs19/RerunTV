@@ -4,7 +4,7 @@
    identity paints with this theme on the legacy layout. Focus is a solid
    bar with the era's gloss; panels and buttons drop a soft shadow. */
 html[data-theme="cable-guide-classic-05"] {
-  --cg-font: Arimo, Arial, system-ui, sans-serif;
+  --cg-font: 'Istok Web', 'Trebuchet MS', system-ui, sans-serif;
   --cg-weight: 700;
   --cg-weight-strong: 700;
   --cg-text-shadow: 0 .08em 0 rgba(0, 0, 0, .65);
@@ -52,9 +52,9 @@ html[data-theme="cable-guide-classic-05"] {
   --focus-ring: #fff27a; --focus-halo: #00124f;
   --control-bg: linear-gradient(180deg, #3c63e6 0%, #173cd3 55%, #1230b0 100%); --control-text: #ffffff;
   --selected-bg: #eaef8b; --selected-text: #0b1f4a;
-  --font-display: Arimo, Arial, system-ui, sans-serif;
-  --font-ui: Arimo, Arial, system-ui, sans-serif;
-  --font-body: Arimo, Arial, system-ui, sans-serif;
+  --font-display: 'Istok Web', 'Trebuchet MS', system-ui, sans-serif;
+  --font-ui: 'Istok Web', 'Trebuchet MS', system-ui, sans-serif;
+  --font-body: 'Istok Web', 'Trebuchet MS', system-ui, sans-serif;
   --gradient-page: linear-gradient(180deg, #00248f 0%, #001b84 40%, #00124f 100%);
   --gradient-cell: #0b2d5a; --gradient-gold: #eaef8b;
   --gloss-strong: none; --gloss-soft: none;

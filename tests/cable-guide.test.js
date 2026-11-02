@@ -229,12 +229,12 @@ test('the page starts on the legacy layout and loads the cable-guide sheet', () 
 
 test('the skins\' fonts are bundled and credited', () => {
   const tokens = h.read('renderer', 'css', 'tokens.css');
-  for (const file of ['roboto-condensed-regular-400', 'roboto-condensed-bold-700', 'arimo-regular-400', 'arimo-bold-700']) {
+  for (const file of ['roboto-condensed-regular-400', 'roboto-condensed-bold-700', 'istok-web-regular-400', 'istok-web-bold-700']) {
     assert.match(tokens, new RegExp(`fonts/${file}\\.woff2`), `${file} has an @font-face`);
     const buf = fs.readFileSync(path.join(h.root, 'renderer', 'fonts', `${file}.woff2`));
     assert.equal(buf.subarray(0, 4).toString('latin1'), 'wOF2', `${file} is a WOFF2 file`);
   }
   const ofl = h.read('renderer', 'fonts', 'OFL.txt');
-  assert.match(ofl, /Arimo\s+Copyright 2020 The Arimo Project Authors/);
+  assert.match(ofl, /Istok Web\s+Copyright \(c\) 2008-2014, Andrey V\. Panov/);
   assert.match(ofl, /Roboto Condensed\s+Copyright 2011 Google Inc\./);
 });

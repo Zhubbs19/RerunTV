@@ -3,8 +3,8 @@
 /* The cable-guide skins' faces (tokens.css loads them for the main window). */
 @font-face { font-family: 'Roboto Condensed'; src: url('../fonts/roboto-condensed-regular-400.woff2') format('woff2'); font-weight: 400; }
 @font-face { font-family: 'Roboto Condensed'; src: url('../fonts/roboto-condensed-bold-700.woff2') format('woff2'); font-weight: 700; }
-@font-face { font-family: 'Arimo'; src: url('../fonts/arimo-regular-400.woff2') format('woff2'); font-weight: 400; }
-@font-face { font-family: 'Arimo'; src: url('../fonts/arimo-bold-700.woff2') format('woff2'); font-weight: 700; }
+@font-face { font-family: 'Istok Web'; src: url('../fonts/istok-web-regular-400.woff2') format('woff2'); font-weight: 400; }
+@font-face { font-family: 'Istok Web'; src: url('../fonts/istok-web-bold-700.woff2') format('woff2'); font-weight: 700; }
 
 :root {
   /* Fallback palette — same names and values as core's tokens.css :root,
