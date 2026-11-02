@@ -495,6 +495,11 @@ const CHANGELOG = [
     'Channel logos on the HD and Classic skins: each channel\u2019s icon shows in the guide, the Mini Guide, the channel banner and program pages. While a menu or page shows the picture in its corner, the logo bug shrinks with it into the same spot.',
     'The time machine calendar fills the screen and shows the chosen day\u2019s whole schedule for a channel, with special programming named and marked. Pick a program to jump to its start, or step through channels with \u2039 \u203a.',
     'On the HD and Classic skins: no scrollbars, screens cut instantly like a real cable box, and What\u2019s New and the guide\u2019s top line use the skin\u2019s own type.',
+    'Search on the HD and Classic skins lists each show once, with how many times it airs; OK on it lists every airing. Prefer the old list of every airing? Turn off Group search results by show under GUIDE & THEME \u203a Guide (also in the TV menu).',
+    'Fixes on the HD and Classic skins: the guide\u2019s time row lines up with the programs under it, the menu opens over the guide instead of underneath it, choosing Search no longer types an A, and channel names show as you wrote them.',
+    'Lists on the skins show whole rows instead of a half-cut one at the bottom: the full guide, Search, Listings by Channel and the calendar\u2019s day.',
+    'The time machine bar, quick notices, TIME SHIFT, Recent Channels and the calendar take the skin\u2019s look and are readable from the couch; the LIVE marker no longer covers a program title.',
+    'Pointing with the mouse outlines a choice instead of filling it, so only the focused or chosen item looks selected. Setup on the skins reads in title case, and the channel banner and corner tags stay out of the way while a menu or page is up.',
   ] },
   { date: '2026-10-29', items: [
     'Plugins you install yourself now work in a release build: a plugin talks to its own background code through one shared, checked route instead of needing its own entry built into the app.',
