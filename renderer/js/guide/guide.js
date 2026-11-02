@@ -29,7 +29,7 @@ import { BREAK_LABELS, breakMarkEl, spanPercent } from '../timeline/render.js';
 import { effectiveThemeId } from '../display/identity.js';
 import { getThemePack, runCoreHooks } from '../plugin/host.js';
 import { currentUiMode } from '../cable-guide/mode.js';
-import { CABLE_GUIDE_UI, descriptionWithCast, guideClock, guideDayLabel, guideRange, menuLabel } from '../cable-guide/model.js';
+import { CABLE_GUIDE_UI, guideClock, guideDayLabel, guideRange, menuLabel, programDescription, programHeading } from '../cable-guide/model.js';
 import { syncListingsPicture } from '../cable-guide/listings.js';
 import { openProgramInfo } from '../cable-guide/program-info.js';
 import { fillFlipBar, flipBarProgram, installFlipBar } from '../cable-guide/flip-bar.js';
@@ -850,7 +850,7 @@ export function openGuideProgramActions() {
     const info = openProgramInfo({
       grid: guideGrid,
       items,
-      description: descriptionWithCast(giDescEl.textContent, programFile),
+      description: programDescription(programFile && programFile.description, programFile, { credits: !(S.config.display && S.config.display.programInfoCredits === false) }),
       onClose: () => { if (popover === info) popover = null; },
     });
     popover = info;
@@ -1359,7 +1359,11 @@ export function updateGuideInfoPanel(row, selectedInfo) {
     giTitleEl.textContent = runLabel(selectedInfo.cell);
     giTimeEl.textContent = `${formatSlotLabel(selectedInfo.cell.start)} – ${formatSlotLabel(selectedInfo.cell.end)}`;
   } else if (selectedInfo && selectedInfo.entry) {
-    giTitleEl.textContent = getDisplayTitle(selectedInfo.entry.file);
+    // The cable-guide header names the series; the episode is quoted in
+    // the description below it, as the real boxes did.
+    giTitleEl.textContent = cableGuide()
+      ? programHeading(selectedInfo.entry.file, getDisplayTitle(selectedInfo.entry.file))
+      : getDisplayTitle(selectedInfo.entry.file);
     giTimeEl.textContent = cableGuide()
       ? guideRange(new Date(selectedInfo.entry.start), new Date(selectedInfo.entry.end), !!(S.config.display && S.config.display.clock24))
       : `${formatSlotLabel(selectedInfo.entry.start)} – ${formatSlotLabel(selectedInfo.entry.end)}`;
@@ -1372,7 +1376,7 @@ export function updateGuideInfoPanel(row, selectedInfo) {
   const rating = file ? (file.rating === 'NONE' ? null : (file.rating || ch.rating)) : null;
   giRatingEl.textContent = rating || '';
   giRatingEl.classList.toggle('empty', !rating);
-  giDescEl.textContent = (file && typeof file.description === 'string' && file.description.trim()) || '';
+  giDescEl.textContent = file ? programDescription(file.description, file, { credits: false }) : '';
   // Restart the crossfade on every update: remove the class, force a
   // reflow read, then re-add it — plain re-adding an already-present class
   // is a no-op and wouldn't replay the animation.

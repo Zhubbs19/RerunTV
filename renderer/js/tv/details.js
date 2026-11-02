@@ -11,6 +11,7 @@ import { S, viewNow } from '../core/state.js';
 import { explainLayers } from '../core/schedule-query.js';
 import { getDisplayTitle } from '../core/util.js';
 import { describeWhyAiring } from '../core/why-airing.js';
+import { episodeLabel, formatAirDate, programDetails } from '../library/program-details.js';
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 import { hideDetailsPage, showDetailsPage } from '../cable-guide/details-page.js';
@@ -111,10 +112,29 @@ function applyPosterFrame(file) {
   }).catch(fail);
 }
 
+// A local poster is a path on disk; the card shows it through the app's file
+// URL, resolved asynchronously, so a stale answer for the previous program
+// is dropped by the same token the frame capture uses.
+function showLocalPoster(posterPath) {
+  const token = ++posterRequestToken;
+  window.api.toFileUrl(posterPath).then((url) => {
+    if (token !== posterRequestToken || !url) return;
+    detailsPosterEl.src = url;
+    detailsPosterEl.classList.remove('hidden');
+  }).catch(() => {});
+}
+
 function populateDetails(file, ctx) {
   detailsTitleEl.textContent = file ? getDisplayTitle(file) : 'NO INFO AVAILABLE';
+  const info = programDetails(file);
+  const credits = !(S.config.display && S.config.display.programInfoCredits === false);
 
   const metaParts = [];
+  // The series and episode, when a source knows them and the title isn't
+  // already the series' own name.
+  const episode = episodeLabel(info);
+  if (info.seriesName && info.seriesName !== detailsTitleEl.textContent) metaParts.push([info.seriesName, episode].filter(Boolean).join(' · '));
+  else if (episode) metaParts.push(episode);
   if (ctx.channelNumber != null) {
     metaParts.push(`CH ${ctx.channelNumber}${ctx.channelName ? ' — ' + ctx.channelName : ''}`);
   }
@@ -127,15 +147,20 @@ function populateDetails(file, ctx) {
     : 'No description added yet — add one from this channel\'s EDIT → TITLES tab in setup.';
 
   // Poster + cast come from an opt-in metadata match (a plugin's own
-  // registerTitleRowAction on the TITLES tab — see setup-panels.js);
-  // most files never have this, so both are hidden whenever it's missing
+  // registerTitleRowAction on the TITLES tab — see setup-panels.js) or a
+  // poster file beside the media (LIBRARY SYNC › DETAILS FROM YOUR FILES);
+  // most files have neither, so both are hidden whenever they're missing
   // rather than showing a broken image or empty row.
-  const posterUrl = file && file.tmdb && file.tmdb.posterUrl;
+  const posterUrl = info.imageUrl;
   if (detailsPosterEl) {
     if (posterUrl) {
       hidePosterFrame(); // cancels any frame seek still in flight
       detailsPosterEl.src = posterUrl;
       detailsPosterEl.classList.remove('hidden');
+    } else if (info.posterPath && window.api && typeof window.api.toFileUrl === 'function') {
+      hidePosterFrame();
+      detailsPosterEl.classList.add('hidden');
+      showLocalPoster(info.posterPath);
     } else {
       hidePosterFrame();
       // Hidden first, then filled in if a frame can be pulled out of the
@@ -155,11 +180,17 @@ function populateDetails(file, ctx) {
     detailsTagsEl.appendChild(tag);
   });
 
-  const cast = file && file.tmdb && file.tmdb.cast;
-  if (cast && cast.length) {
+  if (!credits) return;
+  if (info.firstAired) {
+    const aired = document.createElement('span');
+    aired.className = 'details-tag details-aired';
+    aired.textContent = `FIRST AIRED ${formatAirDate(info.firstAired.date).toUpperCase()}${info.firstAired.network ? ` · ${info.firstAired.network.toUpperCase()}` : ''}`;
+    detailsTagsEl.appendChild(aired);
+  }
+  if (info.cast.length) {
     const castLabel = document.createElement('span');
     castLabel.className = 'details-tag details-cast';
-    castLabel.textContent = `CAST: ${cast.join(', ')}`;
+    castLabel.textContent = `CAST: ${info.cast.join(', ')}`;
     detailsTagsEl.appendChild(castLabel);
   }
 }

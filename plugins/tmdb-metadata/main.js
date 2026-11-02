@@ -35,17 +35,23 @@ function splitYear(query) {
 }
 
 // The result from the named year first, then a year either side (a TV
-// special's TMDB date is often its first broadcast, a film's its premiere),
-// otherwise TMDB's own order.
-function rankByYear(results, year) {
-  if (!year) return results;
+// special's TMDB date is often its first broadcast, a film's its premiere).
+// Among equals, the kind the file looks like (`prefer`: 'movie' for a
+// feature-length file, 'tv' for an episode) comes first; otherwise TMDB's
+// own order.
+function rankByYear(results, year, prefer = null) {
+  if (!year && !prefer) return results;
   const distance = (r) => {
+    if (!year) return 0;
     const y = Number(r.year);
     if (!y) return 3;
     const d = Math.abs(y - year);
     return d === 0 ? 0 : d === 1 ? 1 : 2;
   };
-  return results.map((r, i) => ({ r, i })).sort((a, b) => distance(a.r) - distance(b.r) || a.i - b.i).map(({ r }) => r);
+  const kind = (r) => (prefer && r.mediaType !== prefer ? 1 : 0);
+  return results.map((r, i) => ({ r, i }))
+    .sort((a, b) => distance(a.r) - distance(b.r) || kind(a.r) - kind(b.r) || a.i - b.i)
+    .map(({ r }) => r);
 }
 
 function activate(ctx) {
@@ -81,30 +87,80 @@ function activate(ctx) {
       // A year that really was part of the title ("Outpost: 1999") finds
       // nothing once removed; the name as written gets a second try.
       if (!results.length && title !== query) results = await search(query);
-      return { results: rankByYear(results, year).slice(0, 6) };
+      const prefer = opts.prefer === 'movie' || opts.prefer === 'tv' ? opts.prefer : null;
+      return { results: rankByYear(results, year, prefer).slice(0, 6) };
     } catch (err) {
       return { results: [], error: err.message };
     }
   });
 
+  const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+  const getJson = (key, path, apiKey) => fetchJsonCached(
+    key,
+    `https://api.themoviedb.org/3/${path}`,
+    { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } },
+    WEEK_MS,
+  );
+
+  // Everything a match needs after the search, in as few requests as TMDB
+  // allows: the title's cast and US rating in one call (append_to_response),
+  // and, given a season and episode, that episode from its whole season (one
+  // cached call per season, so matching a box set costs a call per season).
+  // Kept on the tmdb:getCredits channel, which already answers { cast }: a
+  // new channel would change the plugin's approval and ask the user again.
+  //   opts: { apiKey, id, mediaType, season?, episode? }
+  //   ->    { cast, rating, episode: { season, number, name, overview, airDate } | null }
   ipcMain.handle('tmdb:getCredits', async (event, opts) => {
     const apiKey = opts && opts.apiKey;
-    const { id, mediaType } = opts || {};
+    const { id, mediaType, season, episode } = opts || {};
     if (!apiKey || !id || !mediaType) return { cast: [] };
+    const out = { cast: [], rating: null, episode: null };
     try {
-      const url = `https://api.themoviedb.org/3/${mediaType}/${id}/credits`;
-      const data = await fetchJsonCached(
-        `tmdb:credits:${mediaType}:${id}`,
-        url,
-        { headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' } },
-        7 * 24 * 60 * 60 * 1000,
-      );
-      const cast = (data.cast || []).slice(0, 5).map((c) => c.name);
-      return { cast };
+      const extra = mediaType === 'tv' ? 'credits,content_ratings' : 'credits,release_dates';
+      const data = await getJson(`tmdb:title:${mediaType}:${id}`, `${mediaType}/${id}?append_to_response=${extra}`, apiKey);
+      out.cast = ((data.credits && data.credits.cast) || []).slice(0, 5).map((c) => c.name);
+      out.rating = usRating(mediaType, data);
     } catch (err) {
       return { cast: [] };
     }
+    if (mediaType === 'tv' && Number.isInteger(season) && Number.isInteger(episode)) {
+      try {
+        const data = await getJson(`tmdb:season:${id}:${season}`, `tv/${id}/season/${season}`, apiKey);
+        out.episode = episodeFrom(data, season, episode);
+      } catch (err) { /* an unknown season leaves the show-level match */ }
+    }
+    return out;
   });
 }
 
-module.exports = { activate, __test: { splitYear, rankByYear } };
+// The box's ratings are the US TV ones. A film's certification maps to the
+// TV rating a network would have aired it under; anything else stays unset.
+const TV_RATINGS = ['TV-Y', 'TV-Y7', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA'];
+const FILM_TO_TV = { G: 'TV-G', PG: 'TV-PG', 'PG-13': 'TV-14', R: 'TV-MA', 'NC-17': 'TV-MA' };
+
+function usRating(mediaType, data) {
+  if (mediaType === 'tv') {
+    const us = ((data.content_ratings && data.content_ratings.results) || []).find((r) => r.iso_3166_1 === 'US');
+    const value = us && String(us.rating || '').toUpperCase().replace(/^TV(?!-)/, 'TV-').replace(/-(FV|D|L|S|V)+$/, '');
+    return TV_RATINGS.includes(value) ? value : null;
+  }
+  const us = ((data.release_dates && data.release_dates.results) || []).find((r) => r.iso_3166_1 === 'US');
+  // Theatrical (3) first, then any other release that carries a certification.
+  const dates = ((us && us.release_dates) || []).slice().sort((a, b) => (a.type === 3 ? 0 : 1) - (b.type === 3 ? 0 : 1));
+  const cert = dates.map((d) => String(d.certification || '').trim().toUpperCase()).find(Boolean);
+  return (cert && FILM_TO_TV[cert]) || null;
+}
+
+function episodeFrom(seasonData, season, number) {
+  const ep = ((seasonData && seasonData.episodes) || []).find((e) => e.episode_number === number);
+  if (!ep) return null;
+  return {
+    season,
+    number,
+    name: ep.name || null,
+    overview: ep.overview || null,
+    airDate: ep.air_date || null,
+  };
+}
+
+module.exports = { activate, __test: { splitYear, rankByYear, usRating, episodeFrom } };

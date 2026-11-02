@@ -85,7 +85,8 @@ function empty(value) {
 
 /**
  * The fields a reading may fill on one playlist entry: episode title,
- * description, rating and series — each only when the entry has none.
+ * description, rating, series and a local poster — each only when the entry
+ * has none.
  * A rating of 'NONE' is a choice and counts as set. Returns null when there
  * is nothing to fill.
  */
@@ -96,6 +97,7 @@ export function fileFieldsFromLocal(file, reading) {
   if (f.title && empty(file.title)) out.title = f.title;
   if (f.description && empty(file.description)) out.description = f.description;
   if (f.rating && empty(file.rating)) out.rating = f.rating;
+  if (f.poster && empty(file.poster)) out.poster = f.poster;
   if (f.series && !(file.series && !empty(file.series.name))) {
     out.series = { name: f.series, season: f.season ?? null, episode: f.episode ?? null };
   }
@@ -104,9 +106,9 @@ export function fileFieldsFromLocal(file, reading) {
 
 /** "3 titles, 2 descriptions and 1 rating" for a set of filled field lists. */
 export function describeFilled(fieldLists) {
-  const counts = { title: 0, description: 0, rating: 0, series: 0 };
+  const counts = { title: 0, description: 0, rating: 0, series: 0, poster: 0 };
   fieldLists.forEach((fields) => Object.keys(fields).forEach((key) => { if (key in counts) counts[key] += 1; }));
-  const words = { title: ['title', 'titles'], description: ['description', 'descriptions'], rating: ['rating', 'ratings'], series: ['series name', 'series names'] };
+  const words = { title: ['title', 'titles'], description: ['description', 'descriptions'], rating: ['rating', 'ratings'], series: ['series name', 'series names'], poster: ['poster', 'posters'] };
   const parts = Object.keys(counts).filter((key) => counts[key]).map((key) => `${counts[key]} ${words[key][counts[key] === 1 ? 0 : 1]}`);
   if (parts.length <= 1) return parts[0] || 'nothing';
   return `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;

@@ -33,6 +33,8 @@ const MAX_CACHE_ENTRIES = 50000;
 // A tag title stamped on this many files of one batch is the collection's
 // name, not each file's.
 const SHARED_TITLE_LIMIT = 3;
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp'];
+const SEASON_DIR = /^(s(eason)?[ ._-]?\d{1,4}|specials?)$/i;
 const MEDIA_EXTENSIONS = new Set([
   '.mp4', '.m4v', '.webm', '.mov', '.mkv', '.avi', '.mpg', '.mpeg', '.wmv', '.flv', '.ts', '.m2ts', '.ogv', '.divx', '.asf', '.3gp',
 ]);
@@ -392,15 +394,50 @@ function createLocalMetadataReader({ dir, getFfmpegPath = () => null, fsImpl = f
 
   // How many media files a folder holds. A movie.nfo describes the one
   // movie in its folder; in a folder of several it would label them all.
-  async function mediaCount(folder, counts) {
-    if (!counts.has(folder)) {
-      let n = 0;
+  // One listing per folder per read: lower-case name -> real name.
+  async function listing(folder, lists) {
+    if (!lists.has(folder)) {
+      const names = new Map();
       try {
-        (await fsImpl.promises.readdir(folder)).forEach((name) => { if (MEDIA_EXTENSIONS.has(path.extname(name).toLowerCase())) n += 1; });
-      } catch (e) { n = 0; }
-      counts.set(folder, n);
+        (await fsImpl.promises.readdir(folder)).forEach((name) => names.set(name.toLowerCase(), name));
+      } catch (e) { /* unreadable folder: no sidecars */ }
+      lists.set(folder, names);
     }
-    return counts.get(folder);
+    return lists.get(folder);
+  }
+
+  async function mediaCount(folder, lists) {
+    let n = 0;
+    (await listing(folder, lists)).forEach((name) => { if (MEDIA_EXTENSIONS.has(path.extname(name).toLowerCase())) n += 1; });
+    return n;
+  }
+
+  // The first of `stems` × image extensions present in `folder`.
+  async function imageIn(folder, stems, lists) {
+    const names = await listing(folder, lists);
+    for (const stem of stems) {
+      for (const ext of IMAGE_EXTENSIONS) {
+        const real = names.get(`${stem}${ext}`.toLowerCase());
+        if (real) return path.join(folder, real);
+      }
+    }
+    return null;
+  }
+
+  // A poster or thumbnail for one file, nearest first: its own
+  // (`<name>-thumb.jpg`, `<name>-poster.jpg`, `<name>.jpg`), a single-movie
+  // folder's, then its show folder's (past a season folder).
+  async function posterFor(filePath, showFolder, lists) {
+    const folder = path.dirname(filePath);
+    const base = path.basename(filePath, path.extname(filePath));
+    const own = await imageIn(folder, [`${base}-thumb`, `${base}-poster`, base], lists);
+    if (own) return own;
+    if ((await mediaCount(folder, lists)) === 1) {
+      const movie = await imageIn(folder, ['poster', 'folder', 'cover'], lists);
+      if (movie) return movie;
+    }
+    const seriesFolder = showFolder || (SEASON_DIR.test(path.basename(folder)) ? path.dirname(folder) : null);
+    return seriesFolder ? imageIn(seriesFolder, ['poster', 'folder'], lists) : null;
   }
 
   // The sidecars that apply to one file, nearest first.
@@ -410,21 +447,23 @@ function createLocalMetadataReader({ dir, getFfmpegPath = () => null, fsImpl = f
     const own = (await readNfo(path.join(folder, `${base}.nfo`)))
       || ((await mediaCount(folder, counts)) === 1 ? await readNfo(path.join(folder, 'movie.nfo')) : null);
     let show = null;
+    let showFolder = null;
     let up = folder;
     for (let i = 0; i < 3 && !show; i += 1) {
       show = await readNfo(path.join(up, 'tvshow.nfo'));
+      if (show) showFolder = up;
       const parent = path.dirname(up);
       if (parent === up) break;
       up = parent;
     }
-    return { own, show };
+    return { own, show, poster: await posterFor(filePath, showFolder, counts) };
   }
 
   async function readOne(filePath, { nfo, tags, ffmpegPath, counts }) {
     const st = await statFile(filePath);
     if (!st) return null;
-    const found = nfo ? await sidecars(filePath, counts) : { own: null, show: null };
-    const sig = [st.size, Math.round(st.mtimeMs), found.own && found.own.sig, found.show && found.show.sig, nfo ? 'n' : '', tags && ffmpegPath ? 't' : ''].join('|');
+    const found = nfo ? await sidecars(filePath, counts) : { own: null, show: null, poster: null };
+    const sig = [st.size, Math.round(st.mtimeMs), found.own && found.own.sig, found.show && found.show.sig, found.poster, nfo ? 'n' : '', tags && ffmpegPath ? 't' : ''].join('|');
     const hit = cache.entries[filePath];
     if (hit && hit.sig === sig) return hit.result;
 
@@ -446,6 +485,10 @@ function createLocalMetadataReader({ dir, getFfmpegPath = () => null, fsImpl = f
       { data: tagFields, source: 'embedded tags' },
       { data: show, source: 'tvshow.nfo', only: SERIES_FIELDS },
     ]);
+    if (found.poster) {
+      merged.fields.poster = found.poster;
+      merged.sources.poster = path.basename(found.poster);
+    }
     const result = Object.keys(merged.fields).length ? merged : null;
     if (result && own && own.kind) result.kind = own.kind;
     cache.entries[filePath] = { sig, result, at: now() };

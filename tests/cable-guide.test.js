@@ -82,14 +82,30 @@ test('program info: tiles pick an icon from the label, or the plugin\'s own', as
 });
 
 test('program info ends the description with a matched cast', async () => {
-  const { descriptionWithCast } = await load();
+  const { programDescription } = await load();
   const file = (cast) => ({ tmdb: { id: 1, cast } });
-  assert.equal(descriptionWithCast('A heist goes wrong.', file(['Ann Lee', 'Bo Ray', 'Cy Dunn'])), 'A heist goes wrong. Starring Ann Lee, Bo Ray and Cy Dunn.');
-  assert.equal(descriptionWithCast('A heist goes wrong', file(['Ann Lee'])), 'A heist goes wrong. Starring Ann Lee.');
-  assert.equal(descriptionWithCast('', file(['Ann Lee', 'Bo Ray'])), 'Starring Ann Lee and Bo Ray.');
-  assert.equal(descriptionWithCast('  Plain.  ', {}), 'Plain.', 'no match leaves the description alone');
-  assert.equal(descriptionWithCast('Plain.', file([' ', null])), 'Plain.', 'blank names are dropped');
-  assert.equal(descriptionWithCast('', null), '');
+  assert.equal(programDescription('A heist goes wrong.', file(['Ann Lee', 'Bo Ray', 'Cy Dunn'])), 'A heist goes wrong. Starring Ann Lee, Bo Ray and Cy Dunn.');
+  assert.equal(programDescription('A heist goes wrong', file(['Ann Lee'])), 'A heist goes wrong. Starring Ann Lee.');
+  assert.equal(programDescription('', file(['Ann Lee', 'Bo Ray'])), 'Starring Ann Lee and Bo Ray.');
+  assert.equal(programDescription('  Plain.  ', {}), 'Plain.', 'no match leaves the description alone');
+  assert.equal(programDescription('Plain.', file([' ', null])), 'Plain.', 'blank names are dropped');
+  assert.equal(programDescription('', null), '');
+  assert.equal(programDescription('Plain.', file(['Ann Lee']), { credits: false }), 'Plain.', 'the setting turns credits off');
+});
+
+test('program info reads like the real boxes: series heading, quoted episode, first aired', async () => {
+  const { programDescription, programHeading } = await load();
+  const file = {
+    title: 'The First Day',
+    description: 'The staff meets the new boss.',
+    series: { name: 'Workplace Comedy', season: 2, episode: 1 },
+    tvmaze: { show: 'Workplace Comedy', network: 'A Network', airdate: '2005-09-20' },
+  };
+  assert.equal(programHeading(file, 'The First Day'), 'Workplace Comedy');
+  assert.equal(programHeading({ title: 'A Film' }, 'A Film'), 'A Film', 'no series keeps the title');
+  assert.equal(programDescription(file.description, file),
+    '"The First Day", The staff meets the new boss. First aired September 20, 2005 on A Network.');
+  assert.equal(programDescription('', { ...file, description: '' }, { credits: false }), '"The First Day".');
 });
 
 test('guide ranges read compactly, the way the real guides wrote them', async () => {

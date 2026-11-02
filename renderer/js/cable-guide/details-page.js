@@ -11,7 +11,7 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { channelCallLetters } from '../guide/model.js';
 import { createGuideHeader } from './header.js';
 import { iconSvg } from './icons.js';
-import { descriptionWithCast, guideRange, menuLabel } from './model.js';
+import { guideRange, menuLabel, programDescription, programHeading } from './model.js';
 import { hidePictureBox, showPictureBox } from './picture-box.js';
 
 let page = null;
@@ -50,8 +50,9 @@ export function showDetailsPage(overlay, { title, file, ctx, onBack }) {
   const channel = ctx.channelNumber != null
     ? `${formatChannelNumber(ctx.channelNumber)} ${(ch && channelCallLetters(ch)) || ctx.channelName || ''}`.trim()
     : '';
-  header.setProgram({ title, time, channel, rating, ch });
-  const description = descriptionWithCast(file && typeof file.description === 'string' ? file.description : '', file);
+  header.setProgram({ title: programHeading(file, title), time, channel, rating, ch });
+  const credits = !(S.config.display && S.config.display.programInfoCredits === false);
+  const description = programDescription(file && typeof file.description === 'string' ? file.description : '', file, { credits });
   const desc = page.querySelector('.cg-details-desc');
   desc.textContent = description || 'No description available.';
   desc.classList.toggle('cg-info-desc-empty', !description);

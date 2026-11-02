@@ -1456,6 +1456,27 @@ Feature-detect both (`typeof ctx.shareFileFields === 'function'`) so the
 plugin still works in an older app. See `plugins/tmdb-metadata/renderer.js`
 for a full real example (search, bulk match, per-file re-match).
 
+### Reading a file for a catalogue: `ctx.titleMatch` (ctx v11)
+
+A metadata plugin (a TITLES row action that looks a file up somewhere) should read the
+file the way every other one does. `ctx.titleMatch` is core's
+`renderer/js/library/title-match.js`:
+
+| Function | Returns |
+|---|---|
+| `episodeOf(file)` | `{ season, episode }` from `file.series` or an `S02E01` / `2x01` name, else `null` (a four-digit season is a year, not a season) |
+| `searchQueryFor(file)` | what to search: the show's name for an episode, otherwise its title or cleaned file name (a year in brackets is kept) |
+| `preferredKind(file)` | `'tv'` for an episode, `'movie'` for a file of 70 minutes or more, else `null` |
+| `splitYear(query)` | `{ title, year }`: the year taken out of a name like `Some Film (1998)` or `(1995). Some Film` |
+| `rankByYear(results, year, prefer)` | results (`{ year, mediaType }`) with the named year first, then the preferred kind |
+| `plainSummary(html)` | text from a catalogue's HTML summary |
+
+Save what you find with the row ctx's `shareFileFields` (above). The program info
+screens read `file.series`, `file.tmdb` (`posterUrl`, `cast`, `episode.airDate`) and
+`file.tvmaze` (`network`, `airdate`, `imageUrl`); see
+`renderer/js/library/program-details.js`. `plugins/tvmaze-metadata/` is a small complete
+example.
+
 ### Calling your own `main.js`: `ctx.ipc` (ctx v10)
 
 Your renderer and settings code reach your own `main.js` through the generic

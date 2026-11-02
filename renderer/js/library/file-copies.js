@@ -10,7 +10,10 @@
 // the host.
 
 // Details that describe the media itself rather than its place in a playlist.
-export const SHARED_FILE_FIELDS = ['title', 'description', 'rating', 'tmdb', 'series'];
+// A catalogue match: it identifies the media, so every copy takes it.
+const MATCH_FIELDS = new Set(['tmdb', 'tvmaze']);
+
+export const SHARED_FILE_FIELDS = ['title', 'description', 'rating', 'tmdb', 'tvmaze', 'series', 'poster'];
 
 function hasValue(value) {
   if (value == null) return false;
@@ -38,12 +41,13 @@ export function fileCopies(config, path) {
 
 /**
  * Writes `fields` on `source` and on every other entry for the same path.
- * Another copy keeps a description of its own: it is replaced only when it is
- * empty or still the same text `source` had before this change. Returns the
+ * Another copy keeps a title, description or rating of its own: it is
+ * replaced only when it is empty or still the same value `source` had before
+ * this change. A match itself (`tmdb`, `tvmaze`) always follows. Returns the
  * entries that changed.
  */
 export function shareFileFields(config, source, fields) {
-  const before = { ...source };
+  const before = clone({ ...source });
   const copies = fileCopies(config, source.path);
   if (!copies.includes(source)) copies.push(source);
   const changed = [];
@@ -51,7 +55,7 @@ export function shareFileFields(config, source, fields) {
     let touched = false;
     Object.keys(fields).forEach((key) => {
       const value = fields[key];
-      if (copy !== source && key === 'description' && hasValue(copy.description) && copy.description !== before.description) return;
+      if (copy !== source && !MATCH_FIELDS.has(key) && hasValue(copy[key]) && JSON.stringify(copy[key]) !== JSON.stringify(before[key])) return;
       if (JSON.stringify(copy[key]) === JSON.stringify(value)) return;
       if (value === undefined) delete copy[key]; else copy[key] = clone(value);
       touched = true;

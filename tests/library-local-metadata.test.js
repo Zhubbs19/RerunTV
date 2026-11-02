@@ -196,6 +196,22 @@ test('movie.nfo applies only to the single video in its folder', async () => {
   assert.equal(results[path.join(dir, 'Many/a.mkv')], null);
 });
 
+test('posters: the file’s own, a single-movie folder’s, then the show’s past a season folder', async () => {
+  const dir = tempTree({
+    'Show/poster.jpg': 'x', 'Show/Season 1/S01E01.mkv': 'x', 'Show/Season 1/S01E02.mkv': 'x', 'Show/Season 1/S01E02-thumb.png': 'x',
+    'Film/film.mkv': 'x', 'Film/Folder.JPG': 'x',
+    'Mixed/a.mkv': 'x', 'Mixed/b.mkv': 'x', 'Mixed/poster.jpg': 'x',
+  });
+  const reader = createLocalMetadataReader({ dir: null });
+  const refs = ['Show/Season 1/S01E01.mkv', 'Show/Season 1/S01E02.mkv', 'Film/film.mkv', 'Mixed/a.mkv'].map((r) => path.join(dir, r));
+  const { results } = await reader.read(refs);
+  assert.equal(results[refs[0]].fields.poster, path.join(dir, 'Show/poster.jpg'));
+  assert.equal(results[refs[0]].sources.poster, 'poster.jpg');
+  assert.equal(results[refs[1]].fields.poster, path.join(dir, 'Show/Season 1/S01E02-thumb.png'), 'an episode thumbnail beats the show poster');
+  assert.equal(results[refs[2]].fields.poster, path.join(dir, 'Film/Folder.JPG'), 'names match whatever their case');
+  assert.equal(results[refs[3]], null, 'a folder of several films has no one poster');
+});
+
 test('a tag title shared by several files in a batch is a collection name and is dropped', async () => {
   const dir = tempTree({ 'c/1.mp4': 'x', 'c/2.mp4': 'x', 'c/3.mp4': 'x', 'c/4.mp4': 'x' });
   const reader = createLocalMetadataReader({

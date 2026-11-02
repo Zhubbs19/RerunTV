@@ -477,6 +477,15 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-03', items: [
+    'TMDB matches go down to the episode: a file with a season and episode (S02E01 in its name, or from its details) gets that episode’s own title, description and air date instead of the show’s, and MATCH searches by the show’s name rather than the whole file name.',
+    'A TMDB match fills in an empty TV rating from the US rating; a film’s rating becomes the one it airs under (PG-13 shows as TV-14).',
+    'Matching prefers a film for a feature-length file and a show for an episode, and keeps a year in the name to pick the right version. MATCH FOR SELECTED looks a show up once for all its episodes, and re-does episodes that only had the show’s description.',
+    'Both are switches under PLUGINS › TMDB Metadata › MATCHING.',
+    'New plugin, TVmaze Episodes: a TVMAZE button on each TITLES row fills in an episode’s title, synopsis and series name, and records when and on which network it first aired. No account or key; data from TVmaze.com (CC BY-SA).',
+    'Program info shows what the matches found. On the cable-box layout the page is headed by the series, the description opens with the episode in quotes and ends with “Starring …” and “First aired September 20, 2005 on its network.” The I card on other themes adds the series and episode number, the poster, and first-aired and cast tags. GUIDE & THEME › Cast and air date on program info turns the credits off.',
+    'DETAILS FROM YOUR FILES also picks up posters beside your media (a file’s own -thumb or -poster image, a movie folder’s poster.jpg or folder.jpg, a show folder’s poster) for the I card.',
+  ] },
   { date: '2026-11-02', items: [
     'Fit to time slots (opt-in, per channel or for the whole box): each program ends on the next half hour or hour. One that runs a little long is shortened by speeding up its end credits, then gently sped up, within limits you set, and shows a formatted-for-television card; one that runs short gets breaks to fill the gap. End credits gain settings for when they speed up, how much they may save, and four squeeze-back layouts.',
     'The full guide\u2019s header no longer overlaps: title and channel, time and rating, and two lines of description all fit above the search line.',

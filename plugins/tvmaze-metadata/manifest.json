@@ -1,0 +1,25 @@
+{
+  "id": "tvmaze-metadata",
+  "name": "TVmaze Episodes",
+  "version": "1.0.0",
+  "description": "Fills in TV episode titles, synopses and series names on the TITLES tab, and records each episode's original air date and network, from TVmaze. No account or API key. Data from TVmaze.com (CC BY-SA).",
+  "category": "system",
+  "main": "main.js",
+  "renderer": "renderer.js",
+  "settings": "settings.js",
+  "isolated": true,
+  "minCtxVersion": 11,
+  "fallbackIpc": {
+    "tvmaze:search": {"results":[],"error":"The TVmaze Episodes plugin is disabled or missing (PLUGINS tab)."},
+    "tvmaze:episodes": {"episodes":[]}
+  },
+  "capabilities": {
+    "ipc": [
+      { "channel": "tvmaze:search", "why": "looks up a show by name for the TITLES tab's TVMAZE button" },
+      { "channel": "tvmaze:episodes", "why": "fetches a matched show's episode list to fill in each episode's details" }
+    ],
+    "internet": [
+      { "host": "api.tvmaze.com", "why": "searches TVmaze for a show and its episodes when you press TVMAZE" }
+    ]
+  }
+}

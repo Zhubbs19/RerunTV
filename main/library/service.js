@@ -226,12 +226,12 @@ function createLibraryService({
 
     // Writes item fields: accepted tagging suggestions, probed durations,
     // hand edits, and `local` — what the file's .nfo files and tags said
-    // (readLocalMetadata), kept as evidence for REVIEW, and `tmdb`, a metadata
-    // match shared from a playlist entry. Only known fields: ids, refs and
+    // (readLocalMetadata), kept as evidence for REVIEW, and `tmdb`/`tvmaze`/
+    // `poster`, details shared from a playlist entry. Only known fields: ids, refs and
     // fingerprints are identity and are never set this way. A field named in
     // an update's `onlyIfEmpty` is written only where the item has none.
     applyItemUpdates({ updates }) {
-      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb']);
+      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb', 'tvmaze', 'poster']);
       const empty = (value) => value == null || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
       let changed = 0;
       (updates || []).forEach(({ id, fields, onlyIfEmpty = [] }) => {

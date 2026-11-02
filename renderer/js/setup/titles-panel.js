@@ -94,7 +94,7 @@ function shareFileFieldsEverywhere(file, fields, { label = 'Update file details'
   if (changed.length && commit) commitConfigPatch(label, { delay: 100 });
   const ids = [...new Set([file, ...changed].map((f) => f.item).filter(Boolean))];
   const itemFields = {};
-  if ('tmdb' in fields) itemFields.tmdb = fields.tmdb;
+  ['tmdb', 'tvmaze', 'poster'].forEach((key) => { if (key in fields) itemFields[key] = fields[key]; });
   if (fields.description) itemFields.description = fields.description;
   if (ids.length && Object.keys(itemFields).length && window.api && typeof window.api.libraryCall === 'function') {
     window.api.libraryCall('applyItemUpdates', { updates: ids.map((id) => ({ id, fields: itemFields, onlyIfEmpty: ['description'] })) })

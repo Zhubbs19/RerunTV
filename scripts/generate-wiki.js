@@ -256,7 +256,7 @@ const GROUPS = [
   ['Virtual and special channels', ['video-in', 'guide-channel', 'public-access', 'local-weather', 'party-channel', 'tape-deck', 'mosaic', 'pay-per-view', 'teletext-arcade', 'digital-music-channel']],
   ['On-screen overlays and broadcast effects', ['breaking-news', 'eas-alerts', 'film-reel-marks', 'signal-glitches', 'smpte-test-pattern', 'sponsor-billboard', 'screensaver', 'ticker', 'closed-captions']],
   ['Audio', ['sap-audio', 'vintage-audio']],
-  ['Services and integrations', ['noaa-weather', 'tmdb-metadata', 'cast-to-tv', 'companion-app', 'ffmpeg-transcode']],
+  ['Services and integrations', ['noaa-weather', 'tmdb-metadata', 'tvmaze-metadata', 'cast-to-tv', 'companion-app', 'ffmpeg-transcode']],
 ];
 const nonTheme = pluginRows.map((r) => r.m.id || r.dir).filter((id) => !id.startsWith('theme-'));
 const listed = GROUPS.flatMap((g) => g[1]);

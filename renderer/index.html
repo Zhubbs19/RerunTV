@@ -38,7 +38,7 @@
      per-plugin registration. It's still scoped to loopback only, and a LAN
      viewer client's own 127.0.0.1 refers to itself, not this host, so this
      doesn't widen what a LAN browser can reach either. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data: https://image.tmdb.org; media-src 'self' app: http://127.0.0.1:*; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' app:; script-src 'self' app:; style-src 'self' app: 'unsafe-inline'; img-src 'self' app: data: https://image.tmdb.org https://static.tvmaze.com; media-src 'self' app: http://127.0.0.1:*; font-src 'self' app:; connect-src 'self' app:; object-src 'none'; base-uri 'none'; form-action 'none';" />
 <!-- Only load-bearing for the LAN viewer (browser-api-shim.js) — Electron's
      own window isn't a mobile browser and ignores this. Without it, a phone
      browser renders the page at a virtual desktop-width viewport and scales
@@ -1062,7 +1062,7 @@
         </div>
 <div class="setup-subtab-panel" data-subtab-panel="guidegrid">
         <div class="settings-grid">
-<div class="panel" id="guide-settings-panel" data-simple-settings data-reset-keys='[["display","guideSlots"],["display","guideSlotMinutes"],["display","guideChannelNames"],["display","guideMergeShorts"],["display","searchGroupByTitle"],["display","guideSpecialsAtTop"],["display","guideLivePreview"],["display","guideCardDuration"],["reminderLeadMinutes"]]'>
+<div class="panel" id="guide-settings-panel" data-simple-settings data-reset-keys='[["display","guideSlots"],["display","guideSlotMinutes"],["display","guideChannelNames"],["display","guideMergeShorts"],["display","searchGroupByTitle"],["display","guideSpecialsAtTop"],["display","guideLivePreview"],["display","programInfoCredits"],["display","guideCardDuration"],["reminderLeadMinutes"]]'>
           <div class="panel-toggle">GUIDE</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="guide-slots" data-synonyms="guide slots columns hours" data-simple-settings>
@@ -1110,6 +1110,11 @@
               <label class="setting-row-label" for="guide-live-preview-enabled">Live picture in the full guide</label>
               <div class="setting-row-control"><input type="checkbox" id="guide-live-preview-enabled" checked></div>
               <p class="setting-row-help">Shrink the picture into a corner box while the full-page guide is open.</p>
+            </div>
+            <div class="setting-row" data-setting="program-info-credits" data-synonyms="cast starring actors original air date first aired network program info details metadata">
+              <label class="setting-row-label" for="program-info-credits-enabled">Cast and air date on program info</label>
+              <div class="setting-row-control"><input type="checkbox" id="program-info-credits-enabled" checked></div>
+              <p class="setting-row-help">End a program's description with its cast and when and where it first aired, when a metadata match found them.</p>
             </div>
             <div class="setting-row" data-setting="guide-card-duration" data-synonyms="banner duration">
               <label class="setting-row-label" for="guide-card-duration-slider">Channel card time</label>

@@ -187,6 +187,7 @@ function guideItems() {
     valueItem('GROUP SHORTS', () => onOff(display().guideMergeShorts !== false), () => setSetting(['display', 'guideMergeShorts'], display().guideMergeShorts === false)),
     valueItem('GROUP SEARCH BY SHOW', () => onOff(display().searchGroupByTitle !== false), () => setSetting(['display', 'searchGroupByTitle'], display().searchGroupByTitle === false)),
     valueItem('SPECIALS AT THE TOP', () => onOff(display().guideSpecialsAtTop), () => setSetting(['display', 'guideSpecialsAtTop'], !display().guideSpecialsAtTop)),
+    valueItem('CAST AND AIR DATE', () => onOff(display().programInfoCredits !== false), () => setSetting(['display', 'programInfoCredits'], display().programInfoCredits === false)),
   ];
 }
 

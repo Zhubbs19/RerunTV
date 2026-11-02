@@ -171,6 +171,11 @@ const searchGroupByTitleEl = document.getElementById('search-group-by-title-enab
 searchGroupByTitleEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'searchGroupByTitle'], value: searchGroupByTitleEl.checked });
 });
+// "Starring …" and "First aired …" on the I card and program info pages.
+const programInfoCreditsEl = document.getElementById('program-info-credits-enabled');
+programInfoCreditsEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['display', 'programInfoCredits'], value: programInfoCreditsEl.checked });
+});
 guideSpecialsTopEnabledEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['display', 'guideSpecialsAtTop'], value: guideSpecialsTopEnabledEl.checked });
 });

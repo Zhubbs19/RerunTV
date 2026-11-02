@@ -3,6 +3,8 @@
 // header clock reads, and which overlay surfaces count as open. No DOM, so
 // tests/cable-guide.test.js imports it directly.
 
+import { creditSentences, programDetails } from '../library/program-details.js';
+
 export const CABLE_GUIDE_UI = 'cable-guide';
 export const LEGACY_UI = 'legacy';
 
@@ -125,17 +127,29 @@ export function actionMeaning(label) {
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
-// Program info's description with the cast a metadata match saved on the file
-// (`file.tmdb.cast`, the TMDB Metadata plugin) as the closing sentence, the
-// way the real boxes ran it: "… Starring A, B and C."
-export function descriptionWithCast(description, file) {
-  const text = String(description || '').trim();
-  const cast = (file && file.tmdb && Array.isArray(file.tmdb.cast) ? file.tmdb.cast : [])
-    .map((name) => String(name || '').trim()).filter(Boolean);
-  if (!cast.length) return text;
-  const names = cast.length > 1 ? `${cast.slice(0, -1).join(', ')} and ${cast[cast.length - 1]}` : cast[0];
+// Program info's text the way the real boxes ran it: the episode in quotes,
+// then the description, then the credits a metadata source found —
+//   "The First Day", The staff meets the new boss. Starring A, B and C.
+//   First aired September 20, 2005 on A Network.
+// Sources are merged by library/program-details.js. `credits` is the
+// display.programInfoCredits setting (on unless switched off).
+export function programDescription(description, file, { credits = true } = {}) {
+  const details = programDetails(file);
+  let text = String(description || '').trim();
+  if (details.episodeTitle && details.seriesName) {
+    const quoted = `"${details.episodeTitle}"`;
+    text = text ? `${quoted}, ${text}` : `${quoted}.`;
+  }
+  const closing = credits ? creditSentences(details) : '';
+  if (!closing) return text;
   const lead = text && !/[.!?…)"”]$/.test(text) ? `${text}.` : text;
-  return `${lead ? `${lead} ` : ''}Starring ${names}.`;
+  return `${lead ? `${lead} ` : ''}${closing}`;
+}
+
+// The page title: the series when one is known (the episode goes in quotes
+// in the description, as above), otherwise the program's own title.
+export function programHeading(file, fallback) {
+  return programDetails(file).seriesName || fallback;
 }
 
 // Left/right across the tiles, stopping at the ends.

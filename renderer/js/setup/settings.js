@@ -272,6 +272,8 @@ export function renderSettingsPanels() {
   if (mergeShortsEl) mergeShortsEl.checked = S.config.display.guideMergeShorts !== false;
   const searchGroupEl = document.getElementById('search-group-by-title-enabled');
   if (searchGroupEl) searchGroupEl.checked = S.config.display.searchGroupByTitle !== false;
+  const programInfoCreditsEl = document.getElementById('program-info-credits-enabled');
+  if (programInfoCreditsEl) programInfoCreditsEl.checked = S.config.display.programInfoCredits !== false;
   if (guideCardDurationSlider) {
     guideCardDurationSlider.value = S.config.display.guideCardDuration != null ? S.config.display.guideCardDuration : 4000;
   }

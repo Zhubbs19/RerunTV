@@ -46,6 +46,13 @@ test('a match reaches every copy, and a hand-written description elsewhere stays
   assert.equal(copies[0].duration, 5400);
   assert.equal(config.channels[0].files[1].tmdb, undefined, 'other files untouched');
   assert.equal(shareFileFields(config, source, { tmdb }).length, 0, 'nothing changes the second time');
+
+  copies[3].title = 'A title of its own';
+  copies[3].rating = 'TV-G';
+  shareFileFields(config, source, { title: 'Episode Name', rating: 'TV-PG' });
+  assert.equal(copies[1].title, 'Episode Name', 'an empty title is filled');
+  assert.equal(copies[3].title, 'A title of its own', 'a title of its own is kept');
+  assert.equal(copies[3].rating, 'TV-G', 'and so is a rating');
 });
 
 test('a new entry inherits what another copy already has, filling empty fields only', async () => {

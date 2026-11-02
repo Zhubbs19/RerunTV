@@ -176,5 +176,6 @@ plugins/*
 !plugins/theme-wood-console-70s/
 !plugins/ticker/
 !plugins/tmdb-metadata/
+!plugins/tvmaze-metadata/
 !plugins/video-in/
 !plugins/vintage-audio/

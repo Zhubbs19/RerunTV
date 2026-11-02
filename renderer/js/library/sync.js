@@ -185,7 +185,7 @@ function filesMissingDetails() {
       files.forEach((file) => {
         if (!localPathOf(file.path)) return;
         const missing = !(file.title && String(file.title).trim()) || !(file.description && String(file.description).trim())
-          || !file.rating || !(file.series && file.series.name);
+          || !file.rating || !(file.series && file.series.name) || !file.poster;
         if (missing) out.push(file);
       });
     });

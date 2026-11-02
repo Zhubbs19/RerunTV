@@ -91,6 +91,7 @@ import { ListDetail } from '../ui/list-detail.js';
 import { Menu, MenuButton } from '../ui/menu.js';
 import { Tabs } from '../ui/tabs.js';
 import { Toast } from '../ui/toast.js';
+import * as titleMatch from '../library/title-match.js';
 
 const channelTypeRegistry = new Map();
 const settingsPanelRegistry = new Map();
@@ -805,7 +806,10 @@ export function pluginDiagnosticsSnapshot() {
 // invoke(pluginId, channel, ...args) and on(pluginId, channel, cb), so a
 // plugin's on-screen code reaches its own declared, approved main-process
 // channels without a named bridge in preload.js.
-const CTX_VERSION = 10;
+// v11 added ctx.titleMatch (library/title-match.js): how a metadata plugin
+// reads a file — episodeOf, searchQueryFor, preferredKind, splitYear,
+// rankByYear, plainSummary — so every catalogue lookup agrees.
+const CTX_VERSION = 11;
 
 // ctx.ipc.on listeners, keyed "pluginId\u0000channel". One window.api
 // listener feeds them all; ipcRenderer listeners can't be removed through
@@ -946,6 +950,7 @@ function installGlobalApi() {
       // without pulling in everything else.
       core, audio, channels, settings, util, search, input, ui, commands,
       ipc: pluginIpc,
+      titleMatch,
     },
     // Bumped whenever ctx's shape changes in a way a plugin might care
     // about (see CTX_VERSION above) — a plugin can declare manifest.json's
