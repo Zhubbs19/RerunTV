@@ -638,6 +638,26 @@
           <div id="library-sync-results" class="titles-list"></div>
         </div>
 
+        <div class="panel span-full">
+          <div class="panel-toggle">DETAILS FROM YOUR FILES</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="local-meta-fill" data-synonyms="nfo sidecar media server metadata description episode title rating">
+              <label class="setting-row-label" for="local-meta-fill">Fill in new files’ details</label>
+              <div class="setting-row-control"><input type="checkbox" id="local-meta-fill"></div>
+              <p class="setting-row-help">When sync or a library scan finds a new file, copy its episode title, description, rating and series from .nfo files beside it. Only empty details are filled.</p>
+            </div>
+            <div class="setting-row" data-setting="local-meta-tags" data-synonyms="embedded tags container metadata ffmpeg">
+              <label class="setting-row-label" for="local-meta-tags">Also read tags inside files</label>
+              <div class="setting-row-control"><input type="checkbox" id="local-meta-tags"></div>
+              <p class="setting-row-help">Uses ffmpeg to read titles and descriptions stored in the file itself. Release names and website banners are ignored.</p>
+            </div>
+          </div>
+          <div class="block-row">
+            <button id="local-meta-fill-btn" class="btn">FILL IN ALL CHANNELS NOW</button>
+          </div>
+          <div id="local-meta-status" class="panel-status" role="status" aria-live="polite">READS ONLY FILES ON THIS COMPUTER. NOTHING YOU SET IS OVERWRITTEN.</div>
+        </div>
+
         </div>
         </div>
 

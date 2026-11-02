@@ -679,7 +679,7 @@ export function unregisterPluginCommands(pluginId) {
 // sets several at once, so an edit that has to keep two in step (facets and
 // the tags mirrored from them) is one command. null clears a field.
 const FILE_FIELDS = {
-  title: 'title', tags: 'tags', description: 'description', facets: 'facets', rating: 'rating',
+  title: 'title', tags: 'tags', description: 'description', facets: 'facets', rating: 'rating', series: 'series',
   advisory: 'advisory', advisoryCues: 'scene cues', creditsLeadS: 'credits lead', creditsSqueezeBgImage: 'credits backdrop',
   hasCC: 'CC', hasSAP: 'SAP', hasStereo: 'stereo',
 };

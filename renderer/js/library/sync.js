@@ -8,6 +8,7 @@ import { probeDurationForEntry } from '../setup/util.js';
 import { confirmDialog } from '../setup/dialogs.js';
 import { reconcileFolderFiles } from './sync-core.js';
 import { applyPlaylistPreservingAir } from './reanchor.js';
+import { describeFilled, fileFieldsFromLocal, fillFilesInPlace, localMetadataPrefs, localPathOf, readLocalMetadata } from './local-metadata.js';
 const SYNC_PROBE_CONCURRENCY = 4;
 let periodicTimer = null;
 let syncRunning = false;
@@ -63,6 +64,7 @@ function summaryText(result) {
   if (result.removed) parts.push(`${result.removed} removed`);
   if (result.missing) parts.push(`${result.missing} missing (kept)`);
   if (result.unprobed) parts.push(`${result.unprobed} unreadable (will retry)`);
+  if (result.filled) parts.push(`details filled for ${result.filled}`);
   if (result.errors) parts.push(`${result.errors} source warning${result.errors === 1 ? '' : 's'}`);
   if (result.onAirChanged) parts.push(result.onAirChanged === true ? 'what is on the air changed' : `on-air changed on ${result.onAirChanged} channel${result.onAirChanged === 1 ? '' : 's'}`);
   return parts.length ? parts.join(' · ') : 'No library changes found';
@@ -97,7 +99,8 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
   const status = document.getElementById('library-sync-status');
   if (status) status.textContent = 'CHECKING LINKED FOLDERS…';
   const prefs = settings();
-  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0, onAirChanged: 0, unprobed: 0 };
+  const totals = { added: 0, renamed: 0, removed: 0, missing: 0, errors: 0, onAirChanged: 0, unprobed: 0, filled: 0 };
+  const { fillDetails, readTags } = localMetadataPrefs(S.config);
   const rows = [];
   let contentChanged = false;
   try {
@@ -117,6 +120,17 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
             missing: prefs.removeMissing ? 0 : result.missing.length,
             unprobed: result.unprobed.length,
           };
+          // New files arrive with what their .nfo files and tags say, before
+          // they join the playlist (LIBRARY SYNC › "Fill in new files' details").
+          // A failed read never blocks the sync itself.
+          if (fillDetails && result.added.length) {
+            const addedPaths = new Set(result.added.map((file) => file.path));
+            try {
+              row.filled = (await fillFilesInPlace(result.files.filter((file) => addedPaths.has(file.path) && file.folder === folder.id), { tags: readTags })).length;
+            } catch (error) {
+              console.warn('[library-sync] reading file details failed:', error);
+            }
+          }
           if (row.added || row.renamed || row.removed) {
             const air = applyPlaylistPreservingAir(channel, result.files, scheduleClockFor(channel));
             if (!air.preserved && air.reason !== 'no-anchor') row.onAirChanged = true;
@@ -155,6 +169,68 @@ export async function runLibrarySync({ reason = 'manual' } = {}) {
   }
 }
 
+// Every local playlist entry, in channels and their schedule blocks, that is
+// missing a detail a reading could supply.
+function filesMissingDetails() {
+  const out = [];
+  (S.config.channels || []).forEach((channel) => {
+    [channel.files || [], ...(channel.blocks || []).map((block) => block.files || [])].forEach((files) => {
+      files.forEach((file) => {
+        if (!localPathOf(file.path)) return;
+        const missing = !(file.title && String(file.title).trim()) || !(file.description && String(file.description).trim())
+          || !file.rating || !(file.series && file.series.name);
+        if (missing) out.push(file);
+      });
+    });
+  });
+  return out;
+}
+
+// LIBRARY SYNC › FILL IN ALL CHANNELS NOW: one pass over the whole lineup,
+// recorded as a single undoable patch. Titles, descriptions, ratings and
+// series names don't move anything in a schedule, so nothing on the air
+// changes; only empty fields are filled.
+export async function fillAllChannelDetails() {
+  if (syncRunning || window.__isViewer) return null;
+  const files = filesMissingDetails();
+  const status = document.getElementById('local-meta-status');
+  if (!files.length) {
+    if (status) status.textContent = 'EVERY LOCAL FILE ALREADY HAS ITS DETAILS.';
+    return { filled: 0 };
+  }
+  syncRunning = true;
+  const button = document.getElementById('local-meta-fill-btn');
+  if (button) button.disabled = true;
+  const task = beginTask('READING FILE DETAILS…');
+  try {
+    const { results, tagsAvailable } = await readLocalMetadata(files.map((file) => localPathOf(file.path)), {
+      tags: localMetadataPrefs(S.config).readTags,
+      onProgress: (done, total) => task.update(`READING FILE DETAILS ${done} / ${total}…`),
+    });
+    const applied = [];
+    files.forEach((file) => {
+      const fields = fileFieldsFromLocal(file, results[localPathOf(file.path)]);
+      if (!fields) return;
+      Object.assign(file, fields);
+      applied.push(fields);
+    });
+    if (applied.length) commitConfigPatch('Fill in details from files', { delay: 100 });
+    if (status) {
+      status.textContent = applied.length
+        ? `FILLED IN ${describeFilled(applied).toUpperCase()} ON ${applied.length} OF ${files.length} FILES.`
+        : `NOTHING NEW IN ${files.length} FILES' .NFO FILES${tagsAvailable ? ' OR TAGS' : ''}.`;
+    }
+    return { filled: applied.length, read: files.length };
+  } catch (error) {
+    if (status) status.textContent = `COULD NOT READ FILE DETAILS: ${error.message}`;
+    return null;
+  } finally {
+    syncRunning = false;
+    if (button) button.disabled = false;
+    task.end();
+  }
+}
+
 export function renderLibrarySyncSettings() {
   const prefs = settings();
   const enabled = document.getElementById('library-sync-enabled');
@@ -166,6 +242,11 @@ export function renderLibrarySyncSettings() {
   if (startup) startup.checked = prefs.runAtStartup !== false;
   if (remove) remove.checked = !!prefs.removeMissing;
   if (interval) interval.value = prefs.intervalMinutes || 30;
+  const details = localMetadataPrefs(S.config);
+  const fill = document.getElementById('local-meta-fill');
+  const tags = document.getElementById('local-meta-tags');
+  if (fill) fill.checked = details.fillDetails;
+  if (tags) tags.checked = details.readTags;
   if (status) status.textContent = prefs.lastRunAt
     ? `${summaryText(prefs.lastSummary || {}).toUpperCase()} · ${new Date(prefs.lastRunAt).toLocaleString()}`
     : (prefs.enabled ? 'READY — NO SYNC HAS RUN YET.' : 'SYNC IS OFF.');
@@ -223,4 +304,15 @@ intervalEl?.addEventListener('change', () => {
   schedulePeriodicSync();
 });
 nowEl?.addEventListener('click', () => runLibrarySync({ reason: 'manual' }));
+const fillEl = document.getElementById('local-meta-fill');
+const tagsEl = document.getElementById('local-meta-tags');
+fillEl?.addEventListener('change', () => {
+  settings().fillDetails = fillEl.checked;
+  commitInPlace({ type: 'settings.set', path: ['librarySync', 'fillDetails'], value: settings().fillDetails });
+});
+tagsEl?.addEventListener('change', () => {
+  settings().readTags = tagsEl.checked;
+  commitInPlace({ type: 'settings.set', path: ['librarySync', 'readTags'], value: settings().readTags });
+});
+document.getElementById('local-meta-fill-btn')?.addEventListener('click', () => fillAllChannelDetails());
 document.querySelector('[data-subtab="librarysync"]')?.addEventListener('click', renderLibrarySyncSettings);

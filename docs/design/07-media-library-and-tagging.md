@@ -205,6 +205,26 @@ CHOOSE ITEMS to untick exceptions. `acceptGroup` writes `user-accepted` provenan
 Open: embedded container tags (step 2), mapping to the Tag Taxonomy vocabulary (step 4), the
 opt-in metadata plugins (step 5), and editing one item's fields by hand.
 
+**Built (2026-11-02): step 2, plus .nfo sidecars.** `main/library/local-metadata.js` reads the XML
+sidecars media centers and library managers write (`<file>.nfo`, a single-movie folder's
+`movie.nfo`, and `tvshow.nfo` up to two folders above, past a season folder), then container tags
+through ffmpeg's `ffmetadata` muxer (only ffmpeg is installed, never ffprobe). Trust order is the
+file's own NFO, then tags, then `tvshow.nfo` for series-level fields only. A survey of a real
+library found the tags mostly left behind by encoders: a site's URL, a release name, a
+collection's name on every file, an upload date as `date`. So tag titles carrying a URL, `|`,
+codec or source tokens or an episode code are rejected, a title shared by three or more files in
+one read is dropped, a tag date within a year of the file's mtime is ignored, and `comment` is
+never read. Ratings normalize to the box's TV vocabulary (film ratings to the TV rating they air
+under); anything else stays unset. Results are cached in `library/local-metadata-cache.json`,
+keyed on the file's and every sidecar's size and mtime.
+
+It reaches three places, all filling empty fields only: `item.local` evidence that
+`tagging.js` `analyzeItem` ranks above the path in REVIEW (rating becomes a group field,
+description a per-item extra); TITLES' READ NFO & TAGS bulk action; and LIBRARY SYNC ›
+DETAILS FROM YOUR FILES (fill new files on sync and library scans, off by default; read tags,
+on by default; FILL IN ALL CHANNELS NOW as one undoable patch). `readLocalMetadata` is
+host-only. NFO genres wait for step 4: an NFO's "Comedy" is not yet one of the box's genre words.
+
 ## 6. Smart channels
 
 A channel source of `type: 'query'` materializes all matching items with the channel's order
@@ -324,7 +344,7 @@ would stop offering it as a candidate.
 
 Still open across the doc:
 
-- §5 steps 2, 4 and 5 (embedded container tags, taxonomy mapping, opt-in metadata plugins).
+- §5 steps 4 and 5 (taxonomy mapping, opt-in metadata plugins). Step 2 is built (2026-11-02).
 - Queries in blocks and templates.
 - Provider roots have no etags, so a provider item keeps its identity by ref alone.
 - Old per-file metadata is still dual-read (§7 step 4).

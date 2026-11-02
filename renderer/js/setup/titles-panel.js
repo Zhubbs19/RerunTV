@@ -7,6 +7,8 @@ import { S, dispatch, viewNow } from '../core/state.js';
 import { basenameNoExt, formatDuration, guessCleanTitle, randomId, stripReleaseTags, suggestFacetsFromPath } from '../core/util.js';
 import { attachTagAutocomplete, commitOwnerFields, buildMediaThumbnail, parsePositiveInt, safeApi } from './util.js';
 import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
+import { beginTask } from './tasks.js';
+import { describeFilled, fileFieldsFromLocal, localMetadataPrefs, localPathOf, readLocalMetadata } from '../library/local-metadata.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from '../playback/order.js';
 
 // Downloads a mediaSource-plugin file's full bytes to a local folder (via
@@ -350,6 +352,54 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     renderRows(search.value);
   });
 
+  // Details from the files themselves: .nfo sidecars (what media centers and
+  // library managers write) and, unless turned off in LIBRARY SYNC, tags
+  // stored inside the file (library/local-metadata.js). Fills an episode
+  // title, description, rating or series name only where the file has none,
+  // so it never undoes a hand edit or a TMDB match.
+  const bulkLocalBtn = document.createElement('button');
+  bulkLocalBtn.type = 'button';
+  bulkLocalBtn.className = 'btn';
+  bulkLocalBtn.textContent = 'READ NFO & TAGS';
+  bulkLocalBtn.title = 'Fill in empty titles, descriptions, ratings and series names for the selected files from .nfo files beside them and tags inside them. Never overwrites anything already set.';
+  bulkLocalBtn.addEventListener('click', async () => {
+    if (!selected.size) return;
+    const files = Array.from(selected).filter((f) => localPathOf(f.path));
+    if (!files.length) {
+      alertDialog('None of the selected files is on this computer. Details can only be read from local files.');
+      return;
+    }
+    bulkLocalBtn.disabled = true;
+    const task = beginTask('READING FILE DETAILS…');
+    let readings;
+    try {
+      readings = await readLocalMetadata(files.map((f) => localPathOf(f.path)), {
+        tags: localMetadataPrefs(S.config).readTags,
+        onProgress: (done, total) => task.update(`READING FILE DETAILS ${done} / ${total}…`),
+      });
+    } catch (e) {
+      alertDialog(e.message, { variant: 'error' });
+      return;
+    } finally {
+      task.end();
+      bulkLocalBtn.disabled = false;
+    }
+    const applied = [];
+    setFileFields(target, files, (f) => {
+      const fields = fileFieldsFromLocal(f, readings.results[localPathOf(f.path)]);
+      if (fields) applied.push(fields);
+      return fields;
+    }, { label: 'Read NFO & tags' });
+    const skipped = selected.size - files.length;
+    const tail = skipped ? ` ${skipped} selected file${skipped === 1 ? ' is' : 's are'} not on this computer.` : '';
+    if (!applied.length) {
+      alertDialog(`Nothing new to fill in: no .nfo file or usable tag had a detail these files are missing.${readings.tagsAvailable ? '' : ' (ffmpeg was not found, so only .nfo files were read.)'}${tail}`);
+      return;
+    }
+    alertDialog(`Filled in ${describeFilled(applied)} on ${applied.length} of ${files.length} file${files.length === 1 ? '' : 's'}.${tail}`);
+    renderRows(search.value);
+  });
+
   // Bulk facets — same idea as the free-tag bulk bar above, but for the
   // structured facet fields (Tag System 2.0). Kept in its own collapsible
   // bar rather than crowding the always-visible one, since it's four
@@ -443,6 +493,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkBar.appendChild(folderSelect);
   bulkBar.appendChild(bulkCleanBtn);
   bulkBar.appendChild(bulkSuggestBtn);
+  bulkBar.appendChild(bulkLocalBtn);
   bulkBar.appendChild(bulkTitleInput);
   bulkBar.appendChild(bulkTitleBtn);
   bulkBar.appendChild(bulkTagWrap);

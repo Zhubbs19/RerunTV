@@ -391,6 +391,9 @@ function getLibraryService() {
         if (!result || result.error) throw new Error((result && result.error) || `${root.source} did not answer.`);
         return (result.refs || []).map((ref) => ({ ref: wrapMediaRef(root.source, ref), etag: null }));
       },
+      // Container tags for readLocalMetadata, read with whichever ffmpeg the
+      // leveler and crop detection use.
+      getFfmpegPath: () => getFfmpegPath() || FFMPEG_STATIC_PATH,
     });
   }
   return libraryService;

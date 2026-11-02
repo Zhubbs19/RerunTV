@@ -25,6 +25,7 @@ import { basename, plural } from '../core/util.js';
 import { renderChannelList } from './channels.js';
 import { MIGRATION_WINDOW_DAYS, applyMigrationIds, verifyMigrationPlan } from '../library/migration.js';
 import { acceptGroup, suggestGroups } from '../library/tagging.js';
+import { localMetadataPrefs, localPathOf, readLocalMetadata } from '../library/local-metadata.js';
 import { ORDER_POLICIES, buildWhere, describeWhere, formFromWhere, planChannelFiles, runQuery, validateWhere } from '../library/query.js';
 import { airingDiffIgnoringPaths, applyRootMoveInPlace, planRootMove } from '../library/root-move.js';
 import { scheduleClockFor } from '../library/sync.js';
@@ -50,7 +51,7 @@ const L = {
   itemSearch: '',    // CATALOGUE's "find an item" box (§8: single-item editor)
   openGroups: new Set(),
   excluded: new Map(), // group key -> Set of item ids left unticked
-  notice: { catalogue: '', review: '', smart: '' },
+  notice: { catalogue: '', review: '', reviewDetails: '', smart: '' },
 };
 
 const roots = {
@@ -177,6 +178,25 @@ async function probeDurations(itemIds, task) {
   return { read: updates.length, failed: itemIds.length - updates.length };
 }
 
+// What each item's .nfo files and tags say, kept on the item as `local`
+// evidence for REVIEW's suggestions (tagging.js analyzeItem). Writes evidence
+// only: no title, rating or description changes until a group is applied.
+async function readItemDetails(items, task) {
+  const local = items.filter((item) => item && localPathOf(item.ref));
+  if (!local.length) return { read: 0, found: 0 };
+  const { results } = await readLocalMetadata(local.map((item) => localPathOf(item.ref)), {
+    tags: localMetadataPrefs(S.config).readTags,
+    onProgress: (done, total) => task.update(`READING FILE DETAILS ${done} / ${total}…`),
+  });
+  const updates = [];
+  local.forEach((item) => {
+    const reading = results[localPathOf(item.ref)] || null;
+    if (reading || item.local) updates.push({ id: item.id, fields: { local: reading } });
+  });
+  if (updates.length) await call('applyItemUpdates', { updates });
+  return { read: local.length, found: updates.filter((u) => u.fields.local).length };
+}
+
 // ---------- CATALOGUE: building the library ----------
 
 async function checkChannels({ replace = false } = {}) {
@@ -283,6 +303,13 @@ async function scanRoot(rootEntry) {
       clearInterval(poll);
       const durations = await probeDurations(summary.needsDuration, task);
       const parts = [`${label}: ${summary.text}.`];
+      // New items bring what their .nfo files and tags say into REVIEW
+      // (LIBRARY SYNC › "Fill in new files' details").
+      if (summary.needsDuration.length && localMetadataPrefs(S.config).fillDetails) {
+        const index = await call('getIndex');
+        const details = await readItemDetails(summary.needsDuration.map((id) => index.items[id]), task);
+        if (details.found) parts.push(`${plural(details.found, 'new file')} had details of their own — see REVIEW.`);
+      }
       if (durations.failed) parts.push(`${plural(durations.failed, 'new file')} could not be read and won’t air until they can.`);
       const waiting = summary.review.ambiguous.length + summary.review.replaced.length;
       if (waiting) parts.push(`${plural(waiting, 'file')} waiting in REVIEW.`);
@@ -645,7 +672,7 @@ function renderGroup(group) {
     fields.append(h('dt', { text: field }), h('dd', {}, h('strong', { text: fieldValue(value) }), h('span', { className: 'library-reason', text: ` — ${group.reasons[field]}` })));
   });
   const extras = Object.keys(group.perItem).length;
-  if (extras) fields.append(h('dt', { text: 'per item' }), h('dd', { text: `season, episode or a cleaned title for ${plural(extras, 'item')} (only where empty)` }));
+  if (extras) fields.append(h('dt', { text: 'per item' }), h('dd', { text: `season, episode, a title or a description for ${plural(extras, 'item')} (only where empty)` }));
   card.appendChild(fields);
 
   const open = L.openGroups.has(group.key);
@@ -675,14 +702,33 @@ function renderGroup(group) {
   return card;
 }
 
+async function readAllItemDetails() {
+  await run('details', async () => {
+    const task = beginTask('READING FILE DETAILS…');
+    try {
+      const { read, found } = await readItemDetails(liveItems(), task);
+      L.notice.reviewDetails = read
+        ? `Read ${plural(read, 'file')}; ${found ? `${plural(found, 'file')} had details of their own.` : 'none had an .nfo file or a usable tag.'}`
+        : 'No item is a file on this computer.';
+    } finally {
+      task.end();
+    }
+    await refresh();
+  });
+}
+
 function renderReviewTags() {
   const root = roots.reviewTags();
   if (!root) return;
   root.replaceChildren();
   if (!L.loaded || L.error) return;
   if (!L.status.built) { root.appendChild(EmptyState({ message: 'Build the library in CATALOGUE first.' })); return; }
+  root.appendChild(h('div', { className: 'library-actions' },
+    Button({ label: 'READ NFO & TAGS', disabled: !!L.busy, onPress: () => readAllItemDetails() }),
+    h('span', { className: 'library-reason', text: ' Adds what each file’s .nfo files and tags say to these suggestions.' })));
+  if (L.notice.reviewDetails) root.appendChild(note(L.notice.reviewDetails));
   const groups = suggestGroups(liveItems());
-  if (!groups.length) { root.appendChild(EmptyState({ message: 'No suggestions. Every item has the details its path and length can tell.' })); return; }
+  if (!groups.length) { root.appendChild(EmptyState({ message: 'No suggestions. Every item has the details its path, length and files can tell.' })); return; }
   const covered = groups.reduce((sum, group) => sum + group.itemIds.length, 0);
   root.appendChild(note(`${plural(groups.length, 'group')} covering ${plural(covered, 'item')}. Each group is one decision; untick items to leave them out.`));
   groups.forEach((group) => root.appendChild(renderGroup(group)));

@@ -1,9 +1,11 @@
 // Auto-tagging suggestions for the library (docs/design/07 §5).
 //
 // Local-first and offline: everything here reads the item's own ref, duration
-// and whatever metadata it already carries. Nothing is fetched. An opt-in
-// metadata plugin's results (TMDB today) count only when they are already on
-// the item, with `plugin` provenance.
+// and whatever metadata it already carries. Nothing is fetched. What the
+// file's own .nfo sidecars and tags said (§5 step 2) arrives as `item.local`,
+// read on the host by main/library/local-metadata.js, and outranks the path.
+// An opt-in metadata plugin's results (TMDB today) count only when they are
+// already on the item, with `plugin` provenance.
 //
 // Pure. It produces SUGGESTIONS, never writes, and it is organised around the
 // doc's review goal — "tagging 1,000 new episodes by series takes < 10 review
@@ -245,6 +247,39 @@ export function analyzeRef(ref, duration) {
   return { ...out, reasons };
 }
 
+// Local evidence a person or a media manager wrote beats what the path
+// implies. Genres are left out until the taxonomy mapping (§5 step 4) exists:
+// an NFO's "Comedy" is not yet one of the box's own genre words.
+const LOCAL_FIELDS = ['series', 'season', 'episode', 'title', 'year', 'rating', 'description'];
+
+/**
+ * analyzeRef plus the item's `local` reading (its .nfo files and tags), with
+ * the source file named as the reason for every field it supplied.
+ */
+export function analyzeItem(item) {
+  const analysis = analyzeRef(item.ref, item.duration);
+  const local = item.local && item.local.fields;
+  if (!local) return analysis;
+  const out = { ...analysis, reasons: { ...analysis.reasons } };
+  const sources = item.local.sources || {};
+  LOCAL_FIELDS.forEach((field) => {
+    if (local[field] == null || local[field] === '') return;
+    out[field] = local[field];
+    out.reasons[field] = sources[field] || 'the file’s own details';
+  });
+  if (local.year != null) {
+    out.era = `${Math.floor(local.year / 10) * 10}s`;
+    out.reasons.era = out.reasons.year;
+  }
+  // An NFO's root element says what the file is. Only the kinds the box
+  // already uses; 'series' describes a folder, never one file.
+  if (['episode', 'movie', 'music'].includes(item.local.kind) && out.kind !== 'commercial') {
+    out.kind = item.local.kind;
+    out.reasons.kind = sources.title || sources.series || 'the file’s .nfo';
+  }
+  return out;
+}
+
 function isLocked(item, field) {
   const provenance = item.provenance && item.provenance[field];
   return provenance === 'user' || provenance === 'user-accepted';
@@ -264,6 +299,7 @@ const FIELDS = {
   genre: { read: (item) => item.facets && item.facets.genre },
   era: { read: (item) => item.facets && item.facets.era },
   tags: { read: (item) => item.tags },
+  rating: { read: (item) => item.rating },
 };
 
 /**
@@ -279,7 +315,7 @@ export function suggestGroups(items) {
   const groups = new Map();
 
   items.forEach((item) => {
-    const analysis = analyzeRef(item.ref, item.duration);
+    const analysis = analyzeItem(item);
     const key = analysis.series
       ? `series:${analysis.series.toLowerCase()}`
       : `folder:${segmentsOf(item.ref).slice(0, -1).join('/').toLowerCase()}`;
@@ -326,6 +362,7 @@ export function suggestGroups(items) {
       if (analysis.episode != null) extra.episode = analysis.episode;
       if (analysis.title && !hasValue(item.title) && !isLocked(item, 'title')) extra.title = analysis.title;
       if (analysis.artist && !hasValue(item.artist) && !isLocked(item, 'artist')) extra.artist = analysis.artist;
+      if (analysis.description && !hasValue(item.description) && !isLocked(item, 'description')) extra.description = analysis.description;
       if (Object.keys(extra).length) perItem[item.id] = extra;
     });
 
@@ -378,6 +415,10 @@ export function acceptGroup(group, itemsById, { exclude = [] } = {}) {
       }
     });
     if (facetsChanged) fields.facets = facets;
+    if (group.fields.rating && !isLocked(item, 'rating') && !hasValue(item.rating)) {
+      fields.rating = group.fields.rating;
+      provenance.rating = 'user-accepted';
+    }
     if (group.fields.tags && !isLocked(item, 'tags') && !hasValue(item.tags)) {
       fields.tags = [...group.fields.tags];
       provenance.tags = 'user-accepted';
@@ -386,6 +427,10 @@ export function acceptGroup(group, itemsById, { exclude = [] } = {}) {
     if (extra && extra.title && !isLocked(item, 'title') && !hasValue(item.title)) {
       fields.title = extra.title;
       provenance.title = 'user-accepted';
+    }
+    if (extra && extra.description && !isLocked(item, 'description') && !hasValue(item.description)) {
+      fields.description = extra.description;
+      provenance.description = 'user-accepted';
     }
     if (extra && extra.artist && !isLocked(item, 'artist') && !hasValue(item.artist)) {
       fields.artist = extra.artist;

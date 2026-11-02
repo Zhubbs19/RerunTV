@@ -203,13 +203,31 @@ test('removeItem forgets one catalogue item; removeRoot leaves its items behind 
 
 test('a LAN control session cannot rewrite the whole library', async () => {
   const { service } = await builtService();
-  for (const method of ['planMigration', 'finalizeMigration', 'commitMigration', 'moveRoot', 'removeItem', 'removeRoot']) {
+  for (const method of ['planMigration', 'finalizeMigration', 'commitMigration', 'moveRoot', 'removeItem', 'removeRoot', 'readLocalMetadata']) {
     assert.equal(REMOTE_METHODS.has(method), false, method);
     // eslint-disable-next-line no-await-in-loop
     await assert.rejects(service.call(method, {}, { remote: true }), /only be done on the host/);
   }
   assert.ok((await service.call('status', {}, { remote: true })).built);
   await assert.rejects(service.call('toString'), /Unknown library method/);
+});
+
+test('readLocalMetadata reads local media paths only, and caps a call', async () => {
+  const { media, dir } = tempDirs();
+  const seen = [];
+  const service = createLibraryService({
+    dir,
+    videoExtensions: EXT,
+    metadataReader: { read: async (refs) => { seen.push(...refs); return { results: {}, tagsAvailable: false }; } },
+  });
+  const good = path.join(media, 'Show', 'a.mkv');
+  const result = await service.call('readLocalMetadata', {
+    refs: [good, path.join(media, 'Show', 'notes.txt'), 'mediasource:prov:abc/a.mkv', 'relative/a.mkv', 42],
+  });
+  assert.deepEqual(seen, [good]);
+  assert.equal(result.skipped, 4);
+  await assert.rejects(service.call('readLocalMetadata', { refs: new Array(501).fill(good) }), /at most 500/);
+  await assert.rejects(service.call('readLocalMetadata', {}), /list of files/);
 });
 
 test('IPC answers { ok, result } or { ok: false, error }', async () => {

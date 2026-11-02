@@ -16,6 +16,12 @@ const { atomicWriteFileSync } = require('../util/atomic-write');
 const { scanRoot, applyScan, describeScan } = require('./scan');
 const identity = require('./identity');
 const { planMigration, finalizeMigration } = require('./migrate');
+const { createLocalMetadataReader } = require('./local-metadata');
+
+// One readLocalMetadata call reads at most this many files. The caller sends a
+// folder's worth at a time, which is also what the reader's "a title shared
+// by several files is a collection name" rule needs to see.
+const MAX_METADATA_REFS = 500;
 
 // A scan walks a whole root before it reads anything, and stops early rather
 // than reading an unexpectedly enormous tree. A root is normally one show or
@@ -83,10 +89,13 @@ function createLibraryService({
   dir,
   videoExtensions,
   listProvider = null,     // async (root) -> [{ ref, etag?, size? }]
+  getFfmpegPath = () => null,
   now = () => Date.now(),
   maxScanFiles = DEFAULT_MAX_SCAN_FILES,
+  metadataReader = null,
 }) {
   const store = createLibraryStore({ dir, now });
+  const localMetadata = metadataReader || createLocalMetadataReader({ dir, getFfmpegPath, now });
   const scanLogPath = path.join(dir, 'last-scan.json');
   let lastScanReports = {};
   try { lastScanReports = JSON.parse(fs.readFileSync(scanLogPath, 'utf-8')); } catch (e) { lastScanReports = {}; }
@@ -216,10 +225,11 @@ function createLibraryService({
     },
 
     // Writes item fields: accepted tagging suggestions, probed durations,
-    // hand edits. Only known fields — ids, refs and fingerprints are identity
-    // and are never set this way.
+    // hand edits, and `local` — what the file's .nfo files and tags said
+    // (readLocalMetadata), kept as evidence for REVIEW. Only known fields:
+    // ids, refs and fingerprints are identity and are never set this way.
     applyItemUpdates({ updates }) {
-      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance']);
+      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local']);
       let changed = 0;
       (updates || []).forEach(({ id, fields }) => {
         if (!store.getItem(id) || !fields) return;
@@ -332,6 +342,20 @@ function createLibraryService({
       const removed = store.removeItem(id);
       if (removed) store.save();
       return { removed };
+    },
+
+    // What .nfo sidecars and container tags say about local media files
+    // (local-metadata.js). Reads only: suggestions come back with the file
+    // each field came from, and the caller fills empty fields. Local paths
+    // with a media extension only; a provider ref has no sidecars to read.
+    // Host-only, like everything that reads arbitrary paths.
+    async readLocalMetadata({ refs, nfo = true, tags = true }) {
+      if (!Array.isArray(refs)) throw new Error('A list of files is required.');
+      if (refs.length > MAX_METADATA_REFS) throw new Error(`Read at most ${MAX_METADATA_REFS} files at a time.`);
+      const readable = refs.filter((ref) => typeof ref === 'string' && path.isAbsolute(ref) && !ref.startsWith('mediasource:')
+        && videoExtensions.has(path.extname(ref).toLowerCase()));
+      const { results, tagsAvailable } = await localMetadata.read(readable, { nfo: !!nfo, tags: !!tags });
+      return { results, tagsAvailable, skipped: refs.length - readable.length };
     },
 
     // Applies a root move the renderer planned and previewed (root-move.js).
