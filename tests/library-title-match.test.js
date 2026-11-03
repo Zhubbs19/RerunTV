@@ -49,5 +49,6 @@ test('years come out of a query and rank results', async () => {
 test('catalogue summaries become plain text', async () => {
   const { plainSummary } = await load();
   assert.equal(plainSummary('<p>It <b>begins</b> &amp; ends.</p><p>Second&nbsp;part&#39;s here.</p>'), "It begins & ends. Second part's here.");
+  assert.equal(plainSummary('Cut off <script src="x"'), 'Cut off');
   assert.equal(plainSummary(null), '');
 });

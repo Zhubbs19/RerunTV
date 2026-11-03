@@ -31,7 +31,7 @@ test('every renderer module is imported by something (or is known to load elsewh
   const orphans = files.filter((file) => {
     if (LOADED_ELSEWHERE.has(file)) return false;
     const stem = path.posix.basename(file, '.js');
-    const pattern = new RegExp(`['"][^'"]*/${stem}\.js['"]`);
+    const pattern = new RegExp(`['"][^'"]*/${stem}\\.js['"]`);
     return ![...sources].some(([other, text]) => other !== file && pattern.test(text));
   });
   assert.deepEqual(orphans, [], `these modules are never imported, so their listeners never run: ${orphans.join(', ')}`);

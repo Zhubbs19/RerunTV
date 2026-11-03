@@ -121,7 +121,7 @@ export function plainSummary(html) {
   return String(html)
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<\/p>\s*<p>/gi, ' ')
-    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*>?/g, '') // `>?` also drops a tag left unclosed at the end ("text <script")
     .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, code) => {
       if (code[0] === '#') {
         const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);
