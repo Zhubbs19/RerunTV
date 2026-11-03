@@ -477,6 +477,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-06', items: [
+    'RerunTV runs on a newer engine (Electron 45, Chromium 156), with its security fixes.',
+  ] },
   { date: '2026-11-05', items: [
     'Sped-up end credits now start where a film’s credits really begin, instead of a fixed 90 seconds before the end. FIND FADES (PROGRAMMING › CADENCE & PRESETS) and FIND ACT BREAKS on a channel’s TITLES now also find where each file’s end credits start, from the same read, and a channel with SPEED UP END CREDITS on uses it. Credits on a black background are found; ones over picture keep the channel’s lead time. On a channel fitted to time slots, the credits squeeze starts there too. Turn it off with Speed up credits from where they start.',
   ] },
