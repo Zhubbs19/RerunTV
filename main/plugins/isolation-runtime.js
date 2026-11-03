@@ -93,10 +93,10 @@ function buildCtx(manifest, pluginDir, init) {
 
   // ctx.services stays a plain values-only store, seeded from whatever the
   // host had already published (from earlier-activated plugins, same-process
-  // or isolated alike) at the moment this plugin was forked — safe because
-  // activation is still strictly sequential per dependsOn order (see
-  // main-plugin-isolation.js), so a publisher genuinely always finishes
-  // activating before a dependent reader is even forked. A plugin publishing
+  // or isolated alike) at the moment this plugin was forked — safe because a
+  // plugin is only forked once everything it dependsOn has finished
+  // activating (runInDependencyOrder, activation-order.js), so a publisher
+  // genuinely always finishes before a dependent reader is even forked. A plugin publishing
   // a value here (`ctx.services.x = "..."`) only updates this process's own
   // local copy AND tells the host, for the NEXT plugin's snapshot — it does
   // NOT retroactively update any process already running. Function-valued

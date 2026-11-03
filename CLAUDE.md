@@ -217,8 +217,8 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   header comment explaining its scope: `config/` (`config.js` config/backups, also where
   `backupUserDataForUpdate()`/`restoreUserDataIfWiped()` protect the portable userData folder across
   an auto-update install; `host.js` the config host; `diff.js` pure config-summary diffing;
-  `window-state.js`, `window-ref.js`), `plugins/` (`plugins.js` discovery/loading,
-  `capabilities.js` capability-checking, `isolation.js`/`isolation-runtime.js`/`rpc-channel.js`
+  `window-state.js`, `window-ref.js`), `plugins/` (`plugins.js` discovery/loading, `activation-order.js` which
+  plugins start together at boot (only `dependsOn` orders them), `capabilities.js` capability-checking, `isolation.js`/`isolation-runtime.js`/`rpc-channel.js`
   isolated-plugin processes), `lan/` (`viewer-server.js`, `discovery-server.js`, `startup-server.js`,
   `connections.js`, `control-browse.js`, `asset-upload.js`, `tv-client.js`, plus shared pairing/session
   auth in `security.js` and viewer-config redaction in `viewer-projection.js`), `media/` (`media.js`

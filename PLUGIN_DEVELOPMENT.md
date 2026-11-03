@@ -564,11 +564,12 @@ module.exports = { activate };
   be relied on blindly.
 
 **Loading order**: plugins with a `dependsOn` are loaded after the plugins
-they depend on (topological sort — see `main/plugins/plugins.js`'s
-`orderByDependencies`), so by the time your `activate()` runs, a dependency
-listed in `dependsOn` has already had the chance to publish to
-`ctx.services`. This is ordering only, not a hard guarantee the dependency
-is actually present and enabled — always check.
+they depend on have finished activating (see `main/plugins/activation-order.js`),
+so by the time your `activate()` runs, a dependency listed in `dependsOn` has
+already had the chance to publish to `ctx.services`. Plugins that don't depend
+on each other activate at the same time, so a value published by a plugin you
+didn't list in `dependsOn` may not be there yet. This is ordering only, not a
+hard guarantee the dependency is actually present and enabled — always check.
 
 ## The renderer-process side: `renderer.js`
 

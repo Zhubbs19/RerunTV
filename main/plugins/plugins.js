@@ -24,7 +24,9 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
+const os = require('os');
 const { activateIsolatedPlugin, callAnyService, claimServiceKey } = require('./isolation');
+const { orderByDependencies, runInDependencyOrder } = require('./activation-order');
 const bridge = require('./bridge');
 const { isPathContained } = require('../util/path-safety');
 const { createLanAccess, isLanServiceEnabled } = require('../lan/security');
@@ -435,36 +437,6 @@ function discoverPluginsUncached() {
   return results;
 }
 
-// A plugin can declare manifest `"dependsOn": ["other-plugin-id"]` to be
-// activated after the plugins it depends on — e.g. an audio-piping channel
-// plugin depending on ffmpeg-transcode having already published
-// ctx.services.ffmpegPath by the time they run. Stable Kahn's-algorithm-style
-// pass: repeatedly peel off any not-yet-placed plugin whose deps are all
-// already placed. A plugin with a missing/disabled/circular dependency is
-// still appended at the end (rather than dropped) so its own activate()
-// gets a chance to run and surface a clear error, instead of it silently
-// vanishing from the list.
-function orderByDependencies(plugins) {
-  const placed = new Set();
-  const ordered = [];
-  let remaining = plugins.slice();
-  let progress = true;
-  while (remaining.length && progress) {
-    progress = false;
-    remaining = remaining.filter((plugin) => {
-      if (plugin.dependsOn.every((depId) => placed.has(depId))) {
-        ordered.push(plugin);
-        placed.add(plugin.id);
-        progress = true;
-        return false;
-      }
-      return true;
-    });
-  }
-  ordered.push(...remaining);
-  return ordered;
-}
-
 // Wraps the ipcMain/spawn/http/fs surface a plugin's activate(ctx) receives
 // with versions that check every call against that plugin's own declared
 // `capabilities` (manifest.json) before letting it through — an
@@ -593,13 +565,14 @@ function buildCheckedCtx(baseCtx, manifest, pluginDir) {
 // Async because an isolated plugin (see the `isolated` field above) has to
 // actually fork a real OS process and wait for it to finish activate() —
 // that can't be synchronous the way require()+activate() for a same-process
-// plugin is. Activation still runs strictly one plugin at a time, in
-// dependency order (awaited in the loop below, not fired off in parallel) —
-// this is deliberate, not just the easiest way to write it: it's what makes
-// the "a publisher always finishes activating before a dependent reader
-// starts" guarantee ctx.services (and an isolated plugin's servicesSnapshot,
-// see main-plugin-isolation.js) relies on still hold exactly as it did in
-// Phase 1's synchronous loop.
+// plugin is. Plugins with nothing in common activate side by side, but a
+// plugin is only started once every plugin it `dependsOn` has finished
+// (runInDependencyOrder, activation-order.js) — that is what keeps the "a
+// publisher always finishes activating before a dependent reader starts"
+// guarantee ctx.services (and an isolated plugin's servicesSnapshot, see
+// isolation.js) relies on. Reading another plugin's value without declaring
+// it in dependsOn was never promised to work (PLUGIN_DEVELOPMENT.md's
+// "Loading order"), and now really doesn't.
 async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   const disabled = new Set(disabledIds || []);
   const approved = approvedSignatures || {};
@@ -635,6 +608,7 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
   // app's bundled dependencies from node_modules; main/ alone is too narrow
   // and makes the worker exit before activate() can report a useful error.
   const appRootDir = path.join(__dirname, '..', '..');
+  const eligible = [];
   for (const plugin of plugins) {
     if (plugin.integrityStatus === 'unverified' || plugin.integrityStatus === 'modified') {
       needsIntegrityApproval.push(plugin.id);
@@ -649,13 +623,23 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
       needsApproval.push(plugin.id);
       continue; // eslint-disable-line no-continue
     }
+    eligible.push(plugin);
+  }
+  const activated = new Set();
+  // Each isolated plugin is a process starting up (~100 ms apiece), so a few
+  // at once is most of the win; capped by core count so a small mini-PC
+  // under a TV isn't swamped at boot.
+  const parallel = Math.max(2, Math.min(8, os.availableParallelism()));
+  await runInDependencyOrder(eligible, async (plugin) => {
     const pluginDir = path.join(getPluginsDir(), plugin.dir);
-    let activated = false;
     if (plugin.isolated) {
-      // eslint-disable-next-line no-await-in-loop
-      const result = await activateIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir);
-      if (!result.ok) loadErrors[plugin.id] = result.error;
-      else activated = true;
+      try {
+        const result = await activateIsolatedPlugin(plugin, pluginDir, baseCtx, extraCtx.services, appRootDir);
+        if (!result.ok) loadErrors[plugin.id] = result.error;
+        else activated.add(plugin.id);
+      } catch (e) {
+        loadErrors[plugin.id] = e && e.message ? e.message : String(e);
+      }
     } else {
       const mainPath = path.join(pluginDir, plugin.main);
       try {
@@ -667,17 +651,19 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
             activation.catch((err) => { loadErrors[plugin.id] = err && err.message ? err.message : String(err); });
           }
         }
-        activated = true;
+        activated.add(plugin.id);
       } catch (e) {
         loadErrors[plugin.id] = e.message;
       }
     }
-    if (activated) {
-      recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
-      (plugin.capabilities.mediaSource || []).forEach((e) => { activatedMediaSourceProviders[e.providerId] = plugin.id; });
-      (plugin.capabilities.net || []).forEach((e) => { activatedNetPorts.push(e.port); });
-    }
-  }
+    if (activated.has(plugin.id)) recordDiagnostic('plugin-loader', 'log', `Activated ${plugin.id}`, { isolated: !!plugin.isolated });
+  }, parallel);
+  // In list order rather than finish order, so the provider map and the CSP
+  // port list come out the same on every boot.
+  eligible.filter((plugin) => activated.has(plugin.id)).forEach((plugin) => {
+    (plugin.capabilities.mediaSource || []).forEach((e) => { activatedMediaSourceProviders[e.providerId] = plugin.id; });
+    (plugin.capabilities.net || []).forEach((e) => { activatedNetPorts.push(e.port); });
+  });
   return {
     loadErrors, needsApproval, needsIntegrityApproval, allPlugins, activatedMediaSourceProviders, activatedNetPorts,
   };

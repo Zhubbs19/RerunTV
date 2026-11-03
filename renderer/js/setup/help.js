@@ -477,6 +477,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-07', items: [
+    'RerunTV opens about a second sooner: plugins that run in their own process now start side by side instead of one after another. A plugin still waits for the plugins it depends on.',
+  ] },
   { date: '2026-11-06', items: [
     'RerunTV runs on a newer engine (Electron 45, Chromium 156), with its security fixes.',
   ] },
