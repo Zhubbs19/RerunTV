@@ -8,6 +8,7 @@ import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 export const HIGHLIGHTS = [
+  { id: 'found-credits', title: 'Credits squeezed on cue', text: 'Sped-up end credits start where each film’s credits really begin. FIND FADES now finds them too.', tab: 'programming', subtab: 'presets', setting: 'commercials-found-credits' },
   { id: 'act-breaks', title: 'Breaks at the real act breaks', text: 'Line mid-show ad breaks up with the fades to black where a show was originally cut for commercials.', tab: 'programming', subtab: 'presets', setting: 'commercials-snap-fades' },
   { id: 'tvmaze', title: 'Episode details from TVmaze', text: 'A TVMAZE button on each TITLES row fills in episode titles, synopses and when they first aired, with no account or key. Turn it on under Plug-ins.', tab: 'plugins', subtab: 'installed' },
   { id: 'file-details', title: 'Details from your own files', text: 'Fill in episode titles, descriptions and ratings from .nfo files and tags in your media, for every channel at once or as new files arrive.', tab: 'library', subtab: 'librarysync', setting: 'local-meta-fill' },

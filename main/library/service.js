@@ -234,7 +234,7 @@ function createLibraryService({
     // fingerprints are identity and are never set this way. A field named in
     // an update's `onlyIfEmpty` is written only where the item has none.
     applyItemUpdates({ updates }) {
-      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb', 'tvmaze', 'poster', 'breakMarks']);
+      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb', 'tvmaze', 'poster', 'breakMarks', 'creditsFound']);
       const empty = (value) => value == null || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
       let changed = 0;
       (updates || []).forEach(({ id, fields, onlyIfEmpty = [] }) => {

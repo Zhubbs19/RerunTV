@@ -11,7 +11,7 @@ const { pathToFileURL } = require('node:url');
 globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }), api: {} };
 
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
-const { findBreakMarks, parseBlackLines, parseSilenceLines, parseDuration } = require('../main/media/breakdetect.js');
+const { createBreakDetectService, creditsTailStart, findBreakMarks, findCreditsStart, parseBlackLines, parseSilenceLines, parseDuration } = require('../main/media/breakdetect.js');
 
 const MIN = 60000;
 
@@ -111,4 +111,73 @@ test('detector output becomes scored marks, edges and blips dropped', () => {
   const marks = findBreakMarks({ black: parseBlackLines(stderr), silence: parseSilenceLines(stderr), duration: 1315.86 });
   assert.deepEqual(marks, [{ at: 383.1, strength: 1 }, { at: 699.9, strength: 0.07 }],
     'the opening and the credits are edges, a fade 4 s later is the same transition, a 20 ms blip is a cut');
+});
+
+// Two frames a second over a 92-minute film's last 15 minutes. `credits(t)`
+// says which seconds look like credits on black; everything else is picture.
+function tail(duration, credits) {
+  const tailStart = creditsTailStart(duration);
+  const frames = [];
+  for (let t = tailStart; t < duration; t += 0.5) frames.push(credits(t) ? { t, ylow: 16, yavg: 30 } : { t, ylow: 40, yavg: 110 });
+  return { frames, duration, tailStart };
+}
+
+test('credits: the last dense run on black that reaches the end', () => {
+  const film = 5541;
+  assert.equal(creditsTailStart(film), film - 900);
+  assert.equal(creditsTailStart(1320), 1320 - 240, 'an episode reads its last four minutes');
+  // Credits from 85:34 to 91:49, a closing logo, then black.
+  const found = findCreditsStart(tail(film, (t) => (t >= 5134.5 && t < 5509) || t >= 5539));
+  assert.deepEqual(found, { at: 5134.5, leadS: 407, density: 1 });
+  // A card on picture for ten seconds mid-credits doesn't split them.
+  assert.equal(findCreditsStart(tail(film, (t) => t >= 5134.5 && !(t >= 5300 && t < 5310))).at, 5134.5);
+});
+
+test('credits: nothing believable gives null', () => {
+  const film = 5541;
+  assert.equal(findCreditsStart(tail(film, () => false)), null, 'no black at all');
+  assert.equal(findCreditsStart(tail(film, (t) => t >= film - 12)), null, 'twelve seconds of black is a fade out, not credits');
+  assert.equal(findCreditsStart(tail(film, (t) => t >= 5000 && t < 5200)), null, 'a dark scene ending minutes before the end');
+  assert.equal(findCreditsStart(tail(film, () => true)), null, 'black from the start of the read: the credits could be longer than it');
+  assert.equal(findCreditsStart(tail(film, (t) => t >= 5134.5 && Math.floor(t) % 2 === 0)), null, 'every other second is too patchy to be credits');
+});
+
+test('credits: a file whose fades are cached only gets the credits pass', async () => {
+  const calls = [];
+  const stat = { size: 10, mtimeMs: 5, isFile: () => true };
+  const svc = createBreakDetectService({
+    dir: null,
+    getFfmpegPath: () => 'ffmpeg',
+    fsImpl: { readFileSync: () => { throw new Error('none'); }, promises: { stat: async () => stat } },
+    run: async () => { calls.push('fades'); return { duration: 5541, black: [], silence: [] }; },
+    runCredits: async (ff, p, startS) => { calls.push(`credits@${startS}`); return tail(5541, (t) => t >= 5134.5).frames; },
+  });
+  const first = await svc.detect('C:/films/a.mp4');
+  assert.equal(first.credits.at, 5134.5);
+  assert.deepEqual(calls, ['fades', 'credits@4641']);
+  await svc.detect('C:/films/a.mp4');
+  assert.equal(calls.length, 2, 'both results are cached');
+});
+
+test('the credits speedup uses a found credits start unless the switch is off', async () => {
+  const { foundCreditsLead } = await load('core/util.js');
+  const film = { path: 'a', duration: 5541, creditsFound: { at: 5134.5, leadS: 407, density: 1 } };
+  assert.equal(foundCreditsLead(film, { commercials: {} }), 407, 'on by default');
+  assert.equal(foundCreditsLead(film, { commercials: { useFoundCredits: false } }), null);
+  assert.equal(foundCreditsLead({ path: 'b', creditsFound: null }, {}), null, 'looked, found none');
+  assert.equal(foundCreditsLead({ path: 'c' }, {}), null);
+});
+
+test('FIND FADES picks files missing fades or credits, on breaking or credits-speedup channels', async () => {
+  const marks = await load('library/break-marks.js');
+  const files = [
+    { path: 'C:/a.mp4' },
+    { path: 'C:/b.mp4', breakMarks: [] },
+    { path: 'C:/c.mp4', breakMarks: [], creditsFound: null },
+    { path: 'mediasource:x:1' },
+  ];
+  assert.deepEqual(marks.filesNeedingMarks([{ files }]).map((f) => f.path), ['C:/a.mp4', 'C:/b.mp4'], 'b was read before credits were looked for');
+  assert.equal(marks.speedsUpCredits({ creditsSpeedup: { enabled: true } }), true);
+  assert.equal(marks.speedsUpCredits({ creditsSpeedup: { enabled: false } }), false);
+  assert.equal(marks.speedsUpCredits({}), false);
 });

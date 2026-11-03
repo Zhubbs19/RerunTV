@@ -335,10 +335,15 @@
               <div class="setting-row-control"><input type="number" id="commercials-snap-window" min="1" max="15" value="3"> <span class="setting-row-unit">min</span></div>
               <p class="setting-row-help">How far a break may move. A break with no fade this close stays where its cadence put it.</p>
             </div>
-            <div class="setting-row" data-setting="commercials-find-fades" data-depends-on="commercials-snap-fades" data-synonyms="detect scan analyze act breaks">
-              <label class="setting-row-label" for="commercials-find-fades-btn">Find fades in shows</label>
+            <div class="setting-row" data-setting="commercials-found-credits" data-synonyms="end credits speedup squeeze lead time credits start roll detect">
+              <label class="setting-row-label" for="commercials-found-credits">Speed up credits from where they start</label>
+              <div class="setting-row-control"><input type="checkbox" id="commercials-found-credits" checked></div>
+              <p class="setting-row-help">On a channel that speeds up its end credits, starts at the credits found in each film instead of its fixed lead time. Credits on black are found; ones over picture keep the lead time.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-find-fades" data-synonyms="detect scan analyze act breaks end credits">
+              <label class="setting-row-label" for="commercials-find-fades-btn">Find fades and credits in shows</label>
               <div class="setting-row-control"><button type="button" id="commercials-find-fades-btn" class="btn">FIND FADES</button></div>
-              <p class="setting-row-help" id="commercials-find-fades-status">Reads each show on channels that break inside shows: about half a minute per episode, a few minutes per film. You can stop and pick up later.</p>
+              <p class="setting-row-help" id="commercials-find-fades-status">Reads each show on channels that break inside shows or speed up their end credits, for its fades to black and where its credits start: about half a minute per episode, a few minutes per film. You can stop and pick up later.</p>
             </div>
             <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
               <label class="setting-row-label" for="stationid-enabled">Station IDs</label>

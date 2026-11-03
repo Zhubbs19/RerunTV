@@ -22,9 +22,10 @@
 // fast ("time compression"). Shortening is capped (maxTrimMinutes,
 // maxSpeedupPct, creditsMaxSqueezeSeconds); anything that would need more
 // is extended instead. Pure: depends only on (files, settings), a file's
-// fades to black (breakMarks) included.
+// fades to black (breakMarks) and found credits start (creditsFound) included.
 import { S } from './state.js';
 import { fadeSnapWindowMs, fadesOf, snapOffsetsToFades } from './fades.js';
+import { foundCreditsLead } from './util.js';
 
 export const FIT_DEFAULTS = Object.freeze({
   enabled: false,
@@ -163,7 +164,8 @@ export function planFit(file, cursorS, isLast, cfg) {
   const grid = cfg.gridMinutes * 60;
   const usable = 1 - cfg.minBreakMinutesPerHalfHour / 30;
 
-  const leadRaw = file.creditsLeadS != null && file.creditsLeadS !== '' ? Number(file.creditsLeadS) : cfg.creditsLeadSeconds;
+  // A lead typed for the file, else where its credits were found (FIND FADES), else the setting.
+  const leadRaw = file.creditsLeadS != null && file.creditsLeadS !== '' ? Number(file.creditsLeadS) : (foundCreditsLead(file, S.config) || cfg.creditsLeadSeconds);
   const lead = Math.min(Math.max(0, Number.isFinite(leadRaw) ? leadRaw : 0), d / 2);
   const creditsOk = cfg.creditsApplies !== 'never' && lead > 0 && cfg.creditsRate > 1
     && (cfg.creditsApplies !== 'movies' || isMovie(file));

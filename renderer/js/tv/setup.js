@@ -115,6 +115,7 @@ function pictureItems() {
     valueItem('ASPECT', () => String(S.config.aspectMode || 'auto').toUpperCase(), () => cycleAspectMode()),
     valueItem('SHOW VOLUME', () => pct((S.config.contentVolume ?? 1) * 100), (d) => { setSetting(['contentVolume'], stepNumber((S.config.contentVolume ?? 1) * 100, d) / 100, 'settings:contentVolume'); applyVolume(); }),
     valueItem('COMMERCIAL VOLUME', () => pct((S.config.adVolume ?? 1) * 100), (d) => { setSetting(['adVolume'], stepNumber((S.config.adVolume ?? 1) * 100, d) / 100, 'settings:adVolume'); applyVolume(); }),
+    valueItem('CREDITS WHERE FOUND', () => onOff(!(S.config.commercials && S.config.commercials.useFoundCredits === false)), () => setSetting(['commercials', 'useFoundCredits'], !!(S.config.commercials && S.config.commercials.useFoundCredits === false))),
     valueItem('BREAKS AT FADES', () => onOff(!!(S.config.commercials && S.config.commercials.snapToFades)), () => setSetting(['commercials', 'snapToFades'], !(S.config.commercials && S.config.commercials.snapToFades))),
     valueItem('FILL WIDESCREEN', () => onOff(display().autoFillWidescreen), () => { setSetting(['display', 'autoFillWidescreen'], !display().autoFillWidescreen); refreshPictureArea(); }),
     valueItem('REMOVE BLACK BARS', () => onOff(display().removeBakedBars), () => { setSetting(['display', 'removeBakedBars'], !display().removeBakedBars); applyBakedBars(); }),

@@ -231,6 +231,17 @@ export function formatSlotLabel(ms) {
   return `${h}:${String(m).padStart(2, '0')}${ampm}`;
 }
 
+// Seconds before a file's end where its credits were found to start
+// (file.creditsFound, from FIND FADES / FIND ACT BREAKS), or null when none
+// were found or PROGRAMMING › CADENCE & PRESETS › "Speed up credits from
+// where they start" is off. Callers put it in place of a channel's default
+// lead time; a lead typed for the file itself still wins over it.
+export function foundCreditsLead(file, config) {
+  if (config && config.commercials && config.commercials.useFoundCredits === false) return null;
+  const found = file && file.creditsFound;
+  return found && Number(found.leadS) > 0 ? Number(found.leadS) : null;
+}
+
 // A feature config block (static-effect, test-pattern, ...) is "on" unless
 // it exists and explicitly says otherwise — no config at all still means
 // enabled (the feature's own default), same as a config block that exists

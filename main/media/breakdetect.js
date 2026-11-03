@@ -11,10 +11,17 @@
 // schedule (renderer/js/core/interstitials.js) snaps its mid-show breaks to
 // nearby marks; it never invents breaks of its own from them.
 //
+// A second, short pass over the end of the file finds where its end credits
+// start (findCreditsStart): the centre of a credits frame sits on the video
+// black floor, with text on it, and the credits are the run of such frames
+// that carries on to the end. Only credits on black are found; credits over
+// picture or a coloured backdrop give null, and the channel's own lead time
+// applies.
+//
 // Same shape as cropdetect.js and loudness.js: one ffmpeg at a time at
 // below-normal priority, results cached in <dir>/break-marks-cache.json
 // keyed by path, size and mtime. A 22-minute episode takes 20-50 seconds, a
-// film a few minutes.
+// film a few minutes; the credits pass adds a few seconds.
 
 const { spawn } = require('child_process');
 const fs = require('fs');
@@ -89,6 +96,101 @@ function findBreakMarks({ black, silence, duration }) {
   return merged.map((c) => ({ at: Math.round(c.at * 10) / 10, strength: Math.round(c.strength * 100) / 100 }));
 }
 
+// Credits: how much of the end is read, what a credits frame is (in the
+// centre 60% of the picture, so letterbox bars don't count: its darkest
+// tenth on the black floor and an average under CREDITS_MAX_YAVG), and what
+// a run of them must look like to be believed.
+const CREDITS_TAIL_FILM_S = 900;
+const CREDITS_TAIL_SHOW_S = 240;
+const CREDITS_FILM_MIN_S = 3600;
+const CREDITS_MAX_YLOW = 17;
+const CREDITS_MAX_YAVG = 80;
+const CREDITS_GAP_S = 15;
+// A closing logo or a last card on picture can follow the credits.
+const CREDITS_END_SLACK_S = 60;
+const CREDITS_MIN_S = 20;
+const CREDITS_MIN_DENSITY = 0.6;
+
+function creditsTailStart(duration) {
+  const tail = duration > CREDITS_FILM_MIN_S ? CREDITS_TAIL_FILM_S : CREDITS_TAIL_SHOW_S;
+  return Math.max(0, duration - Math.min(tail, duration / 2));
+}
+
+/**
+ * Where the end credits start, from per-frame stats over the end of a file
+ * ([{ t, ylow, yavg }], t in seconds into the file):
+ * { at, leadS, density } or null. Credits frames no more than
+ * CREDITS_GAP_S apart make one run; the credits are the last run long and
+ * dense enough to believe, ending within CREDITS_END_SLACK_S of the end. A
+ * run that starts at the edge of what was read could be longer than the
+ * read, so it isn't believed either.
+ */
+function findCreditsStart({ frames, duration, tailStart }) {
+  if (!Array.isArray(frames) || !frames.length || !(duration > 0)) return null;
+  const isCredits = (f) => f.ylow <= CREDITS_MAX_YLOW && f.yavg < CREDITS_MAX_YAVG;
+  const runs = [];
+  let run = null;
+  frames.forEach((f) => {
+    if (run && f.t - run.end > CREDITS_GAP_S) { runs.push(run); run = null; }
+    if (run) run.seen += 1;
+    if (!isCredits(f)) return;
+    if (!run) run = { start: f.t, end: f.t, hits: 0, seen: 1 };
+    run.end = f.t;
+    run.hits += 1;
+    // Frames after the run's last credits frame aren't part of it yet.
+    run.seenAtEnd = run.seen;
+  });
+  if (run) runs.push(run);
+  const believable = runs.filter((r) => r.end - r.start >= CREDITS_MIN_S && r.hits / r.seenAtEnd >= CREDITS_MIN_DENSITY);
+  const credits = believable[believable.length - 1];
+  if (!credits || duration - credits.end > CREDITS_END_SLACK_S || credits.start <= tailStart + 5) return null;
+  const density = credits.hits / credits.seenAtEnd;
+  return { at: Math.round(credits.start * 10) / 10, leadS: Math.round(duration - credits.start), density: Math.round(density * 100) / 100 };
+}
+
+// Per-frame luma stats, two a second, over the file from `startS` on.
+function runCreditsPass(ffmpegPath, filePath, startS) {
+  return new Promise((resolve) => {
+    const args = [
+      '-hide_banner', '-nostats', '-nostdin', '-ss', String(startS), '-i', filePath, '-an', '-sn', '-dn',
+      '-vf', 'fps=2,crop=iw*0.6:ih*0.6,scale=160:-2,signalstats,metadata=print:file=-',
+      '-f', 'null', '-',
+    ];
+    let child;
+    try {
+      child = spawn(ffmpegPath, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) {
+      resolve(null);
+      return;
+    }
+    try { os.setPriority(child.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch (e) { /* not permitted: run at normal */ }
+    const frames = [];
+    let current = null;
+    let tail = '';
+    child.stdout.on('data', (chunk) => {
+      const lines = (tail + chunk.toString('utf8')).split(/\r?\n/);
+      tail = lines.pop();
+      lines.forEach((line) => {
+        const pts = /pts_time:([\d.]+)/.exec(line);
+        if (pts) {
+          current = { t: startS + Number(pts[1]), ylow: 255, yavg: 255 };
+          frames.push(current);
+          return;
+        }
+        const stat = /lavfi\.signalstats\.(YLOW|YAVG)=([\d.]+)/.exec(line);
+        if (stat && current) current[stat[1] === 'YLOW' ? 'ylow' : 'yavg'] = Number(stat[2]);
+      });
+    });
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; try { child.kill(); } catch (e) { /* gone */ } }, RUN_TIMEOUT_MS);
+    child.on('error', () => { clearTimeout(timer); resolve(null); });
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      resolve(timedOut || code !== 0 ? null : frames);
+    });
+  });
+}
+
 function runDetect(ffmpegPath, filePath) {
   return new Promise((resolve) => {
     const args = [
@@ -131,11 +233,12 @@ function runDetect(ffmpegPath, filePath) {
 }
 
 /**
- * detect(filePath) -> { marks: [{ at, strength }], duration } | null
+ * detect(filePath) -> { marks: [{ at, strength }], duration, credits: { at, leadS, density } | null } | null
  * Cached; one ffmpeg at a time. null when ffmpeg is missing or the file
- * can't be read.
+ * can't be read. A file cached before credits were looked for only gets
+ * the short credits pass.
  */
-function createBreakDetectService({ dir, getFfmpegPath = () => null, run = runDetect, fsImpl = fs, now = () => Date.now() }) {
+function createBreakDetectService({ dir, getFfmpegPath = () => null, run = runDetect, runCredits = runCreditsPass, fsImpl = fs, now = () => Date.now() }) {
   const cachePath = dir ? path.join(dir, 'break-marks-cache.json') : null;
   let cache = { version: CACHE_VERSION, entries: {} };
   if (cachePath) {
@@ -165,12 +268,19 @@ function createBreakDetectService({ dir, getFfmpegPath = () => null, run = runDe
     try { st = await fsImpl.promises.stat(filePath); } catch (e) { return null; }
     if (!st.isFile()) return null;
     const hit = cache.entries[filePath];
-    if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) return hit.result;
+    const fresh = hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs;
+    if (fresh && hit.result.credits !== undefined) return hit.result;
     const ffmpegPath = getFfmpegPath();
     if (!ffmpegPath) return null;
-    const pass = await run(ffmpegPath, filePath);
-    if (!pass) return null;
-    const result = { marks: findBreakMarks(pass), duration: Math.round(pass.duration * 10) / 10 };
+    let result = fresh ? { ...hit.result } : null;
+    if (!result) {
+      const pass = await run(ffmpegPath, filePath);
+      if (!pass) return null;
+      result = { marks: findBreakMarks(pass), duration: Math.round(pass.duration * 10) / 10 };
+    }
+    const tailStart = creditsTailStart(result.duration);
+    const frames = await runCredits(ffmpegPath, filePath, tailStart);
+    result.credits = frames ? findCreditsStart({ frames, duration: result.duration, tailStart }) : null;
     cache.entries[filePath] = { size: st.size, mtimeMs: st.mtimeMs, result, at: now() };
     saveSoon();
     return result;
@@ -186,4 +296,4 @@ function createBreakDetectService({ dir, getFfmpegPath = () => null, run = runDe
   };
 }
 
-module.exports = { createBreakDetectService, findBreakMarks, parseBlackLines, parseSilenceLines, parseDuration };
+module.exports = { createBreakDetectService, findBreakMarks, findCreditsStart, creditsTailStart, parseBlackLines, parseSilenceLines, parseDuration };

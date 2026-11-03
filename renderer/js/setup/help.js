@@ -477,6 +477,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-05', items: [
+    'Sped-up end credits now start where a film’s credits really begin, instead of a fixed 90 seconds before the end. FIND FADES (PROGRAMMING › CADENCE & PRESETS) and FIND ACT BREAKS on a channel’s TITLES now also find where each file’s end credits start, from the same read, and a channel with SPEED UP END CREDITS on uses it. Credits on a black background are found; ones over picture keep the channel’s lead time. On a channel fitted to time slots, the credits squeeze starts there too. Turn it off with Speed up credits from where they start.',
+  ] },
   { date: '2026-11-04', items: [
     'Breaks inside a show can land where it was really cut for commercials. PROGRAMMING › CADENCE & PRESETS › Line up mid-show breaks with fades moves each mid-show break to the nearest fade to black (within 3 minutes, adjustable), so a break no longer cuts a scene in half. Breaks with no fade nearby stay where they were. On a channel fitted to time slots, the breaks spread through each program move the same way.',
     'The fades are found by reading each show once: FIND FADES there does every show on channels that break inside shows, and FIND ACT BREAKS on a channel’s TITLES does the files you select. About half a minute per episode, a few minutes per film; you can stop and pick up later. Openings and end credits are ignored.',

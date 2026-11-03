@@ -28,7 +28,7 @@ import { bugInPictureBox } from '../cable-guide/model.js';
 import { pictureBox } from '../cable-guide/picture-box.js';
 import { pickDeterministic, poolFor } from '../core/interstitials.js';
 import { S, viewNow } from '../core/state.js';
-import { autoHideAfter, formatClock, formatHourLabel, getDisplayTitle } from '../core/util.js';
+import { autoHideAfter, formatClock, formatHourLabel, foundCreditsLead, getDisplayTitle } from '../core/util.js';
 import { computeSourcePosition, resolveActiveSource } from '../core/schedule.js';
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
 import { computeNextTitle } from './breaks.js';
@@ -333,8 +333,9 @@ export function resetCreditsSpeedup() {
 // Old syndicated stations routinely fast-forwarded a movie's end credits to
 // hit a hard time slot. `leadS` (seconds-before-file-end where credits
 // begin) resolves per-file first (file.creditsLeadS — 0 explicitly opts a
-// single file out even when the channel default is on), else the channel's
-// own default when ch.creditsSpeedup.enabled. Armed the same one-shot way
+// single file out even when the channel default is on), else, when
+// ch.creditsSpeedup.enabled, where the file's credits were found to start
+// (foundCreditsLead), else the channel's own default. Armed the same one-shot way
 // scheduleUpNextBar is (once per tune/file-load, not a continuous poll) —
 // a sibling timer, not sharing that one's slot, since both can be armed for
 // the same file at once.
@@ -342,7 +343,7 @@ export function scheduleCreditsSpeedup(ch, pos) {
   cancelCreditsSpeedup();
   const file = pos.file;
   const cfg = ch.creditsSpeedup;
-  let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? cfg.leadSeconds : null);
+  let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? (foundCreditsLead(file, S.config) || cfg.leadSeconds) : null);
   if (!leadS) return;
   // WHEN IT APPLIES (END CREDITS panel): 'fit' means only on a channel fitted
   // to time slots, which runs its credits through scheduleFitCredits instead.

@@ -288,3 +288,15 @@ test('spread breaks move to the program\'s fades to black when that switch is on
   state.S.configGeneration += 1;
   assert.deepEqual(inProgram(fit.planFit(show, 0, false, cfgOf(fit))), [615]);
 });
+
+test('a fitted film squeezes its credits from where they were found', async () => {
+  const { fit, state } = await setup();
+  const film = { path: 'm', duration: 93 * 60, facets: { contentType: 'movie' }, creditsFound: { at: 93 * 60 - 300, leadS: 300, density: 1 } };
+  const cfg = cfgOf(fit, { creditsApplies: 'always', creditsMaxSqueezeSeconds: 1800 });
+  assert.equal(fit.planFit(film, 0, false, cfg).creditsAtS, 93 * 60 - 300, 'from the found start, not 90 s before the end');
+  state.S.config.commercials.useFoundCredits = false;
+  state.S.configGeneration += 1;
+  assert.equal(fit.planFit(film, 0, false, cfg).creditsAtS, 93 * 60 - 90, 'switched off: the lead time');
+  state.S.config.commercials.useFoundCredits = true;
+  assert.equal(fit.planFit({ ...film, creditsLeadS: 120 }, 0, false, cfg).creditsAtS, 93 * 60 - 120, 'a lead typed for the file wins');
+});

@@ -429,7 +429,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkFadesBtn.type = 'button';
   bulkFadesBtn.className = 'btn';
   bulkFadesBtn.textContent = 'FIND ACT BREAKS';
-  bulkFadesBtn.title = 'Find the fades to black in the selected files, where they were cut for commercials when they first aired. About half a minute per episode, a few minutes per film.';
+  bulkFadesBtn.title = 'Find the fades to black in the selected files, where they were cut for commercials when they first aired, and where their end credits start. About half a minute per episode, a few minutes per film.';
   bulkFadesBtn.addEventListener('click', async () => {
     if (!selected.size) return;
     const files = Array.from(selected).filter((f) => localPathOf(f.path));
@@ -447,7 +447,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     if (result.checked) commitConfigPatch('Find act breaks', { delay: 100 });
     if (result.unavailable) { alertDialog('ffmpeg wasn’t found, so act breaks can’t be found (SYSTEM › ffmpeg).'); return; }
     const snapOff = !(S.config.commercials && S.config.commercials.snapToFades);
-    alertDialog(`Checked ${result.checked} of ${files.length} file${files.length === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with.${snapOff ? ' Turn on PROGRAMMING › CADENCE & PRESETS › Line up mid-show breaks with fades to use them.' : ''}`);
+    alertDialog(`Checked ${result.checked} of ${files.length} file${files.length === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with, and the end credits were found in ${result.withCredits}.${snapOff ? ' Turn on PROGRAMMING › CADENCE & PRESETS › Line up mid-show breaks with fades to use the fades.' : ''}`);
     renderRows(search.value);
   });
 
@@ -809,7 +809,10 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
       creditsLeadInput.type = 'number';
       creditsLeadInput.min = 0;
       creditsLeadInput.className = 'title-row-input';
-      creditsLeadInput.placeholder = 'CREDITS LEAD (SEC, BLANK = CHANNEL DEFAULT)';
+      // Blank uses where the credits were found (FIND ACT BREAKS), when they were.
+      creditsLeadInput.placeholder = file.creditsFound && file.creditsFound.leadS
+        ? `CREDITS LEAD (SEC, BLANK = FOUND: ${file.creditsFound.leadS})`
+        : 'CREDITS LEAD (SEC, BLANK = CHANNEL DEFAULT)';
       creditsLeadInput.title = 'Seconds before this file ends where its credits start — overrides the channel\'s default lead time. 0 disables the speedup for this file specifically.';
       creditsLeadInput.value = file.creditsLeadS != null ? file.creditsLeadS : '';
       creditsLeadInput.addEventListener('change', () => {

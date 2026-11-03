@@ -12,9 +12,9 @@
 // Details that describe the media itself rather than its place in a playlist.
 // Facts about the media itself — a catalogue match, the fades found in it —
 // so every copy takes them.
-const MATCH_FIELDS = new Set(['tmdb', 'tvmaze', 'breakMarks']);
+const MATCH_FIELDS = new Set(['tmdb', 'tvmaze', 'breakMarks', 'creditsFound']);
 
-export const SHARED_FILE_FIELDS = ['title', 'description', 'rating', 'tmdb', 'tvmaze', 'series', 'poster', 'breakMarks'];
+export const SHARED_FILE_FIELDS = ['title', 'description', 'rating', 'tmdb', 'tvmaze', 'series', 'poster', 'breakMarks', 'creditsFound'];
 
 function hasValue(value) {
   if (value == null) return false;

@@ -30,7 +30,7 @@ import {
 } from './media-sources.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
 import { basenameNoExt, debounce } from '../core/util.js';
-import { filesNeedingMarks, findFades, hasMidShowBreaks } from '../library/break-marks.js';
+import { filesNeedingMarks, findFades, hasMidShowBreaks, speedsUpCredits } from '../library/break-marks.js';
 import { beginTask } from './tasks.js';
 import { MenuButton } from '../ui/menu.js';
 import { renderProgramFitPanel } from './program-fit.js';
@@ -356,6 +356,7 @@ export function renderCommercialsPanel() {
   for (const [el, key] of NO_REPEAT_TOGGLES) el.checked = cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
   if (snapFadesEl) snapFadesEl.checked = !!cm.snapToFades;
   if (snapWindowEl) snapWindowEl.value = cm.snapWindowMinutes || 3;
+  if (foundCreditsEl) foundCreditsEl.checked = cm.useFoundCredits !== false;
 }
 
 // Mid-show breaks lined up with fades (core/interstitials.js midSlots).
@@ -372,18 +373,26 @@ snapWindowEl?.addEventListener('change', () => {
   dispatch({ type: 'settings.set', path: ['commercials', 'snapWindowMinutes'], value: minutes });
 });
 
-// FIND FADES: the shows on channels that break inside them, one ffmpeg pass
-// each. Each file's result is recorded as it arrives, so STOP (the same
-// button) keeps everything found so far and the next run skips it.
+// End-credits speedup from where credits were found (core/util.js
+// foundCreditsLead, playback/broadcast-fx.js). On unless turned off.
+const foundCreditsEl = document.getElementById('commercials-found-credits');
+foundCreditsEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['commercials', 'useFoundCredits'], value: foundCreditsEl.checked });
+});
+
+// FIND FADES: the shows on channels that break inside them or speed up
+// their end credits, one ffmpeg read each for fades and credits. Each file's
+// result is recorded as it arrives, so STOP (the same button) keeps
+// everything found so far and the next run skips it.
 let findingFades = null;
 findFadesBtn?.addEventListener('click', async () => {
   if (findingFades) { findingFades.stop = true; findFadesBtn.disabled = true; return; }
   if (!window.api || typeof window.api.libraryCall !== 'function') { alertDialog('Fades can only be found on the host computer.'); return; }
   const now = viewNow();
-  const channels = (S.config.channels || []).filter((ch) => hasMidShowBreaks(ch, now));
+  const channels = (S.config.channels || []).filter((ch) => hasMidShowBreaks(ch, now) || speedsUpCredits(ch));
   const files = filesNeedingMarks(channels);
-  if (!channels.length) { findFadesStatus.textContent = 'No channel breaks inside its shows right now, so there is nothing to line up.'; return; }
-  if (!files.length) { findFadesStatus.textContent = `Every show on ${channels.length} channel${channels.length === 1 ? '' : 's'} with mid-show breaks has been checked.`; return; }
+  if (!channels.length) { findFadesStatus.textContent = 'No channel breaks inside its shows or speeds up its end credits right now, so there is nothing to look for.'; return; }
+  if (!files.length) { findFadesStatus.textContent = `Every show on ${channels.length} channel${channels.length === 1 ? '' : 's'} with mid-show breaks or sped-up credits has been checked.`; return; }
   findingFades = { stop: false };
   findFadesBtn.textContent = 'STOP';
   const task = beginTask('FINDING FADES…');
@@ -398,7 +407,7 @@ findFadesBtn?.addEventListener('click', async () => {
     });
     findFadesStatus.textContent = result.unavailable
       ? 'ffmpeg wasn’t found, so fades can’t be found (SYSTEM › ffmpeg).'
-      : `Checked ${result.checked} show${result.checked === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with.${findingFades.stop ? ' Stopped — FIND FADES picks up where it left off.' : ''}`;
+      : `Checked ${result.checked} show${result.checked === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with, and the credits were found in ${result.withCredits}.${findingFades.stop ? ' Stopped — FIND FADES picks up where it left off.' : ''}`;
   } finally {
     findingFades = null;
     findFadesBtn.textContent = 'FIND FADES';
