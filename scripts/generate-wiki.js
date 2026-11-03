@@ -10,6 +10,7 @@
 // in this file; edit them here and regenerate rather than editing the wiki by hand.
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const SRC = process.argv[2];
 const OUT = process.argv[3];
@@ -82,8 +83,8 @@ const esc = (t) => String(t).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 const README = read('README.md');
 const SECURITY = read('SECURITY.md');
 const PLUGDEV = read('PLUGIN_DEVELOPMENT.md');
-const settingsJs = read('renderer/js/setup/settings.js');
-const HELP = eval('[' + settingsJs.match(/const HELP_GUIDE = \[([\s\S]*?)\n\];/)[1] + ']');
+const helpJs = read('renderer/js/setup/help.js');
+const HELP = eval('[' + helpJs.match(/const HELP_GUIDE = \[([\s\S]*?)\n\];/)[1] + ']');
 
 const intro = (() => {
   const lines = README.split('\n');
@@ -246,8 +247,9 @@ MANUAL.forEach(([name, title, nums]) => {
 });
 
 // ---------- Plugins ----------
-const pluginRows = fs.readdirSync(path.join(SRC, 'plugins'))
-  .filter((d) => fs.existsSync(path.join(SRC, 'plugins', d, 'manifest.json')))
+// Only plugins git tracks: a checkout can hold gitignored personal plugins that must never reach the wiki.
+const pluginRows = execFileSync('git', ['ls-files', '--', 'plugins/*/manifest.json'], { cwd: SRC, encoding: 'utf8' })
+  .split('\n').filter(Boolean).map((f) => f.split('/')[1])
   .map((d) => { const m = JSON.parse(fs.readFileSync(path.join(SRC, 'plugins', d, 'manifest.json'), 'utf8')); return { dir: d, m }; });
 const byId = Object.fromEntries(pluginRows.map((r) => [r.m.id || r.dir, r.m]));
 const CAPNAME = { ipc: 'talks to the app', spawn: 'starts programs', net: 'network', system: 'system actions', mediaSource: 'media source' };
@@ -577,7 +579,7 @@ Read [CONTRIBUTING.md](${BLOB}CONTRIBUTING.md) and the [Code of Conduct](${BLOB}
 - Match the surrounding code.
 - **Never add copyrighted media, logos, trademarked branding or real network schedules.** Use made-up names in fixtures and examples.
 - Report security issues privately ([Security](Security)).
-- If a change is visible to users, add a dated entry to the in-app *What's New* (the «CHANGELOG« in «renderer/js/setup/settings.js«).
+- If a change is visible to users, add a dated entry to the in-app *What's New* (the «CHANGELOG« in «renderer/js/setup/help.js«).
 
 The repository has a pull request template, issue forms, Dependabot updates, CodeQL scanning, and a CI workflow.
 
@@ -635,13 +637,15 @@ RerunTV is in **beta**. This page is upfront about what is planned and what is l
 ## Planned
 
 - **Code signing** for the Windows installers, so SmartScreen stops warning. This needs a certificate and a validated publisher; the plan is to apply to an open-source signing program.
-- **An Electron upgrade** to the next major version, with a full test pass first. The runtime affects the sandboxed preload, the «app://» protocol and the plugin processes, so it will not be merged on a version bump alone.
 
 ## Recently added
 
-- **A demo pack on every release**: \`RerunTV-demo-library.zip\` holds generated, copyright-free test video, so you can try RerunTV without Node, ffmpeg or any media of your own.
-- **An installer smoke test in CI**: every push builds the real installer, installs it silently and launches it, so a broken package is caught before a release.
-- **Discussions** for questions, ideas and show-and-tell.
+- **A cable-box layout** in two skins, HD and Classic, modelled on a mid-2000s digital cable box. New installs start on HD. See [Manual: Picture, Sound, Guide and Theme](Manual-Picture-Sound-and-Themes).
+- **Program details from many sources**: .nfo files and tags in your own files, TMDB matches down to the episode, and the new TVmaze Episodes plugin. See [Manual: Channels](Manual-Channels).
+- **Broadcast timing**: breaks that land on a show's fades to black, end credits sped up from where they really start, and programs fitted to half-hour and hour slots. See [Manual: Programming](Manual-Programming).
+- **Channel presets** and the built-in **Video Splicer** under LIBRARY. See [Manual: Household, Library and System](Manual-Household-Library-and-System).
+- **Electron 45**, and plugins that start side by side so the app opens sooner.
+- **A demo pack on every release** and an **installer smoke test in CI**.
 
 ## Known limitations
 

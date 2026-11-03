@@ -173,6 +173,7 @@ auto-discovers RerunTV on the LAN, renders against a stable TV-sized viewport on
 | `J` | Start the current show over from the beginning |
 | `O` | Open the logo / layout editor for the tuned channel |
 | `[` `]` | Jump to the previous/next commercial break (time machine only) |
+| `Q` | Skip the commercial break that is playing (the show resumes where it left off) |
 | `B` | Trigger a breaking-news overlay on demand |
 | `K` | Toggle closed captions |
 | `SHIFT` + `↑`/`↓` | Jump between favorite channels |
@@ -238,6 +239,14 @@ the guide also scrolls backward into the past.
   (its own bumper folder, its own interval, or timed before/after each show instead of on a
   timer) and per schedule block (different ads for specific hours, or a block used purely to
   carve out an ad-free/ad-different stretch of the day without changing content)
+- **Breaks at the fades** (opt-in) — mid-show breaks move to the nearest fade to black, so a
+  break lands where the show was cut for commercials instead of mid-scene. Each file is read
+  once (FIND FADES / FIND ACT BREAKS) to find its fades and where its end credits start
+- **Sped-up end credits** — a squeeze-back that plays the credits fast beside an "up next"
+  promo, in four layouts, starting where a film's credits really begin
+- **Fit to time slots** (opt-in, per channel or box-wide) — every program ends on the next
+  half hour or hour: a long one is trimmed by its credits and a few percent of speed-up, within
+  limits you set, and shows a formatted-for-television card; a short one gets breaks
 - **Interactive Show & Ad Flow Builder** — a timeline canvas for scripting exactly when
   interstitials fire around a piece of content, with its own simulator
 - **Air Check resolver console** — inspect source, schedule block, show position, break
@@ -250,6 +259,19 @@ the guide also scrolls backward into the past.
   no-signal copy overrides that inherit box defaults unless explicitly changed
 - **Opt-in library synchronization** — startup/periodic source polling for additions,
   missing titles, and unambiguous renames; automatic removal remains separately opt-in
+- **Program details from your files** — episode titles, descriptions, ratings, series names
+  and posters read from `.nfo` files beside your media and from tags inside the files
+  (READ NFO & TAGS, or LIBRARY › SYNC for every channel); only empty details are filled
+- **Media library** (LIBRARY) — a catalogue of every linked file, tag suggestions grouped by
+  series, and smart channels built from a saved search, always previewed before anything on
+  air changes. Nothing on disk is moved or renamed
+- **Channel presets** (LIBRARY › PRESETS) — a whole channel described by intent (kinds of
+  programs, when they air, what plays in the breaks) with no file paths, filled from your own
+  library in one undo step; built-ins include MUSIC VIDEOS and CHRISTMAS TV, and a preset
+  creator makes your own
+- **Household profiles and DVR** — per-person favorites, reminders, resume points and history;
+  RECORD ONCE / RECORD SERIES from the guide with quota, keep and simulated-tuner limits; a
+  shared watch session across screens; a PIN parental lock
 - **Video Splicer** (LIBRARY › SPLICER) — cut a taped or ripped compilation into separate
   episode, commercial and bumper clips by finding black frames, silence, hard picture
   changes or a recurring logo card. A cut editor with a player and timeline lets you
@@ -273,6 +295,10 @@ the guide also scrolls backward into the past.
 - **AUTO display mode** — simulates an era-appropriate resolution/aspect ratio per file or
   per theme, with a curvature slider and CRT bias controls
 - **Power & auto-standby** with a CRT collapse/warm-up animation
+- **Shut down the PC from the box** (opt-in, SYSTEM › POWER) — SHUT DOWN PC in the TV menu
+  and on the companion remote, always with a 20-second countdown and CANCEL
+- **Volume leveler** — evens out loud and quiet shows and commercials; CONSISTENT levels
+  everything to one common volume
 - **Synthesized sound effects** (channel click, volume tick, power thunk) — no audio files
 - **Automatic codec repair** — files Chromium can't decode are transcoded to H.264 once via
   ffmpeg; the original moves to `_originals_backup/`, never deleted
@@ -291,7 +317,7 @@ the guide also scrolls backward into the past.
   yellow focus), modelled on a mid-2000s digital cable box: the guide keeps live TV in its corner,
   a channel banner and Mini Guide over the picture, Quick and Main menus, Search with an on-screen
   keyboard, Listings by Channel, Messages, and a matching Channel Setup. New installs start on HD.
-- **23 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
+- **27 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
   set through dense SD grids, metallic late-2000s menus, widescreen preview guides, and
   modern streaming design languages. Themes can change guide density, preview composition, focus behavior,
   palette, SFX, and (where it fits the era) a physical border/bezel image.
@@ -327,7 +353,10 @@ install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEV
   LAN, kept in sync with the live schedule
 - **Companion App** — turns a paired phone on the same WiFi into a remote and mobile setup
   surface; it also provides the API used by the Android companion app
-- **TMDB metadata matching** for the TITLES tab (needs a free API key)
+- **TMDB metadata matching** for the TITLES tab (needs a free API key) — down to the
+  episode, with ratings, posters and cast for program info
+- **TVmaze Episodes** — episode titles, synopses, series names and original air dates and
+  networks from TVmaze, with no account or key
 - **FFmpeg Transcode** — codec-compatibility fix-up (see "About RerunTV" above); resolves
   a system-installed `ffmpeg` from PATH or a custom path you set under DISPLAY & SYSTEM →
   FFMPEG

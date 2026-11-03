@@ -45,11 +45,11 @@ const HELP_GUIDE = [
     'TIP: The zip has a README.txt with these steps and suggested channel numbers.',
   ] },
   { group: 'SECTION 3 — CHANNELS', title: '3.1 Editing a Channel: Folders, Schedule, Titles, Ads, and Logo', body: [
-    'Click "EDIT" on any channel to open its full settings. Its tabs are grouped under CONTENT (FOLDERS, TITLES, SCHEDULE), LOOK (LOGO, OVERLAYS, TICKER, IDENTITY) and PLAYBACK (ADS, CREDITS). The main ones:',
+    'Pick a channel in the list to open its settings. The pages along the top are OVERVIEW (the common options), CONTENT (FOLDERS and TITLES), SCHEDULE, LOOK (LOGO, OVERLAYS, TICKER, IDENTITY), BREAKS (ADS, END CREDITS, FIT TO TIME SLOTS) and ADVANCED. The main ones:',
     'FOLDERS — add or remove which video folders feed this channel.',
+    'TITLES — rename individual shows, set their order, and fill in episode titles, descriptions and posters (see 3.6).',
     'SCHEDULE — set up a real broadcast-style schedule using PROGRAMMING BLOCKS, plus a CALENDAR for marking special dates.',
-    'TITLES — rename individual shows, or automatically pull in a poster and description for each one.',
-    'ADS — control how often commercial breaks happen on this channel.',
+    'ADS — control how often commercial breaks happen on this channel. END CREDITS and FIT TO TIME SLOTS are covered in 4.5.',
     'LOGO — show a small logo in the corner of the screen while this channel is playing, like a real TV network watermark.',
     'NOTE: If you don\'t set up any BLOCKS, the channel just plays through its whole library on a loop. Blocks are completely optional — only bother with them once you want an actual schedule, like "cartoons in the morning, movies at night."',
   ] },
@@ -63,6 +63,8 @@ const HELP_GUIDE = [
     'PREVIEW (on every channel row) shows you what that channel would look like at any date and time, right in the setup screen — no need to actually tune to it. Use the quick-jump buttons to skip to the start of a show, the next ad break, an hour later, and so on.',
     'CAUTION: If you move, rename, or delete video files outside the app, the channel won\'t know where they went. Click "CHECK CHANNELS" to scan for anything missing, and "FIX PLAYBACK" to relink or remove those files.',
     'Need to change something on a bunch of channels at once — like favoriting several, or bulk-deleting? Ctrl+click channels in the list to pick several (Shift+click picks a range, Ctrl+A picks them all) and the editor turns into bulk actions for the selection. Esc goes back to one channel.',
+    'The selection bar can also hide channels from tuning, or shift their schedules by some hours, and it tells you how many programs will move first.',
+    'TIP: DUPLICATE, RUNNING BEHIND… on a channel\'s menu makes a copy that runs a few hours behind the original, so the two are never on the same episode — like the East and West Coast feeds of a real network.',
   ] },
   { group: 'SECTION 3 — CHANNELS', title: '3.4 Playback Order, Channel Packages, and Broadcast Identity', body: [
     'The TITLES editor can sort naturally, reverse, restore folder order, create a repeatable seeded shuffle, or accept drag-and-drop ordering. Every automatic reorder previews the change and asks before it re-anchors the live channel.',
@@ -76,6 +78,15 @@ const HELP_GUIDE = [
     'Only one decimal place is allowed. 7.1 is a channel, 7.12 is not.',
     'NOTE: with the option on, the up/down arrows in a number box step in tenths rather than whole numbers — that is the trade, and why it is off unless you ask for it. Switching it back off later does not break a sub-channel you already made: it stays in the lineup, in the guide and tunable. The option only controls whether you can type a new one.',
   ] },
+  { group: 'SECTION 3 — CHANNELS', title: '3.6 Episode Titles, Descriptions and Posters', body: [
+    'A guide full of file names is no fun, so the TITLES page has a few ways to fill in the real details. They only fill in what\'s empty, so nothing you typed yourself gets overwritten.',
+    'READ NFO & TAGS reads what is already on your disk: the .nfo files that media centers and library managers write next to your videos, and the tags stored inside the files themselves. It also picks up a poster sitting beside your media (a file\'s own -poster or -thumb image, or a poster.jpg or folder.jpg in its folder). To do every channel at once, or to fill in new files as they arrive, use LIBRARY › SYNC › DETAILS FROM YOUR FILES.',
+    'MATCH looks a title up on TheMovieDB (the TMDB Metadata plugin, which needs a free API key). A file with a season and episode in its name, like S02E01, gets that episode\'s own title, description and air date; a feature-length file is matched to a film. A year in the name is used to pick the right version. MATCH FOR SELECTED does many rows at once and looks each show up only once.',
+    'TVMAZE (the TVmaze Episodes plugin) fills in episode titles, synopses and series names, and records when and on which network an episode first aired. It needs no account or key.',
+    'A match belongs to the file, not the channel: every channel and block that plays the same file gets it too.',
+    'Press I while watching to see what was found: the series, the episode, the poster, the cast and when it first aired. Prefer it without the cast and air date? Turn off Cast and air date on program info under GUIDE & THEME.',
+    'NOTE: The two lookup plugins reach the internet, so each asks for your approval before its first use. Their settings are on the PLUG-INS tab.',
+  ] },
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.1 The Bumper & Ad Pool', body: [
     'This is the shared library of everything that plays between shows — commercials, station IDs, "up next" bumpers, trivia cards. Each item is tagged with which channels or blocks it belongs to, so ad breaks automatically pull from the right ones.',
     'STEP 1: Click "+ ADD FOLDER" to bring in a whole folder of commercials at once, or "+ ADD ENTRY" to add one by hand — you can even make a text-only station ID with no video file needed.',
@@ -88,11 +99,19 @@ const HELP_GUIDE = [
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.3 On-Screen Extras', body: [
     'TEXT TICKER scrolls a message along the bottom of the screen, like a news channel.',
     'The Emergency Alert System and Breaking News Alerts have their own settings — look for SETTINGS next to each one in the PLUG-INS tab. EAS runs a periodic test alert (or press E to trigger one now); Breaking News interrupts with a styled bulletin, either automatically or on demand with the B key.',
-    'NOTE: Press I any time to see details about what\'s currently playing. Press T to open the TIME MACHINE and jump the schedule backward or forward.',
+    'NOTE: Press I any time to see details about what\'s currently playing, including why it is on (the block or lineup that picked it). Press T to open the TIME MACHINE and jump the schedule backward or forward, and Q to skip the commercial break you are in (the blue button on a remote) — the show comes back where it left off.',
   ] },
   { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.4 Air Check', body: [
     'AIR CHECK is the broadcast resolver console. Pick a channel and time to see which source, show position, schedule block, ad policy, and output RerunTV resolves, plus why that result won. Previous/next boundary buttons make timing problems easier to isolate.',
     'The pool inspector shows which bumper and ad entries are eligible. FORCE ON TV previews one selected entry without rewriting the real schedule.',
+  ] },
+  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.5 Breaks at Fades, End Credits, and Fitting Programs to Time Slots', body: [
+    'Three options make a channel run more like a real station. All of them are off until you turn them on.',
+    'LINE UP MID-SHOW BREAKS WITH FADES (PROGRAMMING › CADENCE & PRESETS) moves each break inside a show to the nearest fade to black, within 3 minutes by default, so a break lands where the show was really cut for commercials instead of in the middle of a scene. A break with no fade nearby stays where it was.',
+    'STEP 1: First the shows have to be read once to find their fades. FIND FADES on that same page does every show on channels that break inside shows; FIND ACT BREAKS on a channel\'s TITLES page does just the files you pick. Expect about half a minute per episode and a few minutes per film. You can stop and pick up later.',
+    'SPEED UP END CREDITS (a channel\'s BREAKS › END CREDITS) plays the credits fast while the screen promotes what\'s on next, the way networks squeeze credits to the side. Choose from four layouts. The same reading that finds fades also finds where a film\'s credits really start, so the speed-up begins there instead of a fixed time before the end.',
+    'FIT PROGRAMS TO TIME SLOTS (box-wide under PROGRAMMING › CADENCE & PRESETS › FIT TO TIME SLOTS, or per channel under BREAKS) makes every program end on the next half hour or hour. A program that runs a little long is shortened by speeding up its credits, then by playing it slightly fast, within limits you set, and opens with a formatted-for-television card. One that runs short gets breaks to fill the gap, from your ad pool or as placeholder slots.',
+    'TIP: Keep PLAY A PROGRAM FASTER BY AT MOST at 5% or below. Stations really did this, but above that voices start to sound rushed.',
   ] },
   { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
@@ -101,12 +120,20 @@ const HELP_GUIDE = [
     'Press V any time to cycle through picture-color presets (P is POWER), or press A to cycle how the picture fits the screen: STANDARD (safe letterboxing, with a border for non-widescreen content if your theme has one), STRETCH (deliberately distorted, like squeezing a widescreen picture onto an old TV), and FILL (zooms in to fill the whole screen, cropping the edges).',
   ] },
   { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.2 Themes and the Channel Logo', body: [
-    'GUIDE THEME (INTERFACE sub-tab, CLOCK & GUIDE panel) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
+    'GUIDE THEME (GUIDE & THEME › THEME) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
     'CHANNEL LOGO shows a small logo in a corner of the screen while you\'re watching. TIP: Leave it in the same spot long enough and it develops a faint "burn-in" ghost, just like a real old TV — that\'s intentional, not a bug.',
+  ] },
+  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.3 The Cable-Box Layout (HD and Classic Skins)', body: [
+    'Two of the themes do more than change colors: CABLE GUIDE HD \'15 and CABLE GUIDE CLASSIC \'05 switch the whole box to a layout modelled on a mid-2000s digital cable box. HD is black and square with a blue focus bar; Classic is royal blue and rounded with a pale-yellow one. New installs start on HD, and every other theme keeps the layout it always had.',
+    'On this layout the guide keeps live TV playing in its corner. The channel banner and a Mini Guide sit over the picture, MENU opens a Quick Menu and then the Main Menu, and I opens a full program page with its actions as icons.',
+    'It has a few pages of its own: SEARCH with an on-screen keyboard (each show is listed once with how many times it airs; turn off Group search results by show under GUIDE & THEME for the old list of every airing), LISTINGS BY CHANNEL, and MESSAGES, which holds your reminders and any downloaded update. An envelope in the corner counts them.',
+    'This setup screen changes too: it shows the setting you are on and what it does at the top, instead of a line of help under every row.',
+    'TIP: In a desktop window the layout uses smaller type, so the guide fits about twice as many channels. TV mode keeps type you can read from across the room.',
   ] },
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.1 Volume Controls', body: [
     'The box has two separate volume levels — CONTENT (your shows) and COMMERCIAL/BUMPER — both set as a percentage you can adjust live with the +/- keys. Turn up the commercial volume if your ads always sound quiet, or down if they blast.',
     'NOTE: Any individual channel or block can set its own volume, which always overrides the two sliders above.',
+    'VOLUME LEVELER (PICTURE & SOUND › VOLUME) evens out loud and quiet files. ON evens them out; CONSISTENT brings every show and commercial to one slightly lower common volume, so a loud ad no longer jumps out and a quiet file is not stuck below the rest. Each file is measured once in the background.',
     'VINTAGE CRT AUDIO FILTER & SFX softens the sound a bit and can add a faint hum and mechanical click sounds, for that old-TV-speaker feel.',
   ] },
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.2 The Companion App (Phone Browser Page)', body: [
@@ -132,6 +159,7 @@ const HELP_GUIDE = [
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.6 Backing Up Your Settings', body: [
     'CAUTION: Your settings are backed up automatically on a rotating basis, and you can also click "snapshot now" any time for a manual backup. If something ever goes wrong, click "RESTORE" next to any backup to roll back to it — and if that wasn\'t what you wanted, Ctrl+Z undoes even that (see SECTION 8).',
     'TIP: Give an important backup a LABEL (like "before reorganizing cartoons") and PIN it so automatic rotation never removes it. PREVIEW shows channel, title-count, schedule, and box-setting differences before you restore.',
+    'A few big changes save a named restore point first, without you asking: importing a config, settings or channel, applying a channel preset, and relinking a folder.',
   ] },
   { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.7 Opt-In Library Synchronization', body: [
     'LIBRARY SYNC is off by default. When enabled, it checks only the folders already linked to your channels, either after startup or at your chosen interval, and adds new titles automatically.',
@@ -148,6 +176,37 @@ const HELP_GUIDE = [
     'In SYSTEM, the UPDATE POLICY setting decides when updates happen: BEFORE APP OPENS — INSTALL AUTOMATICALLY, AFTER APP OPENS — INSTALL WHEN I QUIT, AFTER APP OPENS — ASK WHEN READY, ONLY WHEN I ASK, or NEVER. CHECK NOW looks for a newer build right away, and HELP › WHAT\'S NEW lists what changed.',
     'Your channels and settings live in the userData folder next to the app, and a backup is taken before an update installs, so an update keeps your lineup.',
     'NOTE: Beta installers are not code-signed, so Windows SmartScreen may warn the first time you run one. Choose "More info" and then "Run anyway" if you downloaded it from the project\'s own GitHub releases page.',
+  ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.10 Shutting Down the PC From the Box', body: [
+    'If RerunTV is the only thing your computer does, you can turn the whole PC off from the couch. It is off by default.',
+    'Switch on ALLOW SHUTTING DOWN THE PC FROM RERUNTV (SYSTEM › POWER). The TV menu then has SHUT DOWN PC, and so does the companion remote. Both ask first, then count down 20 seconds on the screen and on the phone, with CANCEL on either.',
+    'A second switch, SHUT DOWN THE PC WHEN THE BOX IS TURNED OFF, makes the box\'s own power-off (P, the remote\'s power button, or the TV menu) shut the computer down too.',
+    'NOTE: AUTO STANDBY and the screen turning itself off never shut the PC down, only a power-off you choose.',
+  ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.11 Profiles, Recordings and Watching Together', body: [
+    'The HOUSEHOLD section is for sharing the box. WHO\'S WATCHING holds a profile per person: favorites, hidden channels, reminders, recordings, resume points and viewing history belong to the selected profile, while the channels and programming stay shared.',
+    'MY SHOWS & DVR lists what this profile has asked to record. In the guide, pick a program and choose RECORD ONCE or RECORD SERIES. Click QUOTA to cap the space recordings use, KEEP to hold only the newest few episodes of each series, and SIMULATED TUNERS to limit how many recordings can happen at once, the way a real DVR could.',
+    'WATCH TOGETHER starts a shared session that another screen on your network can JOIN, so both stay on the same channel.',
+    'PARENTAL LOCK asks for a four-digit PIN before tuning to a channel or rating you restrict. CAUTION: The PIN starts as 1234, so change it before you rely on it.',
+  ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.12 The Media Library: Catalogue, Review and Smart Channels', body: [
+    'LIBRARY keeps a catalogue of every file in the folders your channels use, so you can tag and find things without digging through folders.',
+    'CATALOGUE lists your linked folders. SCAN looks for new and changed files, and UPDATE LOCATION… fixes the paths if you moved a whole folder yourself. Nothing on your disk is ever moved, renamed or deleted from here.',
+    'REVIEW shows tag suggestions grouped by series or folder, so one decision covers a whole show. It can also READ NFO & TAGS so its suggestions use a show\'s real name. Accepting a suggestion only changes the catalogue; what airs doesn\'t change until you rebuild a smart channel.',
+    'SMART CHANNELS build a channel from a saved search over the catalogue, like "sitcoms from the 90s." Make one with NEW SAVED QUERY, then BUILD CHANNEL…, and REBUILD… later to pick up new matches. You always see a preview of what will change on air first. With REBUILD SMART CHANNELS AFTER A SCAN on, a rebuild happens by itself only when what\'s on right now can stay on; anything else waits there for you.',
+  ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.13 Channel Presets', body: [
+    'A CHANNEL PRESET (LIBRARY › PRESETS) is a whole channel described by what it should be, not by file paths: which kinds of programs, when they air, what plays in the breaks, and what shows on screen. RerunTV fills it from your own library.',
+    'Each preset shows how much of your library fits it. Building a channel from one previews the result first, and the whole thing is a single undo step. Built-in presets include MUSIC VIDEOS (shuffled around the clock, with the artist and song shown as each video starts) and CHRISTMAS TV.',
+    'The preset creator lets you make your own: slots of programs by kind, genre, era, series or tag; weekly or date-range blocks or a 24/7 loop; ads that play only on that channel; shuffle; and the artist / song card. Start from scratch, from an existing channel, from an imported file, or by customizing a built-in one.',
+    'TIP: + ADD CHANNEL on the CHANNELS list offers the same presets, so a new channel can start from one.',
+  ] },
+  { group: 'SECTION 6 — HOUSEHOLD, LIBRARY & SYSTEM', title: '6.14 The Video Splicer', body: [
+    'Got an old tape or a rip with shows, commercials and bumpers all run together? The SPLICER (LIBRARY › SPLICER) cuts it into separate clips, sorted by length into episodes, commercials and bumpers. The recording itself is never changed.',
+    'STEP 1: Pick the recording under SPLIT A RECORDING. PREVIEW CUTS finds the cuts (black frames, silence, hard picture changes) and opens them in an editor; REVIEW CUTS adds a before-and-after picture of every cut; SPLIT cuts straight away with no editing.',
+    'STEP 2: In the editor, add, nudge or drop cuts, merge clips, name them, and say where each one goes. It can also find commercials that aired twice. Then choose SPLIT THESE CLIPS.',
+    'STEP 3: Send the clips straight into RerunTV: episodes onto a channel, commercials and bumpers into the ad pool. COMBINE CLIPS does the opposite and joins clips into one file.',
+    'NOTE: The Splicer needs FFmpeg (see the FFmpeg Transcode plugin). Runs wait in a queue and carry on while you do other things.',
   ] },
   { group: 'SECTION 7 — SPECIAL & VIRTUAL CHANNELS', title: '7.1 The Built-In Channels', body: [
     'Alongside your own channels, the box comes with a few special built-in ones — a program guide, a community bulletin board, a weather channel, a party channel, and more. Each one is its own plugin, and you can turn any of them on or off from the PLUG-INS tab, even the ones that come on by default.',
@@ -171,6 +230,7 @@ const HELP_GUIDE = [
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
     'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',
+    'The button next to the guide\'s search switches which channels the guide lists: ALL CHANNELS, your FAVORITES, or channels you have not watched in the last 14 days.',
     'SET REMINDER creates a local reminder. When the viewing clock reaches the program, a toast offers TUNE NOW or DISMISS; reminders follow the time-machine clock just like the schedule itself.',
     'Everything you have pending is listed under PROGRAM REMINDERS in GUIDE & THEME. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
     'Two options live with that list. TUNE AUTOMATICALLY changes the channel for you the moment a reminder comes due. The desktop-notification option covers the case this box is built for — still broadcasting behind whatever you are actually working in, where an on-screen toast is invisible. It only fires when the RerunTV window is not the one you are looking at.',
