@@ -174,6 +174,7 @@ function findRepeats(clips, signatures, { maxDurationDiff = 1, maxDiff = 14 } = 
 
 // A clip's file name from a person-given title: what Windows accepts.
 function safeFileName(name) {
+  // eslint-disable-next-line no-control-regex -- control characters are not allowed in Windows file names
   return String(name || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim().slice(0, 120);
 }
 

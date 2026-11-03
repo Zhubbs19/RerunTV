@@ -42,8 +42,8 @@ test('a loadstart lookup uses the lineup duration or waits for loadedmetadata', 
 
 test('only local app://media files are measured', async () => {
   const { mediaPathFromUrl } = await load();
-  const url = `app://media/?p=${encodeURIComponent('J:\TV\Show S01E01.mp4')}`;
-  assert.equal(mediaPathFromUrl(url), 'J:\TV\Show S01E01.mp4');
+  const url = `app://media/?p=${encodeURIComponent('J:\\TV\\Show S01E01.mp4')}`;
+  assert.equal(mediaPathFromUrl(url), 'J:\\TV\\Show S01E01.mp4');
   assert.equal(mediaPathFromUrl(`app://media/?p=${encodeURIComponent('mediasource:jellyfin:abc')}`), null);
   assert.equal(mediaPathFromUrl('http://127.0.0.1:9000/media?x=1'), null);
   assert.equal(mediaPathFromUrl(''), null);

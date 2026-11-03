@@ -26,7 +26,7 @@ function stripCredentialHeaders(headers) {
 // The request options for the next redirect hop: same options, minus credential
 // headers when the origin changed.
 function optionsForRedirect(opts, fromUrl, toUrl) {
-  let sameOrigin = false;
+  let sameOrigin;
   try { sameOrigin = new URL(fromUrl).origin === new URL(toUrl).origin; } catch (e) { sameOrigin = false; }
   if (sameOrigin || !opts || !opts.headers) return opts;
   return { ...opts, headers: stripCredentialHeaders(opts.headers) };

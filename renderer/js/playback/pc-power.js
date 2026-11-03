@@ -134,7 +134,7 @@ function applyStatus(status) {
 export async function startPcShutdown({ source = 'box', poweredOffBox = false } = {}) {
   if (!pcShutdownEnabled()) return false;
   poweredOffForShutdown = !!poweredOffBox;
-  let status = null;
+  let status;
   try {
     status = await window.api.shutdownPc({ delaySec: PC_SHUTDOWN_DELAY_SEC, source });
   } catch (e) {
@@ -147,7 +147,7 @@ export async function startPcShutdown({ source = 'box', poweredOffBox = false } 
 
 export async function cancelPcShutdown() {
   if (!pcShutdownAvailable()) return;
-  let status = null;
+  let status;
   try { status = await window.api.cancelPcShutdown(); } catch (e) { status = { pending: false }; }
   applyStatus(status);
 }

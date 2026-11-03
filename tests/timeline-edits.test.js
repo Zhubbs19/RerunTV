@@ -51,7 +51,7 @@ function preview(query, state, commands) {
 }
 
 test('make Saturday 7–11 AM cartoons: previewed, applied as one step, and undone to an identical week', async () => {
-  const { state, edits, query, commands, ch } = await setup();
+  const { state, edits, query, ch } = await setup();
   const cartoons = edits.librarySources(state.S.config).folders.find((s) => s.label === 'Cartoons');
   assert.ok(cartoons && cartoons.files.length === 2, 'the Cartoons show folder is a source without scanning');
 

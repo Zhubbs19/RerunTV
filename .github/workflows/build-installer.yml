@@ -24,6 +24,10 @@ jobs:
       attestations: write  # store the build attestation
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and tags, so the release notes can compare What's New
+          # with the previous release's tag.
+          fetch-depth: 0
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -93,6 +97,12 @@ jobs:
           # keeps exactly one prerelease in existence at all times, so
           # whichever one the list endpoint returns first is unambiguously
           # the current one — no dependency on GitHub's ordering at all.
+          #
+          # The release notes are the What's New items added since the
+          # previous release (scripts/release-notes.js), so they're worked
+          # out before that release and its tag are deleted below.
+          prev_tag=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease,createdAt -q '[.[] | select(.isPrerelease)] | sort_by(.createdAt) | last | .tagName // ""')
+          node scripts/release-notes.js --since "$prev_tag" > dist/whats-new.md
           for old_tag in $(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease -q '.[] | select(.isPrerelease) | .tagName'); do
             gh release delete "$old_tag" --repo "${{ github.repository }}" --yes --cleanup-tag
           done
@@ -105,10 +115,10 @@ jobs:
           # name GitHub never actually has (spaces get dot-mangled by GitHub
           # on upload, a mismatch found live testing the update flow).
           installer="dist/${product}-Setup-${{ steps.version.outputs.version }}.exe"
-          # --generate-notes asks GitHub to describe the commits and pull
-          # requests shipped since the previous release. The short custom
-          # note is prepended to that generated changelog, so the installer
-          # warning remains visible without replacing the actual app changes.
+          # The notes are the installer warning, then What's New for this
+          # release (dist/whats-new.md, above). --generate-notes appends
+          # GitHub's list of the commits and pull requests since the previous
+          # release below them, for anyone who wants the detail.
           notes="**Unsigned beta:** Windows SmartScreen or your browser may warn about this low-download-count installer. "
           notes+="Verify that it came from this repository (SHA256SUMS.txt is attached, and 'gh attestation verify <installer> --repo ${{ github.repository }}' checks the build provenance); in SmartScreen choose \"More info\" → \"Run anyway\"."
           # latest.yml + the .blockmap are electron-updater's update feed, not
@@ -117,6 +127,7 @@ jobs:
           # builder writes latest.yml pointing at the installer's exact
           # filename, so it has to ship from the very same release.
           notes+=" This project is vibe-coded with an AI coding agent and has not been independently audited; see the README."
+          notes+=$'\n\n'"$(cat dist/whats-new.md)"
           gh release create "$tag" \
             --repo "${{ github.repository }}" \
             --title "$product $tag (beta)" \

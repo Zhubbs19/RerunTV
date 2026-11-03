@@ -15,7 +15,7 @@ import {
 import { channelFilterEl, channelListEl, channelListPaneEl, subChannelsEnabledEl } from '../core/dom.js';
 import { CHANNEL_DISPLAY_ASPECT_OPTIONS, CHANNEL_RESOLUTION_OPTIONS } from '../display/mode.js';
 import {
-  buildChannelAdsPanel, buildChannelIdentityPanel, buildCommercialsPanel, buildCreditsSpeedupPanel,
+  buildChannelAdsPanel, buildChannelIdentityPanel, buildCreditsSpeedupPanel,
   buildDynamicOverlaysPanel, buildFoldersPanel, buildLogoBugPanel, buildTickerLayoutPanel, buildTitlesPanel,
 } from './panels.js';
 import { buildUnifiedSchedulePanel } from './schedule.js';

@@ -154,7 +154,7 @@ document.querySelector('.setup-subtab-btn[data-subtab="keys"]')?.addEventListene
 // button listing the settings it owns. Resetting removes those keys, so every
 // reader falls back to its own default, as one undoable step (UNDO below).
 function resetPanelKeys(panel) {
-  let paths = [];
+  let paths;
   try { paths = JSON.parse(panel.dataset.resetKeys || '[]'); } catch (e) { paths = []; }
   // The ones that differ from their default (or, with no default, that are set at all).
   const present = paths.filter((path) => {

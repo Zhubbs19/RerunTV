@@ -643,7 +643,7 @@ async function loadMainPlugins(disabledIds, extraCtx, approvedSignatures) {
     } else {
       const mainPath = path.join(pluginDir, plugin.main);
       try {
-        // eslint-disable-next-line import/no-dynamic-require, global-require
+        // eslint-disable-next-line global-require
         const mod = require(mainPath);
         if (mod && typeof mod.activate === 'function') {
           const activation = mod.activate(buildCheckedCtx(baseCtx, plugin, pluginDir));
@@ -785,7 +785,7 @@ function installPluginFromZip(zipPath, opts) {
 function uninstallPlugin(id) {
   const plugin = discoverPlugins().find((x) => x.id === id || (x.error && x.dir === id));
   if (!plugin) return { success: false, error: `Plugin "${id}" not found.` };
-  if (!plugin.dir || /[\/]/.test(plugin.dir) || plugin.dir === '.' || plugin.dir === '..') return { success: false, error: `Plugin "${id}" not found.` };
+  if (!plugin.dir || /[/]/.test(plugin.dir) || plugin.dir === '.' || plugin.dir === '..') return { success: false, error: `Plugin "${id}" not found.` };
   if (plugin.bundled || isBundledPluginId(plugin.id || plugin.dir) || isBundledPluginId(plugin.dir)) return { success: false, error: `"${plugin.name || plugin.dir}" ships with the app and can't be fully uninstalled — disable it instead.` };
   const pluginDir = path.join(getPluginsDir(), plugin.dir);
   try {

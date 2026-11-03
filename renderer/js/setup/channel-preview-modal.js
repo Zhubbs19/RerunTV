@@ -20,7 +20,7 @@ import { formatPreviewBannerTime, nextBlockActiveMs, nextBreakStartMs, randomPre
 
 // ---------- PREVIEW ON… (docs/design/06 §5 — send a channel to another screen) ----------
 export async function openPreviewOnDialog(ch) {
-  let clients = [];
+  let clients;
   try { clients = (await refreshPersonalClients()).filter((c) => c.id !== getClientId()); } catch (e) { clients = (S.personalClients || []).filter((c) => c.id !== getClientId()); }
   if (!clients.length) {
     await alertDialog('No other screens are connected right now — pair a LAN viewer or Android TV client first.', { title: 'PREVIEW ON…' });

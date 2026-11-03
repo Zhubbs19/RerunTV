@@ -753,7 +753,6 @@
     request('/state').then(function (remoteState) {
       var watching = document.getElementById('now-watching');
       var program = document.getElementById('now-program');
-      var live = document.getElementById('live-status');
       setConnection('online');
       remoteState = remoteState || {};
       state.watchingNumber = remoteState.number;

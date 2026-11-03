@@ -123,7 +123,7 @@ function basenameOf(filePath) {
 function watchActiveJob(container) {
   const paint = async () => {
     if (!container.isConnected) { clearInterval(timer); return; }
-    let status = {};
+    let status;
     try { status = await window.api.tapesStatus(); } catch (e) { status = {}; }
     const job = status.active;
     if (!job) {
@@ -336,7 +336,7 @@ async function paintLibrary(container) {
     return;
   }
   const tapes = (result && result.tapes) || [];
-  let status = {};
+  let status;
   try { status = await window.api.tapesStatus(); } catch (e) { status = {}; }
   const chosen = readSettings().tapesDir || '';
   // Compared here rather than asked of the recorder: this side holds the

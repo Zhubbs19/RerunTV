@@ -122,7 +122,7 @@ async function main() {
     process.exit(2);
   }
   const stored = readLocalStorageEntry(sourceDir);
-  let choice = null;
+  let choice;
   try { choice = stored ? JSON.parse(stored) : null; } catch (e) { choice = null; }
   if (!choice || typeof choice.deviceId !== 'string') {
     console.log('  (no sound-output choice saved in the source profile; the test window uses the Windows default device)');

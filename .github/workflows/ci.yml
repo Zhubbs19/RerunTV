@@ -1,6 +1,6 @@
 name: CI
 
-# Runs the unit and contract tests on every push and pull request to master.
+# Runs the linter and the unit and contract tests on every push and pull request to master.
 # (The Build installer workflow only runs when the deploy branch moves.)
 on:
   push:
@@ -23,6 +23,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Unit and contract tests
         run: npm test

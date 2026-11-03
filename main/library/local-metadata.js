@@ -56,7 +56,7 @@ function decodeEntities(text) {
 function textOf(inner) {
   const cdata = inner.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, (m, body) => body.replace(/</g, '\u0000'));
   // Anything still tagged inside is markup, not text.
-  const plain = cdata.replace(/<[^>]*>/g, ' ').replace(/\u0000/g, '<');
+  const plain = cdata.replace(/<[^>]*>/g, ' ').replaceAll('\u0000', '<');
   return decodeEntities(plain).replace(/\s+/g, ' ').trim();
 }
 
@@ -133,7 +133,7 @@ function normalizeRating(raw) {
  * IMDb link; the link is still worth keeping as an id).
  */
 function parseNfo(text) {
-  const xml = String(text || '').replace(/^﻿/, '');
+  const xml = String(text || '').replace(/^\uFEFF/, '');
   const roots = { episodedetails: 'episode', movie: 'movie', tvshow: 'series', musicvideo: 'music' };
   let kind = null;
   let body = null;

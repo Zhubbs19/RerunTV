@@ -16,7 +16,7 @@ import {
   playChannelClickSound, playDaypartChime,
 } from '../core/audio.js';
 import {
-  getChannel, parseMediaRef, sortedChannels,
+  getChannel, sortedChannels,
 } from '../core/channels.js';
 import { hideDynamicOverlay, triggerDynamicOverlays } from './dynamic-overlays.js';
 import { hideTrackCard, scheduleTrackCard } from './track-card.js';
@@ -27,7 +27,7 @@ import {
 import { applyDisplayMode, cacheVideoSize, resolveContentDisplayMode, resolveEffectiveDisplayMode } from '../display/mode.js';
 import { showGuideOverlay } from '../guide/guide.js';
 import { tuneTimingEnabled } from '../core/perf.js';
-import { applyBlockTheme, applyChannelIdentity, applyMuteState, applyTuneVolume, applyTvBezel, applyVhsQuality, applyVolume, powerOff, pushRemoteState } from './power.js';
+import { applyBlockTheme, applyChannelIdentity, applyTuneVolume, applyTvBezel, applyVhsQuality, applyVolume, pushRemoteState } from './power.js';
 import { noteRecentChannel } from './recent-channels.js';
 import { cancelAllInterrupts, runCoreHooks, scheduleAllInterrupts, tuneGateEntries } from '../plugin/host.js';
 import {
@@ -51,7 +51,7 @@ import {
   flashContentAdvisory, flashEpisodeStatusBug,
   flashFormatDisclaimer, flashRatingBug, genericNoSignalCopy, hideNoSignal, markStaticReady, resetCreditsSpeedup,
   scheduleCreditsSpeedup, scheduleFitCredits, showBlockedCard, showMovieRatingCard, showNoSignal, showSignOffCard, showStaticBurst,
-  initMediaSession, updateLogoBug, updateMediaSession,
+  updateLogoBug, updateMediaSession,
 } from './broadcast-fx.js';
 import { fitConfigFor, fitDisclaimerFor, playbackRateOf, seekOffsetOf } from '../core/fit.js';
 import { resolveBreakAt } from '../core/interstitials.js';
@@ -209,10 +209,6 @@ export function startScheduleDriftWatchdog() {
     if (!isEnabledByDefault(S.config.playbackResync)) return;
     try { checkScheduleDrift(); } catch (e) { console.error('[drift] check failed:', e); }
   }, DRIFT_CHECK_MS);
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => { setTimeout(resolve, ms); });
 }
 
 // Stops and blanks the player element: pause, drop the src, force a real

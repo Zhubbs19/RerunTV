@@ -132,7 +132,6 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
   let selectedBlockId = null;
   let days = []; // resolved days of the week on screen, in row order
   let rows = [];
-  let impactRanges = [];
   const remember = () => viewStateByChannel.set(ch.number, { weekStart, zoom });
 
   panelEl.classList.add('onair-panel');
@@ -212,7 +211,6 @@ export function buildOnAirPanel(ch, panelEl, opts = {}) {
   }
 
   function drawImpact(ranges, { onlyDay = null } = {}) {
-    impactRanges = ranges;
     rows.forEach(({ dayStart, row }) => {
       const track = row.querySelector('.onair-track');
       if (!track) return;

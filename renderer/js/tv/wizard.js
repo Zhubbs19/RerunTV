@@ -98,7 +98,7 @@ export function showTvWizard({ updateStrategy = 'startup-auto', comfort: initial
         const qrArea = el('div', 'tv-wizard-qr');
         actions.appendChild(button('ON MY PHONE OR COMPUTER', async () => {
           qrArea.textContent = 'Looking for this box\'s address…';
-          let info = null;
+          let info;
           try { info = window.api && window.api.getHandoffInfo ? await window.api.getHandoffInfo() : null; } catch (e) { info = null; }
           qrArea.innerHTML = '';
           if (info && info.qrDataUrl) {

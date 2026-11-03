@@ -1,9 +1,9 @@
-import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_OFF_ANIM_MS, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch, canPlay } from './core/state.js';
+import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch, canPlay } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
 import { randomInterstitialId, getDisplayTitle, settingNumber } from './core/util.js';
 import {
   setupScreen, tvScreen, player, staticCanvas, crtContainer, crtToggleFlash, guideGrid, guideSearchEl,
-  guideOverlay, channelEntryEl, stationIdBarEl, triviaCardEl, channelFilterEl, shortcutsOverlayEl, detailsOverlayEl,
+  channelEntryEl, stationIdBarEl, triviaCardEl, channelFilterEl, shortcutsOverlayEl, detailsOverlayEl,
   previewBannerEl, pluginChannelContainerEl, viewerLiveLinkEl,
   migrationToastEl, migrationToastTextEl, migrationToastDismissBtn,
 } from './core/dom.js';
@@ -12,7 +12,7 @@ import { alertDialog, confirmDialog } from './setup/dialogs.js';
 import { showOnboarding, applyComfortLevel } from './setup/onboarding.js';
 import { applyCustomCss, cancelAllInterrupts, cancelAllScheduledInterrupts, getInterrupt, interruptEntries, loadPlugins, runCoreHooks } from './plugin/host.js';
 import {
-  foldLogoBugCorner, freshChannel, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
+  foldLogoBugCorner, LOGO_MOTION_PRESETS, normalizeChannel, normalizeDynamicOverlays, parseChannelNumber,
   subChannelsEnabled,
   normalizeLogoBugProfiles, sortedChannels, getChannel,
 } from './core/channels.js';
@@ -24,9 +24,9 @@ import {
   startScheduleDriftWatchdog,
 } from './playback/core.js';
 import { cancelUpNextBar, checkBreakState, resetActiveBreakState, skipCurrentBreak } from './playback/breaks.js';
-import { applyLogoBugPlacement, initMediaSession, showNoSignal } from './playback/broadcast-fx.js';
+import { applyLogoBugPlacement, initMediaSession } from './playback/broadcast-fx.js';
 import {
-  showGuideOverlay, updateGuideNowPlaying, openGuideGrid, closeGuideGrid,
+  showGuideOverlay, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
 } from './guide/guide.js';
 import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './playback/virtual.js';

@@ -4,6 +4,7 @@
 [[IgnoredVulns]]
 id = "GHSA-g3hv-75wg-m249"
 ignoreUntil = 2027-02-01
-reason = """minimatch, reached only through electron-builder at build time (asar, glob 7, filelist, \
-@electron/universal). The fix is minimatch 11, whose ESM export breaks those callers, and the glob \
-patterns come from our own build config. Drop this once electron-builder moves to minimatch 11."""
+reason = """minimatch, reached only by dev tools: electron-builder at build time (asar, glob 7, filelist, \
+@electron/universal) and ESLint (config-array). The fix is minimatch 11, whose ESM export breaks those \
+callers, and the glob patterns come from our own build and lint configs. Drop this once both move to \
+minimatch 11."""

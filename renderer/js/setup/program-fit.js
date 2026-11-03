@@ -168,7 +168,7 @@ function previewList(ch) {
     return wrap;
   }
   const now = viewNow();
-  let entries = [];
+  let entries;
   try { entries = getChannelSchedule(ch, now, now + 8 * 3600000).slice(0, 8); } catch (e) { entries = []; }
   if (!entries.length) {
     wrap.textContent = 'Nothing scheduled to preview.';

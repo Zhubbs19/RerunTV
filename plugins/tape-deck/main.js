@@ -336,7 +336,7 @@ async function readSourceChapters(ffmpegPath, sourcePath, destAbs, spawnFn, fs) 
     '-i', sourcePath, '-f', 'ffmetadata', destAbs,
   ], spawnFn, { timeoutMs: PROBE_TIMEOUT_MS });
   if (!ok.ok || !fs.existsSync(destAbs)) return [];
-  let text = '';
+  let text;
   try { text = fs.readFileSync(destAbs, 'utf8'); } catch (e) { return []; }
 
   const chapters = [];
@@ -381,7 +381,7 @@ function resolveTapesRoot(ctx, config) {
 
 async function activate(ctx) {
   const { ipcMain, fs, spawn } = ctx;
-  let config = {};
+  let config;
   try { config = await ctx.loadConfig(); } catch (e) { config = {}; }
   const tapesRoot = resolveTapesRoot(ctx, config);
 

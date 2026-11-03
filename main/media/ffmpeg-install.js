@@ -18,7 +18,6 @@
 // settings panel shows a copyable package-manager command instead.
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 

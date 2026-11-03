@@ -37,7 +37,6 @@
 // and was granted.
 const crypto = require('crypto');
 const fs = require('fs');
-const path = require('path');
 const { atomicWriteFile } = require('../util/atomic-write');
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000;

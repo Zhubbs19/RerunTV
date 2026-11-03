@@ -150,7 +150,7 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
       // would silently drop the profile's PIN. Only a missing file of an
       // unprotected profile may fall back to it; everything else fails closed.
       if (e.code === 'ENOENT' && !summary.hasPin) raw = summary;
-      else throw new Error('That profile could not be read, so the action was refused.');
+      else throw new Error('That profile could not be read, so the action was refused.', { cause: e });
     }
     return normalizeProfile(raw, summary);
   }

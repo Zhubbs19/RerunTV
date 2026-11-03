@@ -38,7 +38,6 @@ import { getClientId, MONTHS, S, WEEKDAYS, viewNow } from '../core/state.js';
 import { isPreviewingTvMode, isTvMode, setTvPreview, setUsageModePreference } from './usage-mode.js';
 import { commitEntry, cycleSapMode, pushDigit, recallQuickJump, saveQuickJump, showSetupScreen } from '../app.js';
 import { subChannelsEnabled } from '../core/channels.js';
-import { openHandoff } from './handoff.js';
 import { tvSetupItems } from './setup.js';
 import { openLearnMode, openRemoteTest } from '../remote/test.js';
 import { backExitsImmediately, setBackExitsImmediately } from './input.js';
@@ -587,7 +586,7 @@ export function handleTvMenuKey(e) {
       return;
     }
   }
-  let next = current;
+  let next;
   if (e.key === 'ArrowRight') next = Math.min(current + 1, buttons.length - 1);
   else if (e.key === 'ArrowLeft') next = Math.max(current - 1, 0);
   else if (e.key === 'ArrowDown') next = Math.min(current + viewColumns, buttons.length - 1);

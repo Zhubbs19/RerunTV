@@ -656,7 +656,7 @@ export function flowCommercials(flow, fileTags) {
   // For single-segment flows (segmentCount <= 1), every boundary IS the
   // cycle end, so interSteps is empty and cycleEndSteps covers all post steps.
   let interSteps = [];
-  let cycleEndSteps = [];
+  let cycleEndSteps;
   if (segmentCount > 1) {
     // Between first and last content segment: inter-episode interstitials
     interSteps = steps.slice(firstContentIdx + 1, lastContentIdx);

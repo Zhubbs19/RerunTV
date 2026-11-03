@@ -192,7 +192,7 @@ test('yearOf takes the four-digit year out of any date shape', () => {
 
 async function loadRenderer() {
   globalThis.window = globalThis.window || {};
-  window.RCBPlugins = { registerChannelType() {}, ctx: { settings: { getPluginSettings: () => ({}), updatePluginSettings() {} } } };
+  globalThis.window.RCBPlugins = { registerChannelType() {}, ctx: { settings: { getPluginSettings: () => ({}), updatePluginSettings() {} } } };
   return import(pathToFileURL(path.join(pluginDir, 'renderer.js')).href);
 }
 
@@ -308,8 +308,8 @@ test('rankAlbumArtFiles picks the cover from Windows-style and ripped-folder nam
   const { rankAlbumArtFiles } = await loadRenderer();
   const guid = '{B5020207-474E-4720-FC45-262E674CA600}';
   assert.equal(
-    rankAlbumArtFiles([`C:\m\a\AlbumArtSmall.jpg`, `C:\m\a\AlbumArt_${guid}_Small.jpg`, `C:\m\a\AlbumArt_${guid}_Large.jpg`]),
-    `C:\m\a\AlbumArt_${guid}_Large.jpg`,
+    rankAlbumArtFiles([`C:\\m\\a\\AlbumArtSmall.jpg`, `C:\\m\\a\\AlbumArt_${guid}_Small.jpg`, `C:\\m\\a\\AlbumArt_${guid}_Large.jpg`]),
+    `C:\\m\\a\\AlbumArt_${guid}_Large.jpg`,
   );
   assert.equal(rankAlbumArtFiles(['x/AlbumArtSmall.jpg', 'x/Folder.jpg']), 'x/Folder.jpg');
   assert.equal(rankAlbumArtFiles(['x/back.jpg', 'x/Train - Train.jpg']), 'x/Train - Train.jpg', 'a named scan beats a back cover');

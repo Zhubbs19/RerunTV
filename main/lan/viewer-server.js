@@ -305,7 +305,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
         return;
       }
       const method = decodeURIComponent(url.pathname.slice('/api/personal/'.length));
-      let payload = {};
+      let payload;
       try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
         return;
@@ -484,7 +484,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
         return;
       }
       const method = decodeURIComponent(url.pathname.slice('/api/control/library/'.length));
-      let payload = {};
+      let payload;
       try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
         return;
@@ -508,7 +508,7 @@ function startViewerServer(pluginServices, pluginRuntime = {}) {
         return;
       }
       const method = decodeURIComponent(url.pathname.slice('/api/control/personal/'.length));
-      let payload = {};
+      let payload;
       try { payload = await readJsonBody(req, MAX_COMMAND_BYTES); } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' }).end(JSON.stringify({ ok: false, error: 'Bad request' }));
         return;

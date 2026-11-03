@@ -123,7 +123,7 @@ function pluginEntries(words) {
 
 function programEntries(query) {
   if (query.length < 3) return [];
-  let results = [];
+  let results;
   try {
     results = searchUpcomingPrograms((S.config && S.config.channels) || [], query, viewNow(), { limit: 5 });
   } catch (e) {

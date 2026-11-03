@@ -1,4 +1,6 @@
-import { changeChannel } from '../playback/core.js';
+// Nothing is used from it any more, but importing it here sets the order the renderer's
+// modules start in, so it stays until that order is checked in the app.
+import '../playback/core.js';
 import { renderChannelList } from '../setup/index.js';
 import { BADGE_COLORS, S, commitInPlace } from './state.js';
 import {

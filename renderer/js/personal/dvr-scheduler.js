@@ -1,6 +1,6 @@
 // Expands the selected profile's requests over a rolling 14-day window and
 // hands one unprocessed airing at a time to the existing tape-deck recorder.
-import { S, viewNow } from '../core/state.js';
+import { S } from '../core/state.js';
 import { getChannel } from '../core/channels.js';
 import { getRendererService } from '../plugin/host.js';
 import { personalCall } from './state.js';

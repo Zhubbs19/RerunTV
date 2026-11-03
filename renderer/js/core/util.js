@@ -37,10 +37,10 @@ export function guessCleanTitle(rawBase) {
   const parts = s.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
   if (parts.length > 0) s = parts[parts.length - 1];
 
-  let stripped = s.replace(/\s*[\(\[][^()[\]]*[)\]]\s*$/, '').trim();
+  let stripped = s.replace(/\s*[([][^()[\]]*[)\]]\s*$/, '').trim();
   while (stripped && stripped !== s) {
     s = stripped;
-    stripped = s.replace(/\s*[\(\[][^()[\]]*[)\]]\s*$/, '').trim();
+    stripped = s.replace(/\s*[([][^()[\]]*[)\]]\s*$/, '').trim();
   }
 
   return s || rawBase;
@@ -63,7 +63,7 @@ export function stripReleaseTags(rawBase) {
   let prev;
   do {
     prev = s;
-    s = s.replace(/[\(\[][^()[\]]*[)\]]/g, ' ');
+    s = s.replace(/[([][^()[\]]*[)\]]/g, ' ');
   } while (s !== prev);
 
   // Trailing "-RCVR" / "-YIFY" / "-RARBG"-style release-group tag.
@@ -358,7 +358,7 @@ export function readableReleaseNotes(markdown) {
   }
   return text
     .replace(/^#{1,6}\s+/gm, '')
-    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/^[-*]\s+/gm, '• ')
     .replace(/\n{3,}/g, '\n\n')

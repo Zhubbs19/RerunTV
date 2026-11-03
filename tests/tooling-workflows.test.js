@@ -89,13 +89,24 @@ test('RELEASING.md and the README claims are backed by build-installer.yml steps
   assert.match(workflow, /--publish=never/);
 });
 
+test("release notes are What's New since the previous release, worked out before it is deleted", () => {
+  const workflow = read('.github', 'workflows', 'build-installer.yml');
+  assert.match(workflow, /fetch-depth: 0/, 'the previous release tag must be in the checkout');
+  const notes = workflow.indexOf('node scripts/release-notes.js --since "$prev_tag" > dist/whats-new.md');
+  assert.ok(notes >= 0, 'the release step writes What\'s New for this release');
+  assert.ok(notes < workflow.indexOf('gh release delete'), 'before the previous release and its tag are deleted');
+  assert.match(workflow, /notes\+=[^\n]*cat dist\/whats-new\.md/);
+  assert.match(workflow.slice(workflow.indexOf('gh release create')), /--notes "\$notes"/);
+});
+
 test('the release build is gated on the unit tests after installing dependencies', () => {
   const workflow = read('.github', 'workflows', 'build-installer.yml');
   assert.ok(workflow.indexOf('run: npm ci') < workflow.indexOf('run: npm test'));
 });
 
-test('ci.yml runs the root tests and the companion app typecheck and tests', () => {
+test('ci.yml runs the linter, the root tests and the companion app typecheck and tests', () => {
   const ci = read('.github', 'workflows', 'ci.yml');
+  assert.match(ci, /run: npm run lint/);
   assert.match(ci, /run: npm test/);
   assert.match(ci, /working-directory: companion-rn/);
   assert.match(ci, /run: npm ci/);
@@ -116,7 +127,7 @@ test('Dependabot covers every tracked package.json directory and the workflow ac
   const manifests = execFileSync('git', ['ls-files', '--', '*package.json'], { cwd: ROOT, encoding: 'utf8' })
     .split(/\r?\n/).filter(Boolean).filter((file) => !file.includes('node_modules'));
   assert.ok(manifests.length >= 2);
-  const blocks = dependabot.split(/\n  - package-ecosystem:/).slice(1).map((b) => `package-ecosystem:${b}`);
+  const blocks = dependabot.split(/\n {2}- package-ecosystem:/).slice(1).map((b) => `package-ecosystem:${b}`);
   const npmDirs = blocks.filter((b) => /package-ecosystem: npm/.test(b)).map((b) => b.match(/directory: (\S+)/)[1]);
   for (const file of manifests) {
     const dir = `/${path.posix.dirname(file)}`.replace(/^\/\.$/, '/');

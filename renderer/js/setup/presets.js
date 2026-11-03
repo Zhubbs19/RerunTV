@@ -17,7 +17,7 @@ import { NumberStepper, Select, Toggle } from '../ui/controls.js';
 import { Dialog } from '../ui/dialog.js';
 import { h } from '../ui/kit-core.js';
 import { MenuButton } from '../ui/menu.js';
-import { alertDialog, confirmDialog, promptDialog } from './dialogs.js';
+import { alertDialog, confirmDialog } from './dialogs.js';
 import { takeRestorePoint } from './restore-point.js';
 import { renderChannelList } from './channels.js';
 import {

@@ -139,10 +139,10 @@ async function grayFrame(args, size) {
 async function getLogoReferenceVectors(input, opts) {
   const refs = [];
   for (const img of opts.logoImages) {
-    try { refs.push(await grayFrame(['-i', img], LOGO_THUMB)); } catch (e) { throw new Error(`Failed to extract reference frame from ${img}.`); }
+    try { refs.push(await grayFrame(['-i', img], LOGO_THUMB)); } catch (e) { throw new Error(`Failed to extract reference frame from ${img}.`, { cause: e }); }
   }
   for (const t of opts.logoTimes) {
-    try { refs.push(await grayFrame(['-ss', String(t), '-i', input], LOGO_THUMB)); } catch (e) { throw new Error(`Failed to extract reference frame at t=${t} from ${input}.`); }
+    try { refs.push(await grayFrame(['-ss', String(t), '-i', input], LOGO_THUMB)); } catch (e) { throw new Error(`Failed to extract reference frame at t=${t} from ${input}.`, { cause: e }); }
   }
   return refs;
 }

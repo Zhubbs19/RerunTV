@@ -5,7 +5,7 @@
 // everything here drives existing buttons via .click() so this file never
 // has to duplicate what setup-channels.js/setup-interstitials.js already do
 // when a mouse click hits the same element.
-import { S, canUndo, canRedo, onHistoryChange, onRemoteConfigChange, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
+import { canUndo, canRedo, onHistoryChange, onRemoteConfigChange, performUndo, performRedo, redoLabel, undoLabel } from '../core/state.js';
 import { setupScreen } from '../core/dom.js';
 import { renderChannelList } from './channels.js';
 import { renderCommercialsPanel, renderStandbyPanel } from './interstitials.js';

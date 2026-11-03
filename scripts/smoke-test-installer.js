@@ -11,6 +11,9 @@
 // stops the app. The app keeps its data in a "userData" folder next to the exe, so run it against a
 // fresh install (not your own copy of RerunTV).
 
+// The page.evaluate callbacks run in the app's window, not in Node.
+/* global window, document */
+
 const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const http = require('http');

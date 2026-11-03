@@ -8,7 +8,7 @@ import {
 } from '../core/channels.js';
 import { S, commitInPlace } from '../core/state.js';
 import { EmptyState } from '../ui/button.js';
-import { basenameNoExt, randomId, toDatetimeLocalValue, deepClone } from '../core/util.js';
+import { basenameNoExt, randomId, toDatetimeLocalValue } from '../core/util.js';
 import { openDynamicOverlayPositionEditor } from './overlay-editor.js';
 import { openLiveLogoBugEditor } from './overlay-layout-editor.js';
 import { scanProgressEl } from '../core/dom.js';

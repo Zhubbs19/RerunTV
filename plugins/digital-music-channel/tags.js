@@ -25,7 +25,7 @@ const FIELDS = ['artist', 'title', 'album', 'albumArtist', 'year'];
 
 function clean(value) {
   if (value == null) return null;
-  const text = String(value).replace(/\u0000/g, ' ').replace(/\s+/g, ' ').trim();
+  const text = String(value).replaceAll('\u0000', ' ').replace(/\s+/g, ' ').trim();
   return text || null;
 }
 
@@ -65,7 +65,7 @@ function decodeId3Text(frame) {
     else text = body.toString('utf16le');
   } else return null;
   // v2.4 separates multiple values with a null; the first is the one to show.
-  return clean(text.replace(/^﻿/, '').split('\u0000')[0]);
+  return clean(text.replace(/^\uFEFF/, '').split('\u0000')[0]);
 }
 
 function undoUnsync(buf) {

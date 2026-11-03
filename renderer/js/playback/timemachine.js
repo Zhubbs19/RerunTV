@@ -331,7 +331,7 @@ export function scrubProgramBoundary(direction) {
   const ch = getChannel(S.currentNumber);
   if (!ch) return;
   const viewed = viewNow();
-  let programs = [];
+  let programs;
   try {
     programs = querySchedule(ch, viewed - 6 * 3600000, viewed + 6 * 3600000, { breaks: false, offAir: false }).programs;
   } catch (e) {

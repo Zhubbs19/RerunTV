@@ -13,8 +13,6 @@ globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
 const { createBreakDetectService, creditsTailStart, findBreakMarks, findCreditsStart, parseBlackLines, parseSilenceLines, parseDuration } = require('../main/media/breakdetect.js');
 
-const MIN = 60000;
-
 async function modules() {
   return { state: await load('core/state.js'), interstitials: await load('core/interstitials.js') };
 }

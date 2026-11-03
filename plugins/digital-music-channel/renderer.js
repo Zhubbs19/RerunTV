@@ -112,7 +112,7 @@ export function parseTrackMeta(filePath) {
 
   const parts = cleaned.split(/\s+-\s+/).map((p) => p.trim()).filter(Boolean);
   let artist = null;
-  let title = null;
+  let title;
   let album = null;
   if (parts.length >= 3) {
     // Artist - Album - [track] - Title. A track number only got stripped

@@ -198,7 +198,7 @@ async function main() {
       onActivity: createActivityBatcher((batch) => rpc.emit('net:activity', batch)),
     });
     const mainPath = path.join(pluginDir, manifest.main);
-    // eslint-disable-next-line import/no-dynamic-require, global-require
+    // eslint-disable-next-line global-require
     const mod = require(mainPath);
     const ctx = buildCtx(manifest, pluginDir, init);
     if (mod && typeof mod.activate === 'function') {

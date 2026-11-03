@@ -17,7 +17,7 @@
 // instead of two separate tabs.
 import { freshBlock, freshBroadcastHours } from '../core/channels.js';
 import { buildCommercialsPanel, buildTitlesPanel } from './panels.js';
-import { parsePositiveInt, probeDuration, toggleLazyPanel, showScanStatus, hideScanStatus, hideScanStatusAfter, safeApi } from './util.js';
+import { probeDuration, toggleLazyPanel, showScanStatus, hideScanStatus, hideScanStatusAfter, safeApi } from './util.js';
 import {
   computeSourcePosition, matchesTrigger, matchingBlocks, mdKey, resolveActiveCommercials, resolveActiveSource,
 } from '../core/schedule.js';

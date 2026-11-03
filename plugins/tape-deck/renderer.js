@@ -681,7 +681,7 @@ const sfxBufferCache = new Map();
 
 async function sfxBuffer(ctx, filePath) {
   if (sfxBufferCache.has(filePath)) return sfxBufferCache.get(filePath);
-  let buffer = null;
+  let buffer;
   try {
     const url = await window.api.toFileUrl(filePath);
     const response = await fetch(url);
@@ -780,7 +780,7 @@ const artUrlCache = new Map();
 async function artUrl(filePath) {
   if (!filePath) return null;
   if (artUrlCache.has(filePath)) return artUrlCache.get(filePath);
-  let url = null;
+  let url;
   try {
     url = await window.api.toFileUrl(filePath);
   } catch (e) {

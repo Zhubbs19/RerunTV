@@ -584,7 +584,7 @@ export async function renderPluginsList() {
       name.appendChild(version);
     }
     nameLine.appendChild(name);
-    let attention = false;
+    let attention;
     if (!p.error) {
       attention = needsAttention(p);
       const onlyUnapproved = attention && isOnlyUnapprovedPermissions(p);

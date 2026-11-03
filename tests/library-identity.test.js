@@ -190,10 +190,10 @@ test('an item WITH evidence at a ref still reads as replaced when the content di
 
 test('a content match whose own ref is still in the scan is a duplicate, not a move', () => {
   const content = fp(500, 10, 'sha1:ddd');
-  const known = [item('itm_1', 'J:\a.mkv', content)];
-  const observed = { ref: 'J:\copy\a.mkv', fingerprint: content };
+  const known = [item('itm_1', 'J:\\a.mkv', content)];
+  const observed = { ref: 'J:\\copy\\a.mkv', fingerprint: content };
   assert.equal(identity.classify(observed, known).kind, 'moved', 'with no scan context it still reads as a move');
-  const present = new Set(['J:\a.mkv', 'J:\copy\a.mkv']);
+  const present = new Set(['J:\\a.mkv', 'J:\\copy\\a.mkv']);
   const verdict = identity.classify(observed, known, present);
   assert.equal(verdict.kind, 'new');
   assert.equal(identity.isAutoApplicable(verdict), false);

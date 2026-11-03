@@ -1080,13 +1080,6 @@ export async function openLiveLogoBugEditor({ getProfiles, setProfiles, onLiveCh
 
   // ---------- Keyboard + numeric entry ----------
 
-  function maxPosition() {
-    return {
-      x: Math.max(0, 100 - selection.offsetWidth / W() * 100),
-      y: Math.max(0, 100 - selection.offsetHeight / H() * 100),
-    };
-  }
-
   // Moves to one of the nine spots with the usual gap from the edge.
   function placeAt(column, row) {
     const profile = activeProfile();

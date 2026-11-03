@@ -406,7 +406,7 @@ if (boxStatusCheckBtn) {
   boxStatusCheckBtn.addEventListener('click', async () => {
     boxStatusCheckBtn.disabled = true;
     boxStatusIssuesEl.textContent = '…';
-    let total = 0;
+    let total;
     try {
       total = await checkChannelHealth();
       boxStatusIssuesEl.textContent = String(total);

@@ -28,7 +28,7 @@ import { runCoreHooks } from '../plugin/host.js';
 import {
   computeSourcePosition, fillDayCounters, nextBlockStartMs, nextSourceBoundary, resolveActiveSource,
 } from '../core/schedule.js';
-import { S, saveConfigDebounced, viewNow, canPlay } from '../core/state.js';
+import { S, viewNow, canPlay } from '../core/state.js';
 import { autoHideAfter, formatClock, getDisplayTitle } from '../core/util.js';
 import { getChannel } from '../core/channels.js';
 import { playChannelLive } from './core.js';

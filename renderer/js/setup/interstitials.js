@@ -875,7 +875,6 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
 
     const secondGrid = document.createElement('div');
     secondGrid.className = 'field-grid field-grid-wide';
-    let secondGridUsed = false;
 
     let forcedTimingField = null;
     if (entry.type === 'commercial') {
@@ -902,7 +901,6 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       forcedTimingField = labeledField('FORCED TIMING', timingSelect);
       if (entry.contentTags && entry.contentTags.length) {
         secondGrid.appendChild(forcedTimingField);
-        secondGridUsed = true;
       }
     }
 
@@ -938,7 +936,6 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
         commitItemEdit('pool', [entry, prior]);
       });
       secondGrid.appendChild(labeledField('LEAD DAYS', leadInput));
-      secondGridUsed = true;
     }
 
     // Transition timing, all optional and all types — left blank, an entry
@@ -990,7 +987,6 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       commitItemEdit('pool', [entry, prior]);
     });
     secondGrid.appendChild(labeledField('WAIT AFTER (MS, BLANK = NONE)', waitInput));
-    secondGridUsed = true;
 
     if (typeDef.contentKind === 'video') {
       // Orthogonal to type — any video-kind entry can loop a background
@@ -1069,7 +1065,6 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
           commitItemEdit('pool', [entry, prior]);
         });
         secondGrid.appendChild(labeledField('SECONDS', durationInput));
-        secondGridUsed = true;
       } else {
         const fileBtn = document.createElement('button');
         fileBtn.className = 'btn';
@@ -1109,7 +1104,7 @@ function buildInterstitialCard(entry, idx, pool, { detail = false } = {}) {
       body.appendChild(labeledField('TEXT', textInput, { wide: true }));
     }
 
-    if (secondGridUsed) body.appendChild(secondGrid);
+    body.appendChild(secondGrid);
 
     card.appendChild(body);
     return card;

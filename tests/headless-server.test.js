@@ -211,12 +211,12 @@ test('Windows startup remains checked when Electron drops login-item arguments o
   const both = {
     openAtLogin: false,
     launchItems: [
-      { name: 'RerunTV Server', path: 'C:\Users\Example\RerunTV.exe', args: [], enabled: true },
-      { name: 'RerunTV', path: 'C:\Users\Example\RerunTV.exe', args: [], enabled: false },
+      { name: 'RerunTV Server', path: 'C:\\Users\\Example\\RerunTV.exe', args: [], enabled: true },
+      { name: 'RerunTV', path: 'C:\\Users\\Example\\RerunTV.exe', args: [], enabled: false },
     ],
   };
-  assert.deepEqual(statusFromLoginSettings(both, 'C:\Users\Example\RerunTV.exe', 'RerunTV'), { enabled: true, launchAllowed: false });
-  assert.deepEqual(statusFromLoginSettings({ ...both, launchItems: both.launchItems.slice(0, 1) }, 'C:\Users\Example\RerunTV.exe', 'RerunTV'), { enabled: false, launchAllowed: true });
+  assert.deepEqual(statusFromLoginSettings(both, 'C:\\Users\\Example\\RerunTV.exe', 'RerunTV'), { enabled: true, launchAllowed: false });
+  assert.deepEqual(statusFromLoginSettings({ ...both, launchItems: both.launchItems.slice(0, 1) }, 'C:\\Users\\Example\\RerunTV.exe', 'RerunTV'), { enabled: false, launchAllowed: true });
 });
 
 test('isolated plugin handshake listeners are installed before readiness events can race', () => {

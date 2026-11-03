@@ -121,7 +121,7 @@
     } catch (e) {
       // Thrown, not returned: state.js re-queues the batch under the same id
       // and the host dedupes the retry if the first one did in fact land.
-      throw new Error(`Could not reach the host: ${e.message}`);
+      throw new Error(`Could not reach the host: ${e.message}`, { cause: e });
     }
   }
 

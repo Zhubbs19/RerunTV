@@ -11,8 +11,6 @@ globalThis.window = globalThis.window || { matchMedia: () => ({ matches: false }
 
 const load = (name) => import(pathToFileURL(path.join(__dirname, '..', 'renderer', 'js', name)).href);
 
-const MIN = 60000;
-
 async function setup(programFit, pool = []) {
   const state = await load('core/state.js');
   const schedule = await load('core/schedule.js');

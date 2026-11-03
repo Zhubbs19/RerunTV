@@ -14,7 +14,6 @@ const HOUR = 3600000;
 // 2026-10-23 is a Friday. Local time throughout, as the resolvers use local getters.
 const at = (day, hour, min = 0) => new Date(2026, 9, day, hour, min, 0, 0).getTime();
 const FRI = 5;
-const SAT = 6;
 
 function dayBlock(overrides = {}) {
   return {

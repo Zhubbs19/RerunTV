@@ -305,10 +305,13 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   spawning multiple overlapping agents at it — that happened once, produced three redundant
   partial runs, and was slower overall than just running the script directly.
   `package.json`'s `"test"` script is `node scripts/run-tests.js`, which runs the tracked unit tests in
-  `tests/*.test.js` (not the CDP suite above; `npm test` gates commits).
+  `tests/*.test.js` (not the CDP suite above; `npm test` gates commits). `npm run lint` runs ESLint
+  (`eslint.config.js`) and CI fails on any finding, so fix what it reports rather than adding disable comments.
 - **What's New is hand-kept.** When a push to `deploy` ships something users would notice, add a dated entry at the top of
-  `CHANGELOG` in `renderer/js/setup/settings.js` (HELP › What's New) and, for something worth pointing at, a `HIGHLIGHTS`
-  item in `renderer/js/update/highlights.js` (the post-update card). The GitHub release body below it is auto-generated.
+  `CHANGELOG` in `renderer/js/setup/help.js` (HELP › What's New), run `node scripts/release-notes.js --changelog` to
+  regenerate `CHANGELOG.md` (a test fails until you do) and, for something worth pointing at, add a `HIGHLIGHTS`
+  item in `renderer/js/update/highlights.js` (the post-update card). The GitHub release body is built from the What's New
+  items added since the previous release, with GitHub's generated commit list below it.
 - Prefer editing existing files; keep helpers in their established home (`util.js` for
   renderer-wide helpers, a plugin's own file for plugin-local ones) rather than introducing a
   new shared module for a single use.

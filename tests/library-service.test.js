@@ -117,7 +117,7 @@ test('a scan refuses an unreachable root and one that is too big', async () => {
 });
 
 test('a changed file waits for review; both decisions are applied and re-probed', async () => {
-  const { service, final, dirs } = await builtService();
+  const { service, final } = await builtService();
   const rootId = final.index.roots[0].id;
   await service.call('scanRoot', { rootId });
   const index = await service.call('getIndex');

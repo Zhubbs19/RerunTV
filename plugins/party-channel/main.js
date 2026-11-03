@@ -513,7 +513,7 @@ async function activate(ctx) {
     // buffered up front (readRawBody) rather than left as a live stream,
     // since dispatchPartyRoute() may be relaying this to a different OS
     // process entirely.
-    let dispatched = null;
+    let dispatched;
     try {
       const body = (req.method === 'POST' || req.method === 'PUT') ? await readRawBody(req) : null;
       dispatched = await ctx.dispatchPartyRoute({

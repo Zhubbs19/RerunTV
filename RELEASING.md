@@ -16,10 +16,13 @@ Releases are `MAJOR.MINOR.PATCH-beta.N`.
 ## Before you push
 
 1. `master` is green: the **CI** and **CodeQL** runs pass, and there is nothing unreviewed in Dependabot.
-2. `npm test` passes locally.
+2. `npm run lint` and `npm test` pass locally.
 3. If something users will notice changed, add a dated entry at the top of `CHANGELOG` in
-   `renderer/js/setup/settings.js` (HELP > What's New), and a `HIGHLIGHTS` item in
-   `renderer/js/update/highlights.js` if it is worth a call-out.
+   `renderer/js/setup/help.js` (HELP > What's New), run `node scripts/release-notes.js --changelog`
+   to regenerate `CHANGELOG.md` (`npm test` fails until you do), and add a `HIGHLIGHTS` item in
+   `renderer/js/update/highlights.js` if it is worth a call-out. The release's notes are the What's
+   New items added since the previous release, so a release with no new items says it carries
+   maintenance only.
 4. For a new minor or major version, bump `version` in `package.json` **and** the two matching
    `version` fields at the top of `package-lock.json`.
 5. If the in-app manual or the README changed, regenerate the wiki (`node scripts/generate-wiki.js`,
@@ -40,7 +43,9 @@ release build. The workflow then:
 2. computes the version (`<base>-beta.<run number>`),
 3. builds the Windows installer with electron-builder,
 4. writes `SHA256SUMS.txt` and a signed build-provenance attestation for the installer,
-5. creates the GitHub pre-release with the installer, its blockmap, `latest.yml` and `SHA256SUMS.txt`.
+5. writes the release notes: What's New items added since the previous release's tag
+   (`scripts/release-notes.js`), followed by GitHub's generated list of commits and pull requests,
+6. creates the GitHub pre-release with the installer, its blockmap, `latest.yml` and `SHA256SUMS.txt`.
 
 When that workflow succeeds, the **Demo pack** workflow runs automatically and attaches
 `RerunTV-demo-library.zip` (generated, copyright-free test video, with a build attestation) to the
