@@ -1,8 +1,6 @@
 // Theme pack — palette (style.css) plus a CRT bias and a custom power-on/
-// off line animation (also style.css). Distinct from the pre-existing
-// "cyberpunk-synth" pack (violet/pink/cyan, angular, ITC-style borderImage)
-// — this one leans darker/blacker with magenta as the dominant accent and
-// a softer neon glow rather than a hard edge. See plugins.js's
+// off line animation (also style.css). Leans dark/black with magenta as
+// the dominant accent and a soft neon glow rather than a hard edge. See plugins.js's
 // registerThemePack doc comment for the full field contract.
 const { playTone } = window.RCBPlugins.ctx;
 window.RCBPlugins.registerThemePack('outrun-synthwave', {

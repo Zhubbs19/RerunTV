@@ -1,7 +1,7 @@
 /* The cable-guide UI: a second on-screen layout styled after a mid-2000s
    digital cable box's program guide, with two skins. Everything here is
    scoped to html[data-ui="cable-guide"], which only the two skin packs turn
-   on (cable-guide/mode.js), so the legacy layout and its 25 theme packs are
+   on (cable-guide/mode.js), so the legacy layout and its theme packs are
    untouched by this file.
 
    Rules the layout keeps: one body size, hierarchy by colour and position,

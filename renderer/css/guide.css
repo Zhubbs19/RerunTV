@@ -22,10 +22,9 @@
   max-width: var(--banner-max-width, 60%);
   /* Exposed as custom properties (not just a bare padding value) so a theme
      pack's own slot decoration can stay aligned with this card's actual,
-     responsive padding instead of guessing/hardcoding it — see
-     [data-slot="guide-banner-number"] in theme-widescreen-grid-13/style.css,
-     whose flush number chip cancels this padding on three sides via a
-     negative margin. A theme file can't reach into guide.css's clamp(), so
+     responsive padding instead of guessing/hardcoding it — e.g. a pack whose
+     [data-slot="guide-banner-number"] is a flush number chip that cancels
+     this padding on three sides via a negative margin. A theme file can't reach into guide.css's clamp(), so
      without these it either has to hardcode the clamp's ceiling (silently
      wrong, and clipping/misaligning the chip, whenever the clamp resolves
      below it — which is the common case at TV-mode or simulated-resolution
@@ -450,21 +449,6 @@ html[data-mode="tv"] .crt.guide-active.guide-docked .crt-flicker {
   padding-bottom: 12px;
   margin-bottom: 10px;
   border-bottom: 2px solid var(--border);
-}
-
-/* Guide layouts a theme picks by name (registerThemePack's guideLayout,
-   themes.js sets html[data-guide-layout]); docs/design/04 §4.1: layout is
-   core's, never a theme's structural CSS.
-   preview-left — first-generation HD guide: the live preview sits top-left and
-   a tall facts header beside it (widescreen-grid-13). */
-html[data-guide-layout="preview-left"] .crt.guide-active.guide-full:not(.guide-preview-hidden) #player {
-  left: var(--guide-preview-right) !important;
-  right: auto !important;
-}
-html[data-guide-layout="preview-left"] .guide-grid.full .guide-topbar {
-  min-height: 25%;
-  padding-left: calc(var(--guide-preview-w, 260px) + var(--guide-preview-right, 28px) + 14px);
-  padding-right: 0;
 }
 
 .guide-info-panel {

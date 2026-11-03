@@ -1126,8 +1126,8 @@ state suffixes are `.sel`, `.past`, `.digit-flash`, `.gi-update`,
 `[data-active="true"]`, `:hover`, `:focus-visible`, `:active`, `:disabled`, and
 `:nth-child(even)`.
 
-Use `plugins/theme-dual-tuner-dvr-05/style.css` as the maintained reference;
-`widescreen-grid-13` was the migration pilot. To convert an older pack:
+Use `plugins/theme-cloud-guide-16/style.css` as the maintained reference. To
+convert an older pack:
 
 1. replace palette declarations with semantic tokens;
 2. move shared control and selected-state rules into control tokens;

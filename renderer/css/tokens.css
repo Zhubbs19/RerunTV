@@ -40,7 +40,8 @@
 }
 
 /* Added for the Nine Signals theme packs (theme-master-control, -cable-box-
-   osd, -neo-brutalist, -outrun-synthwave, -frutiger-aero) — bundled locally
+   osd, -outrun-synthwave, and others since removed; the fonts stay pickable
+   as display-font overrides) — bundled locally
    like every other font here, not loaded from Google Fonts at runtime, per
    the app's offline-first rule. Declared in core so a theme pack's own
    style.css only ever needs to reference the family name via

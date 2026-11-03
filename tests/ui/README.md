@@ -150,8 +150,8 @@ paths, and real guide data actually render, instead of "OFF THE AIR"
 placeholders. The copy is what Electron launches against; the real
 `userData/` on disk is never touched by the running app itself.
 
-Add `-Theme <id>` (e.g. `-Theme cyberpunk-synth`) to sweep just one theme
-for a quick check instead of all ~23 — useful when iterating on a single
+Add `-Theme <id>` (e.g. `-Theme outrun-synthwave`) to sweep just one theme
+for a quick check instead of all 13 — useful when iterating on a single
 theme's CSS.
 
 Output: `tests/ui/theme-sweep-screenshots/theme-<id>/*.png` (override with
@@ -183,7 +183,7 @@ assume it hung if it's still running after a few minutes.
 - One theme's runtime error must not abort the whole sweep — the per-theme
   loop in `theme-visual-sweep.mjs` is wrapped in try/catch, records the
   error into `report.json`, and moves on. (This is how the sweep itself
-  caught a real bug: `theme-cyberpunk-synth/renderer.js` was missing the
+  caught a real bug: `theme-cyberpunk-synth/renderer.js` (since removed) was missing the
   `const { playTone } = window.RCBPlugins.ctx;` top-level destructure every
   other theme pack has, so every channel change on that theme threw and
   silently ate the SFX — fixed once, not by this script, but the sweep is

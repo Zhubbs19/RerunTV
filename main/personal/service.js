@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const { atomicWriteFileSync } = require('../util/atomic-write');
+const { currentThemeId } = require('../config/renamed-plugins');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
@@ -60,7 +61,7 @@ function normalizeProfile(raw, fallback = {}) {
         tunerLimit: Math.max(0, Math.floor(Number(state.dvrPolicy?.tunerLimit) || 0)),
       },
       history: Array.isArray(state.history) ? state.history.slice(-2000) : [],
-      theme: typeof state.theme === 'string' ? state.theme : null,
+      theme: typeof state.theme === 'string' ? currentThemeId(state.theme) : null,
       era: typeof state.era === 'string' ? state.era : null,
     },
   };

@@ -1,9 +1,0 @@
-{
-  "id": "theme-passport-03",
-  "name": "Cobalt Grid '03",
-  "version": "1.0.0",
-  "description": "Theme pack: early-2000s deep navy guide with amber-yellow selection, aqua channel rails, and remote-color-button hints.",
-  "category": "theme",
-  "renderer": "renderer.js",
-  "style": "style.css"
-}

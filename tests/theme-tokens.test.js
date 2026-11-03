@@ -51,7 +51,7 @@ test('core tokens resolve with no cycles, desktop, TV and body', () => {
 });
 
 test('every first-party pack uses semantic names and resolves every semantic token', () => {
-  assert.ok(themeDirs.length >= 25, `found ${themeDirs.length} theme packs`);
+  assert.ok(themeDirs.length >= 13, `found ${themeDirs.length} theme packs`);
   for (const dir of themeDirs) {
     const pack = packBlock(dir);
     const { atHtml } = cascade(pack);

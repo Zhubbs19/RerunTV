@@ -339,7 +339,7 @@ for (const id of themes) {
   await wait(300);
   const osk = await js(() => { const p = document.querySelector('.osk-panel')?.getBoundingClientRect(); return p ? { inside: p.top >= 0 && p.bottom <= window.innerHeight + 1 && p.left >= 0 && p.right <= window.innerWidth + 1 } : null; });
   if (!osk || !osk.inside) problems.push(`${id} keyboard ${JSON.stringify(osk)}`);
-  if (id === themes[0] || id === 'frutiger-aero') await shot(`theme-${id}-osk`);
+  if (id === themes[0] || id === 'network-primetime-90s') await shot(`theme-${id}-osk`);
   await android('back'); await wait(200);
 }
 record(`TV menu and keyboard fit on screen with 64 px targets in all ${themes.length} themes`, problems.length === 0, problems.join(' | '));

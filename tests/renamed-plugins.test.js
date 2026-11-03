@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { migrateRenamedPlugins } = require('../main/config/renamed-plugins');
+const fs = require('node:fs');
+const path = require('node:path');
+const { migrateRenamedPlugins, currentThemeId, RETIRED_THEME_IDS } = require('../main/config/renamed-plugins');
 
 test('old plugin ids are moved to the new ids in every place config keys on them', () => {
   const cfg = {
@@ -37,4 +39,32 @@ test('an existing new-id value wins over a stale old-id value', () => {
   const cfg = { pluginSettings: { prevue: { a: 1 }, 'guide-channel': { a: 2 } } };
   migrateRenamedPlugins(cfg);
   assert.deepEqual(cfg.pluginSettings, { 'guide-channel': { a: 2 } });
+});
+
+test('a removed theme pack moves to its kept replacement and its plugin config is dropped', () => {
+  const cfg = {
+    theme: 'widescreen-grid-13',
+    plugins: {
+      disabled: ['theme-neo-brutalist', 'ticker'],
+      approvedCapabilities: { 'theme-dark-grid-12': 'x', ticker: 'y' },
+    },
+    pluginSettings: { 'theme-frutiger-aero': {} },
+    eras: { snapshot: { theme: 'cyberpunk-synth' } },
+  };
+  assert.equal(migrateRenamedPlugins(cfg), true);
+  assert.equal(cfg.theme, 'cable-guide-hd-15');
+  assert.equal(cfg.eras.snapshot.theme, 'outrun-synthwave');
+  assert.deepEqual(cfg.plugins.disabled, ['ticker']);
+  assert.deepEqual(cfg.plugins.approvedCapabilities, { ticker: 'y' });
+  assert.deepEqual(cfg.pluginSettings, {});
+  assert.equal(migrateRenamedPlugins(cfg), false);
+});
+
+test('every removed theme maps to a pack that still ships', () => {
+  for (const [from, to] of Object.entries(RETIRED_THEME_IDS)) {
+    assert.ok(!fs.existsSync(path.join(__dirname, '..', 'plugins', `theme-${from}`)), `${from} should be gone`);
+    assert.ok(fs.existsSync(path.join(__dirname, '..', 'plugins', `theme-${to}`, 'manifest.json')), `${from} -> ${to} must exist`);
+  }
+  assert.equal(currentThemeId('dual-tuner-dvr-05'), 'cable-guide-classic-05');
+  assert.equal(currentThemeId('wood-console-70s'), 'wood-console-70s');
 });

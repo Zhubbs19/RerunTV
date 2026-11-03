@@ -104,7 +104,7 @@ record('Ctrl+Enter returns to live TV from anywhere in setup', !(await setupVisi
 // A few theme packs: the shell keeps its layout under their rules.
 await openSetup();
 await wait(1000);
-const themes = ['outrun-synthwave', 'passport-03', 'hotel-headend-92', 'neo-brutalist', 'analog-90s'];
+const themes = ['outrun-synthwave', 'scrolling-guide-94', 'master-control', 'network-primetime-90s', 'analog-90s'];
 const themeLayouts = [];
 for (const theme of themes) {
   const layout = await page.evaluate(async (id) => {

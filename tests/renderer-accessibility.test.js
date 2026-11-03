@@ -105,28 +105,14 @@ test('flagship era themes own guide motion while every theme keeps a core fallba
   const guide = fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'guide.css'), 'utf8');
   assert.match(guide, /--theme-guide-enter-x, 0px/);
   assert.match(guide, /--theme-guide-enter-ease, ease-in-out/);
-  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'scrolling-guide-94', 'cable-box-osd', 'addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
+  for (const id of ['wood-console-70s', 'uhf-public-access-80s', 'vhs-retro-80s', 'analog-90s', 'scrolling-guide-94', 'cable-box-osd']) {
     const css = fs.readFileSync(path.join(ROOT, 'plugins', `theme-${id}`, 'style.css'), 'utf8');
     assert.match(css, /--theme-guide-enter-x:/, `${id} needs an era-specific guide entrance`);
     assert.match(css, /--theme-guide-enter-ease:/, `${id} needs an era-specific guide easing`);
   }
 });
 
-test('new cable-box themes include visual, guide, sound, caption, and era behavior', () => {
-  for (const id of ['addressable-converter-89', 'dual-tuner-dvr-05', 'hotel-headend-92']) {
-    const base = path.join(ROOT, 'plugins', `theme-${id}`);
-    const manifest = JSON.parse(fs.readFileSync(path.join(base, 'manifest.json'), 'utf8'));
-    const renderer = fs.readFileSync(path.join(base, 'renderer.js'), 'utf8');
-    const css = fs.readFileSync(path.join(base, 'style.css'), 'utf8');
-    assert.equal(manifest.category, 'theme');
-    assert.match(renderer, /group: 'REAL CABLE-BOX UI'/);
-    assert.match(renderer, /guidePreviewDefault:/);
-    assert.match(renderer, /captionStyle:/);
-    assert.match(renderer, /channelChangeSfx\(\)/);
-    assert.match(renderer, /powerSfx\(isOn\)/);
-    assert.match(css, new RegExp(`html\\[data-theme="${id}"\\]`));
-    assert.match(css, /--guide-row-height:/);
-  }
+test('theme guide and power motion stop under reduced motion', () => {
   const motionCore = [
     fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'guide.css'), 'utf8'),
     fs.readFileSync(path.join(ROOT, 'renderer', 'css', 'overlays.css'), 'utf8'),

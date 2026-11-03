@@ -537,6 +537,9 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-08', items: [
+    'Fourteen older themes are gone: the blue guide grids the Cable Guide skins replaced, near-copies of other themes, and looks not based on a TV box. If you used one, your box switches to the closest theme still included (most go to Cable Guide HD ’15 or Classic ’05).',
+  ] },
   { date: '2026-11-07', items: [
     'RerunTV opens about a second sooner: plugins that run in their own process now start side by side instead of one after another. A plugin still waits for the plugins it depends on.',
   ] },

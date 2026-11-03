@@ -5,8 +5,10 @@ Consumed by: 01, 03, 06, 10, plugins.
 
 Completion update (2026-09-15): contrast checking and structural theme lint live in
 `renderer/js/display/`; all 25 first-party packs now use semantic tokens and documented
-slots, and CI checks every pack. `widescreen-grid-13` was the migration pilot;
-`dual-tuner-dvr-05` is the maintained authoring reference. The conversion guide is in
+slots, and CI checks every pack. `widescreen-grid-13` was the migration pilot and
+`dual-tuner-dvr-05` the authoring reference; both were removed on 2026-11-03 with twelve
+other packs (`main/config/renamed-plugins.js` moves their users to a kept pack), and
+`cloud-guide-16` is the maintained reference now. The conversion guide is in
 `PLUGIN_DEVELOPMENT.md`, and the class-level compatibility rules that required the old
 specificity chain have been removed. See [the implementation audit](12-remaining-work-audit-2026-09-15.md).
 

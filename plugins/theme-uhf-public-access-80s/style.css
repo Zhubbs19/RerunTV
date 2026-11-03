@@ -3,9 +3,9 @@
    ambientTexture/border registration. */
 
 /* Late-Night UHF, 1988: hot magenta & cyan on near-black, grittier and
-   flatter than the existing 80s Neon Cyberpunk theme — less gloss, harder
-   shadows, a "signal that can't quite hold" feel rather than a clean synth
-   glow. Distinct from cyberpunk-synth/vhs-retro-80s by intent: this one is
+   flatter than Outrun Synthwave — less gloss, harder shadows, a "signal
+   that can't quite hold" feel rather than a clean synth glow. Distinct from
+   outrun-synthwave/vhs-retro-80s by intent: this one is
    scrappy public-access-at-2am, not a glossy arcade. */
 html[data-theme="uhf-public-access-80s"] {
   --motion-control-duration: 65ms; --motion-control-ease: steps(2, end); --motion-control-hover: translateX(1px); --motion-control-active: translate(2px, 1px);

@@ -489,7 +489,7 @@
      theme's own `[data-theme] select` override, which only touches
      background-image) tiles across the entire control instead of sitting
      once in the corner — barely visible on a dark button fill, glaring on
-     a light one (frutiger-aero, neo-brutalist) where it reads as an
+     a light one where it reads as an
      illegible chevron/hatch texture over the label. */
   background-repeat: no-repeat;
 }
@@ -544,7 +544,7 @@
      "PLAIN BARS, NO BORDER OR AMBIENT HUM"), and nowrap doesn't shrink text
      to fit — it just keeps extending the label past its own box with
      nothing to stop it, invisibly bleeding past the panel's edge (worse
-     under a theme with a wider --font-ui, like neo-brutalist's monospace,
+     under a theme with a wider --font-ui, like a monospace one,
      but present in every theme — found live). Plain wrapping is strictly
      safer: short labels still render on one line since they fit, long ones
      now wrap onto a second line inside their own panel instead of
@@ -2356,7 +2356,7 @@ html[data-theme] .btn[aria-disabled="true"] {
      column. min-width: 0 lets the panel actually shrink to its track's
      width, so the select/label overflow handling below (max-width/ellipsis,
      tokens.css; wrapping, .shuffle-toggle below) has a real box to work
-     against. Found live: neo-brutalist's wider monospace --font-ui pushed
+     against. Found live: a theme's wider monospace --font-ui pushed
      the APP DISPLAY MODE panel's WINDOW MODE select past its own card
      border into the next one, at the exact same declared font-size as
      every other theme. */
@@ -5578,7 +5578,7 @@ html[data-theme] .btn[aria-disabled="true"] {
    leans the accent toward the theme's own --paper text colour, so the hue
    stays recognisable and contrast follows whatever the theme made readable. */
 #setup-screen {
-  /* Mid-toned panels (slate-grid-10's greys, aqua-grid-06's teals) leave little room above 4.5:1,
+  /* Mid-toned panels (greys, teals) leave little room above 4.5:1,
      so these keep only a hint of the accent. */
   --text-accent: color-mix(in srgb, var(--accent-2) 30%, var(--text));
   --text-gold: color-mix(in srgb, var(--accent) 40%, var(--text));

@@ -1,7 +1,6 @@
 /* Outrun Synthwave — sincere retro-futurism: near-black-purple ground,
    magenta as the dominant accent, cyan secondary, a soft neon glow instead
-   of a hard edge (that's the pre-existing "cyberpunk-synth" pack's
-   territory — this one is darker and warmer toward magenta/black).
+   of a hard edge, dark and warm toward magenta/black.
    See renderer.js for the registration call. */
 html[data-theme="outrun-synthwave"] {
   --motion-control-duration: 140ms; --motion-control-ease: cubic-bezier(.2,.8,.2,1); --motion-control-hover: translateY(-2px) scale(1.02); --motion-control-active: translateY(1px) scale(.98);
