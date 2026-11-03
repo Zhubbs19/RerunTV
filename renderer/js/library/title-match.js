@@ -118,10 +118,16 @@ export function rankByYear(results, year, prefer = null) {
 export function plainSummary(html) {
   if (!html) return '';
   const entities = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', '#39': "'" };
-  return String(html)
+  let text = String(html)
     .replace(/<br\s*\/?>/gi, ' ')
-    .replace(/<\/p>\s*<p>/gi, ' ')
-    .replace(/<[^>]*>?/g, '') // `>?` also drops a tag left unclosed at the end ("text <script")
+    .replace(/<\/p>\s*<p>/gi, ' ');
+  // Strip tags until none are left, so an unclosed ("text <script") or nested one can't survive.
+  let previous;
+  do {
+    previous = text;
+    text = text.replace(/<[^>]*>?/g, '');
+  } while (text !== previous);
+  return text
     .replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, code) => {
       if (code[0] === '#') {
         const n = code[1].toLowerCase() === 'x' ? parseInt(code.slice(2), 16) : parseInt(code.slice(1), 10);

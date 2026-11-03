@@ -1,0 +1,9 @@
+# Known advisories OSV-Scanner (and OpenSSF Scorecard's Vulnerabilities check) should skip.
+# Every entry needs a reason and an end date, so it gets looked at again.
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-01
+reason = """minimatch, reached only through electron-builder at build time (asar, glob 7, filelist, \
+@electron/universal). The fix is minimatch 11, whose ESM export breaks those callers, and the glob \
+patterns come from our own build config. Drop this once electron-builder moves to minimatch 11."""
