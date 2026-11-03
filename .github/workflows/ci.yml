@@ -27,8 +27,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Unit and contract tests
-        run: npm test
+      - name: Unit and contract tests (with a coverage report)
+        run: npm test -- --coverage
 
   gradle-wrapper:
     name: Gradle wrapper checksums

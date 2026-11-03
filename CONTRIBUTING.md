@@ -25,6 +25,7 @@ npm install
 npm start      # run the app from source
 npm test       # unit tests (must pass before you open a PR)
 npm run lint   # ESLint (eslint.config.js); CI fails on any finding
+npm run test:coverage  # the same tests with a line/branch coverage report
 ```
 
 Read `CLAUDE.md` first: it explains the one invariant that matters most (schedule and

@@ -16,6 +16,7 @@
     "server": "electron . --server",
     "headless": "electron . --headless",
     "test": "node scripts/run-tests.js",
+    "test:coverage": "node scripts/run-tests.js --coverage",
     "lint": "eslint .",
     "test:contracts": "node scripts/validate-plugin-contracts.js",
     "pack": "electron-builder --dir --config electron-builder.config.js",

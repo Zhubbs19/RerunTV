@@ -12,6 +12,13 @@ Releases are `MAJOR.MINOR.PATCH-beta.N`.
   reset when the base changes), so every release is newer than the one before it.
 - Every release is marked a pre-release, and CI keeps only the latest one published. Older
   pre-releases are deleted when a new one is created.
+- Every release keeps a git tag. When a release is replaced, CI tags its commit `archive/<tag>`
+  (for example `archive/v0.2.0-beta.24`) before deleting the release and its `v` tag, and
+  `CHANGELOG.md` keeps its notes. The updater skips `archive/` tags because they are not version
+  numbers (`tests/release-tags.test.js`).
+- **Before the first release without `-beta`:** an installed non-beta version makes electron-updater
+  take the newest entry in the releases feed without checking that it is a version, and that entry
+  could be an `archive/` tag. Re-check the updater's behaviour before shipping one.
 
 ## Before you push
 

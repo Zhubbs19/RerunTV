@@ -103,7 +103,18 @@ jobs:
           # out before that release and its tag are deleted below.
           prev_tag=$(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease,createdAt -q '[.[] | select(.isPrerelease)] | sort_by(.createdAt) | last | .tagName // ""')
           node scripts/release-notes.js --since "$prev_tag" > dist/whats-new.md
+          # Every release keeps a git tag: before a release and its vX tag go,
+          # the same commit is tagged archive/<tag>. Bare tags show up in
+          # GitHub's releases.atom feed, which electron-updater's GitHub
+          # provider reads; there the slash arrives as "%2F", the tag isn't
+          # valid semver, and the beta channel skips it. A plain vX tag with
+          # no release behind it would be offered as an update and 404.
           for old_tag in $(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName,isPrerelease -q '.[] | select(.isPrerelease) | .tagName'); do
+            old_sha=$(git rev-list -n 1 "refs/tags/$old_tag" 2>/dev/null || true)
+            if [ -n "$old_sha" ]; then
+              gh api "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/archive/$old_tag" -f sha="$old_sha" > /dev/null \
+                || echo "::warning::Could not keep archive/$old_tag"
+            fi
             gh release delete "$old_tag" --repo "${{ github.repository }}" --yes --cleanup-tag
           done
           tag="v${{ steps.version.outputs.version }}"

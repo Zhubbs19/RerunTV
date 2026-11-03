@@ -96,7 +96,7 @@ the channel-change static and CRT flicker.
 
 ## Requirements
 
-- [Node.js](https://nodejs.org) v22.12 or newer (required to install Electron 43)
+- [Node.js](https://nodejs.org) v22.12 or newer (required to install Electron 45)
 - Optional: [ffmpeg](https://ffmpeg.org/download.html) on your system PATH, for codec
   transcode
 
@@ -526,7 +526,9 @@ npm run dist    # Windows installer (NSIS)
 ```
 
 `npm test` runs tracked release-gating tests plus the plugin contract validator and fails
-if no tests are discovered. The larger real-Electron/CDP suite lives under the tracked
+if no tests are discovered. It runs Node with `--throw-deprecation --pending-deprecation`, so a
+deprecated API fails a test instead of printing a warning. `npm run test:coverage` (what CI runs)
+adds a line, branch and function coverage report for the app code the tests load. The larger real-Electron/CDP suite lives under the tracked
 `tests/ui/` working directory; run it with
 `powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1`. (Scratch scripts named
 `tests/ui/audit-*.mjs` or `tests/ui/_tmp_*` are gitignored; see `tests/ui/README.md`.)
