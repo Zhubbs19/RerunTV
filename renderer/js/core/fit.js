@@ -21,8 +21,10 @@
 // credits and, if that isn't enough, playing the whole program a few percent
 // fast ("time compression"). Shortening is capped (maxTrimMinutes,
 // maxSpeedupPct, creditsMaxSqueezeSeconds); anything that would need more
-// is extended instead. Pure: depends only on (files, settings).
+// is extended instead. Pure: depends only on (files, settings), a file's
+// fades to black (breakMarks) included.
 import { S } from './state.js';
+import { fadeSnapWindowMs, fadesOf, snapOffsetsToFades } from './fades.js';
 
 export const FIT_DEFAULTS = Object.freeze({
   enabled: false,
@@ -132,6 +134,23 @@ function isMovie(file) {
   return !!(file && file.facets && file.facets.contentType === 'movie');
 }
 
+// Where a spread layout's n-1 in-program breaks go, in seconds of the
+// program (before its credits): even points, each moved to a nearby fade to
+// black while PROGRAMMING › CADENCE & PRESETS › "Line up mid-show breaks with
+// fades" is on (core/fades.js). A point with no fade in reach keeps its even
+// spot; one crowded out by its neighbour is dropped, and its time goes to the
+// break after the program.
+function spreadBreakPoints(file, body, n) {
+  const even = [];
+  for (let k = 1; k < n; k++) even.push((body * k) / n);
+  const windowMs = even.length ? fadeSnapWindowMs(S.config) : 0;
+  const fades = windowMs ? fadesOf(file) : null;
+  if (!fades) return even;
+  return snapOffsetsToFades(even.map((s) => s * 1000), fades, windowMs)
+    .filter((ms) => ms != null && ms > 0 && ms < body * 1000)
+    .map((ms) => ms / 1000);
+}
+
 // The plan for one program starting cursorS seconds into a grid-aligned loop.
 // Returns null when the file airs as is: zero length, or shorter than
 // minProgramMinutes (a run of shorts is fitted as a group, by whichever full
@@ -192,6 +211,7 @@ export function planFit(file, cursorS, isLast, cfg) {
     n = Math.max(1, Math.min(n, Math.floor(breakTotal / MIN_SPREAD_BREAK_S)));
   }
   const breakLen = Math.floor(breakTotal / n);
+  const points = spreadBreakPoints(file, body, n);
   const segments = [];
   let air = 0;
   let content = 0;
@@ -207,10 +227,10 @@ export function planFit(file, cursorS, isLast, cfg) {
     segments.push({ kind: 'break', airStart: air, airEnd: air + len, contentAt: content, index });
     air += len;
   };
-  for (let k = 1; k < n; k++) {
-    pushContent((body * k) / n, rateBody);
-    pushBreak(breakLen, k - 1);
-  }
+  points.forEach((at, i) => {
+    pushContent(at, rateBody);
+    pushBreak(breakLen, i);
+  });
   pushContent(body, rateBody);
   if (leadUsed > 0) {
     const creditsSeg = { kind: 'credits', airStart: air, airEnd: air + leadUsed / rateCredits, contentStart: content, rate: rateCredits };
@@ -219,7 +239,7 @@ export function planFit(file, cursorS, isLast, cfg) {
     content = d;
   }
   // The last break takes whatever is left, so the segments end exactly on the slot.
-  pushBreak(slot - air, n - 1);
+  pushBreak(slot - air, points.length);
 
   return {
     slotS: slot,

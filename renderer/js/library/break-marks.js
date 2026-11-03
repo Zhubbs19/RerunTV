@@ -2,15 +2,20 @@
 // host-only libraryCall 'detectBreakMarks') and saving them on every playlist
 // entry for the file as `breakMarks: [{ at, strength }]`. An empty list means
 // "looked, found none", so a file is never decoded twice. What the marks do
-// to the schedule is interstitials.js midSlots, behind PROGRAMMING › CADENCE & PRESETS ›
-// "Line up mid-show breaks with fades".
+// to the schedule is interstitials.js midSlots (and fit.js's spread breaks on
+// a fitted channel), behind PROGRAMMING › CADENCE & PRESETS › "Line up mid-show
+// breaks with fades".
 import { resolveActiveCommercials } from '../core/schedule.js';
+import { fitConfigFor } from '../core/fit.js';
 import { localPathOf } from './local-metadata.js';
 import { shareFileFields } from './file-copies.js';
 
 /** Whether a channel's current cadence puts breaks inside shows, not only between them. */
 export function hasMidShowBreaks(ch, atMs) {
   try {
+    // A fitted channel's breaks are its slot plan's; 'spread' puts some inside each program.
+    const fit = fitConfigFor(ch);
+    if (fit) return fit.breakPlacement === 'spread';
     const cc = resolveActiveCommercials(ch, atMs).commercials;
     if (!cc || cc.enabled === false || ch.adsEnabled === false) return false;
     return cc.timing === 'everyNMinutes' || cc.timing === 'breakpoints' || (cc.timing === 'flow' && !!cc.hasMid);

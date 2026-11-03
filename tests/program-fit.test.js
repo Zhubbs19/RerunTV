@@ -266,3 +266,25 @@ test('a fitted break picks the ads and bumpers the channel flow tags for its pod
   const ads = segs.filter((s) => s.type === 'commercial');
   assert.deepEqual(ads.map((s) => s.entry.id), ['ad'], 'the flow-tagged ad, once; never the other channel tag');
 });
+
+test('spread breaks move to the program\'s fades to black when that switch is on', async () => {
+  const { fit, state, interstitials } = await setup();
+  const show = { path: 'a', duration: 22 * 60, breakMarks: [{ at: 300, strength: 0.4 }, { at: 700, strength: 1 }] };
+  const inProgram = (plan) => plan.segments.filter((s) => s.kind === 'break' && s.airEnd < plan.slotS - 1e-6).map((s) => s.contentAt);
+  // The one in-program break sits halfway through the program (before its 90 s of credits).
+  assert.deepEqual(inProgram(fit.planFit(show, 0, false, cfgOf(fit))), [615]);
+  state.S.config.commercials.snapToFades = true;
+  state.S.configGeneration += 1;
+  const plan = fit.planFit(show, 0, false, cfgOf(fit));
+  assert.deepEqual(inProgram(plan), [700], 'the fade 85 s later wins');
+  assert.ok(Math.abs(segTotal(plan) - 1800) < 1e-6, 'segments still fill the slot exactly');
+  // The schedule follows the plan: the break airs when the program reaches the fade.
+  const ch = channel([show], new Date(2026, 10, 2, 8, 0).getTime());
+  const brk = plan.segments.find((s) => s.kind === 'break');
+  assert.ok(interstitials.resolveBreakAt(ch, ch.anchor + (brk.airStart + 2) * 1000), 'a break is on at the fade');
+  assert.equal(interstitials.resolveBreakAt(ch, ch.anchor + 650 * 1000), null, 'and not at the old halfway point');
+  // A fade out of reach leaves the break where it was.
+  state.S.config.commercials.snapWindowMinutes = 1;
+  state.S.configGeneration += 1;
+  assert.deepEqual(inProgram(fit.planFit(show, 0, false, cfgOf(fit))), [615]);
+});
