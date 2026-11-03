@@ -24,12 +24,14 @@ import {
   attachTagAutocomplete, buildBreakpointTrack, buildDeadTagWarning, buildMediaThumbnail, buildPreemptionWindowsEditor,
   emptyState, parsePositiveInt, probeDuration, probeDurationForEntry, showScanStatus, hideScanStatus, hideScanStatusAfter, safeApi,
 } from './util.js';
-import { S, commitInPlace, commitItemEdit, dispatch } from '../core/state.js';
+import { S, commitConfigPatch, commitInPlace, commitItemEdit, dispatch, viewNow } from '../core/state.js';
 import {
   buildProviderSelect, ensureMediaSourceProvidersLoaded, getMediaSourceProviders, pickFolderRefForProvider,
 } from './media-sources.js';
 import { alertDialog, confirmDialog } from './dialogs.js';
 import { basenameNoExt, debounce } from '../core/util.js';
+import { filesNeedingMarks, findFades, hasMidShowBreaks } from '../library/break-marks.js';
+import { beginTask } from './tasks.js';
 import { MenuButton } from '../ui/menu.js';
 import { renderProgramFitPanel } from './program-fit.js';
 
@@ -352,7 +354,58 @@ export function renderCommercialsPanel() {
   const cm = S.config.commercials;
   commercialsIntervalEl.value = cm.intervalMinutes || 10;
   for (const [el, key] of NO_REPEAT_TOGGLES) el.checked = cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
+  if (snapFadesEl) snapFadesEl.checked = !!cm.snapToFades;
+  if (snapWindowEl) snapWindowEl.value = cm.snapWindowMinutes || 3;
 }
+
+// Mid-show breaks lined up with fades (core/interstitials.js midSlots).
+const snapFadesEl = document.getElementById('commercials-snap-fades');
+const snapWindowEl = document.getElementById('commercials-snap-window');
+const findFadesBtn = document.getElementById('commercials-find-fades-btn');
+const findFadesStatus = document.getElementById('commercials-find-fades-status');
+snapFadesEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['commercials', 'snapToFades'], value: snapFadesEl.checked });
+});
+snapWindowEl?.addEventListener('change', () => {
+  const minutes = Math.min(15, parsePositiveInt(snapWindowEl.value, 3));
+  snapWindowEl.value = minutes;
+  dispatch({ type: 'settings.set', path: ['commercials', 'snapWindowMinutes'], value: minutes });
+});
+
+// FIND FADES: the shows on channels that break inside them, one ffmpeg pass
+// each. Each file's result is recorded as it arrives, so STOP (the same
+// button) keeps everything found so far and the next run skips it.
+let findingFades = null;
+findFadesBtn?.addEventListener('click', async () => {
+  if (findingFades) { findingFades.stop = true; findFadesBtn.disabled = true; return; }
+  if (!window.api || typeof window.api.libraryCall !== 'function') { alertDialog('Fades can only be found on the host computer.'); return; }
+  const now = viewNow();
+  const channels = (S.config.channels || []).filter((ch) => hasMidShowBreaks(ch, now));
+  const files = filesNeedingMarks(channels);
+  if (!channels.length) { findFadesStatus.textContent = 'No channel breaks inside its shows right now, so there is nothing to line up.'; return; }
+  if (!files.length) { findFadesStatus.textContent = `Every show on ${channels.length} channel${channels.length === 1 ? '' : 's'} with mid-show breaks has been checked.`; return; }
+  findingFades = { stop: false };
+  findFadesBtn.textContent = 'STOP';
+  const task = beginTask('FINDING FADES…');
+  try {
+    const result = await findFades(S.config, files, {
+      shouldStop: () => findingFades.stop,
+      onProgress: (i, total) => {
+        task.update(`FINDING FADES ${i + 1} / ${total}…`);
+        findFadesStatus.textContent = `Checking show ${i + 1} of ${total}…`;
+      },
+      save: () => commitConfigPatch('Find fades in shows', { delay: 1000, skipUndo: true }),
+    });
+    findFadesStatus.textContent = result.unavailable
+      ? 'ffmpeg wasn’t found, so fades can’t be found (SYSTEM › ffmpeg).'
+      : `Checked ${result.checked} show${result.checked === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with.${findingFades.stop ? ' Stopped — FIND FADES picks up where it left off.' : ''}`;
+  } finally {
+    findingFades = null;
+    findFadesBtn.textContent = 'FIND FADES';
+    findFadesBtn.disabled = false;
+    task.end();
+  }
+});
 
 const NO_REPEAT_TOGGLES = [
   [commercialsNoRepeatEl, 'noRepeatCommercials'],

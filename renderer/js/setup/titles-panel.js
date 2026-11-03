@@ -10,6 +10,7 @@ import { confirmDialog, alertDialog, promptDialog } from './dialogs.js';
 import { beginTask } from './tasks.js';
 import { describeFilled, fileFieldsFromLocal, localMetadataPrefs, localPathOf, readLocalMetadata } from '../library/local-metadata.js';
 import { shareFileFields } from '../library/file-copies.js';
+import { findFades } from '../library/break-marks.js';
 import { fileAtOrder, folderFileOrder, naturalFileOrder, seededFileOrder } from '../playback/order.js';
 
 // Downloads a mediaSource-plugin file's full bytes to a local folder (via
@@ -421,6 +422,35 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
     renderRows(search.value);
   });
 
+  // The fades to black in the selected shows, where their act breaks were
+  // (library/break-marks.js). Saved on every copy of each file; what they do
+  // to the schedule is PROGRAMMING › "Line up mid-show breaks with fades".
+  const bulkFadesBtn = document.createElement('button');
+  bulkFadesBtn.type = 'button';
+  bulkFadesBtn.className = 'btn';
+  bulkFadesBtn.textContent = 'FIND ACT BREAKS';
+  bulkFadesBtn.title = 'Find the fades to black in the selected files, where they were cut for commercials when they first aired. About half a minute per episode, a few minutes per film.';
+  bulkFadesBtn.addEventListener('click', async () => {
+    if (!selected.size) return;
+    const files = Array.from(selected).filter((f) => localPathOf(f.path));
+    if (!files.length) { alertDialog('None of the selected files is on this computer.'); return; }
+    if (!window.api || typeof window.api.libraryCall !== 'function') { alertDialog('Act breaks can only be found on the host computer.'); return; }
+    bulkFadesBtn.disabled = true;
+    const task = beginTask('FINDING ACT BREAKS…');
+    let result;
+    try {
+      result = await findFades(S.config, files, { onProgress: (i, total) => task.update(`FINDING ACT BREAKS ${i + 1} / ${total}…`) });
+    } finally {
+      task.end();
+      bulkFadesBtn.disabled = false;
+    }
+    if (result.checked) commitConfigPatch('Find act breaks', { delay: 100 });
+    if (result.unavailable) { alertDialog('ffmpeg wasn’t found, so act breaks can’t be found (SYSTEM › ffmpeg).'); return; }
+    const snapOff = !(S.config.commercials && S.config.commercials.snapToFades);
+    alertDialog(`Checked ${result.checked} of ${files.length} file${files.length === 1 ? '' : 's'}; ${result.withFades} had fades to line breaks up with.${snapOff ? ' Turn on PROGRAMMING › CADENCE & PRESETS › Line up mid-show breaks with fades to use them.' : ''}`);
+    renderRows(search.value);
+  });
+
   // Bulk facets — same idea as the free-tag bulk bar above, but for the
   // structured facet fields (Tag System 2.0). Kept in its own collapsible
   // bar rather than crowding the always-visible one, since it's four
@@ -515,6 +545,7 @@ export function buildTitlesPanel(target, panelEl, opts = {}) {
   bulkBar.appendChild(bulkCleanBtn);
   bulkBar.appendChild(bulkSuggestBtn);
   bulkBar.appendChild(bulkLocalBtn);
+  bulkBar.appendChild(bulkFadesBtn);
   bulkBar.appendChild(bulkTitleInput);
   bulkBar.appendChild(bulkTitleBtn);
   bulkBar.appendChild(bulkTagWrap);

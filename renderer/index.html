@@ -325,6 +325,21 @@
               <div class="setting-row-control"><input type="checkbox" id="interstitials-no-repeat"></div>
               <p class="setting-row-help">Within one flow’s break sequence, a bumper, promo or ident clip airs at most once.</p>
             </div>
+            <div class="setting-row" data-setting="commercials-snap-fades" data-synonyms="act break fade to black black frames scene natural break position commercial placement">
+              <label class="setting-row-label" for="commercials-snap-fades">Line up mid-show breaks with fades</label>
+              <div class="setting-row-control"><input type="checkbox" id="commercials-snap-fades"></div>
+              <p class="setting-row-help">Moves a break inside a show to the nearest fade to black, where it was cut for commercials when it first aired. Needs the show’s fades found first (below, or FIND ACT BREAKS on a channel’s TITLES).</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-snap-window" data-depends-on="commercials-snap-fades">
+              <label class="setting-row-label" for="commercials-snap-window">Look for a fade within</label>
+              <div class="setting-row-control"><input type="number" id="commercials-snap-window" min="1" max="15" value="3"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">How far a break may move. A break with no fade this close stays where its cadence put it.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-find-fades" data-depends-on="commercials-snap-fades" data-synonyms="detect scan analyze act breaks">
+              <label class="setting-row-label" for="commercials-find-fades-btn">Find fades in shows</label>
+              <div class="setting-row-control"><button type="button" id="commercials-find-fades-btn" class="btn">FIND FADES</button></div>
+              <p class="setting-row-help" id="commercials-find-fades-status">Reads each show on channels that break inside shows: about half a minute per episode, a few minutes per film. You can stop and pick up later.</p>
+            </div>
             <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
               <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
               <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>

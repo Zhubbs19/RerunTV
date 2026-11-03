@@ -17,6 +17,7 @@ const { scanRoot, applyScan, describeScan } = require('./scan');
 const identity = require('./identity');
 const { planMigration, finalizeMigration } = require('./migrate');
 const { createLocalMetadataReader } = require('./local-metadata');
+const { createBreakDetectService } = require('../media/breakdetect');
 
 // One readLocalMetadata call reads at most this many files. The caller sends a
 // folder's worth at a time, which is also what the reader's "a title shared
@@ -93,9 +94,11 @@ function createLibraryService({
   now = () => Date.now(),
   maxScanFiles = DEFAULT_MAX_SCAN_FILES,
   metadataReader = null,
+  breakDetector = null,
 }) {
   const store = createLibraryStore({ dir, now });
   const localMetadata = metadataReader || createLocalMetadataReader({ dir, getFfmpegPath, now });
+  const breakDetect = breakDetector || createBreakDetectService({ dir, getFfmpegPath, now });
   const scanLogPath = path.join(dir, 'last-scan.json');
   let lastScanReports = {};
   try { lastScanReports = JSON.parse(fs.readFileSync(scanLogPath, 'utf-8')); } catch (e) { lastScanReports = {}; }
@@ -231,7 +234,7 @@ function createLibraryService({
     // fingerprints are identity and are never set this way. A field named in
     // an update's `onlyIfEmpty` is written only where the item has none.
     applyItemUpdates({ updates }) {
-      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb', 'tvmaze', 'poster']);
+      const allowed = new Set(['title', 'tags', 'facets', 'kind', 'series', 'rating', 'description', 'duration', 'provenance', 'local', 'tmdb', 'tvmaze', 'poster', 'breakMarks']);
       const empty = (value) => value == null || (typeof value === 'string' && !value.trim()) || (Array.isArray(value) && !value.length);
       let changed = 0;
       (updates || []).forEach(({ id, fields, onlyIfEmpty = [] }) => {
@@ -364,6 +367,20 @@ function createLibraryService({
         && videoExtensions.has(path.extname(ref).toLowerCase()));
       const { results, tagsAvailable } = await localMetadata.read(readable, { nfo: !!nfo, tags: !!tags });
       return { results, tagsAvailable, skipped: refs.length - readable.length };
+    },
+
+    // The fades to black in one local media file (main/media/breakdetect.js):
+    // { marks: [{ at, strength }], duration } or { marks: null } when ffmpeg is
+    // missing or the file can't be read. One file per call, because a pass
+    // decodes the whole file (20-50 s for an episode); the caller loops and
+    // shows progress. Host-only, like every call that reads arbitrary paths.
+    async detectBreakMarks({ ref }) {
+      if (typeof ref !== 'string' || !path.isAbsolute(ref) || ref.startsWith('mediasource:') || !videoExtensions.has(path.extname(ref).toLowerCase())) {
+        throw new Error('A local video file is required.');
+      }
+      if (!breakDetect.available()) return { marks: null, available: false };
+      const result = await breakDetect.detect(ref);
+      return result ? { ...result, available: true } : { marks: null, available: true };
     },
 
     // Applies a root move the renderer planned and previewed (root-move.js).

@@ -477,6 +477,10 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-04', items: [
+    'Breaks inside a show can land where it was really cut for commercials. PROGRAMMING › CADENCE & PRESETS › Line up mid-show breaks with fades moves each mid-show break to the nearest fade to black (within 3 minutes, adjustable), so a break no longer cuts a scene in half. Breaks with no fade nearby stay where they were.',
+    'The fades are found by reading each show once: FIND FADES there does every show on channels that break inside shows, and FIND ACT BREAKS on a channel’s TITLES does the files you select. About half a minute per episode, a few minutes per film; you can stop and pick up later. Openings and end credits are ignored.',
+  ] },
   { date: '2026-11-03', items: [
     'TMDB matches go down to the episode: a file with a season and episode (S02E01 in its name, or from its details) gets that episode’s own title, description and air date instead of the show’s, and MATCH searches by the show’s name rather than the whole file name.',
     'A TMDB match fills in an empty TV rating from the US rating; a film’s rating becomes the one it airs under (PG-13 shows as TV-14).',

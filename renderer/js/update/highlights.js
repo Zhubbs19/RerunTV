@@ -8,6 +8,7 @@ import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
 export const HIGHLIGHTS = [
+  { id: 'act-breaks', title: 'Breaks at the real act breaks', text: 'Line mid-show ad breaks up with the fades to black where a show was originally cut for commercials.', tab: 'programming', subtab: 'presets', setting: 'commercials-snap-fades' },
   { id: 'tvmaze', title: 'Episode details from TVmaze', text: 'A TVMAZE button on each TITLES row fills in episode titles, synopses and when they first aired, with no account or key. Turn it on under Plug-ins.', tab: 'plugins', subtab: 'installed' },
   { id: 'file-details', title: 'Details from your own files', text: 'Fill in episode titles, descriptions and ratings from .nfo files and tags in your media, for every channel at once or as new files arrive.', tab: 'library', subtab: 'librarysync', setting: 'local-meta-fill' },
   { id: 'cable-guide-layout', title: 'A cable-box layout, in two skins', text: 'Pick the HD or Classic skin under Theme for a guide, banner, menus and setup modelled on a mid-2000s cable box.', tab: 'guide', subtab: 'guidetheme' },
