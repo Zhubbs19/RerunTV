@@ -17,6 +17,7 @@ import {
 import { S } from './state.js';
 import { hashString, mulberry32 } from './util.js';
 import { MIN_FIT_BREAK_S } from './fit.js';
+import { fadeSnapWindowMs, fadesOf, snapOffsetsToFades } from './fades.js';
 
 // The real US TV sweeps months — a pure function of atMs, no per-channel
 // config needed for "which months" (see resolveBreakAt's sweepsPromo gate).
@@ -250,48 +251,12 @@ export function boundarySlot(source, atMs, knownPos) {
 //
 // PROGRAMMING › CADENCE & PRESETS › "Line up mid-show breaks with fades" moves each
 // slot to the best nearby fade in the file's own `breakMarks` (found by
-// main/media/breakdetect.js and saved on the playlist entry). The marks are
-// part of config, so this stays a pure function of (channel, timestamp) and
-// a LAN viewer computing the same schedule gets the same breaks. Without
-// marks, or with the switch off, slots are exactly the raw cadence.
-
-// Two breaks closer than this aren't two act breaks.
-const MIN_SNAPPED_GAP_MS = 60000;
-
-/**
- * Moves raw slot offsets (ms into the file, ascending) to the best unused
- * fade within `windowMs`: nearest wins, a stronger fade can win from a
- * little further away. Slots stay in order; a slot left behind by its
- * predecessor's move (no room before the next one) is dropped (null).
- * marks: [{ atMs, strength }] ascending.
- */
-export function snapOffsetsToFades(rawOffsets, marks, windowMs) {
-  const used = new Set();
-  let floor = -Infinity;
-  return rawOffsets.map((offset) => {
-    let best = -1;
-    let bestCost = Infinity;
-    marks.forEach((mark, i) => {
-      if (used.has(i) || mark.atMs <= floor + MIN_SNAPPED_GAP_MS) return;
-      const distance = Math.abs(mark.atMs - offset);
-      if (distance > windowMs) return;
-      const cost = distance / windowMs - 0.35 * (mark.strength || 0);
-      if (cost < bestCost) { bestCost = cost; best = i; }
-    });
-    let at = offset;
-    if (best >= 0) { used.add(best); at = marks[best].atMs; }
-    if (at <= floor + MIN_SNAPPED_GAP_MS && floor > -Infinity) return null;
-    floor = at;
-    return at;
-  });
-}
-
-function fadeSnapWindowMs() {
-  const c = S.config.commercials || {};
-  if (!c.snapToFades) return 0;
-  const minutes = Number(c.snapWindowMinutes);
-  return (Number.isFinite(minutes) && minutes > 0 ? Math.min(minutes, 15) : 3) * 60000;
-}
+// main/media/breakdetect.js and saved on the playlist entry; core/fades.js).
+// The marks are part of config, so this stays a pure function of (channel,
+// timestamp) and a LAN viewer computing the same schedule gets the same
+// breaks. Without marks, or with the switch off, slots are exactly the raw
+// cadence.
+export { snapOffsetsToFades };
 
 // Raw slots for a cadence, inside the file bs describes, as [{ index, startMs }]:
 // `every` slots skip the file's own start (a boundary break's job) and stop
@@ -313,16 +278,12 @@ function cadenceSlots(bs, { everyMs = 0, percents = null }) {
 /** The mid-show slots of one file for one cadence, lined up with its fades when enabled. */
 export function midSlots(bs, file, cadence) {
   const raw = cadenceSlots(bs, cadence);
-  const windowMs = fadeSnapWindowMs();
-  const marks = file && Array.isArray(file.breakMarks) ? file.breakMarks : null;
-  if (!windowMs || !marks || !marks.length || !raw.length || !(file.duration > 0)) return raw;
+  const windowMs = fadeSnapWindowMs(S.config);
+  if (!windowMs || !raw.length || !file || !(file.duration > 0)) return raw;
   // A mark is seconds into the file; the file's slot in the schedule may be
-  // stretched or squeezed (fit to time slots), so marks map proportionally.
-  const scale = (bs.fileEndMs - bs.fileStartMs) / (file.duration * 1000);
-  const fades = marks
-    .filter((m) => m && Number.isFinite(m.at))
-    .map((m) => ({ atMs: m.at * 1000 * scale, strength: Number(m.strength) || 0 }))
-    .sort((a, b) => a.atMs - b.atMs);
+  // stretched or squeezed, so marks map proportionally.
+  const fades = fadesOf(file, (bs.fileEndMs - bs.fileStartMs) / (file.duration * 1000));
+  if (!fades) return raw;
   const snapped = snapOffsetsToFades(raw.map((s) => s.startMs - bs.fileStartMs), fades, windowMs);
   return raw
     .map((slot, i) => (snapped[i] == null ? null : { index: slot.index, startMs: bs.fileStartMs + snapped[i] }))
