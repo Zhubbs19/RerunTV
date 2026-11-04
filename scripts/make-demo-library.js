@@ -11,7 +11,8 @@
 //                      clips, anchored to "now" so every channel is mid-show. Refuses
 //                      to overwrite an existing channels.json.
 // --ffmpeg <path>      ffmpeg binary (default: `ffmpeg` on PATH)
-// --seconds <n>        length of each clip (default 480; shorter clips are quicker to make)
+// --seconds <n>        length of each clip (default 1320, a 22-minute sitcom; under 570 the
+//                      cable-guide layout folds the programs into "Shorts & Bumpers" cells)
 //
 // Needs ffmpeg with the lavfi generators (any normal build).
 
@@ -20,7 +21,12 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const BASE_SECONDS = 30;
-let CLIP_SECONDS = 480; // long enough that the guide shows real titles, not "shorts & bumpers" runs
+// The guide merges back-to-back programs too narrow for a readable label into one
+// "Shorts & Bumpers (N)" cell (mergeMicroPrograms, guide/model.js). In the cable-guide
+// layout that minimum is about 9.5 minutes of a 90-minute window at any window size, so
+// the 8-minute clips this used to make showed no titles there. 22 minutes leaves room for
+// the whole title.
+let CLIP_SECONDS = 1320;
 
 // Photosensitivity: the demo is deliberately gentle. Every picture is a slow, soft-colored
 // gradient (no flashing, no strobing, no high-contrast stripes or flickering cells, no
@@ -66,7 +72,9 @@ function run(ffmpeg, args, label) {
 }
 
 // Encodes a short base clip, then repeats it with a stream copy up to the full length: fast,
-// and small because the generated pictures compress very well.
+// and small because the generated pictures compress very well. The audio is nearly all of
+// each file's size, so it is a 24 kbps mono tone: a 22-minute clip is about 5.6 MB, and the
+// 15 clips stay near 85 MB.
 function makeClip(ffmpeg, gen, hz, file) {
   const baseSeconds = Math.min(CLIP_SECONDS, BASE_SECONDS);
   const base = CLIP_SECONDS > baseSeconds ? `${file}.base.mp4` : file;
@@ -75,7 +83,7 @@ function makeClip(ffmpeg, gen, hz, file) {
     '-f', 'lavfi', '-i', `sine=frequency=${hz}:sample_rate=44100`,
     '-t', String(baseSeconds),
     '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '34', '-pix_fmt', 'yuv420p',
-    '-filter:a', 'volume=0.2', '-c:a', 'aac', '-b:a', '48k', '-shortest', base,
+    '-filter:a', 'volume=0.2', '-c:a', 'aac', '-b:a', '24k', '-shortest', base,
   ], path.basename(file));
   if (base !== file) {
     run(ffmpeg, ['-stream_loop', '-1', '-i', base, '-t', String(CLIP_SECONDS), '-c', 'copy', file], path.basename(file));

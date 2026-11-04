@@ -144,15 +144,15 @@ repository rather than your working checkout: a dev profile copies every folder 
 local-only plugins would end up in the pictures. In the clone, after `npm ci`:
 
 ```powershell
-node scripts/make-demo-library.js demo-library --config demo-userdata --seconds 1320
+node scripts/make-demo-library.js demo-library --config demo-userdata
 powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
   -UserDataSource demo-userdata -Script capture-doc-screenshots.mjs
 ```
 
 It writes 1920x1080 PNGs of both cable-guide skins to `tests/ui/doc-screenshots/`. Its header
-comment says which ones become which file in `docs/screenshots/`. `--seconds 1320` matters: the
-default 8-minute demo clips are too short for a guide label, so the guide shows them as
-"Shorts & Bumpers" runs.
+comment says which ones become which file in `docs/screenshots/`. Keep the demo's default clip
+length (22 minutes). Clips under about 9.5 minutes are too narrow for a cable-guide label, and the
+guide shows them as "Shorts & Bumpers" runs.
 
 ## Full-theme visual sweep (screenshot every screen, every theme, real data)
 

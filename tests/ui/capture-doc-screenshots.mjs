@@ -2,11 +2,11 @@
 //
 // Run it from a clean clone of the repo, not a working checkout: a dev profile copies every
 // folder in plugins/ into itself, so local-only plugins would show up in the pictures.
-//   node scripts/make-demo-library.js demo-library --config demo-userdata --seconds 1320
+//   node scripts/make-demo-library.js demo-library --config demo-userdata
 //   powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
 //     -UserDataSource demo-userdata -Script capture-doc-screenshots.mjs
-// --seconds 1320 makes 22-minute programs. The default 8-minute clips are narrower than a
-// guide label, so the guide folds them into "Shorts & Bumpers" cells.
+// Keep the demo's default 22-minute clips: under about 9.5 minutes a program is narrower than a
+// cable-guide label, so the guide folds them into "Shorts & Bumpers" cells.
 //
 // Writes 1920x1080 PNGs to tests/ui/doc-screenshots/ (override with RERUNTV_SHOTS_OUT) in both
 // cable-guide skins: live TV with the channel banner, the docked and full-page guide, the time
