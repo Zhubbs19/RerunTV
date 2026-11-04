@@ -4,6 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Zhubbs19/RerunTV/badge)](https://scorecard.dev/viewer/?uri=github.com/Zhubbs19/RerunTV)
 
+**[Website](https://zhubbs19.github.io/RerunTV/)** · [User guide (wiki)](https://github.com/Zhubbs19/RerunTV/wiki) · [Code reference](https://zhubbs19.github.io/RerunTV/api/) · [Plug-in guide](PLUGIN_DEVELOPMENT.md)
+
 > **Vibe-coded.** RerunTV was written almost entirely by an AI coding agent ([Claude Code](https://claude.com/claude-code)) under the project owner's direction, and it has not had an independent code review or security audit. See [How this project is built](#how-this-project-is-built).
 
 > **Beta software with unsigned Windows installers.** Windows will warn you the first time you run one; see [Download and install](#download-and-install) for why and how to check the download.
@@ -317,10 +319,10 @@ the guide also scrolls backward into the past.
   yellow focus), modelled on a mid-2000s digital cable box: the guide keeps live TV in its corner,
   a channel banner and Mini Guide over the picture, Quick and Main menus, Search with an on-screen
   keyboard, Listings by Channel, Messages, and a matching Channel Setup. New installs start on HD.
-- **27 themes** spanning six decades of TV/cable-box UI — from a 1978 wood-console
-  set through dense SD grids, metallic late-2000s menus, widescreen preview guides, and
-  modern streaming design languages. Themes can change guide density, preview composition, focus behavior,
-  palette, SFX, and (where it fits the era) a physical border/bezel image.
+- **13 themes** spanning five decades of TV/cable-box UI — from a 1970s wood-console set
+  through an '80s UHF public-access look, a '94 scrolling guide, '90s network and early-2000s
+  satellite menus, the two cable-box skins above, and a 2016-style cloud guide. Themes can change guide
+  density, preview composition, focus behavior, palette, SFX, and (where it fits the era) a physical border/bezel image.
 
 **Shipped as plugins** (install/remove from the **PLUGINS** tab — drop a folder in, or
 install a `.zip` — or write your own, see [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md)):
@@ -498,7 +500,7 @@ all of the code, working from the project owner's direction rather than the code
 - **Who decides what.** The project owner sets the goals, makes the product and architecture calls (the
   numbered design documents in [docs/design/](docs/design/) are where they are written down), runs the
   app, and approves what ships.
-- **How it is checked.** About 470 automated tests (including property-based tests), CI that builds and
+- **How it is checked.** More than 700 automated tests (including property-based tests), CI that builds and
   launches the real installer on every push, CodeQL and OpenSSF Scorecard analysis, and dependency
   scanning. Many commits are authored or co-authored by Claude, and say so.
 - **What it has not had.** An independent human code review or a third-party security audit. Expect rough
@@ -514,8 +516,10 @@ unchanged.
 
 Questions and ideas are welcome in [Discussions](https://github.com/Zhubbs19/RerunTV/discussions), and bugs as
 [issues](https://github.com/Zhubbs19/RerunTV/issues/new/choose). Pull requests are currently limited to
-collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). Third-party licenses are listed in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+collaborators (open an issue first); see [CONTRIBUTING.md](CONTRIBUTING.md). The
+[code reference](https://zhubbs19.github.io/RerunTV/api/) is generated from the comments in the source
+(`npm run docs`, needs Doxygen) and published with the website (`npm run site`,
+`.github/workflows/pages.yml`). Third-party licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Packaging
 
