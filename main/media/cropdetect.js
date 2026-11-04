@@ -3,8 +3,8 @@
 // The page can't look at pixels: media is served from app://media, a different
 // origin, so a canvas read of the player is blocked (see media/loudness.js for
 // the same constraint). ffmpeg's cropdetect runs here instead, over a few short
-// samples of each file, and the result is cached in <userData>/crop-cache.json
-// keyed by path and checked against the file's size and mtime.
+// samples of each file, and the result is cached in <userData>/rerun.db
+// (main/util/db.js) keyed by path and checked against the file's size and mtime.
 //
 // The result is stored as fractions of the decoded frame, so it doesn't depend
 // on how the renderer later scales the picture:
@@ -17,7 +17,7 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const { atomicWriteFile } = require('../util/atomic-write');
+const { cacheTable } = require('../util/db');
 const os = require('os');
 const path = require('path');
 
@@ -137,26 +137,18 @@ async function measureCrop(ffmpegPath, filePath, duration) {
 // ---------- Service ----------
 
 function createCropDetectService({ userDataDir, getFfmpegPath }) {
-  const cachePath = path.join(userDataDir, 'crop-cache.json');
-  let cache = { version: CACHE_VERSION, entries: {} };
-  try {
-    const loaded = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    if (loaded && loaded.version === CACHE_VERSION && loaded.entries) cache = loaded;
-  } catch (e) { /* no cache yet */ }
-
-  let saveTimer = null;
-  const saveSoon = () => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const keys = Object.keys(cache.entries);
-      if (keys.length > MAX_CACHE_ENTRIES) {
-        keys.sort((a, b) => (cache.entries[a].at || 0) - (cache.entries[b].at || 0))
-          .slice(0, keys.length - MAX_CACHE_ENTRIES)
-          .forEach((k) => { delete cache.entries[k]; });
-      }
-      atomicWriteFile(cachePath, JSON.stringify(cache), { encoding: 'utf8' }).catch(() => {});
-    }, 2000);
-  };
+  // One row per file in rerun.db (main/util/db.js), so a new measurement is
+  // one write instead of a rewrite of every other file's entry.
+  const cache = cacheTable(userDataDir, 'crop', {
+    maxEntries: MAX_CACHE_ENTRIES,
+    // The pre-SQLite cache: { version, entries: { [path]: { size, mtimeMs, crop, at } } }.
+    importFrom: {
+      file: path.join(userDataDir, 'crop-cache.json'),
+      toEntries: (loaded) => (loaded && loaded.version === CACHE_VERSION && loaded.entries && typeof loaded.entries === 'object'
+        ? Object.entries(loaded.entries).filter(([, e]) => e && typeof e === 'object').map(([key, e]) => [key, e, e.at || 0])
+        : null),
+    },
+  });
 
   // Local files only: a mediasource: ref is fetched on demand from a plugin
   // and isn't something ffmpeg can open by path.
@@ -171,7 +163,9 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
   }
 
   function cached(filePath, st) {
-    const entry = cache.entries[filePath];
+    let row = null;
+    try { row = cache.get(filePath); } catch (e) { /* unreadable: measure again */ }
+    const entry = row && row.value;
     return entry && entry.size === st.size && entry.mtimeMs === st.mtimeMs ? entry : null;
   }
 
@@ -195,8 +189,8 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
         else if (st) {
           crop = await measureCrop(ffmpegPath, job.filePath, job.duration);
           // "No bars" is recorded too, so the file isn't re-measured every sweep.
-          cache.entries[job.filePath] = { size: st.size, mtimeMs: st.mtimeMs, crop, at: Date.now() };
-          saveSoon();
+          const at = Date.now();
+          try { cache.set(job.filePath, { size: st.size, mtimeMs: st.mtimeMs, crop, at }, at); } catch (e) { /* re-measured next time */ }
         }
       }
       } catch (e) {
@@ -269,12 +263,11 @@ function createCropDetectService({ userDataDir, getFfmpegPath }) {
       }
     },
     status() {
-      const entries = Object.values(cache.entries);
       return {
         available: !!getFfmpegPath(),
         queued: queue.length,
-        checked: entries.length,
-        withBars: entries.filter((e) => e.crop).length,
+        checked: cache.count(),
+        withBars: cache.countWithField('crop'),
       };
     },
   };

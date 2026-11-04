@@ -2,8 +2,8 @@
 // ffmpeg's EBU R128 meter is run over three short samples of each file (near
 // the start, middle and end) rather than the whole thing, which is plenty to
 // tell a quiet 1970s sitcom from a loud commercial and takes a second or two
-// instead of decoding a whole episode. Results are cached in
-// <userData>/loudness-cache.json, keyed by path and checked against the file's
+// instead of decoding a whole episode. Results are cached in <userData>/rerun.db
+// (main/util/db.js), keyed by path and checked against the file's
 // size and mtime.
 //
 // Why not a compressor in Web Audio: media is served from app://media, a
@@ -18,7 +18,7 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const { atomicWriteFile } = require('../util/atomic-write');
+const { cacheTable } = require('../util/db');
 const os = require('os');
 const path = require('path');
 
@@ -90,26 +90,18 @@ async function measureLoudness(ffmpegPath, filePath, duration) {
 // ---------- Service ----------
 
 function createLoudnessService({ userDataDir, getFfmpegPath }) {
-  const cachePath = path.join(userDataDir, 'loudness-cache.json');
-  let cache = { version: CACHE_VERSION, entries: {} };
-  try {
-    const loaded = JSON.parse(fs.readFileSync(cachePath, 'utf8'));
-    if (loaded && loaded.version === CACHE_VERSION && loaded.entries) cache = loaded;
-  } catch (e) { /* no cache yet */ }
-
-  let saveTimer = null;
-  const saveSoon = () => {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const keys = Object.keys(cache.entries);
-      if (keys.length > MAX_CACHE_ENTRIES) {
-        keys.sort((a, b) => (cache.entries[a].at || 0) - (cache.entries[b].at || 0))
-          .slice(0, keys.length - MAX_CACHE_ENTRIES)
-          .forEach((k) => { delete cache.entries[k]; });
-      }
-      atomicWriteFile(cachePath, JSON.stringify(cache), { encoding: 'utf8' }).catch(() => {});
-    }, 2000);
-  };
+  // One row per file in rerun.db (main/util/db.js), so a new measurement is
+  // one write instead of a rewrite of every other file's entry.
+  const cache = cacheTable(userDataDir, 'loudness', {
+    maxEntries: MAX_CACHE_ENTRIES,
+    // The pre-SQLite cache: { version, entries: { [path]: { size, mtimeMs, lufs, at } } }.
+    importFrom: {
+      file: path.join(userDataDir, 'loudness-cache.json'),
+      toEntries: (loaded) => (loaded && loaded.version === CACHE_VERSION && loaded.entries && typeof loaded.entries === 'object'
+        ? Object.entries(loaded.entries).filter(([, e]) => e && typeof e === 'object').map(([key, e]) => [key, e, e.at || 0])
+        : null),
+    },
+  });
 
   // Local files only: a mediasource: ref is fetched on demand from a plugin
   // and isn't something ffmpeg can open by path.
@@ -124,7 +116,9 @@ function createLoudnessService({ userDataDir, getFfmpegPath }) {
   }
 
   function cached(filePath, st) {
-    const entry = cache.entries[filePath];
+    let row = null;
+    try { row = cache.get(filePath); } catch (e) { /* unreadable: measure again */ }
+    const entry = row && row.value;
     return entry && entry.size === st.size && entry.mtimeMs === st.mtimeMs ? entry : null;
   }
 
@@ -148,8 +142,8 @@ function createLoudnessService({ userDataDir, getFfmpegPath }) {
         else if (st) {
           lufs = await measureLoudness(ffmpegPath, job.filePath, job.duration);
           // A file with no measurable audio is recorded too, so it isn't retried every sweep.
-          cache.entries[job.filePath] = { size: st.size, mtimeMs: st.mtimeMs, lufs, at: Date.now() };
-          saveSoon();
+          const at = Date.now();
+          try { cache.set(job.filePath, { size: st.size, mtimeMs: st.mtimeMs, lufs, at }, at); } catch (e) { /* re-measured next time */ }
         }
       }
       } catch (e) {
@@ -222,7 +216,7 @@ function createLoudnessService({ userDataDir, getFfmpegPath }) {
       }
     },
     status() {
-      return { available: !!getFfmpegPath(), queued: queue.length, measured: Object.keys(cache.entries).length };
+      return { available: !!getFfmpegPath(), queued: queue.length, measured: cache.count() };
     },
   };
 }

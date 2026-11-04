@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const { createChangeAnnouncer, createConfigHost } = require('./host');
 const { getMainWindow } = require('./window-ref');
 const { atomicWriteFileSync } = require('../util/atomic-write');
+const { DB_FILE, DB_FILES, snapshotDb } = require('../util/db');
 
 // ---------- Portable-install userData migration ----------
 // All per-user data (channels.json, backups, plugins, window state, any
@@ -35,8 +36,15 @@ const { atomicWriteFileSync } = require('../util/atomic-write');
 // still locked by whatever process most recently touched them, which made
 // an earlier blind recursive-copy attempt here fail outright.
 const OWN_DATA_ENTRIES = [
-  'channels.json', 'window-state.json', 'api-cache.json',
+  'channels.json', 'window-state.json',
   'update-state.json', 'viewing-history.json',
+  // The SQLite file (main/util/db.js) and its WAL companions. The update
+  // safety copy skips these and takes a VACUUM INTO snapshot instead (see
+  // snapshotDbForUpdate below); the other copies run before it's opened.
+  ...DB_FILES,
+  // The pre-SQLite API cache, so an older install migrating in still brings
+  // it along; main/updater/api-cache.js imports it into rerun.db and removes it.
+  'api-cache.json',
   'backups', 'plugins',
   // The Video Splicer's remembered folders and options (main/splicer/service.js).
   'video-splicer',
@@ -101,6 +109,9 @@ function shouldSkipFromUpdateBackup(srcPath, stat) {
 }
 
 function updateBackupFilter(src) {
+  // An open database in WAL mode can't be file-copied consistently; it's
+  // snapshotted separately (snapshotDbForUpdate).
+  if (DB_FILES.includes(path.basename(src)) && path.resolve(path.dirname(src)) === path.resolve(portableUserDataDir())) return false;
   let stat;
   try { stat = fs.statSync(src); } catch (e) { return false; }
   return !shouldSkipFromUpdateBackup(src, stat);
@@ -110,6 +121,17 @@ function copyOwnDataEntries(fromDir, toDir, options = {}) {
   ownDataEntryNames(fromDir).forEach((name) => {
     fs.cpSync(path.join(fromDir, name), path.join(toDir, name), { recursive: true, ...options });
   });
+}
+
+// The database's part of the update safety copy: one consistent file written
+// with VACUUM INTO, safe while a loudness sweep is still writing to it. A
+// failure costs only regenerable caches, so it never stops the rest.
+function snapshotDbForUpdate(localDir, backupDir) {
+  try {
+    snapshotDb(localDir, path.join(backupDir, DB_FILE));
+  } catch (e) {
+    console.error(`Could not snapshot ${DB_FILE} ahead of an update install — its caches will be rebuilt if the install wipes them:`, e.message);
+  }
 }
 
 async function copyOwnDataEntriesAsync(fromDir, toDir, options = {}) {
@@ -153,6 +175,7 @@ function backupUserDataForUpdate() {
     if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
     const backupDir = prepareUpdateBackupDir();
     copyOwnDataEntries(localDir, backupDir, { filter: updateBackupFilter });
+    snapshotDbForUpdate(localDir, backupDir);
   } catch (e) {
     console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
   }
@@ -166,6 +189,7 @@ async function backupUserDataForUpdateAsync() {
     if (!fs.existsSync(localDir) || !fs.existsSync(path.join(localDir, 'channels.json'))) return;
     const backupDir = prepareUpdateBackupDir();
     await copyOwnDataEntriesAsync(localDir, backupDir, { filter: updateBackupFilter });
+    snapshotDbForUpdate(localDir, backupDir);
   } catch (e) {
     console.error('Could not back up userData ahead of an update install — continuing without a safety copy:', e.message);
   }

@@ -86,6 +86,7 @@ const { getViewerUrls, getLanAddresses, VIEWER_PORT, registerLanIpc } = require(
 const { trackConnection, registerConnectionsIpc } = require('./lan/connections');
 const { fetchJsonCached } = require('./updater/api-cache');
 const { readJsonBody, serveStaticFile } = require('./util/http');
+const { closeAll: closeDatabases } = require('./util/db');
 const { setMainWindow, getMainWindow } = require('./config/window-ref');
 const { startViewerServer } = require('./lan/viewer-server');
 const { sanitizeAppliedUpdate } = require('./lan/viewer-projection');
@@ -743,7 +744,11 @@ process.on('unhandledRejection', (reason) => {
 
 // The viewing log batches its writes, so the last couple of seconds of it
 // would otherwise die with the process on quit.
-app.on('will-quit', () => flushHistoryNow());
+app.on('will-quit', () => {
+  flushHistoryNow();
+  // A clean close folds rerun.db's WAL back into the main file (main/util/db.js).
+  closeDatabases();
+});
 
 app.on('window-all-closed', () => {
   // The pre-launch updater window can close after an up-to-date/error
