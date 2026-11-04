@@ -179,7 +179,7 @@ h2::before {
 
 /* ---------- Screenshots ---------- */
 .sub { color: var(--text-dim); margin: -8px 0 22px; }
-.shot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.shot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
 .shot-grid figure { margin: 0; }
 .shot-grid img { border-radius: 8px; border: 1px solid var(--rule); aspect-ratio: 16 / 9; object-fit: cover; }
 .shot-grid a:hover img { border-color: var(--yellow); }

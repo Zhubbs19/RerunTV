@@ -57,13 +57,17 @@ is planned, and this section will be updated when it happens. Report anything su
 Everything below is the bundled synthetic demo library (slow, soft generated video, see
 [Try it without your own media](#try-it-without-your-own-media)). No real shows are shown.
 
-| Live TV with the on-screen banner and CRT look | The program guide |
+| Live TV with the channel banner | The program guide (Classic skin) |
 | --- | --- |
-| ![Live channel](docs/screenshots/live.jpg) | ![Program guide](docs/screenshots/guide.jpg) |
+| ![Live channel](docs/screenshots/live.jpg) | ![Program guide, Classic skin](docs/screenshots/guide.jpg) |
 
-| Channel setup | Time machine |
+| The time machine, rewinding | The program guide (HD skin, the default) |
 | --- | --- |
-| ![Channel setup](docs/screenshots/setup.png) | ![Time machine](docs/screenshots/time-machine.jpg) |
+| ![Time machine](docs/screenshots/time-machine.jpg) | ![Program guide, HD skin](docs/screenshots/guide-hd.jpg) |
+
+Channel setup:
+
+![Channel setup](docs/screenshots/setup.png)
 
 ## Try it without your own media
 

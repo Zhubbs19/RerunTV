@@ -136,6 +136,24 @@ channel lineup.
   `themes.js` resolves the right `--gold`/etc. CSS custom properties on
   theme switch, which is what that popup's IPC report is built from.
 
+## README and website screenshots
+
+`docs/screenshots/` (shown in the README and on the website) is captured from the synthetic demo
+library by `capture-doc-screenshots.mjs`, never from a real library. Run it from a fresh clone of the
+repository rather than your working checkout: a dev profile copies every folder in `plugins/`, so
+local-only plugins would end up in the pictures. In the clone, after `npm ci`:
+
+```powershell
+node scripts/make-demo-library.js demo-library --config demo-userdata --seconds 1320
+powershell -ExecutionPolicy Bypass -File tests\ui\run-ui-tests.ps1 `
+  -UserDataSource demo-userdata -Script capture-doc-screenshots.mjs
+```
+
+It writes 1920x1080 PNGs of both cable-guide skins to `tests/ui/doc-screenshots/`. Its header
+comment says which ones become which file in `docs/screenshots/`. `--seconds 1320` matters: the
+default 8-minute demo clips are too short for a guide label, so the guide shows them as
+"Shorts & Bumpers" runs.
+
 ## Full-theme visual sweep (screenshot every screen, every theme, real data)
 
 ```powershell
@@ -196,6 +214,8 @@ assume it hung if it's still running after a few minutes.
 - `theme-visual-sweep.ps1` / `theme-visual-sweep.mjs` — the full visual
   sweep above; same "always use the `.ps1`, never the `.mjs` directly"
   rule.
+- `capture-doc-screenshots.mjs` — the README and website screenshots (see
+  above); a `-Script` driver for `run-ui-tests.ps1`.
 - `lib/cdp.mjs` — minimal CDP client (no npm deps; Node 22's built-in
   `fetch`/`WebSocket` are enough). Only implements the handful of domains
   this suite needs — not a general-purpose library.

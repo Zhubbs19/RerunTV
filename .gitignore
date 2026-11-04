@@ -68,6 +68,7 @@ run-server.bat
 # Run output — screenshots, JSON reports, per-run logs
 tests/ui/screenshots/
 tests/ui/theme-sweep-screenshots/
+tests/ui/doc-screenshots/
 tests/ui/results.json
 tests/ui/report.json
 tests/ui/*-report.json
