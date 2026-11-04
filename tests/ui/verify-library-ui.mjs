@@ -109,9 +109,11 @@ if (await js(() => !!(window.S.config.librarySync || {}).enabled)) {
 const YT = 'J:\\Media Center\\YT Archive';
 const MOVED = 'Z:\\RerunTV Move Test\\YT Archive';
 // The library index lives in rerun.db's library table (main/library/store.js);
-// it has a library once the meta row exists.
+// it has a library once the meta row exists, or while a pre-SQLite
+// library/index.json is still waiting to be imported.
 const { DatabaseSync } = await import('node:sqlite');
 function libraryBuilt() {
+  if (fs.existsSync(path.join(repo, 'userData', 'library', 'index.json'))) return true;
   const file = path.join(repo, 'userData', 'rerun.db');
   if (!fs.existsSync(file)) return false;
   const db = new DatabaseSync(file, { readOnly: true });
