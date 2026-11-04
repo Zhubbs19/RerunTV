@@ -39,6 +39,11 @@ tests/ui/verify-*.mjs
 tests/ui/theme-*.mjs
 tests/ui/_tmp_*
 
+# Generated code reference (npm run docs, scripts/build-docs.js)
+docs/api/
+# Built GitHub Pages site (npm run site, scripts/build-site.js)
+_site/
+
 # ---------- Runtime logs (written by Electron / npm scripts) ----------
 electron-launch.log
 electron-launch-err.log

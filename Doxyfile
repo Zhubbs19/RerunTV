@@ -1,0 +1,59 @@
+# Doxygen settings for RerunTV's code reference (only the settings that differ from Doxygen's
+# defaults). Build it with `npm run docs` (scripts/build-docs.js), which also leaves out gitignored
+# files such as local-only plugins and stamps the version. Running `doxygen` here works too.
+# Output: docs/api/html/index.html.
+#
+# Doxygen can't read JavaScript, so .js/.mjs/.cjs files go through scripts/doxygen-filter.js. It
+# turns declarations into C++ Doxygen can parse and the existing comments into their docs; its
+# header says which comments count.
+
+PROJECT_NAME           = RerunTV
+PROJECT_BRIEF          = "A retro broadcast cable box simulator"
+OUTPUT_DIRECTORY       = docs/api
+FULL_PATH_NAMES        = YES
+STRIP_FROM_PATH        = .
+EXTENSION_MAPPING      = js=C++ mjs=C++ cjs=C++
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+SHOW_INCLUDE_FILES     = NO
+SORT_MEMBER_DOCS       = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+INPUT                  = README.md \
+                         CLAUDE.md \
+                         PLUGIN_DEVELOPMENT.md \
+                         CONTRIBUTING.md \
+                         SECURITY.md \
+                         RELEASING.md \
+                         THIRD_PARTY_NOTICES.md \
+                         docs/design \
+                         main \
+                         renderer/js \
+                         plugins \
+                         plugin-dev-kit
+FILE_PATTERNS          = *.js *.mjs *.cjs *.md
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */node_modules/* *.min.js
+FILTER_PATTERNS        = "*.js=node scripts/doxygen-filter.js" \
+                         "*.mjs=node scripts/doxygen-filter.js" \
+                         "*.cjs=node scripts/doxygen-filter.js"
+USE_MDFILE_AS_MAINPAGE = README.md
+MARKDOWN_ID_STYLE      = GITHUB
+IMAGE_PATH             = docs/screenshots
+
+#---------------------------------------------------------------------------
+# Output
+#---------------------------------------------------------------------------
+# The source pages show the real files: the filter keeps line numbers, and
+# FILTER_SOURCE_FILES stays off.
+SOURCE_BROWSER         = YES
+STRIP_CODE_COMMENTS    = NO
+GENERATE_TREEVIEW      = YES
+HTML_COLORSTYLE        = TOGGLE
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO

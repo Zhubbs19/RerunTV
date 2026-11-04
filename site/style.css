@@ -1,0 +1,234 @@
+/* The RerunTV landing page. Colors follow the app's Classic cable-guide skin: navy grid,
+   blue cells, a yellow focus and cyan labels. */
+:root {
+  --bg: #0b1030;
+  --bg-2: #111a48;
+  --cell: #2a3a9a;
+  --cell-2: #23307f;
+  --rule: #3a4bb0;
+  --text: #eef1ff;
+  --text-dim: #b4bce6;
+  --yellow: #f6c90e;
+  --yellow-ink: #1a1400;
+  --cyan: #5fd6ff;
+  --radius: 10px;
+  --wrap: 1120px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-tight: "Arial Narrow", "Roboto Condensed", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  background-image: radial-gradient(1200px 600px at 80% -10%, #1d2a78 0%, transparent 60%);
+  background-repeat: no-repeat;
+  color: var(--text);
+  font: 17px/1.6 var(--font);
+  -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--cyan); }
+a:hover { color: #fff; }
+:focus-visible { outline: 3px solid var(--yellow); outline-offset: 3px; border-radius: 4px; }
+
+img { max-width: 100%; height: auto; display: block; }
+code { font-size: .92em; background: rgba(255, 255, 255, .08); padding: .05em .35em; border-radius: 4px; }
+
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 16px; top: 12px; z-index: 10; background: var(--yellow); color: var(--yellow-ink); padding: 8px 12px; }
+
+/* ---------- Header ---------- */
+.top {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 18px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-weight: 800; font-size: 1.25rem; letter-spacing: .01em; }
+.top nav { display: flex; gap: 20px; flex-wrap: wrap; }
+.top nav a { color: var(--text-dim); text-decoration: none; font-weight: 600; font-size: .95rem; }
+.top nav a:hover { color: var(--text); }
+
+main > section { max-width: var(--wrap); margin: 0 auto; padding: 56px 16px; }
+
+h1, h2, h3 { line-height: 1.15; margin: 0; }
+h2 { font-size: clamp(1.6rem, 3vw, 2.1rem); margin-bottom: 20px; }
+h2::before {
+  content: "";
+  display: block;
+  width: 44px;
+  height: 4px;
+  background: var(--yellow);
+  margin-bottom: 14px;
+  border-radius: 2px;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 48px;
+  align-items: center;
+  padding-top: 32px;
+}
+.eyebrow {
+  margin: 0 0 14px;
+  color: var(--cyan);
+  font: 700 .85rem/1 var(--font-tight);
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.eyebrow .ch { background: var(--yellow); color: var(--yellow-ink); padding: 4px 7px; border-radius: 4px; letter-spacing: .06em; }
+.hero h1 { font-size: clamp(2.2rem, 5vw, 3.4rem); letter-spacing: -.01em; }
+.hero h1 em { font-style: normal; color: var(--yellow); }
+.lede { color: var(--text-dim); font-size: 1.12rem; margin: 18px 0 26px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.button {
+  display: inline-block;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 2px solid var(--rule);
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 700;
+  background: var(--cell-2);
+}
+.button:hover { color: #fff; border-color: var(--cyan); }
+.button.primary {
+  background: var(--yellow);
+  border-color: var(--yellow);
+  color: var(--yellow-ink);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .35) 0 1px, rgba(255, 255, 255, .12) 1px, transparent 60%);
+}
+.button.primary:hover { color: var(--yellow-ink); filter: brightness(1.06); }
+.fine { color: var(--text-dim); font-size: .88rem; margin: 18px 0 0; }
+
+.tv { margin: 0; }
+.bezel {
+  background: linear-gradient(180deg, #2b2b33, #141418);
+  padding: 14px;
+  border-radius: 22px;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.bezel img { border-radius: 12px; aspect-ratio: 16 / 9; object-fit: cover; }
+
+/* ---------- How it works ---------- */
+.how-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: center; }
+.how-grid > p { color: var(--text-dim); margin: 0; font-size: 1.05rem; }
+.loop { background: var(--bg-2); border: 1px solid var(--rule); border-radius: var(--radius); padding: 22px 18px 16px; }
+.loop-row { display: flex; gap: 4px; }
+.loop-row span {
+  flex: 3;
+  background: var(--cell);
+  border-radius: 4px;
+  padding: 10px 6px;
+  font: 700 .82rem/1 var(--font-tight);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.loop-row span:nth-child(even) { flex: 1; background: #3d2f7a; color: var(--text-dim); }
+.loop-row .here { background: var(--yellow); color: var(--yellow-ink); position: relative; overflow: visible; }
+.loop-row .here::after {
+  content: "";
+  position: absolute;
+  left: 40%;
+  top: -10px;
+  bottom: -10px;
+  width: 2px;
+  background: #ff5a5a;
+  box-shadow: 0 0 8px #ff5a5a;
+}
+.loop-labels { display: flex; justify-content: space-between; margin-top: 12px; font-size: .8rem; color: var(--text-dim); }
+.loop-labels .now { color: #ff8a8a; margin-right: 22%; }
+
+/* ---------- Features, drawn as a guide grid ---------- */
+.guide { border: 2px solid var(--rule); border-radius: var(--radius); overflow: hidden; background: var(--bg-2); }
+.guide-head {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  background: #0a0f2c;
+  color: var(--yellow);
+  font: 700 .85rem/1 var(--font-tight);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.guide-head span { padding: 12px 16px; }
+.row { display: grid; grid-template-columns: 220px 1fr; border-top: 2px solid var(--bg); }
+.chan { background: var(--cell-2); padding: 14px 16px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.chan b { font: 800 1.05rem/1 var(--font-tight); }
+.chan b::before { content: "CH "; }
+.chan span { color: var(--cyan); font: 700 .8rem/1.2 var(--font-tight); letter-spacing: .08em; text-transform: uppercase; }
+.row p { margin: 0; padding: 14px 18px; background: var(--cell); border-left: 2px solid var(--bg); font-size: .98rem; }
+.row:hover p { background: var(--yellow); color: var(--yellow-ink); }
+.row:hover p a { color: var(--yellow-ink); }
+.row:hover p code { background: rgba(0, 0, 0, .1); }
+
+/* ---------- Screenshots ---------- */
+.sub { color: var(--text-dim); margin: -8px 0 22px; }
+.shot-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.shot-grid figure { margin: 0; }
+.shot-grid img { border-radius: 8px; border: 1px solid var(--rule); aspect-ratio: 16 / 9; object-fit: cover; }
+.shot-grid a:hover img { border-color: var(--yellow); }
+.shot-grid figcaption { color: var(--text-dim); font-size: .9rem; margin-top: 8px; }
+
+/* ---------- Docs ---------- */
+.cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.card {
+  display: block;
+  background: var(--bg-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-decoration: none;
+  color: var(--text);
+}
+.card:hover { border-color: var(--yellow); background: #16215a; color: var(--text); }
+.card h3 { font-size: 1.1rem; margin-bottom: 6px; color: var(--yellow); }
+.card p { margin: 0; color: var(--text-dim); font-size: .95rem; }
+
+/* ---------- Notices and footer ---------- */
+.notes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.notes p { margin: 0; color: var(--text-dim); font-size: .9rem; border-left: 3px solid var(--rule); padding-left: 14px; }
+.notes strong { color: var(--text); }
+
+.bottom {
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: var(--text-dim);
+  font-size: .88rem;
+}
+
+/* ---------- Narrow screens ---------- */
+@media (max-width: 860px) {
+  .hero, .how-grid { grid-template-columns: 1fr; gap: 32px; }
+  .shot-grid, .cards { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  main > section { padding: 40px 16px; }
+  .top nav { gap: 14px; }
+  .guide-head { display: none; }
+  .row { grid-template-columns: 1fr; }
+  .row p { border-left: 0; }
+  .shot-grid, .cards, .notes { grid-template-columns: 1fr; }
+  .loop-row span:nth-child(even) { display: none; }
+}

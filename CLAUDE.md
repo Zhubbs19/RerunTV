@@ -307,6 +307,14 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   `package.json`'s `"test"` script is `node scripts/run-tests.js`, which runs the tracked unit tests in
   `tests/*.test.js` (not the CDP suite above; `npm test` gates commits). `npm run lint` runs ESLint
   (`eslint.config.js`) and CI fails on any finding, so fix what it reports rather than adding disable comments.
+- **Comments are the code reference.** `npm run docs` builds Doxygen HTML into `docs/api/html`
+  (`Doxyfile`, `scripts/build-docs.js`). Doxygen can't read JavaScript, so `scripts/doxygen-filter.js`
+  rewrites each file into C++-shaped declarations line for line. A comment block directly above a
+  top-level function, class, class member or variable (no blank line between) documents it, and its
+  first sentence is the summary. The first comment block before any code documents the file. Keep
+  writing ordinary `//` comments; nothing needs Doxygen markup. The Pages workflow (`.github/workflows/pages.yml`)
+  publishes it under `api/` of the project site, behind the landing page in `site/` (`npm run site` builds both
+  into `_site/`); the Download button follows the newest release, so the page has no version to bump.
 - **What's New is hand-kept.** When a push to `deploy` ships something users would notice, add a dated entry at the top of
   `CHANGELOG` in `renderer/js/setup/help.js` (HELP › What's New), run `node scripts/release-notes.js --changelog` to
   regenerate `CHANGELOG.md` (a test fails until you do) and, for something worth pointing at, add a `HIGHLIGHTS`

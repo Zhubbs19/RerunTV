@@ -26,7 +26,13 @@ npm start      # run the app from source
 npm test       # unit tests (must pass before you open a PR)
 npm run lint   # ESLint (eslint.config.js); CI fails on any finding
 npm run test:coverage  # the same tests with a line/branch coverage report
+npm run docs   # code reference in docs/api/html (needs Doxygen on PATH)
+npm run site   # the GitHub Pages site in _site/ (landing page + the code reference)
 ```
+
+The code reference is built from the comments already in the code (`scripts/doxygen-filter.js`
+explains which ones count): a comment block directly above a function, class or variable documents
+it, and the first comment block in a file documents the file.
 
 Read `CLAUDE.md` first: it explains the one invariant that matters most (schedule and
 playback code must read time through `viewNow()`, not `Date.now()`) and how config edits
