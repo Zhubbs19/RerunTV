@@ -19,20 +19,87 @@ test('a missing index starts empty rather than failing', () => {
   assert.equal(store.load().schemaVersion, SCHEMA_VERSION);
 });
 
-test('it round-trips through disk atomically', () => {
+test('it round-trips through rerun.db', () => {
   const { dir, store } = tempStore();
   const root = store.addRoot({ ref: 'J:\\Media', kind: 'local' });
   store.addItem({ id: 'itm_a', ref: 'J:\\Media\\a.mkv', root: root.id, duration: 600, title: 'A' });
   store.save();
 
-  assert.ok(fs.existsSync(path.join(dir, 'index.json')));
-  assert.deepEqual(fs.readdirSync(dir).filter((name) => name.includes('.tmp-')), [],
-    'the temp file is renamed, not left behind');
+  assert.equal(store.backend(), 'sqlite');
+  assert.ok(fs.existsSync(path.join(dir, 'rerun.db')));
+  assert.ok(!fs.existsSync(path.join(dir, 'index.json')), 'no JSON index is written any more');
 
   const reopened = createLibraryStore({ dir });
   assert.equal(reopened.stats().items, 1);
   assert.equal(reopened.getItem('itm_a').title, 'A');
   assert.equal(reopened.getRoot(root.id).ref, 'J:\\Media');
+});
+
+function libraryRows(dir) {
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(path.join(dir, 'rerun.db'), { readOnly: true });
+  const rows = db.prepare("SELECT kind, id FROM library WHERE kind != 'meta' ORDER BY kind, id").all().map((r) => `${r.kind}/${r.id}`);
+  db.close();
+  return rows;
+}
+
+test('save writes in-place edits and removals, row by row', () => {
+  const { dir, store } = tempStore();
+  const root = store.addRoot({ ref: 'D:\\Library' });
+  store.addItem({ id: 'itm_a', ref: 'D:\\Library\\a.mkv', root: root.id, title: 'A' });
+  store.addItem({ id: 'itm_b', ref: 'D:\\Library\\b.mkv', root: root.id, title: 'B' });
+  store.upsertQuery('q_1', { name: 'Q' });
+  store.save();
+  assert.deepEqual(libraryRows(dir), ['items/itm_a', 'items/itm_b', 'queries/q_1']);
+
+  // Callers mutate items in place without going through updateItem.
+  store.getItem('itm_a').tags = ['comedy'];
+  store.removeItem('itm_b');
+  store.removeQuery('q_1');
+  store.removeRoot(root.id);
+  store.save();
+  assert.deepEqual(libraryRows(dir), ['items/itm_a']);
+
+  const reopened = createLibraryStore({ dir });
+  assert.deepEqual(reopened.getItem('itm_a').tags, ['comedy']);
+  assert.equal(reopened.getItem('itm_b'), null);
+  assert.equal(reopened.stats().roots, 0);
+});
+
+test('an id of __proto__ survives the database like any other', () => {
+  const { dir, store } = tempStore();
+  store.addItem({ id: '__proto__', ref: 'x.mkv', root: 'r', title: 'Odd' });
+  store.save();
+  const reopened = createLibraryStore({ dir });
+  assert.equal(reopened.getItem('__proto__').title, 'Odd');
+  assert.equal(reopened.stats().items, 1);
+});
+
+test('an existing index.json is imported once and kept beside the database', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reruntv-lib-'));
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({
+    schemaVersion: SCHEMA_VERSION,
+    roots: [{ id: 'root_1', ref: 'D:\\Library' }],
+    items: { itm_a: { id: 'itm_a', ref: 'D:\\Library\\a.mkv', root: 'root_1', title: 'A' } },
+    presets: { mine: { id: 'mine', name: 'Mine' } },
+  }));
+  const store = createLibraryStore({ dir });
+  assert.deepEqual(store.stats(), { roots: 1, items: 1, series: 0, queries: 0, presets: 1 });
+  assert.ok(!fs.existsSync(path.join(dir, 'index.json')));
+  assert.ok(fs.existsSync(path.join(dir, 'index.json.pre-sqlite')), 'the old file is kept as a safety copy');
+  assert.deepEqual(libraryRows(dir), ['items/itm_a', 'presets/mine']);
+  assert.equal(createLibraryStore({ dir }).getRoot('root_1').ref, 'D:\\Library');
+});
+
+test('an index.json written beside an existing database library does not overwrite it', () => {
+  const { dir, store } = tempStore();
+  store.addItem({ id: 'itm_new', ref: 'n.mkv', root: 'r' });
+  store.save();
+  fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify({ schemaVersion: SCHEMA_VERSION, items: { itm_old: { id: 'itm_old' } } }));
+  const reopened = createLibraryStore({ dir, now: () => 777 });
+  assert.ok(reopened.getItem('itm_new'));
+  assert.equal(reopened.getItem('itm_old'), null);
+  assert.ok(fs.existsSync(path.join(dir, 'index.json.ignored-777')));
 });
 
 test('a corrupt index is preserved, not silently discarded', () => {

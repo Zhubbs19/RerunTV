@@ -38,17 +38,19 @@ const { DB_FILE, DB_FILES, snapshotDb } = require('../util/db');
 const OWN_DATA_ENTRIES = [
   'channels.json', 'window-state.json',
   'update-state.json', 'viewing-history.json',
-  // The SQLite file (main/util/db.js) and its WAL companions. The update
-  // safety copy skips these and takes a VACUUM INTO snapshot instead (see
-  // snapshotDbForUpdate below); the other copies run before it's opened.
+  // The SQLite file (main/util/db.js): caches, the viewing log and the library
+  // catalogue, plus its WAL companions. The update safety copy skips these and
+  // takes a VACUUM INTO snapshot instead (see snapshotDbForUpdate below); the
+  // other copies run before it's opened.
   ...DB_FILES,
-  // The pre-SQLite API cache, so an older install migrating in still brings
-  // it along; main/updater/api-cache.js imports it into rerun.db and removes it.
+  // Pre-SQLite files, so an older install migrating in still brings them
+  // along; api-cache.js and diagnostics/history.js import them into rerun.db.
   'api-cache.json',
   'backups', 'plugins',
   // The Video Splicer's remembered folders and options (main/splicer/service.js).
   'video-splicer',
-  // The media library's catalogue, reviews and smart channels (docs/design/07).
+  // The media library's scan log and metadata caches (docs/design/07), and a
+  // pre-SQLite index.json; the catalogue itself is in rerun.db.
   'library',
   // Household profiles, favorites, DVR and personal history (docs/design/09).
   'profiles',
@@ -124,13 +126,20 @@ function copyOwnDataEntries(fromDir, toDir, options = {}) {
 }
 
 // The database's part of the update safety copy: one consistent file written
-// with VACUUM INTO, safe while a loudness sweep is still writing to it. A
-// failure costs only regenerable caches, so it never stops the rest.
+// with VACUUM INTO, safe while a loudness sweep is still writing to it. It
+// holds the library catalogue, not just caches, so if the snapshot fails the
+// raw files (database plus WAL) are copied instead: SQLite replays a copied
+// WAL on open, and a copy that might be a few writes stale beats no copy if
+// the installer wipes the folder.
 function snapshotDbForUpdate(localDir, backupDir) {
   try {
     snapshotDb(localDir, path.join(backupDir, DB_FILE));
+    return;
   } catch (e) {
-    console.error(`Could not snapshot ${DB_FILE} ahead of an update install — its caches will be rebuilt if the install wipes them:`, e.message);
+    console.error(`Could not snapshot ${DB_FILE} ahead of an update install; copying its files instead:`, e.message);
+  }
+  for (const name of DB_FILES) {
+    try { fs.copyFileSync(path.join(localDir, name), path.join(backupDir, name)); } catch (e) { /* not there */ }
   }
 }
 

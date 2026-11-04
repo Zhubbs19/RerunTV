@@ -1,7 +1,8 @@
 // The library index on disk (docs/design/07 §3, contract C6).
 //
-// `userData/library/index.json`, with its own `schemaVersion` — deliberately
-// NOT part of channels.json. Two reasons, both structural:
+// The `library` table in <userData>/rerun.db (main/util/db.js), with its own
+// `schemaVersion` — deliberately NOT part of channels.json. Two reasons, both
+// structural:
 //
 //   * C6 says schedule math reads only `ch.files`. Keeping the catalogue in a
 //     separate file makes that hard to violate by accident: nothing on the
@@ -10,13 +11,22 @@
 //     write. A catalogue of tens of thousands of items does not belong in that
 //     loop.
 //
-// Electron-free: the directory is injected, so tests drive it directly and the
-// headless host uses it unchanged. Writes are temp-then-rename, matching
-// main/config/config.js's writeConfigFile — a crash mid-write leaves the old
-// index intact rather than a truncated one.
+// The index is still loaded whole and edited in memory (items are mutated in
+// place, which is why `generation` exists). What changed is save(): it used
+// to rewrite all of `library/index.json`, pretty-printed, for one edit; now it
+// compares each item, series, query and preset with what was last saved and
+// writes only the rows that differ, in one transaction, so a crash leaves
+// either the old rows or the new ones. An existing index.json is imported on
+// first load and kept beside the database as index.json.pre-sqlite. If SQLite
+// can't be used this session, the store falls back to that JSON file exactly
+// as before.
+//
+// Electron-free: the directories are injected, so tests drive it directly and
+// the headless host uses it unchanged.
 const crypto = require('crypto');
 const fs = require('fs');
 const { atomicWriteFileSync } = require('../util/atomic-write');
+const { getDatabase, transaction } = require('../util/db');
 const path = require('path');
 
 const SCHEMA_VERSION = 1;
@@ -79,9 +89,39 @@ function migrate(index) {
   return index;
 }
 
-function createLibraryStore({ dir, now = () => Date.now() }) {
+// The id-keyed sections, each stored as one row per entry.
+const KINDS = ['items', 'series', 'queries', 'presets'];
+// Row key for the `saved` snapshot: kind and id, NUL-separated.
+const rowKey = (kind, id) => `${kind}\u0000${id}`;
+
+function schemaTooNew(message) {
+  const error = new Error(message);
+  error.code = 'LIBRARY_SCHEMA_TOO_NEW';
+  return error;
+}
+
+// Every row the index would store, as serialized JSON. The meta rows hold the
+// roots list (order matters) and the index's own schemaVersion.
+function indexRows(index) {
+  const rows = new Map();
+  rows.set(rowKey('meta', 'schemaVersion'), JSON.stringify(index.schemaVersion));
+  rows.set(rowKey('meta', 'roots'), JSON.stringify(index.roots));
+  for (const kind of KINDS) {
+    for (const [id, value] of Object.entries(index[kind])) rows.set(rowKey(kind, id), JSON.stringify(value));
+  }
+  return rows;
+}
+
+// `dir` is the library folder (scan log, metadata caches, the pre-SQLite
+// index.json); `dbDir` is where rerun.db lives — userData in the app, the
+// same temp folder in tests.
+function createLibraryStore({ dir, dbDir = dir, now = () => Date.now() }) {
   const indexPath = path.join(dir, 'index.json');
   let index = null;
+  // The rows as last read or written: rowKey -> JSON text. save() writes only
+  // the differences against it. null on the JSON fallback.
+  let saved = null;
+  let db = null;
   // Bumped on every mutation, exactly like the renderer's S.configGeneration
   // (CLAUDE.md). Anything that derives something from the library — a query's
   // results, a channel's candidate list — keys its cache on this rather than on
@@ -89,8 +129,8 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
   let generation = 0;
   let loadError = null;
 
-  function load() {
-    if (index) return index;
+  // The pre-SQLite path, and the fallback when SQLite can't be used.
+  function loadJsonFile() {
     try {
       index = migrate(normalize(JSON.parse(fs.readFileSync(indexPath, 'utf-8'))));
       loadError = null;
@@ -113,8 +153,95 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
     return index;
   }
 
+  function readRows() {
+    const raw = { roots: [] };
+    KINDS.forEach((kind) => { raw[kind] = Object.create(null); });
+    const rows = new Map();
+    for (const row of db.prepare('SELECT kind, id, value FROM library').all()) {
+      let value;
+      try { value = JSON.parse(row.value); } catch (e) {
+        console.error(`[library] skipping an unreadable ${row.kind} row (${row.id}): ${e.message}`);
+        continue;
+      }
+      rows.set(rowKey(row.kind, row.id), row.value);
+      if (row.kind === 'meta') raw[row.id] = value;
+      else if (KINDS.includes(row.kind)) raw[row.kind][row.id] = value;
+    }
+    return { raw, rows };
+  }
+
+  function writeRows(next) {
+    const upsert = db.prepare(`INSERT INTO library (kind, id, value) VALUES (?, ?, ?)
+      ON CONFLICT (kind, id) DO UPDATE SET value = excluded.value`);
+    const remove = db.prepare('DELETE FROM library WHERE kind = ? AND id = ?');
+    const split = (key) => { const i = key.indexOf('\u0000'); return [key.slice(0, i), key.slice(i + 1)]; };
+    let written = 0;
+    transaction(db, () => {
+      for (const [key, value] of next) {
+        if (saved.get(key) === value) continue;
+        upsert.run(...split(key), value);
+        written += 1;
+      }
+      for (const key of saved.keys()) {
+        if (next.has(key)) continue;
+        remove.run(...split(key));
+        written += 1;
+      }
+    });
+    saved = next;
+    return written;
+  }
+
+  // A pre-SQLite index.json found beside the database. Into an empty table it
+  // is imported and kept as index.json.pre-sqlite; a corrupt one has already
+  // been preserved by loadJsonFile. If the table already has a library (an
+  // older build wrote index.json after a downgrade) the file is set aside
+  // rather than allowed to overwrite it.
+  function importLegacyIndex(tableHasLibrary) {
+    if (!fs.existsSync(indexPath)) return;
+    if (tableHasLibrary) {
+      const aside = `${indexPath}.ignored-${now()}`;
+      console.error(`[library] found index.json beside a library already in rerun.db; keeping the database and moving the file to ${aside}`);
+      try { fs.renameSync(indexPath, aside); } catch (e) { /* tried again next boot */ }
+      return;
+    }
+    loadJsonFile(); // throws LIBRARY_SCHEMA_TOO_NEW and leaves the file alone
+    if (!loadError) writeRows(indexRows(index));
+    try {
+      if (loadError) fs.rmSync(indexPath, { force: true }); // its bytes are in index.json.corrupt-*
+      else fs.renameSync(indexPath, `${indexPath}.pre-sqlite`);
+    } catch (e) { /* next boot sees a library in the table and sets the file aside */ }
+  }
+
+  function load() {
+    if (index) return index;
+    const database = getDatabase(dbDir);
+    if (database.tooNew) throw schemaTooNew('rerun.db was written by a newer build; the library is not loaded so nothing in it is dropped');
+    if (!database.db) return loadJsonFile();
+    db = database.db;
+    const { raw, rows } = readRows();
+    saved = rows;
+    const tableHasLibrary = rows.has(rowKey('meta', 'schemaVersion'));
+    if (tableHasLibrary) {
+      if (Number.isInteger(raw.schemaVersion) && raw.schemaVersion > SCHEMA_VERSION) {
+        index = null;
+        throw schemaTooNew(`the library in rerun.db is schema v${raw.schemaVersion}; this build understands v${SCHEMA_VERSION}`);
+      }
+      index = migrate(normalize(raw));
+      loadError = null;
+    } else {
+      index = emptyIndex();
+    }
+    importLegacyIndex(tableHasLibrary);
+    return index;
+  }
+
   function save() {
     const current = load();
+    if (saved) {
+      writeRows(indexRows(current));
+      return current;
+    }
     fs.mkdirSync(dir, { recursive: true });
     atomicWriteFileSync(indexPath, JSON.stringify(current, null, 2), { encoding: 'utf-8' });
     return current;
@@ -277,6 +404,8 @@ function createLibraryStore({ dir, now = () => Date.now() }) {
     indexPath,
     load,
     save,
+    // 'sqlite', or 'json' when this session fell back to index.json.
+    backend: () => { load(); return saved ? 'sqlite' : 'json'; },
     // What a cache keys on. Never reset, only increased.
     generation: () => generation,
     // Non-null when the index on disk could not be read and a fresh one was

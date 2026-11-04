@@ -97,7 +97,7 @@ const { registerDialogIpc } = require('./ui/dialogs');
 const { registerFfmpegInstallIpc } = require('./media/ffmpeg-install');
 const { applyWindowUiScale, normalizeUiScalePreference } = require('./ui/scale');
 const { registerStartupServerIpc } = require('./lan/startup-server');
-const { registerHistoryIpc, flushHistoryNow } = require('./diagnostics/history');
+const { registerHistoryIpc, viewingHistory } = require('./diagnostics/history');
 const { createShutdownController, registerShutdownIpc } = require('./system/shutdown');
 
 // A device that's already entered a LAN service's pairing code once stays
@@ -383,6 +383,7 @@ function getLibraryService() {
     const { callMediaService, wrapMediaRef, MEDIA_LIST_TIMEOUT_MS } = require('./media/dispatch');
     libraryService = createLibraryService({
       dir: path.join(app.getPath('userData'), 'library'),
+      dbDir: app.getPath('userData'),
       videoExtensions: VIDEO_EXTENSIONS,
       // A provider root is listed through its media-source plugin, the same
       // call folder sync uses. The listing carries no etags today, so provider
@@ -447,7 +448,8 @@ function getPersonalService() {
   if (!personalService) personalService = createPersonalService({
     dir: path.join(app.getPath('userData'), 'profiles'),
     getConfig: loadConfig,
-    legacyHistoryFile: path.join(app.getPath('userData'), 'viewing-history.json'),
+    // Seeds the first household profile from the box-wide viewing log.
+    getLegacyHistory: () => viewingHistory().all(),
     publish: publishPersonalEvent,
   });
   return personalService;
@@ -742,13 +744,8 @@ process.on('unhandledRejection', (reason) => {
   console.error('[main] unhandledRejection:', reason && reason.stack || reason);
 });
 
-// The viewing log batches its writes, so the last couple of seconds of it
-// would otherwise die with the process on quit.
-app.on('will-quit', () => {
-  flushHistoryNow();
-  // A clean close folds rerun.db's WAL back into the main file (main/util/db.js).
-  closeDatabases();
-});
+// A clean close folds rerun.db's WAL back into the main file (main/util/db.js).
+app.on('will-quit', () => closeDatabases());
 
 app.on('window-all-closed', () => {
   // The pre-launch updater window can close after an up-to-date/error

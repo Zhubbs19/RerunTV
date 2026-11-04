@@ -127,7 +127,8 @@ Otherwise every paired TV will refetch the whole lineup each time it changes.
   plugin page share.
 - **Writes are atomic.** Main-process JSON/state writers go through `main/util/atomic-write.js`
   (temp file, fsync, rename with retry on Windows' EPERM/EBUSY), not a bare `fs.writeFile`.
-  Caches live in `rerun.db` (`main/util/db.js`) as one row per entry instead. An open WAL database can't be
+  Caches, the viewing log and the library catalogue live in `rerun.db` (`main/util/db.js`) as rows instead
+  (schema steps in its `MIGRATIONS`, append-only). An open WAL database can't be
   file-copied safely, so the update safety copy in `main/config/config.js` skips its files and takes a
   `VACUUM INTO` snapshot (`snapshotDb`).
 - LAN pairing and session auth are in `main/lan/security.js`; `SECURITY.md` has the user-facing
@@ -233,7 +234,7 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   `ui/` (dialogs, scale, screen placement, CEC), `system/` (`shutdown.js`, the opt-in PC-shutdown
   countdown behind SYSTEM › POWER, the TV menu's SHUT DOWN PC and the companion remote's button; its
   renderer half is `renderer/js/playback/pc-power.js`), and `util/` (`http.js`, `path-safety.js`, `db.js` the `<userData>/rerun.db` SQLite file via built-in `node:sqlite`,
-  which holds the API, loudness and crop caches; channels.json stays JSON).
+  which holds the API, loudness and crop caches, the viewing log and the library index; channels.json stays JSON).
 - `main/splicer/` — the Video Splicer (setup › LIBRARY › SPLICER): command-line scripts
   (`splice.js`, `combine.js`) run in an Electron utility process by `service.js`, which
   queues runs and streams their output to `renderer/js/setup/splicer.js`. The cut editor's

@@ -36,7 +36,10 @@ linear TV); server-side transcoding catalogues.
 
 ## 3. Data model
 
-Stored in `userData/library/` (its own `schemaVersion`), not in `channels.json`:
+Stored apart from `channels.json`, with its own `schemaVersion`. As built, the index lives in the
+`library` table of `userData/rerun.db` (`main/util/db.js`), one row per item, series, saved query
+and preset; it started as the `library/index.json` file sketched below, and `main/library/store.js`
+imports such a file once. `userData/library/` keeps the scan log and metadata caches.
 
 ```jsonc
 // library/index.json (sharded by root if large)

@@ -3,18 +3,22 @@
 // every Electron upgrade, and it needs no command-line flag, which the
 // packaged build couldn't pass anyway (its fuses turn off NODE_OPTIONS).
 //
-// Today it holds only regenerable caches (the web API response cache, the
-// leveler's loudness and the black-bar crop measurements). Each used to be a
-// JSON file rewritten whole for every new entry, which for the API cache meant
-// several megabytes per metadata lookup. Here each entry is one row.
+// What lives here, each of which used to be a JSON file rewritten whole on
+// every change:
+//   cache     regenerable caches (the web API response cache, the leveler's
+//             loudness and the black-bar crop measurements), one row per entry
+//   history   the viewing log (main/diagnostics/history.js), one row per programme
+//   library   the media library index (main/library/store.js), one row per
+//             item, series, saved query and preset
 //
 // channels.json is deliberately NOT here and isn't meant to move: the command
 // layer, undo, the config host's replay, /api/config and the rotating backups
 // all treat it as one JSON document.
 //
 // Electron-free, with the directory injected, so the unit tests drive it under
-// plain node. If node:sqlite can't be loaded or the file can't be opened, a
-// cache falls back to memory for the session rather than failing its caller.
+// plain node. If node:sqlite can't be loaded or the file can't be opened, each
+// user falls back (caches and history to memory, the library to its JSON
+// file) rather than failing its caller.
 //
 // The update-install safety copy (main/config/config.js) must not file-copy an
 // open database in WAL mode, so it skips these files and calls snapshotDb(),
@@ -26,8 +30,47 @@ const DB_FILE = 'rerun.db';
 // The database and the two files SQLite keeps beside it while it's open in WAL
 // mode. A clean close folds -wal back in and removes both.
 const DB_FILES = [DB_FILE, `${DB_FILE}-wal`, `${DB_FILE}-shm`];
-const SCHEMA_VERSION = 1;
 const PRUNE_DEBOUNCE_MS = 2000;
+// SQLite result codes that mean the file itself is damaged, as opposed to busy
+// or unreachable for the moment.
+const SQLITE_CORRUPT = 11;
+const SQLITE_NOTADB = 26;
+
+// Schema steps, applied in order from PRAGMA user_version. Append only: a
+// shipped step never changes, the next change is a new step.
+const MIGRATIONS = [
+  // 1: caches.
+  `CREATE TABLE IF NOT EXISTS cache (
+    ns TEXT NOT NULL,
+    key TEXT NOT NULL,
+    at INTEGER NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (ns, key)
+  ) WITHOUT ROWID;
+  CREATE INDEX IF NOT EXISTS cache_age ON cache (ns, at);`,
+  // 2: viewing history. Columns rather than a JSON blob, so "what did I watch
+  // on channel 12 last week" is an indexed query.
+  `CREATE TABLE IF NOT EXISTS history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    view_at INTEGER NOT NULL,
+    channel_number REAL,
+    channel_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    path TEXT NOT NULL,
+    duration_s REAL NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS history_at ON history (at);`,
+  // 3: the library index. kind is items/series/queries/presets, or meta for
+  // the roots list and the index's own schemaVersion.
+  `CREATE TABLE IF NOT EXISTS library (
+    kind TEXT NOT NULL,
+    id TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (kind, id)
+  ) WITHOUT ROWID;`,
+];
+const SCHEMA_VERSION = MIGRATIONS.length;
 
 let sqlite = null;
 let sqliteLoadError = null;
@@ -37,32 +80,51 @@ try {
   sqliteLoadError = e;
 }
 
-// resolved dir -> { db, tables: Map(ns -> table) }. db is null when SQLite is unavailable.
+// resolved dir -> { db, tooNew, tables: Map(ns -> table) }. db is null when
+// SQLite is unavailable or the file couldn't be used.
 const handles = new Map();
 
-function createSchema(db) {
+function tooNewError(version) {
+  const error = new Error(`${DB_FILE} is schema ${version}, newer than this build understands (${SCHEMA_VERSION})`);
+  error.code = 'DB_SCHEMA_TOO_NEW';
+  return error;
+}
+
+// Runs fn inside one transaction.
+function transaction(db, fn) {
+  db.exec('BEGIN');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+function applySchema(db) {
+  db.exec('PRAGMA busy_timeout = 2000');
+  // Checked before anything writes: even switching the journal mode rewrites
+  // the file header, and a newer build's file must be left byte-for-byte alone.
+  const version = Number(db.prepare('PRAGMA user_version').get().user_version);
+  if (version > SCHEMA_VERSION) throw tooNewError(version);
   db.exec('PRAGMA journal_mode = WAL');
   // NORMAL in WAL mode can lose the last commits on power loss but never
-  // corrupts the file — the right trade for caches written many times a minute.
+  // corrupts the file.
   db.exec('PRAGMA synchronous = NORMAL');
-  db.exec('PRAGMA busy_timeout = 2000');
-  const version = db.prepare('PRAGMA user_version').get().user_version;
-  if (version > SCHEMA_VERSION) throw new Error(`${DB_FILE} is schema ${version}, newer than this build understands (${SCHEMA_VERSION})`);
-  db.exec(`CREATE TABLE IF NOT EXISTS cache (
-    ns TEXT NOT NULL,
-    key TEXT NOT NULL,
-    at INTEGER NOT NULL,
-    value TEXT NOT NULL,
-    PRIMARY KEY (ns, key)
-  ) WITHOUT ROWID`);
-  db.exec('CREATE INDEX IF NOT EXISTS cache_age ON cache (ns, at)');
-  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+  for (let step = version; step < SCHEMA_VERSION; step += 1) {
+    transaction(db, () => {
+      db.exec(MIGRATIONS[step]);
+      db.exec(`PRAGMA user_version = ${step + 1}`);
+    });
+  }
 }
 
 function openFile(file) {
   const db = new sqlite.DatabaseSync(file);
   try {
-    createSchema(db);
+    applySchema(db);
     return db;
   } catch (e) {
     try { db.close(); } catch (e2) { /* already unusable */ }
@@ -70,14 +132,20 @@ function openFile(file) {
   }
 }
 
-// A file that won't open (corrupt, or from a newer build) is moved aside, not
-// deleted, and a fresh one started — everything in it today is regenerable.
+function isDamaged(error) {
+  return !!error && (error.errcode === SQLITE_CORRUPT || error.errcode === SQLITE_NOTADB);
+}
+
+// Only a damaged file is moved aside (never deleted) for a fresh one. It can
+// hold the library, so a lock, a permissions problem or a file from a newer
+// build is left exactly where it is.
 function openOrReplace(dir) {
   const file = path.join(dir, DB_FILE);
   try {
     return openFile(file);
   } catch (e) {
-    console.error(`Could not open ${file}; setting it aside and starting a fresh one:`, e.message);
+    if (!isDamaged(e)) throw e;
+    console.error(`${file} is damaged (${e.message}); setting it aside and starting a fresh one`);
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     for (const name of DB_FILES) {
       try { fs.renameSync(path.join(dir, name), path.join(dir, `${name}.unreadable-${stamp}`)); } catch (e2) { /* not there */ }
@@ -91,19 +159,29 @@ function getHandle(dir) {
   let handle = handles.get(key);
   if (handle) return handle;
   let db = null;
+  let tooNew = false;
   if (sqlite) {
     try {
       fs.mkdirSync(key, { recursive: true });
       db = openOrReplace(key);
     } catch (e) {
-      console.error('SQLite storage unavailable; caches will be kept in memory this session:', e.message);
+      tooNew = e.code === 'DB_SCHEMA_TOO_NEW';
+      console.error(`SQLite storage unavailable this session (${e.message}); falling back`);
     }
   } else {
-    console.error('node:sqlite could not be loaded; caches will be kept in memory this session:', sqliteLoadError && sqliteLoadError.message);
+    console.error('node:sqlite could not be loaded; falling back this session:', sqliteLoadError && sqliteLoadError.message);
   }
-  handle = { dir: key, db, tables: new Map() };
+  handle = { dir: key, db, tooNew, tables: new Map() };
   handles.set(key, handle);
   return handle;
+}
+
+// The open database for <dir>/rerun.db, for modules with their own tables
+// (history, library). { db: null } when SQLite can't be used this session;
+// tooNew is true when that's because a newer build wrote the file.
+function getDatabase(dir) {
+  const handle = getHandle(dir);
+  return { db: handle.db, tooNew: handle.tooNew };
 }
 
 function parseValue(text) {
@@ -157,17 +235,12 @@ function sqlTable(db, ns, maxEntries) {
     // Many writes as one transaction. `entries` yields [key, value, at].
     merge(entries) {
       let n = 0;
-      db.exec('BEGIN');
-      try {
+      transaction(db, () => {
         for (const [key, value, at] of entries) {
           mergeStmt.run(ns, String(key), Math.round(Number(at) || 0), JSON.stringify(value));
           n += 1;
         }
-        db.exec('COMMIT');
-      } catch (e) {
-        db.exec('ROLLBACK');
-        throw e;
-      }
+      });
       if (maxEntries) table.prune();
       return n;
     },
@@ -306,8 +379,11 @@ function closeAll() {
 module.exports = {
   DB_FILE,
   DB_FILES,
+  SCHEMA_VERSION,
   cacheTable,
   closeAll,
+  getDatabase,
+  transaction,
   isSqliteAvailable: () => !!sqlite,
   snapshotDb,
 };

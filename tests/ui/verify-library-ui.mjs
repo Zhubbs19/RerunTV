@@ -108,8 +108,21 @@ if (await js(() => !!(window.S.config.librarySync || {}).enabled)) {
 
 const YT = 'J:\\Media Center\\YT Archive';
 const MOVED = 'Z:\\RerunTV Move Test\\YT Archive';
-const libraryDir = path.join(repo, 'userData', 'library');
-record('the throwaway profile starts with no library', !fs.existsSync(path.join(libraryDir, 'index.json')));
+// The library index lives in rerun.db's library table (main/library/store.js);
+// it has a library once the meta row exists.
+const { DatabaseSync } = await import('node:sqlite');
+function libraryBuilt() {
+  const file = path.join(repo, 'userData', 'rerun.db');
+  if (!fs.existsSync(file)) return false;
+  const db = new DatabaseSync(file, { readOnly: true });
+  try {
+    return !!db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'library'").get()
+      && !!db.prepare("SELECT 1 FROM library WHERE kind = 'meta' AND id = 'schemaVersion'").get();
+  } finally {
+    db.close();
+  }
+}
+record('the throwaway profile starts with no library', !libraryBuilt());
 
 await js(async () => { const { showSetupScreen } = await import('app://bundle/renderer/js/app.js'); await showSetupScreen(); });
 await wait(1200);
@@ -161,7 +174,7 @@ await step('building writes the library and only item ids to config', async () =
   const label = await undoLabel();
   await shot('04-catalogue-built');
   record('building writes the library and only item ids to config',
-    unchanged && ids.files === ids.withItem && status.ok && status.result.built && label === 'Build media library' && fs.existsSync(path.join(libraryDir, 'index.json')),
+    unchanged && ids.files === ids.withItem && status.ok && status.result.built && label === 'Build media library' && libraryBuilt(),
     `paths/durations/anchors unchanged=${unchanged}, ids ${ids.withItem}/${ids.files}, items ${status.result && status.result.stats.items}, roots ${status.result && status.result.stats.roots}, undo "${label}"`);
 });
 

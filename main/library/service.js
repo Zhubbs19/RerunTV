@@ -88,6 +88,7 @@ async function walkLocalAsync(root, extensions, maxFiles) {
 
 function createLibraryService({
   dir,
+  dbDir = dir,            // where rerun.db lives (userData in the app)
   videoExtensions,
   listProvider = null,     // async (root) -> [{ ref, etag?, size? }]
   getFfmpegPath = () => null,
@@ -96,7 +97,7 @@ function createLibraryService({
   metadataReader = null,
   breakDetector = null,
 }) {
-  const store = createLibraryStore({ dir, now });
+  const store = createLibraryStore({ dir, dbDir, now });
   const localMetadata = metadataReader || createLocalMetadataReader({ dir, getFfmpegPath, now });
   const breakDetect = breakDetector || createBreakDetectService({ dir, getFfmpegPath, now });
   const scanLogPath = path.join(dir, 'last-scan.json');
@@ -118,6 +119,8 @@ function createLibraryService({
         roots: store.load().roots,
         orphaned: store.orphanedItems().length,
         loadError: store.lastLoadError(),
+        // 'sqlite', or 'json' if this session fell back to library/index.json.
+        storage: store.backend(),
         scanning: scanning ? { root: scanning.rootId, done: scanning.done, total: scanning.total } : null,
         generation: store.generation(),
       };

@@ -87,7 +87,7 @@ function verifyPin(pin, encoded) {
   return crypto.timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
 }
 
-function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile = null, now = () => Date.now(), publish = null }) {
+function createPersonalService({ dir, getConfig = () => ({}), getLegacyHistory = null, legacyHistoryFile = null, now = () => Date.now(), publish = null }) {
   const indexFile = path.join(dir, 'index.json');
   const profileFile = (id) => path.join(dir, `${id}.json`);
   let index = null;
@@ -169,7 +169,9 @@ function createPersonalService({ dir, getConfig = () => ({}), legacyHistoryFile 
 
   function migrateEveryone() {
     let history = [];
-    if (legacyHistoryFile) {
+    if (getLegacyHistory) {
+      try { history = getLegacyHistory() || []; } catch (e) { history = []; }
+    } else if (legacyHistoryFile) {
       try { history = JSON.parse(fs.readFileSync(legacyHistoryFile, 'utf8')).entries || []; } catch (e) { history = []; }
     }
     const createdAt = now();

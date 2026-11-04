@@ -7,7 +7,8 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { DB_FILE, cacheTable, closeAll, isSqliteAvailable, snapshotDb } = require('../main/util/db');
+const { DB_FILE, SCHEMA_VERSION, cacheTable, closeAll, getDatabase, isSqliteAvailable, snapshotDb } = require('../main/util/db');
+const { createLibraryStore } = require('../main/library/store');
 const { createLoudnessService } = require('../main/media/loudness');
 const { createCropDetectService } = require('../main/media/cropdetect');
 
@@ -96,6 +97,39 @@ test('a database that will not open is set aside and replaced', (t) => {
   table.set('k', 1);
   assert.equal(table.count(), 1);
   assert.ok(fs.readdirSync(dir).some((name) => name.startsWith(`${DB_FILE}.unreadable-`)));
+});
+
+test('a database from the caches-only schema is upgraded in place', (t) => {
+  const dir = tempDir(t);
+  const { DatabaseSync } = require('node:sqlite');
+  const old = new DatabaseSync(path.join(dir, DB_FILE));
+  old.exec(`CREATE TABLE cache (ns TEXT NOT NULL, key TEXT NOT NULL, at INTEGER NOT NULL, value TEXT NOT NULL, PRIMARY KEY (ns, key)) WITHOUT ROWID;
+    INSERT INTO cache VALUES ('api', 'k', 5, '"kept"'); PRAGMA user_version = 1;`);
+  old.close();
+  const { db } = getDatabase(dir);
+  assert.equal(Number(db.prepare('PRAGMA user_version').get().user_version), SCHEMA_VERSION);
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
+  assert.ok(tables.includes('history') && tables.includes('library'), tables.join(','));
+  assert.equal(cacheTable(dir, 'api').get('k').value, 'kept');
+});
+
+test('a database from a newer build is left untouched and nothing is lost', (t) => {
+  const dir = tempDir(t);
+  const { DatabaseSync } = require('node:sqlite');
+  const newer = new DatabaseSync(path.join(dir, DB_FILE));
+  newer.exec('CREATE TABLE future (x); PRAGMA user_version = 999;');
+  newer.close();
+  const before = fs.readFileSync(path.join(dir, DB_FILE));
+
+  assert.equal(getDatabase(dir).tooNew, true);
+  const cache = cacheTable(dir, 'api');
+  cache.set('k', 1);
+  assert.equal(cache.get('k').value, 1, 'caches fall back to memory');
+  const library = createLibraryStore({ dir });
+  assert.throws(() => library.load(), (e) => e.code === 'LIBRARY_SCHEMA_TOO_NEW');
+  closeAll();
+  assert.deepEqual(fs.readFileSync(path.join(dir, DB_FILE)), before, 'the file was not touched or set aside');
+  assert.ok(!fs.readdirSync(dir).some((name) => name.includes('unreadable')));
 });
 
 test('snapshotDb writes a complete copy while the database is open', (t) => {
