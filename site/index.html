@@ -1,7 +1,7 @@
 <!doctype html>
-<!-- The RerunTV landing page. scripts/build-site.js copies this folder into _site/, fills the
-     {{…}} placeholders (repository URL, newest release) and adds the screenshots and the
-     Doxygen code reference under api/. The Pages workflow publishes the result. -->
+<!-- The RerunTV website's only HTML page. Vite (site/vite.config.mjs) bundles src/main.jsx into it,
+     and the React app in site/src draws the landing page, the features index or a feature page
+     from the address's #/ route. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -11,187 +11,16 @@
   <meta name="color-scheme" content="dark">
   <meta property="og:title" content="RerunTV">
   <meta property="og:description" content="A desktop cable box for your own media library. Tune in mid-show, like real TV.">
-  <meta property="og:image" content="screenshots/guide.jpg">
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="stylesheet" href="style.css">
+  <meta property="og:image" content="og-image.jpg">
+  <link rel="icon" type="image/png" href="/favicon.png">
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
-
-  <header class="top">
-    <a class="brand" href="./">
-      <img src="icon.png" alt="" width="40" height="40">
-      <span>RerunTV</span>
-    </a>
-    <nav aria-label="Site">
-      <a href="#features">Features</a>
-      <a href="#docs">Docs</a>
-      <a href="api/">Code reference</a>
-      <a href="{{REPO_URL}}">GitHub</a>
-    </nav>
-  </header>
-
-  <main id="main">
-    <section class="hero">
-      <div class="hero-text">
-        <p class="eyebrow"><span class="ch">CH 03</span> Now airing</p>
-        <h1>Your own media library, <em>on the air</em>.</h1>
-        <p class="lede">RerunTV turns folders of your own video into cable channels. Each channel has
-          been running since the moment you made it, so when you tune in, you land mid-show, with a program
-          guide, commercial breaks and the look of an old cable box.</p>
-        <div class="cta">
-          <a class="button primary" href="{{DOWNLOAD_URL}}">Download for Windows</a>
-          <a class="button" href="{{REPO_URL}}">View on GitHub</a>
-        </div>
-        <p class="fine">{{RELEASE_NOTE}} Beta software. The installer isn't code-signed yet, so Windows
-          will warn you the first time; <a href="{{REPO_URL}}#download-and-install">here's how to check the
-          download</a>. Free and open source (MIT).</p>
-      </div>
-      <figure class="tv">
-        <div class="bezel">
-          <img src="screenshots/guide.jpg" alt="The RerunTV program guide in the Classic cable-box skin, with the live picture in the corner and a grid of channels and programs" width="1920" height="1080">
-        </div>
-      </figure>
-    </section>
-
-    <section class="how" aria-labelledby="how-title">
-      <h2 id="how-title">Channels are never restarted</h2>
-      <div class="how-grid">
-        <p>When you make a channel, it gets an anchor time. Whenever you tune in, RerunTV works out what
-          would be playing right now if that folder had been looping ever since. Nothing runs in the
-          background: it's arithmetic against the clock, so you can close the app for a week and the
-          schedule is still right when you come back.</p>
-        <div class="loop" role="img" aria-label="A channel's loop of programs since its anchor time, with a marker where you tune in partway through a program">
-          <div class="loop-row">
-            <span>Ep. 1</span><span>Ad</span><span>Ep. 2</span><span>Ad</span><span class="here">Ep. 3</span><span>Ad</span><span>Ep. 4</span>
-          </div>
-          <div class="loop-labels">
-            <span>Anchor time</span>
-            <span class="now">You tune in here</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="features" class="features" aria-labelledby="features-title">
-      <h2 id="features-title">What's on</h2>
-      <div class="guide" role="list">
-        <div class="guide-head" aria-hidden="true"><span>Channel</span><span>Program</span></div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>02</b><span>Program guide</span></div>
-          <p>A time-grid guide with a live “now” line, channel icons, filters, seven-day search and reminders
-            that can tune the set for you.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>04</b><span>Time machine</span></div>
-          <p>Rewind or fast-forward the whole lineup, or jump to a date. Pick any show in the guide and it
-            plays from its beginning.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>05</b><span>Commercial breaks</span></div>
-          <p>Bumpers and ad breaks from your own folders, timed per channel or per block, and moved to the
-            fades to black where shows were cut for commercials.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>07</b><span>Dayparting</span></div>
-          <p>Cartoons in the morning, something else overnight: schedule blocks swap a channel's folder by the
-            hour, and holiday blocks take over for a date range.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>09</b><span>Cable-box look</span></div>
-          <p>A mid-2000s cable-box layout in two skins, plus themes spanning decades of TV, CRT scanlines,
-            channel-change static and a logo bug in the corner.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>11</b><span>Media library</span></div>
-          <p>A catalogue of your files, program details from <code>.nfo</code> files and tags, channel presets
-            and smart channels built from a saved search.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>13</b><span>Households &amp; DVR</span></div>
-          <p>Per-person favorites, reminders and resume points, recordings from the guide, and a PIN
-            parental lock.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>15</b><span>Remotes &amp; TV mode</span></div>
-          <p>Run it full screen on a TV over HDMI with a remote, or pair a phone on the same Wi-Fi as a
-            remote and setup screen.</p>
-        </div>
-        <div class="row" role="listitem">
-          <div class="chan"><b>17</b><span>Plug-ins</span></div>
-          <p>Extra channels and overlays: a channel mosaic, local weather, captions, breaking-news
-            overlays, metadata from TMDB or TVmaze, or <a href="{{REPO_URL}}/blob/master/PLUGIN_DEVELOPMENT.md">write
-            your own</a>.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="shots" aria-labelledby="shots-title">
-      <h2 id="shots-title">Screenshots</h2>
-      <p class="sub">All from the bundled synthetic demo library. RerunTV ships no video; you bring your own.</p>
-      <div class="shot-grid">
-        <figure>
-          <a href="screenshots/live.jpg"><img src="screenshots/live.jpg" alt="A channel playing, with the channel banner showing the program and time" loading="lazy" width="1920" height="1080"></a>
-          <figcaption>Live TV with the channel banner</figcaption>
-        </figure>
-        <figure>
-          <a href="screenshots/time-machine.jpg"><img src="screenshots/time-machine.jpg" alt="The time machine rewinding through a channel's schedule, with the programs on a strip below" loading="lazy" width="1920" height="1080"></a>
-          <figcaption>The time machine</figcaption>
-        </figure>
-        <figure>
-          <a href="screenshots/guide-hd.jpg"><img src="screenshots/guide-hd.jpg" alt="The full-page program guide in the HD cable-box skin" loading="lazy" width="1920" height="1080"></a>
-          <figcaption>The guide in the HD skin (the default)</figcaption>
-        </figure>
-        <figure>
-          <a href="screenshots/setup.png"><img src="screenshots/setup.png" alt="The channel setup screen, with the channel list and the selected channel's settings" loading="lazy" width="1920" height="1080"></a>
-          <figcaption>Channel setup</figcaption>
-        </figure>
-      </div>
-    </section>
-
-    <section id="docs" class="docs" aria-labelledby="docs-title">
-      <h2 id="docs-title">Documentation</h2>
-      <div class="cards">
-        <a class="card" href="{{REPO_URL}}/wiki">
-          <h3>User guide</h3>
-          <p>Setting up channels, the remote and keyboard controls, breaks, themes and every setting.</p>
-        </a>
-        <a class="card" href="{{REPO_URL}}#try-it-without-your-own-media">
-          <h3>Try the demo</h3>
-          <p>A five-channel synthetic lineup to try RerunTV before pointing it at your own media.</p>
-        </a>
-        <a class="card" href="{{REPO_URL}}/blob/master/PLUGIN_DEVELOPMENT.md">
-          <h3>Plug-in guide</h3>
-          <p>Write your own channels, overlays and media sources against the plug-in API.</p>
-        </a>
-        <a class="card" href="api/">
-          <h3>Code reference</h3>
-          <p>Every module, function and class, built from the comments in the source.</p>
-        </a>
-        <a class="card" href="{{REPO_URL}}/blob/master/CONTRIBUTING.md">
-          <h3>Contributing</h3>
-          <p>Building from source, running the tests, and how the code is laid out.</p>
-        </a>
-        <a class="card" href="{{REPO_URL}}/blob/master/SECURITY.md">
-          <h3>Security</h3>
-          <p>The threat model, the LAN pairing design, and how to report a problem.</p>
-        </a>
-      </div>
-    </section>
-
-    <section class="notes" aria-label="Notices">
-      <p><strong>Photosensitivity.</strong> RerunTV imitates old television, and some effects flicker or
-        flash (scanline flicker, channel-change static, power animations, alert overlays). They can be turned
-        down or off in Setup → Picture &amp; Sound and on the Plug-ins page.</p>
-      <p><strong>How it's built.</strong> RerunTV was written almost entirely by an AI coding agent under
-        the project owner's direction and hasn't had an independent code review or security audit.
-        <a href="{{REPO_URL}}#how-this-project-is-built">More about that</a>.</p>
-    </section>
-  </main>
-
-  <footer class="bottom">
-    <span>RerunTV is MIT licensed. It isn't affiliated with any broadcaster, network or studio.</span>
-    <a href="{{REPO_URL}}/blob/master/LICENSE">License</a>
-  </footer>
+  <div id="root"></div>
+  <noscript>
+    <p style="font-family: system-ui, sans-serif; color: #eef1ff; background: #0b1030; padding: 24px; margin: 0;">
+      This site needs JavaScript. RerunTV's source, README and releases are on GitHub.
+    </p>
+  </noscript>
+  <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>

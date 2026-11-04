@@ -313,8 +313,9 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   top-level function, class, class member or variable (no blank line between) documents it, and its
   first sentence is the summary. The first comment block before any code documents the file. Keep
   writing ordinary `//` comments; nothing needs Doxygen markup. The Pages workflow (`.github/workflows/pages.yml`)
-  publishes it under `api/` of the project site, behind the landing page in `site/` (`npm run site` builds both
-  into `_site/`); the Download button follows the newest release, so the page has no version to bump.
+  publishes it under `api/` of the project site, behind the website in `site/` (a Vite + React app: `npm run site` builds both
+  into `_site/`, `npm run site:dev` serves it with live reload; feature pages are `site/src/pages/features/*.jsx`,
+  listed in order in `site/src/features.json`); the Download button follows the newest release, so the page has no version to bump.
 - **What's New is hand-kept.** When a push to `deploy` ships something users would notice, add a dated entry at the top of
   `CHANGELOG` in `renderer/js/setup/help.js` (HELP › What's New), run `node scripts/release-notes.js --changelog` to
   regenerate `CHANGELOG.md` (a test fails until you do) and, for something worth pointing at, add a `HIGHLIGHTS`

@@ -1,0 +1,104 @@
+[
+  {
+    "slug": "guide",
+    "ch": "02",
+    "title": "Program guide",
+    "summary": "A time-grid guide with a live “now” line, seven-day search, reminders that can tune the set for you, and filters for favorites and channels you haven't watched in a while."
+  },
+  {
+    "slug": "live-tv",
+    "ch": "03",
+    "title": "Live channels",
+    "summary": "Channels that have been on the air since you made them. Tune in and you land mid-show, with a channel banner, an up-next notice, favorites, sub-channels and the old SCAN button."
+  },
+  {
+    "slug": "time-machine",
+    "ch": "04",
+    "title": "Time machine",
+    "summary": "Rewind or fast-forward the whole lineup like a tape, jump to any date on a calendar, or pick a show in the guide and watch it from the beginning."
+  },
+  {
+    "slug": "breaks",
+    "ch": "05",
+    "title": "Commercial breaks",
+    "summary": "Bumpers, station IDs and ad breaks from your own folders, timed per channel or per block, moved to the fades where shows were really cut, with squeezed end credits and programs fitted to the half hour."
+  },
+  {
+    "slug": "scheduling",
+    "ch": "07",
+    "title": "Scheduling",
+    "summary": "Programming blocks swap a channel's lineup by the hour or for a date range, a month calendar flags conflicts, and the ON AIR view shows the week exactly as it will broadcast."
+  },
+  {
+    "slug": "look",
+    "ch": "09",
+    "title": "The cable-box look",
+    "summary": "A mid-2000s cable-box layout in two skins, 13 themes spanning five decades of TV, a CRT picture with scanlines and curvature, and a logo bug in the corner."
+  },
+  {
+    "slug": "sound",
+    "ch": "10",
+    "title": "Sound",
+    "summary": "Separate volume for shows and commercials, a leveler that evens out loud and quiet files, an old-TV-speaker filter, second audio programs and synthesized sound effects."
+  },
+  {
+    "slug": "library",
+    "ch": "11",
+    "title": "Media library",
+    "summary": "A catalogue of every file your channels use, tag suggestions grouped by series, smart channels built from a saved search, channel presets and opt-in folder sync. Nothing on your disk is moved or renamed."
+  },
+  {
+    "slug": "program-details",
+    "ch": "12",
+    "title": "Program details",
+    "summary": "Real episode titles, descriptions, posters and air dates in the guide, read from the files you already have or looked up online, and shown on a program details card."
+  },
+  {
+    "slug": "household",
+    "ch": "13",
+    "title": "Households & DVR",
+    "summary": "A profile for each person with their own favorites, reminders and resume points, recordings scheduled from the guide, a shared watch session, and a PIN parental lock."
+  },
+  {
+    "slug": "tv-mode",
+    "ch": "15",
+    "title": "TV mode & remotes",
+    "summary": "Run RerunTV full screen on a TV over HDMI and drive it with a remote from across the room: big type, a one-column TV menu, remote button learning, and a box that stays awake and on schedule."
+  },
+  {
+    "slug": "other-screens",
+    "ch": "16",
+    "title": "Phones & other screens",
+    "summary": "Pair a phone on the same Wi-Fi as a remote and setup screen, watch the lineup on a laptop or second TV, run the box as a headless server, and invite party guests."
+  },
+  {
+    "slug": "splicer",
+    "ch": "17",
+    "title": "Video Splicer",
+    "summary": "Cut a taped or ripped compilation into separate episodes, commercials and bumpers, review every cut in an editor, and send the clips straight onto a channel or into the ad pool."
+  },
+  {
+    "slug": "channels",
+    "ch": "18",
+    "title": "Built-in channels",
+    "summary": "Extra channels that come with the box: a scrolling preview guide, public access bulletins, local weather, a channel mosaic, a digital music service, a party channel and a few parodies."
+  },
+  {
+    "slug": "plugins",
+    "ch": "19",
+    "title": "Plug-ins",
+    "summary": "Overlays, channels and media sources you can turn on, install or write yourself, each limited to the permissions you approve and, for many, run in a walled-off process."
+  },
+  {
+    "slug": "setup",
+    "ch": "20",
+    "title": "Setup, backups & updates",
+    "summary": "A setup screen with undo for every change, a command palette and full keyboard control, channel health checks, compared and pinned backups, portable channel packages and background updates."
+  },
+  {
+    "slug": "controls",
+    "ch": "21",
+    "title": "Keyboard controls",
+    "summary": "Every key on the box, from changing channel and opening the guide to the time machine, captions, the sleep timer and quick-jump slots."
+  }
+]

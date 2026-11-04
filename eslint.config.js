@@ -62,6 +62,25 @@ module.exports = [
     },
   },
   {
+    // The website (site/, a Vite + React app). vite.config.mjs defines __SITE_INFO__. Without a
+    // React lint plugin (none supports ESLint 10 yet), a component used only in JSX looks unused,
+    // so capitalized names are exempt.
+    files: ['site/src/**/*.js', 'site/src/**/*.jsx'],
+    languageOptions: {
+      sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
+      globals: { ...globals.browser, __SITE_INFO__: 'readonly' },
+    },
+    rules: {
+      'no-unused-vars': ['error', {
+        args: 'none',
+        caughtErrors: 'none',
+        varsIgnorePattern: '^(_|[A-Z])',
+        ignoreRestSiblings: true,
+      }],
+    },
+  },
+  {
     // Older plugins read the shared app state through the window.S global app.js sets.
     files: ['plugins/*/renderer.js', 'plugins/*/settings.js'],
     languageOptions: { globals: { S: 'readonly' } },

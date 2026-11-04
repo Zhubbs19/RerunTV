@@ -41,7 +41,7 @@ tests/ui/_tmp_*
 
 # Generated code reference (npm run docs, scripts/build-docs.js)
 docs/api/
-# Built GitHub Pages site (npm run site, scripts/build-site.js)
+# Built GitHub Pages site (npm run site, site/vite.config.mjs)
 _site/
 
 # ---------- Runtime logs (written by Electron / npm scripts) ----------

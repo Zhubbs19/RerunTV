@@ -20,7 +20,8 @@
     "lint": "eslint .",
     "test:contracts": "node scripts/validate-plugin-contracts.js",
     "docs": "node scripts/build-docs.js",
-    "site": "node scripts/build-site.js",
+    "site": "vite build --config site/vite.config.mjs",
+    "site:dev": "vite --config site/vite.config.mjs",
     "pack": "electron-builder --dir --config electron-builder.config.js",
     "pack:personal": "node scripts/pack-personal.js",
     "dist": "electron-builder --config electron-builder.config.js"
@@ -28,13 +29,17 @@
   "devDependencies": {
     "@eslint/compat": "^2.1.1",
     "@eslint/js": "^10.0.1",
+    "@vitejs/plugin-react": "6.1.2",
     "electron": "^45.2.1",
     "electron-builder": "^26.15.3",
     "eslint": "^10.14.0",
     "espree": "^11.2.0",
     "fast-check": "4.10.2",
     "globals": "^17.14.0",
-    "playwright-core": "^1.64.1"
+    "playwright-core": "^1.64.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "vite": "8.3.5"
   },
   "author": "Zach Hubbard",
   "license": "MIT",

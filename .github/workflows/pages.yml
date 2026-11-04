@@ -1,7 +1,7 @@
 name: Pages
 
-# Publishes the GitHub Pages site: the landing page in site/ plus the Doxygen code reference
-# under api/ (scripts/build-site.js). Runs when master moves, when a release is published (the
+# Publishes the GitHub Pages site: the Vite + React app in site/ plus the Doxygen code reference
+# under api/ (site/vite.config.mjs). Runs when master moves, when a release is published (the
 # Download button points at the newest installer), and by hand. Pages must be set to deploy
 # from GitHub Actions (Settings > Pages > Source).
 on:
