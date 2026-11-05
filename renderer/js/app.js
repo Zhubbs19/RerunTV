@@ -29,7 +29,7 @@ import {
   showGuideOverlay, openGuideGrid, closeGuideGrid,
   handleGuideGridKey, renderGuideGrid,
 } from './guide/guide.js';
-import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, showVirtualGuideOverlay, triggerVirtualChannelOk, triggerVirtualChannelKey } from './playback/virtual.js';
+import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, triggerVirtualChannelOk, triggerVirtualChannelKey } from './playback/virtual.js';
 import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './setup/pin-lock.js';
 import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './core/audio.js';
 import {
@@ -827,11 +827,7 @@ if (tvScreen) {
     } else {
       clickTimer = setTimeout(() => {
         clickTimer = null;
-        if (isVirtualChannel(S.currentNumber)) {
-          showVirtualGuideOverlay(S.currentNumber);
-        } else {
-          showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
-        }
+        showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
       }, 250);
     }
   });

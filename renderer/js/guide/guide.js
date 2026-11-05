@@ -21,7 +21,7 @@ import { updateTimeShiftBadge } from '../playback/timemachine.js';
 import {
   autoHideAfter, escapeHtml, floorToSlot, formatSlotLabel, getDisplayTitle, guessSeriesName,
 } from '../core/util.js';
-import { virtualChannelInfo, virtualChannelNumbers } from '../playback/virtual.js';
+import { getVirtualBadge, isVirtualChannel, virtualChannelInfo, virtualChannelNumbers } from '../playback/virtual.js';
 import {
   cellIndexAt, channelCallLetters, abbreviateChannelName, guideRows, mergeMicroPrograms, moveSelection, rowScrollTop, runSeriesName, selectedIndex,
 } from './model.js';
@@ -84,17 +84,46 @@ function updateGuideLogo(ch) {
   guideLogoEl.classList.remove('hidden');
 }
 
+let guideCardNumber = null; // the channel number the surf card shows (the banner hub can browse past the tuned one)
+
+/**
+ * Fills the legacy surf card for a plugin channel: its name, its NOW text and its badge.
+ * @param {number} number The plugin channel's number.
+ */
+function fillVirtualGuideCard(number) {
+  const info = virtualChannelInfo(number);
+  guideNameEl.textContent = info.name;
+  guideNowEl.textContent = info.nowText ? `NOW: ${info.nowText}` : '';
+  guideBarFillEl.style.width = '100%';
+  const badge = getVirtualBadge(number);
+  guideLogoEl.innerHTML = '';
+  guideLogoEl.style.background = badge.bg;
+  guideLogoEl.textContent = badge.label;
+  guideLogoEl.classList.remove('hidden');
+}
+
+/**
+ * Shows the channel surf card for a channel and starts its auto-hide timer.
+ * The one banner path for every kind of channel, plugin channels included, so
+ * both layouts' cards always follow the channel shown.
+ * @param {number} number The channel number shown.
+ * @param {?object} ch The channel config, or `null` for a plugin channel or when nothing is on that number.
+ */
 export function showGuideOverlay(number, ch) {
+  guideCardNumber = number;
   guideNumberEl.textContent = formatChannelNumber(number);
-  if (!ch) {
+  if (!ch && isVirtualChannel(number)) {
+    fillVirtualGuideCard(number);
+  } else if (!ch) {
     guideNameEl.textContent = S.config.display?.noSignalTitle?.trim() || 'NO SIGNAL';
     guideNowEl.textContent = '';
     guideBarFillEl.style.width = '0%';
+    updateGuideLogo(null);
   } else {
     guideNameEl.textContent = ch.name || 'UNTITLED CHANNEL';
     updateGuideNowPlaying(ch);
+    updateGuideLogo(ch);
   }
-  updateGuideLogo(ch);
   if (cableGuide()) fillFlipBar(number, ch);
   guideMuteEl.classList.toggle('hidden', !player.muted);
   guideOverlay.classList.remove('hidden');
@@ -125,8 +154,11 @@ function startGuideNowTick() {
       guideNowTimer = null;
       return;
     }
-    const ch = getChannel(S.currentNumber);
+    // The legacy card's NOW line follows the channel it shows; a plugin
+    // channel's NOW text can change with its own state.
+    const ch = guideCardNumber != null ? getChannel(guideCardNumber) : null;
     if (ch) updateGuideNowPlaying(ch);
+    else if (guideCardNumber != null && isVirtualChannel(guideCardNumber)) fillVirtualGuideCard(guideCardNumber);
     // The Flip Bar follows whatever it is showing (the banner hub browses
     // channels without tuning them).
     const flip = flipBarProgram();

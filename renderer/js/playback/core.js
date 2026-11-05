@@ -1012,6 +1012,7 @@ export async function tuneToChannel(number, opts) {
     // The virtual channels have no schedule to shuttle through.
     if (S.timeMachineOn) exitTimeMachine();
     showVirtualChannel(number);
+    showGuideOverlay(number, null);
     return;
   }
 
@@ -1223,7 +1224,7 @@ export function stopChannelScan({ silent = false } = {}) {
   if (S.scanTimer == null) return false;
   clearInterval(S.scanTimer);
   S.scanTimer = null;
-  if (!silent) showGuideOverlay();
+  if (!silent) showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
   return true;
 }
 
@@ -1232,11 +1233,11 @@ export function toggleChannelScan() {
   // Moving immediately makes the key feel like it did something; waiting a
   // full dwell first reads as the key having been ignored.
   changeChannel(1);
-  showGuideOverlay();
+  showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
   S.scanTimer = setInterval(() => {
     if (!S.isPoweredOn || S.isSetupOpen) { stopChannelScan({ silent: true }); return; }
     changeChannel(1);
-    showGuideOverlay();
+    showGuideOverlay(S.currentNumber, getChannel(S.currentNumber));
   }, scanDwellMs());
   return true;
 }

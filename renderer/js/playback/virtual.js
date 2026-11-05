@@ -1,13 +1,8 @@
-import {
-  guideBarFillEl, guideLogoEl, guideMuteEl, guideNameEl, guideNowEl, guideNumberEl,
-  guideOverlay, noSignalEl, player, pluginChannelContainerEl,
-} from '../core/dom.js';
+import { noSignalEl, player, pluginChannelContainerEl } from '../core/dom.js';
 import { S } from '../core/state.js';
 import {
   getPluginChannelEntryForNumber, getPluginChannelOverride, getPluginChannelType, pluginChannelTypeIds,
 } from '../plugin/host.js';
-import { autoHideAfter } from '../core/util.js';
-import { formatChannelNumber } from '../core/channels.js';
 
 // The plugin channel currently rendered into pluginChannelContainerEl (if
 // any) — tracked here rather than on the DOM, since a plugin's stop() hook
@@ -185,27 +180,11 @@ export function getVirtualBadge(number) {
   return { bg: '#3b82f6', label: String(number) };
 }
 
-export function showVirtualGuideOverlay(number) {
-  const info = virtualChannelInfo(number);
-  guideNumberEl.textContent = formatChannelNumber(number);
-  guideNameEl.textContent = info.name;
-  guideNowEl.textContent = `NOW: ${info.nowText}`;
-  guideBarFillEl.style.width = '100%';
-
-  if (guideLogoEl) {
-    guideLogoEl.innerHTML = '';
-    const badge = getVirtualBadge(number);
-    guideLogoEl.style.background = badge.bg;
-    guideLogoEl.textContent = badge.label;
-    guideLogoEl.classList.remove('hidden');
-  }
-
-  guideMuteEl.classList.toggle('hidden', !player.muted);
-  guideOverlay.classList.remove('hidden');
-  const cardDuration = S.config.display?.guideCardDuration ?? 4000;
-  S.guideHideTimer = autoHideAfter(S.guideHideTimer, cardDuration, () => guideOverlay.classList.add('hidden'));
-}
-
+/**
+ * Tunes to a plugin channel: clears the player and renders the plugin into its container.
+ * The caller shows the channel banner (guide.js's showGuideOverlay, which knows plugin channels).
+ * @param {number} number The channel number.
+ */
 export function showVirtualChannel(number) {
   player.pause();
   player.removeAttribute('src');
@@ -240,6 +219,4 @@ export function showVirtualChannel(number) {
       pluginChannelContainerEl.classList.remove('hidden');
     }
   }
-
-  showVirtualGuideOverlay(number);
 }
