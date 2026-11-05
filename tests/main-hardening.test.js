@@ -157,6 +157,30 @@ test('a sharp channel-count drop is recognised, ordinary edits are not', () => {
   assert.equal(isSharpChannelDrop(null, 0), false);
 });
 
+test('userData sits beside the app on Windows and in development, and in app data elsewhere', () => {
+  const { userDataDirFor } = require(mainFile('config', 'config.js'));
+  const devRoot = path.join(path.sep, 'src', 'rerun-tv');
+  const appDataDir = path.join(path.sep, 'home', 'viewer', '.config');
+  const execPath = path.join(path.sep, 'opt', 'RerunTV', 'reruntv');
+  // Development runs keep the repo-root folder on every platform (the UI suite's safety copy relies on it).
+  for (const platform of ['win32', 'linux', 'darwin']) {
+    assert.equal(userDataDirFor({ isPackaged: false, platform, execPath, appDataDir, devRoot }), path.join(devRoot, 'userData'), platform);
+  }
+  // An installed Windows build stays portable, beside RerunTV.exe.
+  assert.equal(userDataDirFor({ isPackaged: true, platform: 'win32', execPath, appDataDir, devRoot }), path.join(path.dirname(execPath), 'userData'));
+  // Packaged Linux and macOS can't write beside the executable (read-only AppImage mount, root-owned /opt, signed .app).
+  for (const platform of ['linux', 'darwin']) {
+    assert.equal(userDataDirFor({ isPackaged: true, platform, execPath, appDataDir, devRoot }), path.join(appDataDir, 'RerunTV'), platform);
+  }
+});
+
+test('the userData app-data folder name matches the packaged product name', () => {
+  const { userDataDirFor } = require(mainFile('config', 'config.js'));
+  const { productName } = require(path.join(root, 'electron-builder.config.js'));
+  const dir = userDataDirFor({ isPackaged: true, platform: 'linux', execPath: '', appDataDir: path.sep, devRoot: '' });
+  assert.equal(path.basename(dir), productName);
+});
+
 test('the pre-update backup skips caches, credentials and huge files', () => {
   const { shouldSkipFromUpdateBackup } = require(mainFile('config', 'config.js'));
   const dir = (name) => ({ isDirectory: () => true, isFile: () => false, size: 0, name });

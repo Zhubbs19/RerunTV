@@ -15,7 +15,9 @@ const { DB_FILE, DB_FILES, snapshotDb } = require('../util/db');
 // plugin's own data folder) lives in a `userData/` folder next to the app
 // itself rather than Electron's OS-profile default (%APPDATA%/
 // retro-cable-box on Windows) — the whole box, config included, stays
-// inside one folder you can copy/move/back up as a unit.
+// inside one folder you can copy/move/back up as a unit. Packaged builds on
+// other platforms can't write beside the executable and use the per-user
+// app-data folder instead (userDataDirFor below).
 //
 // migrateUserDataIfNeeded() below MUST run — and finish repointing
 // app.setPath('userData', ...) — before ANYTHING in this process calls
@@ -149,12 +151,49 @@ async function copyOwnDataEntriesAsync(fromDir, toDir, options = {}) {
   }
 }
 
+// Folder name under the OS's per-user app-data folder for packaged builds that
+// can't keep data beside the executable. Matches productName in
+// electron-builder.config.js.
+const USER_DATA_APP_NAME = 'RerunTV';
+
+/**
+ * Where userData lives for a given build, as a pure function of its inputs.
+ * Windows builds and every development run keep the portable `userData/`
+ * folder beside the app (the repo root in development). A packaged build on
+ * any other platform can't: an AppImage runs from a read-only mount, a .deb
+ * installs into root-owned /opt, and a macOS .app bundle is signed. Those use
+ * the OS's per-user app-data folder instead (`$XDG_CONFIG_HOME` or ~/.config
+ * on Linux), which an update never replaces.
+ * @param {object} opts The build's facts.
+ * @param {boolean} opts.isPackaged Whether this is an installed build (`app.isPackaged`).
+ * @param {string} opts.platform A `process.platform` value.
+ * @param {string} opts.execPath The running executable (`process.execPath`).
+ * @param {string} opts.appDataDir The OS per-user app-data folder (`app.getPath('appData')`).
+ * @param {string} opts.devRoot The repository root, used when not packaged.
+ * @returns {string} Absolute path of the userData folder.
+ */
+function userDataDirFor({ isPackaged, platform, execPath, appDataDir, devRoot }) {
+  if (!isPackaged) return path.join(devRoot, 'userData');
+  if (platform !== 'win32') return path.join(appDataDir, USER_DATA_APP_NAME);
+  return path.join(path.dirname(execPath), 'userData');
+}
+
+/**
+ * This build's userData folder: the portable folder next to the app on Windows
+ * and in development, the per-user app-data folder elsewhere (see `userDataDirFor`).
+ * @returns {string} Absolute path of the userData folder.
+ */
 function portableUserDataDir() {
   // config.js now lives in main/config/.  In development the portable data
   // directory remains at the application root, alongside package.json — not
   // inside main/ (which would also bypass the test harness's protected copy).
-  const appDir = app.isPackaged ? path.dirname(process.execPath) : path.join(__dirname, '..', '..');
-  return path.join(appDir, 'userData');
+  return userDataDirFor({
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    execPath: process.execPath,
+    appDataDir: app.isPackaged && process.platform !== 'win32' ? app.getPath('appData') : '',
+    devRoot: path.join(__dirname, '..', '..'),
+  });
 }
 
 // A temp location OUTSIDE the app's own install directory — the whole point
@@ -801,7 +840,7 @@ function registerConfigIpc(ipcMain) {
 }
 
 module.exports = {
-  migrateUserDataIfNeeded, backupUserDataForUpdate, backupUserDataForUpdateAsync, shouldSkipFromUpdateBackup, isSharpChannelDrop, getConfigVersion,
+  migrateUserDataIfNeeded, backupUserDataForUpdate, backupUserDataForUpdateAsync, shouldSkipFromUpdateBackup, isSharpChannelDrop, getConfigVersion, userDataDirFor,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
   registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, loadSettingsRegistry, configHost, onViewerRelevantConfigChange, onConfigApplied,
 };
