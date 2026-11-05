@@ -1,0 +1,100 @@
+name: Linux (experimental)
+
+# Measures how far RerunTV is from running on Linux. Windows is still the only
+# released platform; this workflow ships nothing. It runs the same lint and unit
+# tests as CI on Ubuntu, and separately builds an unsigned AppImage kept as a
+# workflow artifact (never a release: the "Build installer" workflow's single
+# prerelease is what electron-updater reads).
+#
+# The two jobs don't depend on each other, so a failing test still shows
+# whether the AppImage builds. Known gaps (packaged userData beside the
+# executable, which is read-only inside an AppImage; Windows-only launch at
+# login) are not fixed by building it. The Windows run-*.bat extraFiles are
+# copied into the AppImage too; they're harmless there.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint and unit tests (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+        env:
+          # The unit tests run under plain Node, not Electron.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and contract tests
+        run: npm test
+
+  appimage:
+    name: AppImage build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Compute version
+        id: version
+        run: |
+          base=$(node -p "require('./package.json').version")
+          echo "version=${base}-linux.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the AppImage
+        # The Linux settings are passed here, not added to
+        # electron-builder.config.js: that file describes what is released, and
+        # tests/release-integrity.test.js holds it to Windows only.
+        # --publish=never: electron-builder would otherwise try to publish a
+        # GitHub Release on its own when it detects CI.
+        run: |
+          npx electron-builder --linux AppImage --publish=never \
+            --config electron-builder.config.js \
+            --config.extraMetadata.version=${{ steps.version.outputs.version }} \
+            --config.linux.icon=build/icon.png \
+            --config.linux.category=AudioVideo \
+            '--config.linux.artifactName=${productName}-${version}-${arch}.${ext}'
+
+      - name: Summary
+        run: |
+          file=$(ls dist/*.AppImage | head -1)
+          {
+            echo "### Linux AppImage (unsigned, experimental)"
+            echo "- File: \`$(basename "$file")\`"
+            echo "- Size: $(du -h "$file" | cut -f1)"
+            echo "- SHA-256: \`$(sha256sum "$file" | cut -d' ' -f1)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reruntv-linux-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+          retention-days: 14

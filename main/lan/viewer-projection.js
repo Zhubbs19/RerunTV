@@ -78,7 +78,9 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
   function opaqueRef(ref) {
     const id = crypto.createHmac('sha256', secret).update(String(ref)).digest('base64url');
     refs.delete(id); // re-insert so a ref in current use is the newest, not the first evicted
-    refs.set(id, { ref: String(ref), name: path.basename(String(ref), path.extname(String(ref))) });
+    // win32 splits on both / and \, so a Windows path in a config served from a
+    // Linux or macOS host still loses its folders (posix basename keeps them all).
+    refs.set(id, { ref: String(ref), name: path.win32.basename(String(ref), path.extname(String(ref))) });
     while (refs.size > MAX_PROJECTED_REFS) refs.delete(refs.keys().next().value);
     return `viewer:${id}`;
   }
@@ -99,7 +101,7 @@ function createViewerProjection(secret = crypto.randomBytes(32)) {
       out[childKey] = project(child, childKey);
     });
     if (typeof value.path === 'string' && !out.title) {
-      out.title = path.basename(value.path, path.extname(value.path));
+      out.title = path.win32.basename(value.path, path.extname(value.path));
     }
     return out;
   }
