@@ -244,7 +244,7 @@ const HELP_GUIDE = [
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.4 Channel Scan and the Viewing Log', body: [
     'Press N to start SCAN. The box holds on each channel for about eight seconds and then moves on, showing the channel banner as it goes, exactly like the SCAN button on an old cable box. Pressing any key stops it on whatever is on screen.',
     'SYSTEM › DIAGNOSTICS keeps a VIEWING HISTORY: one row for each programme that actually reached the screen, with an estimated watch time and your most-watched channel and programme.',
-    'That log lives in its own file, separate from your channel configuration. It is never included in a config backup or export, which also means CLEAR HISTORY cannot be undone by restoring a backup. Turn the whole thing off with the checkbox on that panel if you would rather nothing were logged.',
+    'That log lives in the box\'s database (rerun.db in the userData folder), separate from your channel configuration, and keeps up to 50,000 programmes. It is never included in a config backup or export, which also means CLEAR HISTORY cannot be undone by restoring a backup. Turn the whole thing off with the checkbox on that panel if you would rather nothing were logged.',
   ] },
   { group: 'SECTION 9 — THE PLUG-INS TAB', title: '9.1 Installing, Turning On/Off, and Removing Plugins', body: [
     'A lot of what this box can do — every special channel from SECTION 7, the remote control, weather and show-info lookups, even audio streaming features that need extra processing behind the scenes — comes from individual PLUGINS, listed on the PLUG-INS tab. Some come built in and turned on by default; you can add more yourself.',
@@ -537,6 +537,10 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-09', items: [
+    'Your media library, viewing history and saved lookups (TMDB results and the volume-levelling and black-bar measurements) now live in one database file, rerun.db, instead of large files rewritten on every change. Library edits and the viewing log save only what changed, and the viewing history keeps up to 50,000 programs instead of 2,000.',
+    'Nothing to do: everything moves over by itself the first time this version starts, and the old library file is kept beside it as library/index.json.pre-sqlite. Your channel lineup is unchanged and stays in channels.json.',
+  ] },
   { date: '2026-11-08', items: [
     'Fourteen older themes are gone: the blue guide grids the Cable Guide skins replaced, near-copies of other themes, and looks not based on a TV box. If you used one, your box switches to the closest theme still included (most go to Cable Guide HD ’15 or Classic ’05).',
   ] },

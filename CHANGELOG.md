@@ -4,6 +4,11 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-09
+
+- Your media library, viewing history and saved lookups (TMDB results and the volume-levelling and black-bar measurements) now live in one database file, rerun.db, instead of large files rewritten on every change. Library edits and the viewing log save only what changed, and the viewing history keeps up to 50,000 programs instead of 2,000.
+- Nothing to do: everything moves over by itself the first time this version starts, and the old library file is kept beside it as library/index.json.pre-sqlite. Your channel lineup is unchanged and stays in channels.json.
+
 ## 2026-11-08
 
 - Fourteen older themes are gone: the blue guide grids the Cable Guide skins replaced, near-copies of other themes, and looks not based on a TV box. If you used one, your box switches to the closest theme still included (most go to Cable Guide HD ’15 or Classic ’05).

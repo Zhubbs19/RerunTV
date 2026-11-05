@@ -395,13 +395,15 @@ main/
                              control-browse.js · asset-upload.js · tv-client.js
   updater/                   updater.js background checks, guided/silent install
                              (electron-updater) · state.js pure update-history helpers ·
-                             api-cache.js disk cache for third-party API responses
+                             api-cache.js cache for third-party API responses (in rerun.db)
   diagnostics/               diagnostics.js bounded/redacted support-bundle logging ·
-                             history.js viewing-history.json (kept out of channels.json)
+                             history.js the viewing log (in rerun.db, kept out of channels.json)
   library/ personal/ splicer/  library store/scan/migrate, household/DVR service, Video Splicer
   ui/                        dialogs.js file/folder pickers · scale.js interface scaling ·
                              screen-placement.js · cec.js
-  util/                      http.js shared readJsonBody()/serveStaticFile() · path-safety.js
+  util/                      http.js shared readJsonBody()/serveStaticFile() · path-safety.js ·
+                             db.js userData/rerun.db (built-in node:sqlite): caches, the viewing
+                             log and the library index; channels.json stays JSON
 plugins/
   <plugin-id>/manifest.json  id, category, capabilities, isolation
   <plugin-id>/main.js        optional — main-process half (IPC handlers, etc.)
