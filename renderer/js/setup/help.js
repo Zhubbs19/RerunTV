@@ -537,6 +537,10 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-10', items: [
+    'Plugin channels show the channel banner on the Cable Guide themes too, with the channel’s name and what’s on.',
+    'Changing channels while the banner is up now switches it to the new channel. Before, flipping onto a plugin channel left the previous channel’s banner on screen.',
+  ] },
   { date: '2026-11-09', items: [
     'Your media library, viewing history and saved lookups (TMDB results and the volume-levelling and black-bar measurements) now live in one database file, rerun.db, instead of large files rewritten on every change. Library edits and the viewing log save only what changed, and the viewing history keeps up to 50,000 programs instead of 2,000.',
     'Nothing to do: everything moves over by itself the first time this version starts, and the old library file is kept beside it as library/index.json.pre-sqlite. Your channel lineup is unchanged and stays in channels.json.',

@@ -4,6 +4,11 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-10
+
+- Plugin channels show the channel banner on the Cable Guide themes too, with the channel’s name and what’s on.
+- Changing channels while the banner is up now switches it to the new channel. Before, flipping onto a plugin channel left the previous channel’s banner on screen.
+
 ## 2026-11-09
 
 - Your media library, viewing history and saved lookups (TMDB results and the volume-levelling and black-bar measurements) now live in one database file, rerun.db, instead of large files rewritten on every change. Library edits and the viewing log save only what changed, and the viewing history keeps up to 50,000 programs instead of 2,000.
