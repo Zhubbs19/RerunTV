@@ -5,17 +5,20 @@ import Slider from '@react-native-community/slider';
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getIn, parseJsonList, parseTyped, toDisplay, toStored, type Json, type LeafNode, type ObjectNode, type SettingNode } from '../lib/settings-model';
+import { isDisabled, parseJsonList, parseTyped, shownValue, toDisplay, toStored, type Json, type LeafNode, type ObjectNode, type SettingNode } from '../lib/settings-model';
 import { color, shape, space, TARGET, type as t } from '../theme';
 import { Text } from './Text';
 import { Button } from './ui';
 
 export type Draft = Record<string, Json>;
-export type Change = (path: string[], value: Json) => void;
+/** A field changed; `node` says which (a registry field saves differently). */
+export type Change = (path: string[], value: Json, node?: LeafNode) => void;
 
 export function SettingNodeView({ node, draft, onChange, forceOpen }: { node: SettingNode; draft: Draft; onChange: Change; forceOpen: boolean }) {
   if (node.kind === 'object') return <Section node={node} draft={draft} onChange={onChange} forceOpen={forceOpen} />;
-  return <Leaf node={node} value={getIn(draft, node.path)} onChange={onChange} />;
+  const disabled = isDisabled(node, draft);
+  const leaf = <Leaf node={node} value={shownValue(node, draft)} onChange={(path, value) => onChange(path, value, node)} />;
+  return disabled ? <View style={{ opacity: 0.45 }} pointerEvents="none" accessibilityState={{ disabled: true }}>{leaf}</View> : leaf;
 }
 
 function Section({ node, draft, onChange, forceOpen }: { node: ObjectNode; draft: Draft; onChange: Change; forceOpen: boolean }) {
@@ -88,6 +91,7 @@ function TextField({ node, value, onChange }: { node: LeafNode; value: Json; onC
   useEffect(() => { if (!secret) setText(value == null ? '' : String(value)); }, [value, secret]);
   const commit = () => {
     if (secret && !text) return; // the current value is hidden; blank means "leave it"
+    if (node.registry && !text.trim()) { onChange(node.path, null); return; } // blank: back to the box's default
     onChange(node.path, parseTyped(node.kind === 'number' ? 0 : '', text));
   };
   return (

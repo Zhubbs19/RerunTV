@@ -48,11 +48,16 @@ device's secure storage. The code itself is never stored. Sessions last 90 days 
 - **Lineup**: tune, favorite and quick-channel toggles.
 - **More**: breaking news, EAS test, trivia, ticker, setup shortcuts, PC shutdown (when the box allows it),
   connection info, and **BOX SETTINGS**.
-- **Box settings** (`src/app/settings.tsx`): the same editor as the web remote. TV appearance first, then the
-  curated groups and every plugin/channel section, with search, switches, sliders, pickers (bottom sheet),
-  text lists and JSON lists. SAVE sends one patch to `POST /api/settings`; the box reports back what it
-  applied or refused (read from `/state`) and the editor reloads. The curated tables (`src/lib/settings-meta.ts`)
-  are generated from the web remote's; the tree logic is `src/lib/settings-model.ts`.
+- **Box settings** (`src/app/settings.tsx`): a box that serves `GET /api/settings/registry` (its settings
+  registry, `renderer/js/core/settings-registry.js`) gets the box's own sections and pages, a SIMPLE / ADVANCED
+  switch, defaults for settings never saved, and dimmed fields whose switch is off
+  (`buildRegistryGroups`). Those fields save as `POST /api/settings { patch: { $set: [{ path, value }] } }`, which
+  the box checks and clamps. Plugin and channel sections the registry doesn't cover, and every setting on an
+  older box, use the generic editor shared with the web remote: search, switches, sliders, pickers (bottom
+  sheet), text lists and JSON lists, sent as a plain patch. Either way the box reports back what it applied or
+  refused (read from `/state`) and the editor reloads. The PIN lock, network, updates and PC power are never
+  editable from a phone. The curated tables for older boxes (`src/lib/settings-meta.ts`) are generated from the
+  web remote's; the logic is `src/lib/settings-model.ts`.
 
 ## Screen sizes
 

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBox } from '../lib/session';
 import { MAX_CONTENT_WIDTH, MAX_WIDE_CONTENT_WIDTH } from '../lib/layout';
 import { useLayout } from '../lib/useLayout';
-import { formatChannelNumber, formatCountdown, minutesLeft, modeLabel } from '../lib/pure';
+import { formatChannelNumber, formatCountdown, minutesLeft, modeLabel, canSkipBreak } from '../lib/pure';
 import { color, shape, space, type as t } from '../theme';
 import { Button, Card, Led } from './ui';
 
@@ -86,6 +86,7 @@ export function NowPlaying() {
   const inBreak = state.onAir === 'break';
   const left = inBreak ? null : minutesLeft(state.nowEndsAtMs, now);
   const sleepMs = state.sleepEndsAtMs && state.sleepEndsAtMs > now ? state.sleepEndsAtMs - now : 0;
+  const backInMs = inBreak && state.breakEndsAtMs && state.breakEndsAtMs > now ? state.breakEndsAtMs - now : 0;
   return (
     <Card tone="high" style={{ paddingVertical: space.lg }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.lg }}>
@@ -100,12 +101,13 @@ export function NowPlaying() {
       </View>
       <View style={s.metaRow}>
         {left != null ? <Text style={t.led}>{left} MIN LEFT</Text> : null}
+        {backInMs > 0 ? <Text style={t.led}>SHOW BACK IN {formatCountdown(backInMs)}</Text> : null}
         {state.timeMachineOn ? <Text style={t.led}>TIME MACHINE{state.timeOffsetMin ? ` ${state.timeOffsetMin < 0 ? '−' : '+'}${Math.abs(state.timeOffsetMin)}M` : ''}</Text> : null}
         {sleepMs > 0 ? <Text style={[t.led, { color: color.tertiary }]}>SLEEP {formatCountdown(sleepMs)}</Text> : null}
         {state.audioMode && state.audioMode !== 'stereo' ? <Text style={t.led}>{modeLabel('audioMode', state.audioMode)}</Text> : null}
       </View>
       {state.nextTitle && !inBreak ? <Text style={[t.label, { marginTop: space.sm }]} numberOfLines={1}>NEXT: {state.nextTitle.toUpperCase()}</Text> : null}
-      {inBreak ? <Button icon="skip-next" label="SKIP BREAK" tone="filled" onPress={() => press('q')} style={{ marginTop: space.md }} /> : null}
+      {inBreak && canSkipBreak(state) ? <Button icon="skip-next" label="SKIP BREAK" tone="filled" onPress={() => press('q')} style={{ marginTop: space.md }} /> : null}
     </Card>
   );
 }

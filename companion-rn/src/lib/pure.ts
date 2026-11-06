@@ -80,3 +80,10 @@ export function filterChannels<T extends { number: number; name?: string }>(rows
   if (!q) return rows;
   return rows.filter((row) => String(row.number).startsWith(q) || (row.name ?? '').toLowerCase().includes(q));
 }
+
+// Whether the box would skip the break on screen if asked (its BREAKS ›
+// Skipping a break rule), so the phone only offers SKIP where it works.
+export function canSkipBreak(state: { skipBreaks?: string; timeMachineOn?: boolean } | null | undefined): boolean {
+  const rule = state?.skipBreaks ?? 'always';
+  return rule === 'always' || (rule === 'timeMachine' && !!state?.timeMachineOn);
+}

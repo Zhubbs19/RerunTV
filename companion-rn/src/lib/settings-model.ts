@@ -11,7 +11,13 @@ export type Kind = 'boolean' | 'enum' | 'range' | 'number' | 'text' | 'secret' |
 
 interface Base { key: string; path: string[]; dotted: string; label: string; help: string; search: string }
 export interface ObjectNode extends Base { kind: 'object'; children: SettingNode[] }
-export interface LeafNode extends Base { kind: Kind; value: Json; choices?: EnumChoice[]; bounds?: RangeBounds }
+export interface LeafNode extends Base {
+  kind: Kind; value: Json; choices?: EnumChoice[]; bounds?: RangeBounds;
+  /** From the box's settings registry: saved with $set, may be unset (shows fallback). */
+  registry?: true; fallback?: Json;
+  /** A parent switch; off leaves this field dimmed. */
+  dependsOn?: { path: string[]; fallback: Json };
+}
 export type SettingNode = ObjectNode | LeafNode;
 export interface SettingGroup { title: string; nodes: SettingNode[]; search: string }
 
@@ -165,4 +171,127 @@ export function describeResult(result: SettingsResult): { ok: boolean; text: str
   }
   const reasons = rejected.map((r) => `${r.section} (${r.reason})`).join('; ');
   return { ok: false, text: `${applied.length ? `Applied: ${applied.join(', ')}. ` : ''}The box refused ${rejected.length}: ${reasons}.` };
+}
+
+// ---------- The box's settings registry (GET /api/settings/registry) ----------
+// A box that serves its registry (RerunTV with docs/design/14) gets the same
+// sections, pages, labels, help, ranges and defaults as its own setup screen,
+// including settings that were never saved (they show their default). Those
+// are saved as { $set: [{ path, value }] }, which the box checks and clamps.
+
+export interface RegistrySetting {
+  id: string;
+  path: string[];
+  label: string;
+  help: string;
+  type: 'switch' | 'choice' | 'number' | 'text';
+  home: string;
+  level: 'basic' | 'advanced';
+  choices?: [string | number, string][];
+  choicesFrom?: 'themes' | 'channels';
+  range?: { min?: number; max?: number; step?: number; unit?: string };
+  scale?: number;
+  default?: Json;
+  dependsOn?: string;
+  synonyms?: string;
+}
+export interface Catalogue {
+  version: number;
+  sections: { id: string; label: string; pages: { id: string; label: string }[] }[];
+  settings: RegistrySetting[];
+}
+export type Level = 'basic' | 'advanced';
+
+// Sections a phone never edits (the box refuses them too).
+export const HOST_ONLY_SECTIONS = new Set(['network', 'updates', 'pinLock', 'pcPower']);
+
+export function isCatalogue(value: Json): value is Catalogue {
+  return isPlainObject(value) && value.version === 1 && Array.isArray(value.sections) && Array.isArray(value.settings);
+}
+
+// Sentence case from the registry, all caps in this app.
+const caps = (s: string) => s.toUpperCase();
+
+export function registryLeaf(entry: RegistrySetting, themes: Theme[], channels: { number: number; name: string }[] = []): LeafNode {
+  const path = entry.path;
+  const dotted = path.join('.');
+  const base: Base = { key: path[path.length - 1], path, dotted, label: caps(entry.label), help: entry.help || '', search: `${entry.label} ${entry.help || ''} ${entry.synonyms || ''} ${dotted}`.toLowerCase() };
+  const extra = { registry: true as const, fallback: entry.default };
+  if (entry.type === 'switch') return { ...base, ...extra, kind: 'boolean', value: entry.default };
+  if (entry.type === 'choice') {
+    let choices: EnumChoice[] = (entry.choices || []).map(([v, l]) => [String(v), caps(l)]);
+    if (entry.choicesFrom === 'themes') choices = themes.map((th) => [th.id, th.label]);
+    if (entry.choicesFrom === 'channels') choices = [['last', 'LAST CHANNEL WATCHED'], ['first', 'FIRST CHANNEL'], ...channels.map((c) => [String(c.number), `CH ${c.number} · ${caps(c.name || '')}`] as EnumChoice)];
+    return { ...base, ...extra, kind: 'enum', value: entry.default, choices };
+  }
+  if (entry.type === 'number') {
+    const r = entry.range || {};
+    // A blank-means-automatic number (no default) stays a text box, so it can be cleared.
+    if (typeof r.min === 'number' && typeof r.max === 'number' && typeof entry.default === 'number') {
+      const bounds: RangeBounds = [r.min, r.max, r.step || 1, r.unit ? ` ${r.unit}` : '', entry.scale || 1];
+      return { ...base, ...extra, kind: 'range', value: entry.default, bounds };
+    }
+    return { ...base, ...extra, kind: 'number', value: entry.default };
+  }
+  return { ...base, ...extra, kind: 'text', value: entry.default };
+}
+
+// Sections in the box's order, each holding its pages, each page its settings.
+// `level` 'basic' keeps the everyday ones (the box's Simple view). Whatever
+// the registry doesn't cover (plugin sections) follows from the generic tree.
+export function buildRegistryGroups(
+  catalogue: Catalogue,
+  config: Record<string, Json>,
+  opts: { themes?: Theme[]; channels?: { number: number; name: string }[]; level?: Level } = {},
+): SettingGroup[] {
+  const themes = opts.themes ?? [];
+  const byId = new Map(catalogue.settings.map((e) => [e.id, e]));
+  const wanted = catalogue.settings.filter((e) => opts.level !== 'basic' || e.level === 'basic');
+  const groups: SettingGroup[] = [];
+  for (const section of catalogue.sections) {
+    const inSection = wanted.filter((e) => e.home.split('/')[0] === section.id);
+    if (!inSection.length) continue;
+    const leaf = (e: RegistrySetting): LeafNode => {
+      const node = registryLeaf(e, themes, opts.channels);
+      const parent = e.dependsOn ? byId.get(e.dependsOn) : undefined;
+      return parent ? { ...node, dependsOn: { path: parent.path, fallback: parent.default } } : node;
+    };
+    const nodes: SettingNode[] = inSection.filter((e) => !e.home.split('/')[1]).map(leaf);
+    for (const page of section.pages) {
+      const children = inSection.filter((e) => e.home.split('/')[1] === page.id).map(leaf);
+      if (!children.length) continue;
+      const dotted = `${section.id}/${page.id}`;
+      nodes.push({ key: page.id, path: [dotted], dotted, label: caps(page.label), help: '', kind: 'object', children, search: `${page.label} ${section.label}`.toLowerCase() });
+    }
+    groups.push({ title: caps(section.label), nodes, search: section.label.toLowerCase() });
+  }
+  if (opts.level !== 'basic') {
+    const covered = new Set(catalogue.settings.map((e) => e.path[0]));
+    const rest = Object.fromEntries(Object.entries(config).filter(([k]) => !covered.has(k) && !HOST_ONLY_SECTIONS.has(k)));
+    const extra = buildGroups(rest, themes).filter((g) => g.title !== 'TV APPEARANCE').map((g) => ({ ...g, title: g.title === 'PLUGIN & CHANNEL FEATURES' ? g.title : `MORE ${g.title}` }));
+    groups.push(...extra);
+  }
+  return groups;
+}
+
+// The value a field shows: what is saved, else the setting's default.
+export function shownValue(node: LeafNode, draft: Record<string, Json>): Json {
+  const v = getIn(draft, node.path);
+  return v === undefined || v === null ? node.fallback : v;
+}
+
+// Whether a field's parent switch is off (it is shown dimmed and can't change).
+export function isDisabled(node: LeafNode, draft: Record<string, Json>): boolean {
+  if (!node.dependsOn) return false;
+  const v = getIn(draft, node.dependsOn.path);
+  return !(v === undefined || v === null ? node.dependsOn.fallback : v);
+}
+
+// The body POST /api/settings gets: registry fields as $set, the rest as a patch.
+// registryEdits is keyed by dotted path, so a field changed twice is sent once.
+export function buildSaveBody(pending: Record<string, Json>, registryEdits: Record<string, { path: string[]; value: Json }>): Record<string, Json> {
+  const body: Record<string, Json> = { ...pending };
+  const edits = Object.values(registryEdits);
+  if (edits.length) body.$set = edits.map(({ path, value }) => ({ path, value: value === undefined ? null : value }));
+  return body;
 }

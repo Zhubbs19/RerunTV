@@ -2,6 +2,7 @@
 // the 8-digit code for a bearer token (main/lan/security.js); every later
 // request carries it. Nothing here touches React.
 import { parseTarget, type LineupRow } from './pure';
+import { isCatalogue, type Catalogue } from './settings-model';
 
 export interface Session {
   baseUrl: string;
@@ -41,6 +42,10 @@ export interface RemoteState {
   quickJumpSlots?: Record<string, unknown>;
   onAir?: 'content' | 'break';
   breakKind?: string | null;
+  /** When the show comes back from the break on screen (wall clock), if it pauses for it. */
+  breakEndsAtMs?: number | null;
+  /** The box's break-skipping rule: Q works always, only in the time machine, or never. */
+  skipBreaks?: 'always' | 'timeMachine' | 'never';
   nowEndsAtMs?: number | null;
   nextTitle?: string;
   sleepEndsAtMs?: number | null;
@@ -89,6 +94,8 @@ export interface Client {
   ticker(text: string, enabled: boolean): Promise<void>;
   config(): Promise<Record<string, unknown>>;
   themes(): Promise<{ id: string; label: string }[]>;
+  /** The box's settings registry, or null from a box that has none. */
+  catalogue(): Promise<Catalogue | null>;
   saveSettings(patch: Record<string, unknown>): Promise<void>;
 }
 
@@ -133,6 +140,15 @@ export function createClient(session: Session, onUnauthorized: () => void): Clie
       } catch (e) {
         if (e instanceof ApiError && e.status === 401) throw e;
         return []; // the theme list is optional; the picker just falls back to the current value
+      }
+    },
+    catalogue: async () => {
+      try {
+        const body = await (await call('/api/settings/registry')).json();
+        return isCatalogue(body) ? body : null;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) throw e;
+        return null; // an older box: the settings screen uses its built-in tables
       }
     },
     saveSettings: (patch) => post('/api/settings', { patch }),

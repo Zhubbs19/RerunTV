@@ -55,3 +55,11 @@ test('filterChannels matches number prefix or name', () => {
   assert.deepEqual(filterChannels(rows, '7').map((r) => r.number), [7.1]);
   assert.equal(filterChannels(rows, '').length, 3);
 });
+
+test('SKIP BREAK is offered only where the box would skip', async () => {
+  const { canSkipBreak } = await import('../src/lib/pure.ts');
+  assert.equal(canSkipBreak({}), true);
+  assert.equal(canSkipBreak({ skipBreaks: 'never', timeMachineOn: true }), false);
+  assert.equal(canSkipBreak({ skipBreaks: 'timeMachine' }), false);
+  assert.equal(canSkipBreak({ skipBreaks: 'timeMachine', timeMachineOn: true }), true);
+});

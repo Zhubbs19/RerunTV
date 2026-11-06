@@ -2,7 +2,7 @@
   "expo": {
     "name": "RerunTV Companion",
     "slug": "reruntv-companion",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "orientation": "default",
     "scheme": "reruntv-companion",
     "icon": "./assets/icon.png",

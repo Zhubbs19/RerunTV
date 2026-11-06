@@ -5,7 +5,7 @@ import { Button, Card, Chip, Empty, RepeatButton, Segmented, SectionHeader } fro
 import { NowPlaying, Screen, useNow } from '../../components/Screen';
 import { useBox } from '../../lib/session';
 import { useLayout } from '../../lib/useLayout';
-import { formatChannelNumber, formatCountdown, modeLabel } from '../../lib/pure';
+import { canSkipBreak, formatChannelNumber, formatCountdown, modeLabel } from '../../lib/pure';
 import { color, shape, space, type as t } from '../../theme';
 
 type Panel = 'channels' | 'keypad' | 'dpad';
@@ -151,7 +151,7 @@ export default function RemoteScreen() {
             <Button style={s.flex} icon="moon-waning-crescent" label="SLEEP" sub={sleepMs ? formatCountdown(sleepMs) : 'OFF'} tone={sleepMs ? 'filled' : 'tonal'} onPress={() => press('z')} />
           </Row>
           <Row>
-            <Button style={s.flex} icon="skip-next" label="SKIP BREAK" onPress={() => press('q')} />
+            <Button style={s.flex} icon="skip-next" label="SKIP BREAK" sub={canSkipBreak(state) ? undefined : state?.skipBreaks === 'never' ? 'OFF' : 'IN TIME MACHINE'} disabled={!canSkipBreak(state)} onPress={() => press('q')} />
             <Button style={s.flex} icon="television-play" label="WATCH TV" onPress={async () => { if (await run('Exit setup', (c) => c.action('watch-tv'))) showToast('Back to live TV'); }} />
           </Row>
         </View>
@@ -172,6 +172,8 @@ export default function RemoteScreen() {
           </Row>
           <Row>
             <Button style={s.flex} icon="restart" label="START OVER" onPress={() => press('j')} />
+            {/* The box's \ key: a few seconds before the show comes back from the break. */}
+            <Button style={s.flex} icon="debug-step-over" label="END OF" sub="BREAK" disabled={!state?.timeMachineOn} onPress={() => press('\\')} />
           </Row>
           <Text style={t.label}>SAVED POINTS</Text>
           <Row>

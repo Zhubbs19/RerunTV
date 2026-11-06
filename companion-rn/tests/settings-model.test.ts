@@ -98,3 +98,63 @@ test('JSON lists, sensitive keys and the box verdict', () => {
   assert.equal(refused.ok, false);
   assert.match(refused.text, /refused 1: b \(unknown\)/);
 });
+
+// ---------- The box's registry ----------
+import { buildRegistryGroups, buildSaveBody, isCatalogue, isDisabled, registryLeaf, shownValue, type Catalogue, type RegistrySetting } from '../src/lib/settings-model.ts';
+
+const catalogue: Catalogue = {
+  version: 1,
+  sections: [
+    { id: 'programming', label: 'Breaks', pages: [{ id: 'presets', label: 'Cadence & presets' }] },
+    { id: 'display', label: 'Picture & sound', pages: [{ id: 'sound', label: 'Sound' }] },
+    { id: 'household', label: 'Household', pages: [] },
+  ],
+  settings: [
+    { id: 'pause', path: ['commercials', 'pauseForBreaks'], label: 'Shows pause for ad breaks', help: 'h', type: 'switch', home: 'programming/presets', level: 'basic', default: true },
+    { id: 'skip', path: ['commercials', 'skipBreaks'], label: 'Skipping a break', help: '', type: 'choice', home: 'programming/presets', level: 'advanced', choices: [['always', 'Always'], ['never', 'Not allowed']], default: 'always', dependsOn: 'pause' },
+    { id: 'vol', path: ['contentVolume'], label: 'Shows and movies', help: '', type: 'number', home: 'display/sound', level: 'basic', range: { min: 0, max: 100, unit: '%' }, scale: 0.01, default: 1 },
+    { id: 'target', path: ['audioLevelerTarget'], label: 'Leveler loudness', help: '', type: 'number', home: 'display/sound', level: 'advanced', range: { min: -30, max: -16, unit: 'LUFS' }, default: null },
+    { id: 'kids', path: ['household', 'kidsMode'], label: 'Kids mode', help: '', type: 'switch', home: 'household/', level: 'basic', default: false },
+  ] as RegistrySetting[],
+};
+
+test('a registry catalogue is recognised, and an old box answer is not', () => {
+  assert.ok(isCatalogue(catalogue));
+  assert.ok(!isCatalogue({ version: 2, sections: [], settings: [] }));
+  assert.ok(!isCatalogue(null));
+});
+
+test('registry fields take the box’s kinds, ranges and defaults', () => {
+  const vol = registryLeaf(catalogue.settings[2], []);
+  assert.equal(vol.kind, 'range');
+  assert.deepEqual(vol.bounds, [0, 100, 1, ' %', 0.01]);
+  assert.equal(registryLeaf(catalogue.settings[3], []).kind, 'number', 'no default: a box that can be left blank');
+  assert.equal(registryLeaf(catalogue.settings[1], []).kind, 'enum');
+  assert.deepEqual(registryLeaf(catalogue.settings[1], []).choices, [['always', 'ALWAYS'], ['never', 'NOT ALLOWED']]);
+  assert.equal(shownValue(vol, {}), 1, 'an unsaved setting shows its default');
+  assert.equal(shownValue(vol, { contentVolume: 0.4 }), 0.4);
+});
+
+test('registry groups follow the box: sections, pages, Simple view, then the rest', () => {
+  const cfg = { commercials: { pauseForBreaks: false }, contentVolume: 0.5, weirdPlugin: { note: 'x' }, network: { lanEnabled: true } };
+  const all = buildRegistryGroups(catalogue, cfg, { level: 'advanced' });
+  assert.deepEqual(all.map((g) => g.title), ['BREAKS', 'PICTURE & SOUND', 'HOUSEHOLD', 'PLUGIN & CHANNEL FEATURES']);
+  const breaks = all[0].nodes[0] as ObjectNode;
+  assert.equal(breaks.label, 'CADENCE & PRESETS');
+  assert.equal(breaks.children.length, 2);
+  assert.equal((all[2].nodes[0] as LeafNode).label, 'KIDS MODE', 'a page-less setting sits directly in its section');
+  assert.ok(!JSON.stringify(all).includes('lanEnabled'), 'host-only sections are not offered');
+  const simple = buildRegistryGroups(catalogue, cfg, { level: 'basic' });
+  assert.equal(countLeaves(simple.flatMap((g) => g.nodes)), 3, 'Simple shows the basic settings only');
+  const skip = breaks.children[1] as LeafNode;
+  assert.equal(isDisabled(skip, cfg), true, 'its switch is off');
+  assert.equal(isDisabled(skip, {}), false, 'the switch defaults on');
+});
+
+test('saving sends registry fields as $set and the rest as a patch', () => {
+  assert.deepEqual(buildSaveBody({ weirdPlugin: { note: 'y' } }, { 'contentVolume': { path: ['contentVolume'], value: 0.3 }, 'audioLevelerTarget': { path: ['audioLevelerTarget'], value: undefined } }), {
+    weirdPlugin: { note: 'y' },
+    $set: [{ path: ['contentVolume'], value: 0.3 }, { path: ['audioLevelerTarget'], value: null }],
+  });
+  assert.deepEqual(buildSaveBody({ a: 1 }, {}), { a: 1 });
+});
