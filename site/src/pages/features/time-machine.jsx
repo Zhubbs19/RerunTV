@@ -23,6 +23,7 @@ export default function TimeMachinePage() {
         <ul>
           <li><kbd>Enter</kbd> plays from that point.</li>
           <li><kbd>[</kbd> and <kbd>]</kbd> jump to the previous or next commercial break.</li>
+          <li><kbd>\</kbd> jumps to the end of a break, a few seconds before the show comes back.</li>
           <li><kbd>L</kbd> returns to live.</li>
         </ul>
       </section>
@@ -38,11 +39,16 @@ export default function TimeMachinePage() {
         <p>A channel's <span className="menu-path">Preview</span> in setup does the same thing without leaving the setup screen, with buttons to skip to the start of a show, the next break or an hour later, and its own calendar.</p>
       </section>
 
+      <section>
+        <h2>Set it up your way</h2>
+        <p>The jumps and ranges are yours to change: which morning and weekend day the presets go to, how many days the date picker reaches, the week's first day, the scrubber's first step and span, the fastest shuttle speed and how far before the show the end-of-break jump lands.</p>
+      </section>
+
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Switch it on in setup first, then use <kbd>T</kbd>, <kbd>D</kbd> and <kbd>L</kbd>.</li>
-          <li>It's also in the TV menu under <span className="menu-path">Time machine</span>.</li>
+          <li>Switch it on under <span className="menu-path">Setup › Guide &amp; time machine › Time machine</span> first, then use <kbd>T</kbd>, <kbd>D</kbd> and <kbd>L</kbd>.</li>
+          <li>It's also in the TV menu under <span className="menu-path">Time machine</span>, with <span className="menu-path">End of break</span>.</li>
         </ul>
       </section>
     </FeatureLayout>

@@ -17,7 +17,7 @@ export default function OtherScreensPage() {
         <ul>
           <li>It only works on your home network, not over mobile data or from outside the house.</li>
           <li>If the page won't load, check the phone is on the same Wi-Fi as the box and not a guest network. That's the most common problem.</li>
-          <li>A separate Android companion app adds quick-tap favorite channels you set up yourself, for one-handed use.</li>
+          <li>A separate Android companion app adds quick-tap favorite channels you set up yourself, for one-handed use. Its settings screen has the same sections and pages as setup on the box, in a Simple or Advanced view, its remote counts down to the end of a break, and it wears the box's theme.</li>
         </ul>
         <div className="callout">
           <p><b>Some things stay on the box.</b> A paired remote can't change plug-in approvals or settings, network or update settings, the PIN lock, or the PC power options.</p>
@@ -32,7 +32,7 @@ export default function OtherScreensPage() {
 
       <section>
         <h2>Run it as a server</h2>
-        <p>Server mode runs RerunTV without the TV window and opens a small local control page with the pairing code, the viewer addresses, connection instructions and a Stop button. Headless mode is the same without opening that page. On Windows, <span className="menu-path">Start server when I sign in</span> starts server mode at sign-in; opening RerunTV from the Start menu while it's running switches cleanly to the full desktop window.</p>
+        <p>Server mode runs RerunTV without the TV window and opens a small local control page with the pairing code, the viewer addresses, connection instructions and a Stop button. Headless mode is the same without opening that page. On Windows, <span className="menu-path">Start the server when I sign in</span> starts server mode at sign-in; opening RerunTV from the Start menu while it's running switches cleanly to the full desktop window.</p>
       </section>
 
       <section>
@@ -54,7 +54,8 @@ export default function OtherScreensPage() {
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Viewer, server and connected devices: <span className="menu-path">Setup › System › Network &amp; devices</span>.</li>
+          <li>Viewer and connected devices: <span className="menu-path">Setup › System › Network</span>.</li>
+          <li>Starting the server at sign-in: <span className="menu-path">Setup › System › Start-up &amp; power</span>.</li>
           <li>Phone remote, casting and the party page: their plug-ins in <span className="menu-path">Setup › Plug-ins</span>.</li>
         </ul>
       </section>

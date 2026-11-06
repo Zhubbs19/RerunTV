@@ -59,8 +59,9 @@ export default function LookPage() {
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Themes: <span className="menu-path">Setup › Guide &amp; Theme › Theme</span>.</li>
-          <li>CRT sliders, picture and aspect: <span className="menu-path">Setup › Picture &amp; Sound</span>.</li>
+          <li>Themes: <span className="menu-path">Setup › On screen › Theme</span>.</li>
+          <li>The logo bug and program cards: their pages under <span className="menu-path">Setup › On screen</span>.</li>
+          <li>CRT sliders, picture and aspect: <span className="menu-path">Setup › Picture &amp; sound › Picture</span>.</li>
           <li>Logo and identity: a channel's <span className="menu-path">Look</span> page.</li>
         </ul>
       </section>

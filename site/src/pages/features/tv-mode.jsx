@@ -32,6 +32,7 @@ export default function TvModePage() {
           <li><strong>Keep the display awake</strong> holds off the screen's sleep timer while the set is on. Video normally keeps a screen up, but a plug-in channel, a no-signal card or an open guide is a still picture as far as the computer is concerned. Powering the set off releases it.</li>
           <li><strong>Keep playback in sync</strong> checks every 20 seconds that the picture is where the schedule says it should be, and eases it back after the computer sleeps and wakes or a file stalls.</li>
           <li><strong>Shut down the PC from the box</strong> (off by default) adds <span className="menu-path">Shut down PC</span> to the TV menu and the phone remote, always with a 20-second countdown and Cancel. A second switch makes the box's own power-off shut the computer down too. Auto standby never does.</li>
+          <li><strong>Standby</strong> can warn before it turns the set off, and you choose whether RerunTV starts on or in standby.</li>
         </ul>
       </section>
 
@@ -41,6 +42,7 @@ export default function TvModePage() {
         <ul>
           <li><strong>The TV menu</strong> is a single column you can work through with arrows and OK, reaching the settings a remote needs. <kbd>◀</kbd> <kbd>▶</kbd> step a value.</li>
           <li><strong>Learn mode</strong> teaches the box what each button on your own remote means, per device.</li>
+          <li><strong>Your own button layout.</strong> Choose what <kbd>◀</kbd>, <kbd>▶</kbd>, OK, Back and the color buttons do on live TV. The guide and menus keep their own keys.</li>
           <li><strong>HDMI-CEC</strong> (experimental, opt-in) lets the TV's own remote drive a PC through a CEC adapter.</li>
           <li>A keyboard-style remote or a USB IR receiver works as a keyboard, so every key on the <a href={featureHref('controls')}>controls</a> page can be remapped to suit it.</li>
         </ul>
@@ -54,8 +56,10 @@ export default function TvModePage() {
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Usage mode and the TV screen: <span className="menu-path">Setup › Picture &amp; Sound</span>.</li>
-          <li>Power, wake lock, sync and shutdown: <span className="menu-path">Setup › System › Power</span>.</li>
+          <li>Usage mode: <span className="menu-path">Setup › System › This device</span>.</li>
+          <li>The TV screen and speakers: <span className="menu-path">Setup › Picture &amp; sound › Screen</span>.</li>
+          <li>Power, standby, wake lock, sync and shutdown: <span className="menu-path">Setup › System › Start-up &amp; power</span>.</li>
+          <li>Remote buttons and learn mode: <span className="menu-path">Setup › System › Remote &amp; keys</span>, or <span className="menu-path">Setup › Remote</span> in the TV menu.</li>
           <li>The TV menu: <kbd>?</kbd> on a keyboard, or the remote's menu button.</li>
         </ul>
       </section>

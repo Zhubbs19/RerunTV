@@ -49,7 +49,7 @@ export default function ProgramDetailsPage() {
         <ul>
           <li>A channel's <span className="menu-path">Content › Titles</span> page: Read NFO &amp; tags, Match and TVmaze.</li>
           <li>Plug-in keys and settings: <span className="menu-path">Setup › Plug-ins</span>.</li>
-          <li>Card options: <span className="menu-path">Setup › Guide &amp; Theme</span>.</li>
+          <li>Card options and how long they stay up: <span className="menu-path">Setup › On screen › Program cards</span>. Cast and air date on the program page: <span className="menu-path">Setup › Guide &amp; time machine › Guide</span>.</li>
         </ul>
       </section>
     </FeatureLayout>

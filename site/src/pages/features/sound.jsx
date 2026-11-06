@@ -45,7 +45,7 @@ export default function SoundPage() {
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Volumes, leveler, vintage filter and output device: <span className="menu-path">Setup › Picture &amp; Sound</span>.</li>
+          <li>Volumes, the leveler and how loud it aims, the vintage filter and the output device: <span className="menu-path">Setup › Picture &amp; sound › Sound</span>.</li>
           <li>A channel's own volume: the channel's settings in <span className="menu-path">Setup › Channels</span>.</li>
         </ul>
       </section>

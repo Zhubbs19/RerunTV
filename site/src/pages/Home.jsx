@@ -7,7 +7,7 @@ import { Footer, Header } from '../components/Layout.jsx';
 const HIGHLIGHTS = [
   ['guide', 'A time-grid guide with a live “now” line, channel icons, filters, seven-day search and reminders that can tune the set for you.'],
   ['time-machine', 'Rewind or fast-forward the whole lineup, or jump to a date. Pick any show in the guide and it plays from its beginning.'],
-  ['breaks', 'Bumpers and ad breaks from your own folders, timed per channel or per block, and moved to the fades to black where shows were cut for commercials.'],
+  ['breaks', 'Bumpers and ad breaks from your own folders, timed per channel or per block and moved to the fades where shows were cut. Shows pause for their breaks, the way a broadcast did.'],
   ['scheduling', 'Cartoons in the morning, something else overnight: schedule blocks swap a channel\'s folder by the hour, and holiday blocks take over for a date range.'],
   ['look', 'A mid-2000s cable-box layout in two skins, plus themes spanning decades of TV, CRT scanlines, channel-change static and a logo bug in the corner.'],
   ['library', 'A catalogue of your files, program details from .nfo files and tags, channel presets and smart channels built from a saved search.'],

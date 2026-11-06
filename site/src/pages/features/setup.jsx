@@ -14,7 +14,7 @@ export default function SetupPage() {
       <section>
         <Shot src={SHOTS.setup} alt="The channel setup screen: a sidebar of sections, the channel list and the selected channel's settings" caption="Channel setup, with the channel list beside the selected channel's editor." />
         <h2>The setup screen</h2>
-        <p>Press <kbd>S</kbd> any time to go to setup. Sections down the side cover Channels, Programming, Library, Picture &amp; Sound, Guide &amp; Theme, Household, System, Plug-ins and Help, with a pinned status bar at the bottom. Pick a channel from the list to open its editor, whose pages are Overview, Content, Schedule, Look, Breaks and Advanced. <span className="menu-path">Start watching</span> goes back to the TV.</p>
+        <p>Press <kbd>S</kbd> any time to go to setup. Sections down the side cover Channels, Breaks, Library, Picture &amp; sound, On screen, Guide &amp; time machine, Household, System and Plug-ins, with a pinned status bar at the bottom and Help on the <kbd>?</kbd> button at the top. Every setting has one home, and a channel that sets its own value shows it on the matching page of that channel. Pick a channel from the list to open its editor, whose pages are Overview, Content, Schedule, Look, Breaks and Playback. <span className="menu-path">Start watching</span> goes back to the TV.</p>
         <p>Drag folders and files from your desktop straight onto it to add them.</p>
       </section>
 
@@ -26,9 +26,9 @@ export default function SetupPage() {
       <section>
         <h2>Search and the keyboard</h2>
         <ul>
-          <li><kbd>Ctrl</kbd> + <kbd>K</kbd> searches everything on the screen: settings, channels, upcoming programs and actions like adding a channel or exporting your settings.</li>
+          <li><kbd>Ctrl</kbd> + <kbd>K</kbd> searches everything on the screen: every setting by its place (a channel's own settings included), channels, upcoming programs and actions like adding a channel or exporting your settings.</li>
           <li>The arrow keys (or <kbd>J</kbd> and <kbd>K</kbd>) move between sections and rows, <kbd>Enter</kbd> opens a row, <kbd>Esc</kbd> goes back and <kbd>Ctrl</kbd> + <kbd>Enter</kbd> starts watching.</li>
-          <li><kbd>G</kbd> and then a letter jumps to a section: <kbd>C</kbd> Channels, <kbd>P</kbd> Programming, <kbd>L</kbd> Library, <kbd>S</kbd> Picture &amp; Sound, <kbd>G</kbd> Guide &amp; Theme, <kbd>H</kbd> Household, <kbd>Y</kbd> System, <kbd>U</kbd> Plug-ins, <kbd>?</kbd> Help.</li>
+          <li><kbd>G</kbd> and then a letter jumps to a section: <kbd>C</kbd> Channels, <kbd>P</kbd> Breaks, <kbd>L</kbd> Library, <kbd>S</kbd> Picture &amp; sound, <kbd>G</kbd> On screen, <kbd>T</kbd> Guide &amp; time machine, <kbd>H</kbd> Household, <kbd>Y</kbd> System, <kbd>U</kbd> Plug-ins, <kbd>?</kbd> Help.</li>
         </ul>
       </section>
 
@@ -62,7 +62,8 @@ export default function SetupPage() {
           <li>after it opens, asking when one is ready;</li>
           <li>only when you ask, or never.</li>
         </ul>
-        <p>Your channels and settings live in a <code>userData</code> folder beside the app, and a backup is taken before an update installs, so an update keeps your lineup. <span className="menu-path">Help › What&apos;s new</span> lists what changed, and a card after an update points out the highlights.</p>
+        <p>Your channels and settings live in a <code>userData</code> folder beside the app, and a backup is taken before an update installs, so an update keeps your lineup. The channel lineup is a plain <code>channels.json</code>; the media library, viewing history and saved lookups share one database file, <code>rerun.db</code>, which saves only what changed. <span className="menu-path">Help › What&apos;s new</span> lists what changed, and a card after an update points out the highlights.</p>
+        <p>You can also choose how often RerunTV checks for updates.</p>
         <div className="callout">
           <p><b>Unsigned installers.</b> Beta installers aren&apos;t code-signed yet, so Windows warns the first time you run one. If you downloaded it from the project&apos;s own releases page, choose <span className="menu-path">More info</span> and then <span className="menu-path">Run anyway</span>.</p>
         </div>
@@ -71,7 +72,7 @@ export default function SetupPage() {
       <section className="where">
         <h2>Where to find it</h2>
         <ul>
-          <li>Backups, updates and diagnostics: <span className="menu-path">Setup › System</span>.</li>
+          <li>Backups, updates and diagnostics: their pages under <span className="menu-path">Setup › System</span>.</li>
           <li>Export and import: a channel&apos;s menu in <span className="menu-path">Setup › Channels</span>.</li>
         </ul>
       </section>

@@ -54,7 +54,7 @@ export default function GuidePage() {
         <h2>Where to find it</h2>
         <ul>
           <li><kbd>G</kbd> opens and closes the guide; <kbd>/</kbd> filters channels inside it.</li>
-          <li>Guide options, genre colors and the reminder list: <span className="menu-path">Setup › Guide &amp; Theme</span>.</li>
+          <li>Guide options, genre colors and the reminder list: <span className="menu-path">Setup › Guide &amp; time machine › Guide</span>.</li>
         </ul>
       </section>
     </FeatureLayout>

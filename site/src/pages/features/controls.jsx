@@ -32,6 +32,7 @@ const KEY_GROUPS = [
     ['L', 'Return to live'],
     ['J', 'Start the current show over'],
     ['[ ]', 'Previous or next commercial break (time machine only)'],
+    ['\\', 'End of the break, just before the show returns (time machine only)'],
     ['X', 'Mark an air check to come back to'],
   ]],
   ['Picture and sound', [
@@ -45,7 +46,7 @@ const KEY_GROUPS = [
     ['F', 'Full screen'],
   ]],
   ['Breaks and overlays', [
-    ['Q', 'Skip the commercial break that is playing'],
+    ['Q', 'Skip ahead to the end of the commercial break'],
     ['B', 'A breaking-news bulletin on demand'],
     ['E', 'Test the emergency alert'],
     ['O', 'Logo and layout editor for the tuned channel'],
@@ -83,7 +84,7 @@ export default function ControlsPage() {
   return (
     <FeatureLayout page={PAGE}>
       <section>
-        <p>These are the keys while watching. In <a href={featureHref('tv-mode')}>TV mode</a> the same actions sit on a remote&apos;s buttons, and the setup screen has keys of its own (see <a href={featureHref('setup')}>Setup</a>). The single-letter keys can be remapped under <span className="menu-path">Setup › System › Keys</span>.</p>
+        <p>These are the keys while watching. In <a href={featureHref('tv-mode')}>TV mode</a> the same actions sit on a remote&apos;s buttons, and the setup screen has keys of its own (see <a href={featureHref('setup')}>Setup</a>). The single-letter keys can be remapped under <span className="menu-path">Setup › System › Remote &amp; keys</span>.</p>
       </section>
       {KEY_GROUPS.map(([group, rows]) => (
         <section key={group}>

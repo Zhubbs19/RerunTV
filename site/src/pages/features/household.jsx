@@ -42,7 +42,7 @@ export default function HouseholdPage() {
 
       <section>
         <h2>Viewing history</h2>
-        <p>The box keeps a log of each program that actually reached the screen, with an estimated watch time and your most-watched channel and program. It's stored apart from your channel setup and never included in a backup or export. You can clear it, or switch it off so nothing is logged at all.</p>
+        <p>The box keeps a log of each program that actually reached the screen, with an estimated watch time and your most-watched channel and program. It keeps up to 50,000 programs, is stored apart from your channel setup and is never included in a backup or export. You can clear it, or switch it off so nothing is logged at all.</p>
       </section>
 
       <section className="where">
