@@ -2,7 +2,7 @@ name: Linux (experimental)
 
 # Measures how far RerunTV is from running on Linux. Windows is still the only
 # released platform; this workflow ships nothing. It runs the same lint and unit
-# tests as CI on Ubuntu, and separately builds an unsigned AppImage kept as a
+# tests as CI on Ubuntu, and, when started by hand, builds an unsigned AppImage kept as a
 # workflow artifact (never a release: the "Build installer" workflow's single
 # prerelease is what electron-updater reads).
 #
@@ -48,8 +48,11 @@ jobs:
       - name: Unit and contract tests
         run: npm test
 
+  # Manual runs only: until the Linux build has passed a real-hardware test,
+  # pushes and pull requests don't leave a downloadable AppImage behind.
   appimage:
     name: AppImage build
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
