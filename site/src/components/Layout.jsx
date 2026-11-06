@@ -30,8 +30,7 @@ export function Header({ current }) {
         </a>
         <nav aria-label="Site">
           <a href="#/features" aria-current={current === 'features' ? 'page' : undefined}>Features</a>
-          <a href="#/docs">Docs</a>
-          <a href="api/">Code reference</a>
+          <a href="api/">Docs</a>
           <a href={SITE.repoUrl}>GitHub</a>
         </nav>
       </header>
