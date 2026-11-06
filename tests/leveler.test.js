@@ -72,3 +72,15 @@ test("ffmpeg's ebur128 summary is read, and samples combine by energy", () => {
   assert.deepEqual(sampleStarts(60), [0]);
   assert.deepEqual(sampleStarts(1000), [100, 450, 800]);
 });
+
+test('the leveler loudness setting replaces the mode target, clamped', async () => {
+  const { levelerGainFor, levelerTargetFrom } = await load();
+  assert.equal(levelerTargetFrom(null), null);
+  assert.equal(levelerTargetFrom(''), null);
+  assert.equal(levelerTargetFrom(-20), -20);
+  assert.equal(levelerTargetFrom(-5), -16, 'too loud is clamped');
+  assert.equal(levelerTargetFrom(-60), -30, 'too quiet is clamped');
+  assert.equal(levelerGainFor('on', true, -24), 1, 'no target keeps -24 for ON');
+  assert.ok(Math.abs(levelerGainFor('on', true, -24, -20) - 10 ** (4 / 20)) < 1e-9, 'a -20 target raises a -24 file 4 dB');
+  assert.equal(levelerGainFor('on', false, null, -20), 1, 'pending gain is unchanged');
+});

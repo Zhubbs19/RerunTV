@@ -142,14 +142,14 @@
           <button type="button" id="setup-watch-btn" class="btn setup-sidebar-watch" title="Back to live TV (Ctrl+Enter)">&#9654;<span class="setup-sidebar-watch-label"> WATCH TV</span></button>
           <nav class="setup-tabs" id="setup-tabs" aria-label="Settings sections" aria-orientation="vertical">
             <button class="setup-tab-btn active" data-tab="channels" data-simple-settings>CHANNELS</button>
-            <button class="setup-tab-btn" data-tab="programming">PROGRAMMING</button>
+            <button class="setup-tab-btn" data-tab="programming">BREAKS</button>
             <button class="setup-tab-btn" data-tab="library">LIBRARY</button>
             <button class="setup-tab-btn" data-tab="display" data-simple-settings>PICTURE &amp; SOUND</button>
-            <button class="setup-tab-btn" data-tab="guide" data-simple-settings>GUIDE &amp; THEME</button>
+            <button class="setup-tab-btn" data-tab="guide" data-simple-settings>ON SCREEN</button>
+            <button class="setup-tab-btn" data-tab="guidetm" data-simple-settings>GUIDE &amp; TIME MACHINE</button>
             <button class="setup-tab-btn" data-tab="household">HOUSEHOLD</button>
             <button class="setup-tab-btn" data-tab="audio" data-simple-settings>SYSTEM</button>
             <button class="setup-tab-btn" data-tab="plugins">PLUG-INS</button>
-            <button class="setup-tab-btn" data-tab="help" data-simple-settings>HELP</button>
           </nav>
           <div class="setup-view-switch" role="group" aria-label="Settings view">
             <span class="setup-view-label">SETTINGS VIEW</span>
@@ -167,6 +167,7 @@
             <div id="setup-breadcrumb" class="setup-breadcrumb"></div>
             <p id="setup-page-description" class="setup-sub">Build and manage the channels you watch, their media, identity, and schedule.</p>
           </div>
+          <button type="button" class="setup-tab-btn setup-help-btn" data-tab="help" data-simple-settings aria-label="Help">?</button>
           <div class="setup-search-wrap">
             <input type="text" id="setup-search" class="titles-search setup-search" placeholder="⌕ FIND A SETTING OR ACTION…" autocomplete="off" aria-label="Search settings and actions" aria-controls="setup-search-results" aria-expanded="false">
             <div id="setup-search-results" class="setup-search-results hidden" role="listbox" aria-label="Settings search results"></div>
@@ -288,19 +289,16 @@
         <div class="setup-tab-panel hidden" data-tab-panel="programming">
         <div class="setup-subtabs">
           <button class="setup-subtab-btn active" data-subtab="presets">CADENCE &amp; PRESETS</button>
+          <button class="setup-subtab-btn" data-subtab="credits">END CREDITS</button>
+          <button class="setup-subtab-btn" data-subtab="fit">FIT TO TIME SLOTS</button>
+          <button class="setup-subtab-btn" data-subtab="stationbreaks">STATION BREAKS</button>
           <button class="setup-subtab-btn" data-subtab="flows">FLOWS</button>
           <button class="setup-subtab-btn" data-subtab="pool">BUMPER &amp; AD POOL</button>
-          <button class="setup-subtab-btn" data-subtab="onscreen">EXTRAS</button>
-          <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
         </div>
 
 <div class="setup-subtab-panel" data-subtab-panel="presets">
         <div class="settings-grid">
 
-        <div class="panel span-full">
-          <div class="panel-toggle">FIT TO TIME SLOTS</div>
-          <div class="panel-body setting-rows" id="program-fit-rows"></div>
-        </div>
 
         <div class="panel span-full">
           <div class="panel-toggle">BREAK CADENCE</div>
@@ -309,6 +307,44 @@
               <label class="setting-row-label" for="commercials-interval">Ad break every</label>
               <div class="setting-row-control"><input type="number" id="commercials-interval" min="1" value="10"> <span class="setting-row-unit">min</span></div>
               <p class="setting-row-help">The default for every channel. Flows and channels can override it.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-pause-for-breaks" data-synonyms="pause program commercial skip ahead resume where it left off movie keeps playing ads time machine guide">
+              <label class="setting-row-label" for="commercials-pause-for-breaks">Shows pause for ad breaks</label>
+              <div class="setting-row-control"><input type="checkbox" id="commercials-pause-for-breaks"></div>
+              <p class="setting-row-help">A show stops for its commercials and picks up where it left off, in the guide and the time machine as well as live. Off, the ads play over the show and it runs on underneath them.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-break-edge" data-synonyms="break start end beginning credits edge snap move">
+              <label class="setting-row-label" for="commercials-break-edge">Keep breaks from a show’s ends</label>
+              <div class="setting-row-control"><input type="number" id="commercials-break-edge" min="0" max="300" step="5" value="60"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">A break this close to a show’s start or end moves to between programs. 0 leaves every break where its cadence put it.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-ad-variety" data-synonyms="ad variety swap different commercials repeat same ads">
+              <label class="setting-row-label" for="commercials-ad-variety">Ad variety</label>
+              <div class="setting-row-control"><select id="commercials-ad-variety">
+                <option value="same">Swap in other ads the same length</option>
+                <option value="shorter">Also swap in slightly shorter ads</option>
+                <option value="off">Same ads every time a break airs</option>
+              </select></div>
+              <p class="setting-row-help">Each break keeps its length every time it airs; this picks which ads fill it. A shorter ad leaves the rest of its slot on black.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-ad-variety-seconds">
+              <label class="setting-row-label" for="commercials-ad-variety-seconds">Shorter by at most</label>
+              <div class="setting-row-control"><input type="number" id="commercials-ad-variety-seconds" min="1" max="15" step="1" value="3"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">For “Also swap in slightly shorter ads”: the longest stretch of black a swap may leave.</p>
+            </div>
+            <div class="setting-row" data-setting="commercials-skip-breaks" data-synonyms="skip commercial break q blue button dvr fast forward ads">
+              <label class="setting-row-label" for="commercials-skip-breaks">Skipping a break (Q)</label>
+              <div class="setting-row-control"><select id="commercials-skip-breaks">
+                <option value="always">Allowed</option>
+                <option value="timeMachine">Only in the time machine</option>
+                <option value="never">Not allowed</option>
+              </select></div>
+              <p class="setting-row-help">Where shows pause for breaks, a skip jumps ahead to the end of the break, and the time-shift badge shows how far ahead of live you are.</p>
+            </div>
+            <div class="setting-row" data-setting="break-fade-ms" data-synonyms="fade black cut transition commercial break">
+              <label class="setting-row-label" for="break-fade-ms">Fade into and out of breaks</label>
+              <div class="setting-row-control"><input type="number" id="break-fade-ms" min="0" max="1000" step="20" value="200"> <span class="setting-row-unit">ms</span></div>
+              <p class="setting-row-help">The fade to black at each cut between a show and its ads. 0 cuts straight across. An ad’s own FADE IN and FADE OUT still win.</p>
             </div>
             <div class="setting-row" data-setting="commercials-no-repeat" data-synonyms="commercial ad duplicate repeat same">
               <label class="setting-row-label" for="commercials-no-repeat">No repeat commercials</label>
@@ -335,31 +371,10 @@
               <div class="setting-row-control"><input type="number" id="commercials-snap-window" min="1" max="15" value="3"> <span class="setting-row-unit">min</span></div>
               <p class="setting-row-help">How far a break may move. A break with no fade this close stays where its cadence put it.</p>
             </div>
-            <div class="setting-row" data-setting="commercials-found-credits" data-synonyms="end credits speedup squeeze lead time credits start roll detect">
-              <label class="setting-row-label" for="commercials-found-credits">Speed up credits from where they start</label>
-              <div class="setting-row-control"><input type="checkbox" id="commercials-found-credits" checked></div>
-              <p class="setting-row-help">On a channel that speeds up its end credits, starts at the credits found in each film instead of its fixed lead time. Credits on black are found; ones over picture keep the lead time.</p>
-            </div>
             <div class="setting-row" data-setting="commercials-find-fades" data-synonyms="detect scan analyze act breaks end credits">
               <label class="setting-row-label" for="commercials-find-fades-btn">Find fades and credits in shows</label>
               <div class="setting-row-control"><button type="button" id="commercials-find-fades-btn" class="btn">FIND FADES</button></div>
               <p class="setting-row-help" id="commercials-find-fades-status">Reads each show on channels that break inside shows or speed up their end credits, for its fades to black and where its credits start: about half a minute per episode, a few minutes per film. You can stop and pick up later.</p>
-            </div>
-            <div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
-              <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
-              <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>
-            </div>
-            <div class="setting-row" data-setting="stationid-interval" data-depends-on="stationid-enabled">
-              <label class="setting-row-label" for="stationid-interval">Station ID every</label>
-              <div class="setting-row-control"><input type="number" id="stationid-interval" min="1" value="15"> <span class="setting-row-unit">min</span></div>
-            </div>
-            <div class="setting-row" data-setting="trivia-enabled">
-              <label class="setting-row-label" for="trivia-enabled">Trivia cards</label>
-              <div class="setting-row-control"><input type="checkbox" id="trivia-enabled"></div>
-            </div>
-            <div class="setting-row" data-setting="trivia-interval" data-depends-on="trivia-enabled">
-              <label class="setting-row-label" for="trivia-interval">Trivia every</label>
-              <div class="setting-row-control"><input type="number" id="trivia-interval" min="1" value="20"> <span class="setting-row-unit">min</span></div>
             </div>
           </div>
         </div>
@@ -379,6 +394,80 @@
           </div>
         </div>
 
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="credits">
+        <div class="settings-grid">
+        <div class="panel span-full">
+          <div class="panel-toggle">SPEEDING UP END CREDITS</div>
+          <span class="panel-status">A channel turns sped-up credits on for itself on its BREAKS › END CREDITS page. These settings are where the credits start and, for channels fitted to time slots, how they run.</span>
+          <div class="panel-body setting-rows">
+<div class="setting-row" data-setting="commercials-found-credits" data-synonyms="end credits speedup squeeze lead time credits start roll detect">
+              <label class="setting-row-label" for="commercials-found-credits">Speed up credits from where they start</label>
+              <div class="setting-row-control"><input type="checkbox" id="commercials-found-credits" checked></div>
+              <p class="setting-row-help">On a channel that speeds up its end credits, starts at the credits found in each film instead of its fixed lead time. Credits on black are found; ones over picture keep the lead time.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel span-full">
+          <div class="panel-toggle">CREDITS ON CHANNELS FITTED TO TIME SLOTS</div>
+          <div class="panel-body setting-rows" id="program-credits-rows"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="fit">
+        <div class="settings-grid">
+<div class="panel span-full">
+          <div class="panel-toggle">FIT TO TIME SLOTS</div>
+          <div class="panel-body setting-rows" id="program-fit-rows"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="stationbreaks">
+        <div class="settings-grid">
+        <div class="panel span-full" id="station-breaks-panel">
+          <div class="panel-toggle">STATION IDS &amp; TRIVIA</div>
+          <div class="panel-body setting-rows">
+<div class="setting-row" data-setting="stationid-enabled" data-synonyms="station identification bumper">
+              <label class="setting-row-label" for="stationid-enabled">Station IDs</label>
+              <div class="setting-row-control"><input type="checkbox" id="stationid-enabled" checked></div>
+            </div>
+<div class="setting-row" data-setting="stationid-interval" data-depends-on="stationid-enabled">
+              <label class="setting-row-label" for="stationid-interval">Station ID every</label>
+              <div class="setting-row-control"><input type="number" id="stationid-interval" min="1" value="15"> <span class="setting-row-unit">min</span></div>
+            </div>
+            <div class="setting-row" data-setting="stationid-text-seconds" data-depends-on="stationid-enabled" data-synonyms="station id bar you are watching duration">
+              <label class="setting-row-label" for="stationid-text-seconds">Station ID bar on screen</label>
+              <div class="setting-row-control"><input type="number" id="stationid-text-seconds" min="3" max="15" step="1" value="5"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">How long the “YOU’RE WATCHING” bar stays up when there is no station ID video.</p>
+            </div>
+<div class="setting-row" data-setting="trivia-enabled">
+              <label class="setting-row-label" for="trivia-enabled">Trivia cards</label>
+              <div class="setting-row-control"><input type="checkbox" id="trivia-enabled"></div>
+            </div>
+<div class="setting-row" data-setting="trivia-interval" data-depends-on="trivia-enabled">
+              <label class="setting-row-label" for="trivia-interval">Trivia every</label>
+              <div class="setting-row-control"><input type="number" id="trivia-interval" min="1" value="20"> <span class="setting-row-unit">min</span></div>
+            </div>
+            <div class="setting-row" data-setting="trivia-seconds" data-depends-on="trivia-enabled" data-synonyms="trivia card duration">
+              <label class="setting-row-label" for="trivia-seconds">Trivia card on screen</label>
+              <div class="setting-row-control"><input type="number" id="trivia-seconds" min="4" max="20" step="1" value="8"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">How long each trivia card stays up.</p>
+            </div>
+          </div>
+        </div>
+
+<div class="panel">
+          <div class="panel-toggle">SPECIAL EVENT PREEMPTION WINDOWS</div>
+          <div class="panel-body">
+            <div id="preemption-windows-editor"></div>
+          </div>
+          <span class="panel-status">Cut away from the regular schedule entirely for a real-clock time window (a "special report") using a PREEMPTION / SPECIAL REPORT pool entry above — unlike every other break type, the show resumes afterward wherever the schedule says it would be right now, not where it was interrupted.</span>
+        </div>
         </div>
         </div>
 
@@ -506,64 +595,11 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-toggle">SPECIAL EVENT PREEMPTION WINDOWS</div>
-          <div class="panel-body">
-            <div id="preemption-windows-editor"></div>
-          </div>
-          <span class="panel-status">Cut away from the regular schedule entirely for a real-clock time window (a "special report") using a PREEMPTION / SPECIAL REPORT pool entry above — unlike every other break type, the show resumes afterward wherever the schedule says it would be right now, not where it was interrupted.</span>
-        </div>
 
         </div>
         </div>
 
-<div class="setup-subtab-panel hidden" data-subtab-panel="onscreen">
-        <div class="settings-grid">
 
-        <div class="panel span-full">
-          <div class="panel-toggle">ON-SCREEN EXTRAS</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="upnext-enabled">
-              <label class="setting-row-label" for="upnext-enabled">Up next banner</label>
-              <div class="setting-row-control"><input type="checkbox" id="upnext-enabled" checked></div>
-              <p class="setting-row-help">Shows “UP NEXT” with the next title about 45 seconds before a show ends.</p>
-            </div>
-            <div class="setting-row" data-setting="upnext-duration" data-depends-on="upnext-enabled">
-              <label class="setting-row-label" for="upnext-duration-slider">Up next time on screen</label>
-              <div class="setting-row-control"><input type="range" id="upnext-duration-slider" min="3000" max="15000" step="500" value="8000"></div>
-            </div>
-            <div class="setting-row" data-setting="details-enabled" data-synonyms="info description">
-              <label class="setting-row-label" for="details-enabled">Details page</label>
-              <div class="setting-row-control"><input type="checkbox" id="details-enabled" checked></div>
-              <p class="setting-row-help">Press I for the current show’s title, description and tags.</p>
-            </div>
-            <div class="setting-row" data-setting="timemachine-enabled" data-synonyms="vcr shuttle rewind dvr">
-              <label class="setting-row-label" for="timemachine-enabled">Time machine</label>
-              <div class="setting-row-control"><input type="checkbox" id="timemachine-enabled"></div>
-              <p class="setting-row-help">Press T to shuttle back and forward through the schedule; [ and ] jump between breaks.</p>
-            </div>
-            <div class="setting-row" data-setting="timemachine-badge" data-depends-on="timemachine-enabled" data-synonyms="time shift badge indicator offset">
-              <label class="setting-row-label" for="timemachine-badge">Time shift badge</label>
-              <div class="setting-row-control"><input type="checkbox" id="timemachine-badge" checked></div>
-              <p class="setting-row-help">Show the “TIME SHIFT −x:xx” badge in the corner whenever the picture isn’t live.</p>
-            </div>
-          </div>
-        </div>
-
-        </div>
-        </div>
-
-<div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
-        <div class="settings-grid">
-
-        <div class="panel span-full">
-          <label class="panel-toggle" style="cursor:default">AUTO-CURATE</label>
-          <span class="panel-status">Generate or refresh a channel's programming, ad-preset tagging, and bumpers from a saved profile matched against your tagged content (see each file's FACETS in a channel's EDIT &gt; TITLES tab). Nothing is written until you press APPLY on a preview.</span>
-          <div id="autocurate-root"></div>
-        </div>
-
-        </div>
-        </div>
         </div>
 
         <div class="setup-tab-panel hidden" data-tab-panel="library">
@@ -572,6 +608,7 @@
           <button class="setup-subtab-btn" data-subtab="libraryreview">REVIEW</button>
           <button class="setup-subtab-btn" data-subtab="librarysmart">SMART CHANNELS</button>
           <button class="setup-subtab-btn" data-subtab="librarypresets">PRESETS</button>
+          <button class="setup-subtab-btn" data-subtab="autocurate">AUTO-CURATE</button>
           <button class="setup-subtab-btn" data-subtab="librarysync">SYNC</button>
           <button class="setup-subtab-btn" data-subtab="tagtaxonomy">TAGS</button>
           <button class="setup-subtab-btn" data-subtab="librarysplicer">SPLICER</button>
@@ -623,6 +660,18 @@
           <span class="panel-status">A preset is a whole channel described by intent — which kinds of programs, when they air, what plays in the breaks, what shows on screen — with no file paths. Build a channel from one, or make your own.</span>
           <div id="library-presets-root" class="library-root"></div>
         </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="autocurate">
+        <div class="settings-grid">
+
+        <div class="panel span-full">
+          <label class="panel-toggle" style="cursor:default">AUTO-CURATE</label>
+          <span class="panel-status">Generate or refresh a channel's programming, ad-preset tagging, and bumpers from a saved profile matched against your tagged content (see each file's FACETS in a channel's EDIT &gt; TITLES tab). Nothing is written until you press APPLY on a preview.</span>
+          <div id="autocurate-root"></div>
+        </div>
+
         </div>
         </div>
 
@@ -790,6 +839,7 @@
         <div class="setup-subtabs">
           <button class="setup-subtab-btn active" data-subtab="picture" data-simple-settings>PICTURE</button>
           <button class="setup-subtab-btn" data-subtab="sound" data-simple-settings>SOUND</button>
+          <button class="setup-subtab-btn" data-subtab="screen" data-simple-settings>SCREEN</button>
         </div>
 
 <div class="setup-subtab-panel" data-subtab-panel="picture">
@@ -830,11 +880,6 @@
             <div class="setting-row" data-setting="crt-curvature" data-depends-on="crt-enabled" data-synonyms="curve bulge">
               <label class="setting-row-label" for="crt-curvature-slider">Curvature</label>
               <div class="setting-row-control"><input type="range" id="crt-curvature-slider" min="0" max="100" value="0"></div>
-            </div>
-            <div class="setting-row" data-setting="crt-burnin">
-              <label class="setting-row-label" for="crt-burnin-slider">Logo burn-in</label>
-              <div class="setting-row-control"><input type="range" id="crt-burnin-slider" min="0" max="100" value="0"></div>
-              <p class="setting-row-help">Ghosts the channel logo onto the screen after it sits in one place a while.</p>
             </div>
             <div class="setting-row" data-setting="crt-whole-screen">
               <label class="setting-row-label" for="crt-overlay-wholescreen-enabled">Cover the whole screen</label>
@@ -910,11 +955,6 @@
               <div class="setting-row-control"><input type="checkbox" id="movie-mode-enabled"></div>
               <p class="setting-row-help">Plain black bars instead of the theme’s border, and no ambient hum.</p>
             </div>
-            <div class="setting-row" data-setting="daypart-chime">
-              <label class="setting-row-label" for="daypart-chime-enabled">Daypart chime</label>
-              <div class="setting-row-control"><input type="checkbox" id="daypart-chime-enabled"></div>
-              <p class="setting-row-help">A short chime when the schedule moves into a different programming block.</p>
-            </div>
             <div class="setting-row" data-setting="bezel-inset" data-synonyms="bezel inset frame">
               <label class="setting-row-label" for="bezel-inset-scale-slider">Border safe area</label>
               <div class="setting-row-control"><input type="range" id="bezel-inset-scale-slider" min="0" max="200" step="10" value="100"></div>
@@ -923,7 +963,124 @@
           </div>
         </div>
 
-        <div class="panel" id="screen-speakers-panel" data-simple-settings>
+
+
+        <div class="panel">
+          <div class="panel-toggle">CHANNEL STATIC</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="static-enabled" data-synonyms="snow noise tuning">
+              <label class="setting-row-label" for="static-enabled">Static between channels</label>
+              <div class="setting-row-control"><input type="checkbox" id="static-enabled" checked></div>
+              <p class="setting-row-help">A burst of snow while tuning, like an analog set.</p>
+            </div>
+            <div class="setting-row" data-setting="static-intensity" data-depends-on="static-enabled">
+              <label class="setting-row-label" for="static-intensity-slider">Static intensity</label>
+              <div class="setting-row-control"><input type="range" id="static-intensity-slider" min="0" max="100" value="100"></div>
+            </div>
+            <div class="setting-row" data-setting="static-duration" data-depends-on="static-enabled">
+              <label class="setting-row-label" for="static-duration-slider">Tuning time</label>
+              <div class="setting-row-control"><input type="range" id="static-duration-slider" min="0" max="1000" step="50" value="150"> <span id="static-duration-val" class="setting-row-value">150ms</span></div>
+            </div>
+          </div>
+        </div>
+
+        </div>
+        </div>
+
+        <div class="setup-subtab-panel hidden" data-subtab-panel="sound">
+        <div class="settings-grid">
+<div class="panel" data-simple-settings>
+          <div class="panel-toggle">VOLUME</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio" data-simple-settings>
+              <label class="setting-row-label" for="content-volume-slider">Shows and movies</label>
+              <div class="setting-row-control"><input type="range" id="content-volume-slider" min="0" max="100" value="100"></div>
+              <p class="setting-row-help">A share of the master volume (the + and − keys).</p>
+            </div>
+            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads" data-simple-settings>
+              <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
+              <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
+              <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
+            </div>
+            <div class="setting-row" data-setting="audio-leveler" data-synonyms="loudness normalize compressor night mode dialogue quiet loud" data-simple-settings>
+              <label class="setting-row-label" for="audio-leveler-select">Volume leveler</label>
+              <div class="setting-row-control"><select id="audio-leveler-select">
+                <option value="off">OFF</option>
+                <option value="on">ON</option>
+                <option value="consistent">CONSISTENT</option>
+              </select></div>
+              <p class="setting-row-help" id="audio-leveler-help">Evens out loud and quiet shows and commercials. Each file is measured once in the background.</p>
+            </div>
+            <div class="setting-row" data-setting="leveler-target" data-synonyms="loudness lufs leveler normalize target">
+              <label class="setting-row-label" for="leveler-target">Leveler loudness</label>
+              <div class="setting-row-control"><input type="number" id="leveler-target" min="-30" max="-16" step="1" placeholder="Mode default"> <span class="setting-row-unit">LUFS</span></div>
+              <p class="setting-row-help">How loud the leveler aims to make everything. Higher is louder. Blank uses the mode’s own (−24 ON, −30 CONSISTENT).</p>
+            </div>
+          </div>
+        </div>
+
+<div class="panel span-full">
+          <div class="panel-toggle">CUSTOM SOUND PROFILE</div>
+          <span class="panel-status">Replace individual interface, tuning, power, guide, card, and notification sounds with your own audio files. Each event can use the built-in sound, a custom file, or silence.</span>
+          <div id="custom-sounds-list" class="custom-sound-grid"></div>
+        </div>
+        
+        <div class="panel span-full" data-simple-settings>
+          <div class="panel-toggle">SPEAKERS &amp; VOLUME CONTROLS</div>
+          <div class="panel-body setting-rows">
+<div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output" data-simple-settings>
+              <label class="setting-row-label" for="audio-output-select">Sound output</label>
+              <div class="setting-row-control"><select id="audio-output-select"></select></div>
+              <p class="setting-row-help" id="audio-output-help">Play through the TV’s speakers without changing the Windows default. Set on this computer only.</p>
+            </div>
+<div class="setting-row" data-setting="volume-step" data-synonyms="volume keys increment">
+              <label class="setting-row-label" for="volume-step">Volume step</label>
+              <div class="setting-row-control"><input type="number" id="volume-step" min="1" max="25" value="10"> <span class="setting-row-unit">%</span></div>
+              <p class="setting-row-help">How much each + or − press changes the volume.</p>
+            </div>
+<div class="setting-row" data-setting="volume-max" data-synonyms="volume limit cap loud ceiling">
+              <label class="setting-row-label" for="volume-max">Maximum volume</label>
+              <div class="setting-row-control"><input type="range" id="volume-max" min="10" max="100" value="100"></div>
+              <p class="setting-row-help">The volume keys stop here. Handy when the TV is much louder than the PC.</p>
+            </div>
+<div class="setting-row" data-setting="remember-channel-volume" data-synonyms="volume each channel level memory per channel">
+              <label class="setting-row-label" for="remember-channel-volume">Remember each channel's volume</label>
+              <div class="setting-row-control"><input type="checkbox" id="remember-channel-volume"></div>
+              <p class="setting-row-help">Tuning back to a channel returns it to the volume you left it at.</p>
+            </div>
+<div class="setting-row" data-setting="tune-fade-in" data-synonyms="fade sound start loud tuning soft">
+              <label class="setting-row-label" for="tune-fade-in">Fade the sound in after tuning</label>
+              <div class="setting-row-control"><select id="tune-fade-in">
+                <option value="0">OFF</option>
+                <option value="400">QUICK (0.4 SEC)</option>
+                <option value="900">SOFT (0.9 SEC)</option>
+                <option value="1800">SLOW (1.8 SEC)</option>
+              </select></div>
+              <p class="setting-row-help">Softens a loud start when changing channel.</p>
+            </div>
+<div class="setting-row" data-setting="sleep-fade-out" data-synonyms="sleep timer fade volume quiet">
+              <label class="setting-row-label" for="sleep-fade-out">Fade out before the sleep timer</label>
+              <div class="setting-row-control"><input type="checkbox" id="sleep-fade-out" checked></div>
+              <p class="setting-row-help">The sound fades over the last 25 seconds instead of cutting off.</p>
+            </div>
+            <div class="setting-row" data-setting="sleep-fade-seconds" data-depends-on="sleep-fade-out" data-synonyms="sleep timer fade out volume">
+              <label class="setting-row-label" for="sleep-fade-seconds">Sleep fade length</label>
+              <div class="setting-row-control"><input type="number" id="sleep-fade-seconds" min="5" max="120" step="5" value="25"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">How long the sound fades out before the sleep timer turns the TV off.</p>
+            </div>
+<div class="setting-row" data-setting="daypart-chime">
+              <label class="setting-row-label" for="daypart-chime-enabled">Daypart chime</label>
+              <div class="setting-row-control"><input type="checkbox" id="daypart-chime-enabled"></div>
+              <p class="setting-row-help">A short chime when the schedule moves into a different programming block.</p>
+            </div>
+          </div>
+        </div>
+</div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="screen">
+        <div class="settings-grid">
+<div class="panel" id="screen-speakers-panel" data-simple-settings>
           <div class="panel-toggle">SCREEN &amp; SPEAKERS</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="screen-target" data-synonyms="monitor display hdmi tv second screen move window" data-simple-settings>
@@ -949,15 +1106,10 @@
               <div class="setting-row-control"><input type="range" id="screen-edge-slider" min="0" max="6" step="0.5" value="0"> <span id="screen-edge-value">0%</span></div>
               <p class="setting-row-help" id="screen-edge-help">If the TV cuts off the clock or banners, pull everything in until the white frame shows on all four sides. Saved for this screen only.</p>
             </div>
-            <div class="setting-row" data-setting="audio-output" data-synonyms="speakers sound device hdmi audio headphones output" data-simple-settings>
-              <label class="setting-row-label" for="audio-output-select">Sound output</label>
-              <div class="setting-row-control"><select id="audio-output-select"></select></div>
-              <p class="setting-row-help" id="audio-output-help">Play through the TV’s speakers without changing the Windows default. Set on this computer only.</p>
-            </div>
           </div>
         </div>
 
-        <div class="panel">
+<div class="panel">
           <div class="panel-toggle">APP DISPLAY MODE</div>
           <div class="panel-body setting-rows">
             <div class="setting-row" data-setting="display-aspect" data-synonyms="aspect 4:3 16:9" title="AUTO picks a shape from the playing file’s real aspect ratio, else its ERA tag, else 16:9.">
@@ -1015,70 +1167,263 @@
             </div>
           </div>
         </div>
-
-        <div class="panel">
-          <div class="panel-toggle">CHANNEL STATIC</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="static-enabled" data-synonyms="snow noise tuning">
-              <label class="setting-row-label" for="static-enabled">Static between channels</label>
-              <div class="setting-row-control"><input type="checkbox" id="static-enabled" checked></div>
-              <p class="setting-row-help">A burst of snow while tuning, like an analog set.</p>
-            </div>
-            <div class="setting-row" data-setting="static-intensity" data-depends-on="static-enabled">
-              <label class="setting-row-label" for="static-intensity-slider">Static intensity</label>
-              <div class="setting-row-control"><input type="range" id="static-intensity-slider" min="0" max="100" value="100"></div>
-            </div>
-            <div class="setting-row" data-setting="static-duration" data-depends-on="static-enabled">
-              <label class="setting-row-label" for="static-duration-slider">Tuning time</label>
-              <div class="setting-row-control"><input type="range" id="static-duration-slider" min="0" max="1000" step="50" value="150"> <span id="static-duration-val" class="setting-row-value">150ms</span></div>
-            </div>
-          </div>
-        </div>
-
-        </div>
-        </div>
-
-        <div class="setup-subtab-panel hidden" data-subtab-panel="sound">
-        <div class="settings-grid">
-<div class="panel" data-simple-settings>
-          <div class="panel-toggle">VOLUME</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="content-volume" data-synonyms="loudness level audio" data-simple-settings>
-              <label class="setting-row-label" for="content-volume-slider">Shows and movies</label>
-              <div class="setting-row-control"><input type="range" id="content-volume-slider" min="0" max="100" value="100"></div>
-              <p class="setting-row-help">A share of the master volume (the + and − keys).</p>
-            </div>
-            <div class="setting-row" data-setting="ad-volume" data-synonyms="loudness ads" data-simple-settings>
-              <label class="setting-row-label" for="ad-volume-slider">Commercials and bumpers</label>
-              <div class="setting-row-control"><input type="range" id="ad-volume-slider" min="0" max="100" value="100"></div>
-              <p class="setting-row-help">Lower this if ads play louder than your shows. Channels can set their own volume.</p>
-            </div>
-            <div class="setting-row" data-setting="audio-leveler" data-synonyms="loudness normalize compressor night mode dialogue quiet loud" data-simple-settings>
-              <label class="setting-row-label" for="audio-leveler-select">Volume leveler</label>
-              <div class="setting-row-control"><select id="audio-leveler-select">
-                <option value="off">OFF</option>
-                <option value="on">ON</option>
-                <option value="consistent">CONSISTENT</option>
-              </select></div>
-              <p class="setting-row-help" id="audio-leveler-help">Evens out loud and quiet shows and commercials. Each file is measured once in the background.</p>
-            </div>
-          </div>
-        </div>
-
-<div class="panel span-full">
-          <div class="panel-toggle">CUSTOM SOUND PROFILE</div>
-          <span class="panel-status">Replace individual interface, tuning, power, guide, card, and notification sounds with your own audio files. Each event can use the built-in sound, a custom file, or silence.</span>
-          <div id="custom-sounds-list" class="custom-sound-grid"></div>
-        </div>
         </div>
         </div>
         </div>
 
         <div class="setup-tab-panel hidden" data-tab-panel="guide">
         <div class="setup-subtabs">
+          <button class="setup-subtab-btn active" data-subtab="guidetheme" data-simple-settings>THEME</button>
+          <button class="setup-subtab-btn" data-subtab="logo">LOGO BUG</button>
+          <button class="setup-subtab-btn" data-subtab="cards">PROGRAM CARDS</button>
+          <button class="setup-subtab-btn" data-subtab="guideonscreen" data-simple-settings>CLOCK, HINTS &amp; OVERLAYS</button>
+          <button class="setup-subtab-btn" data-subtab="appearance">CUSTOM CSS</button>
+        </div>
+<div class="setup-subtab-panel" data-subtab-panel="guidetheme">
+        <div class="settings-grid">
+<div class="panel span-full" id="guide-theme-panel" data-simple-settings>
+          <div class="panel-toggle">GUIDE THEME</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row setting-row-wide" data-setting="guide-theme" data-synonyms="theme skin look style era" data-simple-settings>
+              <span class="setting-row-label">Guide theme</span>
+              <div class="setting-row-control">
+              <!-- Options are built at runtime from installed "pack" plugins
+                   (renderThemeSelectOptions, setup-settings.js) rather than
+                   hardcoded here — digital-2000s is the one theme always
+                   available even with zero pack plugins installed (it's
+                   just core's own base palette, see themePackEntries,
+                   plugins.js), so it's the only static fallback option. -->
+              <select id="theme-select" class="theme-select-native" tabindex="-1" aria-hidden="true">
+                <option value="digital-2000s">DIGITAL CABLE (MID 2000s BLUE)</option>
+              </select>
+              <button id="theme-browser-toggle" class="theme-browser-current" type="button" aria-expanded="false" aria-controls="theme-browser">
+                <span id="theme-browser-current-label">DIGITAL CABLE (MID 2000s BLUE)</span>
+                <span class="theme-browser-change">CHANGE…</span>
+              </button>
+              <div id="theme-browser" class="theme-browser hidden" role="dialog" aria-modal="true" aria-label="Choose guide theme">
+                <div class="theme-browser-toolbar">
+                  <input id="theme-browser-search" type="search" placeholder="SEARCH THEMES…" aria-label="Search themes">
+                  <button id="theme-browser-close" class="btn" type="button" aria-label="Close theme browser">CLOSE</button>
+                </div>
+                <div id="theme-browser-groups" class="theme-browser-groups"></div>
+                <div id="theme-browser-empty" class="plugins-empty hidden">NO THEMES MATCH YOUR SEARCH.</div>
+              </div>
+              </div>
+              <p class="setting-row-help">The whole look of the guide, menus and on-screen cards.</p>
+            </div>
+          </div>
+          <div id="display-theme-font-settings" class="plugin-settings-section"></div>
+        </div>
+
+<div class="panel span-full" id="era-settings-panel" data-simple-settings>
+          <div class="panel-toggle">ERA</div>
+          <div class="panel-body">
+            <p class="setting-row-help">Pick a decade and the theme, CRT look, screen shape, resolution and clock follow together as one change. Channels and programming never change.</p>
+            <div id="era-picker" class="titles-list"></div>
+            <div id="era-notes"></div>
+            <div id="era-fields-list" class="titles-list"></div>
+          </div>
+        </div>
+
+        </div>
+</div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="logo">
+        <div class="settings-grid">
+<div class="panel" data-reset-keys='[["display","logoBugFollowPicture"],["display","logoBugReferenceHeight"],["display","logoBugVaryWithContent"],["display","logoBugHideOnBreaks"],["display","logoBugHideNumber"],["display","logoBugMotion"]]'>
+          <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
+          <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
+          <div class="setting-rows">
+            <div class="setting-row" data-setting="logo-follow-picture" data-synonyms="logo bug channel bug letterbox black bars size scale">
+              <label class="setting-row-label" for="logo-bug-follow-picture">Keep the bug on the picture</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-follow-picture" checked></div>
+              <p class="setting-row-help">Place and size the bug relative to the picture, not the whole screen, so it never lands on black bars and stays the same size on 4:3, widescreen and 16:9 content. The rating, new-episode, CC/SAP and time-shift badges stay on the picture too. On by default.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
+              <label class="setting-row-label" for="logo-bug-ref-height">Bug and overlay sizes were set on</label>
+              <div class="setting-row-control"><select id="logo-bug-ref-height">
+                <option value="auto">AUTOMATIC</option>
+                <option value="1080">A 1080p SCREEN</option>
+                <option value="1440">A 1440p SCREEN</option>
+                <option value="2160">A 4K SCREEN</option>
+                <option value="0">DON’T SCALE (FIXED PIXELS)</option>
+              </select></div>
+              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. Automatic scales them from the display this box was first opened on, and re-fits them whenever the window moves to a different display. Bug sizes you set in the editor remember their own screen.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-default-size" data-synonyms="logo bug channel bug size small big default all channels">
+              <label class="setting-row-label" for="logo-bug-default-size">Default bug size</label>
+              <div class="setting-row-control"><input type="range" id="logo-bug-default-size" min="28" max="240" step="2" value="46"> <span class="setting-row-unit" id="logo-bug-default-size-value"></span></div>
+              <p class="setting-row-help">The bug size for every channel that hasn't set its own in the live editor. Shown at the size sizes were set for, and scaled to your screen.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
+              <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-vary"></div>
+              <p class="setting-row-help">Off: the bug is one size on everything, using each channel’s 16:9 placement. On: it switches to the placement set for the content’s aspect ratio and resolution, which can differ between files.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-hide-breaks" data-synonyms="logo bug channel bug commercial bumper hide">
+              <label class="setting-row-label" for="logo-bug-hide-breaks">Hide the bug during ad breaks</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-breaks"></div>
+              <p class="setting-row-help">No bug over commercials and bumpers. A channel can still turn this on for itself.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-hide-number" data-synonyms="logo bug channel number chip">
+              <label class="setting-row-label" for="logo-bug-hide-number">Hide the channel number on the bug</label>
+              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-number"></div>
+              <p class="setting-row-help">Leave off the small number chip that sits under a logo. Bugs with no logo are just the number, so they are unaffected.</p>
+            </div>
+            <div class="setting-row" data-setting="logo-motion" data-synonyms="logo bug animation">
+              <label class="setting-row-label" for="logo-bug-motion-select">Logo motion</label>
+              <div class="setting-row-control"><select id="logo-bug-motion-select">
+                <option value="none">NONE (STATIC)</option>
+                <option value="pulse">PULSE</option>
+                <option value="glow">GLOW</option>
+                <option value="slide-in">SLIDE IN ON TUNE</option>
+              </select></div>
+            </div>
+          <div class="setting-row" data-setting="crt-burnin">
+              <label class="setting-row-label" for="crt-burnin-slider">Logo burn-in</label>
+              <div class="setting-row-control"><input type="range" id="crt-burnin-slider" min="0" max="100" value="0"></div>
+              <p class="setting-row-help">Ghosts the channel logo onto the screen after it sits in one place a while.</p>
+            </div>
+          </div>
+          <div id="logobug-editor"></div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="cards">
+        <div class="settings-grid">
+        <div class="panel span-full" id="program-cards-panel">
+          <div class="panel-toggle">UP NEXT &amp; PROGRAM CARDS</div>
+          <div class="panel-body setting-rows">
+<div class="setting-row" data-setting="upnext-enabled">
+              <label class="setting-row-label" for="upnext-enabled">Up next banner</label>
+              <div class="setting-row-control"><input type="checkbox" id="upnext-enabled" checked></div>
+              <p class="setting-row-help">Shows “UP NEXT” with the next title shortly before a show ends.</p>
+            </div>
+<div class="setting-row" data-setting="upnext-lead" data-depends-on="upnext-enabled" data-synonyms="up next banner early before end">
+              <label class="setting-row-label" for="upnext-lead">Up next appears</label>
+              <div class="setting-row-control"><input type="number" id="upnext-lead" min="10" max="120" step="5" value="45"> <span class="setting-row-unit">s before the end</span></div>
+              <p class="setting-row-help">How long before a show ends the banner comes up.</p>
+            </div>
+<div class="setting-row" data-setting="upnext-duration" data-depends-on="upnext-enabled">
+              <label class="setting-row-label" for="upnext-duration-slider">Up next time on screen</label>
+              <div class="setting-row-control"><input type="range" id="upnext-duration-slider" min="3000" max="15000" step="500" value="8000"></div>
+            </div>
+<div class="setting-row" data-setting="details-enabled" data-synonyms="info description">
+              <label class="setting-row-label" for="details-enabled">Details page</label>
+              <div class="setting-row-control"><input type="checkbox" id="details-enabled" checked></div>
+              <p class="setting-row-help">Press I for the current show’s title, description and tags.</p>
+            </div>
+<div class="setting-row" data-setting="program-card-seconds" data-synonyms="rating bug new repeat cc sap badge advisory formatted disclaimer card how long">
+              <label class="setting-row-label" for="program-card-seconds">Program cards stay up</label>
+              <div class="setting-row-control"><input type="number" id="program-card-seconds" min="3" max="30" step="1" value="16"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">The rating bug, NEW or REPEAT, CC and advisory cards and the formatted-for-TV card at the start of a program.</p>
+            </div>
+            <div class="setting-row" data-setting="welcome-back-enabled" data-synonyms="away for missed sign on card welcome back digest">
+              <label class="setting-row-label" for="welcome-back-enabled">Welcome-back card</label>
+              <div class="setting-row-control"><input type="checkbox" id="welcome-back-enabled" checked></div>
+              <p class="setting-row-help">After you have been away, a card lists what you missed on your favourite channels.</p>
+            </div>
+            <div class="setting-row" data-setting="welcome-back-hours" data-depends-on="welcome-back-enabled" data-synonyms="away hours welcome back">
+              <label class="setting-row-label" for="welcome-back-hours">Show it after being away for</label>
+              <div class="setting-row-control"><input type="number" id="welcome-back-hours" min="0" max="24" step="1" value="2"> <span class="setting-row-unit">h</span></div>
+              <p class="setting-row-help">How long RerunTV has to be closed or the TV off before the card appears.</p>
+            </div>
+          </div>
+        </div>
+
+<div class="panel" id="no-signal-settings-panel" data-reset-keys='[["display","noSignalTitle"],["display","noSignalMessage"]]'>
+          <div class="panel-toggle">NO SIGNAL SCREEN</div>
+          <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
+          <div class="panel-body no-signal-copy-settings">
+            <div class="setting-row" data-setting="no-signal-title">
+              <label class="setting-row-label" for="no-signal-title-input">Heading</label>
+              <div class="setting-row-control"><input id="no-signal-title-input" class="title-row-input" type="text" maxlength="48" placeholder="NO SIGNAL"></div>
+            </div>
+            <div class="setting-row" data-setting="no-signal-message">
+              <label class="setting-row-label" for="no-signal-message-input">Detail line</label>
+              <div class="setting-row-control"><input id="no-signal-message-input" class="title-row-input" type="text" maxlength="120" placeholder="CH {channel}"></div>
+              <p class="setting-row-help">{channel} inserts the tuned number.</p>
+            </div>
+            <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
+          </div>
+        </div>
+        </div>
+        </div>
+<div class="setup-subtab-panel hidden" data-subtab-panel="guideonscreen">
+        <div class="settings-grid">
+<div class="panel" id="clock-hint-settings-panel" data-simple-settings data-reset-keys='[["display","clock24"],["display","hintBar"],["display","hintBarCompact"],["display","hintBarSlide"],["display","hintBarShowDuration"],["display","hintBarHideDuration"]]'>
+          <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="clock24" data-synonyms="time format military" data-simple-settings>
+              <label class="setting-row-label" for="clock24-enabled">24-hour clock</label>
+              <div class="setting-row-control"><input type="checkbox" id="clock24-enabled"></div>
+              <p class="setting-row-help">Show 18:30 instead of 6:30 PM.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar" data-simple-settings>
+              <label class="setting-row-label" for="hintbar-enabled">Show the hint bar</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-enabled" checked></div>
+              <p class="setting-row-help">The strip of shortcuts along the bottom. H hides it while watching.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar-compact">
+              <label class="setting-row-label" for="hintbar-compact">Compact hint bar</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-compact" checked></div>
+              <p class="setting-row-help">Only the core controls and the TV menu.</p>
+            </div>
+            <div class="setting-row" data-setting="hintbar-slide">
+              <label class="setting-row-label" for="hintbar-slide-enabled">Slide the hint bar in and out</label>
+              <div class="setting-row-control"><input type="checkbox" id="hintbar-slide-enabled" checked></div>
+            </div>
+            <div class="setting-row" data-setting="hintbar-show-duration" data-depends-on="hintbar-slide-enabled">
+              <label class="setting-row-label" for="hintbar-show-duration">Slide up time</label>
+              <div class="setting-row-control"><input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val" class="setting-row-value">250ms</span></div>
+            </div>
+            <div class="setting-row" data-setting="hintbar-hide-duration" data-depends-on="hintbar-slide-enabled">
+              <label class="setting-row-label" for="hintbar-hide-duration">Slide down time</label>
+              <div class="setting-row-control"><input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val" class="setting-row-value">200ms</span></div>
+            </div>
+          </div>
+        </div>
+
+        
+
+
+        <div class="panel">
+          <div class="panel-toggle">HINT BAR ITEMS</div>
+          <span class="panel-status">Choose which shortcuts are available to the on-screen hint bar. Compact mode shows the core controls and TV Menu shortcut; turn it off to show every checked item. The full reference always stays in HELP &gt; SHORTCUTS.</span>
+          <div id="hintbar-items-list" class="hintbar-items-list"></div>
+        </div>
+
+
+        <div class="panel span-full">
+          <div class="panel-toggle">DYNAMIC OVERLAYS</div>
+          <span class="panel-status">Show an animated image or video clip in a screen corner at a specific moment — channel tune-in, a program starting, or a commercial/up-next/station-ID/trivia break. Box-wide default; a channel can override its own list from CHANNELS &gt; edit &gt; OVERLAYS.</span>
+          <div id="dynamic-overlays-editor"></div>
+        </div>
+        </div>
+</div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="appearance">
+          <div class="settings-grid">
+
+            <div class="panel span-full">
+              <label class="panel-toggle" style="cursor:default">🔌 CUSTOM CSS</label>
+              <span class="panel-status">Load your own stylesheet on top of everything — applies live, no restart needed. Loaded last, so anything in it wins.</span>
+              <div class="custom-css-row">
+                <span id="custom-css-path" class="custom-css-path">NO CUSTOM CSS LOADED</span>
+                <button id="custom-css-choose-btn" class="btn">CHOOSE FILE…</button>
+                <button id="custom-css-remove-btn" class="btn remove-btn hidden">REMOVE</button>
+              </div>
+            </div>
+
+          </div>
+          </div>
+        </div>
+
+        <div class="setup-tab-panel hidden" data-tab-panel="guidetm">
+        <div class="setup-subtabs">
           <button class="setup-subtab-btn active" data-subtab="guidegrid" data-simple-settings>GUIDE</button>
-          <button class="setup-subtab-btn" data-subtab="guidetheme" data-simple-settings>THEME</button>
-          <button class="setup-subtab-btn" data-subtab="guideonscreen" data-simple-settings>ON-SCREEN</button>
+          <button class="setup-subtab-btn" data-subtab="timemachine" data-simple-settings>TIME MACHINE</button>
         </div>
 <div class="setup-subtab-panel" data-subtab-panel="guidegrid">
         <div class="settings-grid">
@@ -1192,174 +1537,86 @@
 
         </div>
 </div>
-<div class="setup-subtab-panel hidden" data-subtab-panel="guidetheme">
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="timemachine">
         <div class="settings-grid">
-<div class="panel span-full" id="guide-theme-panel" data-simple-settings>
-          <div class="panel-toggle">GUIDE THEME</div>
+        <div class="panel span-full" id="time-machine-panel" data-simple-settings>
+          <div class="panel-toggle">TIME MACHINE</div>
           <div class="panel-body setting-rows">
-            <div class="setting-row setting-row-wide" data-setting="guide-theme" data-synonyms="theme skin look style era" data-simple-settings>
-              <span class="setting-row-label">Guide theme</span>
-              <div class="setting-row-control">
-              <!-- Options are built at runtime from installed "pack" plugins
-                   (renderThemeSelectOptions, setup-settings.js) rather than
-                   hardcoded here — digital-2000s is the one theme always
-                   available even with zero pack plugins installed (it's
-                   just core's own base palette, see themePackEntries,
-                   plugins.js), so it's the only static fallback option. -->
-              <select id="theme-select" class="theme-select-native" tabindex="-1" aria-hidden="true">
-                <option value="digital-2000s">DIGITAL CABLE (MID 2000s BLUE)</option>
-              </select>
-              <button id="theme-browser-toggle" class="theme-browser-current" type="button" aria-expanded="false" aria-controls="theme-browser">
-                <span id="theme-browser-current-label">DIGITAL CABLE (MID 2000s BLUE)</span>
-                <span class="theme-browser-change">CHANGE…</span>
-              </button>
-              <div id="theme-browser" class="theme-browser hidden" role="dialog" aria-modal="true" aria-label="Choose guide theme">
-                <div class="theme-browser-toolbar">
-                  <input id="theme-browser-search" type="search" placeholder="SEARCH THEMES…" aria-label="Search themes">
-                  <button id="theme-browser-close" class="btn" type="button" aria-label="Close theme browser">CLOSE</button>
-                </div>
-                <div id="theme-browser-groups" class="theme-browser-groups"></div>
-                <div id="theme-browser-empty" class="plugins-empty hidden">NO THEMES MATCH YOUR SEARCH.</div>
-              </div>
-              </div>
-              <p class="setting-row-help">The whole look of the guide, menus and on-screen cards.</p>
+<div class="setting-row" data-setting="timemachine-enabled" data-synonyms="vcr shuttle rewind dvr">
+              <label class="setting-row-label" for="timemachine-enabled">Time machine</label>
+              <div class="setting-row-control"><input type="checkbox" id="timemachine-enabled"></div>
+              <p class="setting-row-help">Press T to shuttle back and forward through the schedule; [ and ] jump between breaks, and \ jumps to the end of one.</p>
             </div>
-          </div>
-          <div id="display-theme-font-settings" class="plugin-settings-section"></div>
-        </div>
-
-<div class="panel span-full" id="era-settings-panel" data-simple-settings>
-          <div class="panel-toggle">ERA</div>
-          <div class="panel-body">
-            <p class="setting-row-help">Pick a decade and the theme, CRT look, screen shape, resolution and clock follow together as one change. Channels and programming never change.</p>
-            <div id="era-picker" class="titles-list"></div>
-            <div id="era-notes"></div>
-            <div id="era-fields-list" class="titles-list"></div>
-          </div>
-        </div>
-
-        </div>
-</div>
-<div class="setup-subtab-panel hidden" data-subtab-panel="guideonscreen">
-        <div class="settings-grid">
-<div class="panel" id="clock-hint-settings-panel" data-simple-settings data-reset-keys='[["display","clock24"],["display","hintBar"],["display","hintBarCompact"],["display","hintBarSlide"],["display","hintBarShowDuration"],["display","hintBarHideDuration"]]'>
-          <div class="panel-toggle">CLOCK &amp; HINT BAR</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="clock24" data-synonyms="time format military" data-simple-settings>
-              <label class="setting-row-label" for="clock24-enabled">24-hour clock</label>
-              <div class="setting-row-control"><input type="checkbox" id="clock24-enabled"></div>
-              <p class="setting-row-help">Show 18:30 instead of 6:30 PM.</p>
+<div class="setting-row" data-setting="timemachine-badge" data-depends-on="timemachine-enabled" data-synonyms="time shift badge indicator offset">
+              <label class="setting-row-label" for="timemachine-badge">Time shift badge</label>
+              <div class="setting-row-control"><input type="checkbox" id="timemachine-badge" checked></div>
+              <p class="setting-row-help">Show the “TIME SHIFT −x:xx” badge in the corner whenever the picture isn’t live.</p>
             </div>
-            <div class="setting-row" data-setting="hintbar" data-simple-settings>
-              <label class="setting-row-label" for="hintbar-enabled">Show the hint bar</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-enabled" checked></div>
-              <p class="setting-row-help">The strip of shortcuts along the bottom. H hides it while watching.</p>
+<div class="setting-row" data-setting="timemachine-break-end-lead" data-depends-on="timemachine-enabled" data-synonyms="end of break jump backslash lands before">
+              <label class="setting-row-label" for="timemachine-break-end-lead">End-of-break jump lands</label>
+              <div class="setting-row-control"><input type="number" id="timemachine-break-end-lead" min="0" max="30" step="1" value="5"> <span class="setting-row-unit">s before the show</span></div>
+              <p class="setting-row-help">Where \ and END OF BREAK land, so you see the last seconds of the break and the cut back to the show.</p>
             </div>
-            <div class="setting-row" data-setting="hintbar-compact">
-              <label class="setting-row-label" for="hintbar-compact">Compact hint bar</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-compact" checked></div>
-              <p class="setting-row-help">Only the core controls and the TV menu.</p>
+            <div class="setting-row" data-setting="tm-morning-hour" data-depends-on="timemachine-enabled" data-synonyms="time machine go to morning preset">
+              <label class="setting-row-label" for="tm-morning-hour">“This morning” jumps to</label>
+              <div class="setting-row-control"><input type="number" id="tm-morning-hour" min="0" max="23" step="1" value="6"> <span class="setting-row-unit">:00</span></div>
+              <p class="setting-row-help">The hour GO TO › THIS MORNING lands on.</p>
             </div>
-            <div class="setting-row" data-setting="hintbar-slide">
-              <label class="setting-row-label" for="hintbar-slide-enabled">Slide the hint bar in and out</label>
-              <div class="setting-row-control"><input type="checkbox" id="hintbar-slide-enabled" checked></div>
-            </div>
-            <div class="setting-row" data-setting="hintbar-show-duration" data-depends-on="hintbar-slide-enabled">
-              <label class="setting-row-label" for="hintbar-show-duration">Slide up time</label>
-              <div class="setting-row-control"><input type="range" id="hintbar-show-duration" min="0" max="1500" step="50" value="250"> <span id="hintbar-show-duration-val" class="setting-row-value">250ms</span></div>
-            </div>
-            <div class="setting-row" data-setting="hintbar-hide-duration" data-depends-on="hintbar-slide-enabled">
-              <label class="setting-row-label" for="hintbar-hide-duration">Slide down time</label>
-              <div class="setting-row-control"><input type="range" id="hintbar-hide-duration" min="0" max="1500" step="50" value="200"> <span id="hintbar-hide-duration-val" class="setting-row-value">200ms</span></div>
-            </div>
-          </div>
-        </div>
-
-        
-
-        <div class="panel" id="no-signal-settings-panel" data-reset-keys='[["display","noSignalTitle"],["display","noSignalMessage"]]'>
-          <div class="panel-toggle">NO SIGNAL SCREEN</div>
-          <span class="panel-status">Customize the generic screen shown when a channel number has no source. Leave either field blank to use its built-in text. Use {channel} in the detail line to insert the tuned number. Configured channels can override both lines in CHANNELS &gt; EDIT &gt; IDENTITY.</span>
-          <div class="panel-body no-signal-copy-settings">
-            <div class="setting-row" data-setting="no-signal-title">
-              <label class="setting-row-label" for="no-signal-title-input">Heading</label>
-              <div class="setting-row-control"><input id="no-signal-title-input" class="title-row-input" type="text" maxlength="48" placeholder="NO SIGNAL"></div>
-            </div>
-            <div class="setting-row" data-setting="no-signal-message">
-              <label class="setting-row-label" for="no-signal-message-input">Detail line</label>
-              <div class="setting-row-control"><input id="no-signal-message-input" class="title-row-input" type="text" maxlength="120" placeholder="CH {channel}"></div>
-              <p class="setting-row-help">{channel} inserts the tuned number.</p>
-            </div>
-            <button id="no-signal-copy-reset" class="btn" type="button">RESET BUILT-IN TEXT</button>
-          </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-toggle">HINT BAR ITEMS</div>
-          <span class="panel-status">Choose which shortcuts are available to the on-screen hint bar. Compact mode shows the core controls and TV Menu shortcut; turn it off to show every checked item. The full reference always stays in HELP &gt; SHORTCUTS.</span>
-          <div id="hintbar-items-list" class="hintbar-items-list"></div>
-        </div>
-
-        <div class="panel" data-reset-keys='[["display","logoBugFollowPicture"],["display","logoBugReferenceHeight"],["display","logoBugVaryWithContent"],["display","logoBugHideOnBreaks"],["display","logoBugHideNumber"],["display","logoBugMotion"]]'>
-          <div class="panel-toggle">ON-SCREEN OVERLAY LAYOUT</div>
-          <span class="panel-status">Edit the logo and viewer pop-up cards directly over the running channel. Placements can differ by aspect ratio and resolution, or automatically follow the playing content.</span>
-          <div class="setting-rows">
-            <div class="setting-row" data-setting="logo-follow-picture" data-synonyms="logo bug channel bug letterbox black bars size scale">
-              <label class="setting-row-label" for="logo-bug-follow-picture">Keep the bug on the picture</label>
-              <div class="setting-row-control"><input type="checkbox" id="logo-bug-follow-picture" checked></div>
-              <p class="setting-row-help">Place and size the bug relative to the picture, not the whole screen, so it never lands on black bars and stays the same size on 4:3, widescreen and 16:9 content. The rating, new-episode, CC/SAP and time-shift badges stay on the picture too. On by default.</p>
-            </div>
-            <div class="setting-row" data-setting="logo-ref-height" data-synonyms="logo bug channel bug size 1080p 4k resolution screen scale display">
-              <label class="setting-row-label" for="logo-bug-ref-height">Bug and overlay sizes were set on</label>
-              <div class="setting-row-control"><select id="logo-bug-ref-height">
-                <option value="auto">AUTOMATIC</option>
-                <option value="1080">A 1080p SCREEN</option>
-                <option value="1440">A 1440p SCREEN</option>
-                <option value="2160">A 4K SCREEN</option>
-                <option value="0">DON’T SCALE (FIXED PIXELS)</option>
+            <div class="setting-row" data-setting="tm-weekend-day" data-depends-on="timemachine-enabled" data-synonyms="time machine saturday morning cartoons preset">
+              <label class="setting-row-label" for="tm-weekend-day">“Cartoon morning” day</label>
+              <div class="setting-row-control"><select id="tm-weekend-day">
+                <option value="6">Saturday</option>
+                <option value="0">Sunday</option>
+                <option value="5">Friday</option>
               </select></div>
-              <p class="setting-row-help">Bug sizes are in pixels, so they look smaller on a 4K screen than on 1080p. Automatic scales them from the display this box was first opened on, and re-fits them whenever the window moves to a different display. Bug sizes you set in the editor remember their own screen.</p>
+              <p class="setting-row-help">The day GO TO › CARTOON MORNING lands on.</p>
             </div>
-            <div class="setting-row" data-setting="logo-default-size" data-synonyms="logo bug channel bug size small big default all channels">
-              <label class="setting-row-label" for="logo-bug-default-size">Default bug size</label>
-              <div class="setting-row-control"><input type="range" id="logo-bug-default-size" min="28" max="240" step="2" value="46"> <span class="setting-row-unit" id="logo-bug-default-size-value"></span></div>
-              <p class="setting-row-help">The bug size for every channel that hasn't set its own in the live editor. Shown at the size sizes were set for, and scaled to your screen.</p>
+            <div class="setting-row" data-setting="tm-weekend-hour" data-depends-on="timemachine-enabled">
+              <label class="setting-row-label" for="tm-weekend-hour">“Cartoon morning” hour</label>
+              <div class="setting-row-control"><input type="number" id="tm-weekend-hour" min="0" max="23" step="1" value="8"> <span class="setting-row-unit">:00</span></div>
+              <p class="setting-row-help">The hour on that day.</p>
             </div>
-            <div class="setting-row" data-setting="logo-vary-size" data-synonyms="logo bug channel bug size resize different content resolution aspect profile auto adjust">
-              <label class="setting-row-label" for="logo-bug-vary">Size the bug to the content</label>
-              <div class="setting-row-control"><input type="checkbox" id="logo-bug-vary"></div>
-              <p class="setting-row-help">Off: the bug is one size on everything, using each channel’s 16:9 placement. On: it switches to the placement set for the content’s aspect ratio and resolution, which can differ between files.</p>
+            <div class="setting-row" data-setting="tm-picker-days" data-depends-on="timemachine-enabled" data-synonyms="time machine pick day range">
+              <label class="setting-row-label" for="tm-picker-days">Day picker reaches</label>
+              <div class="setting-row-control"><input type="number" id="tm-picker-days" min="1" max="30" step="1" value="7"> <span class="setting-row-unit">days</span></div>
+              <p class="setting-row-help">How many days either side of today PICK DAY &amp; HOUR can go.</p>
             </div>
-            <div class="setting-row" data-setting="logo-hide-breaks" data-synonyms="logo bug channel bug commercial bumper hide">
-              <label class="setting-row-label" for="logo-bug-hide-breaks">Hide the bug during ad breaks</label>
-              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-breaks"></div>
-              <p class="setting-row-help">No bug over commercials and bumpers. A channel can still turn this on for itself.</p>
-            </div>
-            <div class="setting-row" data-setting="logo-hide-number" data-synonyms="logo bug channel number chip">
-              <label class="setting-row-label" for="logo-bug-hide-number">Hide the channel number on the bug</label>
-              <div class="setting-row-control"><input type="checkbox" id="logo-bug-hide-number"></div>
-              <p class="setting-row-help">Leave off the small number chip that sits under a logo. Bugs with no logo are just the number, so they are unaffected.</p>
-            </div>
-            <div class="setting-row" data-setting="logo-motion" data-synonyms="logo bug animation">
-              <label class="setting-row-label" for="logo-bug-motion-select">Logo motion</label>
-              <div class="setting-row-control"><select id="logo-bug-motion-select">
-                <option value="none">NONE (STATIC)</option>
-                <option value="pulse">PULSE</option>
-                <option value="glow">GLOW</option>
-                <option value="slide-in">SLIDE IN ON TUNE</option>
+            <div class="setting-row" data-setting="tm-week-start" data-depends-on="timemachine-enabled" data-synonyms="calendar monday sunday first day week">
+              <label class="setting-row-label" for="tm-week-start">Calendar weeks start on</label>
+              <div class="setting-row-control"><select id="tm-week-start">
+                <option value="sun">Sunday</option>
+                <option value="mon">Monday</option>
               </select></div>
+              <p class="setting-row-help">The first column of the time machine calendar.</p>
+            </div>
+            <div class="setting-row" data-setting="tm-scrub-step" data-depends-on="timemachine-enabled" data-synonyms="scrub step shuttle arrow">
+              <label class="setting-row-label" for="tm-scrub-step">First scrub step</label>
+              <div class="setting-row-control"><select id="tm-scrub-step">
+                <option value="5">5 seconds</option>
+                <option value="10">10 seconds</option>
+                <option value="30">30 seconds</option>
+              </select></div>
+              <p class="setting-row-help">How far one press of ◀ or ▶ moves while scrubbing. Holding still speeds up.</p>
+            </div>
+            <div class="setting-row" data-setting="tm-max-shuttle" data-depends-on="timemachine-enabled" data-synonyms="shuttle speed fast forward rewind">
+              <label class="setting-row-label" for="tm-max-shuttle">Fastest shuttle</label>
+              <div class="setting-row-control"><select id="tm-max-shuttle">
+                <option value="300">300×</option>
+                <option value="1800">1800×</option>
+                <option value="7200">7200×</option>
+              </select></div>
+              <p class="setting-row-help">The top of the rewind and fast-forward ladder.</p>
+            </div>
+            <div class="setting-row" data-setting="tm-scrubber-hours" data-depends-on="timemachine-enabled" data-synonyms="scrubber strip span window">
+              <label class="setting-row-label" for="tm-scrubber-hours">Scrubber strip shows</label>
+              <div class="setting-row-control"><input type="number" id="tm-scrubber-hours" min="1" max="12" step="1" value="3"> <span class="setting-row-unit">h each way</span></div>
+              <p class="setting-row-help">Hours either side of the viewed time on the strip. A jump past it lands paused.</p>
             </div>
           </div>
-          <div id="logobug-editor"></div>
-        </div>
-
-        <div class="panel span-full">
-          <div class="panel-toggle">DYNAMIC OVERLAYS</div>
-          <span class="panel-status">Show an animated image or video clip in a screen corner at a specific moment — channel tune-in, a program starting, or a commercial/up-next/station-ID/trivia break. Box-wide default; a channel can override its own list from CHANNELS &gt; edit &gt; OVERLAYS.</span>
-          <div id="dynamic-overlays-editor"></div>
         </div>
         </div>
-</div>
+        </div>
         </div>
 
 <div class="setup-tab-panel hidden" data-tab-panel="household">
@@ -1406,72 +1663,32 @@
               <div class="setting-row-control"><input type="password" id="pin-code-input" class="pin-code-input" inputmode="numeric" autocomplete="off" maxlength="4" value="1234"> <button type="button" id="pin-code-reveal-btn" class="btn pin-code-reveal-btn" aria-pressed="false" aria-label="Show PIN">SHOW</button></div>
               <p class="setting-row-help">Four digits. It starts as 1234.</p>
             </div>
-          </div>
-        </div>
-
-<div class="panel">
-          <div class="panel-toggle">THIS DEVICE</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="usage-mode" data-synonyms="tv mode remote desktop mode 10-foot" title="TV is for a remote across the room: the D-pad and OK reach everything, the left arrow opens the guide, holding OK opens the TV menu, and Back asks before leaving. Saved on this device only.">
-              <label class="setting-row-label" for="usage-mode-select">Usage mode</label>
-              <div class="setting-row-control"><select id="usage-mode-select">
-                <option value="auto" selected>AUTO</option>
-                <option value="desktop">DESKTOP</option>
-                <option value="tv">TV (REMOTE)</option>
-              </select></div>
-              <p class="setting-row-help" id="usage-mode-status"></p>
+            <div class="setting-row" data-setting="pin-relock-minutes" data-depends-on="pin-lock-enabled" data-synonyms="parental lock pin unlock relock timeout kids">
+              <label class="setting-row-label" for="pin-relock-minutes">Relock a channel after</label>
+              <div class="setting-row-control"><input type="number" id="pin-relock-minutes" min="0" max="240" step="5" value="0"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">A channel unlocked with the PIN locks again after this long. 0 keeps it unlocked until the box powers off or restarts.</p>
             </div>
-            <div class="setting-row" data-setting="tv-preview" data-synonyms="preview tv mode try tv layout remote test couch">
-              <label class="setting-row-label" for="tv-preview-btn">Preview TV mode</label>
-              <div class="setting-row-control"><button type="button" class="btn" id="tv-preview-btn">PREVIEW</button></div>
-              <p class="setting-row-help">Try the TV layout here for this session without changing this device. End it from TV menu › System.</p>
-            </div>
-            <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
-              <label class="setting-row-label" for="ui-scale-select">Interface size</label>
-              <div class="setting-row-control"><select id="ui-scale-select">
-                <option value="auto" selected>AUTO (RECOMMENDED)</option>
-                <option value="100">100%</option>
-                <option value="125">125%</option>
-                <option value="150">150%</option>
-                <option value="175">175%</option>
-                <option value="200">200%</option>
-              </select></div>
-              <p class="setting-row-help">AUTO enlarges everything on high-resolution displays.</p>
+            <div class="setting-row" data-setting="pin-relock-power-off" data-depends-on="pin-lock-enabled" data-synonyms="parental lock pin power off standby relock">
+              <label class="setting-row-label" for="pin-relock-power-off">Relock when the TV turns off</label>
+              <div class="setting-row-control"><input type="checkbox" id="pin-relock-power-off" checked></div>
+              <p class="setting-row-help">Turning the TV off (or standby) locks every unlocked channel again.</p>
             </div>
           </div>
         </div>
 
-<div class="panel">
-          <div class="panel-toggle">WATCH ON OTHER DEVICES</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="viewer-enabled" data-synonyms="lan viewer browser tv client android">
-              <label class="setting-row-label" for="viewer-enabled">Share with devices on this network</label>
-              <div class="setting-row-control"><input type="checkbox" id="viewer-enabled"></div>
-              <p class="setting-row-help" id="viewer-url-status">Checking for a network connection…</p>
-            </div>
-            <div class="setting-row" data-setting="control-pairing" data-synonyms="edit remotely web control panel laptop phone browser">
-              <span class="setting-row-label">Edit from another screen</span>
-              <p class="setting-row-help" id="control-url-status">Checking for a network connection…</p>
-            </div>
-          </div>
-        </div>
 
-<div class="panel">
-          <div class="panel-toggle">CONNECTED DEVICES</div>
-          <div class="panel-body">
-            <div id="connected-devices-list" class="titles-list"></div>
-          </div>
-          <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
-        </div>
+
         </div>
         </div>
 
         <div class="setup-tab-panel hidden" data-tab-panel="audio">
         <div class="setup-subtabs">
-          <button class="setup-subtab-btn active" data-subtab="system" data-simple-settings>POWER</button>
+          <button class="setup-subtab-btn active" data-subtab="system" data-simple-settings>START-UP &amp; POWER</button>
+          <button class="setup-subtab-btn" data-subtab="keys" data-simple-settings>REMOTE &amp; KEYS</button>
+          <button class="setup-subtab-btn" data-subtab="device" data-simple-settings>THIS DEVICE</button>
+          <button class="setup-subtab-btn" data-subtab="network">NETWORK</button>
           <button class="setup-subtab-btn" data-subtab="updates" data-simple-settings>UPDATES</button>
           <button class="setup-subtab-btn" data-subtab="backups" data-simple-settings>BACKUPS</button>
-          <button class="setup-subtab-btn" data-subtab="keys">KEYS</button>
           <button class="setup-subtab-btn" data-subtab="aircheck">AIR CHECK</button>
           <button class="setup-subtab-btn" data-subtab="status">DIAGNOSTICS</button>
         </div>
@@ -1505,60 +1722,6 @@
 
         
 
-        <div class="panel" data-reset-keys='[["controls"],["channelVolumes"]]'>
-          <div class="panel-toggle">TUNING &amp; CONTROLS</div>
-          <div class="panel-body setting-rows">
-            <div class="setting-row" data-setting="startup-channel" data-synonyms="boot power on first channel resume">
-              <label class="setting-row-label" for="startup-channel">Channel at start-up</label>
-              <div class="setting-row-control"><select id="startup-channel"></select></div>
-              <p class="setting-row-help">Where the TV tunes when RerunTV opens.</p>
-            </div>
-            <div class="setting-row" data-setting="entry-delay" data-synonyms="digits number remote typing wait commit">
-              <label class="setting-row-label" for="entry-delay">Channel number delay</label>
-              <div class="setting-row-control"><input type="number" id="entry-delay" min="0.2" max="3" step="0.1" value="0.8"> <span class="setting-row-unit">sec</span></div>
-              <p class="setting-row-help">How long to wait after the last digit before tuning. Enter tunes right away.</p>
-            </div>
-            <div class="setting-row" data-setting="scan-dwell" data-synonyms="scan channel surf auto flip">
-              <label class="setting-row-label" for="scan-dwell">Scan stays on each channel</label>
-              <div class="setting-row-control"><input type="number" id="scan-dwell" min="2" max="60" value="8"> <span class="setting-row-unit">sec</span></div>
-            </div>
-            <div class="setting-row" data-setting="sleep-steps" data-synonyms="sleep timer minutes z">
-              <label class="setting-row-label" for="sleep-steps">Sleep timer steps</label>
-              <div class="setting-row-control"><input type="text" id="sleep-steps" value="30, 60, 90, 120" placeholder="30, 60, 90, 120"> <span class="setting-row-unit">min</span></div>
-              <p class="setting-row-help">Z cycles through off and these lengths, separated by commas.</p>
-            </div>
-            <div class="setting-row" data-setting="volume-step" data-synonyms="volume keys increment">
-              <label class="setting-row-label" for="volume-step">Volume step</label>
-              <div class="setting-row-control"><input type="number" id="volume-step" min="1" max="25" value="10"> <span class="setting-row-unit">%</span></div>
-              <p class="setting-row-help">How much each + or − press changes the volume.</p>
-            </div>
-            <div class="setting-row" data-setting="remember-channel-volume" data-synonyms="volume each channel level memory per channel">
-              <label class="setting-row-label" for="remember-channel-volume">Remember each channel's volume</label>
-              <div class="setting-row-control"><input type="checkbox" id="remember-channel-volume"></div>
-              <p class="setting-row-help">Tuning back to a channel returns it to the volume you left it at.</p>
-            </div>
-            <div class="setting-row" data-setting="tune-fade-in" data-synonyms="fade sound start loud tuning soft">
-              <label class="setting-row-label" for="tune-fade-in">Fade the sound in after tuning</label>
-              <div class="setting-row-control"><select id="tune-fade-in">
-                <option value="0">OFF</option>
-                <option value="400">QUICK (0.4 SEC)</option>
-                <option value="900">SOFT (0.9 SEC)</option>
-                <option value="1800">SLOW (1.8 SEC)</option>
-              </select></div>
-              <p class="setting-row-help">Softens a loud start when changing channel.</p>
-            </div>
-            <div class="setting-row" data-setting="sleep-fade-out" data-synonyms="sleep timer fade volume quiet">
-              <label class="setting-row-label" for="sleep-fade-out">Fade out before the sleep timer</label>
-              <div class="setting-row-control"><input type="checkbox" id="sleep-fade-out" checked></div>
-              <p class="setting-row-help">The sound fades over the last 25 seconds instead of cutting off.</p>
-            </div>
-            <div class="setting-row" data-setting="volume-max" data-synonyms="volume limit cap loud ceiling">
-              <label class="setting-row-label" for="volume-max">Maximum volume</label>
-              <div class="setting-row-control"><input type="range" id="volume-max" min="10" max="100" value="100"></div>
-              <p class="setting-row-help">The volume keys stop here. Handy when the TV is much louder than the PC.</p>
-            </div>
-          </div>
-        </div>
 
         <div class="panel" data-simple-settings>
           <div class="panel-toggle">POWER &amp; PLAYBACK</div>
@@ -1573,6 +1736,20 @@
               <div class="setting-row-control"><input type="checkbox" id="playback-resync-enabled" checked></div>
               <p class="setting-row-help">Every 20 seconds, nudge the picture back to where the schedule says it should be.</p>
             </div>
+            <div class="setting-row" data-setting="playback-on-unplayable" data-synonyms="broken file corrupt codec transcode fix ffmpeg wont play error technical difficulties">
+              <label class="setting-row-label" for="playback-on-unplayable">When a file won’t play</label>
+              <div class="setting-row-control"><select id="playback-on-unplayable">
+                <option value="fix">Fix it automatically</option>
+                <option value="standby">Stand by until the next program</option>
+                <option value="error">Show an error</option>
+              </select></div>
+              <p class="setting-row-help">Fixing re-encodes the file once and keeps the original in an _originals_backup folder beside it. A channel can choose its own on its ADVANCED page.</p>
+            </div>
+            <div class="setting-row" data-setting="playback-retries" data-synonyms="retry slow drive stall">
+              <label class="setting-row-label" for="playback-retries">Try a stalled file again</label>
+              <div class="setting-row-control"><input type="number" id="playback-retries" min="0" max="3" step="1" value="1"> <span class="setting-row-unit">times</span></div>
+              <p class="setting-row-help">A slow or network drive can stall on the first try. Retries come before fixing, standing by or the error.</p>
+            </div>
             <div class="setting-row" data-setting="standby-enabled" data-synonyms="idle sleep timer off" data-simple-settings>
               <label class="setting-row-label" for="standby-enabled">Auto standby</label>
               <div class="setting-row-control"><input type="checkbox" id="standby-enabled"></div>
@@ -1582,9 +1759,85 @@
               <label class="setting-row-label" for="standby-interval">Standby after</label>
               <div class="setting-row-control"><input type="number" id="standby-interval" min="1" value="15"> <span class="setting-row-unit">min idle</span></div>
             </div>
+            <div class="setting-row" data-setting="standby-warn" data-depends-on="standby-enabled" data-synonyms="auto standby idle countdown warning">
+              <label class="setting-row-label" for="standby-warn">Warn before standby</label>
+              <div class="setting-row-control"><input type="number" id="standby-warn" min="0" max="120" step="5" value="30"> <span class="setting-row-unit">s</span></div>
+              <p class="setting-row-help">A countdown before auto standby turns the TV off, so a key press can stop it. 0 turns off without warning.</p>
+            </div>
+            <div class="setting-row" data-setting="launch-state" data-synonyms="boot startup launch power on standby always on">
+              <label class="setting-row-label" for="launch-state">When RerunTV starts</label>
+              <div class="setting-row-control"><select id="launch-state">
+                <option value="on">Turn the TV on</option>
+                <option value="standby">Start in standby</option>
+              </select></div>
+              <p class="setting-row-help">Standby starts dark until you press power, for a PC that is always on.</p>
+            </div>
           </div>
         </div>
 
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="device">
+        <div class="settings-grid">
+<div class="panel">
+          <div class="panel-toggle">THIS DEVICE</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="usage-mode" data-synonyms="tv mode remote desktop mode 10-foot" title="TV is for a remote across the room: the D-pad and OK reach everything, the left arrow opens the guide, holding OK opens the TV menu, and Back asks before leaving. Saved on this device only.">
+              <label class="setting-row-label" for="usage-mode-select">Usage mode</label>
+              <div class="setting-row-control"><select id="usage-mode-select">
+                <option value="auto" selected>AUTO</option>
+                <option value="desktop">DESKTOP</option>
+                <option value="tv">TV (REMOTE)</option>
+              </select></div>
+              <p class="setting-row-help" id="usage-mode-status"></p>
+            </div>
+            <div class="setting-row" data-setting="tv-preview" data-synonyms="preview tv mode try tv layout remote test couch">
+              <label class="setting-row-label" for="tv-preview-btn">Preview TV mode</label>
+              <div class="setting-row-control"><button type="button" class="btn" id="tv-preview-btn">PREVIEW</button></div>
+              <p class="setting-row-help">Try the TV layout here for this session without changing this device. End it from TV menu › System.</p>
+            </div>
+            <div class="setting-row" data-setting="ui-scale" data-synonyms="zoom scale text size">
+              <label class="setting-row-label" for="ui-scale-select">Interface size</label>
+              <div class="setting-row-control"><select id="ui-scale-select">
+                <option value="auto" selected>AUTO (RECOMMENDED)</option>
+                <option value="100">100%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+                <option value="175">175%</option>
+                <option value="200">200%</option>
+              </select></div>
+              <p class="setting-row-help">AUTO enlarges everything on high-resolution displays.</p>
+            </div>
+          </div>
+        </div>
+        </div>
+        </div>
+
+<div class="setup-subtab-panel hidden" data-subtab-panel="network">
+        <div class="settings-grid">
+<div class="panel">
+          <div class="panel-toggle">WATCH ON OTHER DEVICES</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="viewer-enabled" data-synonyms="lan viewer browser tv client android">
+              <label class="setting-row-label" for="viewer-enabled">Share with devices on this network</label>
+              <div class="setting-row-control"><input type="checkbox" id="viewer-enabled"></div>
+              <p class="setting-row-help" id="viewer-url-status">Checking for a network connection…</p>
+            </div>
+            <div class="setting-row" data-setting="control-pairing" data-synonyms="edit remotely web control panel laptop phone browser">
+              <span class="setting-row-label">Edit from another screen</span>
+              <p class="setting-row-help" id="control-url-status">Checking for a network connection…</p>
+            </div>
+          </div>
+        </div>
+
+<div class="panel">
+          <div class="panel-toggle">CONNECTED DEVICES</div>
+          <div class="panel-body">
+            <div id="connected-devices-list" class="titles-list"></div>
+          </div>
+          <span class="panel-status">Authenticated devices currently polling an enabled remote, viewer, or party server. A device drops off this list ~30 seconds after it stops checking in.</span>
+        </div>
         </div>
         </div>
 
@@ -1604,6 +1857,16 @@
                     <option value="off">NEVER</option>
                   </select> <button id="check-updates-btn" class="btn">CHECK NOW</button></div>
               <p class="setting-row-help">When RerunTV checks for a new version and how it installs.</p>
+            </div>
+            <div class="setting-row" data-setting="update-check-hours" data-synonyms="update check interval background">
+              <label class="setting-row-label" for="update-check-hours">Check for updates every</label>
+              <div class="setting-row-control"><select id="update-check-hours">
+                <option value="0">Only when it starts</option>
+                <option value="6">6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+              </select></div>
+              <p class="setting-row-help">For the background update policies: a box left running checks again on this schedule.</p>
             </div>
                 </div>
                 <span id="update-status-line" class="panel-status update-status-line" role="status" aria-live="polite"></span>
@@ -1645,6 +1908,42 @@
 
 <div class="setup-subtab-panel hidden" data-subtab-panel="keys">
         <div class="settings-grid">
+<div class="panel" data-reset-keys='[["controls"],["channelVolumes"]]'>
+          <div class="panel-toggle">TUNING &amp; CONTROLS</div>
+          <div class="panel-body setting-rows">
+            <div class="setting-row" data-setting="startup-channel" data-synonyms="boot power on first channel resume">
+              <label class="setting-row-label" for="startup-channel">Channel at start-up</label>
+              <div class="setting-row-control"><select id="startup-channel"></select></div>
+              <p class="setting-row-help">Where the TV tunes when RerunTV opens.</p>
+            </div>
+            <div class="setting-row" data-setting="entry-delay" data-synonyms="digits number remote typing wait commit">
+              <label class="setting-row-label" for="entry-delay">Channel number delay</label>
+              <div class="setting-row-control"><input type="number" id="entry-delay" min="0.2" max="3" step="0.1" value="0.8"> <span class="setting-row-unit">sec</span></div>
+              <p class="setting-row-help">How long to wait after the last digit before tuning. Enter tunes right away.</p>
+            </div>
+            <div class="setting-row" data-setting="scan-dwell" data-synonyms="scan channel surf auto flip">
+              <label class="setting-row-label" for="scan-dwell">Scan stays on each channel</label>
+              <div class="setting-row-control"><input type="number" id="scan-dwell" min="2" max="60" value="8"> <span class="setting-row-unit">sec</span></div>
+            </div>
+            <div class="setting-row" data-setting="sleep-steps" data-synonyms="sleep timer minutes z">
+              <label class="setting-row-label" for="sleep-steps">Sleep timer steps</label>
+              <div class="setting-row-control"><input type="text" id="sleep-steps" value="30, 60, 90, 120" placeholder="30, 60, 90, 120"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">Z cycles through off and these lengths, separated by commas.</p>
+            </div>
+            <div class="setting-row" data-setting="sleep-countdown-minutes" data-synonyms="sleep timer badge countdown corner">
+              <label class="setting-row-label" for="sleep-countdown-minutes">Show the sleep countdown for the last</label>
+              <div class="setting-row-control"><input type="number" id="sleep-countdown-minutes" min="0" max="15" step="1" value="5"> <span class="setting-row-unit">min</span></div>
+              <p class="setting-row-help">The “SLEEP 4:59” badge in the corner. 0 never shows it.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" data-reset-keys='[["remote","buttons"]]'>
+          <div class="panel-toggle">REMOTE BUTTONS</div>
+          <span class="panel-status">What these buttons do on live TV in TV mode. The guide, menus and dialogs keep their own keys.</span>
+          <div class="panel-body setting-rows" id="remote-buttons-rows" data-setting="remote-buttons"></div>
+        </div>
+
         <div class="panel span-full" data-reset-keys='[["keyMap"]]'>
           <div class="panel-toggle">KEYBOARD SHORTCUTS</div>
           <span class="panel-status">Pick the key for each action while watching. Click a key, then press the one you want; Esc cancels. Digits, the volume keys, the arrows and a few plug-in keys can't be reassigned. The hint bar and the shortcuts list follow your choices.</span>
@@ -1805,23 +2104,7 @@
         <div class="setup-tab-panel hidden" data-tab-panel="plugins">
           <div class="setup-subtabs">
             <button class="setup-subtab-btn active" data-subtab="installed">INSTALLED</button>
-            <button class="setup-subtab-btn" data-subtab="appearance">CUSTOM CSS</button>
             <button class="setup-subtab-btn" data-subtab="diagnostics">DIAGNOSTICS</button>
-          </div>
-          <div class="setup-subtab-panel hidden" data-subtab-panel="appearance">
-          <div class="settings-grid">
-
-            <div class="panel span-full">
-              <label class="panel-toggle" style="cursor:default">🔌 CUSTOM CSS</label>
-              <span class="panel-status">Load your own stylesheet on top of everything — applies live, no restart needed. Loaded last, so anything in it wins.</span>
-              <div class="custom-css-row">
-                <span id="custom-css-path" class="custom-css-path">NO CUSTOM CSS LOADED</span>
-                <button id="custom-css-choose-btn" class="btn">CHOOSE FILE…</button>
-                <button id="custom-css-remove-btn" class="btn remove-btn hidden">REMOVE</button>
-              </div>
-            </div>
-
-          </div>
           </div>
 
           <div class="setup-subtab-panel" data-subtab-panel="installed">
@@ -2453,7 +2736,7 @@
       </div>
       <div class="vcr-time" id="vcr-time">--:--</div>
       <div class="vcr-prog" id="vcr-prog"></div>
-      <div class="vcr-hint"><span>&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; CLICK STRIP TO MOVE &nbsp; T/ENTER PLAY &nbsp; L LIVE &nbsp; ESC CLOSE</span><span data-hint-mode="tv">&#9664;&#9654; STEP (HOLD FASTER) &nbsp; &#9650;&#9660; SHOWS &nbsp; OK PLAY &nbsp; BACK LIVE</span></div>
+      <div class="vcr-hint"><span>&larr;&rarr; SHUTTLE &nbsp; [ ] PREV/NEXT BREAK &nbsp; \ END OF BREAK &nbsp; CLICK STRIP TO MOVE &nbsp; T/ENTER PLAY &nbsp; L LIVE &nbsp; ESC CLOSE</span><span data-hint-mode="tv">&#9664;&#9654; STEP (HOLD FASTER) &nbsp; &#9650;&#9660; SHOWS &nbsp; OK PLAY &nbsp; BACK LIVE</span></div>
     </div>
 
     <!-- Pre-end "up next" promo banner -->

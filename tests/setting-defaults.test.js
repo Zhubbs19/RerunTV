@@ -33,5 +33,7 @@ test('defaultForPath returns a copy, and undefined for settings with no default'
   const steps = defaultForPath(['controls', 'sleepSteps']);
   steps.push(999);
   assert.deepEqual(defaultForPath(['controls', 'sleepSteps']), [30, 60, 90, 120]);
-  assert.equal(defaultForPath(['display', 'clock24']), undefined);
+  // Every registry setting has a default now (reset writes it back); a path that isn't a setting has none.
+  assert.equal(defaultForPath(['display', 'clock24']), false);
+  assert.equal(defaultForPath(['display', 'notASetting']), undefined);
 });

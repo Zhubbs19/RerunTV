@@ -1141,6 +1141,7 @@ export function buildSchedulePanel(ch, panelEl) {
         toggleLazyPanel(commercialsPanel, () => {
           buildCommercialsPanel(block, commercialsPanel, {
             allowInherit: true,
+            channel: ch,
             onChange: () => { commercialsBtn.textContent = block.commercials ? 'ADS ✓' : 'ADS'; commitBlockFields(block, ['commercials']); },
           });
         });

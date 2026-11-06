@@ -25,6 +25,8 @@
 // library sync, channel rematerialization and the schedule math it must agree
 // with. The host process never needs it.
 
+import { airFilesFor } from '../core/interstitials.js';
+
 export function totalDuration(files) {
   return files.reduce((sum, file) => sum + (file.duration || 0), 0);
 }
@@ -137,8 +139,10 @@ export function reanchorForPlaylistChange({ files, nextFiles, anchor, atMs, keyO
  */
 export function applyPlaylistPreservingAir(channel, nextFiles, atMs) {
   const before = channel.files || [];
+  // Measured on the air timeline: with shows pausing for breaks, each file
+  // airs for longer than its video (core/interstitials.js airFilesFor).
   const result = before.length && channel.anchor
-    ? reanchorForPlaylistChange({ files: before, nextFiles, anchor: channel.anchor, atMs })
+    ? reanchorForPlaylistChange({ files: airFilesFor(channel, before), nextFiles: airFilesFor(channel, nextFiles), anchor: channel.anchor, atMs })
     : { ok: false, reason: 'no-anchor' };
   channel.files = nextFiles;
   if (result.ok) {

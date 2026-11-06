@@ -29,11 +29,16 @@ export function isSignOnOpen() {
 }
 
 export function showSignOnCard() {
+  // ON SCREEN › PROGRAM CARDS › "Welcome-back card" and how long away counts.
+  const opts = S.config.signOnCard || {};
+  if (opts.enabled === false) return false;
+  const hours = Number(opts.awayHours);
   const info = buildSignOn({
     now: Date.now(),
     lastSeenAt: S.config.lastSeenAt,
     reminders: reminders(),
     formatTime: formatSlotLabel,
+    awayMs: (Number.isFinite(hours) && hours >= 0 ? Math.min(24, hours) : 2) * 3600000,
   });
   if (!info) return false;
   if (!cardEl) {

@@ -3,10 +3,13 @@
 import { freshCommercialsConfig } from '../core/channels.js';
 import { S } from '../core/state.js';
 import { attachTagAutocomplete, buildBreakpointTrack, commitOwnerFields, parsePositiveInt } from './util.js';
+import { channelOverrides, settingById } from '../core/settings-registry.js';
+import { OverrideRow } from './override-row.js';
 
-// Per-channel ADS tab: a simple on/off toggle for ch.adsEnabled.
-// All ad timing, flow, and scheduling lives in the Programming tab's
-// SHOW & AD FLOWS / CADENCE & PRESETS panels — not per-channel.
+// Per-channel BREAKS › ADS page: the channel's master switch for ads, then
+// every box-wide break setting a channel may override (the registry's
+// override.page 'ads': shows pause for breaks, ad break interval), as
+// OverrideRows. Content tags moved to OVERVIEW (buildChannelContentTags).
 export function buildChannelAdsPanel(ch, panelEl) {
   panelEl.innerHTML = '';
 
@@ -23,17 +26,26 @@ export function buildChannelAdsPanel(ch, panelEl) {
   enabledLabel.appendChild(document.createTextNode('ADS ENABLED ON THIS CHANNEL'));
   panelEl.appendChild(enabledLabel);
 
+  const rows = document.createElement('div');
+  rows.className = 'setting-rows';
+  channelOverrides('ads').forEach((entry) => rows.appendChild(OverrideRow(entry, ch)));
+  panelEl.appendChild(rows);
+
   const hint = document.createElement('div');
   hint.className = 'titles-empty';
-  hint.textContent = 'AD TIMING, BREAKS, POD SIZE, AND BUMPER POOL ARE CONFIGURED IN PROGRAMMING (CADENCE & PRESETS; ADVANCED FLOWS WHEN NEEDED). THIS TOGGLE IS A PER-CHANNEL MASTER SWITCH FOR ADS.';
+  hint.textContent = 'POD SIZE, PRESETS, FLOWS AND THE BUMPER POOL ARE IN THE BREAKS SECTION. A SCHEDULE BLOCK CAN SET ITS OWN ADS.';
   panelEl.appendChild(hint);
+}
 
-  // Channel-wide content tags — applied to EVERY file on this channel, on
-  // top of that file's own tags, wherever an ad-pool entry/preset/flow
-  // checks content tags (interstitials.js's effectiveContentTags). Exists
-  // for a themed channel (a 24/7 holiday-movies channel, say) where tagging
-  // every individual file the same way would be pure busywork when a preset
-  // or pool entry just wants to target "this channel's content."
+// Channel-wide content tags — applied to EVERY file on this channel, on
+// top of that file's own tags, wherever an ad-pool entry/preset/flow checks
+// content tags (interstitials.js's effectiveContentTags). Exists for a themed
+// channel (a 24/7 holiday-movies channel, say) where tagging every individual
+// file the same way would be busywork. On the channel's OVERVIEW page: they
+// describe the channel, they aren't an ad setting.
+export function buildChannelContentTags(ch) {
+  const panelEl = document.createElement('div');
+  panelEl.className = 'channel-content-tags';
   const tagsLabel = document.createElement('div');
   tagsLabel.className = 'flow-label';
   tagsLabel.textContent = 'Channel content tags (apply to every file on this channel)';
@@ -54,6 +66,7 @@ export function buildChannelAdsPanel(ch, panelEl) {
   tagsHint.className = 'titles-empty';
   tagsHint.textContent = 'MATCHES AD-POOL ENTRIES, PRESETS, AND FLOWS THAT TARGET CONTENT TAGS — NO NEED TO TAG EVERY FILE INDIVIDUALLY.';
   panelEl.appendChild(tagsHint);
+  return panelEl;
 }
 
 // Builds the ad-settings UI for a daypart block override (block.commercials).
@@ -68,6 +81,12 @@ export function buildCommercialsPanel(owner, panelEl, opts) {
     panelEl.innerHTML = '';
 
     if (opts.allowInherit) {
+      // Whether shows pause for this block's breaks is its own choice, ads override or not.
+      const pauseRows = document.createElement('div');
+      pauseRows.className = 'setting-rows';
+      pauseRows.appendChild(OverrideRow(settingById('commercials-pause-for-breaks'), owner, { level: 'block', channel: opts.channel || null }));
+      panelEl.appendChild(pauseRows);
+
       const inheritLabel = document.createElement('label');
       inheritLabel.className = 'shuffle-toggle';
       const inheritCheckbox = document.createElement('input');

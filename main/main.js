@@ -76,7 +76,7 @@ const { registerAppSchemePrivileges, registerAppProtocol, setMediaDispatchServic
 const { FFMPEG_STATIC_PATH, getFfmpegPath, setFfmpegPath } = require('./media/media');
 const { createLoudnessService, registerLoudnessIpc } = require('./media/loudness');
 const { createCropDetectService, registerCropDetectIpc } = require('./media/cropdetect');
-const { loadConfig, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
+const { loadConfig, loadSettingsRegistry, registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, onViewerRelevantConfigChange, onConfigApplied, configHost } = require('./config/config');
 const { createLibraryService, registerLibraryIpc } = require('./library/service');
 const { createSplicerService, registerSplicerIpc } = require('./splicer/service');
 const { createPersonalService, registerPersonalIpc } = require('./personal/service');
@@ -647,6 +647,9 @@ async function bootApp() {
     serveStatic: serveStaticFile,
     trackConnection, mimeFor, loadConfig, busboy, QRCode,
     getViewerUrls: () => viewerAccessUrls,
+    // The settings registry's remote-editable entries (no config values), for
+    // the companion app's GET /api/settings/registry.
+    getSettingsCatalogue: async () => (await loadSettingsRegistry()).remoteSettingsCatalogue(),
     getInstalledThemes: () => {
       const reported = getLatestThemeList();
       if (reported.length) return reported;

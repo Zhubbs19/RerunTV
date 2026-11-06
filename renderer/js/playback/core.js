@@ -56,6 +56,22 @@ import {
 import { fitConfigFor, fitDisclaimerFor, playbackRateOf, seekOffsetOf } from '../core/fit.js';
 import { resolveBreakAt } from '../core/interstitials.js';
 
+// SYSTEM › POWER & PLAYBACK › "When a file won't play": 'fix' (re-encode once,
+// the original kept in _originals_backup), 'standby' (a technical-difficulties
+// card until the next program) or 'error'. A channel's ADVANCED page can set
+// its own (ch.onUnplayable).
+const UNPLAYABLE_POLICIES = ['fix', 'standby', 'error'];
+export function unplayablePolicyFor(ch) {
+  if (ch && UNPLAYABLE_POLICIES.includes(ch.onUnplayable)) return ch.onUnplayable;
+  const box = S.config.playback && S.config.playback.onUnplayable;
+  return UNPLAYABLE_POLICIES.includes(box) ? box : 'fix';
+}
+
+function unplayableRetries() {
+  const n = Number(S.config.playback && S.config.playback.retries);
+  return Number.isFinite(n) && n >= 0 ? Math.min(3, Math.round(n)) : 1;
+}
+
 // Same shape as computeLivePosition, but content playback lags real time by
 // however many ms it's been paused through breaks on this source so far
 // (S.contentLostMs) — this is what makes a show resume where it left off
@@ -412,8 +428,30 @@ export async function playChannelLive(ch, opts) {
     // nearly every tune-in because the very first stall was treated as
     // conclusive. resolved.alreadyFixed skips this — a file whose transcode
     // swap already happened isn't going to start working via a bare retry.
-    if (!opts.playRetried && !resolved.alreadyFixed) {
-      playChannelLive(ch, { ...opts, playRetried: true });
+    // SYSTEM › POWER & PLAYBACK › "Try a stalled file again" (0-3, default 1).
+    const tries = opts.playRetries || 0;
+    if (tries < unplayableRetries() && !resolved.alreadyFixed) {
+      playChannelLive(ch, { ...opts, playRetries: tries + 1 });
+      return;
+    }
+
+    // "When a file won't play" (box-wide, or the channel's ADVANCED page):
+    // fix it (below), stand by until the next program, or show the error.
+    const policy = unplayablePolicyFor(ch);
+    if (policy === 'error') {
+      if (isPermanent) showNoSignal('OFF THE AIR', `CH ${ch.number} — TECHNICAL DIFFICULTIES. RUN FIX PLAYBACK IN SETUP.`, 'offair');
+      else showNoSignal('PLAYBACK ERROR', `CH ${ch.number} — ${base.toUpperCase()}`, 'error');
+      return;
+    }
+    if (policy === 'standby') {
+      showNoSignal('PLEASE STAND BY', `CH ${ch.number} — TECHNICAL DIFFICULTIES. BACK WITH THE NEXT PROGRAM.`, 'offair');
+      // The schedule carries on underneath: come back when this file's airing ends.
+      const fresh = computeLiveContentPosition(ch);
+      const leftMs = fresh && fresh.file && fresh.file.path === file.path ? (fresh.file.duration - fresh.offset) * 1000 : 0;
+      clearTimeout(S.unplayableStandbyTimer);
+      S.unplayableStandbyTimer = setTimeout(() => {
+        if (!isStale()) playChannelLive(ch, { ...opts, playRetries: 0 });
+      }, Math.max(1000, leftMs + 100));
       return;
     }
 

@@ -181,7 +181,7 @@ function route(context, remoteKey, longPressed) {
     if (action && virtualChannelHandlesActions(S.currentNumber)) return `plugin.action:${action}`;
     return PLUGIN_ACTIONS[remoteKey] || null;
   }
-  return routeRemoteKey(context, remoteKey, { longPress: longPressed });
+  return routeRemoteKey(context, remoteKey, { longPress: longPressed, buttons: S.config && S.config.remote && S.config.remote.buttons });
 }
 
 function longPressable(context, remoteKey) {
@@ -219,6 +219,8 @@ function menuButtons() {
 }
 
 const ACTIONS = {
+  // A remote button set to DO NOTHING (SYSTEM › REMOTE & KEYS).
+  none: () => {},
   'guide.open': () => openGuideGrid(),
   'banner.show': () => showGuideOverlay(S.currentNumber, getChannel(S.currentNumber)),
   'banner.open': () => openBannerHub(),

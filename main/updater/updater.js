@@ -326,7 +326,27 @@ function getAutoUpdater() {
 
 function updatesConfig() {
   const cfg = loadConfig();
-  return { strategy: normalizeUpdateStrategy(cfg.updates) };
+  // SYSTEM › UPDATES › "Check for updates every" (0 = only at start-up, default 12 h).
+  const hours = Number(cfg.updates && cfg.updates.checkEveryHours != null ? cfg.updates.checkEveryHours : 12);
+  return { strategy: normalizeUpdateStrategy(cfg.updates), checkEveryHours: Number.isFinite(hours) && hours > 0 ? Math.min(168, hours) : 0 };
+}
+
+// A box left running checks again on the "Check for updates every" schedule,
+// for the background policies only (startup-auto checks before each launch).
+// Re-reads the config each time, so a changed interval or policy takes effect
+// at the next tick. Real time: this is wall-clock housekeeping, not schedule.
+let periodicCheckTimer = null;
+function schedulePeriodicChecks(updater) {
+  clearTimeout(periodicCheckTimer);
+  const { checkEveryHours } = updatesConfig();
+  const waitMs = (checkEveryHours || 1) * 3600000;
+  periodicCheckTimer = setTimeout(() => {
+    const current = updatesConfig();
+    if (current.checkEveryHours && (current.strategy === 'background-auto' || current.strategy === 'background-notify')) {
+      updater.checkForUpdates().catch((e) => console.error('[auto-updater] scheduled check failed:', e.message));
+    }
+    schedulePeriodicChecks(updater);
+  }, waitMs);
 }
 
 function finishStartupUpdate(installing) {
@@ -593,6 +613,7 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
       updater.checkForUpdates().catch((e) => console.error('[auto-updater] background check failed:', e.message));
     }, 2500);
   }
+  schedulePeriodicChecks(updater);
   return false;
 }
 

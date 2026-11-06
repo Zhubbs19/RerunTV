@@ -248,6 +248,13 @@ export function buildCreditsSpeedupPanel(ch, panelEl) {
       if (v) cfg.squeezeLayout = v; else delete cfg.squeezeLayout;
       commitOwnerFields(ch, ['creditsSpeedup']);
     });
+    // What the program sounds like meanwhile (core/fit.js creditsAudioFor).
+    choiceRow('SOUND', [
+      ['mute', 'MUTED'], ['keep', 'KEPT, SPED UP'], ['lower', 'TURNED DOWN'],
+    ], cfg.audio || 'mute', (v) => {
+      if (v === 'mute') delete cfg.audio; else cfg.audio = v;
+      commitOwnerFields(ch, ['creditsSpeedup']);
+    });
 
     // What fills the space #player's squeeze transform frees up. 'text' (the
     // original, still the default) is a static UP NEXT card; 'video' plays a

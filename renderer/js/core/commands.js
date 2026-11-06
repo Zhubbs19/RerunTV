@@ -306,8 +306,18 @@ const SETTING_LABELS = {
   controls: 'tuning & controls', keyMap: 'keyboard shortcuts', channelVolumes: 'channel volumes', muted: 'mute', volume: 'volume', lastChannel: 'last channel', lastSeenAt: 'last seen', librarySync: 'library sync',
   tagTaxonomy: 'tag taxonomy', airChecks: 'air checks', ticker: 'ticker', pluginSettingsMeta: 'plugin settings versions',
   pcPower: 'PC power', programFit: 'fit to time slots',
+  playback: 'playback', signOnCard: 'welcome-back card', audioLevelerTarget: 'leveler loudness', remote: 'remote buttons',
 };
 const SETTINGS_SECTIONS = new Set(Object.keys(SETTING_LABELS));
+
+/**
+ * Whether settings.set may write under this top-level config key.
+ * @param {string} key A top-level config key.
+ * @returns {boolean} True when it is an allowed settings section.
+ */
+export function isSettingsSection(key) {
+  return SETTINGS_SECTIONS.has(key);
+}
 
 // "hintBarShowDuration" -> "hint bar show duration", for undo labels.
 function humanizeKey(key) {
@@ -369,6 +379,7 @@ const CHANNEL_FIELDS = {
   adsEnabled: 'ads', defaultHasCC: 'default CC', defaultHasSAP: 'default SAP', defaultHasStereo: 'default stereo',
   iconOverrides: 'seasonal icons', logoBugProfiles: 'logo bug placement', dynamicOverlays: 'dynamic overlays',
   anchor: 'schedule anchor', callLetters: 'call letters', logoBugHideNumber: 'logo number', logoBugHidesOnBreak: 'logo in breaks',
+  onUnplayable: 'when a file won’t play', pauseForBreaks: 'pause for ad breaks', adIntervalMinutes: 'ad break interval',
 };
 
 registerCommand('channel.set', {

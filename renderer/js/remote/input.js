@@ -164,13 +164,81 @@ export const CONTEXT_ACTIONS = {
   watching: WATCHING, banner: BANNER, timeMachine: TIME_MACHINE, guide: GUIDE, menu: MENU, details: DETAILS, dialog: DIALOG, text: TEXT,
 };
 
-// null means "not a remote concern here": the event goes to the keyboard
-// handler untouched (in the text context, the field gets it).
-export function routeRemoteKey(context, remoteKey, { longPress = false } = {}) {
+// ---------- Remote buttons while watching (SYSTEM › REMOTE & KEYS) ----------
+// remote.buttons maps a few buttons to another action while live TV is up
+// (context 'watching' only, short presses only): the guide, the menu and
+// dialogs keep their own keys, so a remapped button can never strand a
+// viewer inside a screen. Unset buttons keep WATCHING's meaning.
+export const REMOTE_BUTTON_SLOTS = [
+  { key: 'left', label: '◀ Left' },
+  { key: 'right', label: '▶ Right' },
+  { key: 'ok', label: 'OK' },
+  { key: 'back', label: 'Back' },
+  { key: 'red', label: 'Red' },
+  { key: 'green', label: 'Green' },
+  { key: 'yellow', label: 'Yellow' },
+  { key: 'blue', label: 'Blue' },
+];
+
+// The actions a button can be given. 'none' swallows the press.
+export const REMOTE_BUTTON_ACTIONS = [
+  { id: 'guide.open', label: 'Open the guide' },
+  { id: 'banner.open', label: 'Channel banner' },
+  { id: 'info.show', label: 'Program info' },
+  { id: 'menu.toggle', label: 'TV menu' },
+  { id: 'timeMachine.open', label: 'Time machine' },
+  { id: 'key:Backspace', label: 'Last channel' },
+  { id: 'key:q', label: 'Skip the break' },
+  { id: 'key:m', label: 'Mute' },
+  { id: 'key:k', label: 'Captions' },
+  { id: 'key:r', label: 'Record' },
+  { id: 'exit.prompt', label: 'Ask before leaving' },
+  { id: 'none', label: 'Do nothing' },
+];
+const BUTTON_ACTION_IDS = new Set(REMOTE_BUTTON_ACTIONS.map((a) => a.id));
+const BUTTON_SLOT_KEYS = new Set(REMOTE_BUTTON_SLOTS.map((s) => s.key));
+
+/**
+ * What a button does on live TV out of the box (before any remote.buttons choice).
+ * @param {string} remoteKey A REMOTE_BUTTON_SLOTS key.
+ * @returns {string|null} The action id, or null when the button has none.
+ */
+export function defaultButtonAction(remoteKey) {
+  return WATCHING[remoteKey] || null;
+}
+
+/**
+ * The remote.buttons choice for a button, if it is a valid one.
+ * @param {object|null|undefined} buttons The config's remote.buttons map.
+ * @param {string} remoteKey The pressed RemoteKey.
+ * @returns {string|null} The chosen action id, or null to keep the default.
+ */
+export function buttonOverride(buttons, remoteKey) {
+  if (!buttons || typeof buttons !== 'object' || !BUTTON_SLOT_KEYS.has(remoteKey)) return null;
+  const id = buttons[remoteKey];
+  return typeof id === 'string' && BUTTON_ACTION_IDS.has(id) ? id : null;
+}
+
+/**
+ * The action id for a RemoteKey in a context.
+ * null means "not a remote concern here": the event goes to the keyboard
+ * handler untouched (in the text context, the field gets it).
+ * @param {string} context The on-screen context (CONTEXT_ACTIONS key).
+ * @param {string} remoteKey The pressed RemoteKey.
+ * @param {object} [opts] Options.
+ * @param {boolean} [opts.longPress=false] Whether the key was held.
+ * @param {object} [opts.buttons] The config's remote.buttons map (watching only).
+ * @returns {string|null} An action id.
+ */
+export function routeRemoteKey(context, remoteKey, { longPress = false, buttons = null } = {}) {
   const table = CONTEXT_ACTIONS[context];
   if (!table || !remoteKey) return null;
   if (longPress && table[`long:${remoteKey}`]) return table[`long:${remoteKey}`];
   if (remoteKey.startsWith('digit')) return context === 'watching' || context === 'timeMachine' ? `key:${remoteKey.slice(5)}` : null;
+  if (context === 'watching' && !longPress) {
+    const chosen = buttonOverride(buttons, remoteKey);
+    if (chosen) return chosen;
+  }
   return table[remoteKey] || null;
 }
 

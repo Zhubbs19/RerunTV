@@ -11,6 +11,8 @@ import { setupSearchEl, setupSearchResultsEl, setupSearchEmptyEl } from '../core
 import { openPluginFromSearch } from './plugins.js';
 import { closeSettingsSearch, settingsView, isSimpleSearchTarget, setSettingsView } from './tabs.js';
 import { renderSettingsPanels } from './settings.js';
+import { channelOverrides, overrideValue } from '../core/settings-registry.js';
+import { displayValue } from './override-row.js';
 
 // ---------- Global settings and action search ----------
 // Results remain a compact list and navigate to their real tab/sub-tab.
@@ -71,6 +73,7 @@ function searchEntryForRow(row) {
 const SEARCH_GROUPS = [
   ['setting', 'SETTINGS', 8],
   ['channel', 'CHANNELS', 6],
+  ['channel-setting', 'CHANNEL SETTINGS', 8],
   ['plugin', 'PLUG-INS', 5],
   ['action', 'ACTIONS', 6],
   ['panel', 'SECTIONS', 5],
@@ -104,6 +107,38 @@ function channelEntries(words) {
       preview: `${ch.files.length} video${ch.files.length === 1 ? '' : 's'}`,
       run: () => openChannelFromSearch(ch.number),
     }));
+}
+
+// A channel's own value for a box-wide setting (the registry's overrides,
+// docs/design/14 §3): "Shows pause for ad breaks · CH 67". Without a channel
+// number or name in the query only the channels that actually change it are
+// listed, so a word like "pause" finds the channels that differ.
+const OVERRIDE_PAGES = { ads: 'breaks', credits: 'breaks', fit: 'breaks', logo: 'look', advanced: 'advanced' };
+function channelSettingEntries(words) {
+  const channels = (S.config && S.config.channels) || [];
+  const out = [];
+  for (const entry of channelOverrides()) {
+    const settingText = `${entry.label} ${entry.synonyms || ''}`.toLowerCase();
+    for (const ch of channels) {
+      const channelText = `ch ${ch.number} ${formatChannelNumber(ch.number)} ${ch.name || ''}`.toLowerCase();
+      if (!matchesWords(`${settingText} ${channelText}`, words)) continue;
+      const own = overrideValue(entry, ch, 'channel');
+      const namesChannel = words.some((w) => channelText.includes(w) && !settingText.includes(w));
+      if (own === undefined && !namesChannel) continue;
+      const page = OVERRIDE_PAGES[entry.override.page] || 'overview';
+      out.push({
+        kind: 'channel-setting',
+        title: entry.label,
+        path: `${entry.label} · CH ${formatChannelNumber(ch.number)} ${ch.name || ''}`.trim(),
+        preview: own === undefined ? 'Follows the box' : `Set to ${displayValue(entry, own)} on this channel`,
+        run: () => {
+          openChannelFromSearch(ch.number);
+          requestAnimationFrame(() => document.getElementById(`channel-${ch.number}-edit-tab-${page}`)?.click());
+        },
+      });
+    }
+  }
+  return out;
 }
 
 // Plugins by name and description, and the settings plugins registered
@@ -169,7 +204,7 @@ function allSearchEntries(query) {
     .filter((entry) => entry.tab && matchesWords(entry.haystack, words))
     .map((entry) => ({ ...entry, kind: 'panel' }));
   const actions = actionEntries().filter((entry) => matchesWords(entry.haystack, words));
-  return [...rows, ...channelEntries(words), ...pluginEntries(words), ...actions, ...panels, ...programEntries(q)];
+  return [...rows, ...channelEntries(words), ...channelSettingEntries(words), ...pluginEntries(words), ...actions, ...panels, ...programEntries(q)];
 }
 
 function navigateToSearchEntry(entry) {

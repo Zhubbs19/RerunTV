@@ -19,6 +19,9 @@ import {
   buildDynamicOverlaysPanel, buildFoldersPanel, buildLogoBugPanel, buildTickerLayoutPanel, buildTitlesPanel,
 } from './panels.js';
 import { buildUnifiedSchedulePanel } from './schedule.js';
+import { buildChannelContentTags } from './ad-panels.js';
+import { OverrideRow } from './override-row.js';
+import { channelOverrides } from '../core/settings-registry.js';
 import {
   attachSliderReadout, commitOwnerFields, emptyState, remapChannelRefs, showScanStatus, hideScanStatusAfter,
 } from './util.js';
@@ -362,6 +365,7 @@ export function renderChannelList() {
             ['overlays', 'OVERLAYS', buildDynamicOverlaysPanel],
             ['ticker', 'TICKER', buildTickerLayoutPanel],
             ['identity', 'IDENTITY', buildChannelIdentityPanel],
+            ['cards', 'PROGRAM CARDS', (c, body) => body.appendChild(cardOptions)],
           ]),
         },
         {
@@ -373,7 +377,7 @@ export function renderChannelList() {
             ['fit', 'FIT TO TIME SLOTS', buildProgramFitChannelPanel],
           ]),
         },
-        { id: 'advanced', label: 'ADVANCED', build: (c, p) => p.appendChild(advancedOptions) },
+        { id: 'advanced', label: 'PLAYBACK', build: (c, p) => p.appendChild(advancedOptions) },
       ];
       const simpleChannelView = document.getElementById('setup-screen')?.dataset.settingsView === 'simple';
       const availableEditTabs = simpleChannelView
@@ -927,6 +931,9 @@ export function renderChannelList() {
       overviewOptions.className = 'channel-options channel-options-overview';
       const advancedOptions = document.createElement('div');
       advancedOptions.className = 'channel-options channel-options-advanced';
+      // LOOK › PROGRAM CARDS: which start-of-program cards this channel shows.
+      const cardOptions = document.createElement('div');
+      cardOptions.className = 'channel-options channel-options-cards';
       const colorLabel = document.createElement('span');
       colorLabel.className = 'option-label';
       colorLabel.textContent = 'COLOR';
@@ -961,6 +968,7 @@ export function renderChannelList() {
         optionField(colorLabel, swatches),
         shuffleLabel, favoriteLabel, quickAccessLabel, notSubscribedLabel, hiddenLabel,
       ]);
+      optionGroup(overviewOptions, 'CONTENT TAGS', [buildChannelContentTags(ch)]);
       optionGroup(overviewOptions, 'RATING & VOLUME', [
         optionField(ratingLabel, ratingSelect),
         optionField(volumeLabel, volumeSlider, volumeReadout.el, volumeResetBtn),
@@ -972,11 +980,17 @@ export function renderChannelList() {
         vhsLabel,
         optionField(vhsWearLabel, vhsWearInput),
       ]);
+      // Box-wide playback settings this channel can set for itself (registry
+      // override.page 'advanced', e.g. when a file won't play), as OverrideRows.
+      const playbackRows = document.createElement('div');
+      playbackRows.className = 'setting-rows';
+      channelOverrides('advanced').forEach((entry) => playbackRows.appendChild(OverrideRow(entry, ch)));
+      optionGroup(advancedOptions, 'PLAYBACK', [playbackRows]);
       optionGroup(advancedOptions, 'AUDIO & CAPTIONS', [
         ...defaultCapabilityLabels,
         hideDaypartChimeLabel,
       ]);
-      optionGroup(advancedOptions, 'ON-SCREEN EXTRAS', [
+      optionGroup(cardOptions, 'SHOWN AT THE START OF PROGRAMS', [
         hideFormatDisclaimerLabel, hideRatingBugLabel, hideEpisodeStatusLabel,
         hideLocalAvailGlitchLabel, hideContentAdvisoryLabel, hideCapabilityBadgeLabel,
       ]);

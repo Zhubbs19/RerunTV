@@ -11,6 +11,7 @@ import { renderPluginsTab, reportPluginAttention } from './plugins.js';
 import { refreshMissingFileBadge, refreshSidebarBadges } from './sidebar.js';
 import { renderPluginDiagnostics } from '../plugin/diagnostics.js';
 import { renderHelpTab } from './help.js';
+import { settingById } from '../core/settings-registry.js';
 
 // ---------- Settings screen tabs ----------
 const setupTabBtns = document.querySelectorAll('.setup-tab-btn');
@@ -25,6 +26,21 @@ const settingsViewButtons = {
 const SETTINGS_VIEW_KEY = 'reruntv.settingsView';
 export let settingsView = 'advanced';
 installSettingDependencies(setupScreen);
+
+// Simple / Advanced comes from the settings registry's `level`: a row is in the
+// Simple view when its setting is 'basic', and a panel of registry rows is when
+// any of its rows is (docs/design/14 §5).
+function applyRegistryLevels() {
+  setupScreen.querySelectorAll('.setting-row[data-setting]').forEach((row) => {
+    const entry = settingById(row.dataset.setting);
+    if (entry) row.toggleAttribute('data-simple-settings', entry.level === 'basic');
+  });
+  setupScreen.querySelectorAll('.panel').forEach((panel) => {
+    const rows = [...panel.querySelectorAll('.setting-row[data-setting]')].filter((row) => settingById(row.dataset.setting));
+    if (rows.length) panel.toggleAttribute('data-simple-settings', rows.some((row) => row.hasAttribute('data-simple-settings')));
+  });
+}
+applyRegistryLevels();
 
 // Watch TV in the sidebar is the same action as the status bar's button.
 document.getElementById('setup-watch-btn')?.addEventListener('click', () => document.getElementById('done-btn')?.click());
@@ -78,7 +94,7 @@ export function isSimpleSearchTarget(target) {
   if (!tabButton?.hasAttribute('data-simple-settings')) return false;
   const subPanel = target.closest('.setup-subtab-panel');
   if (subPanel && !tabPanel.querySelector(`.setup-subtab-btn[data-subtab="${subPanel.dataset.subtabPanel}"]`)?.hasAttribute('data-simple-settings')) return false;
-  if (['display', 'guide', 'audio'].includes(tabPanel.dataset.tabPanel)) {
+  if (['display', 'guide', 'guidetm', 'audio'].includes(tabPanel.dataset.tabPanel)) {
     const panel = target.closest('.panel');
     if (panel && !panel.hasAttribute('data-simple-settings')) return false;
     const row = target.closest('.setting-row');
@@ -87,23 +103,26 @@ export function isSimpleSearchTarget(target) {
   return true;
 }
 
-// Sections follow docs/design/03 §3. The data-tab ids are older than the
-// names: display is Picture & sound, audio is System.
+// Sections follow docs/design/14 §5 (the registry's SECTIONS). The data-tab ids
+// are older than the names: programming is Breaks, display is Picture & sound,
+// guide is On screen, audio is System.
 const SETUP_SECTION_COPY = {
   channels: ['CHANNEL LINEUP', 'Build and manage the channels you watch, their media, identity, and schedule.'],
-  programming: ['PROGRAMMING', 'Shape show timing, breaks, bumpers, and automation.'],
-  library: ['LIBRARY', 'Keep channel folders in sync and tidy the tags that connect your media.'],
-  display: ['PICTURE & SOUND', 'Picture, the CRT look, display mode, volume, and sounds.'],
-  guide: ['GUIDE & THEME', 'The theme, the guide, the clock and hint bar, reminders, and on-screen overlays.'],
-  household: ['HOUSEHOLD', 'The parental lock, this device, and the other screens that watch along.'],
-  audio: ['SYSTEM', 'Power, updates, backups, air checks, and diagnostics.'],
+  programming: ['BREAKS', 'Ad breaks and how shows pause for them, end credits, fitting programs to time slots, station breaks, flows and the ad pool.'],
+  library: ['LIBRARY', 'Your catalogue, smart channels and presets, auto-curate, folder sync, tags and the splicer.'],
+  display: ['PICTURE & SOUND', 'The picture and CRT look, every sound setting, and the screen and window.'],
+  guide: ['ON SCREEN', 'The theme, the logo bug, program cards and up next, the clock and hint bar, overlays and custom CSS.'],
+  guidetm: ['GUIDE & TIME MACHINE', 'The program guide, reminders, and the time machine.'],
+  household: ['HOUSEHOLD', 'Who’s watching, recordings, watching together, and the parental lock.'],
+  audio: ['SYSTEM', 'Start-up and power, remote and keys, this device, the network, updates, backups and diagnostics.'],
   plugins: ['PLUGINS', 'Manage optional channels, themes, on-screen features, integrations, and their permissions.'],
   help: ['HELP', 'How the box works, keyboard shortcuts, and what’s new.'],
 };
 const SIMPLE_SECTION_DESCRIPTIONS = {
   channels: 'Add a channel, choose its media, and start watching.',
   display: 'Adjust the picture, screen, speakers, and volume.',
-  guide: 'Choose the guide theme, era, clock, and hint bar.',
+  guide: 'Choose the theme, era, clock, and hint bar.',
+  guidetm: 'Set up the guide and the time machine.',
   audio: 'Set startup and power behavior, updates, and backups.',
   help: 'Get started and find keyboard shortcuts.',
 };

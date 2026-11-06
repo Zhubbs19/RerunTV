@@ -5,7 +5,7 @@ import {
   crtToggleFlash, dynamicBumperTextEl, player, stationIdBarEl, stationIdNameEl, tapeFxEl, timeShiftBadgeEl,
   fitSlotCardEl, fitSlotHeaderEl, fitSlotTextEl, triviaCardEl, triviaTextEl, vcrModeEl, vcrOsdEl, vcrProgEl, vcrSpeedEl, vcrTimeEl,
 } from '../core/dom.js';
-import { nextBreakStart, prevBreakStart, resolveBreakAt } from '../core/interstitials.js';
+import { breakEndAt, nextBreakStart, prevBreakStart, resolveBreakAt } from '../core/interstitials.js';
 import { playChannelLive, scheduleBlockBoundaryRetune } from './core.js';
 import { cancelUpNextBar, checkBreakState, renderDynamicText, resetActiveBreakState } from './breaks.js';
 import { applyTvBezel, flashMessage, pushRemoteState } from './power.js';
@@ -14,7 +14,7 @@ import { computeLivePosition } from '../core/schedule.js';
 import { MONTHS, S, SHUTTLE_SPEEDS, WEEKDAYS, viewNow } from '../core/state.js';
 import { querySchedule } from '../core/schedule-query.js';
 import {
-  boundaryAfter, boundaryBefore, isFarJump, programAt, scrubStepMs, scrubWindow,
+  boundaryAfter, boundaryBefore, isFarJump, programAt, scrubStepMs, scrubWindow, timeMachineOptions,
 } from '../timeline/scrubber.js';
 import { breakMarkEl, spanPercent, timeAtFraction } from '../timeline/render.js';
 import { formatClock, formatOffset, getDisplayTitle } from '../core/util.js';
@@ -39,6 +39,13 @@ export function timeMachineAvailable() {
   return !!getChannel(S.currentNumber);
 }
 
+// The REW/FF ladder up to "Fastest shuttle" (GUIDE & TIME MACHINE).
+function shuttleSpeeds() {
+  const max = timeMachineOptions(S.config).maxShuttle;
+  const speeds = SHUTTLE_SPEEDS.filter((v) => v <= max);
+  return speeds.length ? speeds : [SHUTTLE_SPEEDS[0]];
+}
+
 export function updateTimeShiftBadge() {
   const showBadge = !(S.config.timeMachine && S.config.timeMachine.showTimeShiftBadge === false);
   if (!showBadge || Math.abs(S.timeOffsetMs) < 1000) {
@@ -56,7 +63,7 @@ export function updateVcrOsd() {
     vcrSpeedEl.textContent = '';
   } else {
     vcrModeEl.textContent = S.shuttleDir < 0 ? '◀◀ REW' : 'FF ▶▶';
-    vcrSpeedEl.textContent = `×${SHUTTLE_SPEEDS[S.shuttleSpeedIdx]}`;
+    vcrSpeedEl.textContent = `×${shuttleSpeeds()[S.shuttleSpeedIdx]}`;
   }
   const d = new Date(viewNow());
   const day = `${MONTHS[d.getMonth()]} ${d.getDate()}`;
@@ -131,7 +138,7 @@ function renderScrubber() {
   const strip = ensureScrubber();
   const viewed = viewNow();
   // Held still while a pointer drags, so the strip doesn't slide under it.
-  if (!scrubDragging) scrubWin = scrubWindow(viewed, scrubWin);
+  if (!scrubDragging) scrubWin = scrubWindow(viewed, scrubWin, timeMachineOptions(S.config).halfWindowMs);
   const { from, to } = scrubWin;
   const ch = getChannel(S.currentNumber);
   const sig = [from, to, S.currentNumber, S.configGeneration].join('|');
@@ -314,7 +321,7 @@ export function scrubStep(direction, { repeat = false } = {}) {
     holdStartedAt = now;
     holdDir = direction;
   }
-  const step = scrubStepMs(now - holdStartedAt);
+  const step = scrubStepMs(now - holdStartedAt, timeMachineOptions(S.config).firstStepMs);
   if (step === 'boundary') {
     if (now - lastBoundaryStepAt < BOUNDARY_REPEAT_MS) return;
     lastBoundaryStepAt = now;
@@ -349,7 +356,7 @@ export async function timeMachineGoTo(targetMs, label, { play = false } = {}) {
   if (!Number.isFinite(targetMs)) return;
   if (!S.timeMachineOn) enterTimeMachine();
   if (!S.timeMachineOn) return;
-  const far = isFarJump(viewNow(), targetMs);
+  const far = isFarJump(viewNow(), targetMs, timeMachineOptions(S.config).halfWindowMs);
   if (!beginScrub()) return;
   S.timeOffsetMs = targetMs - Date.now();
   holdAt(targetMs);
@@ -498,7 +505,7 @@ export function shuttleTick(ts) {
   const dt = S.shuttleLastTs ? (ts - S.shuttleLastTs) : 16;
   S.shuttleLastTs = ts;
 
-  S.timeOffsetMs += S.shuttleDir * SHUTTLE_SPEEDS[S.shuttleSpeedIdx] * dt;
+  S.timeOffsetMs += S.shuttleDir * shuttleSpeeds()[S.shuttleSpeedIdx] * dt;
 
   // The OSD readout resolves the current program, which walks the whole
   // file list — far too costly to redo every frame on a 1000-file channel,
@@ -517,7 +524,7 @@ export function startShuttle(dir) {
   thawView();
   if (S.shuttleDir === dir) {
     // Same direction again steps up the speed, like tapping FF on a VCR.
-    S.shuttleSpeedIdx = Math.min(S.shuttleSpeedIdx + 1, SHUTTLE_SPEEDS.length - 1);
+    S.shuttleSpeedIdx = Math.min(S.shuttleSpeedIdx + 1, shuttleSpeeds().length - 1);
   } else {
     S.shuttleDir = dir;
     S.shuttleSpeedIdx = 0;
@@ -604,6 +611,25 @@ export async function jumpToPrevBreak() {
   if (!isFinite(target)) return;
   S.timeOffsetMs = target - Date.now();
   holdAt(target);
+  await shuttlePlay();
+}
+
+// The \ key: a few seconds before the show comes back from the break that is
+// on (or the next one), playing from there, so the end of a break and the cut
+// back to the show can be checked without sitting through the ads.
+export async function jumpToBreakEnd() {
+  if (!S.timeMachineOn) return;
+  const ch = getChannel(S.currentNumber);
+  if (!ch) return;
+  // EXTRAS › "End-of-break jump lands": seconds before the show returns (0-30, default 5).
+  const leadS = Number(S.config.timeMachine && S.config.timeMachine.breakEndLeadSeconds);
+  const found = breakEndAt(ch, viewNow(), (Number.isFinite(leadS) && leadS >= 0 ? Math.min(30, leadS) : 5) * 1000);
+  if (!found) {
+    flashMessage('NO BREAK AHEAD', 'timeJumpFlashTimer');
+    return;
+  }
+  S.timeOffsetMs = found.target - Date.now();
+  holdAt(found.target);
   await shuttlePlay();
 }
 

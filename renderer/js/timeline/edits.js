@@ -11,6 +11,7 @@ import { cloneJson } from '../core/commands.js';
 import { hourInRange, matchesTrigger, mdKey, resolveActiveSource } from '../core/schedule.js';
 import { addDays, explainLayers } from '../core/schedule-query.js';
 import { S } from '../core/state.js';
+import { mapFitAir, plainFileEntry } from '../core/fit.js';
 
 // Local wall-clock hour `h` of the day starting at dayStart. setHours, not ms
 // arithmetic, so a DST day's hours land where the resolvers put them.
@@ -200,7 +201,8 @@ export function exceptionBlockCommand(ch, program, dayStart, source = null, id =
     priority: topPriorityAt(ch, at) + 1,
     mode: 'loop',
     folder: source ? (source.folder || null) : ((fromBlock && fromBlock.folder) || null),
-    files: cloneJson(source ? source.files : live.files),
+    // live.files are the airing copies (air length, plan attached): store the plain entries.
+    files: cloneJson(source ? source.files : live.files.map(plainFileEntry)),
     // A replacement starts from its first file at the top of the slot; a copy
     // keeps the live anchor so it resolves to exactly what airs now.
     anchor: source ? (source.anchorMs != null ? source.anchorMs : hourAt(dayStart, startHour)) : live.anchor,
@@ -299,7 +301,12 @@ export function addBreakHereCommands(ch, program, atMs, displayTitle) {
   const address = fileAddress(ch, program);
   if (!address) return { disabled: 'This airing has no file entry to attach a break to.' };
   if (ch.adsEnabled === false) return { disabled: 'Ads are off for this whole channel.' };
-  const percent = roundPercent(((atMs - program.start) / Math.max(1, program.end - program.start)) * 100);
+  // A percent of the VIDEO: when the show's breaks are in its air time (shows
+  // pause for breaks, fit to time slots), the click is mapped through its plan.
+  const plan = program.file && program.file.fit;
+  const percent = plan
+    ? roundPercent((mapFitAir(plan, Math.max(0, atMs - program.start) / 1000).contentS / Math.max(1, plan.contentS)) * 100)
+    : roundPercent(((atMs - program.start) / Math.max(1, program.end - program.start)) * 100);
   if (percent <= 1 || percent >= 99) return { disabled: 'Too close to the start or end of the show; breaks there already come between programs.' };
   const { layers } = explainLayers(ch, atMs);
   const winner = layers.find((l) => l.group === 'breaks' && l.role === 'wins');

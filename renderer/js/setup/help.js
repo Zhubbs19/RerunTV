@@ -84,49 +84,49 @@ const HELP_GUIDE = [
     'MATCH looks a title up on TheMovieDB (the TMDB Metadata plugin, which needs a free API key). A file with a season and episode in its name, like S02E01, gets that episode\'s own title, description and air date; a feature-length file is matched to a film. A year in the name is used to pick the right version. MATCH FOR SELECTED does many rows at once and looks each show up only once.',
     'TVMAZE (the TVmaze Episodes plugin) fills in episode titles, synopses and series names, and records when and on which network an episode first aired. It needs no account or key.',
     'A match belongs to the file, not the channel: every channel and block that plays the same file gets it too.',
-    'Press I while watching to see what was found: the series, the episode, the poster, the cast and when it first aired. Prefer it without the cast and air date? Turn off Cast and air date on program info under GUIDE & THEME.',
+    'Press I while watching to see what was found: the series, the episode, the poster, the cast and when it first aired. Prefer it without the cast and air date? Turn off Cast and air date on program info under GUIDE & TIME MACHINE › GUIDE.',
     'NOTE: The two lookup plugins reach the internet, so each asks for your approval before its first use. Their settings are on the PLUG-INS tab.',
   ] },
-  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.1 The Bumper & Ad Pool', body: [
+  { group: 'SECTION 4 — THE BREAKS SECTION', title: '4.1 The Bumper & Ad Pool', body: [
     'This is the shared library of everything that plays between shows — commercials, station IDs, "up next" bumpers, trivia cards. Each item is tagged with which channels or blocks it belongs to, so ad breaks automatically pull from the right ones.',
     'STEP 1: Click "+ ADD FOLDER" to bring in a whole folder of commercials at once, or "+ ADD ENTRY" to add one by hand — you can even make a text-only station ID with no video file needed.',
     'The GLOBAL DEFAULT AD CADENCE sets how often breaks happen for any channel that hasn\'t set its own. Drag directly on the timeline, or type in exact break points.',
   ] },
-  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.2 Ad Presets and the Show & Ad Flow Builder', body: [
+  { group: 'SECTION 4 — THE BREAKS SECTION', title: '4.2 Ad Presets and the Show & Ad Flow Builder', body: [
     'CADENCE & PRESETS lets you save a break pattern and apply it to anything with a matching tag, instead of picking one channel at a time — handy if you want every "sitcom"-tagged show to break the same way.',
     'ADVANCED FLOWS is a visual builder for the rare channel that needs an exact order of segments, bumpers, ad pods, and IDs instead of the usual automatic cadence.',
   ] },
-  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.3 On-Screen Extras', body: [
+  { group: 'SECTION 4 — THE BREAKS SECTION', title: '4.3 On-Screen Extras', body: [
     'TEXT TICKER scrolls a message along the bottom of the screen, like a news channel.',
     'The Emergency Alert System and Breaking News Alerts have their own settings — look for SETTINGS next to each one in the PLUG-INS tab. EAS runs a periodic test alert (or press E to trigger one now); Breaking News interrupts with a styled bulletin, either automatically or on demand with the B key.',
     'NOTE: Press I any time to see details about what\'s currently playing, including why it is on (the block or lineup that picked it). Press T to open the TIME MACHINE and jump the schedule backward or forward, and Q to skip the commercial break you are in (the blue button on a remote) — the show comes back where it left off.',
   ] },
-  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.4 Air Check', body: [
+  { group: 'SECTION 4 — THE BREAKS SECTION', title: '4.4 Air Check', body: [
     'AIR CHECK is the broadcast resolver console. Pick a channel and time to see which source, show position, schedule block, ad policy, and output RerunTV resolves, plus why that result won. Previous/next boundary buttons make timing problems easier to isolate.',
     'The pool inspector shows which bumper and ad entries are eligible. FORCE ON TV previews one selected entry without rewriting the real schedule.',
   ] },
-  { group: 'SECTION 4 — THE PROGRAMMING TAB', title: '4.5 Breaks at Fades, End Credits, and Fitting Programs to Time Slots', body: [
+  { group: 'SECTION 4 — THE BREAKS SECTION', title: '4.5 Breaks at Fades, End Credits, and Fitting Programs to Time Slots', body: [
     'Three options make a channel run more like a real station. All of them are off until you turn them on.',
-    'LINE UP MID-SHOW BREAKS WITH FADES (PROGRAMMING › CADENCE & PRESETS) moves each break inside a show to the nearest fade to black, within 3 minutes by default, so a break lands where the show was really cut for commercials instead of in the middle of a scene. A break with no fade nearby stays where it was.',
+    'LINE UP MID-SHOW BREAKS WITH FADES (BREAKS › CADENCE & PRESETS) moves each break inside a show to the nearest fade to black, within 3 minutes by default, so a break lands where the show was really cut for commercials instead of in the middle of a scene. A break with no fade nearby stays where it was.',
     'STEP 1: First the shows have to be read once to find their fades. FIND FADES on that same page does every show on channels that break inside shows; FIND ACT BREAKS on a channel\'s TITLES page does just the files you pick. Expect about half a minute per episode and a few minutes per film. You can stop and pick up later.',
     'SPEED UP END CREDITS (a channel\'s BREAKS › END CREDITS) plays the credits fast while the screen promotes what\'s on next, the way networks squeeze credits to the side. Choose from four layouts. The same reading that finds fades also finds where a film\'s credits really start, so the speed-up begins there instead of a fixed time before the end.',
-    'FIT PROGRAMS TO TIME SLOTS (box-wide under PROGRAMMING › CADENCE & PRESETS › FIT TO TIME SLOTS, or per channel under BREAKS) makes every program end on the next half hour or hour. A program that runs a little long is shortened by speeding up its credits, then by playing it slightly fast, within limits you set, and opens with a formatted-for-television card. One that runs short gets breaks to fill the gap, from your ad pool or as placeholder slots.',
+    'FIT PROGRAMS TO TIME SLOTS (box-wide under BREAKS › FIT TO TIME SLOTS, or per channel under BREAKS) makes every program end on the next half hour or hour. A program that runs a little long is shortened by speeding up its credits, then by playing it slightly fast, within limits you set, and opens with a formatted-for-television card. One that runs short gets breaks to fill the gap, from your ad pool or as placeholder slots.',
     'TIP: Keep PLAY A PROGRAM FASTER BY AT MOST at 5% or below. Stations really did this, but above that voices start to sound rushed.',
   ] },
-  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.1 Picture Adjustments and the CRT Look', body: [
+  { group: 'SECTION 5 — PICTURE & SOUND, ON SCREEN, GUIDE & TIME MACHINE', title: '5.1 Picture Adjustments and the CRT Look', body: [
     'The CRT sliders — SCANLINES, VIGNETTE, GRAIN, FLICKER, CURVATURE, and BURN-IN — recreate the look of an old TV screen. Watch the preview update live as you drag each one.',
     'COMFORT AND PHOTOSENSITIVITY: some of these effects flicker or flash: the FLICKER slider, the CHANNEL STATIC burst when you change channel, the power on and off animations, and the optional signal-glitch, breaking-news and emergency-alert overlays. If you are sensitive to flashing lights or patterns, set FLICKER to 0, turn CHANNEL STATIC off, press C to switch the CRT effect off entirely, and turn the glitch and alert plugins off in the PLUG-INS tab. The first-run setup also offers this as a choice between FULL RETRO LOOK, GENTLE and MINIMAL. The pictures themselves come from your own media, which RerunTV can\'t change.',
     'This is general guidance, not medical advice. If you ever feel unwell while watching, stop and take a break.',
     'Press V any time to cycle through picture-color presets (P is POWER), or press A to cycle how the picture fits the screen: STANDARD (safe letterboxing, with a border for non-widescreen content if your theme has one), STRETCH (deliberately distorted, like squeezing a widescreen picture onto an old TV), and FILL (zooms in to fill the whole screen, cropping the edges).',
   ] },
-  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.2 Themes and the Channel Logo', body: [
-    'GUIDE THEME (GUIDE & THEME › THEME) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
+  { group: 'SECTION 5 — PICTURE & SOUND, ON SCREEN, GUIDE & TIME MACHINE', title: '5.2 Themes and the Channel Logo', body: [
+    'GUIDE THEME (ON SCREEN › THEME) changes the whole look and feel of your box in one click — the channel-change animation, the idle screensaver, the sound effects, the on-screen guide, and the picture\'s color, all at once, not just a color swap.',
     'CHANNEL LOGO shows a small logo in a corner of the screen while you\'re watching. TIP: Leave it in the same spot long enough and it develops a faint "burn-in" ghost, just like a real old TV — that\'s intentional, not a bug.',
   ] },
-  { group: 'SECTION 5 — PICTURE & SOUND, GUIDE & THEME', title: '5.3 The Cable-Box Layout (HD and Classic Skins)', body: [
+  { group: 'SECTION 5 — PICTURE & SOUND, ON SCREEN, GUIDE & TIME MACHINE', title: '5.3 The Cable-Box Layout (HD and Classic Skins)', body: [
     'Two of the themes do more than change colors: CABLE GUIDE HD \'15 and CABLE GUIDE CLASSIC \'05 switch the whole box to a layout modelled on a mid-2000s digital cable box. HD is black and square with a blue focus bar; Classic is royal blue and rounded with a pale-yellow one. New installs start on HD, and every other theme keeps the layout it always had.',
     'On this layout the guide keeps live TV playing in its corner. The channel banner and a Mini Guide sit over the picture, MENU opens a Quick Menu and then the Main Menu, and I opens a full program page with its actions as icons.',
-    'It has a few pages of its own: SEARCH with an on-screen keyboard (each show is listed once with how many times it airs; turn off Group search results by show under GUIDE & THEME for the old list of every airing), LISTINGS BY CHANNEL, and MESSAGES, which holds your reminders and any downloaded update. An envelope in the corner counts them.',
+    'It has a few pages of its own: SEARCH with an on-screen keyboard (each show is listed once with how many times it airs; turn off Group search results by show under GUIDE & TIME MACHINE › GUIDE for the old list of every airing), LISTINGS BY CHANNEL, and MESSAGES, which holds your reminders and any downloaded update. An envelope in the corner counts them.',
     'This setup screen changes too: it shows the setting you are on and what it does at the top, instead of a line of help under every row.',
     'TIP: In a desktop window the layout uses smaller type, so the guide fits about twice as many channels. TV mode keeps type you can read from across the room.',
   ] },
@@ -226,13 +226,13 @@ const HELP_GUIDE = [
     'NOTE: Regular watching — changing the channel, adjusting volume, switching picture mode — doesn\'t count as a "setting" and won\'t show up in this undo history.',
     'Press Ctrl+K, or the SEARCH button, to search everything on this screen — settings, channels, upcoming programs, and actions like adding a channel or exporting your settings.',
     'TIP: You can also get around this whole screen with just the keyboard. Arrow keys (or J and K) move between sections and list rows, Enter selects a row and Enter again moves into its editor, Esc goes back to the list, Delete removes, and Ctrl+Enter starts watching.',
-    'Press G and then a letter to jump to a section: C Channels, P Programming, L Library, S Picture & Sound, G Guide & Theme, H Household, Y System, U Plug-ins, ? Help.',
+    'Press G and then a letter to jump to a section: C Channels, P Breaks (programming), L Library, S Picture & Sound, G On Screen, T Guide & Time Machine, H Household, Y System, U Plug-ins, ? Help.',
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.2 Searching the Guide and Reminders', body: [
     'Type at least two letters in the full guide search to find matching program titles, descriptions, or tags across the next seven days. Choose a result to jump the guide to it.',
     'The button next to the guide\'s search switches which channels the guide lists: ALL CHANNELS, your FAVORITES, or channels you have not watched in the last 14 days.',
     'SET REMINDER creates a local reminder. When the viewing clock reaches the program, a toast offers TUNE NOW or DISMISS; reminders follow the time-machine clock just like the schedule itself.',
-    'Everything you have pending is listed under PROGRAM REMINDERS in GUIDE & THEME. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
+    'Everything you have pending is listed under PROGRAM REMINDERS in GUIDE & TIME MACHINE. Remove one you set by mistake, or clear the lot. Each reminder tidies itself up a few minutes after its program ends.',
     'Two options live with that list. TUNE AUTOMATICALLY changes the channel for you the moment a reminder comes due. The desktop-notification option covers the case this box is built for — still broadcasting behind whatever you are actually working in, where an on-screen toast is invisible. It only fires when the RerunTV window is not the one you are looking at.',
   ] },
   { group: 'SECTION 8 — OPERATING THIS SETUP SCREEN', title: '8.3 Air Checks — Marking a Moment', body: [
@@ -537,6 +537,18 @@ if (helpPrintManualBtn) {
 }
 
 const CHANGELOG = [
+  { date: '2026-11-11', items: [
+    'Shows and movies now pause for their commercial breaks. Before, the schedule kept a program running underneath its ads, so jumping with the time machine, tuning in or reading the guide found it minutes further on after every break, as if it had played during the commercials. Now it picks up exactly where it stopped, and the guide gives each program its full time, breaks included. On by default; turn it off with BREAKS › CADENCE & PRESETS › Shows pause for ad breaks, or for one channel on its BREAKS › ADS page (a schedule block can set its own too).',
+    'New break settings under BREAKS › CADENCE & PRESETS and in the TV menu’s new SETUP › BREAKS: how far breaks keep from a show’s start and end, ad variety (other ads the same length, also slightly shorter ones, or the same ads every time), and whether Q may skip a break (always, only in the time machine, or never). A channel can set its own ad break interval on its BREAKS › ADS page.',
+    'More you can now set: when Up next appears and how long the rating and other program cards stay up (ON SCREEN › PROGRAM CARDS), where the end-of-break jump lands, what a file that won’t play does (fix it, stand by until the next program, or show an error, under SYSTEM › START-UP & POWER or per channel on its PLAYBACK page) and how often a stalled file is retried, what sped-up end credits sound like (muted, kept or turned down), and a 15-minute grid for fit to time slots.',
+    'A channel’s ad cadence now counts program time, and a break that would land within a minute of a program’s start or end moves to between programs. Each break plays the same length every time it airs, with different ads of the same length so it still varies. Skipping a break (Q) moves you ahead to where it ends, the way a DVR skips ads.',
+    'The time machine can jump to the end of a break: press \\ (beside ] ) or pick END OF BREAK in the TV menu’s TIME MACHINE. It lands a few seconds before the show comes back, so you can check the cut back without sitting through the ads.',
+    'Setup is reorganised so each setting has one home. PROGRAMMING is now BREAKS; the guide and the time machine have their own GUIDE & TIME MACHINE section; HELP moved to the ? button at the top. A channel’s ADVANCED page is now PLAYBACK, and its program card switches moved to LOOK › PROGRAM CARDS. Settings search finds every setting by its new place, a channel’s own settings included.',
+    'New settings: a warning before auto-standby turns the TV off, and whether RerunTV starts on or in standby (SYSTEM › START-UP & POWER); how long the sleep timer fades, and when its countdown appears; relocking a PIN channel after a while or when the TV is turned off (HOUSEHOLD); the welcome-back card and how long away counts (ON SCREEN › PROGRAM CARDS); how long the trivia card and the station ID bar stay up, and the fade into and out of breaks (BREAKS); how loud the volume leveler aims (PICTURE & SOUND › SOUND); and how often to check for updates.',
+    'The time machine’s jumps and ranges are yours to set under GUIDE & TIME MACHINE › TIME MACHINE: which morning and weekend day its presets go to, how many days the date picker reaches, the week’s first day, the scrubber’s first step and span, and the fastest shuttle speed.',
+    'In TV mode you can choose what ◀, ▶, OK, Back and the colour buttons do on live TV: SYSTEM › REMOTE & KEYS › REMOTE BUTTONS, or SETUP › REMOTE in the TV menu. The guide and menus keep their own keys.',
+    'The companion app’s Settings screen now shows the same sections and pages as setup here, with a Simple and Advanced view, every setting’s default even if you never changed it, and the new settings above. The phone’s remote counts down to the end of a break, offers SKIP BREAK only where your skipping rule allows it, and has END OF BREAK in its time machine. A paired phone can no longer change the PIN lock, network, update or PC power settings; those stay on the box.',
+  ] },
   { date: '2026-11-10', items: [
     'Plugin channels show the channel banner on the Cable Guide themes too, with the channel’s name and what’s on.',
     'Changing channels while the banner is up now switches it to the new channel. Before, flipping onto a plugin channel left the previous channel’s banner on screen.',

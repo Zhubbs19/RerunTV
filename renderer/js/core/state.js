@@ -153,6 +153,8 @@ export const S = {
   // tuneToChannel/powerOff to know whether there's anything to undo.
   creditsSpeedupActive: false,
   creditsSpeedupPrevMuted: false,
+  unplayableStandbyTimer: null, // "When a file won't play: stand by" (playback/core.js)
+  creditsDuckGain: null, // "Credits sound: turned down" while sped-up credits run (broadcast-fx.js)
   creditsSpeedupRealStartMs: 0,
   creditsSpeedupScheduledRemainingMs: 0,
   // True while the speedup running is a fitted program's own credits
@@ -177,6 +179,7 @@ export const S = {
   // The break on screen is a fitted slot's own break (core/fit.js): already
   // in the schedule, so it adds nothing to contentLostMs and Q can't skip it.
   activeBreakFit: false,
+  activeBreakPlanned: false,
   // How far live content playback is lagging real time because of breaks
   // it's paused through so far on the current source — see
   // computeLiveContentPosition (playback.js). contentLostKey is the
@@ -245,6 +248,7 @@ export const S = {
   pinBuffer: '',
   pinTargetCh: null,
   unlockedPinChannels: new Set(),
+  pinUnlockedAt: new Map(), // channel -> when it was unlocked (Date.now()), for "Relock a channel after"
   vcrTrackingLevel: 0,
   quickJumpSlots: {},
   sapMode: 'stereo',

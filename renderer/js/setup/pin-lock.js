@@ -34,7 +34,17 @@ export function isPinLocked(number) {
   const effectiveRating = liveRating === 'NONE' ? null : (liveRating || (ch && ch.rating));
   const isRatingLocked = effectiveRating && lockedRatings.includes(effectiveRating);
   if (!isChannelLocked && !isRatingLocked) return false;
-  return !S.unlockedPinChannels.has(number);
+  if (!S.unlockedPinChannels.has(number)) return true;
+  // HOUSEHOLD › PARENTAL LOCK › "Relock a channel after" (0 = until power-off or restart).
+  // Real time on purpose: how long ago someone typed the PIN, not schedule time.
+  const minutes = Number(S.config.pinLock && S.config.pinLock.relockMinutes);
+  const at = S.pinUnlockedAt && S.pinUnlockedAt.get(number);
+  if (minutes > 0 && at && Date.now() - at > minutes * 60000) {
+    S.unlockedPinChannels.delete(number);
+    S.pinUnlockedAt.delete(number);
+    return true;
+  }
+  return false;
 }
 
 export function showPinLockScreen(number) {
@@ -83,7 +93,10 @@ export function checkPinSubmit() {
   const correct = (S.config.pinLock && S.config.pinLock.code) || '1234';
   if (S.pinBuffer === correct) {
     playPinUnlockSound();
-    if (S.pinTargetCh !== null) S.unlockedPinChannels.add(S.pinTargetCh);
+    if (S.pinTargetCh !== null) {
+      S.unlockedPinChannels.add(S.pinTargetCh);
+      S.pinUnlockedAt.set(S.pinTargetCh, Date.now()); // real time: when the PIN was typed
+    }
     const target = S.pinTargetCh;
     hidePinLockScreen();
     // Tune to channel now that it's unlocked!

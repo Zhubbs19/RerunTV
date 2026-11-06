@@ -4912,8 +4912,8 @@ html[data-theme] .btn[aria-disabled="true"] {
   line-height: 1.4;
 }
 #setup-screen[data-settings-view="simple"] :is(.setup-tab-btn, .setup-subtab-btn):not([data-simple-settings]),
-#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="audio"]) .panel:not([data-simple-settings]),
-#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="audio"]) .panel[data-simple-settings] .setting-row:not([data-simple-settings]),
+#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="guidetm"], [data-tab-panel="audio"]) .panel:not([data-simple-settings]),
+#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="guidetm"], [data-tab-panel="audio"]) .panel[data-simple-settings] .setting-row:not([data-simple-settings]),
 #setup-screen[data-settings-view="simple"] #display-theme-font-settings,
 #setup-screen[data-settings-view="simple"] .setup-advanced-channel-action,
 #setup-screen[data-settings-view="simple"] .edit-header-copyfrom { display: none !important; }
@@ -4925,7 +4925,7 @@ html[data-theme] .btn[aria-disabled="true"] {
   max-width: 1380px;
   margin-inline: auto;
 }
-#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="audio"], [data-tab-panel="help"]) .settings-grid {
+#setup-screen[data-settings-view="simple"] .setup-tab-panel:is([data-tab-panel="display"], [data-tab-panel="guide"], [data-tab-panel="guidetm"], [data-tab-panel="audio"], [data-tab-panel="help"]) .settings-grid {
   width: 100%;
   max-width: 1120px;
   margin-inline: auto;
@@ -6013,3 +6013,22 @@ html[data-theme][data-theme] #setup-screen .channel-row .btn.fix-btn:hover { col
 /* The cable-guide layout's setup header lines (cable-guide/setup-shell.js);
    cable-guide.css shows them. */
 #setup-screen :is(.cg-setup-focus, .cg-setup-status) { display: none; }
+
+/* HELP lives in the header as a round ? button (docs/design/14 §5), so the
+   sidebar keeps nine sections. It is still a .setup-tab-btn (data-tab="help"),
+   so the tab switching, G then ? and search work unchanged. */
+#setup-screen .setup-nav .setup-help-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  -webkit-text-fill-color: currentColor;
+  overflow: visible;
+}
+#setup-screen .setup-nav .setup-help-btn::before { display: none; }

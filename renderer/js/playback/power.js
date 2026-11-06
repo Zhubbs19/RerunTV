@@ -7,6 +7,7 @@ import {
   vhsTimestampEl, volumeBarFillEl, volumeIndicatorEl,
 } from '../core/dom.js';
 import { tuneToChannel } from './core.js';
+import { breakEndAt } from '../core/interstitials.js';
 import { cancelUpNextBar, resetActiveBreakState } from './breaks.js';
 import { resetCreditsSpeedup } from './broadcast-fx.js';
 import { cancelAllInterrupts, getThemePack, interruptEntries, overlayAudioEntries, runCoreHooks } from '../plugin/host.js';
@@ -49,6 +50,18 @@ function remoteNowNext(ch) {
   }
 }
 
+/**
+ * When the planned break on screen ends, in wall-clock ms, or null.
+ * @param {object|null} ch The channel on screen.
+ * @returns {number|null} The time the show comes back.
+ */
+function remoteBreakEnd(ch) {
+  if (!ch || !S.activeBreakKind || !S.activeBreakPlanned) return null;
+  const now = viewNow();
+  const hit = breakEndAt(ch, now, 0);
+  return hit && hit.breakEnd > now ? Math.round(hit.breakEnd - (S.timeOffsetMs || 0)) : null;
+}
+
 export function pushRemoteState() {
   const ch = getChannel(S.currentNumber);
   window.api.sendRemoteState({
@@ -81,6 +94,12 @@ export function pushRemoteState() {
     // nothing, because it makes the viewer think the remote is stale.
     onAir: S.activeBreakKind ? 'break' : 'content',
     breakKind: S.activeBreakKind || null,
+    // When the show comes back (wall clock, for the phone's countdown): only
+    // for a break the show pauses for, since an overlaid one has no fixed end.
+    breakEndsAtMs: remoteBreakEnd(ch),
+    // BREAKS › CADENCE & PRESETS › Skipping a break, so the phone offers SKIP
+    // only where Q would work.
+    skipBreaks: (S.config.commercials && S.config.commercials.skipBreaks) || 'always',
     // The outcome of the last settings patch the companion sent (see
     // onCompanionApplySettings, app.js). Rides along here because the HTTP
     // route that accepted the patch answers before this side has decided
@@ -98,7 +117,7 @@ export function applyVolume() {
   const kindMult = isAdKind
     ? (typeof S.config.adVolume === 'number' ? S.config.adVolume : 1)
     : (typeof S.config.contentVolume === 'number' ? S.config.contentVolume : 1);
-  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult * levelerGain() * (S.tuneFadeGain == null ? 1 : S.tuneFadeGain) * (S.sleepFadeGain == null ? 1 : S.sleepFadeGain)));
+  player.volume = Math.min(1, Math.max(0, master * chMult * kindMult * levelerGain() * (S.tuneFadeGain == null ? 1 : S.tuneFadeGain) * (S.sleepFadeGain == null ? 1 : S.sleepFadeGain) * (S.creditsDuckGain == null ? 1 : S.creditsDuckGain)));
 
   // Credits-squeeze video mode (playback.js's startCreditsSpeedup) plays a
   // real upNext-pool promo with its own audio while #player is force-muted
@@ -803,7 +822,8 @@ const DEFAULT_SLEEP_STEPS = [30, 60, 90, 120];
 function sleepFadeMs() {
   const c = S.config.controls || {};
   if (c.sleepFadeOut === false) return 0;
-  return 25000;
+  const s = Number(c.sleepFadeSeconds);
+  return (Number.isFinite(s) && s >= 5 ? Math.min(120, s) : 25) * 1000;
 }
 // The steps are SETTINGS › System › Tuning & controls; OFF is always first.
 export function sleepOptions() {
@@ -815,7 +835,11 @@ export function sleepOptions() {
 // A small "SLEEP 4:59" badge over the picture for the last five minutes, so the
 // fade-out never comes as a surprise. The timer is wall-clock by design (a
 // real TV's sleep button), hence Date.now() and not viewNow().
-const SLEEP_BADGE_WINDOW_MS = 5 * 60000;
+// "Show the sleep countdown for the last" (controls.sleepBadgeMinutes, 0-15, default 5).
+function sleepBadgeWindowMs() {
+  const m = Number(S.config.controls && S.config.controls.sleepBadgeMinutes);
+  return (Number.isFinite(m) && m >= 0 ? Math.min(15, m) : 5) * 60000;
+}
 let sleepBadgeEl = null;
 let sleepBadgeTick = null;
 export function sleepRemainingMs() {
@@ -827,7 +851,7 @@ export function formatSleepRemaining(ms) {
 }
 function updateSleepBadge() {
   const left = sleepRemainingMs();
-  if (!S.sleepEndsAt || !S.isPoweredOn || left <= 0 || left > SLEEP_BADGE_WINDOW_MS) {
+  if (!S.sleepEndsAt || !S.isPoweredOn || left <= 0 || left > sleepBadgeWindowMs()) {
     if (sleepBadgeEl) sleepBadgeEl.classList.add('hidden');
     if (!S.sleepEndsAt || left <= 0) { clearInterval(sleepBadgeTick); sleepBadgeTick = null; }
     return;
@@ -938,6 +962,11 @@ export function powerOff({ reason = 'user' } = {}) {
   resetActiveBreakState();
   stopShuttle();
   clearTimeout(S.idleTimer); S.idleTimer = null;
+  clearStandbyCountdown();
+  if (!(S.config.pinLock && S.config.pinLock.relockOnPowerOff === false)) {
+    S.unlockedPinChannels.clear();
+    if (S.pinUnlockedAt) S.pinUnlockedAt.clear();
+  }
   clearTimeout(S.guideHideTimer); guideOverlay.classList.add('hidden');
   clearTimeout(S.entryTimer); S.entryBuffer = ''; channelEntryEl.classList.add('hidden');
   shortcutsOverlayEl.classList.add('hidden');
@@ -991,7 +1020,18 @@ export function powerOn() {
   overlayAudioEntries().forEach((src) => { if (src.resumeIfNeeded) src.resumeIfNeeded(); });
 }
 
+// SYSTEM › START-UP & POWER › "Warn before standby" (autoStandby.warnSeconds,
+// 0-120, default 30): the countdown shown before auto standby turns the TV off.
+let standbyCountdown = null;
+function clearStandbyCountdown() {
+  if (!standbyCountdown) return;
+  clearInterval(standbyCountdown);
+  standbyCountdown = null;
+  crtToggleFlash.classList.remove('show');
+}
+
 export function resetIdleTimer() {
+  clearStandbyCountdown();
   clearTimeout(S.idleTimer);
   S.idleTimer = null;
   runCoreHooks('idle-reset');
@@ -1011,5 +1051,22 @@ export function onIdleTimeout() {
     resetIdleTimer();
     return;
   }
-  powerOff();
+  const warn = Number(S.config.autoStandby && S.config.autoStandby.warnSeconds);
+  let left = Number.isFinite(warn) && warn >= 0 ? Math.min(120, Math.round(warn)) : 30;
+  if (left <= 0) {
+    powerOff({ reason: 'standby' });
+    return;
+  }
+  const show = () => {
+    crtToggleFlash.textContent = `STANDBY IN ${left} SEC · PRESS ANY KEY TO KEEP WATCHING`;
+    crtToggleFlash.classList.add('show');
+  };
+  clearStandbyCountdown();
+  show();
+  standbyCountdown = setInterval(() => {
+    left -= 1;
+    if (left > 0) { show(); return; }
+    clearStandbyCountdown();
+    powerOff({ reason: 'standby' });
+  }, 1000);
 }

@@ -1,5 +1,8 @@
 import { S, viewNow } from './state.js';
 import { applyFit, mapFitAir } from './fit.js';
+// A cycle (interstitials.js imports this file): applyBreakPlan is only called,
+// never read at module load, so either file can load first.
+import { applyBreakPlan } from './interstitials.js';
 
 const DAY_MS = 86400000;
 const DAILY_SAFETY_CAP = 400;
@@ -365,14 +368,17 @@ function resolveWeeklyOccurrenceSource(block, atMs) {
 // resolveWeeklyOccurrenceSource, instead of playing their folder straight
 // through), else the channel's default folder.
 // Fit to time slots (core/fit.js) is applied last, to whichever source won,
-// so every caller sees programs on the grid when the channel has it on.
+// so every caller sees programs on the grid when the channel has it on. A
+// source that isn't fitted gets its break plan instead (interstitials.js
+// applyBreakPlan): each file's ad breaks laid into its own air time, so the
+// program pauses for them rather than running on underneath.
 export function resolveActiveSource(ch, atMs) {
   const candidates = matchingBlocks(ch, atMs);
   for (let i = 0; i < candidates.length; i++) {
     const source = sourceFromBlock(candidates[i], atMs);
-    if (source) return applyFit(ch, source); // null: walked back past this block's own start — try the next candidate
+    if (source) return applyBreakPlan(ch, applyFit(ch, source)); // null: walked back past this block's own start — try the next candidate
   }
-  return applyFit(ch, { files: ch.files, anchor: ch.anchor, key: -1, block: null });
+  return applyBreakPlan(ch, applyFit(ch, { files: ch.files, anchor: ch.anchor, key: -1, block: null }));
 }
 
 // What one matching block airs at atMs, or null when it has nothing yet (a
@@ -571,7 +577,7 @@ export function resolveActiveCommercials(ch, atMs, fileTags) {
   return result;
 }
 
-function computeActiveCommercials(ch, atMs, fileTags) {
+function computeActiveCommercials(ch, atMs, fileTags, planBlock) {
   // ch.adsEnabled is the channel-level kill-switch — false means no breaks at
   // all on this channel regardless of flows, presets, or block overrides.
   if (ch.adsEnabled === false) return { commercials: { enabled: false }, key: 'disabled' };
@@ -619,7 +625,9 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // (The matching itself is matchingPresets, below.)
   const preset = matchingPresets(ch, tags)[0];
   if (preset) return { commercials: preset, key: `preset:${preset.id}` };
-  const adBlock = matchingAdBlocks(ch, atMs)[0];
+  // planBlock: commercialsForPlan below, where the only block that can carry
+  // ads is the source's own (the plan is never built when another one could).
+  const adBlock = planBlock !== undefined ? (planBlock && planBlock.commercials ? planBlock : null) : matchingAdBlocks(ch, atMs)[0];
   if (adBlock) return { commercials: adBlock.commercials, key: adBlock.id };
   // Post-migration ch.commercials is deleted; fall back to the global default
   // cadence (S.config.commercials) so channels without a flow still get
@@ -628,8 +636,26 @@ function computeActiveCommercials(ch, atMs, fileTags) {
   // true (not false) at the top of this function, so force enabled: true —
   // the global config's own enabled flag is a legacy field (no UI exposes it
   // anymore) and would suppress ads for everyone if left as the default false.
-  const globalCc = S.config.commercials || {};
-  return { commercials: ch.commercials || { ...globalCc, enabled: true }, key: -1 };
+  return { commercials: channelDefaultCommercials(ch, S.config.commercials), key: -1 };
+}
+
+// The ad policy a channel falls back to when no flow, preset or block sets one:
+// its own legacy commercials object, else the box-wide cadence with the
+// channel's own "Ad break every" (BREAKS › ADS, ch.adIntervalMinutes) on top.
+// Exported for the rule-stack resolver (programming-rules.js).
+export function channelDefaultCommercials(ch, boxCommercials) {
+  if (ch.commercials) return ch.commercials;
+  const own = Number(ch.adIntervalMinutes);
+  return { ...(boxCommercials || {}), enabled: true, ...(own > 0 ? { intervalMinutes: own } : {}) };
+}
+
+// The ad policy for one file of a source whose breaks are planned into the
+// schedule (interstitials.js planBreaks): the same answer resolveActiveCommercials
+// gives while that source airs, but without a clock. The plan is only built when
+// no block other than the source's own carries an ad override, so the answer
+// can't depend on the time of day.
+export function commercialsForPlan(ch, block, fileTags) {
+  return computeActiveCommercials(ch, null, fileTags, block || null);
 }
 
 // The ad policy a matching flow sets for content carrying fileTags — the flow

@@ -70,6 +70,15 @@ import { getAudioCtx, playNoiseBurst, playTone } from '../core/audio.js';
 import { addFilesToChannel, addInterstitialPoolEntry, buildChannelBadge, getChannel, sortedChannels } from '../core/channels.js';
 import { getChannelSchedule } from '../core/schedule.js';
 import { nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
+import { mapFitAir } from '../core/fit.js';
+
+// A schedule row's file can be a planned or fitted copy whose duration is its
+// air time (breaks included, core/fit.js): seconds into that air time are not
+// seconds into the video. This maps one to the other for a plugin that seeks.
+function videoSecondsAt(file, airSeconds) {
+  const s = Math.max(0, Number(airSeconds) || 0);
+  return file && file.fit ? mapFitAir(file.fit, s).contentS : s;
+}
 import { alertDialog } from '../setup/dialogs.js';
 import { MONTHS, S, WEEKDAYS, commitConfigPatch, commitInPlace, dispatch, saveConfigDebounced, viewNow } from '../core/state.js';
 import { registerEra } from '../display/eras.js';
@@ -809,7 +818,10 @@ export function pluginDiagnosticsSnapshot() {
 // v11 added ctx.titleMatch (library/title-match.js): how a metadata plugin
 // reads a file — episodeOf, searchQueryFor, preferredKind, splitYear,
 // rankByYear, plainSummary — so every catalogue lookup agrees.
-const CTX_VERSION = 11;
+// v12 added ctx.channels.videoSecondsAt(file, airSeconds): with shows pausing
+// for breaks, a schedule row's span includes its breaks, so a plugin seeking
+// into one maps the row offset to a video position with it.
+const CTX_VERSION = 12;
 
 // ctx.ipc.on listeners, keyed "pluginId\u0000channel". One window.api
 // listener feeds them all; ipcRenderer listeners can't be removed through
@@ -862,7 +874,7 @@ function installGlobalApi() {
   const channels = {
     sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel,
     addFilesToChannel, addInterstitialPoolEntry,
-    resolveBreakAt, nextBreakBoundary,
+    resolveBreakAt, nextBreakBoundary, videoSecondsAt,
   };
   const settings = { getPluginSettings, updatePluginSettings, getRedactedPluginSettings, updateLegacyConfig, ensureLegacyConfig };
   const commands = pluginCommands;

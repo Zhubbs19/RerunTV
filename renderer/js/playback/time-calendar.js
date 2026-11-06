@@ -25,6 +25,7 @@ import {
 } from '../timeline/calendar-grid.js';
 import { timeMachineAvailable, timeMachineGoTo } from './timemachine.js';
 import { wholeRows } from '../cable-guide/page.js';
+import { timeMachineOptions } from '../timeline/scrubber.js';
 import { currentUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI } from '../cable-guide/model.js';
 
@@ -227,13 +228,15 @@ export function openTimeCalendar(options = {}) {
       nav('»', 'next year', () => setCursor(shiftYears(cursor, 1))),
       h('button', { className: 'btn time-calendar-nav time-calendar-today', text: 'TODAY', dataset: { focusKey: 'today' }, on: { click: () => setCursor(realToday) } })));
 
+    // GUIDE & TIME MACHINE › "Calendar weeks start on".
+    const weekStart = timeMachineOptions(S.config).weekStart;
     const weekdays = h('div', { className: 'time-calendar-weekdays' });
-    WEEKDAYS.forEach((w) => weekdays.appendChild(h('div', { text: w.slice(0, 2) })));
+    [...WEEKDAYS.slice(weekStart), ...WEEKDAYS.slice(0, weekStart)].forEach((w) => weekdays.appendChild(h('div', { text: w.slice(0, 2) })));
     pick.appendChild(weekdays);
 
     const viewed = dateFromMs(viewNow());
     const grid = h('div', { className: 'time-calendar-grid', attrs: { role: 'grid' } });
-    monthGrid(cursor.year, cursor.month).forEach((week) => week.forEach((cell) => {
+    monthGrid(cursor.year, cursor.month, weekStart).forEach((week) => week.forEach((cell) => {
       const noon = new Date(cell.year, cell.month, cell.day, 12).getTime();
       const marked = dateBlocksOn(viewCh, noon).length > 0;
       const classes = ['time-calendar-day'];

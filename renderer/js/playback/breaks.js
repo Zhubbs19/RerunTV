@@ -14,7 +14,7 @@
 // rendering, credits speedup, and every on-screen bug overlay) — see those
 // files' own header comments.
 import { playConfiguredSound } from '../core/audio.js';
-import { entryWaitMs, nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
+import { endOfBreakRun, entryWaitMs, nextBreakBoundary, resolveBreakAt } from '../core/interstitials.js';
 import { clearDynamicOverlaysForBreak, triggerDynamicOverlays } from './dynamic-overlays.js';
 import { hideTrackCard } from './track-card.js';
 import {
@@ -23,7 +23,7 @@ import {
   stationIdBarEl, stationIdNameEl, testPatternCanvasEl, triviaCardEl, triviaTextEl, upNextBarEl, upNextTitleEl,
 } from '../core/dom.js';
 import { applyDisplayMode, cacheVideoSize } from '../display/mode.js';
-import { applyTvBezel, applyVolume } from './power.js';
+import { applyTvBezel, applyVolume, flashMessage } from './power.js';
 import { runCoreHooks } from '../plugin/host.js';
 import {
   computeSourcePosition, fillDayCounters, nextBlockStartMs, nextSourceBoundary, resolveActiveSource,
@@ -32,6 +32,7 @@ import { S, viewNow, canPlay } from '../core/state.js';
 import { autoHideAfter, formatClock, getDisplayTitle } from '../core/util.js';
 import { getChannel } from '../core/channels.js';
 import { playChannelLive } from './core.js';
+import { timeMachineGoTo, updateTimeShiftBadge } from './timemachine.js';
 import { flashContentAdvisory, flashLocalAvailCut, resetCreditsSpeedup, updateLogoBug } from './broadcast-fx.js';
 
 // Scoped by channel number — two channels can otherwise resolve identical
@@ -74,6 +75,7 @@ export function resetActiveBreakState() {
   S.activeBreakInterruptsContent = false;
   S.activeBreakKind = null;
   S.activeBreakFit = false;
+  S.activeBreakPlanned = false;
 }
 
 // One unified boundary timer drives every break type (commercial/channelId/
@@ -216,6 +218,13 @@ export function logoBugHidesOnBreakFor(ch) {
 
 const DEFAULT_FADE_OUT_MS = 180;
 const DEFAULT_FADE_IN_MS = 220;
+// "Fade into and out of breaks" (commercials.breakFadeMs, 0-1000): one length
+// for both directions; unset keeps the 180/220 ms pair. An entry's own FADE
+// IN / FADE OUT still win.
+function breakFadeMs(fallback) {
+  const v = Number(S.config.commercials && S.config.commercials.breakFadeMs);
+  return Number.isFinite(v) && v >= 0 && S.config.commercials.breakFadeMs !== null && S.config.commercials.breakFadeMs !== '' ? Math.min(1000, v) : fallback;
+}
 // How long checkBreakState will keep deferring a boundary-timer cutoff for a
 // real-file bumper whose probed duration undershot its actual length, before
 // giving up and cutting it anyway (see S.awaitingBumperEnd above).
@@ -299,6 +308,8 @@ function startBreak(ch, resolved, key) {
     type, entry, label, windowStart, preemptionLabel,
   } = resolved;
   const isTextOnlyChannelId = type === 'channelId' && !(entry && entry.file);
+  // A planned spot's slot (the schedule's length for it), for padding a shorter swapped-in ad.
+  const plannedEndMs = resolved.planned ? resolved.windowEnd : null;
   // Unrecognized types (adBreakIn/adBreakOut/premiereJingle/promo/signOff/
   // signOn — see interstitials.js) simply match no configured rule, a safe
   // no-op — see DYNAMIC_OVERLAY_TRIGGERS, channels.js.
@@ -320,6 +331,9 @@ function startBreak(ch, resolved, key) {
   S.activeBreakInterruptsContent = !isTextOnlyChannelId;
   S.activeBreakKind = type;
   S.activeBreakFit = !!resolved.fit;
+  // A break planned into the schedule (shows pause for breaks): Q skips it by
+  // moving the view to where it ends (skipCurrentBreak).
+  S.activeBreakPlanned = !!resolved.planned;
   S.awaitingBumperEnd = false;
   S.breakOverrunSince = null;
   // Some real networks drop their corner bug during breaks, some keep it up
@@ -445,8 +459,8 @@ function startBreak(ch, resolved, key) {
   // WAIT AFTER fields) — null/unset falls back to the same defaults every
   // entry used before these fields existed, so an untouched entry's on-air
   // look doesn't change at all.
-  const entryFadeOutMs = entry.fadeOutMs != null ? entry.fadeOutMs : DEFAULT_FADE_OUT_MS;
-  const entryFadeInMs = entry.fadeInMs != null ? entry.fadeInMs : DEFAULT_FADE_IN_MS;
+  const entryFadeOutMs = entry.fadeOutMs != null ? entry.fadeOutMs : breakFadeMs(DEFAULT_FADE_OUT_MS);
+  const entryFadeInMs = entry.fadeInMs != null ? entry.fadeInMs : breakFadeMs(DEFAULT_FADE_IN_MS);
   const entryWaitAfterMs = entryWaitMs(entry);
 
   if (entry.dynamic) {
@@ -547,6 +561,9 @@ function startBreak(ch, resolved, key) {
           if (superseded()) return;
           S.awaitingBumperEnd = false;
           if (key) markBreakCompleted(key);
+          // A planned spot swapped for a shorter one (PROGRAMMING › Ad variety)
+          // ends before its slot does: hold black for the rest, not its last frame.
+          if (plannedEndMs != null && plannedEndMs - viewNow() > 250) fadeOutPlayer(entryFadeOutMs);
           // Re-resolve instead of unconditionally calling endBreak: a
           // multi-segment pod (bumpIn -> commercial -> bumpOut) has this
           // same entry-ended event fire at every segment boundary, not just
@@ -595,16 +612,56 @@ export function forceInterstitialPreview(ch, entry) {
 // the show. Only breaks that took the picture from the show can be skipped,
 // and never an emergency alert or a preemption (those are not the viewer's to
 // dismiss). Returns whether anything was skipped.
+// PROGRAMMING › CADENCE & PRESETS › "Skipping a break": 'always' (the
+// default), 'timeMachine' (only while the time machine is open, so live TV
+// plays its ads like real TV) or 'never'.
+export function skipBreaksPolicy() {
+  const v = S.config.commercials && S.config.commercials.skipBreaks;
+  return v === 'timeMachine' || v === 'never' ? v : 'always';
+}
+
 export function skipCurrentBreak() {
   const ch = getChannel(S.currentNumber);
-  if (!ch || !S.isPoweredOn || S.easActive || S.timeMachineOn) return false;
+  if (!ch || !S.isPoweredOn || S.easActive) return false;
   if (!S.activeBreakKey || !S.activeBreakInterruptsContent || S.activeBreakKind === 'preemption') return false;
+  const policy = skipBreaksPolicy();
+  if (policy === 'never' || (policy === 'timeMachine' && !S.timeMachineOn)) {
+    flashMessage(policy === 'never' ? 'SKIPPING BREAKS IS OFF' : 'BREAKS CAN BE SKIPPED IN THE TIME MACHINE', 'skipBreakFlashTimer');
+    return false;
+  }
+  // In the time machine a skip is a jump to where the break ends.
+  if (S.timeMachineOn) {
+    if (S.activeBreakFit && !S.activeBreakPlanned) return false;
+    const brk = resolveBreakAt(ch, viewNow());
+    if (!brk) return false;
+    const end = brk.planned ? brk.breakEnd : endOfBreakRun(ch, brk);
+    timeMachineGoTo(end + 1, 'BREAK SKIPPED', { play: true });
+    return true;
+  }
+  // A planned break (the program pauses for it) is skipped the way a DVR skips
+  // ads: the view moves on to where the break ends, so the show resumes where
+  // it stopped and the TIME SHIFT badge shows how far ahead of live this is.
+  if (S.activeBreakPlanned) return skipPlannedBreak(ch);
   // A fitted break is part of the slot: skipping it would only freeze the program until it ends.
   if (S.activeBreakFit) return false;
   if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
   if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
   if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
   S.endedHandler = null; S.errorHandler = null; S.metaHandler = null;
+  endBreak(ch);
+  scheduleNextBreak(ch);
+  return true;
+}
+
+function skipPlannedBreak(ch) {
+  const brk = resolveBreakAt(ch, viewNow());
+  if (!brk || !brk.planned || !(brk.breakEnd > viewNow())) return false;
+  if (S.endedHandler) player.removeEventListener('ended', S.endedHandler);
+  if (S.errorHandler) player.removeEventListener('error', S.errorHandler);
+  if (S.metaHandler) player.removeEventListener('loadedmetadata', S.metaHandler);
+  S.endedHandler = null; S.errorHandler = null; S.metaHandler = null;
+  S.timeOffsetMs += brk.breakEnd - viewNow() + 1;
+  updateTimeShiftBadge();
   endBreak(ch);
   scheduleNextBreak(ch);
   return true;
@@ -649,7 +706,7 @@ function endBreak(ch) {
     if (logoBugHidesOnBreakFor(ch)) updateLogoBug(ch);
     const seq = S.playbackSeq;
     (async () => {
-      await fadeOutPlayer();
+      await fadeOutPlayer(breakFadeMs(DEFAULT_FADE_OUT_MS));
       if (seq !== S.playbackSeq || S.currentNumber !== ch.number || !canPlay() || S.activeBreakKey) return;
       // fadeInOnReady: reveal only once the resumed show has actually
       // decoded a frame, instead of unfading immediately after src is set
@@ -699,9 +756,12 @@ export function scheduleUpNextBar(ch, pos) {
   cancelUpNextBar();
   if (!S.config.upNext || S.config.upNext.enabled === false) return;
   const remainingMs = (pos.file.duration - pos.offset) * 1000;
-  if (remainingMs < 60000) return;
+  // EXTRAS › "Up next appears": how long before the program ends (10-120 s, default 45).
+  const leadS = Number(S.config.upNext && S.config.upNext.leadSeconds);
+  const leadMs = (Number.isFinite(leadS) && leadS >= 10 ? Math.min(120, leadS) : 45) * 1000;
+  if (remainingMs < leadMs + 15000) return;
   const boundary = nextSourceBoundary(ch, viewNow());
-  if (isFinite(boundary) && boundary - viewNow() < remainingMs + 45000) return;
+  if (isFinite(boundary) && boundary - viewNow() < remainingMs + leadMs) return;
 
   const nextFile = pos.files[(pos.fileIndex + 1) % pos.files.length];
   S.upNextTimer = setTimeout(() => {
@@ -711,5 +771,5 @@ export function scheduleUpNextBar(ch, pos) {
     playConfiguredSound('card', ch.number);
     const duration = (S.config.upNext && S.config.upNext.duration) || 8000;
     S.upNextHideTimer = autoHideAfter(S.upNextHideTimer, duration, () => upNextBarEl.classList.remove('show'));
-  }, remainingMs - 45000);
+  }, remainingMs - leadMs);
 }

@@ -12,6 +12,7 @@
 // anywhere on the playback path.
 import { hashString, mulberry32 } from '../core/util.js';
 import { reanchorForPlaylistChange } from './reanchor.js';
+import { airFilesFor } from '../core/interstitials.js';
 
 // ---------- Evaluating a `where` ----------
 //
@@ -254,7 +255,8 @@ export function planChannelFiles(channel, library, { atMs }) {
     anchor = channel.anchor || atMs;
     reanchor = { ok: true, fresh: true };
   } else if (nextFiles.length) {
-    reanchor = reanchorForPlaylistChange({ files: before, nextFiles, anchor: channel.anchor, atMs });
+    // On the air timeline, breaks included (core/interstitials.js airFilesFor).
+    reanchor = reanchorForPlaylistChange({ files: airFilesFor(channel, before), nextFiles: airFilesFor(channel, nextFiles), anchor: channel.anchor, atMs });
     if (reanchor.ok) anchor = reanchor.anchor;
   }
   return { files: nextFiles, anchor, reanchor, summary };

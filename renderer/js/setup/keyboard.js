@@ -263,12 +263,13 @@ function enableRovingList(containerEl, rowSelector, activateSelector, deleteSele
 // ---------- Section jumps, J/K and Esc (docs/design/03 §7) ----------
 // G then a letter opens a section. The letter lives on the sidebar button as
 // data-go-key so the tooltip and this map can't disagree.
-const GO_KEYS = { channels: 'c', programming: 'p', library: 'l', display: 's', guide: 'g', household: 'h', audio: 'y', plugins: 'u', help: '?' };
-document.querySelectorAll('#setup-tabs .setup-tab-btn').forEach((btn) => {
+const GO_KEYS = { channels: 'c', programming: 'p', library: 'l', display: 's', guide: 'g', guidetm: 't', household: 'h', audio: 'y', plugins: 'u', help: '?' };
+document.querySelectorAll('.setup-tab-btn').forEach((btn) => {
   const key = GO_KEYS[btn.dataset.tab];
   if (!key) return;
   btn.dataset.goKey = key;
-  btn.title = `${btn.textContent.trim()} (G then ${key.toUpperCase()})`;
+  const name = btn.getAttribute('aria-label') || btn.textContent.trim();
+  btn.title = `${name} (G then ${key.toUpperCase()})`;
 });
 
 // A list beside a detail pane (ui/list-detail.js): the wrappers, lists and
@@ -294,7 +295,7 @@ window.addEventListener('keydown', (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (goPendingUntil > Date.now()) { // UI gesture timing, not schedule time
     goPendingUntil = 0;
-    const btn = document.querySelector(`#setup-tabs .setup-tab-btn[data-go-key="${CSS.escape(key)}"]`);
+    const btn = document.querySelector(`.setup-tab-btn[data-go-key="${CSS.escape(key)}"]`);
     if (btn) {
       e.preventDefault();
       btn.click();

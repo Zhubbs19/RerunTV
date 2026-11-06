@@ -23,9 +23,10 @@
 // finale) is the block's own business and is played through schedule.js's
 // sourceFromBlock, so the rules only decide ORDER and WHEN. Pure: no DOM, and
 // every instant is a parameter.
-import { effectiveContentTags } from './interstitials.js';
+import { applyBreakPlan, effectiveContentTags } from './interstitials.js';
+import { applyFit } from './fit.js';
 import {
-  flowCommercials, hourInRange, isWithinBroadcastHours, ownerInstant, resolveActiveCommercials,
+  channelDefaultCommercials, flowCommercials, hourInRange, isWithinBroadcastHours, ownerInstant, resolveActiveCommercials,
   resolveActiveSource, sourceFromBlock,
 } from './schedule.js';
 import { addDays } from './schedule-query.js';
@@ -154,15 +155,17 @@ function findBlock(ch, id) {
 
 // The same { files, anchor, key, block } shape resolveActiveSource returns.
 export function rulesSource(ch, programming, atMs) {
+  // The same last step resolveActiveSource takes: fit to time slots, else the break plan.
+  const airs = (source) => applyBreakPlan(ch, applyFit(ch, source));
   for (const rule of programming.rules) {
     if (!rule.play || !matchesWhen(rule.when, atMs)) continue;
-    if (rule.play.lineup) return { files: ch.files, anchor: ch.anchor, key: -1, block: null };
+    if (rule.play.lineup) return airs({ files: ch.files, anchor: ch.anchor, key: -1, block: null });
     const block = findBlock(ch, rule.play.block);
     if (!block || !block.files || !block.files.length) continue; // nothing to play: fall through
     const source = sourceFromBlock(block, atMs);
-    if (source) return source;
+    if (source) return airs(source);
   }
-  return { files: ch.files, anchor: ch.anchor, key: -1, block: null };
+  return airs({ files: ch.files, anchor: ch.anchor, key: -1, block: null });
 }
 
 // The same { commercials, key } shape resolveActiveCommercials returns.
@@ -188,12 +191,10 @@ export function rulesCommercials(ch, programming, config, atMs, fileTags = []) {
       continue;
     }
     if (b.cadence) {
-      const globalCc = (config && config.commercials) || {};
-      return { commercials: ch.commercials || { ...globalCc, enabled: true }, key: -1 };
+      return { commercials: channelDefaultCommercials(ch, config && config.commercials), key: -1 };
     }
   }
-  const globalCc = (config && config.commercials) || {};
-  return { commercials: ch.commercials || { ...globalCc, enabled: true }, key: -1 };
+  return { commercials: channelDefaultCommercials(ch, config && config.commercials), key: -1 };
 }
 
 // ---------- equivalence ----------

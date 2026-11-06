@@ -43,6 +43,35 @@ then time into the slot; seek with `seekOffsetOf(pos)`, never `pos.offset`. Fitt
 `resolveBreakAt` with `fit: true` and are already in the schedule, so they add nothing to
 `contentLostMs`; the ordinary ad cadence does not run on a fitted channel.
 
+**Shows pause for ad breaks** (`S.config.commercials.pauseForBreaks`, default on) gives every
+source that is NOT fitted the same treatment: `resolveActiveSource` passes it through
+`applyBreakPlan` (`core/interstitials.js`), which swaps each file for a copy whose `duration` is its
+air time and whose `fit` is a plan in fit.js's shape (`mode: 'breaks'`), with the file's own ad pods
+as break segments. So the program pauses for its breaks in the pure schedule itself, not only in
+live playback, and a time-machine jump, a tune-in or the guide no longer finds it minutes further on.
+Rules that follow from it:
+- **Every file of a planned source carries a plan**, so the fit-aware paths (`seekOffsetOf`, the
+  playback hold during a break, `scheduleFitCredits`) apply uniformly. Seek with `seekOffsetOf(pos)`;
+  a plugin maps a schedule row's offset with `ctx.channels.videoSecondsAt(file, airS)` (ctx v12).
+- **Never write an airing copy into config.** Files from `resolveActiveSource` carry their air length
+  and plan; copy them through `plainFileEntry` (`core/fit.js`) first (`timeline/edits.js` does).
+- **A plan is pass-independent**: pod lengths are seeded by the file's place in one pass of the loop
+  (not the global ordinal, not the block id), so the loop length is constant and a position stays a
+  single modulo. Variety comes back at airing time (`plannedSegments` swaps spots of the same length
+  to the second, seeded by when the break airs).
+- **Program-tied breaks are in the plan** (the cadence in every timing mode, with 'interval' counted in
+  program time from the loop start; flow steps; pre/post pods; up-next idents; tag-forced roll).
+  **Clock-tied ones** (station IDs, trivia, promos, sweeps, sign-off/on, preemption, premiere jingle)
+  still run over the program, and on a planned source are also returned with `fit: true`, so
+  `contentLostMs` stays 0 and live playback never drifts from the plan.
+- **Planned windows are exact**: `planFileStartMs` derives a file's airing start from its fixed place
+  in the loop, so every lookup inside one break returns identical windows (breaks.js keys a break on
+  `windowStart`). Don't derive planned windows from `atMs - pos.offset`.
+- A channel with an ad override on a block other than the airing source's own keeps the overlay model
+  (ads that change by the clock can't be planned per file). So does everything with the switch off.
+- Q on a planned break (`skipPlannedBreak`, `playback/breaks.js`) moves the view to the break's end
+  (`S.timeOffsetMs`), the way a DVR skips ads.
+
 ## Config mutation — read before caching anything
 
 Config objects (channels, interstitial flows, blocks) are mutated **in place** throughout
@@ -188,7 +217,18 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
 
 - **Shell:** sidebar sections, a `#setup-content` scroll pane and a pinned status bar
   (docs/design/03). Section `data-tab` ids are older than their names: `display` is Picture &
-  Sound and `audio` is System. Keep ids when moving panels between sections.
+  Sound, `audio` is System, `programming` is Breaks and `guide` is On Screen; `guidetm` is Guide &
+  Time Machine and HELP is the header ? button (docs/design/14 §5). Keep ids when moving panels
+  between sections.
+- **Settings registry** (`core/settings-registry.js`, docs/design/14): every setting is one entry
+  (path, label, help, type, range or choices, default, home page, level, per-channel override, TV
+  menu item). It's pure, so pass it the config. `tests/settings-registry.test.js` checks each static
+  row in index.html against its entry and checks that every box path is a section `settings.set`
+  accepts (`SETTING_LABELS` in `core/commands.js`). So a new setting means a registry entry first:
+  - `bound: true` wires a plain row through `setup/controls.js`'s `renderPathRows`;
+  - `tv: { section }` puts it in the TV menu's SETUP;
+  - `override` gives channels and blocks an `OverrideRow` (`setup/override-row.js`).
+  Defaults come from the registry (`core/setting-defaults.js`).
 - **Channels:** a list plus the selected channel's editor. `S.setupSelectedChannel` picks which
   channel; set it before `renderChannelList()` whenever numbers change.
 - **New box-level settings:** write a `.setting-row` (`renderer/js/ui/field.js` SettingRow) with a

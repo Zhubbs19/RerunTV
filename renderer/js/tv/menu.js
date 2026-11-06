@@ -24,11 +24,11 @@ import { openByChannelPage } from '../cable-guide/by-channel.js';
 import { openMessagesPage } from '../cable-guide/messages.js';
 import { getRendererService, interruptEntries, registerCoreHook } from '../plugin/host.js';
 import {
-  currentProgramStart, enterTimeMachine, exitTimeMachine, restartCurrentShow, returnToLive, timeMachineAvailable, timeMachineGoTo,
+  currentProgramStart, enterTimeMachine, exitTimeMachine, jumpToBreakEnd, restartCurrentShow, returnToLive, timeMachineAvailable, timeMachineGoTo,
 } from '../playback/timemachine.js';
 import { formatClock } from '../core/util.js';
 import { openTimeCalendar } from '../playback/time-calendar.js';
-import { goToTargets, pickerTime, clampPicker, PICKER_DAY_RANGE } from '../timeline/scrubber.js';
+import { goToTargets, pickerTime, clampPicker, timeMachineOptions } from '../timeline/scrubber.js';
 import {
   toggleMute, adjustVolume, toggleCrt, cyclePictureMode, cycleAspectMode,
   cycleSleepTimer, powerOff, toggleHintBar,
@@ -78,13 +78,15 @@ function timeMachineSubmenu() {
   const now = viewNow();
   const available = S.timeMachineOn || timeMachineAvailable();
   const items = available
-    ? goToTargets(now, currentProgramStart()).map((target) => ({
+    ? goToTargets(now, currentProgramStart(), timeMachineOptions(S.config)).map((target) => ({
       label: target.label,
       run: () => timeMachineGoTo(target.at, target.label),
     }))
     : [];
   if (available) items.push({ label: 'PICK A DATE (CALENDAR)…', run: () => openTimeCalendar() });
   if (available) items.push({ label: 'PICK DAY & HOUR…', submenu: dayHourPicker });
+  // A few seconds before the show comes back from the break on now (or the next one).
+  if (available) items.push({ label: 'END OF BREAK', run: async () => { if (!S.timeMachineOn) enterTimeMachine(); await jumpToBreakEnd(); } });
   items.push({ label: S.timeMachineOn ? 'CLOSE TIME MACHINE' : 'OPEN TIME MACHINE', run: () => (S.timeMachineOn ? exitTimeMachine() : enterTimeMachine()) });
   items.push({ label: 'RETURN TO LIVE', run: () => returnToLive() });
   return { title: available ? 'TIME MACHINE · GO TO…' : 'TIME MACHINE · NOT ON THIS CHANNEL', items };
@@ -95,15 +97,16 @@ function timeMachineSubmenu() {
 let picker = { dayOffset: 0, hour: 20 };
 function dayHourPicker() {
   const now = viewNow();
-  const target = pickerTime(now, picker);
+  const range = timeMachineOptions(S.config).pickerDays;
+  const target = pickerTime(now, picker, range);
   const hourText = formatClock(new Date(target));
-  const step = (change) => () => { picker = clampPicker({ dayOffset: picker.dayOffset + (change.day || 0), hour: picker.hour + (change.hour || 0) }); };
+  const step = (change) => () => { picker = clampPicker({ dayOffset: picker.dayOffset + (change.day || 0), hour: picker.hour + (change.hour || 0) }, range); };
   return {
     title: `GO TO ${dayLabel(target)} · ${hourText}`,
-    onOpen: () => { picker = clampPicker({ dayOffset: 0, hour: new Date(now).getHours() }); },
+    onOpen: () => { picker = clampPicker({ dayOffset: 0, hour: new Date(now).getHours() }, range); },
     items: [
-      { label: '◀ DAY', keepOpen: true, run: step({ day: -1 }), disabled: picker.dayOffset <= -PICKER_DAY_RANGE },
-      { label: 'DAY ▶', keepOpen: true, run: step({ day: 1 }), disabled: picker.dayOffset >= PICKER_DAY_RANGE },
+      { label: '◀ DAY', keepOpen: true, run: step({ day: -1 }), disabled: picker.dayOffset <= -range },
+      { label: 'DAY ▶', keepOpen: true, run: step({ day: 1 }), disabled: picker.dayOffset >= range },
       { label: '◀ HOUR', keepOpen: true, run: step({ hour: -1 }) },
       { label: 'HOUR ▶', keepOpen: true, run: step({ hour: 1 }) },
       { label: `GO TO ${dayLabel(target)} ${hourText}`, run: () => timeMachineGoTo(target, `${dayLabel(target)} ${hourText}`) },

@@ -104,7 +104,9 @@ Knowing the design helps you judge what counts as a vulnerability:
   an `Authorization: Bearer` header afterwards. Anyone on the same network who
   captures the code or token before the pairing code rotates can act with that
   scope. Mitigations: codes are per-boot and rate limited, view and control
-  scopes are separate, and administration is never remote. Android's network
+  scopes are separate, and administration is never remote. A paired phone's
+  settings edits get the same deny-list as a LAN control client: it can't
+  change the PIN lock, network services, updates or PC power. Android's network
   security config can only allow cleartext per domain, not per private IP range,
   so the app cannot be restricted to LAN addresses at the OS level; use the
   companion only on a network you trust.

@@ -30,7 +30,7 @@ export const KEY_ACTIONS = [
 
 // Keys that already mean something else (plug-in hotkeys, volume, the menu,
 // the channel digits), so they can't be handed out.
-export const RESERVED_KEYS = new Set(['b', 'e', 'k', 'u', 'r', '+', '=', '-', '_', '?', '[', ']', ' ', '.', '/', ',']);
+export const RESERVED_KEYS = new Set(['b', 'e', 'k', 'u', 'r', '+', '=', '-', '_', '?', '[', ']', '\\', ' ', '.', '/', ',']);
 
 export function effectiveKey(keyMap, action) {
   const mapped = keyMap && keyMap[action.id];

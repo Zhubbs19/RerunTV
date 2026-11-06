@@ -1,3 +1,4 @@
+import { HOST_ONLY_SECTIONS, coerceSettingValue, remoteEditable, settingAtPath } from './core/settings-registry.js';
 import { S, setConfigNormalizer, viewNow, saveConfigNow, resetUndoBaseline, bumpConfigGeneration, POWER_ON_ANIM_MS, commitConfigPatch, commitInPlace, dispatch, canPlay } from './core/state.js';
 import { runConfigMigrations } from './core/config-schema.js';
 import { randomInterstitialId, getDisplayTitle, settingNumber } from './core/util.js';
@@ -33,7 +34,7 @@ import { findLiveViewerLinkChannelType, hideVirtualChannels, isVirtualChannel, t
 import { clearPinBuffer, hidePinLockScreen, popPinDigit, pushPinDigit } from './setup/pin-lock.js';
 import { getAudioCtx, playPurchaseConfirmSound, playNoiseBurst } from './core/audio.js';
 import {
-  enterTimeMachine, exitTimeMachine, restartCurrentShow, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak,
+  enterTimeMachine, exitTimeMachine, restartCurrentShow, startShuttle, shuttlePlay, returnToLive, jumpToNextBreak, jumpToPrevBreak, jumpToBreakEnd,
 } from './playback/timemachine.js';
 import {
   applyAspectMode, applyCrtState, applyHintBarState, applyMuteState, applyPictureMode, applyVolume, applyTvBezel,
@@ -368,6 +369,11 @@ export function handleKey(e) {
     case ']':
       if (S.timeMachineOn) jumpToNextBreak();
       break;
+    // The key beside ]: a few seconds before the show comes back from this
+    // (or the next) break, to check the cut back without watching the ads.
+    case '\\':
+      if (S.timeMachineOn) jumpToBreakEnd();
+      break;
     case 't':
     case 'T':
       // Three-way cycle: off -> on; shuttling -> commit the shuttled
@@ -661,10 +667,20 @@ function applyCompanionSettingsLive(changedSections) {
 // other value must retain its existing shape. The handler never creates a
 // new section/key and never touches channels/plugins (those need dedicated,
 // validated flows), so malformed or unexpected data is silently dropped.
+// Host-only sections (the PIN lock, network, updates, PC power) are refused,
+// the same list a LAN control client gets (main/config/host.js).
+//
+// `patch.$set` is the registry form (companion app 0.2+): a list of
+// { path, value } for settings in core/settings-registry.js. Unlike the merge
+// below it can set a value that isn't saved yet, so new settings reach the
+// phone; each is checked and clamped by the registry and goes through
+// dispatch as a named command.
 window.api.onCompanionApplySettings?.((patch) => {
   if (!patch || typeof patch !== 'object') return;
   const BLOCKED_SECTIONS = new Set(['channels', 'plugins']);
+  const HOST_ONLY = new Set(HOST_ONLY_SECTIONS);
   const changedSections = new Set();
+  let merged = false;
   // Every section this handler declines, and why. The HTTP route that
   // delivered this patch answered 202/204 the moment it relayed it — it
   // cannot know what happened here — so the phone used to report "changes
@@ -676,9 +692,33 @@ window.api.onCompanionApplySettings?.((patch) => {
   // channel (which would need a fresh capability approval) or a request/
   // response round trip the one-way relay can't do.
   const rejected = [];
+  if (Array.isArray(patch.$set)) {
+    for (const item of patch.$set.slice(0, 200)) {
+      const path = item && Array.isArray(item.path) && item.path.every((k) => typeof k === 'string') ? item.path : null;
+      const entry = path && settingAtPath(path);
+      const name = path ? path.join('.') : '?';
+      if (!entry || !remoteEditable(entry)) {
+        rejected.push({ section: name, reason: entry ? 'can only be changed on the box' : 'no such setting on this box' });
+        continue;
+      }
+      const checked = coerceSettingValue(entry, item.value);
+      if (!checked.ok) { rejected.push({ section: name, reason: checked.reason }); continue; }
+      try {
+        dispatch({ type: 'settings.set', path: entry.path, value: checked.value }, { label: 'Companion settings' });
+        changedSections.add(entry.path[0]);
+      } catch (e) {
+        rejected.push({ section: name, reason: 'the box refused this change' });
+      }
+    }
+  }
   for (const [section, values] of Object.entries(patch)) {
+    if (section === '$set') continue;
     if (BLOCKED_SECTIONS.has(section)) {
       rejected.push({ section, reason: 'edited from the box itself, not the companion' });
+      continue;
+    }
+    if (HOST_ONLY.has(section)) {
+      rejected.push({ section, reason: 'can only be changed on the box' });
       continue;
     }
     if (section === '__proto__' || section === 'constructor' || section === 'prototype'
@@ -690,7 +730,7 @@ window.api.onCompanionApplySettings?.((patch) => {
     const targetIsPlainObject = target !== null && typeof target === 'object' && !Array.isArray(target);
     const valuesIsPlainObject = values !== null && typeof values === 'object' && !Array.isArray(values);
     if (targetIsPlainObject && valuesIsPlainObject) {
-      if (deepMergeExistingKeys(target, values)) changedSections.add(section);
+      if (deepMergeExistingKeys(target, values)) { changedSections.add(section); merged = true; }
       continue;
     }
     // Top-level scalar settings (theme, crtEnabled, pictureMode,
@@ -707,6 +747,7 @@ window.api.onCompanionApplySettings?.((patch) => {
     if (!equal) {
       S.config[section] = values;
       changedSections.add(section);
+      merged = true;
     }
   }
   S.lastCompanionSettingsResult = {
@@ -720,7 +761,7 @@ window.api.onCompanionApplySettings?.((patch) => {
     pushRemoteState();
     return;
   }
-  commitConfigPatch('Companion settings');
+  if (merged) commitConfigPatch('Companion settings');
   applyCompanionSettingsLive(changedSections); // ends with its own pushRemoteState()
 });
 
@@ -971,10 +1012,23 @@ export async function showTvScreen() {
   const startupNumber = typeof startup === 'string' && startup.trim() !== '' ? Number(startup) : startup;
   const wanted = startup === 'first' ? list[0].number : (typeof startupNumber === 'number' && Number.isFinite(startupNumber) ? startupNumber : S.config.lastChannel);
   const resume = list.find((c) => c.number === wanted);
+  // SYSTEM › START-UP & POWER › "When RerunTV starts": standby starts dark on
+  // the start-up channel until the power key, for a PC that is always on. Only
+  // on launch; coming back from setup always plays.
+  const launchInStandby = !tvScreenShownOnce && S.config.controls && S.config.controls.onLaunch === 'standby';
+  tvScreenShownOnce = true;
+  if (launchInStandby) {
+    S.currentNumber = (resume || list[0]).number;
+    powerOff({ reason: 'standby' });
+    return;
+  }
   tuneToChannel((resume || list[0]).number, { silent: true });
   startSignOn();
   resetIdleTimer();
 }
+
+// Whether the TV screen has been shown since launch (see "When RerunTV starts" above).
+let tvScreenShownOnce = false;
 
 window.addEventListener('resize', () => {
   staticCanvas.width = staticCanvas.clientWidth;

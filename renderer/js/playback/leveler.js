@@ -20,7 +20,7 @@
 import { player } from '../core/dom.js';
 import { S } from '../core/state.js';
 import { applyVolume } from './power.js';
-import { LEVELER_MODES, levelerGainFor, lineupMediaItems, measureDurationAt, mediaPathFromUrl } from './leveler-model.js';
+import { LEVELER_MODES, levelerGainFor, levelerTargetFrom, lineupMediaItems, measureDurationAt, mediaPathFromUrl } from './leveler-model.js';
 
 export { LEVELER_MODES };
 
@@ -40,7 +40,7 @@ export function currentLevelerMode() {
 export function levelerGain() {
   const mode = currentLevelerMode();
   if (mode === 'off' || !currentPath) return 1;
-  return levelerGainFor(mode, known.has(currentPath), known.get(currentPath));
+  return levelerGainFor(mode, known.has(currentPath), known.get(currentPath), levelerTargetFrom(S.config.audioLevelerTarget));
 }
 
 // The lineup's duration for each local file, so a lookup started at

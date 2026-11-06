@@ -76,7 +76,10 @@ function liveEntry(ctx, channel) {
   const schedule = ctx.channels.getChannelSchedule(channel, now, now + 60000);
   const entry = schedule.find((row) => row.start <= now && row.end > now);
   if (!entry || !entry.file || !entry.file.path) return null;
-  return { entry, offset: Math.max(0, (now - entry.start) / 1000) };
+  // The row spans the program's air time, breaks included (ctx v12).
+  const airS = Math.max(0, (now - entry.start) / 1000);
+  const toVideo = ctx.channels.videoSecondsAt;
+  return { entry, offset: toVideo ? toVideo(entry.file, airS) : airS };
 }
 
 // Tiles load one after another rather than all at once. Nine simultaneous

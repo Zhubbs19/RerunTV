@@ -1,7 +1,7 @@
 {
   "id": "mosaic",
   "name": "Channel Mosaic",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Virtual CH 100 — a paging grid of still frames showing what is airing on every channel right now, the way a cable system's mosaic preview channel did.",
   "category": "channel",
   "renderer": "renderer.js",

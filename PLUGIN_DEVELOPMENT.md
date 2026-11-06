@@ -783,6 +783,11 @@ a channel's entire broadcast rather than just its programme listing:
 - `nextBreakBoundary(ch, fromMs)` — the next instant the answer above
   changes, so you can step boundary to boundary instead of sampling.
   `Infinity` when nothing is ever scheduled.
+- `videoSecondsAt(file, airSeconds)` (ctx v12) — where in the video file a
+  moment of its schedule row is. A row's `start`..`end` is its AIR time:
+  when shows pause for breaks (the default) or a channel is fitted to time
+  slots, that span includes the program's own breaks, so `(atMs - row.start)
+  / 1000` is not a seek position. Pass it through this first.
 
 Both are pure functions of `(channel, timestamp)`, exactly like
 `getChannelSchedule`, so a whole range resolves without playing any of it.
@@ -798,7 +803,7 @@ the piece you need instead of pulling every key off the flat object:
 
 - `ctx.core` — `{ S, viewNow, player, saveConfigDebounced }`
 - `ctx.audio` — `{ playTone, playNoiseBurst, getAudioCtx }`
-- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry, resolveBreakAt, nextBreakBoundary }`
+- `ctx.channels` — `{ sortedChannels, buildChannelBadge, getChannel, getChannelSchedule, getDisplayTitle, formatSlotLabel, addFilesToChannel, addInterstitialPoolEntry, resolveBreakAt, nextBreakBoundary, videoSecondsAt }`
 - `ctx.settings` — `{ getPluginSettings, updatePluginSettings, getRedactedPluginSettings }`
 - `ctx.util` — `{ formatClock, WEEKDAYS, MONTHS }`
 - `ctx.search` — `{ registerEntries }` (v4, see "Setup search entries" below)

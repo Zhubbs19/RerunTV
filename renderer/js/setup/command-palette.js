@@ -40,9 +40,9 @@ export function searchActions() {
     { label: 'Show what’s on now and next', hint: 'CHANNELS', run: click('now-next-toggle-btn'), keywords: 'dashboard now next' },
     { label: 'Select all channels', hint: 'CTRL+A IN THE LIST', run: () => window.dispatchEvent(new CustomEvent('reruntv:select-all-channels')), keywords: 'bulk multiple several' },
     { label: 'Rescan all folders', hint: 'CHANNELS', run: click('rescan-all-btn'), keywords: 'refresh scan' },
-    { label: 'Add an ad pool entry', hint: 'PROGRAMMING', run: click('interstitials-add-entry-btn'), keywords: 'commercial bumper interstitial' },
-    { label: 'Add an ad pool folder', hint: 'PROGRAMMING', run: click('interstitials-add-folder-btn'), keywords: 'commercial bumper interstitial' },
-    { label: 'Add an ad preset', hint: 'PROGRAMMING', run: click('presets-add-btn') },
+    { label: 'Add an ad pool entry', hint: 'BREAKS', run: click('interstitials-add-entry-btn'), keywords: 'commercial bumper interstitial' },
+    { label: 'Add an ad pool folder', hint: 'BREAKS', run: click('interstitials-add-folder-btn'), keywords: 'commercial bumper interstitial' },
+    { label: 'Add an ad preset', hint: 'BREAKS', run: click('presets-add-btn') },
     { label: 'Install a plugin from ZIP', hint: 'PLUG-INS', run: click('plugins-install-zip-btn') },
     { label: 'Run a health check', hint: 'SYSTEM', run: click('box-status-check-btn') },
     // Only once SYSTEM › POWER allows it; it confirms and counts down first.
@@ -71,9 +71,10 @@ export function searchActions() {
     const tabId = panel.dataset.tabPanel;
     const tabBtn = document.querySelector(`.setup-tab-btn[data-tab="${tabId}"]`);
     if (!tabBtn) return;
-    actions.push({ label: `Go to ${tabBtn.textContent.trim()}`, hint: 'SECTION', run: goToTab(tabId) });
+    const name = tabBtn.getAttribute('aria-label') || tabBtn.textContent.trim();
+    actions.push({ label: `Go to ${name}`, hint: 'SECTION', run: goToTab(tabId) });
     panel.querySelectorAll('.setup-subtab-btn').forEach((subBtn) => {
-      actions.push({ label: `Go to ${tabBtn.textContent.trim()} › ${subBtn.textContent.trim()}`, hint: 'SECTION', run: goToTab(tabId, subBtn) });
+      actions.push({ label: `Go to ${name} › ${subBtn.textContent.trim()}`, hint: 'SECTION', run: goToTab(tabId, subBtn) });
     });
   });
   return actions;

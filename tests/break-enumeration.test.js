@@ -40,12 +40,15 @@ function entry(id, type, duration, extra = {}) {
   return { id, type, channelAffinity: 'any', file: { path: `${id}.mp4`, duration }, ...extra };
 }
 
-function setConfig(state, config) {
+// overlay: true pins the old model (breaks laid over the program, PROGRAMMING ›
+// "Shows pause for ad breaks" off) for tests that assert its wall-clock positions.
+function setConfig(state, config, { overlay = false } = {}) {
   state.S.config = {
     commercials: { timing: 'interval', intervalMinutes: 10 },
     interstitials: { pool: [], presets: [], flows: [] },
     ...config,
   };
+  if (overlay) state.S.config.commercials = { ...state.S.config.commercials, pauseForBreaks: false };
   state.bumpConfigGeneration();
 }
 
@@ -96,7 +99,7 @@ test('interval pods with bump-in and bump-out are listed once each, whole', asyn
       presets: [],
       flows: [],
     },
-  });
+  }, { overlay: true });
   const d0 = localMidnight(2026, 8, 14);
   const ch = channel(d0 - 17 * MIN);
   const from = d0 + 9 * HOUR;
@@ -136,7 +139,7 @@ test('a window that starts inside a pod lists that pod clamped to the window', a
   setConfig(state, {
     interstitials: { pool: [entry('ad1', 'commercial', 60), entry('ad2', 'commercial', 60)], presets: [], flows: [] },
     commercials: { timing: 'interval', intervalMinutes: 10, podMin: 2, podMax: 2 },
-  });
+  }, { overlay: true });
   const d0 = localMidnight(2026, 8, 17);
   const anchor = d0 + 9 * HOUR - 20 * MIN;
   const ch = channel(anchor);
@@ -211,7 +214,7 @@ test('a pod that begins under a text-only station ID bar is still listed', async
   setConfig(state, {
     stationId: { enabled: true, intervalMinutes: 15 },
     interstitials: { pool: [entry('ad1', 'commercial', 30)], presets: [], flows: [] },
-  });
+  }, { overlay: true });
   const d0 = localMidnight(2026, 8, 22);
   // Interval pods every 10 minutes from the anchor; put one 2 s after 10:00.
   const ch = channel(d0 + 10 * HOUR + 2000 - 60 * MIN);
@@ -225,7 +228,8 @@ test('seeded random channels agree with a brute-force scan', async () => {
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   const pick = (list) => list[Math.floor(rnd() * list.length)];
   const d0 = localMidnight(2026, 8, 23);
-  for (let trial = 0; trial < 14; trial++) {
+  for (let trial = 0; trial < 28; trial++) {
+    const overlay = trial % 2 === 1; // both models: shows pausing for breaks (default) and breaks laid over them
     const pool = [];
     if (rnd() < 0.6) pool.push(entry(`in${trial}`, 'adBreakIn', 2 + rnd() * 4));
     for (let i = 0; i < 1 + Math.floor(rnd() * 3); i++) pool.push(entry(`ad${trial}-${i}`, 'commercial', 10 + rnd() * 50));
@@ -236,12 +240,12 @@ test('seeded random channels agree with a brute-force scan', async () => {
       commercials: { timing, intervalMinutes: pick([7, 10, 12]), breakpoints: [30, 60], podMin: 1, podMax: 1 + Math.floor(rnd() * 3) },
       stationId: rnd() < 0.5 ? { enabled: true, intervalMinutes: pick([15, 30]) } : { enabled: false },
       interstitials: { pool, presets: [], flows: [] },
-    });
+    }, { overlay });
     const ch = channel(d0 - rnd() * 30 * 86400000, {
       files: Array.from({ length: 5 + Math.floor(rnd() * 6) }, (_, i) => ({ path: `f${trial}-${i}.mp4`, duration: 300 + rnd() * 1500 })),
       broadcastHours: rnd() < 0.3 ? { enabled: true, startHour: 6, endHour: 1 } : undefined,
     });
     const from = d0 + Math.floor(rnd() * 20) * HOUR + Math.floor(rnd() * 3600) * 1000;
-    checkAgainstScan(interstitials, ch, from, from + 90 * MIN, `trial ${trial} (${timing})`);
+    checkAgainstScan(interstitials, ch, from, from + 90 * MIN, `trial ${trial} (${timing}${overlay ? ', overlay' : ''})`);
   }
 });

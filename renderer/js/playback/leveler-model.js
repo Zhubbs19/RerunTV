@@ -26,14 +26,30 @@ export function gainForLoudness(lufs, target = TARGET_LUFS, minGain = MIN_GAIN) 
   return Math.min(MAX_GAIN, Math.max(minGain, gain));
 }
 
-// The multiplier for `mode` given what is known about the loaded file:
-// `measured` is false while the lookup is still pending, and `lufs` is null
-// for a file that has no measurable audio.
-export function levelerGainFor(mode, measured, lufs) {
+/**
+ * Read PICTURE & SOUND › SOUND › "Leveler loudness" (audioLevelerTarget).
+ * @param {*} value The stored value.
+ * @returns {number|null} A target in LUFS clamped to -30..-16, or null for the mode's own.
+ */
+export function levelerTargetFrom(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const v = Number(value);
+  return Number.isFinite(v) ? Math.min(-16, Math.max(-30, v)) : null;
+}
+
+/**
+ * The multiplier for `mode` given what is known about the loaded file.
+ * @param {string} mode 'off', 'on' or 'consistent'.
+ * @param {boolean} measured False while the lookup is still pending.
+ * @param {number|null} lufs The file's loudness, or null for a file with no measurable audio.
+ * @param {number|null} [target=null] A loudness target that replaces the mode's own.
+ * @returns {number} The gain to apply.
+ */
+export function levelerGainFor(mode, measured, lufs, target = null) {
   const settings = MODE_SETTINGS[mode];
   if (!settings) return 1;
   if (!measured) return settings.pendingGain;
-  return gainForLoudness(lufs, settings.target, settings.minGain);
+  return gainForLoudness(lufs, target == null ? settings.target : target, settings.minGain);
 }
 
 // The duration (seconds) to measure the loaded file with, or null to wait

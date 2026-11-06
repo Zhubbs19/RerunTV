@@ -28,7 +28,20 @@ import { bugInPictureBox } from '../cable-guide/model.js';
 import { pictureBox } from '../cable-guide/picture-box.js';
 import { pickDeterministic, poolFor } from '../core/interstitials.js';
 import { S, viewNow } from '../core/state.js';
-import { autoHideAfter, formatClock, formatHourLabel, foundCreditsLead, getDisplayTitle } from '../core/util.js';
+import { autoHideAfter, formatClock, formatHourLabel, getDisplayTitle } from '../core/util.js';
+import { creditsAudioFor, creditsSpeedupFor } from '../core/fit.js';
+
+// GUIDE & THEME › ON-SCREEN › "Program cards stay up": how long the rating
+// bug, movie rating card, NEW/REPEAT bug, formatted-for-TV card, advisory and
+// CC/SAP badge stay on screen at the start of a program (real bugs held about
+// 15-17 s, so 16 is the default).
+export function programCardMs() {
+  const v = Number(S.config.display && S.config.display.programCardSeconds);
+  return (Number.isFinite(v) && v >= 3 ? Math.min(30, v) : 16) * 1000;
+}
+
+// "Credits sound: turned down" plays sped-up credits at this share of the volume.
+const CREDITS_DUCK_GAIN = 0.35;
 import { computeSourcePosition, resolveActiveSource } from '../core/schedule.js';
 import { channelIdentity, effectiveThemeId } from '../display/identity.js';
 import { computeNextTitle } from './breaks.js';
@@ -319,6 +332,10 @@ export function resetCreditsSpeedup() {
   player.playbackRate = 1;
   player.muted = S.creditsSpeedupPrevMuted;
   S.creditsSpeedupActive = false;
+  if (S.creditsDuckGain != null) {
+    S.creditsDuckGain = null;
+    applyVolume();
+  }
   creditsSqueezePanelEl.classList.add('hidden');
   creditsSqueezePanelEl.classList.remove('video-mode');
   document.querySelector('.crt')?.classList.remove('credits-squeeze', ...SQUEEZE_LAYOUTS.map((l) => `squeeze-${l}`));
@@ -342,18 +359,12 @@ export function resetCreditsSpeedup() {
 export function scheduleCreditsSpeedup(ch, pos) {
   cancelCreditsSpeedup();
   const file = pos.file;
-  const cfg = ch.creditsSpeedup;
-  let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? (foundCreditsLead(file, S.config) || cfg.leadSeconds) : null);
-  if (!leadS) return;
-  // WHEN IT APPLIES (END CREDITS panel): 'fit' means only on a channel fitted
-  // to time slots, which runs its credits through scheduleFitCredits instead.
-  const applies = cfg && cfg.applies;
-  if (applies === 'never' || applies === 'fit') return;
-  if (applies === 'movies' && !(file.facets && file.facets.contentType === 'movie')) return;
-  const rate = (cfg && cfg.rate) || 3;
-  // MAX TIME SAVED: start the squeeze later rather than save more than that.
-  const maxSqueezeS = cfg && Number(cfg.maxSqueezeSeconds);
-  if (maxSqueezeS > 0) leadS = Math.min(leadS, maxSqueezeS / (1 - 1 / rate));
+  // Which files, how fast and from where (core/fit.js). Shared with the break
+  // plan, which puts the same speed-up in the schedule when shows pause for
+  // breaks; that case runs through scheduleFitCredits instead.
+  const speedup = creditsSpeedupFor(ch, file);
+  if (!speedup) return;
+  const { leadS, rate } = speedup;
   const remainingMs = (file.duration - pos.offset) * 1000;
   if (remainingMs <= leadS * 1000) return;
   S.creditsSpeedupTimer = setTimeout(() => {
@@ -406,9 +417,14 @@ function nextProgramStartMs(ch) {
 export function startCreditsSpeedup(ch, file, rate, leadS, opts) {
   S.creditsSpeedupPrevMuted = player.muted;
   S.creditsSpeedupFit = !!(opts && opts.fit);
-  player.muted = true;
+  // Credits sound (END CREDITS / FIT TO TIME SLOTS, core/fit.js creditsAudioFor).
+  // A video up-next promo has its own sound, so the program is muted under it.
+  const audio = ch.creditsSpeedup && ch.creditsSpeedup.squeezeMode === 'video' ? 'mute' : creditsAudioFor(ch);
+  if (audio === 'mute') player.muted = true;
+  if (audio === 'lower') S.creditsDuckGain = CREDITS_DUCK_GAIN;
   player.playbackRate = rate;
   S.creditsSpeedupActive = true;
+  if (S.creditsDuckGain != null) applyVolume();
   S.creditsSpeedupRealStartMs = viewNow();
   // What the pure schedule (which always assumes normal speed) still thinks
   // is left in this file — compared against real elapsed time once the
@@ -842,7 +858,7 @@ export function flashRatingBug(ch, rating) {
   ratingBugEl.textContent = rating;
   ratingBugEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, 16000, () => ratingBugEl.classList.remove('show'));
+  S.ratingBugTimer = autoHideAfter(S.ratingBugTimer, programCardMs(), () => ratingBugEl.classList.remove('show'));
 }
 
 // Full-screen movie-rating-card analogue of flashRatingBug above — real
@@ -862,7 +878,7 @@ export function showMovieRatingCard(ch, rating) {
   movieRatingCardEl.appendChild(value);
   movieRatingCardEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.movieRatingCardTimer = autoHideAfter(S.movieRatingCardTimer, 16000, () => movieRatingCardEl.classList.remove('show'));
+  S.movieRatingCardTimer = autoHideAfter(S.movieRatingCardTimer, programCardMs(), () => movieRatingCardEl.classList.remove('show'));
 }
 
 // "NEW EPISODE"/"REPEAT" bug — same show/hide shape as flashRatingBug,
@@ -872,7 +888,7 @@ export function flashEpisodeStatusBug(ch, status) {
   episodeStatusBugEl.textContent = status;
   episodeStatusBugEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.episodeStatusBugTimer = autoHideAfter(S.episodeStatusBugTimer, 16000, () => episodeStatusBugEl.classList.remove('show'));
+  S.episodeStatusBugTimer = autoHideAfter(S.episodeStatusBugTimer, programCardMs(), () => episodeStatusBugEl.classList.remove('show'));
 }
 
 // "Formatted to fit your screen"/widescreen disclaimer card — same
@@ -881,7 +897,7 @@ export function flashFormatDisclaimer(ch, text) {
   formatDisclaimerCardEl.textContent = text;
   formatDisclaimerCardEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.formatDisclaimerCardTimer = autoHideAfter(S.formatDisclaimerCardTimer, 16000, () => formatDisclaimerCardEl.classList.remove('show'));
+  S.formatDisclaimerCardTimer = autoHideAfter(S.formatDisclaimerCardTimer, programCardMs(), () => formatDisclaimerCardEl.classList.remove('show'));
 }
 
 // Content advisory disclaimer card — same show/hide shape as the bugs
@@ -891,7 +907,7 @@ export function flashContentAdvisory(ch, text) {
   contentAdvisoryCardEl.textContent = text;
   contentAdvisoryCardEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.contentAdvisoryCardTimer = autoHideAfter(S.contentAdvisoryCardTimer, 16000, () => contentAdvisoryCardEl.classList.remove('show'));
+  S.contentAdvisoryCardTimer = autoHideAfter(S.contentAdvisoryCardTimer, programCardMs(), () => contentAdvisoryCardEl.classList.remove('show'));
 }
 
 // CC/SAP/STEREO capability badge — same show/hide shape as the bugs above.
@@ -901,5 +917,5 @@ export function flashCapabilityBadge(ch, labels) {
   capabilityBadgeEl.textContent = labels.join(' · ');
   capabilityBadgeEl.classList.add('show');
   playConfiguredSound('card', ch.number);
-  S.capabilityBadgeTimer = autoHideAfter(S.capabilityBadgeTimer, 16000, () => capabilityBadgeEl.classList.remove('show'));
+  S.capabilityBadgeTimer = autoHideAfter(S.capabilityBadgeTimer, programCardMs(), () => capabilityBadgeEl.classList.remove('show'));
 }

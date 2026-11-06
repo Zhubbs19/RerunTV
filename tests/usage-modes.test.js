@@ -127,3 +127,18 @@ test('plugin channels get actions, which map back to the keys onKey knows (doc 0
   assert.equal(keyForAction('nope'), null);
   Object.values(PLUGIN_CHANNEL_ACTIONS).forEach((action) => assert.ok(keyForAction(action), action));
 });
+
+test('remote.buttons remaps buttons on live TV only, short presses only', async () => {
+  const { routeRemoteKey, buttonOverride, defaultButtonAction } = await load('remote/input.js');
+  const buttons = { left: 'key:Backspace', red: 'key:q', back: 'none', up: 'menu.toggle', ok: 'not-an-action' };
+  assert.equal(routeRemoteKey('watching', 'left', { buttons }), 'key:Backspace');
+  assert.equal(routeRemoteKey('watching', 'red', { buttons }), 'key:q', 'a key with no default can be given one');
+  assert.equal(routeRemoteKey('watching', 'back', { buttons }), 'none');
+  assert.equal(routeRemoteKey('watching', 'up', { buttons }), 'key:ArrowUp', 'channel up is not remappable');
+  assert.equal(routeRemoteKey('watching', 'ok', { buttons }), 'banner.open', 'an unknown action keeps the default');
+  assert.equal(routeRemoteKey('watching', 'ok', { buttons: { ok: 'guide.open' }, longPress: true }), 'menu.open', 'hold OK still opens the menu');
+  assert.equal(routeRemoteKey('guide', 'left', { buttons }), 'key:ArrowLeft', 'the guide keeps its keys');
+  assert.equal(routeRemoteKey('timeMachine', 'left', { buttons }), 'scrub.back', 'the time machine keeps its keys');
+  assert.equal(buttonOverride(null, 'left'), null);
+  assert.equal(defaultButtonAction('left'), 'guide.open');
+});

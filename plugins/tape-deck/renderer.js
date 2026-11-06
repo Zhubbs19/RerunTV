@@ -131,10 +131,12 @@ function planSegments(ctx, channel, startMs, endMs, includeBreaks = true) {
       const segStart = Math.max(row.start, t);
       const segEnd = Math.min(row.end, contentEnd);
       if (!(segEnd > segStart)) return;
-      const inSeconds = (segStart - row.start) / 1000;
+      // Row offsets are air time, breaks included; the cut is in video time (ctx v12).
+      const toVideo = ctx.channels.videoSecondsAt || ((file, s) => s);
+      const inSeconds = toVideo(row.file, (segStart - row.start) / 1000);
       segments.push({
         kind: 'content', path: row.file.path, source: row.file.source || 'local',
-        inSeconds, outSeconds: inSeconds + (segEnd - segStart) / 1000,
+        inSeconds, outSeconds: toVideo(row.file, (segEnd - row.start) / 1000),
         label: ctx.channels.getDisplayTitle(row.file) || 'PROGRAM',
       });
     });

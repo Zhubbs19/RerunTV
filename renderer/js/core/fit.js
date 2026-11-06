@@ -49,7 +49,10 @@ export const FIT_DEFAULTS = Object.freeze({
   creditsLeadSeconds: 90,
   creditsMaxSqueezeSeconds: 180,
   creditsLayout: 'side', // 'side' | 'right' | 'corner' | 'banner' (playback/broadcast-fx.js)
+  creditsAudio: 'mute', // 'mute' | 'keep' | 'lower' while the credits run fast
 });
+
+export const CREDITS_AUDIO = ['mute', 'keep', 'lower'];
 
 export const FIT_STRATEGIES = ['auto', 'extend', 'trim'];
 export const CREDITS_APPLIES = ['always', 'movies', 'fit', 'never'];
@@ -78,7 +81,7 @@ export function normalizeFitConfig(raw) {
   const r = raw || {};
   const d = FIT_DEFAULTS;
   return {
-    gridMinutes: Number(r.gridMinutes) === 60 ? 60 : 30,
+    gridMinutes: [15, 60].includes(Number(r.gridMinutes)) ? Number(r.gridMinutes) : 30,
     strategy: FIT_STRATEGIES.includes(r.strategy) ? r.strategy : d.strategy,
     maxTrimMinutes: clampNum(r.maxTrimMinutes, 0, 30, d.maxTrimMinutes),
     maxSpeedupPct: clampNum(r.maxSpeedupPct, 0, 10, d.maxSpeedupPct),
@@ -98,6 +101,7 @@ export function normalizeFitConfig(raw) {
     creditsLeadSeconds: clampNum(r.creditsLeadSeconds, 0, 1200, d.creditsLeadSeconds),
     creditsMaxSqueezeSeconds: clampNum(r.creditsMaxSqueezeSeconds, 0, 1800, d.creditsMaxSqueezeSeconds),
     creditsLayout: ['side', 'right', 'corner', 'banner'].includes(r.creditsLayout) ? r.creditsLayout : d.creditsLayout,
+    creditsAudio: CREDITS_AUDIO.includes(r.creditsAudio) ? r.creditsAudio : d.creditsAudio,
   };
 }
 
@@ -116,6 +120,7 @@ export function fitConfigFor(ch) {
   const cs = ch.creditsSpeedup && ch.creditsSpeedup.enabled ? ch.creditsSpeedup : {};
   const fromCredits = {
     creditsRate: cs.rate, creditsLeadSeconds: cs.leadSeconds, creditsApplies: cs.applies, creditsMaxSqueezeSeconds: cs.maxSqueezeSeconds,
+    creditsAudio: cs.audio,
   };
   const merged = {};
   for (const key of Object.keys(FIT_DEFAULTS)) {
@@ -325,6 +330,49 @@ export function applyFit(ch, source) {
   const cfg = fitConfigFor(ch);
   if (!cfg) return source;
   return { ...source, files: fittedFiles(source.files, cfg), anchor: alignToGrid(source.anchor, cfg.gridMinutes), fit: cfg };
+}
+
+// The END CREDITS speed-up (a channel's BREAKS › END CREDITS, or a file's own
+// lead) for a file on a channel that is NOT fitted: { leadS, rate }, or null
+// when it doesn't apply. The break plan (interstitials.js planBreaks) puts it
+// in the schedule and broadcast-fx.js's scheduleCreditsSpeedup reads the same
+// answer, so the two can't disagree. leadS (seconds before the end where the
+// credits start) is the file's own value, else where its credits were found,
+// else the channel's lead; MAX TIME SAVED starts it later.
+export function creditsSpeedupFor(ch, file) {
+  const cfg = ch && ch.creditsSpeedup;
+  let leadS = file.creditsLeadS != null ? file.creditsLeadS : (cfg && cfg.enabled ? (foundCreditsLead(file, S.config) || cfg.leadSeconds) : null);
+  if (!leadS) return null;
+  leadS = Number(leadS);
+  if (!(leadS > 0)) return null;
+  // WHEN IT APPLIES: 'fit' means only on a channel fitted to time slots.
+  const applies = cfg && cfg.applies;
+  if (applies === 'never' || applies === 'fit') return null;
+  if (applies === 'movies' && !isMovie(file)) return null;
+  const rate = (cfg && cfg.rate) || 3;
+  const maxSqueezeS = cfg && Number(cfg.maxSqueezeSeconds);
+  if (maxSqueezeS > 0 && rate > 1) leadS = Math.min(leadS, maxSqueezeS / (1 - 1 / rate));
+  return { leadS, rate };
+}
+
+// The plain playlist entry behind a file as it airs: a fitted or break-planned
+// copy (resolveActiveSource's files) carries its air length in `duration` and
+// its plan in `fit`, neither of which belongs in channels.json. Anything that
+// copies an airing's files into config goes through this first.
+export function plainFileEntry(file) {
+  if (!file || !file.fit) return file;
+  const { fit, ...rest } = file;
+  return { ...rest, duration: fit.contentS };
+}
+
+// What the program's sound does while its credits run fast: the channel's END
+// CREDITS choice (when that panel is on), else the fit settings when the
+// channel is fitted, else mute.
+export function creditsAudioFor(ch) {
+  const cs = ch && ch.creditsSpeedup;
+  if (cs && cs.enabled && CREDITS_AUDIO.includes(cs.audio)) return cs.audio;
+  const cfg = fitConfigFor(ch);
+  return cfg ? cfg.creditsAudio : 'mute';
 }
 
 // The seconds into the video file a position from computeSourcePosition

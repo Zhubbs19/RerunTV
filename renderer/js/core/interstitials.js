@@ -5,18 +5,17 @@
 // resolveBreakAt() with whatever instant they're looking at, so they always
 // agree, with no separate history to store.
 //
-// Breaks don't consume timeline time — exactly like the old per-system
-// setTimeout-driven breaks, a break is an interruption overlaid on top of the
-// content schedule, not something that shifts what plays after it.
-// computeSourcePosition (schedule.js) is untouched; only "is a break showing
-// right now instead of content" is new.
+// By default a program's own breaks are planned into its air time (see "Shows
+// pause for breaks" below), so the program pauses for them. With that switched
+// off, or for breaks tied to the clock, a break is an interruption laid over
+// the content schedule instead, not something that shifts what plays after it.
 import {
-  computeSourcePosition, isWithinBroadcastHours, nextBlockStartMs, nextBroadcastHoursBoundary,
+  commercialsForPlan, computeSourcePosition, isWithinBroadcastHours, nextBlockStartMs, nextBroadcastHoursBoundary,
   prevBroadcastHoursBoundary, resolveActiveCommercials, resolveActiveSource,
 } from './schedule.js';
 import { S } from './state.js';
 import { hashString, mulberry32 } from './util.js';
-import { MIN_FIT_BREAK_S } from './fit.js';
+import { MIN_FIT_BREAK_S, creditsSpeedupFor } from './fit.js';
 import { fadeSnapWindowMs, fadesOf, snapOffsetsToFades } from './fades.js';
 
 // The real US TV sweeps months — a pure function of atMs, no per-channel
@@ -57,8 +56,17 @@ function matchesWeeklyPreemptionWindow(atMs, w) {
   return { windowStart, windowEnd };
 }
 
-const TRIVIA_DURATION_S = 8;
-const CHANNELID_TEXT_DURATION_S = 5;
+// BREAKS › STATION BREAKS › "Trivia card on screen" (trivia.cardSeconds, 4-20,
+// default 8) and "Station ID bar on screen" (stationId.textSeconds, 3-15,
+// default 5). Part of the schedule, so a pure read of config.
+function triviaDurationS() {
+  const v = Number(S.config.trivia && S.config.trivia.cardSeconds);
+  return Number.isFinite(v) && v >= 4 ? Math.min(20, v) : 8;
+}
+function channelIdTextDurationS() {
+  const v = Number(S.config.stationId && S.config.stationId.textSeconds);
+  return Number.isFinite(v) && v >= 3 ? Math.min(15, v) : 5;
+}
 const SIGNOFF_DURATION_S = 20;
 const SIGNON_DURATION_S = 20;
 const PREMIERE_JINGLE_DURATION_S = 8;
@@ -85,6 +93,9 @@ const BOUNDARY_SAFETY_CAP = 500;
 // nested call below so the total across all of them (not just each one
 // individually) respects the same budget.
 const JUMP_SEARCH_TIME_BUDGET_MS = 1200;
+// The time machine's "end of break" jump lands this long before the show comes
+// back, so the last seconds of the break and the cut back to the show are seen.
+export const BREAK_END_LEAD_MS = 5000;
 const DAY_MS = 86400000;
 
 function seededShuffle(arr, seed) {
@@ -326,12 +337,15 @@ export function entryWaitMs(entry) {
   return (entry && entry.waitMs) || 0;
 }
 
-function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags, exclude) {
-  const candidates = poolFor(pool, type, ch, block, fileTags);
+// lookup: an optional memoized poolFor (the break planner's), same arguments.
+// `alts` on the result is the list the pick came from, which the planner keeps
+// so a later airing can swap in a different entry of the same length.
+function windowFor(pool, type, ch, block, seedKey, slotIndex, windowStart, fallbackDurationS, fileTags, exclude, lookup) {
+  const candidates = lookup ? lookup(type, fileTags) : poolFor(pool, type, ch, block, fileTags);
   const entry = pickDeterministic(exclude ? candidates.filter((e) => !exclude.has(e)) : candidates, seedKey, slotIndex);
   if (!entry) return null;
   const durationS = entryDurationS(entry, fallbackDurationS);
-  return { entry, windowStart, windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry) };
+  return { entry, windowStart, windowEnd: windowStart + durationS * 1000 + entryWaitMs(entry), alts: candidates };
 }
 
 // Same as windowFor but anchored to when the window *ends* rather than
@@ -401,7 +415,10 @@ function firstNonEmpty(...lists) {
 // always conceptually one unit, not 4 independent choices a caller picks
 // separately.
 function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podMax, fileTags, opts) {
-  const { inTags: optInTags, commTags: optCommTags, outTags: optOutTags, targetTiming } = opts || {};
+  const { inTags: optInTags, commTags: optCommTags, outTags: optOutTags, targetTiming, lookup } = opts || {};
+  // The planner passes a memoized poolFor; each segment keeps the list its
+  // entry was picked from (`alts`) for same-length swaps on later airings.
+  const eligible = (type, tags) => (lookup ? lookup(type, tags, targetTiming) : poolFor(pool, type, ch, block, tags, targetTiming));
   const lo = Math.max(1, podMin || 1);
   const hi = Math.max(lo, podMax || lo);
   const sizeRand = mulberry32(hashString(`${seedKey}:podsize:${slotIndex}`))();
@@ -425,30 +442,33 @@ function buildPod(pool, ch, block, seedKey, slotIndex, windowStart, podMin, podM
   const segments = [];
   let cursor = windowStart;
 
-  const inEntry = pickDeterministic(poolFor(pool, 'adBreakIn', ch, block, inTags, targetTiming), `${seedKey}:in`, slotIndex);
+  const inList = eligible('adBreakIn', inTags);
+  const inEntry = pickDeterministic(inList, `${seedKey}:in`, slotIndex);
   if (inEntry) used.add(inEntry);
   if (inEntry) {
     const dur = entryDurationS(inEntry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(inEntry);
-    segments.push({ type: 'adBreakIn', entry: inEntry, windowStart: cursor, windowEnd });
+    segments.push({ type: 'adBreakIn', entry: inEntry, windowStart: cursor, windowEnd, alts: inList });
     cursor = windowEnd;
   }
 
+  const commList = eligible('commercial', commTags);
   for (let i = 0; i < podSize; i++) {
-    const entry = pickDeterministic(unusedIf(noRepeatCommercials, poolFor(pool, 'commercial', ch, block, commTags, targetTiming)), seedKey, slotIndex * POD_SLOT_STRIDE + i);
+    const entry = pickDeterministic(unusedIf(noRepeatCommercials, commList), seedKey, slotIndex * POD_SLOT_STRIDE + i);
     if (!entry) break;
     used.add(entry);
     const dur = entryDurationS(entry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(entry);
-    segments.push({ type: 'commercial', entry, windowStart: cursor, windowEnd });
+    segments.push({ type: 'commercial', entry, windowStart: cursor, windowEnd, alts: commList });
     cursor = windowEnd;
   }
 
-  const outEntry = pickDeterministic(unusedIf(noRepeatBumpers, poolFor(pool, 'adBreakOut', ch, block, outTags, targetTiming)), `${seedKey}:out`, slotIndex);
+  const outList = eligible('adBreakOut', outTags);
+  const outEntry = pickDeterministic(unusedIf(noRepeatBumpers, outList), `${seedKey}:out`, slotIndex);
   if (outEntry) {
     const dur = entryDurationS(outEntry, 0);
     const windowEnd = cursor + dur * 1000 + entryWaitMs(outEntry);
-    segments.push({ type: 'adBreakOut', entry: outEntry, windowStart: cursor, windowEnd });
+    segments.push({ type: 'adBreakOut', entry: outEntry, windowStart: cursor, windowEnd, alts: outList });
     cursor = windowEnd;
   }
 
@@ -594,6 +614,478 @@ function fitBreakAt(ch, source, atMs, pool, knownPos) {
   };
 }
 
+// ---------- Shows pause for breaks (the break plan) ----------
+// Left to itself, a break here is laid OVER the content timeline: the schedule
+// keeps the program running underneath the ads, and only live playback, by
+// crediting each break's length back (S.contentLostMs), makes the show resume
+// where it stopped. Anything that reads the schedule fresh — a time-machine
+// jump, tuning in, the guide — then finds the program minutes further on
+// after every break, as if it had kept playing during the ads.
+//
+// With PROGRAMMING › CADENCE & PRESETS › "Shows pause for ad breaks" on (the
+// default), every source that isn't fitted to time slots gets a break plan
+// instead: each file is swapped for a copy whose `duration` is its AIR time
+// (program plus its own breaks) and whose `fit` is a plan in core/fit.js's
+// shape (segments of program, sped-up credits and break), so the same
+// machinery fitted channels use — computeSourcePosition's fitAt/contentOffset,
+// seekOffsetOf, playback holding the picture through a break — puts the ads
+// in the schedule. Every break kind tied to the program goes in the plan: the
+// commercial cadence in any timing mode (every N minutes counted in program
+// time from the loop start for 'interval'), flow steps, pre/post pods, a
+// file's up-next ident and its tag-forced pre/post roll. Breaks tied to the
+// clock instead (station IDs, trivia, promos, sweeps, sign-off/on,
+// preemption, the premiere jingle) stay laid over the program, and are also
+// not credited back live, so live playback and the schedule never disagree.
+//
+// A plan is a pure function of the file list and config, never of which pass
+// through the loop is airing, so each break is the same length every time and
+// the position stays a single modulo. Variety comes back at airing time:
+// plannedSegments swaps each spot for another eligible one of the same length
+// to the second, seeded by when the break airs.
+//
+// A channel with a block that changes ads by the clock (an ad override on a
+// block other than the airing source's own) can't be planned per file, so it
+// keeps the overlay model.
+
+// PROGRAMMING › CADENCE & PRESETS › "Shows pause for ad breaks" (default on),
+// which a channel (BREAKS › ADS) or a schedule block can turn on or off for
+// itself: pauseForBreaks 'on' | 'off' | unset (follow the next level up).
+export function breaksPauseProgram(ch, block) {
+  for (const owner of [block, ch]) {
+    const own = owner && owner.pauseForBreaks;
+    if (own === 'on') return true;
+    if (own === 'off') return false;
+  }
+  const cm = (S.config && S.config.commercials) || {};
+  return cm.pauseForBreaks !== false;
+}
+
+// PROGRAMMING › CADENCE & PRESETS › "Keep breaks from a show's start and end":
+// how close a planned break may sit to either edge before it moves onto that
+// edge. 0 leaves every break where its cadence put it.
+export const PLAN_EDGE_SNAP_DEFAULT_S = 60;
+function planEdgeSnapS() {
+  const v = Number(S.config.commercials && S.config.commercials.breakEdgeSeconds);
+  return Number.isFinite(v) && v >= 0 ? Math.min(300, v) : PLAN_EDGE_SNAP_DEFAULT_S;
+}
+
+// PROGRAMMING › CADENCE & PRESETS › "Ad variety": which other spots a planned
+// break may swap in when it airs again. 'same' (default) takes spots of the
+// same length to the second; 'shorter' also takes spots up to
+// adVarietySeconds shorter (the rest of the slot is held on black, breaks.js);
+// 'off' plays the planned spots every time. Never a longer spot: a planned
+// break's length is part of when everything after it airs.
+function adVarietyRule() {
+  const cm = S.config.commercials || {};
+  const mode = cm.adVariety === 'off' || cm.adVariety === 'shorter' ? cm.adVariety : 'same';
+  const n = Number(cm.adVarietySeconds);
+  return { mode, shorterS: Number.isFinite(n) && n > 0 ? Math.min(15, n) : 3 };
+}
+
+let planCacheGen = -1;
+let planCaches = new WeakMap(); // channel -> WeakMap(files array -> { blockId, files })
+
+// The source with its break plan applied, or unchanged (fitted, switched off,
+// nothing to plan, or ads that vary by the clock). Cached per channel object
+// and file list, thrown away when S.configGeneration moves on (CLAUDE.md,
+// "Config mutation").
+export function applyBreakPlan(ch, source) {
+  if (!ch || !source || source.fit || !source.anchor || !source.files || !source.files.length) return source;
+  if (!breaksPauseProgram(ch, source.block)) return source;
+  if ((ch.blocks || []).some((b) => b && b.commercials && b !== source.block)) return source;
+  if (S.configGeneration !== planCacheGen) {
+    planCaches = new WeakMap();
+    planCacheGen = S.configGeneration;
+  }
+  let perChannel = planCaches.get(ch);
+  if (!perChannel) {
+    perChannel = new WeakMap();
+    planCaches.set(ch, perChannel);
+  }
+  const blockId = source.block ? source.block.id : null;
+  // A daily/weekly run builds a fresh one-file list on every lookup, so a lone
+  // file is the key there; every lookup then gets the same planned copy.
+  const cacheKey = source.files.length === 1 ? source.files[0] : source.files;
+  let hit = cacheKey && typeof cacheKey === 'object' ? perChannel.get(cacheKey) : null;
+  if (!hit || hit.blockId !== blockId) {
+    hit = { blockId, files: planFiles(ch, source) };
+    if (cacheKey && typeof cacheKey === 'object') perChannel.set(cacheKey, hit);
+  }
+  return { ...source, files: hit.files, breakPlan: true };
+}
+
+// A channel's own file list as it airs (each file at its air length, breaks
+// included), for code that measures the loop itself, like re-anchoring a
+// changed playlist (library/reanchor.js). Unchanged when nothing is planned.
+export function airFilesFor(ch, files) {
+  if (!files || !files.length) return files;
+  return applyBreakPlan(ch, { files, anchor: (ch && ch.anchor) || 1, key: -1, block: null }).files;
+}
+
+function planDurationS(file) {
+  const d = Number(file && file.duration);
+  return Number.isFinite(d) && d > 0 ? d : 0;
+}
+
+// A pod or window as the plan stores it: [{ type, label, entry, durMs, swaps }].
+// `swaps` are the other eligible entries that may air in its place (adVarietyRule).
+function planRef(type, label, entry, durMs, alts) {
+  const rule = adVarietyRule();
+  if (rule.mode === 'off') return { type, label, entry, durMs, swaps: null };
+  const sec = Math.round(durMs / 1000);
+  const fits = (e) => {
+    const ms = entryDurationS(e, 0) * 1000 + entryWaitMs(e);
+    if (Math.round(ms / 1000) === sec) return true;
+    return rule.mode === 'shorter' && ms > 0 && ms <= durMs && durMs - ms <= rule.shorterS * 1000;
+  };
+  const swaps = (alts || []).filter((e) => e === entry || fits(e));
+  return { type, label, entry, durMs, swaps: swaps.length > 1 ? swaps : null };
+}
+
+function podRefs(pod, label) {
+  if (!pod) return [];
+  return pod.segments
+    .filter((s) => s.windowEnd > s.windowStart)
+    .map((s) => planRef(s.type, label, s.entry, s.windowEnd - s.windowStart, s.alts));
+}
+
+// Every file of the source swapped for its planned copy.
+function planFiles(ch, source) {
+  const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
+  const files = source.files;
+  const block = source.block;
+  const memo = new Map();
+  const lookup = (type, tags, timing) => {
+    const key = `${type}|${(tags || []).join(',')}|${timing || ''}`;
+    let list = memo.get(key);
+    if (!list) {
+      list = poolFor(pool, type, ch, block, tags, timing);
+      memo.set(key, list);
+    }
+    return list;
+  };
+  const forcedPool = pool.filter((e) => e.type === 'commercial' && e.contentTiming && e.contentTags && e.contentTags.length);
+  let loopStartS = 0; // program seconds before this file in one pass of the loop
+  let loopAirS = 0; // air seconds before it (computeSourcePosition's own running sum)
+  return files.map((file, i) => {
+    const d = planDurationS(file);
+    const startS = loopStartS;
+    loopStartS += d;
+    if (d <= 0) {
+      loopAirS += file.duration || 0;
+      return file;
+    }
+    const plan = planFile(ch, block, pool, lookup, forcedPool, files, file, i, d, startS);
+    plan.loopAirStartS = loopAirS;
+    loopAirS += plan.slotS;
+    return { ...file, duration: plan.slotS, fit: plan };
+  });
+}
+
+// When a planned file's current airing started, from its fixed place in the
+// loop rather than from the instant asked about, so every lookup inside one
+// airing returns exactly the same windows (playback keys a break on its start).
+function planFileStartMs(source, pos, atMs) {
+  const plan = pos.file.fit;
+  if (!plan || plan.loopAirStartS == null) return atMs - pos.offset * 1000;
+  const cycles = Math.round(((atMs - source.anchor) / 1000 - pos.elapsed) / pos.total);
+  return source.anchor + (cycles * pos.total + plan.loopAirStartS) * 1000;
+}
+
+// One file's plan. Breaks at its start come first: the commercial cadence's
+// boundary pods (pre/post, a flow's between-episode steps), then tag-forced
+// post/pre roll, then the up-next ident. Mid-show breaks follow at their
+// program positions; a position inside the sped-up credits moves to where the
+// credits start.
+function planFile(ch, block, pool, lookup, forcedPool, files, file, i, d, startS) {
+  const tags = effectiveContentTags(ch, file);
+  const { commercials: cc, key } = commercialsForPlan(ch, block, tags);
+  // Not seeded by block: a break's length is part of when everything after it
+  // airs, so the same files in a different block (an "Only this day" copy) must
+  // plan the same breaks. Which spots play still varies per airing (plannedSegments).
+  const seedKey = `commercial:${ch.number}:${typeof key === 'string' && key.startsWith('preset:') ? key : 'plan'}`;
+  const credits = creditsSpeedupFor(ch, file);
+  const useCredits = credits && credits.rate > 1 && credits.leadS < d ? credits : null;
+  const bodyEndS = useCredits ? d - useCredits.leadS : d;
+  const atStart = [];
+  const mids = [];
+  const edgeS = planEdgeSnapS();
+  let podSeq = 0; // each addAt is one pod (or window); breaks.js and tests can tell them apart
+  const addAt = (atS, refs) => {
+    if (!refs.length) return;
+    const pod = podSeq++;
+    refs.forEach((r) => { r.pod = pod; });
+    // A break too close to the program's start or end moves onto that edge
+    // (a program-time cadence can otherwise land seconds from the end).
+    let at = Math.min(atS, bodyEndS);
+    if (at < edgeS) at = 0;
+    else if (bodyEndS - at < edgeS) at = bodyEndS;
+    if (at <= 0) atStart.push(...refs);
+    else mids.push({ atS: at, refs });
+  };
+  // A file's slot in program time, for midSlots (which works in ms from a start).
+  const bs = { ordinal: i, fileStartMs: 0, fileEndMs: d * 1000 };
+  const podOpts = (extra) => ({ ...(extra || {}), lookup });
+
+  if (cc && cc.enabled !== false) {
+    const timing = cc.timing || 'interval';
+    if (timing === 'interval') {
+      const intervalS = Math.max(1, cc.intervalMinutes || (S.config.commercials && S.config.commercials.intervalMinutes) || 10) * 60;
+      for (let k = Math.ceil(startS / intervalS - 1e-9); k * intervalS < startS + d - 1e-6; k++) {
+        const pod = buildPod(pool, ch, block, seedKey, k, 0, cc.podMin, cc.podMax, tags, podOpts());
+        addAt(k * intervalS - startS, podRefs(pod));
+      }
+    } else if (timing === 'everyNMinutes') {
+      const intervalMs = Math.max(1, cc.intervalMinutes || (S.config.commercials && S.config.commercials.intervalMinutes) || 10) * 60000;
+      for (const slot of midSlots(bs, file, { everyMs: intervalMs })) {
+        const pod = buildPod(pool, ch, block, seedKey, i * 1000 + slot.index, 0, cc.podMin, cc.podMax, tags, podOpts());
+        addAt(slot.startMs / 1000, podRefs(pod));
+      }
+    } else if (timing === 'breakpoints') {
+      for (const { index: bi, startMs } of midSlots(bs, file, { percents: sortedPercents(cc.breakpoints) })) {
+        const podStep = (cc.adPodSteps && cc.adPodSteps[bi]) || cc;
+        const pod = buildPod(pool, ch, block, seedKey, i * 1000 + bi, 0,
+          podStep.podMin != null ? podStep.podMin : cc.podMin, podStep.podMax != null ? podStep.podMax : cc.podMax, tags, podOpts({
+            inTags: firstNonEmpty(podStep.bumpInTags, cc.bumpInTags),
+            commTags: firstNonEmpty(podStep.commercialTags, cc.commercialTags),
+            outTags: firstNonEmpty(podStep.bumpOutTags, cc.bumpOutTags),
+          }));
+        addAt(startMs / 1000, podRefs(pod));
+      }
+    } else if (timing === 'flow') {
+      planFlow(ch, block, pool, lookup, cc, seedKey, file, i, tags, bs, addAt, podOpts);
+    } else {
+      // 'pre' / 'post' / 'both': the pods between the previous file and this one.
+      if (timing === 'post' || timing === 'both') addAt(0, podRefs(buildPod(pool, ch, block, seedKey, i * 2, 0, cc.podMin, cc.podMax, tags, podOpts({ targetTiming: 'post' })), 'post'));
+      if (timing === 'pre' || timing === 'both') addAt(0, podRefs(buildPod(pool, ch, block, seedKey, i * 2 + 1, 0, cc.podMin, cc.podMax, tags, podOpts({ targetTiming: 'pre' })), 'pre'));
+    }
+  }
+
+  // Tag-forced post-roll (for the file before this one) and pre-roll (for this one).
+  if (forcedPool.length) {
+    const prev = files[(i - 1 + files.length) % files.length];
+    const prevTags = (prev && prev.tags) || [];
+    const postEntries = forcedPool.filter((e) => (e.contentTiming === 'post' || e.contentTiming === 'both') && e.contentTags.some((t) => prevTags.includes(t)));
+    const preEntries = forcedPool.filter((e) => (e.contentTiming === 'pre' || e.contentTiming === 'both') && e.contentTags.some((t) => tags.includes(t)));
+    const post = pickDeterministic(postEntries, `tagPost:${ch.number}`, i);
+    if (post) addAt(0, [planRef('commercial', 'post', post, entryDurationS(post, 0) * 1000 + entryWaitMs(post), postEntries)]);
+    const pre = pickDeterministic(preEntries, `tagPre:${ch.number}`, i);
+    if (pre) addAt(0, [planRef('commercial', 'pre', pre, entryDurationS(pre, 0) * 1000 + entryWaitMs(pre), preEntries)]);
+  }
+
+  // A video up-next ident between programs.
+  const upNext = windowFor(pool, 'upNext', ch, block, `upNext:${ch.number}:plan`, i, 0, 0, tags, null, lookup);
+  if (upNext && upNext.windowEnd > upNext.windowStart) addAt(0, [planRef('upNext', undefined, upNext.entry, upNext.windowEnd, upNext.alts)]);
+
+  return assemblePlan(d, atStart, mids, useCredits);
+}
+
+// A flow's steps between episodes, then its mid-show cadence — the same
+// selection resolveBreakAt's overlay path makes, with the file's place in one
+// pass of the loop (i) where that path uses its global ordinal.
+function planFlow(ch, block, pool, lookup, cc, seedKey, file, i, tags, bs, addAt, podOpts) {
+  const cycleLen = Math.max(1, cc.segmentCount || 1);
+  const isLastInCycle = i % cycleLen === cycleLen - 1;
+  const groups = [];
+  if (cc.hasPost && !isLastInCycle) groups.push({ slotIndex: i * 2, label: 'post', steps: cc.postSteps });
+  if (cc.hasPre) groups.push({ slotIndex: i * 2 + 1, label: 'pre', steps: cc.preSteps });
+  if (cc.hasCycleEnd && isLastInCycle) groups.push({ slotIndex: i * 2, label: 'post', steps: cc.cycleEndSteps });
+  for (const group of groups) {
+    const steps = group.steps || [];
+    const usedSteps = noRepeatSetting('noRepeatInterstitials', ch, block) ? new Set() : null;
+    for (let si = 0; si < steps.length; si++) {
+      const step = steps[si];
+      if (step.type === 'adPod') {
+        const pod = buildPod(pool, ch, block, seedKey, group.slotIndex * 100 + si, 0,
+          step.podMin || cc.podMin || 1, step.podMax || cc.podMax || 1, tags, podOpts({
+            inTags: firstNonEmpty(step.bumpInTags, cc.bumpInTags),
+            commTags: firstNonEmpty(step.commercialTags, cc.commercialTags),
+            outTags: firstNonEmpty(step.bumpOutTags, cc.bumpOutTags),
+            targetTiming: group.label,
+          }));
+        addAt(0, podRefs(pod, group.label));
+        continue;
+      }
+      if (step.type === 'contentSegment') continue;
+      const poolType = normalizeFlowStepType(step.type);
+      const stepTags = step.tags && step.tags.length ? step.tags : tags;
+      const typesToTry = poolType === 'ident' ? ['adBreakIn', 'adBreakOut'] : [poolType];
+      const fallbackDurationS = poolType === 'localAvail' ? LOCAL_AVAIL_DURATION_S : 0;
+      let win = null;
+      for (const t of typesToTry) {
+        win = windowFor(pool, t, ch, block, `${seedKey}:${group.label}:${si}`, group.slotIndex * 100 + si, 0, fallbackDurationS, stepTags, usedSteps, lookup);
+        if (win) break;
+      }
+      if (!win) continue;
+      if (usedSteps) usedSteps.add(win.entry);
+      if (win.windowEnd > win.windowStart) addAt(0, [planRef(win.entry ? win.entry.type : poolType, group.label, win.entry, win.windowEnd, win.alts)]);
+    }
+  }
+  if (!cc.hasMid) return;
+  const inTags = firstNonEmpty(cc.midBumpInTags, cc.bumpInTags);
+  const commTags = firstNonEmpty(cc.midCommercialTags, cc.commercialTags);
+  const outTags = firstNonEmpty(cc.midBumpOutTags, cc.bumpOutTags);
+  if (cc.midTiming === 'everyNMinutes' && cc.midIntervalMinutes) {
+    for (const slot of midSlots(bs, file, { everyMs: Math.max(1, cc.midIntervalMinutes) * 60000 })) {
+      const pod = buildPod(pool, ch, block, seedKey, i * 1000 + slot.index, 0, cc.midPodMin || cc.podMin, cc.midPodMax || cc.podMax, tags, podOpts({ inTags, commTags, outTags }));
+      addAt(slot.startMs / 1000, podRefs(pod));
+    }
+    return;
+  }
+  for (const { index: bi, startMs } of midSlots(bs, file, { percents: sortedPercents(cc.breakpoints) })) {
+    // Same legacy-breakpoint rule as the overlay path: only an auto-derived
+    // breakpoint (segmentCount 0) borrows the same-index pod step's settings.
+    const podStep = (!cc.segmentCount && cc.adPodSteps && cc.adPodSteps[bi]) || {};
+    const pod = buildPod(pool, ch, block, seedKey, i * 1000 + bi, 0,
+      podStep.podMin != null ? podStep.podMin : (cc.midPodMin || cc.podMin),
+      podStep.podMax != null ? podStep.podMax : (cc.midPodMax || cc.podMax), tags, podOpts({
+        inTags: firstNonEmpty(podStep.bumpInTags, inTags),
+        commTags: firstNonEmpty(podStep.commercialTags, commTags),
+        outTags: firstNonEmpty(podStep.bumpOutTags, outTags),
+      }));
+    addAt(startMs / 1000, podRefs(pod));
+  }
+}
+
+// The plan in core/fit.js's shape (mode 'breaks'): program segments at normal
+// speed, a break segment per run of breaks (its `refs` are the pods in order),
+// and the sped-up credits last when END CREDITS applies.
+function assemblePlan(d, atStart, mids, credits) {
+  const segments = [];
+  let air = 0;
+  let content = 0;
+  let index = 0;
+  let breakS = 0;
+  const pushBreak = (refs) => {
+    const len = refs.reduce((sum, r) => sum + r.durMs, 0) / 1000;
+    if (len <= 0.001) return;
+    segments.push({ kind: 'break', airStart: air, airEnd: air + len, contentAt: content, index: index++, refs });
+    air += len;
+    breakS += len;
+  };
+  const pushContent = (to) => {
+    if (to <= content + 1e-9) return;
+    segments.push({ kind: 'content', airStart: air, airEnd: air + (to - content), contentStart: content, rate: 1 });
+    air += to - content;
+    content = to;
+  };
+  pushBreak(atStart);
+  mids.sort((a, b) => a.atS - b.atS);
+  for (let m = 0; m < mids.length; m++) {
+    // Breaks at the same program position play back to back as one break.
+    const refs = mids[m].refs.slice();
+    while (m + 1 < mids.length && mids[m + 1].atS - mids[m].atS < 0.001) refs.push(...mids[++m].refs);
+    pushContent(mids[m].atS);
+    pushBreak(refs);
+  }
+  const bodyEnd = credits ? d - credits.leadS : d;
+  pushContent(bodyEnd);
+  if (credits) {
+    const len = credits.leadS / credits.rate;
+    segments.push({ kind: 'credits', airStart: air, airEnd: air + len, contentStart: content, rate: credits.rate });
+    air += len;
+    content = d;
+  }
+  return {
+    mode: 'breaks',
+    slotS: air,
+    contentS: d,
+    airS: air - breakS,
+    trimmed: false,
+    savedS: credits ? credits.leadS - credits.leadS / credits.rate : 0,
+    rateBody: 1,
+    rateCredits: credits ? credits.rate : 1,
+    creditsAtS: credits ? bodyEnd : null,
+    breakS,
+    segments,
+  };
+}
+
+// The break segments airing for one planned break that starts at breakStart:
+// the plan's pods back to back at their planned lengths, each spot swapped for
+// another of the same length (to the second), seeded by when the break airs
+// so the same break differs from one airing to the next. A spot is never
+// swapped for one already in this break.
+function plannedSegments(ch, seg, breakStart, breakEnd) {
+  const out = [];
+  const used = new Set(seg.refs.map((r) => r.entry));
+  const airing = Math.floor(breakStart / 1000);
+  let cursor = breakStart;
+  seg.refs.forEach((ref, j) => {
+    let entry = ref.entry;
+    if (ref.swaps) {
+      const options = ref.swaps.filter((e) => e === ref.entry || !used.has(e));
+      const pick = pickDeterministic(options, `swap:${ch.number}:${seg.index}:${j}`, airing);
+      if (pick && pick !== ref.entry) {
+        used.delete(ref.entry);
+        used.add(pick);
+        entry = pick;
+      }
+    }
+    out.push({ type: ref.type, label: ref.label, pod: ref.pod, entry, windowStart: cursor, windowEnd: cursor + ref.durMs });
+    cursor += ref.durMs;
+  });
+  if (out.length) out[out.length - 1].windowEnd = breakEnd;
+  return out;
+}
+
+// The planned break segment airing at atMs, or null. Carries fit: true (it's
+// in the schedule, so nothing is credited back live, breaks.js) and planned:
+// true (the Q key skips it by moving the view forward, breaks.js), plus the
+// whole break's start/end and segments.
+function planBreakAt(ch, source, atMs, knownPos) {
+  const pos = knownPos || computeSourcePosition(source, atMs, { ignoreContentLost: true });
+  if (!pos || !pos.file || !pos.file.fit || pos.file.fit.mode !== 'breaks') return null;
+  // Decided on the break windows themselves (fixed instants, planFileStartMs),
+  // not on pos.fitAt: the position's own float rounding can put the exact
+  // first millisecond of a break a hair inside the program before it.
+  const fileStartMs = planFileStartMs(source, pos, atMs);
+  let seg = null;
+  let breakStart = 0;
+  let breakEnd = 0;
+  for (const s of pos.file.fit.segments) {
+    if (s.kind !== 'break') continue;
+    breakStart = fileStartMs + s.airStart * 1000;
+    breakEnd = fileStartMs + s.airEnd * 1000;
+    if (atMs >= breakStart && atMs < breakEnd) {
+      seg = s;
+      break;
+    }
+  }
+  if (!seg) return null;
+  const segments = plannedSegments(ch, seg, breakStart, breakEnd);
+  if (!segments.length) return null;
+  const hit = segments.find((s) => atMs >= s.windowStart && atMs < s.windowEnd) || segments[0];
+  return {
+    type: hit.type, label: hit.label, entry: hit.entry, windowStart: hit.windowStart, windowEnd: hit.windowEnd,
+    pod: hit.pod, fit: true, planned: true, breakStart, breakEnd, segments,
+  };
+}
+
+// When the program itself starts in a planned file: after its leading break.
+function planProgramStartMs(source, pos, atMs) {
+  const first = pos && pos.file && pos.file.fit && pos.file.fit.segments[0];
+  const fileStartMs = planFileStartMs(source, pos, atMs);
+  return first && first.kind === 'break' ? fileStartMs + first.airEnd * 1000 : fileStartMs;
+}
+
+// Where a planned source's breaks can change: every segment edge of the
+// airing file's plan, its end (where the next file's leading break starts) and
+// every pod edge inside a planned break on screen. Exact instants: planBreakAt
+// decides on the same fixed windows, so no nudge past the edge is needed.
+function planCandidates(ch, source, fromMs, pos, candidates) {
+  if (!pos || !pos.file || !pos.file.fit) return;
+  const fileStartMs = planFileStartMs(source, pos, fromMs);
+  for (const seg of pos.file.fit.segments) {
+    const t = fileStartMs + seg.airStart * 1000;
+    if (t > fromMs) candidates.push(t);
+  }
+  const fileEndMs = fileStartMs + pos.file.duration * 1000;
+  if (fileEndMs > fromMs) candidates.push(fileEndMs);
+  const brk = planBreakAt(ch, source, fromMs, pos);
+  if (brk) brk.segments.forEach((s) => { if (s.windowStart > fromMs) candidates.push(s.windowStart); });
+}
+
 // Is a break showing on this channel at this exact instant? Checks
 // commercial (per its resolved timing mode), channelId, trivia, then upNext,
 // in that order — first one whose window contains atMs wins (two break
@@ -603,8 +1095,18 @@ function fitBreakAt(ch, source, atMs, pool, knownPos) {
 // Returns null when nothing is airing at atMs (including "no content
 // scheduled at all," e.g. an empty channel).
 export function resolveBreakAt(ch, atMs) {
-  const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   const source = resolveActiveSource(ch, atMs);
+  const brk = breakAtSource(ch, source, atMs);
+  // On a planned source a break tied to the clock (a station ID, trivia, a
+  // promo) still runs over the program, but it isn't credited back live
+  // either (fit: true, breaks.js): with breaks in the schedule, any lag would
+  // leave live playback out of step with the plan.
+  if (brk && source.breakPlan && !brk.fit) return { ...brk, fit: true };
+  return brk;
+}
+
+function breakAtSource(ch, source, atMs) {
+  const pool = (S.config.interstitials && S.config.interstitials.pool) || [];
   if (!source.anchor) return null;
   const block = source.block;
 
@@ -688,8 +1190,15 @@ export function resolveBreakAt(ch, atMs) {
   const posNow = computeSourcePosition(source, atMs, { ignoreContentLost: true });
   const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
-  const activeCommercials = resolveActiveCommercials(ch, atMs, fileTags);
-  const cc = activeCommercials.commercials; // this channel's effective commercials config (block/preset override already resolved) — short name, used constantly below
+  // A planned source's commercial cadence, flow steps, up-next idents and
+  // tag-forced roll are all in its plan (planBreakAt above), not run below.
+  if (source.breakPlan) {
+    const planned = planBreakAt(ch, source, atMs, posNow);
+    if (planned) return planned;
+  }
+
+  const activeCommercials = source.breakPlan ? null : resolveActiveCommercials(ch, atMs, fileTags);
+  const cc = activeCommercials && activeCommercials.commercials; // this channel's effective commercials config (block/preset override already resolved) — short name, used constantly below
   if (cc && cc.enabled !== false) {
     const timing = cc.timing || 'interval';
     // Keyed on the preset id when a preset governs (so ad selection travels
@@ -916,13 +1425,13 @@ export function resolveBreakAt(ch, atMs) {
     const hourAnchorMs = localHourAnchorMs(atMs);
     const { slotIndex, slotStart } = intervalSlot(hourAnchorMs, atMs, intervalMs);
     const seedKey = `channelId:${ch.number}`;
-    const win = windowFor(pool, 'channelId', ch, block, seedKey, slotIndex, slotStart, CHANNELID_TEXT_DURATION_S, fileTags);
+    const win = windowFor(pool, 'channelId', ch, block, seedKey, slotIndex, slotStart, channelIdTextDurationS(), fileTags);
     if (win) {
       if (atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'channelId', ...win };
-    } else if (atMs >= slotStart && atMs < slotStart + CHANNELID_TEXT_DURATION_S * 1000) {
+    } else if (atMs >= slotStart && atMs < slotStart + channelIdTextDurationS() * 1000) {
       // No authored channelId entries — auto-generated "YOU'RE WATCHING <channel>"
       // text bar, same cadence, matching today's zero-config behavior.
-      return { type: 'channelId', entry: null, windowStart: slotStart, windowEnd: slotStart + CHANNELID_TEXT_DURATION_S * 1000 };
+      return { type: 'channelId', entry: null, windowStart: slotStart, windowEnd: slotStart + channelIdTextDurationS() * 1000 };
     }
   }
 
@@ -931,7 +1440,7 @@ export function resolveBreakAt(ch, atMs) {
     const intervalMs = Math.max(1, tv.intervalMinutes || 20) * 60000;
     const { slotIndex, slotStart } = intervalSlot(source.anchor, atMs, intervalMs);
     const seedKey = `trivia:${ch.number}`;
-    const win = windowFor(pool, 'trivia', ch, block, seedKey, slotIndex, slotStart, TRIVIA_DURATION_S, fileTags);
+    const win = windowFor(pool, 'trivia', ch, block, seedKey, slotIndex, slotStart, triviaDurationS(), fileTags);
     if (win && atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'trivia', ...win };
   }
 
@@ -944,7 +1453,10 @@ export function resolveBreakAt(ch, atMs) {
   // floating-point equality — confirmed via a live test that this made
   // upNext never actually fire through real polling before this fix).
   const bs2 = boundarySlot(source, atMs, posNow);
-  if (bs2) {
+  // On a planned source the program starts after the file's leading break,
+  // which is where a promo or sweeps bumper (still laid over the program) goes.
+  const programStartMs = bs2 && source.breakPlan ? planProgramStartMs(source, posNow, atMs) : bs2 && bs2.fileStartMs;
+  if (bs2 && !source.breakPlan) {
     const seedKey = `upNext:${ch.number}:${block ? block.id : 'default'}`;
     const win = windowFor(pool, 'upNext', ch, block, seedKey, bs2.ordinal, bs2.fileStartMs, 0, fileTags);
     if (win && atMs >= win.windowStart && atMs < win.windowEnd) return { type: 'upNext', ...win };
@@ -965,7 +1477,7 @@ export function resolveBreakAt(ch, atMs) {
   // about to start (fileTags — already the tags of whatever's airing at/
   // after this boundary); 'post' checks the file that just ended, one slot
   // back in the same files[] loop.
-  if (bs2) {
+  if (bs2 && !source.breakPlan) {
     const forcedPool = pool.filter((e) => e.type === 'commercial' && e.contentTiming && e.contentTags && e.contentTags.length);
     if (forcedPool.length) {
       const prevFile = posNow.files[(posNow.fileIndex - 1 + posNow.files.length) % posNow.files.length];
@@ -1006,7 +1518,7 @@ export function resolveBreakAt(ch, atMs) {
       const entry = pickDeterministic(eligible, `promo:${ch.number}`, bs2.ordinal);
       if (entry) {
         const durationS = entryDurationS(entry, 0);
-        const windowStart = bs2.fileStartMs;
+        const windowStart = programStartMs;
         const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
         if (atMs >= windowStart && atMs < windowEnd) return { type: 'promo', entry, windowStart, windowEnd };
       }
@@ -1027,7 +1539,7 @@ export function resolveBreakAt(ch, atMs) {
       const entry = pickDeterministic(eligible, `sweepsPromo:${ch.number}`, bs2.ordinal);
       if (entry) {
         const durationS = entryDurationS(entry, 0);
-        const windowStart = bs2.fileStartMs;
+        const windowStart = programStartMs;
         const windowEnd = windowStart + durationS * 1000 + entryWaitMs(entry);
         if (atMs >= windowStart && atMs < windowEnd) return { type: 'sweepsPromo', entry, windowStart, windowEnd };
       }
@@ -1107,7 +1619,10 @@ function nextCandidateBoundary(ch, fromMs) {
   const posNow = computeSourcePosition(source, fromMs, { ignoreContentLost: true });
   const fileTags = effectiveContentTags(ch, posNow && posNow.file);
 
-  const cc = resolveActiveCommercials(ch, fromMs, fileTags).commercials;
+  // A planned source's program breaks are its plan's segment edges; the clock-
+  // tied kinds below (station IDs, trivia, file ends, sign-off) still apply.
+  if (source.breakPlan) planCandidates(ch, source, fromMs, posNow, candidates);
+  const cc = source.breakPlan ? null : resolveActiveCommercials(ch, fromMs, fileTags).commercials;
   if (cc && cc.enabled !== false) {
     const timing = cc.timing || 'interval';
     if (timing === 'interval') {
@@ -1342,6 +1857,37 @@ export function nextBreakStart(ch, fromMs, deadlineMs) {
     safety++;
   }
   return Infinity;
+}
+
+// Where the time machine's "end of break" jump (\ key, TV menu › TIME MACHINE ›
+// END OF BREAK) lands: a few seconds before the show comes back from the break
+// airing at fromMs, or from the next break when none is on (or the one on is
+// already that close to its end). Walks the whole back-to-back run of
+// interrupting segments, like endOfBreakRun, but stops at a text-only
+// station-ID bar, which plays over the show rather than instead of it.
+// Returns { target, breakEnd } in ms, or null when no break is found.
+export function breakEndAt(ch, fromMs, leadMs = BREAK_END_LEAD_MS) {
+  const runEnd = (brk) => {
+    let end = brk.windowEnd;
+    for (let i = 0; i < BOUNDARY_SAFETY_CAP; i++) {
+      const next = resolveBreakAt(ch, end);
+      if (!next || !isJumpableBreak(next)) break;
+      end = next.windowEnd;
+    }
+    return end;
+  };
+  const current = resolveBreakAt(ch, fromMs);
+  if (current && isJumpableBreak(current)) {
+    const end = runEnd(current);
+    // Pressing again in the last few seconds moves on to the next break instead of standing still.
+    if (end - leadMs > fromMs + 500) return { target: end - leadMs, breakEnd: end };
+  }
+  const start = nextBreakStart(ch, current ? runEnd(current) : fromMs);
+  if (!isFinite(start)) return null;
+  const brk = resolveBreakAt(ch, start);
+  if (!brk) return null;
+  const end = runEnd(brk);
+  return { target: Math.max(start, end - leadMs), breakEnd: end };
 }
 
 // The latest break start strictly before `beforeMs`, within the single file

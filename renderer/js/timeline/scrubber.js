@@ -15,16 +15,16 @@ const DAY = 24 * HOUR;
 export const SCRUB_HALF_WINDOW_MS = 3 * HOUR;
 export const SCRUB_RECENTER_MARGIN_MS = 30 * MIN;
 
-export function scrubWindow(viewedMs, current = null) {
+export function scrubWindow(viewedMs, current = null, halfMs = SCRUB_HALF_WINDOW_MS) {
   if (current && viewedMs >= current.from + SCRUB_RECENTER_MARGIN_MS && viewedMs <= current.to - SCRUB_RECENTER_MARGIN_MS) {
     return current;
   }
-  return { from: viewedMs - SCRUB_HALF_WINDOW_MS, to: viewedMs + SCRUB_HALF_WINDOW_MS };
+  return { from: viewedMs - halfMs, to: viewedMs + halfMs };
 }
 
 // A jump that leaves the window lands paused on a banner instead of playing.
-export function isFarJump(fromMs, toMs) {
-  return Math.abs(toMs - fromMs) > SCRUB_HALF_WINDOW_MS;
+export function isFarJump(fromMs, toMs, halfMs = SCRUB_HALF_WINDOW_MS) {
+  return Math.abs(toMs - fromMs) > halfMs;
 }
 
 // ---------- ◀▶ hold acceleration ----------
@@ -36,10 +36,12 @@ export const SCRUB_STEPS = [
   { untilMs: 6000, stepMs: 2 * MIN },
 ];
 
-export function scrubStepMs(heldMs) {
+// firstStepMs: GUIDE & TIME MACHINE › "First scrub step"; the later steps never get smaller.
+export function scrubStepMs(heldMs, firstStepMs = SCRUB_STEPS[0].stepMs) {
   const held = Math.max(0, Number.isFinite(heldMs) ? heldMs : 0);
-  const step = SCRUB_STEPS.find((s) => held < s.untilMs);
-  return step ? step.stepMs : 'boundary';
+  const i = SCRUB_STEPS.findIndex((s) => held < s.untilMs);
+  if (i < 0) return 'boundary';
+  return i === 0 ? firstStepMs : Math.max(firstStepMs, SCRUB_STEPS[i].stepMs);
 }
 
 // ---------- ▲▼ program boundaries ----------
@@ -88,41 +90,69 @@ export function yesterdaySameTime(nowMs) {
   return addLocalDays(nowMs, -1);
 }
 
-export function thisMorning(nowMs) {
-  const today = atLocalHour(nowMs, MORNING_HOUR);
+export function thisMorning(nowMs, hour = MORNING_HOUR) {
+  const today = atLocalHour(nowMs, hour);
   return today <= nowMs ? today : addLocalDays(today, -1);
 }
 
-export function lastSaturdayMorning(nowMs) {
+// The most recent `weekday` (0 Sunday … 6 Saturday) at `hour` that has already happened.
+export function lastSaturdayMorning(nowMs, hour = SATURDAY_HOUR, weekday = 6) {
   const d = new Date(nowMs);
-  const back = (d.getDay() - 6 + 7) % 7; // days since Saturday
-  let at = atLocalHour(addLocalDays(nowMs, -back), SATURDAY_HOUR);
+  const back = (d.getDay() - weekday + 7) % 7; // days since that weekday
+  let at = atLocalHour(addLocalDays(nowMs, -back), hour);
   if (at > nowMs) at = addLocalDays(at, -7);
   return at;
 }
 
+const DAY_NAMES = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+function hourText(hour) {
+  return `${hour % 12 === 0 ? 12 : hour % 12} ${hour < 12 ? 'AM' : 'PM'}`;
+}
+
+// GUIDE & TIME MACHINE › TIME MACHINE settings, with their defaults: the go-to
+// presets, the day picker's reach, the calendar's first weekday, the first
+// scrub step, the top shuttle speed and the strip's span. Pure.
+export function timeMachineOptions(config) {
+  const tm = (config && config.timeMachine) || {};
+  const num = (v, def, lo, hi) => { const n = Number(v); return v != null && v !== '' && Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : def; };
+  return {
+    morningHour: num(tm.morningHour, MORNING_HOUR, 0, 23),
+    weekendDay: num(tm.weekendDay, 6, 0, 6),
+    weekendHour: num(tm.weekendHour, SATURDAY_HOUR, 0, 23),
+    pickerDays: num(tm.pickerDays, PICKER_DAY_RANGE, 1, 30),
+    weekStart: tm.weekStart === 'mon' ? 1 : 0,
+    firstStepMs: num(tm.scrubStepSeconds, 10, 1, 60) * 1000,
+    maxShuttle: num(tm.maxShuttle, 7200, 60, 7200),
+    halfWindowMs: num(tm.scrubberHours, 3, 1, 12) * HOUR,
+  };
+}
+
 // The fixed targets, in menu order. programStart is the start of what's
-// airing at the viewed time (null on a channel with no schedule).
-export function goToTargets(nowMs, programStart = null) {
+// airing at the viewed time (null on a channel with no schedule). opts comes
+// from timeMachineOptions (the presets' hours and day).
+export function goToTargets(nowMs, programStart = null, opts = {}) {
+  const morning = opts.morningHour ?? MORNING_HOUR;
+  const day = opts.weekendDay ?? 6;
+  const hour = opts.weekendHour ?? SATURDAY_HOUR;
   const targets = [{ id: 'yesterday', label: 'YESTERDAY SAME TIME', at: yesterdaySameTime(nowMs) }];
   if (Number.isFinite(programStart)) targets.push({ id: 'showStart', label: 'START OF THIS SHOW', at: programStart });
-  targets.push({ id: 'morning', label: 'THIS MORNING (6 AM)', at: thisMorning(nowMs) });
-  targets.push({ id: 'saturday', label: 'LAST SATURDAY 8 AM', at: lastSaturdayMorning(nowMs) });
+  targets.push({ id: 'morning', label: `THIS MORNING (${hourText(morning)})`, at: thisMorning(nowMs, morning) });
+  targets.push({ id: 'saturday', label: `LAST ${DAY_NAMES[day]} ${hourText(hour)}`, at: lastSaturdayMorning(nowMs, hour, day) });
   return targets;
 }
 
-// The day/hour picker: a day offset from the viewed day (±7) and an hour.
+// The day/hour picker: a day offset from the viewed day (±7 unless set) and an hour.
 export const PICKER_DAY_RANGE = 7;
 
-export function clampPicker({ dayOffset = 0, hour = 0 } = {}) {
+export function clampPicker({ dayOffset = 0, hour = 0 } = {}, range = PICKER_DAY_RANGE) {
   return {
-    dayOffset: Math.max(-PICKER_DAY_RANGE, Math.min(PICKER_DAY_RANGE, Math.round(dayOffset))),
+    dayOffset: Math.max(-range, Math.min(range, Math.round(dayOffset))),
     hour: ((Math.round(hour) % 24) + 24) % 24,
   };
 }
 
-export function pickerTime(nowMs, picker) {
-  const { dayOffset, hour } = clampPicker(picker);
+export function pickerTime(nowMs, picker, range = PICKER_DAY_RANGE) {
+  const { dayOffset, hour } = clampPicker(picker, range);
   return atLocalHour(addLocalDays(nowMs, dayOffset), hour);
 }
 

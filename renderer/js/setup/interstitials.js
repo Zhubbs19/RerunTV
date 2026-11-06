@@ -354,10 +354,17 @@ export function renderCommercialsPanel() {
   const cm = S.config.commercials;
   commercialsIntervalEl.value = cm.intervalMinutes || 10;
   for (const [el, key] of NO_REPEAT_TOGGLES) el.checked = cm[key] != null ? !!cm[key] : !!cm.noRepeatInBreak;
+  if (pauseForBreaksEl) pauseForBreaksEl.checked = cm.pauseForBreaks !== false;
   if (snapFadesEl) snapFadesEl.checked = !!cm.snapToFades;
   if (snapWindowEl) snapWindowEl.value = cm.snapWindowMinutes || 3;
   if (foundCreditsEl) foundCreditsEl.checked = cm.useFoundCredits !== false;
 }
+
+// Shows pause for ad breaks (core/interstitials.js applyBreakPlan). On unless turned off.
+const pauseForBreaksEl = document.getElementById('commercials-pause-for-breaks');
+pauseForBreaksEl?.addEventListener('change', () => {
+  dispatch({ type: 'settings.set', path: ['commercials', 'pauseForBreaks'], value: pauseForBreaksEl.checked });
+});
 
 // Mid-show breaks lined up with fades (core/interstitials.js midSlots).
 const snapFadesEl = document.getElementById('commercials-snap-fades');

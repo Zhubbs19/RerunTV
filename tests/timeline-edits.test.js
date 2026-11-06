@@ -143,6 +143,10 @@ test('"Only this day" copies the airing exactly; "Replace with…" changes only 
 
 test('break edits target the layer that decides breaks, and say why when they cannot', async () => {
   const { state, edits, query } = await setup();
+  // The overlay model, where removing or adding breaks leaves program times alone;
+  // with shows pausing for breaks they move (break-plan.test.js).
+  state.S.config.commercials.pauseForBreaks = false;
+  state.bumpConfigGeneration();
   const ch = state.S.config.channels[0];
   const t = SATURDAY + 15 * HOUR + 7 * 60000;
   const program = query.querySchedule(ch, t, t + 1, { breaks: false }).programs[0];

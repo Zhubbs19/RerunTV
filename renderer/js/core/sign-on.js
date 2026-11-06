@@ -16,9 +16,9 @@ export function formatAway(ms) {
 }
 
 // Returns { title, lines } or null when there is nothing worth saying.
-export function buildSignOn({ now, lastSeenAt, reminders, formatTime }) {
+export function buildSignOn({ now, lastSeenAt, reminders, formatTime, awayMs = AWAY_MIN_MS }) {
   const lines = [];
-  if (Number.isFinite(lastSeenAt) && lastSeenAt > 0 && now - lastSeenAt >= AWAY_MIN_MS) {
+  if (Number.isFinite(lastSeenAt) && lastSeenAt > 0 && now - lastSeenAt >= awayMs) {
     lines.push(`AWAY FOR ${formatAway(now - lastSeenAt)}. THE SCHEDULE KEPT RUNNING.`);
   }
   const upcoming = (Array.isArray(reminders) ? reminders : [])

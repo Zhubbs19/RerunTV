@@ -17,7 +17,9 @@ async function setup(programFit, pool = []) {
   const interstitials = await load('core/interstitials.js');
   const fit = await load('core/fit.js');
   state.S.config = {
-    commercials: { timing: 'interval', intervalMinutes: 10 },
+    // Fitting off here means the overlay model, so "exactly as it was" holds;
+    // the break plan a non-fitted channel gets by default is tested in break-plan.test.js.
+    commercials: { timing: 'interval', intervalMinutes: 10, pauseForBreaks: false },
     interstitials: { pool, presets: [], flows: [] },
     programFit: programFit === undefined ? { enabled: true } : programFit,
   };

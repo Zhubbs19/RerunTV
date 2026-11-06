@@ -58,6 +58,9 @@ function makeCase(seed) {
   const commercials = {
     enabled: true, timing, intervalMinutes: pick(r, [1, 2, 5, 10, 12, 15, 30]), podMin, podMax, breakpoints: [25, 50, 75],
     noRepeatCommercials: noRepeat, noRepeatBumpers: r() < 0.5, noRepeatInterstitials: true,
+    // Half the seeds run each break model: shows pausing for breaks (the
+    // default, breaks planned into air time) and breaks laid over the program.
+    pauseForBreaks: seed % 2 === 0,
   };
   return { seed, ch, commercials, pool: entries, timing, podMax, noRepeat, d0, stationId: r() < 0.5 };
 }
@@ -166,7 +169,8 @@ test('pods respect podMax, never repeat an ad when asked, and only use entries m
         assert.ok(e.channelAffinity === 'any' || e.channelAffinity === c.ch.number, `seed ${seed}: ${e.id} is not for this channel`);
         assert.ok(e.blockAffinity == null || e.blockAffinity === 'blk', `seed ${seed}: ${e.id} is for another block`);
         if (c.timing === 'interval' && b.type === 'commercial') {
-          const slot = Math.floor((b.windowStart - c.ch.anchor) / intervalMs);
+          // A planned pod names itself; an overlay pod is its wall-clock slot.
+          const slot = b.planned ? `${b.breakStart}:${b.pod}` : Math.floor((b.windowStart - c.ch.anchor) / intervalMs);
           if (!pods.has(slot)) pods.set(slot, new Map());
           pods.get(slot).set(b.windowStart, e.id);
         }

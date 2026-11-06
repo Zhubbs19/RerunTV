@@ -3,9 +3,10 @@
 // the on-screen keyboard, and every change is a command like any setup edit.
 // Heavier work — folders, blocks, flows, the ad pool — is handed off to a
 // phone or computer.
+import { REMOTE_BUTTON_ACTIONS, REMOTE_BUTTON_SLOTS, defaultButtonAction } from '../remote/input.js';
 import { sortedChannels } from '../core/channels.js';
 import { openHandoff } from './handoff.js';
-import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, cycleSleepTimer, refreshPictureArea, toggleCrt } from '../playback/power.js';
+import { applyCrtState, applyDisplayWakeLock, applyVolume, cycleAspectMode, cyclePictureMode, refreshPictureArea, toggleCrt } from '../playback/power.js';
 import { applyBakedBars } from '../playback/bars.js';
 import { pcShutdownAvailable, pcShutdownEnabled, setPcShutdownEnabled, setShutsDownPcWithBox, shutsDownPcWithBox } from '../playback/pc-power.js';
 import { themePackEntries } from '../plugin/host.js';
@@ -14,6 +15,7 @@ import { applyTheme } from '../display/themes.js';
 import { applyDisplayMode } from '../display/mode.js';
 import { applyEra, clearEra, listEras } from '../display/eras.js';
 import { cycleChoice, stepNumber } from './setup-model.js';
+import { boxValue, tvSettings } from '../core/settings-registry.js';
 import { openLearnMode, openRemoteTest } from '../remote/test.js';
 import { openOnScreenKeyboard } from '../ui/on-screen-keyboard.js';
 import { isFavorite, toggleFavorite } from '../personal/state.js';
@@ -47,6 +49,8 @@ function setSetting(path, value, coalesce) {
 
 // ---------- Channels ----------
 
+const PAUSE_LABELS = { '': 'BOX SETTING', on: 'ON', off: 'OFF' };
+
 function channelItems() {
   return sortedChannels().map((ch) => ({
     label: `CH ${ch.number} · ${(ch.name || 'UNTITLED').toUpperCase()}${ch.hidden ? ' (HIDDEN)' : ''}`,
@@ -78,6 +82,7 @@ function channelMenu(ch) {
       valueItem('SHOWN WHEN SURFING', () => (ch.hidden ? 'NO' : 'YES'), () => dispatch({ type: 'channel.set', channel: ch.number, field: 'hidden', value: !ch.hidden })),
       valueItem('FAVOURITE', () => onOff(isFavorite(ch.number)), () => toggleFavorite(ch.number)),
       valueItem('RATING', () => ch.rating || 'NONE', (d) => dispatch({ type: 'channel.set', channel: ch.number, field: 'rating', value: cycleChoice(RATINGS, ch.rating || '', d) || null })),
+      valueItem('SHOWS PAUSE FOR ADS', () => PAUSE_LABELS[ch.pauseForBreaks || ''], (d) => dispatch({ type: 'channel.set', channel: ch.number, field: 'pauseForBreaks', value: cycleChoice(['', 'on', 'off'], ch.pauseForBreaks || '', d) || null })),
       {
         label: 'RENAME…',
         keepOpen: true,
@@ -99,51 +104,20 @@ function channelMenu(ch) {
   };
 }
 
-// ---------- Picture & sound ----------
+// ---------- Settings sections, from the registry ----------
+// PICTURE & SOUND, BREAKS, GUIDE & ON SCREEN, CONTROLS and POWER & PLAYBACK
+// list the registry's `tv` settings (core/settings-registry.js), so a setting
+// gets onto the remote by saying so there, with the same label source, range
+// and default as its setup row. `tv.custom` names a builder below for the few
+// that need more than stepping a value; `tv.apply` re-applies the change live.
 
-function crt(key) {
-  return (S.config.crtIntensity && Number.isFinite(S.config.crtIntensity[key])) ? S.config.crtIntensity[key] : 0;
-}
-
-function pictureItems() {
-  const display = () => S.config.display || {};
-  return [
-    valueItem('CRT EFFECT', () => onOff(S.config.crtEnabled !== false), () => toggleCrt()),
-    valueItem('SCANLINES', () => pct(crt('scanlines')), (d) => { setSetting(['crtIntensity', 'scanlines'], stepNumber(crt('scanlines'), d), 'crt:scanlines'); applyCrtState(); }),
-    valueItem('CURVATURE', () => pct(crt('curvature')), (d) => { setSetting(['crtIntensity', 'curvature'], stepNumber(crt('curvature'), d), 'crt:curvature'); applyCrtState(); }),
-    valueItem('PICTURE', () => String(S.config.pictureMode || 'normal').toUpperCase(), () => cyclePictureMode()),
-    valueItem('ASPECT', () => String(S.config.aspectMode || 'auto').toUpperCase(), () => cycleAspectMode()),
-    valueItem('SHOW VOLUME', () => pct((S.config.contentVolume ?? 1) * 100), (d) => { setSetting(['contentVolume'], stepNumber((S.config.contentVolume ?? 1) * 100, d) / 100, 'settings:contentVolume'); applyVolume(); }),
-    valueItem('COMMERCIAL VOLUME', () => pct((S.config.adVolume ?? 1) * 100), (d) => { setSetting(['adVolume'], stepNumber((S.config.adVolume ?? 1) * 100, d) / 100, 'settings:adVolume'); applyVolume(); }),
-    valueItem('CREDITS WHERE FOUND', () => onOff(!(S.config.commercials && S.config.commercials.useFoundCredits === false)), () => setSetting(['commercials', 'useFoundCredits'], !!(S.config.commercials && S.config.commercials.useFoundCredits === false))),
-    valueItem('BREAKS AT FADES', () => onOff(!!(S.config.commercials && S.config.commercials.snapToFades)), () => setSetting(['commercials', 'snapToFades'], !(S.config.commercials && S.config.commercials.snapToFades))),
-    valueItem('FILL WIDESCREEN', () => onOff(display().autoFillWidescreen), () => { setSetting(['display', 'autoFillWidescreen'], !display().autoFillWidescreen); refreshPictureArea(); }),
-    valueItem('REMOVE BLACK BARS', () => onOff(display().removeBakedBars), () => { setSetting(['display', 'removeBakedBars'], !display().removeBakedBars); applyBakedBars(); }),
-    valueItem('LOGO ON THE PICTURE', () => onOff(display().logoBugFollowPicture !== false), () => { setSetting(['display', 'logoBugFollowPicture'], display().logoBugFollowPicture === false); applyBakedBars(); }),
-    valueItem('HIDE LOGO IN BREAKS', () => onOff(display().logoBugHideOnBreaks), () => setSetting(['display', 'logoBugHideOnBreaks'], !display().logoBugHideOnBreaks)),
-  ];
-}
-
-// ---------- Tuning & controls ----------
-
-function controlsItems() {
-  const c = () => S.config.controls || {};
-  const startupChoices = () => ['last', 'first', ...sortedChannels().map((ch) => ch.number)];
-  const startupLabel = (v) => (v === 'first' ? 'FIRST CHANNEL' : typeof v === 'number' ? `CH ${v}` : 'LAST WATCHED');
-  return [
-    valueItem('STARTS ON', () => startupLabel(c().startupChannel), (d) => setSetting(['controls', 'startupChannel'], cycleChoice(startupChoices(), c().startupChannel || 'last', d))),
-    valueItem('NUMBER ENTRY WAIT', () => `${((Number.isFinite(c().entryDelayMs) ? c().entryDelayMs : 800) / 1000).toFixed(1)} SEC`, (d) => setSetting(['controls', 'entryDelayMs'], stepNumber(Number.isFinite(c().entryDelayMs) ? c().entryDelayMs : 800, d, { min: 200, max: 3000, step: 200 }))),
-    valueItem('SCAN STAYS', () => `${Number.isFinite(c().scanDwellSec) ? c().scanDwellSec : 8} SEC`, (d) => setSetting(['controls', 'scanDwellSec'], stepNumber(Number.isFinite(c().scanDwellSec) ? c().scanDwellSec : 8, d, { min: 2, max: 60, step: 2 }))),
-    valueItem('VOLUME STEP', () => pct(Number.isFinite(c().volumeStepPct) ? c().volumeStepPct : 10), (d) => setSetting(['controls', 'volumeStepPct'], stepNumber(Number.isFinite(c().volumeStepPct) ? c().volumeStepPct : 10, d, { min: 1, max: 25, step: 1 }))),
-    valueItem('MAXIMUM VOLUME', () => pct(Number.isFinite(c().volumeMaxPct) ? c().volumeMaxPct : 100), (d) => {
-      const next = stepNumber(Number.isFinite(c().volumeMaxPct) ? c().volumeMaxPct : 100, d, { min: 10, max: 100, step: 10 });
-      setSetting(['controls', 'volumeMaxPct'], next);
-      if (typeof S.config.volume === 'number' && S.config.volume > next / 100) { S.config.volume = next / 100; setSetting(['volume'], S.config.volume); applyVolume(); }
-    }),
-  ];
-}
-
-// ---------- Guide & theme ----------
+const APPLY = {
+  crt: () => applyCrtState(),
+  volume: () => applyVolume(),
+  pictureArea: () => refreshPictureArea(),
+  bars: () => applyBakedBars(),
+  wakeLock: () => applyDisplayWakeLock(),
+};
 
 function themeIds() {
   return themePackEntries().map((entry) => entry.id);
@@ -155,7 +129,7 @@ function themeLabel(id) {
 }
 
 // docs/design/10 §6: Left/Right steps built-in eras (plus "BOX SETTINGS" for
-// no era), applying live behind the menu the same way THEME below does.
+// no era), applying live behind the menu the same way THEME does.
 function eraLabel(id) {
   if (!id) return 'BOX SETTINGS';
   const era = listEras().find((e) => e.id === id);
@@ -168,8 +142,71 @@ function applyEraVisuals() {
   applyDisplayMode();
 }
 
+// The settings that need their own handling on the remote.
+const CUSTOM = {
+  crt: (label) => valueItem(label, () => onOff(S.config.crtEnabled !== false), () => toggleCrt()),
+  pictureMode: (label, entry) => valueItem(label, () => choiceLabel(entry, boxValue(entry, S.config)), () => cyclePictureMode()),
+  aspectMode: (label, entry) => valueItem(label, () => choiceLabel(entry, boxValue(entry, S.config)), () => cycleAspectMode()),
+  // Live preview: each step applies the theme straight away.
+  theme: (label) => valueItem(label, () => themeLabel(S.config.theme), (d) => { setSetting(['theme'], cycleChoice(themeIds(), S.config.theme, d)); applyTheme(); }),
+  startupChannel: (label) => {
+    const c = () => S.config.controls || {};
+    const choices = () => ['last', 'first', ...sortedChannels().map((ch) => ch.number)];
+    const text = (v) => (v === 'first' ? 'FIRST CHANNEL' : typeof v === 'number' ? `CH ${v}` : 'LAST WATCHED');
+    return valueItem(label, () => text(c().startupChannel), (d) => setSetting(['controls', 'startupChannel'], cycleChoice(choices(), c().startupChannel || 'last', d)));
+  },
+  // Lowering the maximum also brings the current volume under it.
+  volumeMax: (label, entry) => valueItem(label, () => pct(boxValue(entry, S.config)), (d) => {
+    const next = stepNumber(boxValue(entry, S.config), d, { min: 10, max: 100, step: 10 });
+    setSetting(entry.path, next);
+    if (typeof S.config.volume === 'number' && S.config.volume > next / 100) { S.config.volume = next / 100; setSetting(['volume'], S.config.volume); applyVolume(); }
+  }),
+};
+
+function choiceLabel(entry, value) {
+  const hit = (entry.choices || []).find(([v]) => String(v) === String(value));
+  return (hit ? hit[1] : String(value == null ? '' : value)).toUpperCase();
+}
+
+// A choice saved as a number (guide width 3) stays a number.
+function choiceValue(entry, value) {
+  return typeof entry.default === 'number' ? Number(value) : value;
+}
+
+function registryItem(entry) {
+  const tv = entry.tv;
+  const label = tv.label || entry.label.toUpperCase();
+  if (tv.custom) return CUSTOM[tv.custom] ? CUSTOM[tv.custom](label, entry) : null;
+  const read = () => boxValue(entry, S.config);
+  const done = () => { if (tv.apply && APPLY[tv.apply]) APPLY[tv.apply](); };
+  if (entry.type === 'switch') return valueItem(label, () => onOff(read()), () => { setSetting(entry.path, !read()); done(); });
+  if (entry.type === 'choice') {
+    const values = entry.choices.map(([v]) => String(v));
+    return valueItem(label, () => choiceLabel(entry, read()), (d) => { setSetting(entry.path, choiceValue(entry, cycleChoice(values, String(read()), d))); done(); });
+  }
+  if (entry.type === 'number') {
+    const scale = entry.scale || 1;
+    const r = entry.range || {};
+    const step = tv.step || r.step || 1;
+    const min = tv.min ?? r.min ?? 0;
+    const max = tv.max ?? r.max ?? min + 100 * step;
+    const unit = (r.unit || '').toUpperCase();
+    const shown = () => Number(read()) / scale;
+    const text = () => (Number.isInteger(step) ? String(Math.round(shown())) : shown().toFixed(1));
+    return valueItem(label, () => `${text()}${unit ? ` ${unit}` : ''}`, (d) => {
+      const next = Math.round(stepNumber(shown(), d, { min, max, step }) * 1000) / 1000;
+      setSetting(entry.path, next * scale, `tv:${entry.id}`);
+      done();
+    });
+  }
+  return null;
+}
+
+function registryItems(section) {
+  return tvSettings(section).map(registryItem).filter(Boolean);
+}
+
 function guideItems() {
-  const display = () => S.config.display || {};
   return [
     valueItem('ERA', () => eraLabel(S.config.era && S.config.era.id), (d) => {
       const ids = [null, ...listEras().map((e) => e.id)];
@@ -178,18 +215,7 @@ function guideItems() {
       commitConfigPatch(next ? `Era: ${eraLabel(next)}` : 'Clear era');
       applyEraVisuals();
     }),
-    // Live preview: each step applies the theme straight away.
-    valueItem('THEME', () => themeLabel(S.config.theme), (d) => { setSetting(['theme'], cycleChoice(themeIds(), S.config.theme, d)); applyTheme(); }),
-    valueItem('24-HOUR CLOCK', () => onOff(display().clock24), () => setSetting(['display', 'clock24'], !display().clock24)),
-    // The switch behind TIME MACHINE ›'s go-to targets, once desktop-only.
-    valueItem('TIME MACHINE', () => onOff(S.config.timeMachine && S.config.timeMachine.enabled), () => setSetting(['timeMachine', 'enabled'], !(S.config.timeMachine && S.config.timeMachine.enabled))),
-    valueItem('GUIDE COLUMN', () => `${display().guideSlotMinutes || 30} MIN`, (d) => setSetting(['display', 'guideSlotMinutes'], cycleChoice([15, 30, 60], display().guideSlotMinutes || 30, d))),
-    valueItem('GUIDE WIDTH', () => `${display().guideSlots || 3} COLUMNS`, (d) => setSetting(['display', 'guideSlots'], cycleChoice([2, 3, 4], display().guideSlots || 3, d))),
-    valueItem('CHANNEL NAMES', () => (display().guideChannelNames === 'short' ? 'CALL LETTERS' : 'FULL'), () => setSetting(['display', 'guideChannelNames'], display().guideChannelNames === 'short' ? 'full' : 'short')),
-    valueItem('GROUP SHORTS', () => onOff(display().guideMergeShorts !== false), () => setSetting(['display', 'guideMergeShorts'], display().guideMergeShorts === false)),
-    valueItem('GROUP SEARCH BY SHOW', () => onOff(display().searchGroupByTitle !== false), () => setSetting(['display', 'searchGroupByTitle'], display().searchGroupByTitle === false)),
-    valueItem('SPECIALS AT THE TOP', () => onOff(display().guideSpecialsAtTop), () => setSetting(['display', 'guideSpecialsAtTop'], !display().guideSpecialsAtTop)),
-    valueItem('CAST AND AIR DATE', () => onOff(display().programInfoCredits !== false), () => setSetting(['display', 'programInfoCredits'], display().programInfoCredits === false)),
+    ...registryItems('guide'),
   ];
 }
 
@@ -228,12 +254,8 @@ function updateItems() {
 }
 
 function powerItems() {
-  const standby = () => S.config.autoStandby || { enabled: false, intervalMinutes: 15 };
   return [
-    valueItem('AUTO STANDBY', () => onOff(standby().enabled), () => setSetting(['autoStandby', 'enabled'], !standby().enabled)),
-    valueItem('STANDBY AFTER', () => `${standby().intervalMinutes || 15} MIN`, (d) => setSetting(['autoStandby', 'intervalMinutes'], stepNumber(standby().intervalMinutes || 15, d, { min: 15, max: 240, step: 15 }))),
-    { label: 'SLEEP TIMER', keepOpen: true, run: () => cycleSleepTimer() },
-    valueItem('KEEP DISPLAY AWAKE', () => onOff(S.config.keepDisplayAwake?.enabled !== false), () => { setSetting(['keepDisplayAwake', 'enabled'], S.config.keepDisplayAwake?.enabled === false); applyDisplayWakeLock(); }),
+    ...registryItems('power'),
     // Shutting the PC down (playback/pc-power.js): off until allowed here,
     // and then optionally tied to the box's own power-off.
     ...(pcShutdownAvailable() ? [
@@ -243,21 +265,38 @@ function powerItems() {
   ];
 }
 
+// SETUP › REMOTE: what each button does on live TV (remote.buttons, the same
+// map as SYSTEM › REMOTE & KEYS). '' is the button's own default.
+function remoteButtonItems() {
+  const ids = ['', ...REMOTE_BUTTON_ACTIONS.map((a) => a.id)];
+  const actionLabel = (id) => (REMOTE_BUTTON_ACTIONS.find((a) => a.id === id) || {}).label || 'nothing';
+  return REMOTE_BUTTON_SLOTS.map((slot) => {
+    const current = () => (S.config.remote && S.config.remote.buttons && S.config.remote.buttons[slot.key]) || '';
+    const text = () => (current() ? actionLabel(current()) : `Default (${actionLabel(defaultButtonAction(slot.key))})`).toUpperCase();
+    return valueItem(`${slot.label.toUpperCase()} BUTTON`, text, (d) => {
+      const next = cycleChoice(ids, current(), d);
+      setSetting(['remote', 'buttons', slot.key], next || undefined);
+    });
+  });
+}
+
 // The SETUP section of the TV menu. Each entry is a menu item; `section` is
 // tv-menu.js's helper for a titled submenu.
 export function tvSetupItems(section) {
   return [
     section('CHANNELS', 'SETUP · CHANNELS', channelItems),
-    section('PICTURE & SOUND', 'SETUP · PICTURE & SOUND', pictureItems),
-    section('GUIDE & THEME', 'SETUP · GUIDE & THEME', guideItems),
+    section('PICTURE & SOUND', 'SETUP · PICTURE & SOUND', () => registryItems('picture')),
+    section('BREAKS', 'SETUP · BREAKS', () => registryItems('breaks')),
+    section('GUIDE & ON SCREEN', 'SETUP · GUIDE & ON SCREEN', guideItems),
     section('PARENTAL LOCK', 'SETUP · PARENTAL LOCK', pinItems),
     section('REMOTE', 'SETUP · REMOTE', () => [
       { label: 'REMOTE TEST', run: () => openRemoteTest() },
       { label: 'CUSTOMIZE BUTTONS', run: () => openLearnMode() },
+      ...remoteButtonItems(),
     ]),
     section('UPDATES', 'SETUP · UPDATES', updateItems),
-    section('CONTROLS', 'SETUP · CONTROLS', controlsItems),
-    section('POWER', 'SETUP · POWER', powerItems),
+    section('CONTROLS', 'SETUP · CONTROLS', () => registryItems('controls')),
+    section('POWER & PLAYBACK', 'SETUP · POWER & PLAYBACK', powerItems),
     { label: 'EDIT ON PHONE OR COMPUTER', run: () => openHandoff() },
   ];
 }

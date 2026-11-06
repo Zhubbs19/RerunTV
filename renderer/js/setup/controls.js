@@ -7,6 +7,9 @@ import { applyBakedBars } from '../playback/bars.js';
 import { KEY_ACTIONS, effectiveKey, keyProblem } from '../core/keymap.js';
 import { applyKeyHints } from '../core/key-remap.js';
 import { defaultForPath } from '../core/setting-defaults.js';
+import { SETTINGS, boxValue, settingById } from '../core/settings-registry.js';
+import { REMOTE_BUTTON_SLOTS } from '../remote/input.js';
+import { SettingRow } from '../ui/field.js';
 import { renderHighlights } from '../update/highlights.js';
 import { formatChannelNumber, sortedChannels, getChannel } from '../core/channels.js';
 import { updateTimeShiftBadge } from '../playback/timemachine.js';
@@ -208,10 +211,73 @@ document.querySelectorAll('.panel[data-reset-keys]').forEach((panel) => {
   window.addEventListener('reruntv:config-replaced', refreshState);
 });
 
+// ---------- Rows wired straight to a config path ----------
+// Every `bound` setting in the registry (core/settings-registry.js): its row's
+// control has the setting's id, and writes the setting's path. Unset paths
+// show the default; a number is clamped to its range (a blank one with no
+// default clears the key).
+const PATH_ROWS = SETTINGS.filter((entry) => entry.bound);
+
+export function renderPathRows() {
+  for (const entry of PATH_ROWS) {
+    const el = document.getElementById(entry.id);
+    if (!el) continue;
+    const value = boxValue(entry, S.config);
+    if (entry.type === 'switch') el.checked = !!value;
+    else el.value = value == null ? '' : String(value);
+  }
+}
+
+PATH_ROWS.forEach((entry) => {
+  const el = document.getElementById(entry.id);
+  if (!el) return;
+  el.addEventListener('change', () => {
+    let value = entry.type === 'switch' ? el.checked : el.value;
+    if (entry.type === 'number') {
+      const n = Number(value);
+      const r = entry.range || {};
+      if (value.trim() === '' || !Number.isFinite(n)) value = entry.default == null ? undefined : entry.default;
+      else value = Math.min(r.max ?? Infinity, Math.max(r.min ?? -Infinity, n));
+      el.value = value == null ? '' : String(value);
+    }
+    dispatch({ type: 'settings.set', path: entry.path, value });
+    // The leveler target changes the gain of what's playing now.
+    if (entry.id === 'leveler-target') applyVolume();
+  });
+});
+
+// ---------- Remote buttons (System › Remote & keys) ----------
+
+/**
+ * Draw one row per remappable remote button (remote.buttons), each a choice of action.
+ */
+export function renderRemoteButtons() {
+  const host = document.getElementById('remote-buttons-rows');
+  if (!host) return;
+  host.replaceChildren(...REMOTE_BUTTON_SLOTS.map((slot) => {
+    const entry = settingById(`remote-button-${slot.key}`);
+    const select = document.createElement('select');
+    select.id = entry.id;
+    for (const [value, text] of entry.choices) {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = text;
+      select.appendChild(opt);
+    }
+    const saved = boxValue(entry, S.config);
+    select.value = entry.choices.some(([v]) => v === saved) ? saved : '';
+    select.addEventListener('change', () => {
+      dispatch({ type: 'settings.set', path: entry.path, value: select.value || undefined }, { label: `Remote ${slot.label} button` });
+    });
+    return SettingRow({ searchId: entry.id, label: entry.label, control: select, synonyms: entry.synonyms });
+  }));
+}
+
 // ---------- Tuning & controls (System) ----------
 const controlsCfg = () => S.config.controls || {};
 
 export function renderControlsPanel() {
+  renderRemoteButtons();
   const c = controlsCfg();
   startupChannelEl.innerHTML = '';
   const addOption = (value, label) => {
@@ -236,6 +302,7 @@ export function renderControlsPanel() {
   rememberChannelVolumeEl.checked = !!c.rememberChannelVolume;
   sleepFadeOutEl.checked = c.sleepFadeOut !== false;
   tuneFadeInEl.value = String(Number.isFinite(c.tuneFadeInMs) ? c.tuneFadeInMs : 0);
+  renderPathRows();
 }
 
 const setControl = (key, value, opts) => dispatch({ type: 'settings.set', path: ['controls', key], value }, opts);

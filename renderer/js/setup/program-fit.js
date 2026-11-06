@@ -10,54 +10,20 @@ import { getChannelSchedule } from '../core/schedule.js';
 import { SettingRow, syncSettingDependencies } from '../ui/field.js';
 import { formatClock, getDisplayTitle } from '../core/util.js';
 import { commitOwnerFields } from './util.js';
+import { SETTINGS } from '../core/settings-registry.js';
 
-const FIT_FIELDS = [
-  {
-    key: 'gridMinutes', label: 'Line programs up on', type: 'select',
-    options: [[30, 'The half hour (:00 and :30)'], [60, 'The hour (:00)']],
-    help: 'Every program ends on one of these boundaries.',
-  },
-  {
-    key: 'strategy', label: 'When a program runs over', type: 'select',
-    options: [['auto', 'Shorten or extend, whichever changes it less'], ['extend', 'Always extend to the next boundary'], ['trim', 'Shorten whenever the limits allow']],
-    help: 'Shortening speeds up the end credits first, then plays the program slightly fast. Extending turns the spare time into breaks.',
-    synonyms: 'trim cut extend pad round',
-  },
-  { key: 'maxTrimMinutes', label: 'Shorten by at most', type: 'number', unit: 'min', min: 0, max: 30, step: 0.5, help: 'A program that would need more is extended instead.' },
-  {
-    key: 'maxSpeedupPct', label: 'Play a program faster by at most', type: 'number', unit: '%', min: 0, max: 10, step: 0.5,
-    help: 'Stations ran shows a few percent fast to fit them in. Above 5% voices start to sound rushed.', synonyms: 'time compression speed',
-  },
-  { key: 'minBreakMinutesPerHalfHour', label: 'Break time per half hour, at least', type: 'number', unit: 'min', min: 0, max: 15, step: 0.5, help: 'Reserved for ads in every slot. 0 uses only the time left over.' },
-  { key: 'breakPlacement', label: 'Put breaks', type: 'select', options: [['spread', 'Through the program'], ['end', 'All at the end']] },
-  { key: 'breaksPerHalfHour', label: 'Breaks per half hour', type: 'number', min: 1, max: 6, step: 1, help: 'When breaks go through the program. Each is at least a minute long.' },
-  { key: 'minProgramMinutes', label: 'Group clips shorter than', type: 'number', unit: 'min', min: 0, max: 60, step: 1, help: 'Short clips play back to back, and the next full program ends on the boundary.' },
-  {
-    key: 'fill', label: 'Fill breaks with', type: 'select',
-    options: [['pool', 'Ads and bumpers from the pool'], ['placeholders', 'Placeholder slots only']],
-    help: 'Placeholder slots mark where each commercial and bumper would go.', synonyms: 'commercials bumpers filler',
-  },
-  { key: 'placeholders', label: 'Show placeholder slots', type: 'checkbox', help: 'Where the pool runs out, a card marks each commercial or bumper slot. Off shows one “We’ll be right back” card.' },
-  { key: 'placeholderSpotSeconds', label: 'Placeholder commercial length', type: 'number', unit: 's', min: 5, max: 120, step: 1 },
-  { key: 'placeholderBumperSeconds', label: 'Placeholder bumper length', type: 'number', unit: 's', min: 0, max: 30, step: 1 },
-  { key: 'bumpers', label: 'Bumpers around each break', type: 'checkbox', help: 'A bump-in and bump-out from the pool, or a placeholder for each.' },
-  { key: 'disclaimer', label: 'Show the formatted-for-television card', type: 'checkbox', help: 'At the start of any program that was shortened to fit.', synonyms: 'modified edited disclaimer' },
-  { key: 'disclaimerText', label: 'Card text', type: 'text', help: 'Blank uses the standard wording.' },
-  {
-    key: 'creditsApplies', label: 'Speed up end credits', type: 'select',
-    options: [['fit', 'Only when a program needs the time'], ['always', 'Always'], ['movies', 'Movies only'], ['never', 'Never']],
-    help: 'A channel’s own END CREDITS settings take over when they are on.', synonyms: 'credits squeeze fast forward',
-  },
-  { key: 'creditsRate', label: 'Credits speed', type: 'number', unit: '×', min: 1, max: 8, step: 0.5 },
-  { key: 'creditsLeadSeconds', label: 'Credits length', type: 'number', unit: 's', min: 0, max: 1200, step: 5, help: 'For titles that don’t set their own in the TITLES tab.' },
-  { key: 'creditsMaxSqueezeSeconds', label: 'Credits save at most', type: 'number', unit: 's', min: 0, max: 1800, step: 5 },
-  {
-    key: 'creditsLayout', label: 'While credits run fast', type: 'select',
-    options: [['side', 'Credits left, up next on the right'], ['right', 'Credits right, up next on the left'], ['corner', 'Credits in the corner, up next below'], ['banner', 'Credits full screen, up next banner']],
-    help: 'The squeeze-back networks use to promote what airs next. Every channel with sped-up credits uses it unless its END CREDITS panel picks another.',
-    synonyms: 'squeeze back split screen credits up next promo',
-  },
-];
+// The fields come from the settings registry (core/settings-registry.js, the
+// `fit: true` entries), in the shape this file has always used.
+const FIT_FIELDS = SETTINGS.filter((entry) => entry.fit).map((entry) => ({
+  key: entry.path[1],
+  label: entry.label,
+  type: entry.type === 'switch' ? 'checkbox' : entry.type === 'choice' ? 'select' : entry.type,
+  options: entry.choices,
+  ...(entry.range || {}),
+  help: entry.help,
+  synonyms: entry.synonyms ? entry.synonyms.replace(/^fit time slots ?/, '') : '',
+  credits: entry.home === 'programming/credits',
+}));
 
 function optionLabel(field, value) {
   const hit = (field.options || []).find(([v]) => String(v) === String(value));
@@ -109,13 +75,14 @@ function boxSettings() {
   return (S.config && S.config.programFit) || {};
 }
 
-function buildBoxRows(host) {
+function buildBoxRows(host, creditsHost) {
   const enabledEl = document.createElement('input');
   enabledEl.type = 'checkbox';
   enabledEl.id = BOX_ENABLED_ID;
   enabledEl.addEventListener('change', () => {
     dispatch({ type: 'settings.set', path: ['programFit', 'enabled'], value: enabledEl.checked });
     syncSettingDependencies(host);
+    if (creditsHost) syncSettingDependencies(creditsHost);
   });
   boxControls.set('enabled', enabledEl);
   host.appendChild(SettingRow({
@@ -133,7 +100,7 @@ function buildBoxRows(host) {
       if (value === undefined) el.value = FIT_DEFAULTS[field.key];
     });
     boxControls.set(field.key, el);
-    host.appendChild(SettingRow({
+    (field.credits && creditsHost ? creditsHost : host).appendChild(SettingRow({
       key: `program-fit-${field.key}`, label: field.label, control: withUnit(field, el), help: field.help || '',
       dependsOn: BOX_ENABLED_ID, synonyms: `fit time slots ${field.synonyms || ''}`.trim(),
     }));
@@ -144,7 +111,9 @@ function buildBoxRows(host) {
 export function renderProgramFitPanel() {
   const host = document.getElementById('program-fit-rows');
   if (!host) return;
-  if (!boxRowsBuilt) buildBoxRows(host);
+  // BREAKS › END CREDITS holds the credits fields (docs/design/14 §4).
+  const creditsHost = document.getElementById('program-credits-rows');
+  if (!boxRowsBuilt) buildBoxRows(host, creditsHost);
   const box = boxSettings();
   boxControls.get('enabled').checked = !!box.enabled;
   FIT_FIELDS.forEach((field) => {
@@ -154,6 +123,7 @@ export function renderProgramFitPanel() {
     else el.value = String(value);
   });
   syncSettingDependencies(host);
+  if (creditsHost) syncSettingDependencies(creditsHost);
 }
 
 // ---------- Per-channel panel ----------

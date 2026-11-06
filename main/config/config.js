@@ -5,7 +5,7 @@ const { pathToFileURL } = require('url');
 const { compareConfigs, configSummary } = require('./diff');
 const { migrateRenamedPlugins } = require('./renamed-plugins');
 const crypto = require('crypto');
-const { createChangeAnnouncer, createConfigHost } = require('./host');
+const { createChangeAnnouncer, createConfigHost, REMOTE_DENIED_SETTINGS } = require('./host');
 const { getMainWindow } = require('./window-ref');
 const { atomicWriteFileSync } = require('../util/atomic-write');
 const { DB_FILE, DB_FILES, snapshotDb } = require('../util/db');
@@ -686,7 +686,7 @@ async function applyHeadlessSettingsPatch(patch) {
   function merge(target, incoming, pathSoFar, root = false) {
     for (const [key, value] of Object.entries(incoming)) {
       if (blocked.has(key) || key.startsWith('_') || !Object.prototype.hasOwnProperty.call(target, key)) continue;
-      if (root && ['channels', 'plugins', 'pluginSettingsMeta'].includes(key)) continue;
+      if (root && (['channels', 'plugins', 'pluginSettingsMeta'].includes(key) || REMOTE_DENIED_SETTINGS[key])) continue;
       const current = target[key];
       if (object(current) && object(value)) {
         merge(current, value, [...pathSoFar, key]);
@@ -700,9 +700,33 @@ async function applyHeadlessSettingsPatch(patch) {
     }
   }
   if (!object(patch)) throw new Error('A settings patch object is required');
-  merge(config, patch, [], true);
+  // The registry form (see the renderer's onCompanionApplySettings in app.js):
+  // checked by the settings registry, sent as remote settings.set commands so
+  // the host's deny-list applies.
+  if (Array.isArray(patch.$set) && patch.$set.length) {
+    const registry = await loadSettingsRegistry();
+    const commands = [];
+    for (const item of patch.$set.slice(0, 200)) {
+      const entry = item && Array.isArray(item.path) && item.path.every((k) => typeof k === 'string') ? registry.settingAtPath(item.path) : null;
+      if (!entry || !registry.remoteEditable(entry)) continue;
+      const checked = registry.coerceSettingValue(entry, item.value);
+      if (checked.ok) commands.push({ type: 'settings.set', path: entry.path, value: checked.value });
+    }
+    if (commands.length) await configHost.applyCommands(commands, { source: 'companion', remote: true, label: 'Companion settings' });
+  }
+  const rest = Object.fromEntries(Object.entries(patch).filter(([key]) => key !== '$set'));
+  merge(config, rest, [], true);
   if (ops.length) await configHost.applyCommands({ type: 'config.patch', ops, undo, label: 'Companion settings' }, { source: 'companion' });
   return true;
+}
+
+const SETTINGS_REGISTRY_PATH = path.join(__dirname, '..', '..', 'renderer', 'js', 'core', 'settings-registry.js');
+/**
+ * Load the renderer's settings registry (an ES module) in the main process.
+ * @returns {Promise<object>} The registry module.
+ */
+function loadSettingsRegistry() {
+  return import(pathToFileURL(SETTINGS_REGISTRY_PATH).href);
 }
 
 function registerBackupsIpc(ipcMain) {
@@ -779,5 +803,5 @@ function registerConfigIpc(ipcMain) {
 module.exports = {
   migrateUserDataIfNeeded, backupUserDataForUpdate, backupUserDataForUpdateAsync, shouldSkipFromUpdateBackup, isSharpChannelDrop, getConfigVersion,
   getConfigPath, loadConfig, saveConfig, backupCurrentConfig, listBackups, previewBackup, restoreBackup, deleteBackup, setBackupLabel, setBackupPinned,
-  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, configHost, onViewerRelevantConfigChange, onConfigApplied,
+  registerBackupsIpc, registerConfigIpc, applyHeadlessSettingsPatch, loadSettingsRegistry, configHost, onViewerRelevantConfigChange, onConfigApplied,
 };

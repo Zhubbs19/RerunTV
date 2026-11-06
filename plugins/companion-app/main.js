@@ -157,7 +157,7 @@ const SESSION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 async function activate(ctx) {
   const {
     ipcMain, createServer, getMainWindow, trackConnection, readJsonBody, serveStatic, loadConfig, mimeFor,
-    getLanAddresses, createLanAccess, isLanServiceEnabled, getInstalledThemes,
+    getLanAddresses, createLanAccess, isLanServiceEnabled, getInstalledThemes, getSettingsCatalogue,
   } = ctx;
   // Same-process plugin, so unlike an isolated plugin's proxied
   // ctx.sendToMainWindow (main-plugin-isolation.js), this talks to the real
@@ -238,6 +238,22 @@ async function activate(ctx) {
     if (req.method === 'GET' && url.pathname === '/api/themes') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
         .end(JSON.stringify(getInstalledThemes ? getInstalledThemes() : []));
+      return;
+    }
+
+    // The settings registry (renderer/js/core/settings-registry.js): sections,
+    // pages, labels, help, choices, ranges and defaults for every setting a
+    // phone may change. The app draws its Settings screen from this and saves
+    // with POST /api/settings { patch: { $set: [{ path, value }] } }. 404 on
+    // an older host, so the app falls back to its built-in tables.
+    if (req.method === 'GET' && url.pathname === '/api/settings/registry') {
+      if (typeof getSettingsCatalogue !== 'function') { res.writeHead(404).end('Not found'); return; }
+      try {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+          .end(JSON.stringify(await getSettingsCatalogue()));
+      } catch (e) {
+        res.writeHead(500).end('Settings registry unavailable');
+      }
       return;
     }
 

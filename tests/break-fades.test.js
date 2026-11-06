@@ -26,7 +26,9 @@ const MARKS = [
 
 function setup(state, commercials, marks = MARKS) {
   state.S.config = {
-    commercials,
+    // Fade snapping (midSlots) is shared by both break models; these check it on
+    // the raw program-position cadence the overlay model shows directly.
+    commercials: { pauseForBreaks: false, ...commercials },
     interstitials: { pool: [{ id: 'ad', type: 'commercial', channelAffinity: 'any', file: { path: 'ad.mp4', duration: 30 } }], presets: [], flows: [] },
   };
   state.bumpConfigGeneration();
