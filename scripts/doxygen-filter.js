@@ -19,6 +19,9 @@
 // A function or variable that is not exported (ES `export`, or a name in CommonJS
 // `module.exports`) is printed `static`, so Doxygen lists a file's internal helpers apart from
 // what it exports.
+//
+// Each `import ... from './x.js'` or top-level `require('./x')` of a file in the repo becomes an
+// `#include "<repo path>"`, which Doxygen draws as the file's dependency graphs (HAVE_DOT).
 const fs = require('node:fs');
 const path = require('node:path');
 const espree = require('espree');
@@ -304,11 +307,56 @@ function filterSource(source, relPath) {
     }
   }
 
+  // ---------- Dependencies, for the include graphs ----------
+  // A `#include` has to start its own line, so it goes on the first line of the statement that
+  // nothing else was printed on (a one-line `const x = require(...)` prints nothing itself).
+  const putInclude = (stmt, spec) => {
+    const target = typeof spec === 'string' && resolveModule(relPath, spec);
+    if (!target) return;
+    for (let line = stmt.loc.start.line; line <= stmt.loc.end.line; line++) {
+      if (!out[line - 1]) { out[line - 1] = `#include "${target}"`; return; }
+    }
+  };
+  const requiredSpec = (node) => {
+    while (node && (node.type === 'MemberExpression' || node.type === 'AwaitExpression')) node = node.object || node.argument;
+    return node && node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'require'
+      && node.arguments[0] && node.arguments[0].type === 'Literal' ? node.arguments[0].value : null;
+  };
+  for (const stmt of ast.body) {
+    if ((stmt.type === 'ImportDeclaration' || stmt.type === 'ExportAllDeclaration' || stmt.type === 'ExportNamedDeclaration') && stmt.source) {
+      putInclude(stmt, stmt.source.value);
+    } else if (stmt.type === 'VariableDeclaration') {
+      for (const d of stmt.declarations) putInclude(stmt, requiredSpec(d.init));
+    } else if (stmt.type === 'ExpressionStatement') {
+      putInclude(stmt, requiredSpec(stmt.expression));
+    }
+  }
+
   if (header) writeBlock(header, `\\file ${relPath}`);
   return out.join('\n');
 }
 
-module.exports = { filterSource };
+/**
+ * Resolves a relative import or require to the repo file it loads, the way Node and the browser
+ * would for this codebase's specifiers (an exact path, or one missing its `.js` / `/index.js`).
+ * @param {string} relPath The importing file, relative to the repo root with `/` separators.
+ * @param {string} spec The specifier as written (`./state.js`, `../util`).
+ * @returns {string|null} The imported file relative to the repo root, or null for a package,
+ *   a built-in, a URL, or a file that doesn't exist.
+ */
+function resolveModule(relPath, spec) {
+  if (!/^\.\.?\//.test(spec)) return null;
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(relPath), spec.split(/[?#]/)[0]));
+  if (base.startsWith('..')) return null;
+  for (const candidate of [base, `${base}.js`, `${base}.mjs`, `${base}.cjs`, `${base}/index.js`]) {
+    try {
+      if (fs.statSync(path.join(ROOT, candidate)).isFile()) return candidate;
+    } catch { /* not this one */ }
+  }
+  return null;
+}
+
+module.exports = { filterSource, parse, resolveModule };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2]);

@@ -357,7 +357,13 @@ identity theme, leaves it legacy. New installs start on `cable-guide-hd-15`.
   rewrites each file into C++-shaped declarations line for line. A comment block directly above a
   top-level function, class, class member or variable (no blank line between) documents it, and its
   first sentence is the summary. The first comment block before any code documents the file. Keep
-  writing ordinary `//` comments; nothing needs Doxygen markup. The Pages workflow (`.github/workflows/pages.yml`)
+  writing ordinary `//` comments; nothing needs Doxygen markup. The filter also prints each relative import
+  as an `#include`, which is what Doxygen's dependency graphs come from (Graphviz needed; without it the build
+  skips the graphs). Call, caller and class graphs come from `scripts/doxygen-graphs.js` instead of Doxygen
+  (whose parser loses function bodies after `export` and links calls by bare name): it follows each file's
+  imports to the real function, so a graph edge is only drawn when the reference resolves. The look matches
+  the website: `docs/doxygen/rerun.css`, plus the header bar and graph recoloring that `build-docs.js` applies
+  after Doxygen runs. The Pages workflow (`.github/workflows/pages.yml`)
   publishes it under `api/` of the project site, behind the website in `site/` (a Vite + React app: `npm run site` builds both
   into `_site/`, `npm run site:dev` serves it with live reload; feature pages are `site/src/pages/features/*.jsx`,
   listed in order in `site/src/features.json`); the Download button follows the newest release, so the page has no version to bump.

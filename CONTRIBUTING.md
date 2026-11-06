@@ -26,7 +26,7 @@ npm start      # run the app from source
 npm test       # unit tests (must pass before you open a PR)
 npm run lint   # ESLint (eslint.config.js); CI fails on any finding
 npm run test:coverage  # the same tests with a line/branch coverage report
-npm run docs   # code reference in docs/api/html (needs Doxygen on PATH)
+npm run docs   # code reference in docs/api/html (needs Doxygen; Graphviz adds the graphs)
 npm run site   # the GitHub Pages site in _site/ (the Vite + React site + the code reference)
 npm run site:dev  # the site with live reload while you edit site/src
 ```

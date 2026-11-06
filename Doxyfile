@@ -54,6 +54,40 @@ IMAGE_PATH             = docs/screenshots
 SOURCE_BROWSER         = YES
 STRIP_CODE_COMMENTS    = NO
 GENERATE_TREEVIEW      = YES
-HTML_COLORSTYLE        = TOGGLE
 GENERATE_LATEX         = NO
+
+# The website's look (site/src/style.css): dark only, since the site is. docs/doxygen/rerun.css
+# restyles the pages; scripts/build-docs.js adds the site's header bar and recolors the graphs.
+HTML_COLORSTYLE        = DARK
+HTML_EXTRA_STYLESHEET  = docs/doxygen/rerun.css
+HTML_EXTRA_FILES       = docs/doxygen/icon.png \
+                         docs/doxygen/favicon.png
+HTML_DYNAMIC_SECTIONS  = YES
+# The design docs' ```mermaid blocks are drawn in the browser, by a pinned Mermaid release.
+MERMAID_JS_URL         = https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs
+
+#---------------------------------------------------------------------------
+# Graphs (Graphviz)
+#---------------------------------------------------------------------------
+# scripts/build-docs.js turns HAVE_DOT on when it finds Graphviz's dot. The filter prints each
+# relative import as an #include, which is what the dependency graphs show. Doxygen's own call and
+# class graphs stay off: its code parser loses a function's body after JavaScript's `export` and
+# links calls by bare name. scripts/doxygen-graphs.js draws both from the JavaScript instead.
 HAVE_DOT               = NO
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_NUM_THREADS        = 0
+DOT_COMMON_ATTR        = "fontname=\"Helvetica,Arial,sans-serif\",fontsize=10"
+DOT_EDGE_ATTR          = "labelfontname=\"Helvetica,Arial,sans-serif\",labelfontsize=10"
+DOT_GRAPH_MAX_NODES    = 150
+MAX_DOT_GRAPH_DEPTH    = 2
+CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+GRAPHICAL_HIERARCHY    = YES
+DIRECTORY_GRAPH        = YES
+DIR_GRAPH_MAX_DEPTH    = 1
+

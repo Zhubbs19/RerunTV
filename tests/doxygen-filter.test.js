@@ -101,6 +101,33 @@ test('a sentence end inside a code span does not end the brief', () => {
   assert.equal(out[2],'/// \\brief Returns `{ a?, b? }` or `x.<y>` for the caller. \\details Details here.');
 });
 
+test('relative imports and requires of repo files become #include lines for the dependency graphs', () => {
+  const out = lines(filterSource([
+    "import { S } from './state.js';",
+    "import fs from 'node:fs';",
+    'import {',
+    '  dispatch,',
+    "} from './commands.js';",
+    "export { formatClock } from './util.js';",
+    "import { gone } from './missing.js';",
+  ].join('\n'), 'renderer/js/core/x.js'));
+  assert.deepEqual(out, [
+    '#include "renderer/js/core/state.js"',
+    '',
+    '#include "renderer/js/core/commands.js"',
+    '',
+    '',
+    '#include "renderer/js/core/util.js"',
+    '',
+  ]);
+  const cjs = lines(filterSource([
+    "const { loadConfig } = require('./config');",
+    "const path = require('node:path');",
+    "require('../util/db');",
+  ].join('\n'), 'main/config/x.js'));
+  assert.deepEqual(cjs, ['#include "main/config/config.js"', '', '#include "main/util/db.js"']);
+});
+
 test('a file it cannot parse comes out blank instead of failing the build', () => {
   const write = process.stderr.write;
   process.stderr.write = () => true;
