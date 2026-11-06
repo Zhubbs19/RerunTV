@@ -1,7 +1,7 @@
 // scripts/doxygen-graphs.js: the call and class graphs `npm run docs` adds to the code reference.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { analyzeSource, linkModules, callGraphDot, insertIntoMember } = require('../scripts/doxygen-graphs');
+const { analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, insertIntoMember } = require('../scripts/doxygen-graphs');
 
 // A tiny repo: each entry is a file's source. Imports resolve between these files only.
 function graphOf(files) {
@@ -95,14 +95,48 @@ test('methods call each other through this, and new X() links classes and constr
   assert.deepEqual([...graph.creates.get('a.js::Session.Session')], ['a.js::Framer']);
 });
 
-test('a call graph draws the subject in yellow and stops at its depth limit', () => {
-  const graph = graphOf({ 'a.js': 'function a() { b(); }\nfunction b() { c(); }\nfunction c() { d(); }\nfunction d() {}' });
+test('a call graph groups boxes by file and only takes a second step when the first is small', () => {
+  const graph = graphOf({
+    'a.js': "import { far } from './b.js';\nexport function a() { b(); far(); }\nfunction b() { c(); }\nfunction c() { d(); }\nfunction d() {}",
+    'b.js': 'export function far() {}',
+  });
   const dot = callGraphDot('a.js::a', graph.calls, graph.nodes, (k) => `${k}.html`, false);
   assert.match(dot, /n0 \[label=<a\(\)>, fillcolor="#f6c90e"/);
   assert.match(dot, /n1 \[label=<b\(\)>.*href="a\.js::b\.html"/);
-  assert.match(dot, /n2 \[label=<c\(\)>, style="filled,rounded,dashed"/); // c calls d, which is a third step out
-  assert.doesNotMatch(dot, /d\(\)/);
+  assert.match(dot, /label=<c\(\)>/); // a second step: a calls only two functions
+  assert.doesNotMatch(dot, /d\(\)/); // a third step is never drawn
+  // One frame per file, the graph's own file first; boxes carry only their names.
+  assert.ok(dot.indexOf('>a.js</FONT>') < dot.indexOf('>b.js</FONT>'));
+  assert.match(dot, /label=<far\(\)>/);
   assert.equal(callGraphDot('a.js::d', graph.calls, graph.nodes, () => null, false), null);
+});
+
+test('a busy function gets one step and a "+N more" box instead of a tangle', () => {
+  const names = Array.from({ length: 30 }, (_, i) => `f${String(i).padStart(2, '0')}`);
+  const graph = graphOf({
+    'a.js': `function hub() { ${names.map((n) => `${n}();`).join(' ')} }\n${names.map((n) => `function ${n}() { leaf(); }`).join('\n')}\nfunction leaf() {}`,
+  });
+  const dot = callGraphDot('a.js::hub', graph.calls, graph.nodes, () => null, false);
+  assert.match(dot, /label=<\+ 10 more>/);
+  assert.doesNotMatch(dot, /leaf\(\)/);
+  // Edges at the subject share one end, so the list meets it as one trunk.
+  assert.match(dot, /n0 -> more \[style=dashed, sametail=subject\]/);
+  assert.match(dot, /n0 -> n1 \[sametail=subject\]/);
+  const callers = callGraphDot('a.js::leaf', graph.callers, graph.nodes, () => null, true);
+  assert.match(callers, /more -> n0 \[style=dashed, samehead=subject\]/);
+});
+
+test('a file graph lists files by folder, and summarizes by folder past its limit', () => {
+  const few = fileGraphDot('src/a.js', new Set(['src/b.js', 'lib/c.js']), (f) => `${f}.html`, (d) => `${d}.dir`, false);
+  assert.match(few, /focus \[label=<src\/a\.js>/);
+  assert.match(few, />lib<\/FONT>/);
+  assert.match(few, /label=<c\.js>, href="lib\/c\.js\.html"/);
+  assert.match(few, /focus -> f0;/);
+  const many = new Set(Array.from({ length: 40 }, (_, i) => (i < 25 ? `ui/x${i}.js` : `core/y${i}.js`)));
+  const summary = fileGraphDot('src/a.js', many, () => null, (d) => `${d}.dir`, true);
+  assert.match(summary, /label=<ui\/ {2}<FONT COLOR="#b4bce6">25 files<\/FONT>>, href="ui\.dir"/);
+  assert.match(summary, /d0 -> focus;/);
+  assert.equal(fileGraphDot('src/a.js', new Set(), () => null, () => null, false), null);
 });
 
 test('graph sections go at the end of the right member', () => {
@@ -124,4 +158,19 @@ test('graph sections go at the end of the right member', () => {
   const out = insertIntoMember(page, 'a2', 'GRAPH');
   assert.ok(out.includes('<p>Two.</p>\nGRAPH</div>\n</div>\n<!-- contents -->'));
   assert.equal(insertIntoMember(page, 'missing', 'GRAPH'), page);
+});
+
+test('a class graph lists the properties its methods create, then its methods', () => {
+  const source = [
+    'class Box {',
+    '  size = 1;',
+    '  constructor(o) { this.host = o; this.onTick = () => { this.count = 0; }; }',
+    '  open() { function inner() { this.notMine = 1; } this.host = 2; }',
+    '}',
+  ].join('\n');
+  const modules = new Map([['a.js', analyzeSource(source, 'a.js', () => null)]]);
+  assert.deepEqual(modules.get('a.js').classes.get('Box').fields, ['size', 'host', 'onTick', 'count']);
+  const dot = classGraphDot('a.js::Box', linkModules(modules), modules, () => null);
+  assert.ok(dot.indexOf('>size</FONT>') < dot.indexOf('<HR/>'));
+  assert.ok(dot.indexOf('<HR/>') < dot.indexOf('>open()</FONT>'));
 });

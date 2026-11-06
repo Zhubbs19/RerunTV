@@ -69,10 +69,11 @@ MERMAID_JS_URL         = https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermai
 #---------------------------------------------------------------------------
 # Graphs (Graphviz)
 #---------------------------------------------------------------------------
-# scripts/build-docs.js turns HAVE_DOT on when it finds Graphviz's dot. The filter prints each
-# relative import as an #include, which is what the dependency graphs show. Doxygen's own call and
-# class graphs stay off: its code parser loses a function's body after JavaScript's `export` and
-# links calls by bare name. scripts/doxygen-graphs.js draws both from the JavaScript instead.
+# scripts/build-docs.js turns HAVE_DOT on when it finds Graphviz's dot. Doxygen draws only the folder
+# graphs, from the #include the filter prints for each relative import. The file import graphs and the
+# call, caller and class graphs come from scripts/doxygen-graphs.js, which reads the JavaScript itself
+# (Doxygen's code parser loses a function's body after `export` and links calls by bare name) and
+# lays them out for reading: grouped by file or folder, one step out, long lists summarized.
 HAVE_DOT               = NO
 DOT_IMAGE_FORMAT       = svg
 INTERACTIVE_SVG        = YES
@@ -83,8 +84,8 @@ DOT_GRAPH_MAX_NODES    = 150
 MAX_DOT_GRAPH_DEPTH    = 2
 CLASS_GRAPH            = YES
 COLLABORATION_GRAPH    = NO
-INCLUDE_GRAPH          = YES
-INCLUDED_BY_GRAPH      = YES
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
 CALL_GRAPH             = NO
 CALLER_GRAPH           = NO
 GRAPHICAL_HIERARCHY    = YES

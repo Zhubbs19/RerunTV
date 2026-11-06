@@ -14,15 +14,18 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const { parse, resolveModule } = require('./doxygen-filter');
+const { parse, resolveModule, instanceFields } = require('./doxygen-filter');
 
-// Graph limits: how many steps out from the function, and how many boxes before the graph is cut.
-const MAX_DEPTH = 2;
-const MAX_NODES = 24;
+// Graph limits, chosen for readability: a second step out is only drawn when the first step has at
+// most SECOND_STEP_LIMIT functions; a graph keeps at most MAX_NODES boxes (the rest become one
+// "+N more" box); a file graph lists files up to MAX_FILES and summarizes by folder past that.
+const SECOND_STEP_LIMIT = 6;
+const MAX_NODES = 20;
+const MAX_FILES = 30;
 
 // The site palette (site/src/style.css).
 const PALETTE = {
-  cell: '#2a3a9a', cell2: '#23307f', rule: '#3a4bb0', text: '#eef1ff', dim: '#b4bce6',
+  cell: '#2a3a9a', cell2: '#23307f', bg2: '#111a48', rule: '#3a4bb0', text: '#eef1ff', dim: '#b4bce6',
   yellow: '#f6c90e', ink: '#1a1400', cyan: '#5fd6ff', edge: '#9fb0ff', head: '#0a0f2c',
 };
 
@@ -113,7 +116,7 @@ function requireTarget(node, relPath, resolve) {
  * @param {string} source The file's text.
  * @param {string} relPath The file, relative to the repo root with `/` separators.
  * @param {Function} [resolve=resolveModule] Resolves an import specifier to a repo path, or null.
- * @returns {?object} { functions, classes, exports, reexports, imports }, or null if it can't be parsed.
+ * @returns {?object} { functions, classes, exports, reexports, imports, deps }, or null if it can't be parsed.
  */
 function analyzeSource(source, relPath, resolve = resolveModule) {
   const { ast } = parse(source.replace(/^\uFEFF/, ''));
@@ -123,18 +126,22 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
   const exportsMap = new Map(); // exported name -> local name
   const reexports = []; // { name ('*' for all), from: { file, name } }
   const imports = new Map(); // local name -> { file, name ('*' or 'default' or a name) }
+  const deps = new Set(); // every repo file this one imports or requires at the top level
 
   const addFunction = (name, fn) => { if (name && !functions.has(name)) functions.set(name, { name, fn }); };
   const addClass = (name, cls) => {
     if (!name || classes.has(name)) return;
     const methods = new Map();
+    const fields = [];
     for (const m of cls.body.body) {
       const methodName = m.computed || !m.key ? null : keyName(m.key);
       const fn = m.type === 'MethodDefinition' ? m.value : m.type === 'PropertyDefinition' && isFunctionNode(m.value) ? m.value : null;
       if (methodName && fn) methods.set(m.kind === 'constructor' ? name : methodName, fn);
+      else if (methodName && m.type === 'PropertyDefinition') fields.push(methodName);
     }
+    fields.push(...instanceFields(cls).map((f) => f.name));
     const superName = cls.superClass ? source.slice(cls.superClass.range[0], cls.superClass.range[1]) : null;
-    classes.set(name, { name, superName, methods });
+    classes.set(name, { name, superName, methods, fields });
   };
   const addObjectFunctions = (obj) => {
     for (const p of obj.properties) {
@@ -160,6 +167,7 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
     if (decl.type === 'VariableDeclaration') {
       for (const d of decl.declarations) {
         const target = requireTarget(d.init, relPath, resolve);
+        if (target) deps.add(target.file);
         if (target && d.id.type === 'Identifier') imports.set(d.id.name, target);
         else if (target && d.id.type === 'ObjectPattern') {
           for (const p of d.id.properties) {
@@ -179,6 +187,7 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
     if (stmt.type === 'ImportDeclaration') {
       const file = resolve(relPath, stmt.source.value);
       if (!file) continue;
+      deps.add(file);
       for (const s of stmt.specifiers) {
         const name = s.type === 'ImportNamespaceSpecifier' ? '*' : s.type === 'ImportDefaultSpecifier' ? 'default' : (s.imported.name || s.imported.value);
         imports.set(s.local.name, { file, name });
@@ -186,6 +195,7 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
     } else if (stmt.type === 'ExportNamedDeclaration') {
       if (stmt.declaration) declare(stmt.declaration, true);
       const from = stmt.source ? resolve(relPath, stmt.source.value) : null;
+      if (from) deps.add(from);
       for (const s of stmt.specifiers) {
         const exported = s.exported.name || s.exported.value;
         const local = s.local.name || s.local.value;
@@ -194,6 +204,7 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
       }
     } else if (stmt.type === 'ExportAllDeclaration') {
       const from = resolve(relPath, stmt.source.value);
+      if (from) deps.add(from);
       if (from) reexports.push({ name: stmt.exported ? stmt.exported.name : '*', from: { file: from, name: '*' } });
     } else if (stmt.type === 'ExportDefaultDeclaration') {
       const d = stmt.declaration;
@@ -202,6 +213,8 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
       else if (d.type === 'FunctionDeclaration' || d.type === 'ClassDeclaration') exportsMap.set('default', declare(d, true));
     } else if (stmt.type === 'ExpressionStatement') {
       const e = stmt.expression;
+      const required = requireTarget(e, relPath, resolve);
+      if (required) deps.add(required.file);
       if (e.type === 'AssignmentExpression' && isModuleExports(e.left)) {
         if (e.right.type === 'ObjectExpression') addObjectFunctions(e.right);
         else if (e.right.type === 'Identifier') exportsMap.set('default', e.right.name);
@@ -257,7 +270,7 @@ function analyzeSource(source, relPath, resolve = resolveModule) {
     c.methodRefs = new Map();
     for (const [name, fn] of c.methods) c.methodRefs.set(name, refsOf(fn, c.name));
   }
-  return { functions, classes, exports: exportsMap, reexports, imports };
+  return { functions, classes, exports: exportsMap, reexports, imports, deps };
 }
 
 // ---------- Linking files together ----------
@@ -374,9 +387,9 @@ function dotString(text) {
 function graphHead(rankdir) {
   return [
     'digraph G {',
-    `  graph [rankdir=${rankdir}, bgcolor="transparent", nodesep=0.18, ranksep=0.35, pad=0.08];`,
-    `  node [shape=box, style="filled,rounded", fontname="Helvetica,Arial,sans-serif", fontsize=10, height=0.26, margin="0.10,0.04", fillcolor="${PALETTE.cell}", color="${PALETTE.cyan}", fontcolor="${PALETTE.text}", penwidth=1];`,
-    `  edge [color="${PALETTE.edge}", arrowsize=0.6, penwidth=1];`,
+    `  graph [rankdir=${rankdir}, bgcolor="transparent", nodesep=0.14, ranksep=0.6, pad=0.1, newrank=true, fontname="Helvetica,Arial,sans-serif"];`,
+    `  node [shape=box, style="filled,rounded", fontname="Helvetica,Arial,sans-serif", fontsize=11, height=0.3, margin="0.12,0.05", fillcolor="${PALETTE.cell}", color="${PALETTE.cyan}", fontcolor="${PALETTE.text}", penwidth=1];`,
+    `  edge [color="${PALETTE.edge}", arrowsize=0.7, penwidth=1.3];`,
   ];
 }
 
@@ -396,9 +409,44 @@ function nodeLabel(node, homeFile, focus) {
 }
 
 /**
- * The DOT source for one function's call graph (what it calls) or caller graph (what calls it),
- * MAX_DEPTH steps out and at most MAX_NODES boxes. A box whose own edges were left out has a
- * dashed border.
+ * A function's or method's name as it appears in a call graph box.
+ * @param {object} node The node description from linkModules.
+ * @returns {string} `name()`, or `Class.name()` for a method.
+ */
+function shortName(node) {
+  return node.kind === 'method' ? `${node.className}.${node.name}()` : `${node.name}()`;
+}
+
+/**
+ * Lays out boxes grouped in one labelled frame per file (or folder), so a box only needs its own
+ * name. The frame of the graph's own file comes first.
+ * @param {string[]} lines DOT lines to add to.
+ * @param {Array<{ id: string, group: string, attrs: string[] }>} boxes The boxes.
+ * @param {string} home The group drawn first.
+ * @param {Function} [groupHref] Returns a link for a group's frame, or null.
+ */
+function clusteredBoxes(lines, boxes, home, groupHref = () => null) {
+  const groups = new Map();
+  for (const box of boxes) {
+    if (!groups.has(box.group)) groups.set(box.group, []);
+    groups.get(box.group).push(box);
+  }
+  const names = [...groups.keys()].sort((a, b) => (a === home ? -1 : b === home ? 1 : a.localeCompare(b)));
+  names.forEach((group, i) => {
+    const href = groupHref(group);
+    lines.push(`  subgraph cluster_${i} {`);
+    lines.push(`    label=<<FONT POINT-SIZE="9" COLOR="${PALETTE.cyan}">${dotHtml(group)}</FONT>>; labeljust=l; style="rounded,filled"; fillcolor="${PALETTE.bg2}"; color="${PALETTE.rule}"; penwidth=1; margin=8;`);
+    if (href) lines.push(`    href="${dotString(href)}";`);
+    for (const box of groups.get(group)) lines.push(`    ${box.id} [${box.attrs.join(', ')}];`);
+    lines.push('  }');
+  });
+}
+
+/**
+ * The DOT source for one function's call graph (what it calls) or caller graph (what calls it).
+ * Boxes are grouped by file. A second step out is drawn only when the first is small (at most
+ * SECOND_STEP_LIMIT functions), and past MAX_NODES boxes the rest become one "+N more" box, so a
+ * busy function still gets a short, straight list instead of a tangle.
  * @param {string} key The function's graph key.
  * @param {Map<string, Set<string>>} edges `calls` for a call graph, `callers` for a caller graph.
  * @param {Map<string, object>} nodes Node descriptions from linkModules.
@@ -407,47 +455,105 @@ function nodeLabel(node, homeFile, focus) {
  * @returns {?string} DOT source, or null when there is nothing to draw.
  */
 function callGraphDot(key, edges, nodes, hrefOf, reverse) {
-  if (!edges.has(key) || !edges.get(key).size) return null;
   const home = nodes.get(key).file;
-  const order = [key];
-  const depth = new Map([[key, 0]]);
+  const order = (keys) => [...(keys || [])].filter((k) => nodes.has(k) && k !== key).sort((a, b) => {
+    const na = nodes.get(a);
+    const nb = nodes.get(b);
+    const fa = na.file === home ? '' : na.file;
+    const fb = nb.file === home ? '' : nb.file;
+    return fa.localeCompare(fb) || shortName(na).localeCompare(shortName(nb));
+  });
+  const first = order(edges.get(key));
+  if (!first.length) return null;
+  const keep = [key];
   const drawn = [];
-  const cut = new Set();
-  for (let i = 0; i < order.length; i++) {
-    const at = order[i];
-    const next = [...(edges.get(at) || [])].sort();
-    if (depth.get(at) >= MAX_DEPTH) { if (next.some((n) => !depth.has(n))) cut.add(at); continue; }
-    for (const n of next) {
-      if (!depth.has(n)) {
-        if (order.length >= MAX_NODES) { cut.add(at); continue; }
-        depth.set(n, depth.get(at) + 1);
-        order.push(n);
+  let more = 0;
+  for (const k of first) {
+    if (keep.length > MAX_NODES) { more++; continue; }
+    keep.push(k);
+    drawn.push([key, k]);
+  }
+  if (first.length <= SECOND_STEP_LIMIT) {
+    for (const k of first) {
+      for (const n of order(edges.get(k))) {
+        if (!keep.includes(n)) {
+          if (keep.length > MAX_NODES) continue;
+          keep.push(n);
+        }
+        drawn.push([k, n]);
       }
-      drawn.push([at, n]);
     }
   }
-  const id = new Map(order.map((k, i) => [k, `n${i}`]));
+  const id = new Map(keep.map((k, i) => [k, `n${i}`]));
   const lines = graphHead('LR');
-  for (const k of order) {
+  const boxes = keep.map((k) => {
     const node = nodes.get(k);
-    const focus = k === key;
-    const href = focus ? null : hrefOf(k);
-    const attrs = [`label=${nodeLabel(node, home, focus)}`];
-    if (focus) attrs.push(`fillcolor="${PALETTE.yellow}"`, `fontcolor="${PALETTE.ink}"`, `color="${PALETTE.yellow}"`);
-    if (cut.has(k)) attrs.push('style="filled,rounded,dashed"', `fillcolor="${PALETTE.cell2}"`);
-    if (href) attrs.push(`href="${dotString(href)}"`, `tooltip="${dotString(node.file)}"`);
-    lines.push(`  ${id.get(k)} [${attrs.join(', ')}];`);
+    const attrs = [`label=<${dotHtml(shortName(node))}>`];
+    if (k === key) attrs.push(`fillcolor="${PALETTE.yellow}"`, `fontcolor="${PALETTE.ink}"`, `color="${PALETTE.yellow}"`, 'penwidth=1.5');
+    const href = k === key ? null : hrefOf(k);
+    if (href) attrs.push(`href="${dotString(href)}"`, `tooltip="${dotString(`${shortName(node)} in ${node.file}`)}"`);
+    return { id: id.get(k), group: node.file, attrs };
+  });
+  clusteredBoxes(lines, boxes, home);
+  if (more) {
+    lines.push(`  more [label=<+ ${more} more>, shape=box, style="rounded,dashed", fillcolor="transparent", color="${PALETTE.rule}", fontcolor="${PALETTE.dim}"];`);
+    lines.push(reverse ? `  more -> ${id.get(key)} [style=dashed, samehead=subject];` : `  ${id.get(key)} -> more [style=dashed, sametail=subject];`);
   }
+  // Edges at the subject share one end point, so a long list of callers or callees meets it as
+  // one trunk instead of a fan of separate arrowheads.
   for (const [a, b] of drawn) {
-    if (!id.has(a) || !id.has(b)) continue;
-    lines.push(reverse ? `  ${id.get(b)} -> ${id.get(a)};` : `  ${id.get(a)} -> ${id.get(b)};`);
+    const trunk = a === key ? (reverse ? ' [samehead=subject]' : ' [sametail=subject]') : '';
+    lines.push(reverse ? `  ${id.get(b)} -> ${id.get(a)}${trunk};` : `  ${id.get(a)} -> ${id.get(b)}${trunk};`);
   }
   lines.push('}');
   return lines.join('\n');
 }
 
 /**
- * The DOT source for one class: the class with its methods, the class it extends, the classes it
+ * The DOT source for a file's imports (what it imports) or importers (what imports it), one step
+ * out, grouped by folder. Past MAX_FILES files it shows one box per folder with a count instead.
+ * @param {string} file The file the graph is about.
+ * @param {Set<string>} related The files it imports, or the files that import it.
+ * @param {Function} fileHref Returns a file's documentation link, or null.
+ * @param {Function} dirHref Returns a folder's documentation link, or null.
+ * @param {boolean} reverse True for "what imports this file" (arrows point at the file).
+ * @returns {?string} DOT source, or null when there is nothing to draw.
+ */
+function fileGraphDot(file, related, fileHref, dirHref, reverse) {
+  const files = [...related].filter((f) => f !== file).sort();
+  if (!files.length) return null;
+  const dirOf = (f) => (f.includes('/') ? f.slice(0, f.lastIndexOf('/')) : '.');
+  const baseOf = (f) => f.slice(f.lastIndexOf('/') + 1);
+  const lines = graphHead('LR');
+  const link = (to) => (reverse ? `  ${to} -> focus;` : `  focus -> ${to};`);
+  lines.push(`  focus [label=<${dotHtml(file)}>, fillcolor="${PALETTE.yellow}", fontcolor="${PALETTE.ink}", color="${PALETTE.yellow}", penwidth=1.5];`);
+  if (files.length <= MAX_FILES) {
+    const boxes = files.map((f, i) => {
+      const href = fileHref(f);
+      const attrs = [`label=<${dotHtml(baseOf(f))}>`];
+      if (href) attrs.push(`href="${dotString(href)}"`, `tooltip="${dotString(f)}"`);
+      return { id: `f${i}`, group: dirOf(f), attrs };
+    });
+    clusteredBoxes(lines, boxes, dirOf(file), dirHref);
+    boxes.forEach((b) => lines.push(link(b.id)));
+  } else {
+    const counts = new Map();
+    for (const f of files) counts.set(dirOf(f), (counts.get(dirOf(f)) || 0) + 1);
+    [...counts.keys()].sort().forEach((dir, i) => {
+      const n = counts.get(dir);
+      const href = dirHref(dir);
+      const attrs = [`label=<${dotHtml(dir)}/  <FONT COLOR="${PALETTE.dim}">${n} file${n === 1 ? '' : 's'}</FONT>>`];
+      if (href) attrs.push(`href="${dotString(href)}"`);
+      lines.push(`  d${i} [${attrs.join(', ')}];`);
+      lines.push(link(`d${i}`));
+    });
+  }
+  lines.push('}');
+  return lines.join('\n');
+}
+
+/**
+ * The DOT source for one class: the class with its properties and methods, the class it extends, the classes it
  * creates, and the classes and functions that create it.
  * @param {string} key The class's graph key.
  * @param {object} graph The linkModules result.
@@ -461,10 +567,14 @@ function classGraphDot(key, graph, modules, hrefOf) {
   const cls = modules.get(node.file).classes.get(node.name);
   const lines = graphHead('TB');
   const methods = [...cls.methods.keys()].map((m) => (m === cls.name ? 'constructor()' : `${m}()`));
-  const rows = methods.map((m) => `<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="9">${dotHtml(m)}</FONT></TD></TR>`).join('');
+  const row = (text, color = PALETTE.text) => `<TR><TD ALIGN="LEFT"><FONT POINT-SIZE="10" COLOR="${color}">${dotHtml(text)}</FONT></TD></TR>`;
+  // A UML-style box: properties, a rule, then methods.
+  const fieldRows = cls.fields.map((f) => row(f, PALETTE.cyan)).join('');
+  const rule = fieldRows && methods.length ? `<HR/>` : '';
+  const rows = fieldRows + rule + methods.map((m) => row(m)).join('');
   lines.push(`  focus [shape=plain, style="", label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" COLOR="${PALETTE.yellow}" BGCOLOR="${PALETTE.cell}">`
     + `<TR><TD BGCOLOR="${PALETTE.yellow}"><FONT COLOR="${PALETTE.ink}"><B>${dotHtml(cls.name)}</B></FONT></TD></TR>`
-    + `${rows || `<TR><TD><FONT POINT-SIZE="9" COLOR="${PALETTE.dim}">(no methods)</FONT></TD></TR>`}</TABLE>>];`);
+    + `${rows || `<TR><TD><FONT POINT-SIZE="9" COLOR="${PALETTE.dim}">(no members)</FONT></TD></TR>`}</TABLE>>];`);
   let n = 0;
   const added = new Map();
   const box = (k, label) => {
@@ -567,12 +677,14 @@ function inlineSvg(svg, prefix) {
 /**
  * Reads which page and anchor documents each function, class and method, from Doxygen's HTML.
  * @param {string} htmlDir The generated HTML folder.
- * @returns {{ files: Map<string, object>, classes: Map<string, object[]> }} File pages by repo
- *   path and class pages by class name, each { page, anchors: Map name -> anchor }.
+ * @returns {{ files: Map<string, object>, classes: Map<string, object[]>, dirs: Map<string, string> }}
+ *   File pages by repo path and class pages by class name, each { page, anchors: Map name -> anchor },
+ *   and folder pages by repo path.
  */
 function readPages(htmlDir) {
   const files = new Map();
   const classes = new Map();
+  const dirs = new Map();
   for (const page of fs.readdirSync(htmlDir)) {
     if (!page.endsWith('.html') || page.endsWith('_source.html')) continue;
     const html = fs.readFileSync(path.join(htmlDir, page), 'utf8');
@@ -580,6 +692,8 @@ function readPages(htmlDir) {
     if (!title) continue;
     const fileMatch = title.match(/^(.*) File Reference$/);
     const classMatch = title.match(/^(.*) Class Reference$/);
+    const dirMatch = title.match(/^(.*) Directory Reference$/);
+    if (dirMatch) { dirs.set(decodeEntities(dirMatch[1]).replace(/\/$/, ''), page); continue; }
     if (!fileMatch && !classMatch) continue;
     const anchors = new Map();
     for (const m of html.matchAll(/<h2 class="memtitle"><span class="permalink"><a href="#(\w+)">[^<]*<\/a><\/span>([\w$]+)/g)) {
@@ -593,7 +707,7 @@ function readPages(htmlDir) {
       classes.get(name).push(entry);
     }
   }
-  return { files, classes };
+  return { files, classes, dirs };
 }
 
 /**
@@ -706,6 +820,24 @@ async function addGraphs({ root, htmlDir, dotCommand }) {
     if (into) addJob(place, `What calls this ${what}:`, into, 'member');
     if (out || into) functionGraphs++;
   }
+  // Each file's imports and importers, among the documented files.
+  const importers = new Map();
+  for (const [file, mod] of modules) {
+    for (const dep of mod.deps) {
+      if (!modules.has(dep)) continue;
+      if (!importers.has(dep)) importers.set(dep, new Set());
+      importers.get(dep).add(file);
+    }
+  }
+  const fileHref = (f) => (pages.files.has(f) ? pages.files.get(f).page : null);
+  const dirHref = (d) => pages.dirs.get(d) || null;
+  for (const [file, mod] of modules) {
+    const place = { page: pages.files.get(file).page, anchor: null };
+    const out = fileGraphDot(file, new Set([...mod.deps].filter((d) => modules.has(d))), fileHref, dirHref, false);
+    const into = fileGraphDot(file, importers.get(file) || new Set(), fileHref, dirHref, true);
+    if (out) addJob(place, 'What this file imports:', out, 'file');
+    if (into) addJob(place, 'What imports this file:', into, 'file');
+  }
   let classGraphs = 0;
   for (const key of nodes.keys()) {
     if (nodes.get(key).kind !== 'class') continue;
@@ -725,16 +857,18 @@ async function addGraphs({ root, htmlDir, dotCommand }) {
     const file = path.join(htmlDir, page);
     const before = fs.readFileSync(file, 'utf8');
     let html = before.replace(MARKED, '').replace(/<div class="textblock"><\/div>/g, '');
+    const top = []; // file and class graphs, which go at the top of the page
     (byPage.get(page) || []).forEach((job, i) => {
       const svg = inlineSvg(fs.readFileSync(path.join(work, `${job.name}.svg`), 'utf8'), `rtvg${i}-`);
       const section = graphSection(`rtv-graph-${i}`, job.heading, svg);
-      if (job.kind === 'class') html = html.replace('<div class="contents">', `<div class="contents">\n<div class="textblock">${section}</div>`);
-      else html = insertIntoMember(html, job.anchor, section);
+      if (job.kind === 'member') html = insertIntoMember(html, job.anchor, section);
+      else top.push(section);
     });
+    if (top.length) html = html.replace('<div class="contents">', `<div class="contents">\n<div class="textblock">${top.join('')}</div>`);
     if (html !== before) fs.writeFileSync(file, html);
   }
   fs.rmSync(work, { recursive: true, force: true });
   return { functions: functionGraphs, classes: classGraphs };
 }
 
-module.exports = { analyzeSource, linkModules, callGraphDot, classGraphDot, insertIntoMember, addGraphs };
+module.exports = { analyzeSource, linkModules, callGraphDot, fileGraphDot, classGraphDot, insertIntoMember, addGraphs };

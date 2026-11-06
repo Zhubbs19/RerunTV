@@ -128,6 +128,26 @@ test('relative imports and requires of repo files become #include lines for the 
   assert.deepEqual(cjs, ['#include "main/config/config.js"', '', '#include "main/util/db.js"']);
 });
 
+test('properties a class\'s methods create with this.x become members, documented by their comments', () => {
+  const out = lines(filterSource([
+    'class Session {',
+    '  ready = false;',
+    '  constructor(host) {',
+    '    // Where it connects.',
+    '    this.host = host;',
+    '    this.socket = null; // the open socket',
+    '    this.ready = true;',
+    '  }',
+    '  open() { this.retries = 0; function f() { this.nope = 1; } }',
+    '}',
+  ].join('\n'), 'x.js'));
+  assert.equal(out[3], '    /// \\brief Where it connects.');
+  assert.equal(out[4], 'host;');
+  assert.equal(out[5], 'socket; ///< the open socket');
+  assert.equal(out[6], ''); // ready is already a declared field
+  assert.equal(out[8], 'open(); retries;');
+});
+
 test('a file it cannot parse comes out blank instead of failing the build', () => {
   const write = process.stderr.write;
   process.stderr.write = () => true;

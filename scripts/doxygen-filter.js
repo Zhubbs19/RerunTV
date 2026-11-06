@@ -263,6 +263,14 @@ function filterSource(source, relPath) {
       put(m.loc.start.line, m.key.type === 'PrivateIdentifier' ? `private: ${decl} public:` : decl);
       if (m.type === 'PropertyDefinition') docAfter(m);
     }
+    // Properties a method creates with `this.name = ...` (JavaScript has no other way to declare
+    // most of them), on the line of their first assignment, documented by its comments.
+    for (const field of instanceFields(cls)) {
+      if (!usable(field.name)) continue;
+      docAbove(field.statement);
+      put(field.statement.loc.start.line, `${field.name};`);
+      docAfter(field.statement);
+    }
     put(cls.loc.end.line, '};');
   };
   const writeVariables = (node, decl, isExported) => {
@@ -337,6 +345,42 @@ function filterSource(source, relPath) {
 }
 
 /**
+ * The instance properties a class's methods create with `this.name = ...` and that the class
+ * doesn't already declare as a field, method or accessor, in order of first assignment. Bodies
+ * of plain `function`s and nested classes are skipped, since `this` means something else there;
+ * arrow functions keep the method's `this`, so theirs count.
+ * @param {object} cls An espree ClassDeclaration or ClassExpression.
+ * @returns {Array<{ name: string, statement: object }>} Each property, with the statement (or
+ *   expression) of its first assignment, whose comments document it.
+ */
+function instanceFields(cls) {
+  const declared = new Set(cls.body.body.map((m) => (m.computed || !m.key ? null : m.key.name || m.key.value)));
+  const found = new Map();
+  const visit = (node, parent) => {
+    if (!node || typeof node.type !== 'string') return;
+    if (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration' || node.type === 'ClassExpression' || node.type === 'ClassDeclaration') return;
+    if (node.type === 'AssignmentExpression' && node.left.type === 'MemberExpression' && !node.left.computed
+      && node.left.object.type === 'ThisExpression' && node.left.property.type === 'Identifier') {
+      const name = node.left.property.name;
+      if (!declared.has(name) && !found.has(name)) {
+        found.set(name, { name, statement: parent && parent.type === 'ExpressionStatement' ? parent : node });
+      }
+    }
+    for (const key of Object.keys(node)) {
+      if (key === 'loc' || key === 'range') continue;
+      const value = node[key];
+      if (Array.isArray(value)) value.forEach((child) => visit(child, node));
+      else if (value && typeof value.type === 'string') visit(value, node);
+    }
+  };
+  const methods = cls.body.body.filter((m) => m.type === 'MethodDefinition' && !m.static);
+  // The constructor first, so a property's documented first assignment is usually there.
+  methods.sort((a, b) => (b.kind === 'constructor') - (a.kind === 'constructor'));
+  for (const m of methods) visit(m.value.body, m.value);
+  return [...found.values()];
+}
+
+/**
  * Resolves a relative import or require to the repo file it loads, the way Node and the browser
  * would for this codebase's specifiers (an exact path, or one missing its `.js` / `/index.js`).
  * @param {string} relPath The importing file, relative to the repo root with `/` separators.
@@ -356,7 +400,7 @@ function resolveModule(relPath, spec) {
   return null;
 }
 
-module.exports = { filterSource, parse, resolveModule };
+module.exports = { filterSource, parse, resolveModule, instanceFields };
 
 if (require.main === module) {
   const file = path.resolve(process.argv[2]);
