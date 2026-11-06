@@ -66,7 +66,25 @@ function normalizeUpdateStrategy(updates) {
   return 'startup-auto';
 }
 
+/**
+ * Why this build can't auto-update, or null when it can.
+ * Only the Windows NSIS installer is published with update metadata
+ * (latest.yml). Other packaged builds, such as the experimental Linux
+ * AppImage, would ask GitHub for a feed that doesn't exist and report an
+ * error on every launch.
+ * @param {object} opts Build facts.
+ * @param {boolean} opts.isPackaged Whether this is a packaged build.
+ * @param {string} opts.platform `process.platform`.
+ * @returns {?string} 'dev-mode', 'unsupported-platform', or null.
+ */
+function updateUnavailableReason({ isPackaged, platform }) {
+  if (!isPackaged) return 'dev-mode';
+  if (platform !== 'win32') return 'unsupported-platform';
+  return null;
+}
+
 module.exports = {
+  updateUnavailableReason,
   UPDATE_STRATEGIES,
   normalizeUpdateStrategy,
   prepareVersionTransition,

@@ -14,7 +14,8 @@ contextBridge.exposeInMainWorld('api', {
   // on turns the other off.
   getStartupWindowStatus: () => ipcRenderer.invoke('startupWindow:getStatus'),
   setStartupWindowEnabled: (enabled) => ipcRenderer.invoke('startupWindow:setEnabled', enabled),
-  // 'dev-mode' (running from source, nothing to check against), 'up-to-date',
+  // 'dev-mode' (running from source, nothing to check against),
+  // 'unsupported-platform' (a packaged non-Windows build), 'up-to-date',
   // 'downloading' (found one, autoUpdater is fetching it now), 'disabled'
   // (config.updates.strategy is 'off'), or 'error'. Once a 'downloading' result
   // actually finishes, onUpdateStatus below fires separately — see

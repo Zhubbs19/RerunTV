@@ -754,6 +754,8 @@ function initUpdateSettingsPanel() {
         const result = await window.api.checkForUpdates();
         if (result.status === 'dev-mode') {
           setUpdateStatus('Update checks only run in a packaged build — this is a dev copy running from source.');
+        } else if (result.status === 'unsupported-platform') {
+          setUpdateStatus('Automatic updates are Windows-only for now. Download new builds by hand on this system.');
         } else if (result.status === 'disabled') {
           setUpdateStatus('Update checks are turned off (UPDATE POLICY: NEVER, above).');
         } else if (result.status === 'downloading') {

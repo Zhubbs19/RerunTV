@@ -7,9 +7,9 @@ name: Linux (experimental)
 # prerelease is what electron-updater reads).
 #
 # The two jobs don't depend on each other, so a failing test still shows
-# whether the AppImage builds. Known gaps (packaged userData beside the
-# executable, which is read-only inside an AppImage; Windows-only launch at
-# login) are not fixed by building it. The Windows run-*.bat extraFiles are
+# whether the AppImage builds. A packaged Linux build keeps userData in
+# ~/.config/RerunTV and skips auto-update (only Windows has a feed). Launch
+# at login is still Windows-only. The Windows run-*.bat extraFiles are
 # copied into the AppImage too; they're harmless there.
 on:
   push:

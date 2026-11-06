@@ -61,3 +61,12 @@ test('downloaded updates produce one post-update notice and preserve strategy mi
   assert.equal(JSON.stringify(state), once);
   assert.equal(normalizeUpdateStrategy({ mode: 'manual' }), 'manual');
 });
+
+test('auto-update runs only in a packaged Windows build', () => {
+  const { updateUnavailableReason } = require('../main/updater/state');
+  assert.equal(updateUnavailableReason({ isPackaged: false, platform: 'win32' }), 'dev-mode');
+  assert.equal(updateUnavailableReason({ isPackaged: false, platform: 'linux' }), 'dev-mode');
+  assert.equal(updateUnavailableReason({ isPackaged: true, platform: 'win32' }), null);
+  assert.equal(updateUnavailableReason({ isPackaged: true, platform: 'linux' }), 'unsupported-platform');
+  assert.equal(updateUnavailableReason({ isPackaged: true, platform: 'darwin' }), 'unsupported-platform');
+});

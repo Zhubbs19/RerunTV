@@ -7,6 +7,7 @@ const { getPluginsDir } = require('../plugins/plugins');
 const { fetchJsonCached } = require('./api-cache');
 const {
   normalizeUpdateStrategy, prepareVersionTransition, rememberDownloadedRelease: recordDownloadedRelease,
+  updateUnavailableReason,
 } = require('./state');
 
 // Auto-update via electron-updater, fed by this repo's GitHub Releases (see
@@ -19,7 +20,8 @@ const {
 // updater supports out of the box, while build.mac's target (dmg) and
 // build.linux's target (AppImage) need their own auto-update wiring (mac
 // needs a "zip" target alongside dmg for Squirrel.Mac; AppImage is
-// supported but untested here) — skip silently rather than error on those.
+// supported but untested here) — so packaged non-Windows builds skip
+// updates entirely (updateUnavailableReason in ./state) rather than error.
 //
 // This repo (Zhubbs19/RerunTV) is public, so both the release-notes fetch
 // below and electron-updater's own check work unauthenticated. A GH_TOKEN or
@@ -443,8 +445,9 @@ async function initAutoUpdater(getMainWindow, { skipStartupCheck = false } = {})
   preparePostUpdateNotice();
   registerReleaseNotesHandler();
 
-  if (!app.isPackaged) {
-    ipcMain.handle('updates:check', async () => ({ status: 'dev-mode' }));
+  const unavailable = updateUnavailableReason({ isPackaged: app.isPackaged, platform: process.platform });
+  if (unavailable) {
+    ipcMain.handle('updates:check', async () => ({ status: unavailable }));
     ipcMain.handle('updates:installNow', async () => {});
     return false;
   }
