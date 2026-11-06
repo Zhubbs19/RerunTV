@@ -6,7 +6,7 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchBar } from '../components/Channels';
 import { SettingNodeView, type Draft } from '../components/SettingFields';
@@ -16,11 +16,13 @@ import { MAX_CONTENT_WIDTH } from '../lib/layout';
 import { buildGroups, buildRegistryGroups, buildSaveBody, countLeaves, describeResult, filterGroups, setIn, type Catalogue, type Json, type LeafNode, type Level } from '../lib/settings-model';
 import { useBox } from '../lib/session';
 import { useLayout } from '../lib/useLayout';
-import { color, shape, space, TARGET, type as t } from '../theme';
+import { makeStyles, shape, space, TARGET, useTheme } from '../theme';
 
 const VERDICT_TIMEOUT_MS = 8000;
 
 export default function SettingsScreen() {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const layout = useLayout();
@@ -200,9 +202,9 @@ export default function SettingsScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   bar: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingBottom: space.sm, backgroundColor: color.surface, borderBottomWidth: 1, borderBottomColor: color.outlineVariant },
   back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', borderRadius: shape.full },
   group: { borderRadius: shape.lg, backgroundColor: color.surfaceContainer, borderWidth: 1, borderColor: color.outlineVariant, marginBottom: space.md, overflow: 'hidden' },
   groupHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 56, paddingHorizontal: space.md },
-});
+}));

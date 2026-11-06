@@ -4,6 +4,10 @@ What changed in RerunTV, newest first. This is the list the app shows under HELP
 It is generated from `renderer/js/setup/help.js` by `node scripts/release-notes.js --changelog`, so edit it there.
 Each GitHub release lists the entries that are new since the release before it.
 
+## 2026-11-12
+
+- The phone companion app wears your box’s theme: Cable Guide HD ’15 gives it black screens with blue buttons, Classic ’05 navy with yellow, and every other theme its own colours. It changes when you change the box’s theme and opens in the last box’s colours.
+
 ## 2026-11-11
 
 - Shows and movies now pause for their commercial breaks. Before, the schedule kept a program running underneath its ads, so jumping with the time machine, tuning in or reading the guide found it minutes further on after every break, as if it had played during the commercials. Now it picks up exactly where it stopped, and the guide gives each program its full time, breaks included. On by default; turn it off with BREAKS › CADENCE & PRESETS › Shows pause for ad breaks, or for one channel on its BREAKS › ADS page (a schedule block can set its own too).

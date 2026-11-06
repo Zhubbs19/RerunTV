@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, View } from 'react-native';
 import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBox } from '../lib/session';
 import { MAX_CONTENT_WIDTH, MAX_WIDE_CONTENT_WIDTH } from '../lib/layout';
 import { useLayout } from '../lib/useLayout';
 import { formatChannelNumber, formatCountdown, minutesLeft, modeLabel, canSkipBreak } from '../lib/pure';
-import { color, shape, space, type as t } from '../theme';
+import { makeStyles, shape, space, useTheme } from '../theme';
 import { Button, Card, Led } from './ui';
 
 // Re-renders about once a second so countdowns tick between polls.
@@ -20,6 +20,8 @@ export function useNow(intervalMs = 1000): number {
 }
 
 export function Screen({ title, children, onRefresh, scroll = true, wide = false }: { title: string; children: ReactNode; onRefresh?: () => Promise<void>; scroll?: boolean; wide?: boolean }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const insets = useSafeAreaInsets();
   const layout = useLayout();
   // Phones use the full width; tablets and landscape get a centered, readable column.
@@ -71,6 +73,8 @@ export function Screen({ title, children, onRefresh, scroll = true, wide = false
 // The big "now playing" readout at the top of the Remote tab: LED-style
 // channel number, name, what is on, how long is left, and what is next.
 export function NowPlaying() {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const { state, connection, press } = useBox();
   const now = useNow();
   const { isCompact } = useLayout();
@@ -113,15 +117,16 @@ export function NowPlaying() {
 }
 
 function NowTitle() {
+  const { color, type: t } = useTheme();
   const { state, channels } = useBox();
   const row = channels.find((c) => c.number === state?.number);
   const text = state?.onAir === 'break' ? '' : row?.now ?? '';
   return text ? <Text style={[t.body, { color: color.onSurfaceVariant, marginTop: 2 }]} numberOfLines={2}>{text.toUpperCase()}</Text> : null;
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   header: { flexDirection: 'row', alignItems: 'center', marginBottom: space.lg, gap: space.md },
   status: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: color.surfaceContainer, borderRadius: shape.full, paddingHorizontal: space.md, minHeight: 32 },
   numberPlate: { minWidth: 84, alignItems: 'center', justifyContent: 'center', backgroundColor: color.surfaceDim, borderRadius: shape.md, borderWidth: 1, borderColor: color.outlineVariant, paddingVertical: space.sm, paddingHorizontal: space.md },
   metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg, marginTop: space.md },
-});
+}));

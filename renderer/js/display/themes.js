@@ -2,7 +2,7 @@
 // data-theme attribute on <html> — see the [data-theme="analog-90s"]
 // override block there. Set on <html> (not just #tv-screen) so the setup
 // screen re-skins along with the TV screen.
-import { applyCrtState, applyTvBezel } from '../playback/power.js';
+import { applyCrtState, applyTvBezel, pushRemoteState } from '../playback/power.js';
 import { getThemePack, pluginStylesReady, runCoreHooks, themePackEntries } from '../plugin/host.js';
 import { checkThemesWhenIdle } from './theme-check.js';
 import { S } from '../core/state.js';
@@ -11,6 +11,7 @@ import { getChannel } from '../core/channels.js';
 import { effectiveThemeId } from './identity.js';
 import { setUiMode } from '../cable-guide/mode.js';
 import { CABLE_GUIDE_UI, paintedThemeId, uiModeForPack } from '../cable-guide/model.js';
+import { companionThemeReport } from './companion-theme.js';
 
 // The palette the frameless update-progress window (main-updater.js) knows,
 // by its long-standing names. Read from body, where those names are
@@ -25,6 +26,28 @@ const REPORTED_THEME_VARS = [
   '--cg-text-shadow', '--cg-dialog', '--cg-dialog-rim', '--cg-radius', '--cg-focus', '--cg-focus-sheen',
   '--cg-sheen', '--cg-lift',
 ];
+
+/**
+ * Tells the phone companion about the box theme (companion-theme.js), pushing
+ * fresh remote state only when the report changed.
+ * @param {?string} boxThemeId The box theme id.
+ * @param {?string} themeId The theme painted now.
+ * @param {string} uiMode The on-screen layout.
+ */
+function reportCompanionTheme(boxThemeId, themeId, uiMode) {
+  const computed = getComputedStyle(document.body || document.documentElement);
+  const report = companionThemeReport({
+    boxThemeId,
+    paintedThemeId: themeId,
+    uiMode,
+    label: getThemePack(boxThemeId)?.label || null,
+    readVar: (name) => computed.getPropertyValue(name),
+    previous: S.companionTheme,
+  });
+  if (JSON.stringify(report) === JSON.stringify(S.companionTheme)) return;
+  S.companionTheme = report;
+  if (window.api && typeof window.api.sendRemoteState === 'function') pushRemoteState();
+}
 
 export function applyTheme({ boxOnly = false } = {}) {
   const personalTheme = S.personalProfile?.state?.theme;
@@ -57,6 +80,7 @@ export function applyTheme({ boxOnly = false } = {}) {
     if (uiMode === CABLE_GUIDE_UI) colors['--guide-layout'] = document.documentElement.dataset.guideLayout || 'hd';
     window.api.reportThemeColors(colors);
   }
+  reportCompanionTheme(boxThemeId, themeId, uiMode);
   const fontOverrides = S.config.display && S.config.display.themeFontOverrides
     ? S.config.display.themeFontOverrides[themeId] || {}
     : {};

@@ -369,7 +369,9 @@ async function activate(ctx) {
     }
 
     if (req.method === 'GET' && url.pathname === '/state') {
-      // pcShutdown rides along from the main process's own controller (see
+      // `theme` ({ id, ui, label, colors }) is in the pushed renderer state
+      // (renderer/js/display/companion-theme.js): the phone app takes its
+      // colours from it. pcShutdown rides along from the main process's own controller (see
       // POST /command above), so the phone shows the countdown whoever
       // started it, and hides its button while the box has the feature off.
       const power = ctx.services.pcShutdown;

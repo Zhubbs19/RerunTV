@@ -1,17 +1,19 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, TextInput, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { Screen } from '../../components/Screen';
 import { Button, Card, SectionHeader } from '../../components/ui';
 import { useBox } from '../../lib/session';
-import { color, shape, space, type as t } from '../../theme';
+import { makeStyles, shape, space, useTheme } from '../../theme';
 
 function confirm(title: string, message: string, ok: string, run: () => void) {
   Alert.alert(title, message, [{ text: 'Cancel', style: 'cancel' }, { text: ok, style: 'destructive', onPress: run }]);
 }
 
 export default function MoreScreen() {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const router = useRouter();
   const { session, state, connection, press, run, showToast, signOut } = useBox();
   const [headline, setHeadline] = useState('');
@@ -77,8 +79,8 @@ export default function MoreScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   row: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
   flex: { flex: 1 },
   input: { marginTop: space.sm, minHeight: 48, borderRadius: shape.sm, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surfaceDim, color: color.onSurface, paddingHorizontal: space.md, paddingVertical: space.sm, fontSize: 15, fontWeight: '600' },
-});
+}));

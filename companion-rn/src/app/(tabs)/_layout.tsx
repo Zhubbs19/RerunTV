@@ -1,9 +1,10 @@
 import { Redirect, Tabs } from 'expo-router';
 import { TabBar } from '../../components/TabBar';
 import { useBox } from '../../lib/session';
-import { color } from '../../theme';
+import { useTheme } from '../../theme';
 
 export default function TabsLayout() {
+  const { color } = useTheme();
   const { session } = useBox();
   if (!session) return <Redirect href="/pair" />;
   return (

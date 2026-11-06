@@ -12,9 +12,11 @@ import { ApiError, pair } from '../lib/api';
 import { COMPANION_PORT, discoverBoxes, mergeFound, type FoundBox } from '../lib/discovery';
 import { normalizeCode, parseTarget } from '../lib/pure';
 import { useBox } from '../lib/session';
-import { color, shape, space, type as t } from '../theme';
+import { makeStyles, shape, space, useTheme } from '../theme';
 
 export default function PairScreen() {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { signIn } = useBox();
@@ -193,7 +195,7 @@ export default function PairScreen() {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   page: { paddingHorizontal: space.lg },
   brand: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.xl },
   input: { marginTop: space.sm, minHeight: 52, borderRadius: shape.sm, borderWidth: 1, borderColor: color.outline, backgroundColor: color.surfaceDim, color: color.onSurface, paddingHorizontal: space.md, fontSize: 16, fontWeight: '700' },
@@ -203,4 +205,4 @@ const s = StyleSheet.create({
   found: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 56, paddingHorizontal: space.md, borderRadius: shape.md, borderWidth: 1, borderColor: color.outlineVariant, backgroundColor: color.surfaceContainerHigh, marginTop: space.sm },
   scanOverlay: { flex: 1, alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.lg, backgroundColor: 'rgba(0,0,0,0.25)' },
   reticle: { width: 240, height: 240, borderRadius: shape.xl, borderWidth: 3, borderColor: color.primary },
-});
+}));

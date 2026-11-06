@@ -1,10 +1,10 @@
 // Material 3 navigation bar: icon + label per destination, with the pill
 // "active indicator" behind the selected icon.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { color, shape, space } from '../theme';
+import { makeStyles, shape, space, useTheme } from '../theme';
 import type { IconName } from './ui';
 
 const ICONS: Record<string, { on: IconName; off: IconName; label: string }> = {
@@ -22,6 +22,8 @@ interface BarProps {
 
 export function TabBar({ state, navigateToTab }: BarProps) {
   const insets = useSafeAreaInsets();
+  const { color } = useTheme();
+  const s = useStyles();
   return (
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, space.sm), paddingLeft: insets.left, paddingRight: insets.right }]} accessibilityRole="tablist">
       {state.routes.map((route, index) => {
@@ -48,10 +50,10 @@ export function TabBar({ state, navigateToTab }: BarProps) {
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   bar: { flexDirection: 'row', backgroundColor: color.surfaceContainer, borderTopWidth: 1, borderTopColor: color.outlineVariant, paddingTop: space.sm },
   item: { flex: 1, alignItems: 'center', gap: 4, minHeight: 64, justifyContent: 'center' },
   pill: { width: 64, height: 32, borderRadius: shape.full, alignItems: 'center', justifyContent: 'center' },
   pillOn: { backgroundColor: color.primaryContainer },
   label: { fontSize: 11, fontWeight: '800', letterSpacing: 1.2, color: color.onSurfaceVariant },
-});
+}));

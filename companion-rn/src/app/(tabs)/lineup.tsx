@@ -6,11 +6,12 @@ import { Screen, useNow } from '../../components/Screen';
 import { Chip, Empty } from '../../components/ui';
 import { filterChannels } from '../../lib/pure';
 import { useBox } from '../../lib/session';
-import { color, space, type as t } from '../../theme';
+import { space, useTheme } from '../../theme';
 
 type Filter = 'all' | 'favorites' | 'quick';
 
 export default function LineupScreen() {
+  const { color, type: t } = useTheme();
   const { channels, state, tune, run, refreshChannels } = useBox();
   const now = useNow(15000);
   const [query, setQuery] = useState('');

@@ -3,6 +3,7 @@
 // request carries it. Nothing here touches React.
 import { parseTarget, type LineupRow } from './pure';
 import { isCatalogue, type Catalogue } from './settings-model';
+import type { BoxThemeReport } from './palette';
 
 export interface Session {
   baseUrl: string;
@@ -52,6 +53,8 @@ export interface RemoteState {
   pcShutdown?: PcShutdownStatus | null;
   /** The box's verdict on the last settings patch (it reports back via /state). */
   settingsResult?: { at: number; applied?: string[]; rejected?: { section: string; reason: string }[] } | null;
+  /** The box theme's id, layout and colour tokens; the app's colours follow it (src/lib/palette.ts). */
+  theme?: BoxThemeReport | null;
 }
 
 const TIMEOUT_MS = 6000;

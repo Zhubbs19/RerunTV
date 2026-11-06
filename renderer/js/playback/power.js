@@ -106,6 +106,9 @@ export function pushRemoteState() {
     // anything, so this is the only path by which the phone can learn what
     // really happened without a new IPC channel.
     settingsResult: S.lastCompanionSettingsResult || null,
+    // The box theme's id, layout and colour tokens, so the phone companion
+    // can wear the same colours (display/companion-theme.js).
+    theme: S.companionTheme || null,
   });
 }
 

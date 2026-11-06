@@ -2,26 +2,37 @@
 // least 48dp, have a pressed "state layer", and a bevelled bottom edge.
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useRef, type ComponentProps, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from './Text';
-import { color, shape, space, TARGET, type as t } from '../theme';
+import { makeStyles, shape, space, TARGET, useTheme, type Palette } from '../theme';
 
 export type IconName = ComponentProps<typeof MaterialCommunityIcons>['name'];
 export type Tone = 'tonal' | 'filled' | 'error' | 'outlined' | 'text';
 
-const tones: Record<Tone, { bg: string; fg: string; border?: string }> = {
-  tonal: { bg: color.surfaceContainerHighest, fg: color.onSurface },
-  filled: { bg: color.primary, fg: color.onPrimary },
-  error: { bg: color.errorContainer, fg: color.onErrorContainer },
-  outlined: { bg: 'transparent', fg: color.primary, border: color.outline },
-  text: { bg: 'transparent', fg: color.primary },
-};
+/**
+ * Background, text and border colours for each button tone.
+ * @param color The palette.
+ * @returns The colours by tone.
+ */
+function tonesOf(color: Palette): Record<Tone, { bg: string; fg: string; border?: string }> {
+  return {
+    tonal: { bg: color.surfaceContainerHighest, fg: color.onSurface },
+    filled: { bg: color.primary, fg: color.onPrimary },
+    error: { bg: color.errorContainer, fg: color.onErrorContainer },
+    outlined: { bg: 'transparent', fg: color.primary, border: color.outline },
+    text: { bg: 'transparent', fg: color.primary },
+  };
+}
 
 export function Card({ children, style, tone = 'container' }: { children: ReactNode; style?: StyleProp<ViewStyle>; tone?: 'container' | 'high' }) {
+  const { color } = useTheme();
+  const s = useStyles();
   return <View style={[s.card, tone === 'high' && { backgroundColor: color.surfaceContainerHigh }, style]}>{children}</View>;
 }
 
 export function SectionHeader({ eyebrow, title, right }: { eyebrow?: string; title: string; right?: ReactNode }) {
+  const { type: t } = useTheme();
+  const s = useStyles();
   return (
     <View style={s.sectionHeader}>
       <View style={{ flex: 1 }}>
@@ -49,7 +60,9 @@ export interface ButtonProps {
 }
 
 export function Button({ label, sub, icon, tone = 'tonal', onPress, onPressIn, onPressOut, onLongPress, disabled, style, accessibilityLabel, compact }: ButtonProps) {
-  const c = tones[tone];
+  const { color } = useTheme();
+  const s = useStyles();
+  const c = tonesOf(color)[tone];
   return (
     <Pressable
       accessibilityRole="button"
@@ -107,6 +120,8 @@ export function RepeatButton({ onFire, ...props }: Omit<ButtonProps, 'onPress' |
 }
 
 export function Chip({ label, selected, onPress, icon }: { label: string; selected?: boolean; onPress?: () => void; icon?: IconName }) {
+  const { color } = useTheme();
+  const s = useStyles();
   return (
     <Pressable
       accessibilityRole="button"
@@ -122,6 +137,8 @@ export function Chip({ label, selected, onPress, icon }: { label: string; select
 
 // M3 segmented button: one choice among a few.
 export function Segmented<T extends string>({ options, value, onChange, compact }: { options: { value: T; label: string; icon?: IconName }[]; value: T; onChange(v: T): void; compact?: boolean }) {
+  const { color } = useTheme();
+  const s = useStyles();
   return (
     <View style={s.segmented} accessibilityRole="tablist">
       {options.map((option, i) => {
@@ -144,15 +161,18 @@ export function Segmented<T extends string>({ options, value, onChange, compact 
 }
 
 export function Led({ state }: { state: 'online' | 'offline' | 'connecting' }) {
+  const { color } = useTheme();
+  const s = useStyles();
   const bg = state === 'online' ? color.success : state === 'offline' ? color.error : color.primary;
   return <View style={[s.led, { backgroundColor: bg, shadowColor: bg }]} />;
 }
 
 export function Empty({ text }: { text: string }) {
+  const s = useStyles();
   return <Text style={s.empty}>{text}</Text>;
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   card: { backgroundColor: color.surfaceContainer, borderRadius: shape.lg, padding: space.lg, marginBottom: space.md, borderWidth: 1, borderColor: color.outlineVariant },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: space.md, marginBottom: space.md },
   button: { minHeight: TARGET, minWidth: TARGET, borderRadius: shape.md, paddingHorizontal: space.sm, paddingVertical: space.sm, alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 2, overflow: 'hidden' },
@@ -168,4 +188,4 @@ const s = StyleSheet.create({
   segmentLabel: { fontSize: 12, fontWeight: '800', letterSpacing: 1.2, color: color.onSurfaceVariant },
   led: { width: 10, height: 10, borderRadius: 5, shadowOpacity: 0.9, shadowRadius: 6, shadowOffset: { width: 0, height: 0 }, elevation: 4 },
   empty: { color: color.onSurfaceVariant, textAlign: 'center', padding: space.xl, fontSize: 12, letterSpacing: 1 },
-});
+}));

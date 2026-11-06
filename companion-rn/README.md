@@ -5,8 +5,12 @@ to the same companion HTTP API as the web remote the box serves (`plugins/compan
 box needs the **Companion** service switched on and the phone on the same network.
 
 Design: Material 3 structure (tonal surfaces, 48dp targets, bottom navigation with a pill indicator,
-segmented buttons, bottom sheets, snackbars) in the box's retro colours (amber and cyan on near-black,
-LED-style numerals). Tokens live in `src/theme.ts`; the small component kit is `src/components/ui.tsx`.
+segmented buttons, bottom sheets, snackbars) with LED-style numerals, in the paired box's own colours. The
+box sends its theme's colour tokens on `/state` (`theme`, from `renderer/js/display/companion-theme.js`) and
+`src/lib/palette.ts` turns them into the app's colour roles, keeping text readable. The last palette is
+remembered, so the app opens in the box's colours. Before pairing, or with a box too old to send its theme,
+the app wears its own amber and cyan on near-black. Screens read colours with `useTheme()` and build styles
+with `makeStyles()` (`src/theme.tsx`); the small component kit is `src/components/ui.tsx`.
 
 ## Run it
 

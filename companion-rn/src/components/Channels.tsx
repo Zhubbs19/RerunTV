@@ -1,11 +1,13 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Text } from './Text';
 import { formatChannelNumber, minutesLeft, type LineupRow } from '../lib/pure';
-import { color, shape, space, TARGET, type as t } from '../theme';
+import { makeStyles, shape, space, TARGET, useTheme } from '../theme';
 
 // M3 search bar: a pill with a leading icon and a clear action.
 export function SearchBar({ value, onChange, placeholder }: { value: string; onChange(v: string): void; placeholder: string }) {
+  const { color } = useTheme();
+  const s = useStyles();
   return (
     <View style={s.search}>
       <MaterialCommunityIcons name="magnify" size={22} color={color.onSurfaceVariant} />
@@ -32,6 +34,8 @@ export function SearchBar({ value, onChange, placeholder }: { value: string; onC
 // One channel: number plate, name, what is on and next. Tapping tunes; the
 // trailing actions (favorite / quick access) are optional.
 export function ChannelRow({ row, now, active, onPress, trailing }: { row: LineupRow; now: number; active?: boolean; onPress(): void; trailing?: React.ReactNode }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const left = minutesLeft(row.endsAtMs, now);
   return (
     <Pressable
@@ -55,6 +59,8 @@ export function ChannelRow({ row, now, active, onPress, trailing }: { row: Lineu
 }
 
 export function IconToggle({ icon, onIcon, on, label, onPress }: { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; onIcon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; on: boolean; label: string; onPress(): void }) {
+  const { color } = useTheme();
+  const s = useStyles();
   return (
     <Pressable
       accessibilityRole="switch"
@@ -69,11 +75,11 @@ export function IconToggle({ icon, onIcon, on, label, onPress }: { icon: React.C
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   search: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: 52, borderRadius: shape.full, backgroundColor: color.surfaceContainerHigh, paddingHorizontal: space.lg, marginBottom: space.md },
   searchInput: { flex: 1, color: color.onSurface, fontSize: 15, fontWeight: '600', paddingVertical: space.sm },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.md, minHeight: 64, paddingVertical: space.sm, paddingHorizontal: space.md, borderRadius: shape.lg, backgroundColor: color.surfaceContainer, borderWidth: 1, borderColor: color.outlineVariant, marginBottom: space.sm },
   rowActive: { borderColor: color.primary },
   plate: { minWidth: 56, minHeight: 40, borderRadius: shape.sm, backgroundColor: color.surfaceDim, alignItems: 'center', justifyContent: 'center', paddingHorizontal: space.sm },
   iconToggle: { width: TARGET - 4, height: TARGET - 4, borderRadius: shape.full, alignItems: 'center', justifyContent: 'center' },
-});
+}));

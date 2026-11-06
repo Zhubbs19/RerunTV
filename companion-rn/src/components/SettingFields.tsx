@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isDisabled, parseJsonList, parseTyped, shownValue, toDisplay, toStored, type Json, type LeafNode, type ObjectNode, type SettingNode } from '../lib/settings-model';
-import { color, shape, space, TARGET, type as t } from '../theme';
+import { makeStyles, shape, space, TARGET, useTheme } from '../theme';
 import { Text } from './Text';
 import { Button } from './ui';
 
@@ -22,6 +22,8 @@ export function SettingNodeView({ node, draft, onChange, forceOpen }: { node: Se
 }
 
 function Section({ node, draft, onChange, forceOpen }: { node: ObjectNode; draft: Draft; onChange: Change; forceOpen: boolean }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const [open, setOpen] = useState(false);
   const shown = open || forceOpen;
   return (
@@ -41,6 +43,8 @@ function Section({ node, draft, onChange, forceOpen }: { node: ObjectNode; draft
 }
 
 function Frame({ node, children, inline }: { node: LeafNode; children: React.ReactNode; inline?: React.ReactNode }) {
+  const { type: t } = useTheme();
+  const s = useStyles();
   return (
     <View style={s.field}>
       <View style={s.fieldHead}>
@@ -54,6 +58,7 @@ function Frame({ node, children, inline }: { node: LeafNode; children: React.Rea
 }
 
 function Leaf({ node, value, onChange }: { node: LeafNode; value: Json; onChange: Change }) {
+  const { color } = useTheme();
   switch (node.kind) {
     case 'boolean':
       return (
@@ -86,6 +91,8 @@ function Leaf({ node, value, onChange }: { node: LeafNode; value: Json; onChange
 }
 
 function TextField({ node, value, onChange }: { node: LeafNode; value: Json; onChange: Change }) {
+  const { color } = useTheme();
+  const s = useStyles();
   const secret = node.kind === 'secret';
   const [text, setText] = useState(secret ? '' : value == null ? '' : String(value));
   useEffect(() => { if (!secret) setText(value == null ? '' : String(value)); }, [value, secret]);
@@ -115,6 +122,7 @@ function TextField({ node, value, onChange }: { node: LeafNode; value: Json; onC
 }
 
 function RangeField({ node, value, bounds, onChange }: { node: LeafNode; value: number; bounds: NonNullable<LeafNode['bounds']>; onChange: Change }) {
+  const { color, type: t } = useTheme();
   const [shown, setShown] = useState(toDisplay(value, bounds));
   useEffect(() => setShown(toDisplay(value, bounds)), [value, bounds]);
   return (
@@ -137,6 +145,8 @@ function RangeField({ node, value, bounds, onChange }: { node: LeafNode; value: 
 }
 
 function EnumField({ node, value, onChange }: { node: LeafNode; value: Json; onChange: Change }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const [open, setOpen] = useState(false);
   const insets = useSafeAreaInsets();
   const choices = node.choices ?? [];
@@ -178,6 +188,8 @@ function EnumField({ node, value, onChange }: { node: LeafNode; value: Json; onC
 }
 
 function ListField({ node, value, onChange }: { node: LeafNode; value: string[]; onChange: Change }) {
+  const { color } = useTheme();
+  const s = useStyles();
   const [items, setItems] = useState<string[]>(value);
   useEffect(() => setItems(value), [value]);
   const push = (next: string[]) => { setItems(next); onChange(node.path, next); };
@@ -204,6 +216,8 @@ function ListField({ node, value, onChange }: { node: LeafNode; value: string[];
 }
 
 function JsonField({ node, value, onChange }: { node: LeafNode; value: Json; onChange: Change }) {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const [text, setText] = useState(JSON.stringify(value, null, 2));
   const [bad, setBad] = useState(false);
   useEffect(() => setText(JSON.stringify(value, null, 2)), [value]);
@@ -228,7 +242,7 @@ function JsonField({ node, value, onChange }: { node: LeafNode; value: Json; onC
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   section: { borderRadius: shape.md, backgroundColor: color.surfaceContainerLow, borderWidth: 1, borderColor: color.outlineVariant, marginTop: space.sm, overflow: 'hidden' },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: space.sm, minHeight: TARGET, paddingHorizontal: space.md },
   sectionBody: { paddingHorizontal: space.md, paddingBottom: space.md },
@@ -244,4 +258,4 @@ const s = StyleSheet.create({
   sheet: { backgroundColor: color.surfaceContainerHigh, borderTopLeftRadius: shape.xl, borderTopRightRadius: shape.xl, padding: space.lg },
   grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: color.outline, marginBottom: space.md },
   option: { minHeight: TARGET, flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.md, borderRadius: shape.md },
-});
+}));

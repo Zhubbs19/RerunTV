@@ -1,16 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { Button, Card, Chip, Empty, RepeatButton, Segmented, SectionHeader } from '../../components/ui';
 import { NowPlaying, Screen, useNow } from '../../components/Screen';
 import { useBox } from '../../lib/session';
 import { useLayout } from '../../lib/useLayout';
 import { canSkipBreak, formatChannelNumber, formatCountdown, modeLabel } from '../../lib/pure';
-import { color, shape, space, type as t } from '../../theme';
+import { makeStyles, shape, space, useTheme } from '../../theme';
 
 type Panel = 'channels' | 'keypad' | 'dpad';
 
 function Row({ children }: { children: ReactNode }) {
+  const s = useStyles();
   return <View style={s.row}>{children}</View>;
 }
 
@@ -21,6 +22,8 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 export default function RemoteScreen() {
+  const { color, type: t } = useTheme();
+  const s = useStyles();
   const { state, channels, press, tune, client, run, refreshChannels, showToast } = useBox();
   const now = useNow();
   const layout = useLayout();
@@ -208,6 +211,8 @@ export default function RemoteScreen() {
 
 // Two big buttons stacked like the rocker on a real remote.
 function Rocker({ label, up, down, upLabel, downLabel, readout, meter }: { label: string; up(): void; down(): void; upLabel: string; downLabel: string; readout?: string; meter?: number }) {
+  const { type: t } = useTheme();
+  const s = useStyles();
   return (
     <View style={s.rocker}>
       <Text style={t.label}>{label}</Text>
@@ -223,7 +228,7 @@ function Rocker({ label, up, down, upLabel, downLabel, readout, meter }: { label
   );
 }
 
-const s = StyleSheet.create({
+const useStyles = makeStyles((color) => ({
   columns: { flexDirection: 'row', gap: space.lg, alignItems: 'flex-start' },
   column: { flex: 1 },
   row: { flexDirection: 'row', gap: space.sm, marginBottom: space.md },
@@ -237,4 +242,4 @@ const s = StyleSheet.create({
   dpad: { alignItems: 'center', gap: space.sm },
   dpadRow: { flexDirection: 'row', gap: space.sm, justifyContent: 'center' },
   dpadKey: { width: 84, height: 84, borderRadius: shape.xl },
-});
+}));

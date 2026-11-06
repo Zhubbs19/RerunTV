@@ -260,6 +260,10 @@ export const S = {
   // phone can report what actually happened instead of assuming success —
   // the HTTP route that took the patch has already answered by then.
   lastCompanionSettingsResult: null,
+  // The box theme as the phone companion sees it: { id, ui, label, colors }
+  // (display/companion-theme.js), set by applyTheme (themes.js) and sent
+  // with every pushRemoteState so the phone's colours follow the box.
+  companionTheme: null,
 };
 
 export const REDUCE_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
