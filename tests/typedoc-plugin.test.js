@@ -42,3 +42,11 @@ test('module loads are not documented as constants', async () => {
   ]).statements.map((s) => s.declarationList.declarations[0].initializer);
   assert.deepEqual(inits.map((i) => isModuleLoad(i)), [true, true, true, false]);
 });
+
+test('guide and design doc pages get plain file names GitHub Pages can deploy', async () => {
+  const [{ documentSlug }] = await load();
+  assert.equal(documentSlug(String.raw`docs\design\05-command-layer-and-sync`), 'design-05-command-layer-and-sync');
+  assert.equal(documentSlug('docs/design/14-settings'), 'design-14-settings');
+  assert.equal(documentSlug('PLUGIN_DEVELOPMENT'), 'plugin-development');
+  assert.equal(documentSlug('CLAUDE'), 'claude');
+});

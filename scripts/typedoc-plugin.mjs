@@ -15,7 +15,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import {
-  Comment, CommentTag, Converter, JSX, ReflectionKind, RendererEvent, TypeScript as ts,
+  Comment, CommentTag, Converter, JSX, KindRouter, ReflectionKind, RendererEvent, TypeScript as ts,
 } from 'typedoc';
 
 const require = createRequire(import.meta.url);
@@ -147,6 +147,16 @@ function dropDividers(owner) {
 }
 
 /**
+ * A plain, URL-safe page name for a guide or design doc, from the name TypeDoc gave it (its path
+ * without `.md`): `docs\design\05-command-layer-and-sync` becomes `design-05-command-layer-and-sync`.
+ * @param {string} name The document's original name.
+ * @returns {string} Lowercase letters, digits and dashes.
+ */
+export function documentSlug(name) {
+  return name.replace(/^docs[\\/]/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'document';
+}
+
+/**
  * Whether a top-level statement is exported with the `export` keyword.
  * @param {object} stmt A TypeScript statement node.
  * @returns {boolean} True when it carries `export`.
@@ -176,6 +186,21 @@ export function load(app) {
   const exportLocal = new Map(); // file -> Map exported name -> local name
   const internalIds = new Set();
   const headerById = new Map(); // module reflection id -> its header comment's text
+  const docSlugs = new Map(); // document reflection id -> its page's file name, from its path
+
+  /** TypeDoc's default "kind" layout, with document pages named from their paths. */
+  class RerunRouter extends KindRouter {
+    /**
+     * The page name for a reflection, before TypeDoc adds `.html` and settles clashes.
+     * @param {object} reflection The reflection getting a page.
+     * @returns {string} The page's path inside the output folder, without extension.
+     */
+    getIdealBaseName(reflection) {
+      const slug = docSlugs.get(reflection.id);
+      return slug ? `documents/${slug}` : super.getIdealBaseName(reflection);
+    }
+  }
+  app.renderer.defineRouter('rerun', RerunRouter);
 
   // ---------- Converting ----------
   app.converter.on(Converter.EVENT_CREATE_DECLARATION, (context, reflection) => {
@@ -241,9 +266,12 @@ export function load(app) {
         }
       }
     }
-    // Guides and design docs: titled by their own first heading, in two groups.
+    // Guides and design docs: titled by their own first heading, in two groups. Their pages keep
+    // a plain file name from the document's path (see RerunRouter), since a title can hold
+    // characters (an em dash, commas) that GitHub Pages fails to deploy in a file name.
     for (const doc of context.project.getReflectionsByKind(ReflectionKind.Document)) {
       const isDesign = /design/.test(doc.name);
+      docSlugs.set(doc.id, documentSlug(doc.name));
       const text = Comment.combineDisplayParts(doc.content);
       const heading = (text.match(/^#\s+(.+)$/m) || [])[1];
       if (heading) doc.name = heading.replace(/[`*_]/g, '').trim();

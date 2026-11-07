@@ -72,6 +72,7 @@ async function main() {
     favicon: path.join(root, 'docs', 'typedoc', 'favicon.png'),
     ignoredHighlightLanguages: ['mermaid'],
     highlightLanguages: ['javascript', 'typescript', 'json', 'jsonc', 'bash', 'powershell', 'shell', 'html', 'css', 'diff', 'jsx', 'kotlin', 'yaml', 'markdown', 'text'],
+    router: 'rerun', // scripts/typedoc-plugin.mjs: document pages named from their paths
     navigation: { includeCategories: false, includeGroups: true, includeFolders: true },
     hideGenerator: false,
     logLevel: LogLevel.Info,
